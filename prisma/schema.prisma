@@ -1343,6 +1343,11 @@ model Group {
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   players Player[]
   matches Match[]
+  /**
+   * The weekly pairs this flight puts up, when the flight is a league club.
+   * Empty for every ordinary flight, which is what a flight normally is.
+   */
+  sides   Team[]  @relation("ClubSide")
 
   @@index([eventId])
   // One carrier per round, and the lookup is now this pair rather than a name.
@@ -1814,36 +1819,42 @@ model Team {
   scorecards TeamScorecard[]
 
   /**
-   * The club team this side plays FOR, in a league that has two levels.
+   * The CLUB this side plays for, in a league that has two levels.
    *
    * A `Team` here is the side that PLAYS a round — two in a four-ball, four in
    * a scramble — and `sideSizeRange` caps every format at four. An interclub
-   * league is a level above that: twelve club teams with a roster of ten or
-   * more, each NOMINATING six pairs a week, and the pairs may differ week to
-   * week.
+   * league is a level above that: club teams with a roster of ten or more,
+   * each NOMINATING pairs for the week, and the pairs may differ week to week.
    *
-   * So a club team is a `Team` with no stage — it plays no single round and
-   * holds the whole roster — and each week's pair is a `Team` on that week's
-   * stage pointing back at it. A team-versus-team MEETING is then derived
-   * rather than stored: the matches in one round whose two sides share a pair
-   * of parents ARE that meeting. That is what keeps a six-match tie from
-   * needing a model of its own, and keeps every existing format untouched.
+   * THE CLUB IS A FLIGHT. This first pointed at a stage-less `Team` standing
+   * in for the club, which was a parallel model — a `Group` already IS that
+   * thing. It is named, it belongs to the tournament rather than to any one
+   * round, its roster is `Player.groupId`, and it carries an optional
+   * `captainId` and `viceCaptainId` that the organizer appoints in flights
+   * setup. `setFlightCaptain` already refuses anybody who is not a member of
+   * the flight, and a captain already gets a scoped read of their own flight's
+   * attendance and nobody else's.
    *
-   * Null for every side that is not in such a league, which is all of them
-   * today.
+   * Not every flight has a captain and not every flight is a club — which is
+   * why `captainId` is nullable and this is too. A league is a tournament
+   * whose flights are clubs.
+   *
+   * A team-versus-team MEETING is derived rather than stored: the matches in
+   * one round whose two sides play for different clubs ARE that meeting. That
+   * keeps a six-match tie from needing a model of its own, and keeps every
+   * existing format untouched.
    *
    * SetNull rather than Cascade, and the distinction is load-bearing: deleting
-   * a club team must not delete the weekly pairs, because those pairs hold the
-   * matches and the scorecards of rounds that were actually played. Cascading
-   * would erase a season to tidy up a name.
+   * a flight must not delete the weekly pairs, because those hold the matches
+   * and the scorecards of rounds that were actually played. Cascading would
+   * erase a season to tidy up a flight.
    */
-  parentTeamId String?
-  parent       Team?   @relation("TeamParent", fields: [parentTeamId], references: [id], onDelete: SetNull)
-  sides        Team[]  @relation("TeamParent")
+  clubGroupId String?
+  club        Group?  @relation("ClubSide", fields: [clubGroupId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([stageId])
-  @@index([parentTeamId])
+  @@index([clubGroupId])
 }
 
 model TeamMember {

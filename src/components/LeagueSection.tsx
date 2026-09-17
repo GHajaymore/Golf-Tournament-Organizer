@@ -1,0 +1,82 @@
+import { prisma } from "@/lib/db";
+import { flightsIn, nominationsFor } from "@/lib/services/league-nomination";
+import { leagueMeetings, leagueTable } from "@/lib/services/league";
+import {
+  isLeaguePointsSystem,
+  LEAGUE_POINTS_LABEL,
+  type LeaguePointsSystem,
+} from "@/lib/domain/league-meeting";
+import { PairBuilder } from "@/components/PairBuilder";
+import { LeagueMeetings } from "@/components/LeagueMeetings";
+import { LeagueTable } from "@/components/LeagueTable";
+
+/**
+ * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
+ *
+ * Three things a captain and an organizer want on a Thursday, in the order
+ * they want them: this week's team sheets, this week's meetings, and where the
+ * clubs stand after six weeks.
+ *
+ * THE CLUB IS A FLIGHT. `Group` already is what a league club is: named,
+ * belonging to the tournament rather than a round, its roster is
+ * `Player.groupId`, and it carries the optional captain the organizer appoints
+ * in flights setup. A league is a tournament whose flights are clubs.
+ */
+export async function LeagueSection({
+  eventId,
+  stageId,
+}: {
+  eventId: string;
+  stageId: string;
+}) {
+  const clubs = await flightsIn(eventId);
+  if (clubs.length === 0) return null;
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { leaguePoints: true, leagueMatchBonus: true },
+  });
+
+  /**
+   * A league that has not chosen a system is scored on match play, which is
+   * the plainest of the four and the one a club means when it says "a point a
+   * win". Nothing is guessed from the numbers.
+   */
+  const system: LeaguePointsSystem = isLeaguePointsSystem(event?.leaguePoints)
+    ? event.leaguePoints
+    : "match";
+  const matchBonus = event?.leagueMatchBonus ?? 2;
+
+  const [meetings, table, nominations] = await Promise.all([
+    leagueMeetings(eventId, stageId, system, matchBonus),
+    leagueTable(eventId, system, matchBonus),
+    Promise.all(clubs.map((c) => nominationsFor(eventId, stageId, c.id))),
+  ]);
+
+  return (
+    <section style={{ marginTop: 28 }}>
+      <div className="page-kicker">League</div>
+      <h2 className="page-title" style={{ fontSize: 20, margin: "4px 0 0" }}>
+        Clubs, pairs and meetings
+      </h2>
+      <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+        {LEAGUE_POINTS_LABEL[system]}
+      </p>
+
+      <h3 style={{ fontSize: 15, margin: "20px 0 10px" }}>This week&rsquo;s team sheets</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {nominations
+          .filter((n): n is NonNullable<typeof n> => n !== null)
+          .map((club) => (
+            <PairBuilder key={club.clubId} club={club} stageId={stageId} />
+          ))}
+      </div>
+
+      <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>This week&rsquo;s meetings</h3>
+      <LeagueMeetings meetings={meetings} system={system} matchBonus={matchBonus} />
+
+      <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>League table</h3>
+      <LeagueTable rows={table} pointsLabel="Points" />
+    </section>
+  );
+}

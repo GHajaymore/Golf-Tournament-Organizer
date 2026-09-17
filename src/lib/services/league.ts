@@ -15,16 +15,22 @@ import type { HoleResult } from "../domain/types";
 /**
  * A WEEK OF AN INTERCLUB LEAGUE, READ OFF THE ROWS.
  *
- * Twelve club teams, six four-balls each, shotgun across eighteen holes, round
- * robin. The golf is ordinary and already worked — this only finds which pairs
- * met, scores each four-ball the way the app scores every other one, and adds
- * the results up to the clubs.
+ * Club teams, each fielding pairs, every pair playing a four-ball against an
+ * opposing pair — several meetings at once on a shotgun, round robin over a
+ * season. The golf is ordinary and already worked: this finds which pairs met,
+ * scores each four-ball the way the app scores every other one, and adds the
+ * results up to the clubs.
  *
- * THE MEETING IS DERIVED. `Team.parentTeamId` says which club a pair plays
- * for, so two pairs on one round whose parents differ ARE a meeting. Nothing
- * stores a tie, which is why six pairings need no model of their own and why
- * a club can nominate different pairs every week without anything being
- * rebuilt.
+ * THE CLUB IS A FLIGHT. `Group` is already the thing a club team is — named,
+ * belonging to the tournament rather than a round, its roster is
+ * `Player.groupId`, and it carries the optional captain the organizer appoints
+ * in flights setup. `Team.clubGroupId` says which flight a weekly pair plays
+ * for.
+ *
+ * THE MEETING IS DERIVED. Two pairs on one round playing for different clubs
+ * ARE a meeting. Nothing stores a tie, which is why six pairings need no model
+ * of their own and why a club can nominate different pairs every week without
+ * anything being rebuilt.
  *
  * SCORED THROUGH THE SAME FUNCTIONS AS EVERY OTHER FOUR-BALL —
  * `aggregateTeamCard` for each side's better ball, `teamMatchHoles` for who
@@ -36,20 +42,20 @@ export interface LeaguePairing {
   /** The two sides, as they are named on the sheet. */
   aName: string;
   bName: string;
-  /** The clubs they play for. */
-  parentA: string;
-  parentB: string;
-  parentAName: string;
-  parentBName: string;
+  /** The flights they play for. */
+  clubA: string;
+  clubB: string;
+  clubAName: string;
+  clubBName: string;
   /** Per-hole winner, for the running match line. */
   holes: HoleResult[];
 }
 
 export interface LeagueMeeting {
-  teamAId: string;
-  teamBId: string;
-  teamAName: string;
-  teamBName: string;
+  clubAId: string;
+  clubBId: string;
+  clubAName: string;
+  clubBName: string;
   pointsA: number;
   pointsB: number;
   pairings: LeaguePairing[];
@@ -61,7 +67,7 @@ export interface LeagueMeeting {
    * some eight — so `Event.leaguePairs` carries it and zero means nobody has
    * said, in which case nothing is checked and `short` is false.
    *
-   * It exists because being short is a state somebody has to ACT on. A captain
+   * It exists because being short is a state somebody has to ACT on: a captain
    * who has nominated five of six needs telling on Thursday afternoon, not
    * discovering it on the first tee, and no count of the rows can tell five
    * deliberate pairings from six with one missing.
@@ -70,13 +76,6 @@ export interface LeagueMeeting {
   short: boolean;
 }
 
-/**
- * Every club-versus-club meeting in one round, with its pairings scored.
- *
- * Returns an empty list for every round that is not league play, which is
- * almost all of them: a side with no parent is an ordinary four-ball and is
- * skipped rather than read as a club of one.
- */
 export async function leagueMeetings(
   eventId: string,
   stageId: string,
@@ -93,14 +92,12 @@ export async function leagueMeetings(
      * strokes off the wrong stroke index. `course-by-id.test.ts` caught this
      * the first time this file was written, and CLAUDE.md records the same
      * defect having reached the birdie pots once already.
-     *
-     * `cardForStage` then narrows it to the round's own venue and nine.
      */
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findUnique({ where: { id: stageId } }),
     prisma.team.findMany({
-      where: { eventId, stageId, parentTeamId: { not: null } },
-      include: { members: true, parent: { select: { id: true, name: true } } },
+      where: { eventId, stageId, clubGroupId: { not: null } },
+      include: { club: { select: { id: true, name: true } } },
     }),
     prisma.match.findMany({ where: { eventId, stageId } }),
   ]);
@@ -143,41 +140,43 @@ export async function leagueMeetings(
     const a = sideById.get(m.teamAId);
     const b = sideById.get(m.teamBId);
     // Not league play: an individual fixture, or a side with no club.
-    if (!a || !b || !a.parent || !b.parent) continue;
+    if (!a || !b || !a.club || !b.club) continue;
 
     pairings.push({
       aName: a.name,
       bName: b.name,
-      parentA: a.parent.id,
-      parentB: b.parent.id,
-      parentAName: a.parent.name,
-      parentBName: b.parent.name,
+      clubA: a.club.id,
+      clubB: b.club.id,
+      clubAName: a.club.name,
+      clubBName: b.club.name,
+      parentA: a.club.id,
+      parentB: b.club.id,
       holes: teamMatchHoles(cardFor(a.id), cardFor(b.id)),
     });
   }
 
-  const nameOfParent = new Map<string, string>();
+  const nameOfClub = new Map<string, string>();
   for (const p of pairings) {
-    nameOfParent.set(p.parentA, p.parentAName);
-    nameOfParent.set(p.parentB, p.parentBName);
+    nameOfClub.set(p.clubA, p.clubAName);
+    nameOfClub.set(p.clubB, p.clubBName);
   }
 
-  return meetingsIn(pairings).map(([teamAId, teamBId]) => {
+  return meetingsIn(pairings).map(([clubAId, clubBId]) => {
     const own = pairings.filter(
       (p) =>
-        (p.parentA === teamAId && p.parentB === teamBId) ||
-        (p.parentA === teamBId && p.parentB === teamAId),
+        (p.clubA === clubAId && p.clubB === clubBId) ||
+        (p.clubA === clubBId && p.clubB === clubAId),
     );
     const scored = meetingPoints(own, system, matchBonus);
     const by = new Map(scored.map((s) => [s.teamId, s.points]));
     const expectedPairings = event.leaguePairs;
     return {
-      teamAId,
-      teamBId,
-      teamAName: nameOfParent.get(teamAId) ?? "—",
-      teamBName: nameOfParent.get(teamBId) ?? "—",
-      pointsA: by.get(teamAId) ?? 0,
-      pointsB: by.get(teamBId) ?? 0,
+      clubAId,
+      clubBId,
+      clubAName: nameOfClub.get(clubAId) ?? "—",
+      clubBName: nameOfClub.get(clubBId) ?? "—",
+      pointsA: by.get(clubAId) ?? 0,
+      pointsB: by.get(clubBId) ?? 0,
       pairings: own,
       expectedPairings,
       // Zero means the league has not said, so nothing is checked. Only FEWER
@@ -190,7 +189,7 @@ export async function leagueMeetings(
 }
 
 export interface LeagueTableRow {
-  teamId: string;
+  clubId: string;
   name: string;
   points: number;
   /** Meetings this club has actually played, for "after six weeks". */
@@ -206,19 +205,24 @@ export interface LeagueTableRow {
  * after six weeks'". This is that question one level up, for the club rather
  * than the pair.
  *
- * Every playing round, added together. A club that has not met anybody yet
- * sits on nothing rather than being absent, because a league table with a
- * missing team reads as a bug on a clubhouse screen.
+ * Every round, added together. A club that has not met anybody yet sits on
+ * nothing rather than being absent, because a league table with a missing team
+ * reads as a bug on a clubhouse screen.
  */
 export async function leagueTable(
   eventId: string,
   system: LeaguePointsSystem,
   matchBonus?: number,
 ): Promise<LeagueTableRow[]> {
-  const clubs = await prisma.team.findMany({
-    where: { eventId, stageId: null },
+  /**
+   * The clubs are the flights that actually field a side. An ordinary
+   * tournament's flights are not clubs, and listing them would turn every
+   * member-guest into a league of four.
+   */
+  const clubs = await prisma.group.findMany({
+    where: { eventId, sides: { some: {} } },
     select: { id: true, name: true },
-    orderBy: { seed: "asc" },
+    orderBy: { position: "asc" },
   });
   if (clubs.length === 0) return [];
 
@@ -233,16 +237,16 @@ export async function leagueTable(
 
   for (const s of stages) {
     for (const m of await leagueMeetings(eventId, s.id, system, matchBonus)) {
-      points.set(m.teamAId, (points.get(m.teamAId) ?? 0) + m.pointsA);
-      points.set(m.teamBId, (points.get(m.teamBId) ?? 0) + m.pointsB);
-      played.set(m.teamAId, (played.get(m.teamAId) ?? 0) + 1);
-      played.set(m.teamBId, (played.get(m.teamBId) ?? 0) + 1);
+      points.set(m.clubAId, (points.get(m.clubAId) ?? 0) + m.pointsA);
+      points.set(m.clubBId, (points.get(m.clubBId) ?? 0) + m.pointsB);
+      played.set(m.clubAId, (played.get(m.clubAId) ?? 0) + 1);
+      played.set(m.clubBId, (played.get(m.clubBId) ?? 0) + 1);
     }
   }
 
   return clubs
     .map((c) => ({
-      teamId: c.id,
+      clubId: c.id,
       name: c.name,
       points: points.get(c.id) ?? 0,
       played: played.get(c.id) ?? 0,
@@ -251,7 +255,7 @@ export async function leagueTable(
      * Most points first, and a tie stays a tie — the places are worked out by
      * the reader, the same way every other board in this app does it since
      * `placesByValue`. A league table full of halves produces genuine ties,
-     * which is why the real one shows T12 twice.
+     * which is why a real one shows T12 twice.
      */
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
 }

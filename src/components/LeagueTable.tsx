@@ -57,7 +57,7 @@ export function LeagueTable({
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.teamId}>
+            <tr key={r.clubId}>
               <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
               <td style={{ fontWeight: 500 }}>{r.name}</td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>

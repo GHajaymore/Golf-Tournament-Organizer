@@ -15,7 +15,7 @@ import { leagueMeetings, leagueTable } from "@/lib/services/league";
  * WHY THIS IS AN AUDIT TEST AND NOT A UNIT ONE. `league-meeting.test.ts`
  * proves the arithmetic on hand-made cards. This proves the thing that cannot
  * be checked without a database: that six meetings on ONE ROUND are kept
- * apart, that a pair is matched to its club through `parentTeamId`, and that
+ * apart, that a pair is matched to its club through `clubGroupId`, and that
  * the scores come out of the same `aggregateTeamCard` every other four-ball in
  * the app uses.
  *
@@ -87,20 +87,33 @@ beforeAll(async () => {
   });
   stageId = stage.id;
 
-  const group = await prisma.group.create({
-    data: { eventId, name: "A", position: 0 },
-    select: { id: true },
-  });
-
-  // Twelve club teams: no stage, because they hold the roster rather than
-  // playing a round.
+  /**
+   * TWELVE CLUBS, WHICH ARE FLIGHTS.
+   *
+   * A `Group` is already everything a league's club team is — named, belonging
+   * to the tournament rather than a round, its roster is `Player.groupId`, and
+   * it carries the optional captain the organizer appoints in flights setup.
+   * A league is a tournament whose flights are clubs.
+   */
   for (let c = 0; c < CLUBS; c += 1) {
-    const club = await prisma.team.create({
-      data: { eventId, stageId: null, name: `${TAG} club ${c}`, seed: c + 1 },
+    const club = await prisma.group.create({
+      data: { eventId, name: `${TAG} club ${c}`, position: c },
       select: { id: true },
     });
     clubId.push(club.id);
   }
+
+  /**
+   * The fixtures' carrier, which is NOT one of the clubs.
+   *
+   * `Match.groupId` files a fixture; using a club's own flight for it would
+   * make the carrier one of the competing sides and read as a club playing
+   * host to its own matches.
+   */
+  const carrier = await prisma.group.create({
+    data: { eventId, name: `${TAG} fixtures`, position: CLUBS },
+    select: { id: true },
+  });
 
   /**
    * Six meetings: club 0 v 1, 2 v 3, and so on. Each meeting is six four-balls.
@@ -121,7 +134,7 @@ beforeAll(async () => {
             stageId,
             name: `${TAG} m${m} p${p} ${which}`,
             seed: p + 1,
-            parentTeamId: parent,
+            clubGroupId: parent,
           },
           select: { id: true },
         });
@@ -137,7 +150,7 @@ beforeAll(async () => {
               handicap: 0,
               seed: 1,
               status: "confirmed",
-              groupId: group.id,
+              groupId: parent,
             },
             select: { id: true },
           });
@@ -160,7 +173,7 @@ beforeAll(async () => {
         data: {
           eventId,
           stageId,
-          groupId: group.id,
+          groupId: carrier.id,
           round: 1,
           playerAId: "",
           playerBId: "",
@@ -195,7 +208,7 @@ describe("one week of a twelve-club league", () => {
   it("puts six pairings in each meeting", async () => {
     const meetings = await leagueMeetings(eventId, stageId, "match");
     for (const m of meetings) {
-      expect(m.pairings, `${m.teamAName} v ${m.teamBName}`).toHaveLength(PAIRS_PER_CLUB);
+      expect(m.pairings, `${m.clubAName} v ${m.clubBName}`).toHaveLength(PAIRS_PER_CLUB);
     }
   });
 
@@ -215,7 +228,7 @@ describe("one week of a twelve-club league", () => {
 
   it("never pairs a club against itself", async () => {
     const meetings = await leagueMeetings(eventId, stageId, "match");
-    for (const m of meetings) expect(m.teamAId).not.toBe(m.teamBId);
+    for (const m of meetings) expect(m.clubAId).not.toBe(m.clubBId);
   });
 
   it("scores the same pairings differently under another system", async () => {

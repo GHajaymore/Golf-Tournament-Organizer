@@ -45,6 +45,17 @@ export const LEAGUE_POINTS_SYSTEMS = [
 
 export type LeaguePointsSystem = (typeof LEAGUE_POINTS_SYSTEMS)[number];
 
+/**
+ * Whether a stored value names a system this app knows.
+ *
+ * `Event.leaguePoints` is free text and defaults to empty, so a reader has to
+ * ask rather than cast — the same shape `isBracketMode` and `isAttendanceMode`
+ * use, and for the same reason: a column holds whatever was written to it.
+ */
+export function isLeaguePointsSystem(v: unknown): v is LeaguePointsSystem {
+  return (LEAGUE_POINTS_SYSTEMS as readonly string[]).includes(v as string);
+}
+
 export const LEAGUE_POINTS_LABEL: Record<LeaguePointsSystem, string> = {
   match: "Match play — 1 point a win, ½ a half",
   "holes-and-match": "Holes won, plus a bonus for the match",

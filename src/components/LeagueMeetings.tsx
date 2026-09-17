@@ -43,7 +43,7 @@ export function LeagueMeetings({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {meetings.map((m) => (
-        <div key={`${m.teamAId}:${m.teamBId}`} className="card elev-sm">
+        <div key={`${m.clubAId}:${m.clubBId}`} className="card elev-sm">
           <div
             style={{
               display: "flex",
@@ -54,7 +54,7 @@ export function LeagueMeetings({
             }}
           >
             <span className="card-title">
-              {m.teamAName} v {m.teamBName}
+              {m.clubAName} v {m.clubBName}
             </span>
             <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
               {m.pointsA.toFixed(2)} &ndash; {m.pointsB.toFixed(2)}
@@ -75,9 +75,9 @@ export function LeagueMeetings({
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left" }}>{m.teamAName}</th>
+                  <th style={{ textAlign: "left" }}>{m.clubAName}</th>
                   <th style={{ textAlign: "center", width: 96 }}>Match</th>
-                  <th style={{ textAlign: "left" }}>{m.teamBName}</th>
+                  <th style={{ textAlign: "left" }}>{m.clubBName}</th>
                   <th style={{ textAlign: "right", width: 96 }}>Points</th>
                 </tr>
               </thead>
@@ -91,7 +91,7 @@ export function LeagueMeetings({
                    * club heads this table. Reading the points straight off
                    * would credit the wrong club on half the pairings.
                    */
-                  const homeFirst = p.parentA === m.teamAId;
+                  const homeFirst = p.clubA === m.clubAId;
                   const homeName = homeFirst ? p.aName : p.bName;
                   const awayName = homeFirst ? p.bName : p.aName;
                   const homePts = homeFirst ? a : b;

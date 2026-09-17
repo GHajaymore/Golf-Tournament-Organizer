@@ -25,8 +25,8 @@ async function requireStaff(): Promise<string> {
  * NOMINATING A PAIR FOR A WEEK.
  *
  * A club team holds the roster; each week it puts up pairs, and a pair is an
- * ordinary `Team` on that week's round with `parentTeamId` pointing back at the
- * club. Nothing else about the app changes — the pair is scored as the
+ * ordinary `Team` on that week's round with `clubGroupId` pointing at the
+ * flight that is the club. Nothing else about the app changes — the pair is scored as the
  * four-ball side it is.
  *
  * SELECTION IS NOT AVAILABILITY. `RoundAttendance` stays the player's answer to
@@ -38,9 +38,15 @@ async function requireStaff(): Promise<string> {
 
 export type LeagueResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * The club is a FLIGHT — see `Team.clubGroupId`. A `Group` is already named,
+ * belongs to the tournament rather than a round, holds its roster through
+ * `Player.groupId`, and carries the optional captain the organizer appoints in
+ * flights setup.
+ */
 async function clubInEvent(eventId: string, clubId: string) {
-  return prisma.team.findFirst({
-    where: { id: clubId, eventId, stageId: null },
+  return prisma.group.findFirst({
+    where: { id: clubId, eventId },
     select: { id: true, name: true },
   });
 }
@@ -98,17 +104,22 @@ export async function nominatePair(
   }
 
   /**
-   * ON THE ROSTER, AND ON THIS CLUB'S. Without it a captain could nominate a
-   * player from the club they are about to play, which is a lineup no league
-   * would recognise — and the check has to be against the CLUB rather than the
-   * event, because everybody in a league is in the same event.
+   * ON THIS CLUB'S ROSTER, which for a flight is `Player.groupId`.
+   *
+   * Without it a captain could nominate a player from the club they are about
+   * to play, which is a lineup no league would recognise — and the check has
+   * to be against the CLUB rather than the event, because everybody in a
+   * league is in the same event.
+   *
+   * Same rule `setFlightCaptain` already enforces for appointing one: "the
+   * captain has to be a member of the flight".
    */
-  const onRoster = await prisma.teamMember.findMany({
-    where: { teamId: clubId, playerId: { in: clean } },
-    select: { playerId: true },
+  const onRoster = await prisma.player.findMany({
+    where: { id: { in: clean }, groupId: clubId },
+    select: { id: true },
   });
   if (onRoster.length !== clean.length) {
-    return { ok: false, error: `Both players must be on ${club.name}'s roster.` };
+    return { ok: false, error: `Both players must be in ${club.name}.` };
   }
 
   /**
@@ -119,7 +130,7 @@ export async function nominatePair(
   const already = await prisma.teamMember.findFirst({
     where: {
       playerId: { in: clean },
-      team: { eventId, stageId, parentTeamId: { not: null } },
+      team: { eventId, stageId, clubGroupId: { not: null } },
     },
     select: { playerId: true },
   });
@@ -140,7 +151,7 @@ export async function nominatePair(
   });
   const byId = new Map(players.map((p) => [p.id, p.name]));
   const seed = await prisma.team.aggregate({
-    where: { eventId, stageId, parentTeamId: clubId },
+    where: { eventId, stageId, clubGroupId: clubId },
     _max: { seed: true },
   });
 
@@ -148,7 +159,7 @@ export async function nominatePair(
     data: {
       eventId,
       stageId,
-      parentTeamId: clubId,
+      clubGroupId: clubId,
       // Named for the players, which is what a captain and a starter both read.
       name: clean.map((id) => byId.get(id) ?? "?").join(" / "),
       seed: (seed._max.seed ?? 0) + 1,
@@ -176,7 +187,7 @@ export async function withdrawPair(pairId: string): Promise<LeagueResult> {
   const eventId = await requireStaff();
 
   const pair = await prisma.team.findFirst({
-    where: { id: pairId, eventId, parentTeamId: { not: null } },
+    where: { id: pairId, eventId, clubGroupId: { not: null } },
     select: { id: true, name: true },
   });
   if (!pair) return { ok: false, error: "That pair is not in this league." };
