@@ -239,6 +239,47 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
         }
       }
     }
+
+    /**
+     * AND A PLAIN MEMBER REACHES THEIR OWN CLUB'S TOURNAMENTS.
+     *
+     * `OrganizationMember.role` defaults to "member", and the query above asks
+     * only for owners and admins — so somebody who belongs to the club could
+     * open NOTHING unless an organizer had added them to a specific tournament
+     * by hand. A member browsing what their club is running, and entering
+     * themselves, was not possible at all.
+     *
+     * That is the shape every club system has: you sign in, you see your
+     * club's events with their status, you put your name down. Golf Genius and
+     * ForeTees both work that way, and it is what Ajay asked for on
+     * 2026-09-17.
+     *
+     * THE ROLE IS `player`, AND THAT IS SAFE BECAUSE WRITES ARE GATED ON THE
+     * FIELD, NOT ON THE ROLE. `assertOwnCard` resolves `ownPlayerIds(eventId,
+     * email)` and refuses anything outside it; a member who is not entered has
+     * no `Player` row, so that set is empty and every card write is refused.
+     * The same shape guards the rest — `assertEventPlayer` insists the player
+     * is in THIS tournament. Being able to watch is not being able to play,
+     * and the app already drew that line where it belongs.
+     *
+     * It never upgrades: `RANK` keeps an explicit Account role, so a member who
+     * is also this event's assistant stays an assistant.
+     */
+    const memberOrgs = await prisma.organizationMember.findMany({
+      where: { userId: user.id },
+      select: { organizationId: true },
+    });
+    if (memberOrgs.length) {
+      const clubEvents = await prisma.event.findMany({
+        where: { organizationId: { in: memberOrgs.map((m) => m.organizationId) } },
+        select: { id: true },
+      });
+      for (const e of clubEvents) {
+        if (!byEvent.has(e.id)) {
+          byEvent.set(e.id, { eventId: e.id, role: "player", source: "organization" });
+        }
+      }
+    }
   }
 
   return [...byEvent.values()];
