@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { cardForStage } from "./course-resolution";
+import { COURSE_REF, cardForStage } from "./course-resolution";
 import { resolveCourse } from "../courses";
 import { aggregateTeamCard, teamMatchHoles, type TeamMemberCard } from "../domain/team";
 import { effectiveCountBest } from "./teams";
@@ -69,7 +69,19 @@ export async function leagueMeetings(
   matchBonus?: number,
 ): Promise<LeagueMeeting[]> {
   const [event, stage, sides, matches] = await Promise.all([
-    prisma.event.findUnique({ where: { id: eventId } }),
+    /**
+     * `COURSE_REF`, because a league is the thing that rotates venues.
+     *
+     * Without it `resolveCourse` never sees the linked course rows and falls
+     * back to the free-text name on the event — so a league playing week three
+     * at another club would be scored against the home card, allocating
+     * strokes off the wrong stroke index. `course-by-id.test.ts` caught this
+     * the first time this file was written, and CLAUDE.md records the same
+     * defect having reached the birdie pots once already.
+     *
+     * `cardForStage` then narrows it to the round's own venue and nine.
+     */
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findUnique({ where: { id: stageId } }),
     prisma.team.findMany({
       where: { eventId, stageId, parentTeamId: { not: null } },
