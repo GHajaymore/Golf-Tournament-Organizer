@@ -174,7 +174,25 @@ async function build(label, steps) {
         // Chapman shipped a pre-WHS flat 50% for months because every fixture
         // checking it used evenly-matched pairs.
         format: steps.teamFormat ?? (match ? "Match Play" : "Stroke Play"),
-        holes: 18, scoringBasis: "gross", handicapAllowance: 100,
+        /**
+         * NINE HOLES WHEN ASKED, and eighteen otherwise.
+         *
+         * `holes` is 9 or 18 and nothing else — `holesPlayed` normalises it —
+         * but the nine-hole path is a whole second set of arithmetic rather
+         * than a smaller loop: `indexForHoles` HALVES an eighteen-hole index
+         * before the slope conversion, `allocationHoles` spreads strokes over
+         * the holes actually played, and `cardForStage` narrows the pars and
+         * the stroke index to the nine and re-ranks them.
+         *
+         * `nine` says WHICH one. "back" on purpose: "front" is the first nine
+         * of the stored card, so a reader that forgot to narrow at all would
+         * still land on roughly the right holes and look correct. The back
+         * nine is holes 10–18 of an eighteen-hole card, which nothing gets
+         * right by accident.
+         */
+        holes: steps.holes ?? 18,
+        ...(steps.holes === 9 ? { nine: steps.nine ?? "back" } : {}),
+        scoringBasis: "gross", handicapAllowance: 100,
       },
     });
   }
@@ -470,6 +488,38 @@ const STAGES = [
     status: "live", secondStage: "Single Match Stage",
   }],
   /**
+   * A NINE-HOLE ROUND, which NOTHING in this repository has ever rendered.
+   *
+   * `holes: 9` appears in zero stages — not in this walk, and not in the
+   * seeded demo that `smoke-routes.mjs` covers, whose seven stages are all
+   * eighteen. So every screen in the app has only ever been seen at eighteen
+   * holes, and the entire nine-hole path is rendered for the first time here.
+   *
+   * It is not a smaller loop. It is a second set of arithmetic:
+   *
+   *     indexForHoles     HALVES an eighteen-hole index before the slope
+   *                       conversion, because a Handicap Index describes
+   *                       eighteen holes
+   *     allocationHoles   spreads strokes over the holes actually played
+   *     cardForStage      narrows pars and stroke index to the nine, and
+   *                       re-ranks the index within it
+   *
+   * `handicap.ts` records what happens when one of those is missed: "a
+   * nine-hole four-ball was scored with eighteen holes' worth of strokes",
+   * because a call site wrote a hard 18. CLAUDE.md names "a nine-hole round
+   * inside an eighteen-hole tournament" as one of the ~80 defects the
+   * 2026-08-12 audit found, which is the same shape from the other end.
+   *
+   * THE BACK NINE, deliberately. "front" is the first nine of the stored
+   * card, so a reader that forgot to narrow at all would still land on
+   * roughly the right holes and look correct. Holes 10–18 are what nothing
+   * gets right by accident.
+   */
+  ["nine-hole", {
+    rounds: true, card: true, players: 3, flights: true, cards: true,
+    status: "live", holes: 9, nine: "back",
+  }],
+  /**
    * TEAM ROUNDS, in their two structural shapes.
    *
    * Four-Ball is a side of TWO aggregating separate balls; Scramble is a side
@@ -594,6 +644,31 @@ async function main() {
           bad.push(`/stages answered ${rounds.status} as staff, so the second stage was never checked`);
         } else if (!(await rounds.text()).includes(`${MARK} knockout`)) {
           bad.push("the second stage never rendered on /stages — it was not built");
+        }
+      }
+
+      /**
+       * AND A NINE-HOLE ROUND HAS TO HAVE RENDERED AS ONE.
+       *
+       * The sharpest version of "the output cannot tell covered from skipped"
+       * in this file. Every other control here catches a row that failed to
+       * BUILD; this catches a row that built correctly and was then rendered
+       * as something else. A nine-hole round shown as eighteen returns 200,
+       * carries its heading, and has no NaN in it — it is simply wrong about
+       * the golf, which is exactly the class of defect the nine-hole path has
+       * a history of.
+       *
+       * "Which nine" is the tell because `StagesClient` renders that whole
+       * field behind `holes === 9`. An eighteen-hole round cannot produce the
+       * string, so it cannot pass by accident — and a screen that ignored
+       * `stage.holes` would not produce it either.
+       */
+      if (steps.holes === 9) {
+        const rounds = await get(`${BASE}/stages`, { headers: { cookie: staff }, redirect: "manual" });
+        if (rounds.status !== 200) {
+          bad.push(`/stages answered ${rounds.status} as staff, so the nine was never checked`);
+        } else if (!(await rounds.text()).includes("Which nine")) {
+          bad.push("a nine-hole round did not render as one — /stages showed no 'Which nine'");
         }
       }
 
