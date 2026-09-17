@@ -114,7 +114,7 @@ export default async function TeamsPage({
        * Renders nothing at all unless the tournament has club teams, so every
        * ordinary four-ball event sees exactly what it saw before.
        */}
-      <LeagueSection eventId={session.eventId} stageId={active.id} />
+      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />
     </>
   );
 }

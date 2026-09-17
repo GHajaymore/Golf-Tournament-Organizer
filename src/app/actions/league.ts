@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { logAudit } from "@/lib/services/action-shared";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 
 /**
  * Organizer or assistant, on the active tournament.
@@ -204,6 +206,75 @@ export async function withdrawPair(pairId: string): Promise<LeagueResult> {
   }
 
   await prisma.team.delete({ where: { id: pairId } });
+  revalidatePath("/teams");
+  return { ok: true };
+}
+
+/** The most pairs a meeting may declare. Past this it is a typo, not a league. */
+const MAX_LEAGUE_PAIRS = 24;
+/** The largest match bonus accepted. A bonus bigger than a whole match's holes is a typo. */
+const MAX_MATCH_BONUS = 18;
+
+/**
+ * THE LEAGUE'S OWN RULES: how results become points, and how many pairs a
+ * club puts up.
+ *
+ * Organizer only, as every other scoring setting is — an assistant runs the
+ * night, the organizer decides what it is worth.
+ *
+ * NOT LOCKED, and deliberately. The table is derived from the cards on every
+ * read, so changing the system re-scores every week already played rather
+ * than corrupting anything; a league that realises in week three it meant
+ * "holes plus a bonus" must be able to say so. Because it rewrites history on
+ * the screen, the change is written to the audit log.
+ *
+ * An empty system switches the league OFF: the Teams screen then shows no
+ * league at all, which is what every tournament with flights but no clubs
+ * needs. The pairs and cards already written are left alone.
+ *
+ * Validated here rather than trusted: the form's select and number inputs are
+ * a convenience, and this is a public endpoint.
+ */
+export async function setLeagueSettings(input: {
+  points: unknown;
+  matchBonus: unknown;
+  pairs: unknown;
+}): Promise<LeagueResult> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  if (session.role !== "admin") throw new Error("Organizer access required");
+  const eventId = session.eventId;
+
+  const points =
+    input.points === "" ? "" : isLeaguePointsSystem(input.points) ? input.points : null;
+  if (points === null) {
+    return { ok: false, error: "Pick one of the listed scoring systems." };
+  }
+  const bonus = input.matchBonus;
+  if (typeof bonus !== "number" || !Number.isInteger(bonus) || bonus < 0 || bonus > MAX_MATCH_BONUS) {
+    return { ok: false, error: `The match bonus is a whole number from 0 to ${MAX_MATCH_BONUS}.` };
+  }
+  const pairs = input.pairs;
+  if (typeof pairs !== "number" || !Number.isInteger(pairs) || pairs < 0 || pairs > MAX_LEAGUE_PAIRS) {
+    return { ok: false, error: `Pairs per club is a whole number from 0 to ${MAX_LEAGUE_PAIRS}.` };
+  }
+
+  const before = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true },
+  });
+  if (!before) return { ok: false, error: "Tournament not found." };
+
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { leaguePoints: points, leagueMatchBonus: bonus, leaguePairs: pairs },
+  });
+  await logAudit(
+    eventId,
+    "league-settings",
+    `League scoring ${before.leaguePoints || "off"} (bonus ${before.leagueMatchBonus}, pairs ${before.leaguePairs})` +
+      ` -> ${points || "off"} (bonus ${bonus}, pairs ${pairs})`,
+  );
   revalidatePath("/teams");
   return { ok: true };
 }
