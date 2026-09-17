@@ -17,6 +17,22 @@ import type { Role } from "../roles";
 
 const RANK: Record<Role, number> = { player: 0, assistant: 1, admin: 2 };
 
+/**
+ * Who belongs to the ORGANIZATION without belonging to the CLUB.
+ *
+ * `OrganizationMember.role` defaults to "member" and has meant owner, admin or
+ * member until now. A charity day needs a fourth kind of person: somebody
+ * entered in one event who is not a member of anything — a sponsor, a
+ * non-golfing guest, a table at the quiz night. They get a row so the club can
+ * find them, and they must not thereby see the men's league.
+ *
+ * Listed rather than inferred, so the question is asked of a NAME rather than
+ * of a rank. A role nobody has thought about — a typo, a value a later feature
+ * adds — reads as a member and sees the club, which is the failure that shows
+ * up immediately rather than the one that quietly leaks a calendar.
+ */
+export const ORG_GUEST_ROLES = ["guest"] as const;
+
 export type RoleSource = "event" | "organization";
 
 export interface EffectiveAccess {
@@ -241,7 +257,25 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
     }
 
     /**
-     * AND A PLAIN MEMBER REACHES THEIR OWN CLUB'S TOURNAMENTS.
+     * AND A PLAIN MEMBER REACHES THEIR OWN CLUB'S TOURNAMENTS — BUT A GUEST
+     * DOES NOT.
+     *
+     * The exception is the charity day, and it is a real one. A club running
+     * one enters people who are not golfers and not members: sponsors, a
+     * quiz-night table, somebody's employer. They belong to that ONE event and
+     * the club has every reason not to show them the men's league, the
+     * committee's calendar, or the membership of every other tournament it
+     * runs.
+     *
+     * So club-wide visibility follows MEMBERSHIP, not mere presence in the
+     * organization. A guest keeps whatever `Account` rows they were given, so
+     * they still reach the event they were invited to and nothing else — which
+     * is the behaviour everyone had before this block existed.
+     *
+     * "Upgrade them to a member" is one field: `role` from `guest` to
+     * `member`, and the whole club opens. That is the reversible direction,
+     * which is the one to build.
+     *
      *
      * `OrganizationMember.role` defaults to "member", and the query above asks
      * only for owners and admins — so somebody who belongs to the club could
@@ -266,7 +300,7 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
      * is also this event's assistant stays an assistant.
      */
     const memberOrgs = await prisma.organizationMember.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, role: { notIn: [...ORG_GUEST_ROLES] } },
       select: { organizationId: true },
     });
     if (memberOrgs.length) {

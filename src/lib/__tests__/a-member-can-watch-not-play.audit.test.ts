@@ -49,9 +49,11 @@ const email = {
   entered: `${TAG}-entered@example.invalid`,
   watching: `${TAG}-watching@example.invalid`,
   stranger: `${TAG}-stranger@example.invalid`,
+  guest: `${TAG}-guest@example.invalid`,
 };
 
 let eventId = "";
+let charityEventId = "";
 let enteredPlayerId = "";
 
 async function cleanup() {
@@ -109,6 +111,44 @@ beforeAll(async () => {
     },
   });
 
+  /**
+   * The charity day, in the SAME club — which is what makes the guest test
+   * mean something. A separate organization would pass on tenancy alone.
+   */
+  const charity = await prisma.event.create({
+    data: {
+      organizationId: org.id,
+      name: `${TAG} charity day`,
+      status: "live",
+      shape: "single",
+      format: "stroke",
+      formationRule: "balanced",
+      dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+      shareToken: randomBytes(12).toString("hex"),
+      registrationToken: randomBytes(8).toString("hex"),
+    },
+    select: { id: true },
+  });
+  charityEventId = charity.id;
+
+  // A sponsor at the charity day: in the organization so the club can find
+  // them, a GUEST so the club's calendar is not theirs to read, and holding an
+  // Account on the one event they were actually invited to.
+  const guestUser = await prisma.user.create({
+    data: {
+      email: email.guest,
+      name: `${TAG} guest`,
+      password: `${randomBytes(8).toString("hex")}:unusable`,
+    },
+    select: { id: true },
+  });
+  await prisma.organizationMember.create({
+    data: { organizationId: org.id, userId: guestUser.id, role: "guest" },
+  });
+  await prisma.account.create({
+    data: { eventId: charityEventId, name: `${TAG} guest`, email: email.guest, role: "player" },
+  });
+
   // Only one of them is actually playing.
   const p = await prisma.player.create({
     data: {
@@ -154,6 +194,45 @@ describe("what club membership alone opens", () => {
      */
     const reachable = await accessibleEvents(email.stranger);
     expect(reachable.map((e) => e.eventId), "no membership, no access").not.toContain(eventId);
+  });
+});
+
+describe("a charity day's guest is not a club member", () => {
+  /**
+   * THE EXCEPTION, AND IT IS A REAL ONE. A club running a charity day enters
+   * people who are not golfers and not members — a sponsor, somebody's
+   * employer, a table at the quiz night. They belong to that ONE event, and
+   * the club has every reason not to show them the men's league or the
+   * membership of everything else it runs.
+   *
+   * Club-wide visibility follows MEMBERSHIP, not presence in the organization.
+   */
+  it("reaches the event they were invited to", async () => {
+    const reachable = await accessibleEvents(email.guest);
+    expect(
+      reachable.map((e) => e.eventId),
+      "an Account on the charity event still works, exactly as before",
+    ).toContain(charityEventId);
+  });
+
+  it("and cannot see the club's other tournaments", async () => {
+    // THE WHOLE POINT. The medal is in the same organization.
+    const reachable = await accessibleEvents(email.guest);
+    expect(
+      reachable.map((e) => e.eventId),
+      "a guest is in the org but not of the club",
+    ).not.toContain(eventId);
+  });
+
+  it("a MEMBER, by contrast, sees both", async () => {
+    /**
+     * The control for the two above. Without it they are satisfied by a rule
+     * that shows nobody anything, and the charity exception would have
+     * silently closed the feature it is an exception to.
+     */
+    const reachable = (await accessibleEvents(email.watching)).map((e) => e.eventId);
+    expect(reachable, "the medal").toContain(eventId);
+    expect(reachable, "and the charity day, which is also the club's").toContain(charityEventId);
   });
 });
 
