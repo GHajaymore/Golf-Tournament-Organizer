@@ -402,6 +402,21 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
         error: "The league has fewer clubs than play-off places. Change the play-offs in League settings.",
       };
     }
+    /**
+     * A LEVEL MEETING IN THE ROUND BEFORE STOPS THIS ONE, and says which —
+     * the sides here depend on who came through it, and nobody has yet. The
+     * organizer records the play-off hole and draws again.
+     */
+    const previous = playoffRound > 0 ? bracket.rounds[playoffRound - 1] : null;
+    if (previous && previous.awaitingHole.length > 0) {
+      const [a, b] = previous.awaitingHole[0];
+      const nameOf = (id: string) => bracket.names[id] ?? "a club";
+      return {
+        ok: false,
+        error: `${nameOf(a)} v ${nameOf(b)} finished level. Record who won the play-off hole, then draw this round.`,
+      };
+    }
+
     const round = bracket.rounds[playoffRound];
     if (!round || round.meetings.some((m) => m === null)) {
       return {
@@ -478,4 +493,127 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
     playoff: roundName,
     unmatched: draws.reduce((n, d) => n + d.unmatched.length, 0),
   };
+}
+
+/**
+ * RECORD WHO WON THE PLAY-OFF HOLE.
+ *
+ * A level play-off meeting is settled on the course, sudden death — Ajay's
+ * decision of 2026-09-18 — and nobody scores a play-off hole into the app, so
+ * somebody has to say who came through. Until they do, `meetingWinner` sends
+ * nobody through and the next round cannot be drawn: the app no longer
+ * invents a winner from the seeding.
+ *
+ * Staff, like every other league write, and changeable — a result typed in
+ * wrongly on a Thursday night has to be correctable on Friday — with every
+ * change written to the audit log.
+ *
+ * REFUSED WHERE THE MEETING IS NOT LEVEL. A play-off hole decides a tie;
+ * recording one on a meeting somebody won outright would overturn a result
+ * that was played for, and nothing on the screen would explain why the
+ * bracket disagreed with the points.
+ */
+export async function setPlayoffHoleWinner(
+  stageId: string,
+  clubAId: string,
+  clubBId: string,
+  winnerId: string,
+  /**
+   * Overturning a meeting somebody WON, rather than settling a level one.
+   *
+   * Ajay, 2026-09-18: wanted, with caution. The caution is here — an override
+   * needs saying so deliberately and needs a reason, and every screen prints
+   * both beside the result — rather than in a rule that quietly allows it.
+   */
+  override?: { reason: string },
+): Promise<LeagueResult> {
+  const eventId = await requireStaff();
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+
+  const clubs = await prisma.group.findMany({
+    where: { id: { in: [clubAId, clubBId] }, eventId, isCarrier: false },
+    select: { id: true, name: true },
+  });
+  if (clubs.length !== 2) return { ok: false, error: "Those clubs are not in this league." };
+
+  /**
+   * The winner, looked up scoped to this tournament rather than compared to
+   * the two ids the caller sent. `audit-idor` asks for exactly this: every row
+   * id an action receives is narrowed to the caller's scope by a query, not by
+   * arithmetic on the arguments.
+   */
+  const winner = await prisma.group.findFirst({
+    where: { id: winnerId, eventId, isCarrier: false },
+    select: { id: true, name: true },
+  });
+  if (!winner || (winner.id !== clubAId && winner.id !== clubBId)) {
+    return { ok: false, error: "The winner has to be one of the two clubs that played." };
+  }
+
+  /**
+   * Read back through the same service the screen reads, so the check and the
+   * display cannot disagree about which meetings are tied.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { leaguePoints: true, leagueMatchBonus: true },
+  });
+  const system = isLeaguePointsSystem(event?.leaguePoints) ? event.leaguePoints : "match";
+  const meeting = (await leagueMeetings(eventId, stageId, system, event?.leagueMatchBonus)).find(
+    (m) =>
+      (m.clubAId === clubAId && m.clubBId === clubBId) ||
+      (m.clubAId === clubBId && m.clubBId === clubAId),
+  );
+  if (!meeting) return { ok: false, error: "Those clubs did not meet in this round." };
+  if (!meeting.complete) return { ok: false, error: "That meeting is still out on the course." };
+
+  /**
+   * A MEETING SOMEBODY WON IS ONLY OVERTURNED DELIBERATELY.
+   *
+   * The points already decided it, so this is the committee setting a played
+   * result aside — a disqualification, an appeal, an ineligible side. It takes
+   * the explicit flag AND a reason, and both are printed beside the result for
+   * members as well as staff. Without the flag it is refused, so a mistyped
+   * play-off hole can never reverse a match.
+   */
+  const level = meeting.pointsA === meeting.pointsB;
+  const reason = (override?.reason ?? "").trim();
+  if (!level && !override) {
+    const won = meeting.pointsA > meeting.pointsB ? meeting.clubAName : meeting.clubBName;
+    return {
+      ok: false,
+      error: `${won} won that meeting outright. Overturning a played result is a committee decision, and needs a reason.`,
+    };
+  }
+  if (!level && reason.length < 3) {
+    return { ok: false, error: "Say why the committee is overturning the result." };
+  }
+  const overrode = !level;
+
+  const [clubLowId, clubHighId] = [clubAId, clubBId].sort();
+  const session = await getSession();
+  const decidedBy = session?.name ?? "";
+  await prisma.leaguePlayoffHole.upsert({
+    where: { stageId_clubLowId_clubHighId: { stageId, clubLowId, clubHighId } },
+    update: { winnerId, overrode, note: reason, decidedBy, decidedAt: new Date() },
+    create: { eventId, stageId, clubLowId, clubHighId, winnerId, overrode, note: reason, decidedBy },
+  });
+
+  const name = clubs.find((c) => c.id === winnerId)?.name ?? "That club";
+  const other = clubs.find((c) => c.id !== winnerId)?.name ?? "the other club";
+  await logAudit(
+    eventId,
+    "league-playoff-hole",
+    overrode
+      ? `${name} through over ${other} — committee overturned the result: ${reason}`
+      : `${name} beat ${other} on the play-off hole`,
+  );
+  revalidatePath("/", "layout");
+  boardChanged(eventId);
+  return { ok: true };
 }

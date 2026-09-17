@@ -44,11 +44,53 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
               </li>
             ))}
           </ul>
+
+          {/* WHAT WAS DECIDED OFF THE COURSE, said where the result is.
+              A play-off hole and a committee override are both decisions the
+              app cannot see happen, and a bracket that quietly disagrees with
+              the points reads as the app getting it wrong. Named, reasoned
+              and attributed — to members as well as staff. */}
+          {round.decisions.length > 0 && (
+            <ul
+              style={{
+                listStyle: "none",
+                margin: "8px 0 0",
+                padding: 0,
+                display: "grid",
+                gap: 4,
+                fontSize: 12,
+              }}
+            >
+              {round.decisions.map((d, i) => (
+                <li key={i} className="text-muted">
+                  {d.overrode ? (
+                    <b style={{ color: "var(--color-accent)" }}>
+                      {name(d.winner)} through — the committee overturned the result
+                    </b>
+                  ) : (
+                    <>{name(d.winner)} won the play-off hole</>
+                  )}
+                  {d.note ? `: ${d.note}` : ""}
+                  {d.decidedBy ? ` (recorded by ${d.decidedBy})` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Level, finished, and nobody through until somebody says who won
+              the hole. Stated rather than left as a blank next round. */}
+          {round.awaitingHole.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+              {round.awaitingHole.map(([a, b]) => `${name(a)} v ${name(b)}`).join(", ")}{" "}
+              {round.awaitingHole.length === 1 ? "finished" : "finished"} level — a play-off hole
+              decides it, and the organizer records who won.
+            </p>
+          )}
         </div>
       ))}
       <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.55 }}>
-        Seeded from the season table — points, then meetings won, then name. A level play-off
-        meeting goes to the higher seed.
+        Seeded from the season table, in the order it is printed. A level play-off meeting is
+        settled on a play-off hole, and the organizer records who won it.
       </p>
     </div>
   );

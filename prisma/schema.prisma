@@ -1111,6 +1111,7 @@ model Event {
   matches         Match[]
   attendance      RoundAttendance[]
   skinsPots       SkinsPot[]
+  playoffHoles    LeaguePlayoffHole[]
   bracketWinners  BracketWinner[]
   commentary      Commentary[]
   scorecards      Scorecard[]
@@ -1562,6 +1563,7 @@ model Stage {
   teams      Team[]
   attendance RoundAttendance[]
   skinsPots  SkinsPot[]
+  playoffHoles LeaguePlayoffHole[]
   /// The player-less Group rows that exist only to hold this round's matches —
   /// see `Group.stageId`. Never a flight; a flight has no round.
   carriers   Group[]           @relation("StageCarrier")
@@ -2036,6 +2038,47 @@ model MatchScorecard {
  * wrong in the way that loses a club's trust.
  * Money is only ever CALCULATED and RECORDED here. TourneyHQ does not move it.
  */
+/**
+ * WHO WON THE PLAY-OFF HOLE, when a league play-off meeting finishes level.
+ *
+ * A tie used to send the higher seed through. That is a rule some leagues
+ * publish and it is not this app's to assume: a level play-off meeting is
+ * settled on the course, sudden death, and nobody scores a play-off hole
+ * into the app. So the organizer records the result and the bracket says
+ * the tie is UNRESOLVED until they do — see `meetingWinner`.
+ *
+ * The two clubs are stored sorted (low id, high id) so one meeting cannot
+ * hold two decisions under two orderings.
+ */
+model LeaguePlayoffHole {
+  id      String @id @default(cuid())
+  eventId String
+  stageId String
+
+  clubLowId  String
+  clubHighId String
+  /** The club that goes through. Always one of the two above. */
+  winnerId   String
+
+  /**
+   * True when the recorded winner is NOT the club the points gave it to — a
+   * committee decision overturning a played result, rather than the winner of
+   * a play-off hole on a level meeting. Shown wherever the result is.
+   */
+  overrode  Boolean  @default(false)
+  /** The committee’s reason. Required for an override, shown beside it. */
+  note      String   @default("")
+
+  decidedBy String   @default("")
+  decidedAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, clubLowId, clubHighId])
+  @@index([eventId])
+}
+
 model SkinsPot {
   id      String @id @default(cuid())
   eventId String

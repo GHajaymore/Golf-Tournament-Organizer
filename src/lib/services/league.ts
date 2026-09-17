@@ -17,11 +17,19 @@ import { scoringFrom } from "./tournament";
 import { tiebreakerLabel } from "../domain/types";
 import { clubOrderNote, orderClubs, type HeadToHead } from "../domain/league-order";
 import {
+  needsPlayoffHole,
   playoffBracket,
   playoffChampion,
   splitSeason,
   type MeetingOutcome,
 } from "../domain/league-playoff";
+
+/** One meeting's outcome out of a round's list, either way round. */
+function outcomeFor(round: readonly MeetingOutcome[], a: string, b: string) {
+  return round.find(
+    (o) => (o.clubA === a && o.clubB === b) || (o.clubA === b && o.clubB === a),
+  );
+}
 
 /**
  * A WEEK OF AN INTERCLUB LEAGUE, READ OFF THE ROWS.
@@ -255,6 +263,26 @@ export interface LeaguePlayoffs {
     stageId: string;
     name: string;
     meetings: ({ seedA: number; seedB: number; clubA: string; clubB: string } | null)[];
+    /**
+     * The meetings in this round that finished LEVEL and are waiting on a
+     * play-off hole, as `[clubA, clubB]`. The screen asks the organizer who
+     * won it; nothing advances until they say.
+     */
+    awaitingHole: [string, string][];
+    /**
+     * What was DECIDED off the course in this round, and by whom — the
+     * play-off holes and the committee overrides. Carried so every screen can
+     * name it: a decision nobody can see is a decision that reads as the
+     * app getting the bracket wrong.
+     */
+    decisions: Array<{
+      clubA: string;
+      clubB: string;
+      winner: string;
+      overrode: boolean;
+      note: string;
+      decidedBy: string;
+    }>;
   }[];
   /** Club id to name, for everything above. */
   names: Record<string, string>;
@@ -281,6 +309,23 @@ export async function leaguePlayoffs(
 
   const table = await leagueTable(eventId, system, matchBonus);
   const seeded = table.rows.map((r) => r.clubId);
+  /**
+   * The play-off holes the organizer has recorded, because a level meeting
+   * is settled on the course and the app cannot see that happen.
+   */
+  const decided = await prisma.leaguePlayoffHole.findMany({
+    where: { eventId, stageId: { in: playoffs } },
+    select: {
+      stageId: true, clubLowId: true, clubHighId: true, winnerId: true,
+      overrode: true, note: true, decidedBy: true,
+    },
+  });
+  const holeKey = (stageId: string, a: string, b: string) =>
+    [stageId, ...[a, b].sort()].join(":");
+  const decisions = new Map(
+    decided.map((d) => [holeKey(d.stageId, d.clubLowId, d.clubHighId), d]),
+  );
+
   const outcomes: MeetingOutcome[][] = [];
   for (const stageId of playoffs) {
     const played = await leagueMeetings(eventId, stageId, system, matchBonus);
@@ -291,6 +336,15 @@ export async function leaguePlayoffs(
         pointsA: m.pointsA,
         pointsB: m.pointsB,
         complete: m.complete,
+        ...(() => {
+          const d = decisions.get(holeKey(stageId, m.clubAId, m.clubBId));
+          return {
+            holeWinner: d?.winnerId ?? null,
+            overrode: d?.overrode ?? false,
+            note: d?.note ?? "",
+            decidedBy: d?.decidedBy ?? "",
+          };
+        })(),
       })),
     );
   }
@@ -298,7 +352,29 @@ export async function leaguePlayoffs(
   const bracket = playoffBracket(seeded, size, outcomes);
   if (bracket.length === 0) return null;
   return {
-    rounds: bracket.map((r, i) => ({ stageId: playoffs[i], name: r.name, meetings: r.meetings })),
+    rounds: bracket.map((r, i) => ({
+      stageId: playoffs[i],
+      name: r.name,
+      meetings: r.meetings,
+      awaitingHole: r.meetings
+        .filter((m): m is NonNullable<typeof m> => m !== null)
+        .filter((m) => needsPlayoffHole(m, outcomeFor(outcomes[i] ?? [], m.clubA, m.clubB)))
+        .map((m): [string, string] => [m.clubA, m.clubB]),
+      decisions: r.meetings
+        .filter((m): m is NonNullable<typeof m> => m !== null)
+        .flatMap((m) => {
+          const o = outcomeFor(outcomes[i] ?? [], m.clubA, m.clubB);
+          if (!o?.holeWinner) return [];
+          return [{
+            clubA: m.clubA,
+            clubB: m.clubB,
+            winner: o.holeWinner,
+            overrode: o.overrode ?? false,
+            note: o.note ?? "",
+            decidedBy: o.decidedBy ?? "",
+          }];
+        }),
+    })),
     names: Object.fromEntries(table.rows.map((r) => [r.clubId, r.name])),
     champion: playoffChampion(bracket, outcomes.at(-1) ?? []),
   };

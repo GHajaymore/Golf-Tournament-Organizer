@@ -12,6 +12,8 @@ import { LeagueTable } from "@/components/LeagueTable";
 import { LeagueSettings } from "@/components/LeagueSettings";
 import { LeagueDraw } from "@/components/LeagueDraw";
 import { LeaguePlayoffs } from "@/components/LeaguePlayoffs";
+import { PlayoffDecision, type DecidableMeeting } from "@/components/PlayoffDecision";
+import { leagueMeetings as meetingsOfRound } from "@/lib/services/league";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -88,6 +90,53 @@ export async function LeagueSection({
     leaguePlayoffs(eventId, system, matchBonus),
   ]);
 
+  /**
+   * THE PLAY-OFF MEETINGS SOMEBODY HAS TO DECIDE, or has decided.
+   *
+   * A level meeting waits on a play-off hole; a meeting somebody won can still
+   * be overturned by the committee, with a reason. Read from the bracket the
+   * screen is already showing, so the control and the display cannot disagree
+   * about which meetings exist.
+   */
+  const decidable: DecidableMeeting[] = [];
+  if (playoffs && canEdit) {
+    const nameOf = (id: string) => playoffs.names[id] ?? "—";
+    for (const round of playoffs.rounds) {
+      const played = await meetingsOfRound(eventId, round.stageId, system, matchBonus);
+      for (const m of round.meetings) {
+        if (!m) continue;
+        const outcome = played.find(
+          (p) =>
+            (p.clubAId === m.clubA && p.clubBId === m.clubB) ||
+            (p.clubAId === m.clubB && p.clubBId === m.clubA),
+        );
+        if (!outcome?.complete) continue;
+        const decision = round.decisions.find(
+          (d) =>
+            (d.clubA === m.clubA && d.clubB === m.clubB) ||
+            (d.clubA === m.clubB && d.clubB === m.clubA),
+        );
+        decidable.push({
+          stageId: round.stageId,
+          roundName: round.name,
+          clubA: m.clubA,
+          clubB: m.clubB,
+          clubAName: nameOf(m.clubA),
+          clubBName: nameOf(m.clubB),
+          level: outcome.pointsA === outcome.pointsB,
+          decided: decision
+            ? {
+                winner: decision.winner,
+                overrode: decision.overrode,
+                note: decision.note,
+                decidedBy: decision.decidedBy,
+              }
+            : null,
+        });
+      }
+    }
+  }
+
   return (
     <section style={{ marginTop: 28 }}>
       <div className="page-kicker">League</div>
@@ -135,6 +184,11 @@ export async function LeagueSection({
         <>
           <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>Play-offs</h3>
           <LeaguePlayoffs playoffs={playoffs} />
+          {/* WHAT THE COURSE DECIDED AND THE APP CANNOT SEE: the play-off
+              hole on a level meeting, and the committee setting a played
+              result aside. Staff only — the bracket above shows the answer
+              to everybody, this records it. */}
+          {canEdit && <PlayoffDecision meetings={decidable} />}
         </>
       )}
     </section>
