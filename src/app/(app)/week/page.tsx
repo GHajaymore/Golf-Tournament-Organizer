@@ -3,6 +3,7 @@ import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { weekViewFor } from "@/lib/services/week-view";
 import { WeekClient } from "@/components/WeekClient";
+import { LeagueWeekSection } from "@/components/LeagueWeekSection";
 
 /**
  * The weekly league screen: results, standings and skins for one night.
@@ -26,9 +27,17 @@ export default async function WeekPage({
   if (!view) redirect("/dashboard");
 
   return (
-    <WeekClient
-      view={view}
-      canManageMoney={session.viewRole === "admin" || session.viewRole === "assistant"}
-    />
+    <>
+      <WeekClient
+        view={view}
+        canManageMoney={session.viewRole === "admin" || session.viewRole === "assistant"}
+      />
+      {/* THE CLUB LEAGUE, WHERE THERE IS ONE. Everything above is the
+          PLAYER's week — their result, the player standings, the pot. An
+          interclub league is a different competition running on the same
+          night, and until now a member could not see it anywhere: it lived
+          only on Teams, which is staff-only. Read-only here by design. */}
+      <LeagueWeekSection eventId={session.eventId} stageId={view.stageId} />
+    </>
   );
 }
