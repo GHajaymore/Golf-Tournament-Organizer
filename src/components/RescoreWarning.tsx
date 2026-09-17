@@ -4,9 +4,10 @@ import { Icon } from "./Icon";
 /**
  * THE QUESTION ASKED BEFORE A ROUND IS RE-SCORED.
  *
- * Three settings on Rounds & formats change what a round's existing cards
- * MEAN without touching a stroke: its format, how many holes it is, and what
- * it is scored on. `enteredCardCount` is the fact behind all three — "asked
+ * Settings on Rounds & formats change what a round's existing cards MEAN
+ * without touching a stroke: its format, how many holes it is, and what it is
+ * scored on — and, on a team round, the allowance, the split and how many
+ * scores count. `enteredCardCount` is the fact behind all three — "asked
  * before anything that RE-SCORES a round rather than edits it" — and each
  * refusal comes back with the number of cards at stake.
  *
@@ -91,4 +92,11 @@ export const RESCORE_CONSEQUENCE = {
     "Changing how many holes it is re-scores every one of them against a different round — the stroke index is re-ranked to the holes actually played, so handicap shots move to different holes than the ones they were given on.",
   basis:
     "Changing what it is scored on re-scores every one of them. Gross, net and Stableford rank the same numbers into three different orders, and this also decides every tie.",
+  // The three a team round adds — see `RoundTeamScoring`.
+  allowance:
+    "Changing the allowance re-scores every one of them. Each side receives a different number of strokes, so net scores and results move while no stroke on a card changes.",
+  split:
+    "Changing the split re-scores every one of them. The side's handicap is worked out from different shares of its players', so its strokes — and its result — change.",
+  countBest:
+    "Changing how many scores count re-scores every one of them. Best one of four and best two of four are different competitions played off the same cards.",
 } as const;
