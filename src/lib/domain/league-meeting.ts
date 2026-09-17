@@ -18,9 +18,10 @@ import type { HoleResult } from "./types";
  * belonging to one meeting between two club teams, and a rule turning them
  * into league points.
  *
- * THE MEETING IS DERIVED, NOT STORED. `Team.parentTeamId` says which club a
- * pair plays for, so the matches in one round whose two sides share a pair of
- * parents ARE the meeting. That is why a six-match tie needs no model of its
+ * THE MEETING IS DERIVED, NOT STORED. `Team.clubGroupId` says which club — a
+ * flight — a pair plays for, so the matches in one round whose two sides play
+ * for the same two clubs ARE the meeting. (`parentA`/`parentB` below are those
+ * club ids; this file is pure and does not care what kind of row they name.) That is why a six-match tie needs no model of its
  * own, and why nothing about the existing formats changes.
  *
  * Pure: it takes resolved matches and returns numbers. No Prisma, no clock —
