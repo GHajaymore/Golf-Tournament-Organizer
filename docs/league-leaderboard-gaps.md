@@ -1,5 +1,17 @@
 # League leaderboard: what a Thursday-night league expects, and what we have
 
+> **Status, 2026-09-17: all three gaps are closed.**
+> 1. Front/back nine skins — `SkinsScope` and `skinsGameLabel` in
+>    `src/lib/domain/skins-pot.ts`; a round runs up to four games.
+> 2. Season standings — `src/lib/domain/season.ts` for players, and
+>    `leagueTable` in `src/lib/services/league.ts` for interclub leagues
+>    (with play-offs, #419).
+> 3. Round summary with a total — "The night's purse" on `/week`
+>    (`nightPurse`), with a Total purse line that adds up what was PAID, so a
+>    sheet that does not balance shows two different numbers.
+>
+> The rest of this file is the original comparison, kept for the reasoning.
+
 Queued 2026-08-24 after comparing our screens against a running men's league's
 leaderboard on a competing product. That comparison came from screenshots of a
 live league and is **not reproduced here** — real member names, and this
