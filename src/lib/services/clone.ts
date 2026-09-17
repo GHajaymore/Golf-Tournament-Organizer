@@ -106,13 +106,14 @@ export const CLONED_EVENT_FIELDS = [
    * on top of the holes, and how many pairs a club nominates are the rules of
    * the competition rather than facts about the season just played — the same
    * reasoning as `attendanceMode` directly above. A club that scores on holes
-   * and match with six pairs a side does that again next year, and having to
-   * set it back every season is how a league's table quietly changes meaning
-   * between one year and the next.
+   * and match with six pairs a side and a top-four play-off does that again
+   * next year, and having to set it back every season is how a league's table
+   * quietly changes meaning between one year and the next.
    */
   "leaguePoints",
   "leagueMatchBonus",
   "leaguePairs",
+  "leaguePlayoffClubs",
   /**
    * Travels with the course, which IS copied.
    *

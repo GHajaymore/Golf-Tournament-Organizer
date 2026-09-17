@@ -1024,6 +1024,12 @@ model Event {
    */
   leaguePairs           Int     @default(0)
   /**
+   * How many clubs reach the play-offs: 0 (none), 2, 4 or 8. The last
+   * log2(n) team rounds are the play-off rounds, and the league table counts
+   * only the rounds before them. See migration 71.
+   */
+  leaguePlayoffClubs    Int     @default(0)
+  /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h
    * auto-confirm. Defaults to staff — auto-confirming an unreviewed score is

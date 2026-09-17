@@ -8,6 +8,7 @@ import { snakeDraw } from "@/lib/services/teams";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked } from "@/lib/services/action-shared";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 
 export interface TeamResult {
   ok: boolean;
@@ -41,6 +42,24 @@ async function stageInEvent(eventId: string, stageId: string | null): Promise<st
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } });
   if (!stage || stage.eventId !== eventId) throw new Error("Round not found");
   return stageId;
+}
+
+/**
+ * A league draws its weeks in `drawLeagueWeek`, not here.
+ *
+ * On a league week this file's draw would play all seventy-odd pairs against
+ * each other — a club's own pairs included — and its auto-draw would throw
+ * away the pairs the captains nominated. The screen hides both buttons; this
+ * is the refusal behind them, because the screen is not the only caller.
+ */
+async function leagueRefusal(eventId: string): Promise<string | null> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { leaguePoints: true },
+  });
+  return isLeaguePointsSystem(event?.leaguePoints)
+    ? "This tournament is run as a league. Nominate pairs and draw the week in the League section."
+    : null;
 }
 
 /**
@@ -155,8 +174,10 @@ export async function removeTeamMember(teamId: string, playerId: string): Promis
  */
 export async function generateTeamMatches(stageId: string, replace = false): Promise<DrawResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
+  await assertUnlocked(eventId, "change teams");
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   if (!stage) return { ok: false, error: "Round not found." };
@@ -278,8 +299,10 @@ export async function autoDrawTeams(
   replace = false,
 ): Promise<DrawResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
+  const league = await leagueRefusal(eventId);
+  if (league) return { ok: false, error: league };
+  await assertUnlocked(eventId, "change teams");
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
   if (!stage) return { ok: false, error: "Round not found." };

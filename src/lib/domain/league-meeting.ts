@@ -1,4 +1,4 @@
-import { resolveMatch } from "./match";
+import { matchIsOver, resolveMatch } from "./match";
 import type { HoleResult } from "./types";
 
 /**
@@ -129,6 +129,9 @@ export function pairingPoints(
 ): [number, number] {
   const resolved = resolveMatch(holes);
   const won = holesWon(holes);
+  // `matchIsOver`, not `resolved.complete`: an empty card has no holes left
+  // to play, so `resolveMatch` calls it complete — and a halved one.
+  const over = matchIsOver(holes);
 
   if (system === "holes") {
     return split(won.a, won.b, won.halved, 1);
@@ -136,7 +139,7 @@ export function pairingPoints(
 
   if (system === "holes-and-match") {
     const [a, b] = split(won.a, won.b, won.halved, 1);
-    if (!resolved.complete) return [a, b];
+    if (!over) return [a, b];
     if (resolved.winner === "A") return [a + matchBonus, b];
     if (resolved.winner === "B") return [a, b + matchBonus];
     return [a + matchBonus / 2, b + matchBonus / 2];
@@ -166,7 +169,7 @@ export function pairingPoints(
   }
 
   // "match": one point, and an unfinished pairing is worth nothing yet.
-  if (!resolved.complete) return [0, 0];
+  if (!over) return [0, 0];
   if (resolved.winner === "A") return [1, 0];
   if (resolved.winner === "B") return [0, 1];
   return [0.5, 0.5];

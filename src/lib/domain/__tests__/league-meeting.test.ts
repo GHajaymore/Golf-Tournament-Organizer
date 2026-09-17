@@ -224,3 +224,13 @@ describe("the systems on offer", () => {
     expect(LEAGUE_POINTS_SYSTEMS.length).toBeGreaterThan(1);
   });
 });
+
+describe("a pairing with no card at all", () => {
+  it("is worth nothing under any system, not a half each", () => {
+    // `resolveMatch([])` has no holes left and calls that complete and halved;
+    // a round whose course card is missing would hand every club half a point.
+    for (const s of LEAGUE_POINTS_SYSTEMS) {
+      expect(pairingPoints([], s as LeaguePointsSystem, 2), s).toEqual([0, 0]);
+    }
+  });
+});
