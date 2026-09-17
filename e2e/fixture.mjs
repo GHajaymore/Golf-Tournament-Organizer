@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { runMark } from "../scripts/run-mark.mjs";
+import { seedLeague } from "./league-fixture.mjs";
 
 /**
  * The tournament the end-to-end tests run against.
@@ -418,11 +419,23 @@ export async function seed() {
       data: { eventId: event.id, name: "Aj Moore", email: player.email, role: "player" },
     });
 
+    /**
+     * A SECOND EVENT IN THE SAME CLUB: the interclub league.
+     *
+     * Separate rather than bolted onto the medal above, because a league is a
+     * different tournament — clubs as flights, four-ball rounds, pairs
+     * nominated weekly — and giving the medal club groups would change what
+     * every other spec sees on `/roster`, `/grouping` and the leaderboard.
+     * A club running both is also the ordinary case.
+     */
+    const league = await seedLeague(prisma, { org, mark: MARK, sign, dayOffset, randomBytes });
+
     return {
       eventId: event.id,
       shareToken: event.shareToken,
       organizer: { session: sign(organizer.id), event: sign(event.id) },
       player: { session: sign(player.id), event: sign(event.id) },
+      league,
       partialHolesFilled: partial.filter((s) => s != null).length,
       /**
        * Enough to PUT THE PART-FINISHED CARD BACK.

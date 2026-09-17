@@ -5,6 +5,7 @@ import { join } from "node:path";
 // tsconfig and does not resolve the app's path aliases.
 import { readSource } from "../src/lib/__tests__/source";
 import { standaloneScreens, entryUrl } from "./routes";
+import { overflowing } from "./overflow";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
@@ -78,36 +79,11 @@ const PLAYER_SCREENS = [
     .sort(),
 ];
 
-/** Elements sticking out past the viewport with nothing able to scroll them. */
-async function overflowing(page: Page) {
-  return page.evaluate(() => {
-    const vw = document.documentElement.clientWidth;
-    const out: { cls: string; right: number; text: string }[] = [];
-    document.querySelectorAll("body *").forEach((el) => {
-      const cs = getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden") return;
-      const r = el.getBoundingClientRect();
-      if (!r.width || r.right <= vw + 1) return;
-      // Inside something that scrolls horizontally is fine — that is a table
-      // in its wrapper doing exactly what it should.
-      let n = el.parentElement;
-      let scrollable = false;
-      while (n && n !== document.body) {
-        const ox = getComputedStyle(n).overflowX;
-        if (ox === "auto" || ox === "scroll") { scrollable = true; break; }
-        n = n.parentElement;
-      }
-      if (!scrollable) {
-        out.push({
-          cls: String((el as HTMLElement).className ?? "").slice(0, 40),
-          right: Math.round(r.right),
-          text: (el.textContent ?? "").trim().slice(0, 40),
-        });
-      }
-    });
-    return out;
-  });
-}
+/**
+ * `overflowing` used to live here. It moved to `./overflow` when the league
+ * spec needed the same rule — including its exemption for anything inside a
+ * horizontal scroller, which is the part that must not exist twice.
+ */
 
 /**
  * Every console screen has exactly one h1.
