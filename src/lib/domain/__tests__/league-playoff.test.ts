@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   bracketSeeds,
   meetingWinner,
+  needsPlayoffHole,
   playoffBracket,
   playoffChampion,
   playoffRoundCount,
   playoffRoundName,
-  seedOrder,
   splitSeason,
   type MeetingOutcome,
 } from "../league-playoff";
@@ -72,18 +72,6 @@ describe("splitting the season", () => {
   });
 });
 
-describe("seeding", () => {
-  it("orders by points, then meetings won, then name", () => {
-    const rows = [
-      { clubId: "a", name: "Zeta", points: 10, won: 3 },
-      { clubId: "b", name: "Alpha", points: 12, won: 2 },
-      { clubId: "c", name: "Beta", points: 10, won: 4 },
-      { clubId: "d", name: "Gamma", points: 10, won: 3 },
-    ];
-    expect(seedOrder(rows).map((r) => r.clubId)).toEqual(["b", "c", "d", "a"]);
-  });
-});
-
 describe("who goes through", () => {
   const m = { seedA: 1, seedB: 4, clubA: "one", clubB: "four" };
 
@@ -92,11 +80,35 @@ describe("who goes through", () => {
     expect(meetingWinner(m, done("four", "one", 2, 4))).toBe("one");
   });
 
-  it("a level meeting goes to the higher seed", () => {
-    expect(meetingWinner(m, done("one", "four", 3, 3))).toBe("one");
-    expect(meetingWinner({ ...m, seedA: 4, seedB: 1, clubA: "four", clubB: "one" }, done("one", "four", 3, 3))).toBe(
-      "one",
-    );
+  it("sends nobody through on a level meeting until the play-off hole is recorded", () => {
+    /**
+     * Ajay, 2026-09-18: a tie is settled by a play-off hole. It used to go
+     * to the higher seed, which is somebody else's rule — and the seeding
+     * cannot be allowed to answer a question the course answers.
+     */
+    const level = done("one", "four", 3, 3);
+    expect(meetingWinner(m, level), "invented a winner from the seeding").toBeNull();
+    expect(needsPlayoffHole(m, level)).toBe(true);
+
+    // Recorded either way round, and it decides.
+    expect(meetingWinner(m, { ...level, holeWinner: "four" })).toBe("four");
+    expect(meetingWinner(m, { ...level, holeWinner: "one" })).toBe("one");
+    expect(needsPlayoffHole(m, { ...level, holeWinner: "one" })).toBe(false);
+  });
+
+  it("ignores a recorded winner that is not one of the two clubs", () => {
+    // A stored id naming somebody else decides nothing rather than sending
+    // a club that did not play through.
+    const level = { ...done("one", "four", 3, 3), holeWinner: "seven" };
+    expect(meetingWinner(m, level)).toBeNull();
+    expect(needsPlayoffHole(m, level)).toBe(true);
+  });
+
+  it("does not ask for a play-off hole on a meeting that is still out", () => {
+    // Unresolved for a different reason: nothing to settle yet.
+    const out = { ...done("one", "four", 3, 3), complete: false };
+    expect(needsPlayoffHole(m, out)).toBe(false);
+    expect(needsPlayoffHole(m, undefined)).toBe(false);
   });
 
   it("nobody, while the meeting is still out", () => {
@@ -125,7 +137,7 @@ describe("the whole bracket", () => {
     const qf = [
       done("s1", "s8", 4, 2),
       done("s4", "s5", 1, 5), // upset: 5 goes through
-      done("s2", "s7", 3, 3), // level: the higher seed, 2
+      { ...done("s2", "s7", 3, 3), holeWinner: "s7" }, // level, settled on the hole
       { ...done("s3", "s6", 0, 0), complete: false }, // still out
     ];
     const b = playoffBracket(seeded, 8, [qf]);
@@ -140,7 +152,9 @@ describe("the whole bracket", () => {
     const sf = [done("a", "d", 2, 4), done("b", "c", 5, 1)];
     const b = playoffBracket(four, 4, [sf]);
     expect(b[1].meetings[0]).toEqual({ seedA: 4, seedB: 2, clubA: "d", clubB: "b" });
-    expect(playoffChampion(b, [done("b", "d", 3, 3)])).toBe("b");
+    // Level, and nobody has played the hole yet: no champion.
+    expect(playoffChampion(b, [done("b", "d", 3, 3)])).toBeNull();
+    expect(playoffChampion(b, [{ ...done("b", "d", 3, 3), holeWinner: "d" }])).toBe("d");
     expect(playoffChampion(b, [done("b", "d", 1, 3)])).toBe("d");
     expect(playoffChampion(b, [])).toBeNull();
   });
@@ -148,5 +162,31 @@ describe("the whole bracket", () => {
   it("draws nothing when there are fewer clubs than places", () => {
     expect(playoffBracket(["a", "b", "c"], 4, [])).toEqual([]);
     expect(playoffBracket(seeded, 0, [])).toEqual([]);
+  });
+});
+
+describe("a committee decision", () => {
+  const m = { seedA: 1, seedB: 4, clubA: "one", clubB: "four" };
+
+  it("overturns a played result, but only when it says it is an override", () => {
+    /**
+     * Ajay, 2026-09-18: the option is wanted, with caution. So an override is
+     * the FLAG the organizer set while being told what they were overturning,
+     * never inferred from a recorded winner that merely disagrees with the
+     * points — which would turn a mistyped play-off hole into a reversal.
+     */
+    const played = done("one", "four", 5, 1); // one won outright
+    expect(meetingWinner(m, { ...played, holeWinner: "four" }), "reversed without being told to").toBe("one");
+    expect(meetingWinner(m, { ...played, holeWinner: "four", overrode: true })).toBe("four");
+  });
+
+  it("still refuses a club that did not play the meeting", () => {
+    const played = done("one", "four", 5, 1);
+    expect(meetingWinner(m, { ...played, holeWinner: "seven", overrode: true })).toBe("one");
+  });
+
+  it("does not ask for a play-off hole once a decision is recorded", () => {
+    const level = done("one", "four", 3, 3);
+    expect(needsPlayoffHole(m, { ...level, holeWinner: "four", overrode: true })).toBe(false);
   });
 });

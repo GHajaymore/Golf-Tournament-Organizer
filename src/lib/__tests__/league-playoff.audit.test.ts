@@ -33,8 +33,8 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
 
-const { drawLeagueWeek, nominatePair } = await import("@/app/actions/league");
-const { leagueTable, leaguePlayoffs, leagueSeason } = await import("@/lib/services/league");
+const { drawLeagueWeek, nominatePair, setPlayoffHoleWinner } = await import("@/app/actions/league");
+const { leagueTable, leaguePlayoffs, leagueSeason, leagueMeetings } = await import("@/lib/services/league");
 
 const club: string[] = [];
 const roster: string[][] = [];
@@ -237,12 +237,28 @@ describe("a season with play-offs", () => {
     expect(await prisma.match.count({ where: { stageId: week[3] } })).toBe(0);
   });
 
-  it("sends the upset winner and the higher seed of a level meeting through", async () => {
+  it("sends the upset winner through, and holds the level meeting for a play-off hole", async () => {
     // Club 3 shoots 3s and beats the top seed; clubs 1 and 2 both shoot 5s.
     await score(2, (c) => (c === 3 ? 3 : c === 0 ? 4 : 5));
 
+    const held = await leaguePlayoffs(session.eventId, "holes");
+    expect(held?.rounds.map((r) => r.name)).toEqual(["Semi-finals", "Final"]);
+    /**
+     * The upset is decided and 1 v 2 is not, so the final has one club and
+     * therefore no meeting. The app used to fill the gap from the seeding;
+     * a level meeting is settled on a play-off hole now (Ajay, 2026-09-18).
+     */
+    expect(held!.rounds[1].meetings).toEqual([null]);
+    expect(
+      held!.rounds[0].awaitingHole.map(([a, b]) => [club.indexOf(a), club.indexOf(b)]),
+      "the level semi-final was not flagged",
+    ).toEqual([[1, 2]]);
+    expect(await drawLeagueWeek(week[3])).toMatchObject({ ok: false });
+
+    // The committee reports the play-off hole: club 1 won it.
+    expect(await setPlayoffHoleWinner(week[2], club[1], club[2], club[1])).toEqual({ ok: true });
+
     const bracket = await leaguePlayoffs(session.eventId, "holes");
-    expect(bracket?.rounds.map((r) => r.name)).toEqual(["Semi-finals", "Final"]);
     const final = bracket!.rounds[1].meetings[0];
     expect(final && [club.indexOf(final.clubA), final.seedA, club.indexOf(final.clubB), final.seedB]).toEqual([
       3, 4, 1, 2,
@@ -335,5 +351,111 @@ describe("the committee's tiebreak chain decides a level table", () => {
     const top = table.rows.slice(0, 4).map((r) => r.clubId);
     expect(seeds).toEqual([top[0], top[3], top[1], top[2]]);
     expect(await order()).toHaveLength(4);
+  });
+});
+
+describe("a level play-off meeting, and a committee decision", () => {
+  /**
+   * Ajay, 2026-09-18: a tie is settled by a play-off hole, and the club may
+   * overturn a played result "with cautions". Both are decisions the app
+   * cannot watch happen, so both are recorded — and both are shown.
+   */
+  /**
+   * Re-score 0 v 3 so it halves every hole. 1 v 2 keeps the play-off hole
+   * the cell above recorded, so exactly one meeting is left level.
+   */
+  async function halveTheSemi() {
+    const sides = await prisma.team.findMany({
+      where: { stageId: week[2], clubGroupId: { in: [club[0], club[3]] } },
+      select: { id: true },
+    });
+    await prisma.teamScorecard.updateMany({
+      where: { teamId: { in: sides.map((s) => s.id) } },
+      data: { strokes: flat(4) },
+    });
+  }
+
+  it("sends nobody through while the semi-final is level, and says so", async () => {
+    await halveTheSemi();
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    expect(bracket!.rounds[1].meetings, "invented a winner from the seeding").toEqual([null]);
+    expect(bracket!.rounds[0].awaitingHole.length, "did not flag the level meeting").toBe(1);
+
+    // And the final cannot be drawn off a bracket nobody has come through.
+    const res = await drawLeagueWeek(week[3], true);
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toMatch(/finished level/);
+  });
+
+  it("records who won the play-off hole, and moves the bracket on", async () => {
+    expect(await setPlayoffHoleWinner(week[2], club[0], club[3], club[3])).toEqual({ ok: true });
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    const through = bracket!.rounds[1].meetings[0];
+    expect(
+      through && [through.clubA, through.clubB].includes(club[3]),
+      "the hole winner is not through",
+    ).toBe(true);
+
+    const decision = bracket!.rounds[0].decisions.find((d) => d.winner === club[3]);
+    expect(decision, "the decision is not on the bracket at all").toBeTruthy();
+    expect(decision!.overrode, "a level meeting is not an override").toBe(false);
+  });
+
+  it("refuses a club that did not play the meeting", async () => {
+    expect(await setPlayoffHoleWinner(week[2], club[0], club[3], club[1])).toEqual({
+      ok: false,
+      error: "The winner has to be one of the two clubs that played.",
+    });
+  });
+
+  it("refuses to overturn a played result without a reason, then records one that says so", async () => {
+    // The FINAL, which club 1 won outright — both semi-finals are level.
+    const played = (await leagueMeetings(session.eventId, week[3], "holes")).find(
+      (m) => m.pointsA !== m.pointsB,
+    );
+    expect(played, "no decided meeting to overturn").toBeTruthy();
+    const winnerSide = played!.pointsA > played!.pointsB ? played!.clubAId : played!.clubBId;
+    const loserSide = winnerSide === played!.clubAId ? played!.clubBId : played!.clubAId;
+
+    const bare = await setPlayoffHoleWinner(week[3], played!.clubAId, played!.clubBId, loserSide);
+    expect(bare.ok).toBe(false);
+    expect(!bare.ok && bare.error).toMatch(/committee decision, and needs a reason/);
+
+    const empty = await setPlayoffHoleWinner(week[3], played!.clubAId, played!.clubBId, loserSide, {
+      reason: " ",
+    });
+    expect(empty).toEqual({ ok: false, error: "Say why the committee is overturning the result." });
+
+    const recorded = await setPlayoffHoleWinner(
+      week[3],
+      played!.clubAId,
+      played!.clubBId,
+      loserSide,
+      { reason: "Ineligible player in the second pair" },
+    );
+    expect(recorded).toEqual({ ok: true });
+
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    const decision = bracket!.rounds[1].decisions.find((d) => d.winner === loserSide);
+    expect(decision).toMatchObject({
+      overrode: true,
+      note: "Ineligible player in the second pair",
+    });
+    expect(decision!.decidedBy, "a decision with nobody's name on it").toBeTruthy();
+
+    // The decision, not the points, crowns the champion.
+    expect(bracket!.champion, "the points still decided it").toBe(loserSide);
+  });
+
+  it("writes every decision to the audit log, naming what it overturned", async () => {
+    const lines = await prisma.auditLog.findMany({
+      where: { eventId: session.eventId, action: "league-playoff-hole" },
+      select: { detail: true },
+    });
+    expect(lines.some((l) => /beat .* on the play-off hole/.test(l.detail))).toBe(true);
+    expect(
+      lines.some((l) => /committee overturned the result: Ineligible player/.test(l.detail)),
+      "an override with no trail",
+    ).toBe(true);
   });
 });

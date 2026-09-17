@@ -200,6 +200,13 @@ export const CLONE_IGNORED_RELATIONS = [
   // handed over nothing and assert debts nobody agreed to. A new season starts
   // with an empty pot and, deliberately, no carry.
   "skinsPots",
+  /**
+   * WHO WENT THROUGH ON A PLAY-OFF HOLE, and the committee decisions that
+   * overturned a result. Both belong to the season that was played: a copy
+   * has no play-off meetings yet, so carrying them forward would seed next
+   * year’s bracket with last year’s adjudications.
+   */
+  "playoffHoles",
   "players",
   "groups",
   "stages",
@@ -351,4 +358,6 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teams: "made from the field, which is not copied",
   attendance: "who turned up last year",
   skinsPots: "money — see the Event policy",
+  playoffHoles:
+    "who came through a level play-off meeting, and the committee decisions behind it — last season’s adjudications, on rounds this copy has not played",
 };

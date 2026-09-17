@@ -191,7 +191,7 @@ export function LeagueSettings({
           >
             {playoffSize === 0
               ? "The season table is the final word."
-              : `The last ${Math.log2(playoffSize) === 1 ? "team round is the final" : `${Math.log2(playoffSize)} team rounds are the play-offs`}, and the table counts only the weeks before. Seeds go by points, then meetings won, then name; a level play-off meeting goes to the higher seed.`}
+              : `The last ${Math.log2(playoffSize) === 1 ? "team round is the final" : `${Math.log2(playoffSize)} team rounds are the play-offs`}, and the table counts only the weeks before. Seeds follow the season table, in the order it is printed; a level play-off meeting is settled on a play-off hole.`}
           </p>
         </div>
       )}

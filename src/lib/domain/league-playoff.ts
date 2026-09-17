@@ -77,27 +77,6 @@ export function bracketSeeds(size: number): [number, number][] {
   return pairs;
 }
 
-export interface SeedRow {
-  clubId: string;
-  name: string;
-  points: number;
-  /** Meetings won outright — the first tiebreak. */
-  won: number;
-}
-
-/**
- * The table in seeding order: points, then meetings won, then name.
- *
- * The name is the last resort and is not golf, which is why the screen says
- * it out loud. A league that wants a play-off hole for a tie settles it and
- * the organizer adjusts; the app will not invent a result.
- */
-export function seedOrder<T extends SeedRow>(rows: readonly T[]): T[] {
-  return [...rows].sort(
-    (a, b) => b.points - a.points || b.won - a.won || a.name.localeCompare(b.name),
-  );
-}
-
 export interface PlayoffMeeting {
   /** Seed numbers, 1-based. */
   seedA: number;
@@ -113,22 +92,68 @@ export interface MeetingOutcome {
   pointsB: number;
   /** Every pairing in the meeting has a decided result. */
   complete: boolean;
+  /**
+   * Who the organizer recorded as going through: the winner of the play-off
+   * hole on a level meeting, or a committee decision overturning a played
+   * result. Null while a tie is undecided.
+   */
+  holeWinner?: string | null;
+  /**
+   * True when that recorded winner OVERTURNS the points rather than settling
+   * a tie. Carried so every screen can say so — a bracket that silently
+   * disagrees with the scores is worse than the decision it hides.
+   */
+  overrode?: boolean;
+  /** The committee’s reason for an override, shown beside it. */
+  note?: string;
+  /** Who recorded it, so a decision is never anonymous on the screen. */
+  decidedBy?: string;
 }
 
 /**
  * Who goes through from one play-off meeting.
  *
- * More points wins. A level meeting goes to the higher seed — the reward for
- * the season, and the rule most leagues publish — rather than to nobody.
- * Null while the meeting is still being played.
+ * More points wins. A LEVEL MEETING IS SETTLED ON THE COURSE — sudden death
+ * on a play-off hole — which is Ajay's decision of 2026-09-18 and the rule
+ * this app now follows. It used to send the higher seed through, which is a
+ * rule some leagues publish and was never this league's.
+ *
+ * Nobody scores a play-off hole into the app, so the result is RECORDED by
+ * the organizer (`LeaguePlayoffHole`) and arrives here as `holeWinner`.
+ * Until then a tie is unresolved and this returns null — the same answer as
+ * a meeting still out on the course, because in both cases the club that
+ * goes through is genuinely not known yet. Inventing one from the seeding
+ * is exactly what was wrong before.
  */
 export function meetingWinner(m: PlayoffMeeting, outcome: MeetingOutcome | undefined): string | null {
   if (!outcome || !outcome.complete) return null;
+  const recorded =
+    outcome.holeWinner === m.clubA || outcome.holeWinner === m.clubB ? outcome.holeWinner : null;
+  /**
+   * A COMMITTEE DECISION OUTRANKS THE POINTS, and only where it says it is
+   * one. Ajay, 2026-09-18: the option is wanted, with caution — so it is
+   * never inferred from a recorded winner that merely disagrees, it is the
+   * flag the organizer set while being told what they were overturning.
+   */
+  if (outcome.overrode && recorded) return recorded;
   const aPoints = outcome.clubA === m.clubA ? outcome.pointsA : outcome.pointsB;
   const bPoints = outcome.clubA === m.clubA ? outcome.pointsB : outcome.pointsA;
   if (aPoints > bPoints) return m.clubA;
   if (bPoints > aPoints) return m.clubB;
-  return m.seedA < m.seedB ? m.clubA : m.clubB;
+  // Level: only a recorded play-off hole decides it, and only for one of
+  // these two clubs — a stored id naming anybody else decides nothing.
+  return recorded;
+}
+
+/**
+ * A meeting that is over, level, and waiting on a play-off hole.
+ *
+ * The state the screen has to show and the draw has to refuse on: everything
+ * has been played, nobody is through, and the app is not going to guess.
+ */
+export function needsPlayoffHole(m: PlayoffMeeting, outcome: MeetingOutcome | undefined): boolean {
+  if (!outcome || !outcome.complete) return false;
+  return meetingWinner(m, outcome) === null;
 }
 
 const outcomeKey = (a: string, b: string) => [a, b].sort().join(":");
