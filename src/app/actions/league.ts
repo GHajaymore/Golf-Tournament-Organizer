@@ -5,6 +5,11 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
+import { matchCarrierGroup } from "@/lib/services/match-carrier";
+import { boardChanged } from "@/lib/services/board-refresh";
+import { needsTeams } from "@/lib/formats";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * Organizer or assistant, on the active tournament.
@@ -277,4 +282,142 @@ export async function setLeagueSettings(input: {
   );
   revalidatePath("/teams");
   return { ok: true };
+}
+
+export type LeagueDrawResult =
+  | {
+      ok: true;
+      /** Four-balls created. */
+      matches: number;
+      /** The club sitting out this week, when the league is odd. */
+      byeClub: string | null;
+      /** Pairs left without an opponent because the other club put up fewer. */
+      unmatched: number;
+    }
+  | { ok: false; error: string; needsConfirm?: boolean; existing?: number };
+
+/**
+ * DRAW ONE LEAGUE WEEK: which clubs meet, and which pair plays which.
+ *
+ * The generic `generateTeamMatches` plays every side in a round against every
+ * other, which on a league week is thousands of matches and a club's pairs
+ * playing each other. See `league-draw.ts` for the two levels this does
+ * instead.
+ *
+ * THE WEEK is this round's place among the tournament's team rounds, so the
+ * rotation follows the season without anybody numbering it.
+ *
+ * NOT LOCKED BY LAUNCH, like nominating: a league is live all season and is
+ * drawn every week. What it does refuse is replacing a week somebody has
+ * already scored — same rule, same wording, as the generic draw.
+ */
+export async function drawLeagueWeek(stageId: string, replace = false): Promise<LeagueDrawResult> {
+  const eventId = await requireStaff();
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true, position: true, format: true, holes: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+  if (!needsTeams(stage.format)) {
+    return {
+      ok: false,
+      error: `${stage.format} is played by individuals — a league week needs a pairs format.`,
+    };
+  }
+
+  const teamRounds = (
+    await prisma.stage.findMany({
+      where: { eventId },
+      select: { id: true, format: true },
+      orderBy: { position: "asc" },
+    })
+  ).filter((s) => needsTeams(s.format));
+  const week = teamRounds.findIndex((s) => s.id === stageId);
+
+  const clubs = await prisma.group.findMany({
+    where: { eventId, stageId: null, isCarrier: false },
+    select: { id: true, name: true },
+    orderBy: { position: "asc" },
+  });
+  if (clubs.length < 2) {
+    return { ok: false, error: "A league needs at least two clubs. Add them as flights first." };
+  }
+
+  const pairs = await prisma.team.findMany({
+    where: { eventId, stageId, clubGroupId: { not: null } },
+    select: { id: true, clubGroupId: true },
+    orderBy: [{ seed: "asc" }, { createdAt: "asc" }],
+  });
+  const pairsOf = (clubId: string) =>
+    pairs.filter((p) => p.clubGroupId === clubId).map((p) => p.id);
+
+  const { meetings, bye } = leagueWeekMeetings(
+    clubs.map((c) => c.id),
+    week,
+  );
+  const draws = meetings.map(([a, b]) => drawMeeting(pairsOf(a), pairsOf(b)));
+  const total = draws.reduce((n, d) => n + d.matches.length, 0);
+  if (total === 0) {
+    return {
+      ok: false,
+      error: "None of the clubs meeting this week has a pair on both sides yet. Nominate pairs first.",
+    };
+  }
+
+  const existing = await prisma.match.findMany({
+    where: { eventId, stageId },
+    select: { id: true },
+  });
+  if (existing.length > 0 && !replace) {
+    return {
+      ok: false,
+      error: "This week is already drawn.",
+      needsConfirm: true,
+      existing: existing.length,
+    };
+  }
+  if (existing.length > 0) {
+    const scored = await prisma.teamScorecard.count({
+      where: { stageId, NOT: { strokes: "[]" } },
+    });
+    if (scored > 0) {
+      return { ok: false, error: "Scores have already been recorded for this round." };
+    }
+    await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
+  }
+
+  const groupId = await matchCarrierGroup(
+    eventId,
+    stage.id,
+    `${stage.format} — Round ${stage.position + 1}`,
+  );
+  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
+  for (const [i, draw] of draws.entries()) {
+    for (const [teamAId, teamBId] of draw.matches) {
+      await prisma.match.create({
+        data: {
+          eventId,
+          stageId,
+          groupId,
+          // One number per meeting, so a meeting's four-balls sort together.
+          round: i + 1,
+          playerAId: "",
+          playerBId: "",
+          teamAId,
+          teamBId,
+          holes: emptyHoles,
+        },
+      });
+    }
+  }
+
+  revalidatePath("/", "layout");
+  boardChanged(eventId);
+  return {
+    ok: true,
+    matches: total,
+    byeClub: clubs.find((c) => c.id === bye)?.name ?? null,
+    unmatched: draws.reduce((n, d) => n + d.unmatched.length, 0),
+  };
 }

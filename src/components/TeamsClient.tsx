@@ -75,6 +75,7 @@ export function TeamsClient({
   problems,
   unassigned,
   matchCount,
+  league = false,
 }: {
   rounds: RoundRow[];
   activeRoundId: string;
@@ -84,6 +85,13 @@ export function TeamsClient({
   unassigned: { id: string; name: string; handicap: number }[];
   /** Matches already generated for this round. */
   matchCount: number;
+  /**
+   * The tournament is run as a league, whose sides are nominated and drawn in
+   * the League section. The generic draw would pit every pair against every
+   * other and the auto-draw would discard the nominations, so neither is
+   * offered — `teams.ts` refuses both as well.
+   */
+  league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
   const [newName, setNewName] = useState("");
@@ -179,7 +187,14 @@ export function TeamsClient({
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>
       )}
 
-      {confirmDraw && (
+      {league && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          This tournament is run as a league. Each club nominates its pairs and the week is drawn
+          in the League section below.
+        </p>
+      )}
+
+      {!league && confirmDraw && (
         <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
           <span className="card-title" style={{ fontSize: 14 }}>Replace the existing sides?</span>
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
@@ -196,6 +211,7 @@ export function TeamsClient({
         </div>
       )}
 
+      {!league && (<>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="field" style={{ flex: 1, minWidth: 200 }}>
           <label>Add a team</label>
@@ -283,6 +299,7 @@ export function TeamsClient({
         An automatic draw balances the sides by handicap, pairing stronger players with weaker ones —
         otherwise a field with a wide spread is decided at registration rather than on the course.
       </p>
+      </>)}
 
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {teams.map((t) => {

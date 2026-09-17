@@ -63,6 +63,9 @@ const ALLOWED: Record<string, string> = {
    */
   "app/actions/teams.ts": "Group name used as a find-or-create key",
   "app/actions/tournament.ts": "Group name used as a find-or-create key",
+  // The league week draw hands `matchCarrierGroup` the same name
+  // `generateTeamMatches` uses, so a week drawn either way finds one carrier.
+  "app/actions/league.ts": "Group name used as a find-or-create key",
 };
 
 describe("round numbers come from one place", () => {

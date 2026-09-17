@@ -2,6 +2,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { screenName } from "@/lib/nav";
 import { LeagueSection } from "@/components/LeagueSection";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
@@ -53,6 +54,7 @@ export default async function TeamsPage({
   }
 
   const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance, holesPlayed(active.holes), active.allowanceWeights);
+  const leagueEvent = await prisma.event.findUnique({ where: { id: session.eventId }, select: { leaguePoints: true } });
   const matchCount = await prisma.match.count({ where: { eventId: session.eventId, stageId: active.id } });
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);
@@ -101,6 +103,7 @@ export default async function TeamsPage({
         problems={teamProblems(teams, active.format)}
         unassigned={unassigned}
         matchCount={matchCount}
+        league={isLeaguePointsSystem(leagueEvent?.leaguePoints)}
       />
 
       {/**
@@ -111,7 +114,8 @@ export default async function TeamsPage({
        * it belongs beside the sides rather than on a screen of its own, which
        * would ask an organizer to hold two ideas of what a "team" is.
        *
-       * Renders nothing at all unless the tournament has club teams, so every
+       * Renders nothing unless the tournament has flights, and nothing but the
+       * organizer's switch until the league is turned on, so every
        * ordinary four-ball event sees exactly what it saw before.
        */}
       <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />

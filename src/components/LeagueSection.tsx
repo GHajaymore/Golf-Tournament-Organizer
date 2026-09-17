@@ -10,6 +10,7 @@ import { PairBuilder } from "@/components/PairBuilder";
 import { LeagueMeetings } from "@/components/LeagueMeetings";
 import { LeagueTable } from "@/components/LeagueTable";
 import { LeagueSettings } from "@/components/LeagueSettings";
+import { LeagueDraw } from "@/components/LeagueDraw";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -72,10 +73,11 @@ export async function LeagueSection({
   }
   const system: LeaguePointsSystem = event.leaguePoints;
 
-  const [meetings, table, nominations] = await Promise.all([
+  const [meetings, table, nominations, drawn] = await Promise.all([
     leagueMeetings(eventId, stageId, system, matchBonus),
     leagueTable(eventId, system, matchBonus),
     Promise.all(clubs.map((c) => nominationsFor(eventId, stageId, c.id))),
+    prisma.match.count({ where: { eventId, stageId } }),
   ]);
 
   return (
@@ -104,6 +106,7 @@ export async function LeagueSection({
             <PairBuilder key={club.clubId} club={club} stageId={stageId} />
           ))}
       </div>
+      <LeagueDraw stageId={stageId} drawn={drawn} />
 
       <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>
         This week&rsquo;s meetings
