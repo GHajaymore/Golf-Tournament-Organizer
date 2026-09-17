@@ -144,6 +144,88 @@ export function seasonPosition(weeks: PotResult[]): Array<{ playerId: string; ne
     .sort((a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId));
 }
 
+/**
+ * Nobody won a hole outright, so every player takes their stake back.
+ *
+ * Asked of `claimedSkins`, never of the payouts: in exactly this case every
+ * share HAS a payout — its own stake — so "nobody has winnings" is never true
+ * and a screen asking it printed each player as a winner of 0 skins.
+ */
+export function stakesGoBack(result: PotResult): boolean {
+  return result.claimedSkins === 0;
+}
+
+export interface NightPurseRow {
+  playerId: string;
+  /** How many of the night's games they were in. */
+  games: number;
+  stakeCents: number;
+  wonCents: number;
+  netCents: number;
+}
+
+export interface NightPurse {
+  rows: NightPurseRow[];
+  /** Everything staked across the night's games. */
+  stakeCents: number;
+  /** Everything paid out. Equal to `stakeCents` — see below. */
+  wonCents: number;
+  /** No game still has a hole to play. */
+  final: boolean;
+}
+
+/**
+ * ONE NIGHT'S PURSE: every player's stake, winnings and net across every
+ * skins game the round ran, with the totals.
+ *
+ * A league night runs up to four games, and the question at the bar is not
+ * "what did I win in the front-nine net" but "where am I tonight". This adds
+ * the games up per player.
+ *
+ * THE TOTAL LINE IS THE CHECK. Each game pays out exactly what went in
+ * (`splitExactly`, and stakes back when nobody wins a hole), so the night's
+ * winnings must equal the night's stakes to the cent. A total that does not
+ * reconcile is how an organizer stops trusting the whole board, which is why
+ * the screen prints both numbers rather than only the rows.
+ *
+ * Most up first; ties by id so the order is stable. Games not yet entered
+ * (no result) are skipped.
+ */
+export function nightPurse(results: readonly (PotResult | null)[]): NightPurse {
+  const rows = new Map<string, NightPurseRow>();
+  let stakeCents = 0;
+  let wonCents = 0;
+  let final = true;
+  for (const r of results) {
+    if (!r) continue;
+    if (r.provisional) final = false;
+    for (const s of r.shares) {
+      const row = rows.get(s.playerId) ?? {
+        playerId: s.playerId,
+        games: 0,
+        stakeCents: 0,
+        wonCents: 0,
+        netCents: 0,
+      };
+      row.games += 1;
+      row.stakeCents += s.stakeCents;
+      row.wonCents += s.wonCents;
+      row.netCents += s.netCents;
+      rows.set(s.playerId, row);
+      stakeCents += s.stakeCents;
+      wonCents += s.wonCents;
+    }
+  }
+  return {
+    rows: [...rows.values()].sort(
+      (a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId),
+    ),
+    stakeCents,
+    wonCents,
+    final,
+  };
+}
+
 export type SkinsScope = "full" | "front" | "back";
 
 export function isSkinsScope(v: string): v is SkinsScope {

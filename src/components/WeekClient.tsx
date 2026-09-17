@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { WeekView } from "@/lib/services/week-view";
 import { useMoney } from "@/components/CurrencyProvider";
+import { nightPurse, stakesGoBack } from "@/lib/domain/skins-pot";
 import { Icon } from "./Icon";
 
 /**
@@ -33,6 +34,95 @@ function ordinal(n: number): string {
   const teen = n % 100 >= 11 && n % 100 <= 13;
   const suffix = teen ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
   return `${n}${suffix}`;
+}
+
+/**
+ * THE NIGHT'S PURSE: every player across every skins game, with a total.
+ *
+ * Only a round that ran more than one game needs it — with one, the game's own
+ * list already is the purse. And only once every game is final: money is
+ * reported when it cannot change (see `money-layout.ts`), so a round still
+ * being played says when this will appear instead of showing a running total.
+ *
+ * The total line is the reconciliation. `nightPurse` adds up what was PAID,
+ * not what was staked, so a sheet that does not balance shows two different
+ * numbers here rather than one reassuring one.
+ */
+function NightPurseTable({ games }: { games: WeekView["skins"] }) {
+  const { money } = useMoney();
+  const played = games.filter((g) => g.view.result);
+  if (played.length < 2) return null;
+
+  const purse = nightPurse(played.map((g) => g.view.result));
+  if (!purse.final) {
+    return (
+      <p className="text-muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
+        The night&rsquo;s purse is added up once every card is in.
+      </p>
+    );
+  }
+
+  const names: Record<string, string> = Object.assign({}, ...played.map((g) => g.view.nameById));
+  const signed = (n: number) => (n === 0 ? "level" : `${n > 0 ? "+" : "−"}${money(Math.abs(n))}`);
+  const cell: React.CSSProperties = {
+    padding: "5px 6px",
+    borderTop: "1px solid var(--color-divider)",
+    textAlign: "right",
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
+  };
+  const head: React.CSSProperties = {
+    ...cell,
+    borderTop: "none",
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: "var(--color-text-muted, #888)",
+  };
+  const balanced = purse.wonCents === purse.stakeCents;
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>The night&rsquo;s purse</div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              <th style={{ ...head, textAlign: "left" }}>Player</th>
+              <th style={head}>In</th>
+              <th style={head}>Won</th>
+              <th style={head}>Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {purse.rows.map((r) => (
+              <tr key={r.playerId}>
+                <td style={{ ...cell, textAlign: "left", whiteSpace: "normal" }}>
+                  {names[r.playerId] ?? "—"}
+                </td>
+                <td style={cell}>{money(r.stakeCents)}</td>
+                <td style={cell}>{money(r.wonCents)}</td>
+                <td style={{ ...cell, fontWeight: 600 }}>{signed(r.netCents)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style={{ ...cell, textAlign: "left", fontWeight: 600 }}>Total purse</td>
+              <td style={{ ...cell, fontWeight: 600 }}>{money(purse.stakeCents)}</td>
+              <td style={{ ...cell, fontWeight: 600 }}>{money(purse.wonCents)}</td>
+              <td style={cell} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {!balanced && (
+        <p role="alert" style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+          The payouts do not add up to the stakes. Check the pots on Prizes &amp; payouts before
+          anybody settles.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function Movement({ change, isNew }: { change: number; isNew: boolean }) {
@@ -353,7 +443,9 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                         <span className="tag" style={{ fontSize: 10.5 }}>provisional</span>
                       )}
                     </div>
-                    {pot.result.shares.filter((s) => s.wonCents > 0).length === 0 ? (
+                    {/* See `stakesGoBack`: a refund is a payout, so asking
+                        "has nobody any winnings" never said stakes go back. */}
+                    {stakesGoBack(pot.result) ? (
                       <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
                         Nobody won a skin — stakes go back.
                       </p>
@@ -372,6 +464,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   </div>
                 ) : null,
               )}
+              <NightPurseTable games={view.skins} />
               <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0" }}>
                 Calculated and recorded here. The {org.noun} settles up in person — TourneyHQ never moves money.
               </p>
