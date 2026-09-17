@@ -353,8 +353,19 @@ textarea.input { min-height: 90px; resize: vertical; }
   box-shadow: inset 0 0 0 4px var(--color-bg);
 }
 .radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* A segmented control WRAPS. It did not, and the fourth role on the club's
+   access screen — Commissioner / Admin / Member / Guest — then pushed a
+   320px phone 19px sideways, taking the fixed tab bar with it.
+   `e2e/layout.spec.ts` caught it, which is the whole point of sweeping every
+   route at every width rather than checking the screen you just changed.
+
+   Fixed on the CLASS and not on that label, because the count is usually a
+   `.map`: the money modes, the cut sizes and the setup steps all render as
+   many options as the tournament has, so shortening one word only moves the
+   next overflow somewhere nobody is looking. `max-width` is the half that
+   does the work — a flex ITEM can wrap and still be wider than its parent. */
 .seg {
-  display: inline-flex; overflow: hidden;
+  display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow: hidden;
   border: 1px solid var(--color-divider); border-radius: var(--radius-md);
 }
 .seg-opt {

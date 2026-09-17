@@ -36,7 +36,20 @@ async function currentOrganization() {
   return organizationAccess(await getSession());
 }
 
-const ORG_ROLES = ["owner", "admin", "member"] as const;
+/**
+ * The roles a club can give somebody.
+ *
+ * "guest" is the one that grants LESS than nothing else does: somebody
+ * entered for one event who is not a member of the club — a charity day
+ * entrant, a league substitute filling in for an absent pair, a sponsor at
+ * the quiz night. `ORG_GUEST_ROLES` in `access.ts` is what keeps them out
+ * of the club's other tournaments, and this is the only way to give it.
+ *
+ * Deliberately generic. It was going to be a charity flag; a substitute in
+ * a Thursday league is the same person to the app — in for one night, not
+ * a member — and two flags meaning one thing drift apart.
+ */
+const ORG_ROLES = ["owner", "admin", "member", "guest"] as const;
 const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,13 +71,25 @@ async function hasOtherOwner(organizationId: string, memberId: string): Promise<
  * can't grow with the size of its fields. A User row is created if this email
  * has never signed in; they claim it with a password on first login.
  */
-export async function addOrganizationMember(email: string, name: string, role: string): Promise<OrgResult> {
+export async function addOrganizationMember(email: string, name: string, roleInput: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
 
-  const refusal = await refusalFor(org.organizationId, "staffSeats");
-  if (refusal) return { ok: false, error: refusal };
+  /**
+   * ONLY A SEAT-CONSUMING ROLE IS CHECKED AGAINST THE SEAT LIMIT.
+   *
+   * `staffSeatCount` counts owners and admins — a Member is a staff pool with
+   * no rights of its own, and a Guest is somebody in for one event. Charging a
+   * seat for either would be wrong in the direction that loses trust, and for
+   * Guest it would be absurd: a charity day is a hundred of them, and a club
+   * at its cap could not add the field it just took entries from.
+   */
+  const role = cleanOrgRole(roleInput);
+  if (role === "owner" || role === "admin") {
+    const refusal = await refusalFor(org.organizationId, "staffSeats");
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   const cleanEmail = email.trim().toLowerCase();
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
@@ -90,8 +115,8 @@ export async function addOrganizationMember(email: string, name: string, role: s
 
   await prisma.organizationMember.upsert({
     where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
-    update: { role: cleanOrgRole(role) },
-    create: { organizationId: org.organizationId, userId: user.id, role: cleanOrgRole(role) },
+    update: { role: role },
+    create: { organizationId: org.organizationId, userId: user.id, role: role },
   });
 
   if (!existingMembership) {
@@ -116,7 +141,7 @@ export async function addOrganizationMember(email: string, name: string, role: s
     await sendStaffInviteEmail(cleanEmail, {
       organizationName: club?.name ?? "",
       organizationId: org.organizationId,
-      role: cleanOrgRole(role),
+      role: role,
       hasPassword: Boolean(user.password),
       toName: user.name ?? "",
     });
@@ -136,6 +161,8 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   });
   if (!member) return { ok: false, error: "Staff member not found." };
 
+  // Sanitised, not trusted: this is a public endpoint and an unknown string
+  // would otherwise be stored as a role nothing in the app understands.
   const next = cleanOrgRole(role);
   if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
     return { ok: false, error: "This is the only owner — make someone else an owner first." };

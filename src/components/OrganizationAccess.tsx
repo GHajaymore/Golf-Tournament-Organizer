@@ -44,12 +44,14 @@ const ORG_ROLE_OPTS = [
   { v: "owner", l: "Commissioner" },
   { v: "admin", l: "Admin" },
   { v: "member", l: "Member" },
+  { v: "guest", l: "Guest" },
 ];
 
 const ORG_ROLE_LABEL: Record<string, string> = {
   owner: "Commissioner",
   admin: "Admin",
   member: "Member",
+  guest: "Guest",
 };
 const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
 
@@ -95,7 +97,13 @@ export function OrganizationAccess({
                 `canAdministerOrg` is `owner || admin`. */}
             <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
             <b>Admin</b> — organizer on every tournament this organization runs, without being added to
-            each one. <b>Member</b> — staff pool; access only where explicitly given on an event.
+            each one. <b>Member</b> — staff pool; access only where explicitly given on an event.{" "}
+            {/* The one role that grants LESS. A charity day and a league
+                substitute are the same person to the app: in for one event,
+                not a member — so they must not see what the club is running
+                the rest of the year. Upgrade them to Member if they join. */}
+            <b>Guest</b> — in for one event only: a charity entrant, a league substitute, a sponsor.
+            They never see the club&rsquo;s other tournaments. Make them a Member if they join.
           </p>
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 13 }}>
