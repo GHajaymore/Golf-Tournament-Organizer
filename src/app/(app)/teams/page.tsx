@@ -1,6 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { screenName } from "@/lib/nav";
+import { LeagueSection } from "@/components/LeagueSection";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
@@ -101,6 +102,19 @@ export default async function TeamsPage({
         unassigned={unassigned}
         matchCount={matchCount}
       />
+
+      {/**
+       * THE LEAGUE, WHEN THERE IS ONE — on the screen that already owns sides.
+       *
+       * An interclub league has a level above the side that plays: club teams
+       * holding a roster, each nominating pairs for the week. Everything about
+       * it belongs beside the sides rather than on a screen of its own, which
+       * would ask an organizer to hold two ideas of what a "team" is.
+       *
+       * Renders nothing at all unless the tournament has club teams, so every
+       * ordinary four-ball event sees exactly what it saw before.
+       */}
+      <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />
     </>
   );
 }

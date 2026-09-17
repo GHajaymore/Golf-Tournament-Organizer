@@ -993,6 +993,36 @@ model Event {
    * want opposite answers. See domain/expense-entry.ts.
    */
   expenseEntry          String  @default("")
+
+  /**
+   * How an interclub league turns four-ball results into points — see
+   * `LEAGUE_POINTS_SYSTEMS` in domain/league-meeting.ts for the four on offer.
+   * On the EVENT rather than the round, deliberately: a league scores every
+   * week the same way, and a setting that could differ round to round is a
+   * league whose table cannot be added up.
+   * Empty means this is not a league, which is every tournament that exists
+   * today, so the column changes nothing for any of them.
+   */
+  leaguePoints          String  @default("")
+  /**
+   * What winning the MATCH is worth on top of the holes, for the systems that
+   * have a bonus. Clubs differ on it, so it is a number rather than a constant
+   * — the same reason `handicapAllowance` is a column and not a rule.
+   */
+  leagueMatchBonus      Int     @default(2)
+  /**
+   * How many pairs each club nominates for a meeting.
+   * The ONE number about a league's shape worth storing. How many clubs there
+   * are is however many club teams exist, and a roster is however many members
+   * it holds — neither needs declaring, and a column for either would be a
+   * second answer to a question the rows already answer.
+   * This one is different because being SHORT is a state somebody has to act
+   * on. A captain who has nominated five of six needs telling on Thursday
+   * afternoon rather than discovering it on the first tee, and nothing can
+   * infer the intended six from five rows.
+   * Zero means "do not check", which is every tournament that exists today.
+   */
+  leaguePairs           Int     @default(0)
   /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h
@@ -1313,6 +1343,11 @@ model Group {
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   players Player[]
   matches Match[]
+  /**
+   * The weekly pairs this flight puts up, when the flight is a league club.
+   * Empty for every ordinary flight, which is what a flight normally is.
+   */
+  sides   Team[]  @relation("ClubSide")
 
   @@index([eventId])
   // One carrier per round, and the lookup is now this pair rather than a name.
@@ -1783,8 +1818,43 @@ model Team {
   members    TeamMember[]
   scorecards TeamScorecard[]
 
+  /**
+   * The CLUB this side plays for, in a league that has two levels.
+   *
+   * A `Team` here is the side that PLAYS a round — two in a four-ball, four in
+   * a scramble — and `sideSizeRange` caps every format at four. An interclub
+   * league is a level above that: club teams with a roster of ten or more,
+   * each NOMINATING pairs for the week, and the pairs may differ week to week.
+   *
+   * THE CLUB IS A FLIGHT. This first pointed at a stage-less `Team` standing
+   * in for the club, which was a parallel model — a `Group` already IS that
+   * thing. It is named, it belongs to the tournament rather than to any one
+   * round, its roster is `Player.groupId`, and it carries an optional
+   * `captainId` and `viceCaptainId` that the organizer appoints in flights
+   * setup. `setFlightCaptain` already refuses anybody who is not a member of
+   * the flight, and a captain already gets a scoped read of their own flight's
+   * attendance and nobody else's.
+   *
+   * Not every flight has a captain and not every flight is a club — which is
+   * why `captainId` is nullable and this is too. A league is a tournament
+   * whose flights are clubs.
+   *
+   * A team-versus-team MEETING is derived rather than stored: the matches in
+   * one round whose two sides play for different clubs ARE that meeting. That
+   * keeps a six-match tie from needing a model of its own, and keeps every
+   * existing format untouched.
+   *
+   * SetNull rather than Cascade, and the distinction is load-bearing: deleting
+   * a flight must not delete the weekly pairs, because those hold the matches
+   * and the scorecards of rounds that were actually played. Cascading would
+   * erase a season to tidy up a flight.
+   */
+  clubGroupId String?
+  club        Group?  @relation("ClubSide", fields: [clubGroupId], references: [id], onDelete: SetNull)
+
   @@index([eventId])
   @@index([stageId])
+  @@index([clubGroupId])
 }
 
 model TeamMember {

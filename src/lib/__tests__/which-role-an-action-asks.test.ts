@@ -48,6 +48,10 @@ const ASKS_REAL_ROLE = [
   "card-photo.ts",
   "commentary.ts",
   "courses.ts",
+  // Nominating a week's pairs is a captain's list entered by staff, and it reads
+  // the account's real standing exactly as teams.ts does — the two screens do
+  // the same kind of work to the same rows.
+  "league.ts",
   "money-setup.ts",
   "roster.ts",
   "round-expiry.ts",
