@@ -187,7 +187,7 @@ describe("a season with play-offs", () => {
   });
 
   it("lists every club, and a provisional bracket, before anybody has nominated", async () => {
-    const table = await leagueTable(session.eventId, "holes");
+    const table = (await leagueTable(session.eventId, "holes")).rows;
     expect(table.map((r) => club.indexOf(r.clubId))).toEqual([0, 1, 2, 3]);
     const bracket = await leaguePlayoffs(session.eventId, "holes");
     expect(bracket?.rounds[0].meetings.map((m) => m && `${club.indexOf(m.clubA)}v${club.indexOf(m.clubB)}`)).toEqual(
@@ -218,7 +218,7 @@ describe("a season with play-offs", () => {
     await score(1, strength);
 
     // Holes won only: clubs 0 and 1 won every hole of both meetings.
-    const table = await leagueTable(session.eventId, "holes");
+    const table = (await leagueTable(session.eventId, "holes")).rows;
     expect(table.map((r) => [club.indexOf(r.clubId), r.points, r.won])).toEqual([
       [0, 36, 2],
       [1, 36, 2],
@@ -254,7 +254,7 @@ describe("a season with play-offs", () => {
   });
 
   it("leaves the season table alone — a semi-final is not a season week", async () => {
-    const table = await leagueTable(session.eventId, "holes");
+    const table = (await leagueTable(session.eventId, "holes")).rows;
     const three = table.find((r) => r.clubId === club[3]);
     // Club 3 won eighteen holes in the semi-final; none of them count here.
     expect(three).toMatchObject({ points: 0, played: 2, won: 0 });
@@ -270,12 +270,70 @@ describe("a season with play-offs", () => {
     await prisma.event.update({ where: { id: session.eventId }, data: { leaguePlayoffClubs: 0 } });
     try {
       expect(await leaguePlayoffs(session.eventId, "holes")).toBeNull();
-      const three = (await leagueTable(session.eventId, "holes")).find((r) => r.clubId === club[3]);
+      const three = (await leagueTable(session.eventId, "holes")).rows.find((r) => r.clubId === club[3]);
       // Now both play-off rounds count: eighteen holes from the semi-final,
       // none from the final, and two more meetings.
       expect(three).toMatchObject({ points: 18, played: 4 });
     } finally {
       await prisma.event.update({ where: { id: session.eventId }, data: { leaguePlayoffClubs: 4 } });
     }
+  });
+});
+
+describe("the committee's tiebreak chain decides a level table", () => {
+  /**
+   * THE CHAIN IS THE TOURNAMENT'S, NOT THE ALPHABET'S. Two clubs level on
+   * points are separated by `Event.tiebreakers` — the same chain the player
+   * standings use — and only by the name when nothing in it can.
+   *
+   * Run against the fixture above, whose season left clubs 2 and 3 level on
+   * nothing: club 2 lost both meetings and so did club 3, so the points are
+   * equal and their head-to-head never happened in the season.
+   */
+  const order = async () => (await leagueTable(session.eventId, "holes")).rows.map((r) => club.indexOf(r.clubId));
+
+  it("records the holes each club won and lost, for the committee to rank on", async () => {
+    await prisma.event.update({
+      where: { id: session.eventId },
+      data: { tiebreakers: JSON.stringify(["holes-won-ratio"]) },
+    });
+    const rows = (await leagueTable(session.eventId, "holes")).rows;
+    const top = rows.find((r) => r.clubId === club[0])!;
+    const bottom = rows.find((r) => r.clubId === club[3])!;
+    // Club 0 won every hole of both its meetings; club 3 lost every hole of
+    // both of its. Twelve pairings of eighteen holes either way.
+    expect([top.holesWon, top.holesLost]).toEqual([36, 0]);
+    expect([bottom.holesWon, bottom.holesLost]).toEqual([0, 36]);
+  });
+
+  it("says which rule it used, in the committee's own words", async () => {
+    const table = await leagueTable(session.eventId, "holes");
+    expect(table.orderNote).toBe("Ranked on points, then hole differential (won − lost), then by name.");
+  });
+
+  it("ignores a chain of keys that mean nothing to a club", async () => {
+    await prisma.event.update({
+      where: { id: session.eventId },
+      data: { tiebreakers: JSON.stringify(["toughest-6", "lower-handicap"]) },
+    });
+    const table = await leagueTable(session.eventId, "holes");
+    expect(table.orderNote).toBe("Ranked on points. Clubs level on points are listed by name.");
+    // Nothing usable, so the level clubs fall back to their names.
+    const rows = table.rows.filter((r) => r.points === 0).map((r) => r.name);
+    expect([...rows].sort()).toEqual(rows);
+  });
+
+  it("seeds the play-offs in the order the table is printed in", async () => {
+    await prisma.event.update({
+      where: { id: session.eventId },
+      data: { tiebreakers: JSON.stringify(["holes-won-ratio"]) },
+    });
+    const table = await leagueTable(session.eventId, "holes");
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    const seeds = bracket!.rounds[0].meetings.flatMap((m) => (m ? [m.clubA, m.clubB] : []));
+    // Seeds 1..4 are the first four rows, in bracket order 1v4, 2v3.
+    const top = table.rows.slice(0, 4).map((r) => r.clubId);
+    expect(seeds).toEqual([top[0], top[3], top[1], top[2]]);
+    expect(await order()).toHaveLength(4);
   });
 });

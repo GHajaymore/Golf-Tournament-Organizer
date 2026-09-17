@@ -13,10 +13,12 @@ import {
 import type { HoleResult } from "../domain/types";
 import { matchIsOver } from "../domain/match";
 import { needsTeams } from "../formats";
+import { scoringFrom } from "./tournament";
+import { tiebreakerLabel } from "../domain/types";
+import { clubOrderNote, orderClubs, type HeadToHead } from "../domain/league-order";
 import {
   playoffBracket,
   playoffChampion,
-  seedOrder,
   splitSeason,
   type MeetingOutcome,
 } from "../domain/league-playoff";
@@ -210,8 +212,17 @@ export interface LeagueTableRow {
   points: number;
   /** Meetings this club has actually played, for "after six weeks". */
   played: number;
-  /** Meetings won outright and finished — the first tiebreak for seeding. */
+  /** Meetings won outright. A halved meeting counts to neither side. */
   won: number;
+  /** Holes won and lost across every pairing — the committee's countbacks. */
+  holesWon: number;
+  holesLost: number;
+}
+
+export interface LeagueTable {
+  rows: LeagueTableRow[];
+  /** What decided the order, in the committee's own words. */
+  orderNote: string;
 }
 
 /**
@@ -253,9 +264,12 @@ export interface LeaguePlayoffs {
 /**
  * THE PLAY-OFF BRACKET, as far as the results allow.
  *
- * Seeded from the season table by `seedOrder` — points, meetings won, then
- * name — and advanced by `meetingWinner`, which reads the play-off meetings
- * that were actually played. Null when the league has no play-offs.
+ * SEEDED BY THE TABLE ITSELF, in the order the screen prints it — points,
+ * then the committee’s own tiebreak chain (see `orderClubs`), then the name.
+ * One order, so the club listed above another is the club seeded above it.
+ *
+ * Advanced by `meetingWinner`, which reads the play-off meetings that were
+ * actually played. Null when the league has no play-offs.
  */
 export async function leaguePlayoffs(
   eventId: string,
@@ -266,7 +280,7 @@ export async function leaguePlayoffs(
   if (size === 0) return null;
 
   const table = await leagueTable(eventId, system, matchBonus);
-  const seeded = seedOrder(table).map((r) => r.clubId);
+  const seeded = table.rows.map((r) => r.clubId);
   const outcomes: MeetingOutcome[][] = [];
   for (const stageId of playoffs) {
     const played = await leagueMeetings(eventId, stageId, system, matchBonus);
@@ -285,7 +299,7 @@ export async function leaguePlayoffs(
   if (bracket.length === 0) return null;
   return {
     rounds: bracket.map((r, i) => ({ stageId: playoffs[i], name: r.name, meetings: r.meetings })),
-    names: Object.fromEntries(table.map((r) => [r.clubId, r.name])),
+    names: Object.fromEntries(table.rows.map((r) => [r.clubId, r.name])),
     champion: playoffChampion(bracket, outcomes.at(-1) ?? []),
   };
 }
@@ -307,7 +321,7 @@ export async function leagueTable(
   eventId: string,
   system: LeaguePointsSystem,
   matchBonus?: number,
-): Promise<LeagueTableRow[]> {
+): Promise<LeagueTable> {
   /**
    * THE CLUBS ARE THE FLIGHTS — every one, including a club that has not
    * nominated a pair yet. The same list the team sheets and the draw use.
@@ -323,7 +337,7 @@ export async function leagueTable(
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });
-  if (clubs.length === 0) return [];
+  if (clubs.length === 0) return { rows: [], orderNote: "" };
 
   /**
    * THE SEASON ONLY. A play-off meeting decides who goes through, not where
@@ -335,7 +349,15 @@ export async function leagueTable(
   const points = new Map(clubs.map((c) => [c.id, 0]));
   const played = new Map(clubs.map((c) => [c.id, 0]));
   const won = new Map(clubs.map((c) => [c.id, 0]));
+  const holesWon = new Map(clubs.map((c) => [c.id, 0]));
+  const holesLost = new Map(clubs.map((c) => [c.id, 0]));
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) ?? 0) + n);
+  /** Who beat whom, for the head-to-head key. See `HeadToHead`. */
+  const h2h: HeadToHead = new Map(clubs.map((c) => [c.id, new Map<string, number>()]));
+  const met = (a: string, b: string, result: number) => {
+    h2h.get(a)?.set(b, result);
+    h2h.get(b)?.set(a, -result);
+  };
 
   for (const stageId of season) {
     for (const m of await leagueMeetings(eventId, stageId, system, matchBonus)) {
@@ -343,26 +365,60 @@ export async function leagueTable(
       add(points, m.clubBId, m.pointsB);
       add(played, m.clubAId, 1);
       add(played, m.clubBId, 1);
-      // Won outright, and only once it is over — the first tiebreak.
-      if (m.complete && m.pointsA > m.pointsB) add(won, m.clubAId, 1);
-      if (m.complete && m.pointsB > m.pointsA) add(won, m.clubBId, 1);
+
+      /**
+       * HOLES WON AND LOST, for the committee's countbacks — counted from
+       * the same per-hole results the points come from, so the two can
+       * never disagree about what happened on a hole.
+       */
+      for (const p of m.pairings) {
+        const aIsHome = p.clubA === m.clubAId;
+        for (const h of p.holes) {
+          if (h === null || h === "H") continue;
+          const homeWon = (h === "A") === aIsHome;
+          add(homeWon ? holesWon : holesLost, m.clubAId, 1);
+          add(homeWon ? holesLost : holesWon, m.clubBId, 1);
+        }
+      }
+
+      // Won outright, and only once it is over.
+      if (m.complete && m.pointsA > m.pointsB) {
+        add(won, m.clubAId, 1);
+        met(m.clubAId, m.clubBId, 1);
+      } else if (m.complete && m.pointsB > m.pointsA) {
+        add(won, m.clubBId, 1);
+        met(m.clubAId, m.clubBId, -1);
+      } else if (m.complete) {
+        met(m.clubAId, m.clubBId, 0);
+      }
     }
   }
 
   /**
-   * Most points first, in the SAME order the play-offs are seeded in, so the
-   * row above a club is the club seeded above it. A tie on points still shows
-   * as a shared place — `placesByValue` works that out on the points alone,
-   * the same way every other board does — and the Won column says why one
-   * of two level clubs is listed first.
+   * Most points first, then the COMMITTEE'S OWN CHAIN — the one set on
+   * Scoring & rules and applied to players by `tiebreakerCompare`. The
+   * league table used to go straight to the club's name, so a four-way tie
+   * at the top of a twelve-club league seeded the play-offs alphabetically.
+   *
+   * The same order the play-offs are seeded in, so the row above a club is
+   * the club seeded above it. A tie on POINTS still shows as a shared place
+   * — `placesByValue` works that out on the points alone, as every other
+   * board does — and the columns beside it say what separated them.
    */
-  return seedOrder(
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const chain = event ? scoringFrom(event).tiebreakers : [];
+  const rows = orderClubs(
     clubs.map((c) => ({
       clubId: c.id,
       name: c.name,
       points: points.get(c.id) ?? 0,
       played: played.get(c.id) ?? 0,
       won: won.get(c.id) ?? 0,
+      holesWon: holesWon.get(c.id) ?? 0,
+      holesLost: holesLost.get(c.id) ?? 0,
     })),
+    chain,
+    h2h,
   );
+  return { rows, orderNote: clubOrderNote(chain, tiebreakerLabel) };
 }

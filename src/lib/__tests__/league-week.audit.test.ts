@@ -251,12 +251,12 @@ describe("one week of a twelve-club league", () => {
 describe("the league table", () => {
   it("lists every club, including ones yet to score", async () => {
     // A league table with a missing team reads as a bug on a clubhouse screen.
-    const table = await leagueTable(eventId, "match");
+    const table = (await leagueTable(eventId, "match")).rows;
     expect(table).toHaveLength(CLUBS);
   });
 
   it("puts the six winners on six points and the six losers on none", async () => {
-    const table = await leagueTable(eventId, "match");
+    const table = (await leagueTable(eventId, "match")).rows;
     const winners = table.filter((r) => r.points === PAIRS_PER_CLUB);
     const losers = table.filter((r) => r.points === 0);
     expect(winners).toHaveLength(CLUBS / 2);
@@ -264,12 +264,12 @@ describe("the league table", () => {
   });
 
   it("counts one meeting played for everybody", async () => {
-    const table = await leagueTable(eventId, "match");
+    const table = (await leagueTable(eventId, "match")).rows;
     for (const r of table) expect(r.played, r.name).toBe(1);
   });
 
   it("ranks the table by points", async () => {
-    const table = await leagueTable(eventId, "match");
+    const table = (await leagueTable(eventId, "match")).rows;
     for (let i = 1; i < table.length; i += 1) {
       expect(table[i - 1].points).toBeGreaterThanOrEqual(table[i].points);
     }
@@ -369,7 +369,7 @@ describe("an ordinary four-ball that is not league play", () => {
     await prisma.team.create({ data: { eventId: plain.id, stageId: s.id, name: `${TAG} y`, seed: 2 } });
 
     expect(await leagueMeetings(plain.id, s.id, "match"), "not a league").toEqual([]);
-    expect(await leagueTable(plain.id, "match"), "and no table").toEqual([]);
+    expect((await leagueTable(plain.id, "match")).rows, "and no table").toEqual([]);
   });
 
   it("lists the twelve clubs as the team sheets, and never the fixtures carrier", async () => {
