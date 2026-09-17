@@ -220,7 +220,7 @@ export async function leagueTable(
    * member-guest into a league of four.
    */
   const clubs = await prisma.group.findMany({
-    where: { eventId, sides: { some: {} } },
+    where: { eventId, isCarrier: false, sides: { some: {} } },
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });

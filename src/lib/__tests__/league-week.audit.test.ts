@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { leagueMeetings, leagueTable } from "@/lib/services/league";
+import { flightsIn } from "@/lib/services/league-nomination";
 
 /**
  * A REAL WEEK OF AN INTERCLUB LEAGUE, AGAINST REAL ROWS.
@@ -109,9 +110,13 @@ beforeAll(async () => {
    * `Match.groupId` files a fixture; using a club's own flight for it would
    * make the carrier one of the competing sides and read as a club playing
    * host to its own matches.
+   *
+   * Marked as a carrier, and deliberately WITHOUT a stage — the legacy shape
+   * `tournament.ts` still repairs — so `stageId: null` alone cannot keep it
+   * out of the club list and only `isCarrier` can.
    */
   const carrier = await prisma.group.create({
-    data: { eventId, name: `${TAG} fixtures`, position: CLUBS },
+    data: { eventId, name: `${TAG} fixtures`, position: CLUBS, isCarrier: true },
     select: { id: true },
   });
 
@@ -365,5 +370,10 @@ describe("an ordinary four-ball that is not league play", () => {
 
     expect(await leagueMeetings(plain.id, s.id, "match"), "not a league").toEqual([]);
     expect(await leagueTable(plain.id, "match"), "and no table").toEqual([]);
+  });
+
+  it("lists the twelve clubs as the team sheets, and never the fixtures carrier", async () => {
+    const ids = (await flightsIn(eventId)).map((c) => c.id);
+    expect(ids).toEqual(clubId);
   });
 });

@@ -64,7 +64,7 @@ export async function nominationsFor(
   const [event, club, pairs] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId } }),
     prisma.group.findFirst({
-      where: { id: clubId, eventId },
+      where: { id: clubId, eventId, isCarrier: false },
       include: {
         players: { select: { id: true, name: true, handicap: true } },
         captain: { select: { name: true } },
@@ -163,7 +163,7 @@ export async function nominationsFor(
  */
 export async function clubsIn(eventId: string): Promise<{ id: string; name: string }[]> {
   const withSides = await prisma.group.findMany({
-    where: { eventId, sides: { some: {} } },
+    where: { eventId, isCarrier: false, sides: { some: {} } },
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });
@@ -179,7 +179,7 @@ export async function clubsIn(eventId: string): Promise<{ id: string; name: stri
  */
 export async function flightsIn(eventId: string): Promise<{ id: string; name: string }[]> {
   return prisma.group.findMany({
-    where: { eventId, stageId: null },
+    where: { eventId, stageId: null, isCarrier: false },
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });

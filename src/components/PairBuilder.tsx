@@ -82,6 +82,13 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
             </span>
           )}
         </div>
+        {/* The captain is appointed in flights setup, and only where a league
+            has one — so a club without one simply shows no line. */}
+        {club.captainName && (
+          <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+            Captain: {club.captainName}
+          </div>
+        )}
 
         {club.pairs.length === 0 ? (
           <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 13 }}>

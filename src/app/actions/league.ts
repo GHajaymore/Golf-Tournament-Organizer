@@ -46,7 +46,7 @@ export type LeagueResult = { ok: true } | { ok: false; error: string };
  */
 async function clubInEvent(eventId: string, clubId: string) {
   return prisma.group.findFirst({
-    where: { id: clubId, eventId },
+    where: { id: clubId, eventId, isCarrier: false },
     select: { id: true, name: true },
   });
 }
