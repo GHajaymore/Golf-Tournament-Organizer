@@ -143,6 +143,60 @@ async function playedEventsOn(
   return out;
 }
 
+/** What an organizer has decided about the rounds already scored on a card. */
+export type PlayedCardChoice = "ask" | "keep-history" | "rescore";
+
+/**
+ * Deal with the rounds already scored on a card that is about to change.
+ *
+ * Returns a refusal to hand straight back on the first attempt, or null
+ * once the organizer has chosen — having snapshotted the old card onto the
+ * played events when they chose to keep those results.
+ *
+ * Shared, because the club library has TWO ways to overwrite a card —
+ * editing it by hand and taking the directory's — and a rule enforced in
+ * one of them is a rule with a second door beside it.
+ */
+async function settlePlayedCards(
+  course: { id: string; pars: string; yards: string; strokeIndex: string },
+  organizationId: string,
+  mode: PlayedCardChoice,
+): Promise<CourseResult | null> {
+  const scoredOn = await playedEventsOn(course.id, organizationId);
+  if (scoredOn.length === 0) return null;
+
+  if (mode === "ask") {
+    return {
+      ok: false,
+      needsConfirm: true,
+      cards: scoredOn.reduce((n, e) => n + e.cards, 0),
+      events: scoredOn.map((e) => e.name),
+    };
+  }
+
+  if (mode === "keep-history") {
+    /**
+     * The OLD card onto the played events, and the link cut with it —
+     * `resolveCourse` reads `courseRef` FIRST, so a snapshot left beside a
+     * live reference would change nothing at all.
+     *
+     * Only events with no card of their own: a deliberate custom card
+     * outranks the club's, and overwriting it would be this function
+     * deciding it knows better. Same words as the delete path.
+     */
+    await prisma.event.updateMany({
+      where: { id: { in: scoredOn.map((e) => e.id) }, customPars: "" },
+      data: {
+        customPars: course.pars,
+        customYards: course.yards,
+        customStrokeIndex: course.strokeIndex,
+        courseId: null,
+      },
+    });
+  }
+  return null;
+}
+
 export interface ClubCourseInput {
   id?: string;
   /**
@@ -155,7 +209,7 @@ export interface ClubCourseInput {
    * "rescore" applies the new card everywhere, which is what saving has
    * always done.
    */
-  played?: "ask" | "keep-history" | "rescore";
+  played?: PlayedCardChoice;
   name: string;
   city?: string;
   pars: number[];
@@ -247,38 +301,11 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
      */
     const scoringChanged =
       existing.pars !== data.pars || existing.strokeIndex !== data.strokeIndex;
-    const mode = input.played ?? "ask";
+    const mode: PlayedCardChoice = input.played ?? "ask";
 
     if (scoringChanged) {
-      const scoredOn = await playedEventsOn(input.id, organizationId);
-      if (scoredOn.length > 0 && mode === "ask") {
-        return {
-          ok: false,
-          needsConfirm: true,
-          cards: scoredOn.reduce((n, e) => n + e.cards, 0),
-          events: scoredOn.map((e) => e.name),
-        };
-      }
-      if (scoredOn.length > 0 && mode === "keep-history") {
-        /**
-         * The OLD card onto the played events, and the link cut with it —
-         * `resolveCourse` reads `courseRef` FIRST, so a snapshot left
-         * beside a live reference would change nothing at all.
-         *
-         * Only events with no card of their own: a deliberate custom card
-         * outranks the club's, and overwriting it would be this function
-         * deciding it knows better. Same words as the delete path.
-         */
-        await prisma.event.updateMany({
-          where: { id: { in: scoredOn.map((e) => e.id) }, customPars: "" },
-          data: {
-            customPars: existing.pars,
-            customYards: existing.yards,
-            customStrokeIndex: existing.strokeIndex,
-            courseId: null,
-          },
-        });
-      }
+      const refusal = await settlePlayedCards(existing, organizationId, mode);
+      if (refusal) return refusal;
     }
 
     await prisma.course.update({ where: { id: input.id }, data });
@@ -1197,7 +1224,10 @@ export async function checkCourseAgainstSource(courseId: string): Promise<Source
  * has seen exactly what it will change. Taking it counts as confirming the
  * card — they have just read it hole by hole — so it lands verified, by them.
  */
-export async function applySourceCard(courseId: string): Promise<CourseResult> {
+export async function applySourceCard(
+  courseId: string,
+  played: PlayedCardChoice = "ask",
+): Promise<CourseResult> {
   const { organizationId } = await requireOrganizerOrg();
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
@@ -1208,6 +1238,20 @@ export async function applySourceCard(courseId: string): Promise<CourseResult> {
   const fresh = await fetchLiveDirectoryCourse(directoryId);
   if (!fresh) return { ok: false, error: "The course directory didn't answer. Try again in a moment." };
   if (!fresh.card.usable) return { ok: false, error: fresh.card.reason };
+
+  /**
+   * The directory's card is still a card, and taking it re-scores every
+   * round played on the old one exactly as editing by hand would. Same
+   * question, same helper — and asked only when the SCORING half differs,
+   * since a yardage correction cannot move a result.
+   */
+  const scoringChanged =
+    course.pars !== JSON.stringify(fresh.card.pars) ||
+    course.strokeIndex !== JSON.stringify(fresh.card.strokeIndex);
+  if (scoringChanged) {
+    const refusal = await settlePlayedCards(course, organizationId, played);
+    if (refusal) return refusal;
+  }
 
   const session = await getSession();
   await prisma.course.update({
