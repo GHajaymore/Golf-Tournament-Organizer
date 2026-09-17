@@ -390,13 +390,19 @@ export default async function PlayTodayPage() {
               added them to it by hand, so "what's on next month?" was a
               question you asked a person. Deliberately not a fifth tab: see
               PLAYER_EVENTS in player-nav.ts. */}
-          <Link
-            className="btn btn-ghost"
-            href="/me/events"
-            style={{ alignSelf: "flex-start", marginTop: 12 }}
-          >
-            <Icon name="calendar-dots" /> {screenName("/me/events")}
-          </Link>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <Link className="btn btn-ghost" href="/me/events">
+              <Icon name="calendar-dots" /> {screenName("/me/events")}
+            </Link>
+            {/* A MEMBER'S WAY INTO A CASUAL ROUND. The free-tier round is for
+                anybody, not only organizers (see `/match/new`), and until now
+                its only doors were `/choose` and the organizer's event
+                switcher — both console screens a player is routed away from.
+                The Sunday fourball starts here. */}
+            <Link className="btn btn-ghost" href="/match/new">
+              <Icon name="sword" /> Play a casual round
+            </Link>
+          </div>
 
           {availability.playerId && (
             <div style={{ marginTop: 12 }}>

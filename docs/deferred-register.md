@@ -313,6 +313,18 @@ its member-side door built in the SAME change — the landing page's "Playing
 today? Enter your round code" is the natural neighbour, and `/play` is the
 player's entry — rather than a removal now and a replacement later.
 
+**Half done, 2026-09-17: the member-side door exists.** The player app's Today
+screen (`/me`) now has "Play a casual round" beside "Events", and
+`createMatch` already accepts any signed-in person. So removing the console
+doors no longer strands the feature.
+
+**The removal itself is still Ajay's call**, because the comments on both
+console doors record why they were ADDED: two abandoned draft tournaments in
+the development database, five minutes apart, from somebody who wanted one
+match and built a tournament twice. `/choose` is also where a plain member
+lands after sign-in, not only an organizer. Taking the doors out trades that
+evidence for a cleaner console — worth asking rather than assuming.
+
 ### What the club section should be CALLED
 Open, and small. The sidebar heading and the settings screen are relabelled per
 organization kind today — "Club", "Society", "Outing" — from
