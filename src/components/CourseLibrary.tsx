@@ -101,6 +101,8 @@ export function CourseLibrary({
   const [si, setSi] = useState<string[]>(opened ? cardOf(opened, opened.strokeIndex) : BLANK);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** Set when the server says this card already has rounds scored against it. */
+  const [scored, setScored] = useState<{ cards: number; events: string[] } | null>(null);
   /** The paste box inside the editor, and what the last paste made of it. */
   const [pasteCard, setPasteCard] = useState("");
   const [pasteNote, setPasteNote] = useState("");
@@ -172,7 +174,14 @@ export function CourseLibrary({
     setError("");
   };
 
-  const save = () => {
+  /**
+   * Save the card, and answer for the rounds already scored on it.
+   *
+   * `played` is what the organizer chose in the block below: nothing on the
+   * first attempt, so the server can say what the change costs, then
+   * "keep-history" or "rescore" once they have decided.
+   */
+  const save = (played?: "keep-history" | "rescore") => {
     setError("");
     setNotice("");
     startTransition(async () => {
@@ -183,12 +192,22 @@ export function CourseLibrary({
         pars: nums(pars),
         yards: nums(yards),
         strokeIndex: nums(si),
+        played,
       });
+      if (res.needsConfirm) {
+        setScored({ cards: res.cards ?? 0, events: res.events ?? [] });
+        return;
+      }
+      setScored(null);
       if (!res.ok) {
         setError(res.error ?? "Couldn't save the course.");
         return;
       }
-      setNotice(`${name.trim()} saved to the ${org.noun} library.`);
+      setNotice(
+        played === "keep-history"
+          ? `${name.trim()} updated. The rounds already played keep the card they were scored on.`
+          : `${name.trim()} saved to the ${org.noun} library.`,
+      );
       resetForm();
     });
   };
@@ -749,8 +768,61 @@ export function CourseLibrary({
             </table>
           </div>
 
+          {/* WHAT THIS CARD IS HOLDING UP. A venue is a live record and the
+              card a round was scored against is history, so correcting the
+              card asks which of the two this edit is. Inline under the
+              control, not a dialog — the same shape as `RescoreWarning`. */}
+          {scored && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "8px 10px",
+                border: "1px solid var(--color-accent)",
+                borderRadius: 8,
+                fontSize: 12.5,
+                lineHeight: 1.55,
+              }}
+            >
+              <b>
+                <Icon name="warning" /> {scored.cards} card{scored.cards === 1 ? " has" : "s have"}
+                {" "}already been scored on this course.
+              </b>
+              <div className="text-muted" style={{ marginTop: 4 }}>
+                Pars and stroke indexes decide to-par, net scores and which holes shots fall on,
+                so changing them re-scores{" "}
+                {scored.events.length > 0 ? scored.events.join(", ") : "the rounds already played"}.
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={pending}
+                  onClick={() => save("keep-history")}
+                >
+                  Keep those results as they were
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={pending}
+                  onClick={() => save("rescore")}
+                >
+                  Re-score them on the new card
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setScored(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button type="button" className="btn btn-primary" disabled={pending || !name.trim()} onClick={save}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending || !name.trim()}
+              onClick={() => save()}
+            >
               <Icon name="check" /> {pending ? "Saving…" : editing ? "Save course" : "Add course"}
             </button>
             <button type="button" className="btn" disabled={pending} onClick={resetForm}>
