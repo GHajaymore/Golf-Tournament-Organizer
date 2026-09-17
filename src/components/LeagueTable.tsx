@@ -18,10 +18,17 @@ import type { LeagueTableRow } from "@/lib/services/league";
 export function LeagueTable({
   rows,
   pointsLabel,
+  orderNote,
 }: {
   rows: LeagueTableRow[];
   /** What the column is counting, in the words the league chose. */
   pointsLabel: string;
+  /**
+   * What decided the order below the points — the committee's own tiebreak
+   * chain, named. Two clubs level on points are listed in SOME order, and a
+   * club that finishes below another deserves to know which rule did it.
+   */
+  orderNote?: string;
 }) {
   const places = placesByValue(
     rows,
@@ -46,13 +53,17 @@ export function LeagueTable({
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 300 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 350 }}>
         <thead>
           <tr>
             <th style={{ textAlign: "left", width: 44 }}>Pos.</th>
             <th style={{ textAlign: "left" }}>Team</th>
             <th style={{ textAlign: "right", width: 56 }}>Played</th>
             <th style={{ textAlign: "right", width: 44 }}>Won</th>
+            {/* Holes won minus lost. On the screen because the committee's
+                chain can rank on it, and a tiebreak nobody can see is a
+                result a club cannot check. */}
+            <th style={{ textAlign: "right", width: 56 }}>Holes</th>
             <th style={{ textAlign: "right", width: 68 }}>{pointsLabel}</th>
           </tr>
         </thead>
@@ -66,6 +77,10 @@ export function LeagueTable({
               </td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                 {r.won}
+              </td>
+              <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                {r.holesWon - r.holesLost > 0 ? "+" : ""}
+                {r.holesWon - r.holesLost}
               </td>
               {/* Two decimals, because halves are the normal case: a halved
                   four-ball is worth half a point to each side, and a league
@@ -83,6 +98,11 @@ export function LeagueTable({
           ))}
         </tbody>
       </table>
+      {orderNote && (
+        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.55 }}>
+          {orderNote}
+        </p>
+      )}
     </div>
   );
 }

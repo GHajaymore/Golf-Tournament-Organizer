@@ -129,7 +129,7 @@ export async function LeagueSection({
       <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>
         {playoffs ? "Season table" : "League table"}
       </h3>
-      <LeagueTable rows={table} pointsLabel="Points" />
+      <LeagueTable rows={table.rows} pointsLabel="Points" orderNote={table.orderNote} />
 
       {playoffs && (
         <>
