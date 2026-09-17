@@ -43,6 +43,67 @@ const BLANK = new Array(18).fill("");
  * with no fixed venue, needs — and only then does anyone get asked where a
  * round or a match was played.
  */
+/**
+ * WHAT THIS CARD IS HOLDING UP.
+ *
+ * A venue is a live record and the card a round was scored against is
+ * history, so overwriting the card asks which of the two this is. Inline
+ * under the control that caused it, not a dialog — the same shape, and the
+ * same reasoning, as `RescoreWarning`.
+ *
+ * One component because there are two doors: the card editor and the
+ * directory's card. Two copies of a question about a club's results would
+ * drift the way two copies of a rule do.
+ */
+function PlayedCardsQuestion({
+  scored,
+  pending,
+  onKeep,
+  onRescore,
+  onCancel,
+}: {
+  scored: { cards: number; events: string[] } | null;
+  pending: boolean;
+  onKeep: () => void;
+  onRescore: () => void;
+  onCancel: () => void;
+}) {
+  if (!scored) return null;
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: "8px 10px",
+        border: "1px solid var(--color-accent)",
+        borderRadius: 8,
+        fontSize: 12.5,
+        lineHeight: 1.55,
+      }}
+    >
+      <b>
+        <Icon name="warning" /> {scored.cards} card{scored.cards === 1 ? " has" : "s have"} already
+        been scored on this course.
+      </b>
+      <div className="text-muted" style={{ marginTop: 4 }}>
+        Pars and stroke indexes decide to-par, net scores and which holes shots fall on, so
+        changing them re-scores{" "}
+        {scored.events.length > 0 ? scored.events.join(", ") : "the rounds already played"}.
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <button type="button" className="btn btn-secondary" disabled={pending} onClick={onKeep}>
+          Keep those results as they were
+        </button>
+        <button type="button" className="btn btn-ghost" disabled={pending} onClick={onRescore}>
+          Re-score them on the new card
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function CourseLibrary({
   courses,
   canEdit,
@@ -103,6 +164,8 @@ export function CourseLibrary({
   const [notice, setNotice] = useState("");
   /** Set when the server says this card already has rounds scored against it. */
   const [scored, setScored] = useState<{ cards: number; events: string[] } | null>(null);
+  /** The same question, asked of the directory's card rather than the editor's. */
+  const [sourceScored, setSourceScored] = useState<{ cards: number; events: string[] } | null>(null);
   /** The paste box inside the editor, and what the last paste made of it. */
   const [pasteCard, setPasteCard] = useState("");
   const [pasteNote, setPasteNote] = useState("");
@@ -211,6 +274,33 @@ export function CourseLibrary({
       resetForm();
     });
   };
+
+  /**
+   * Take the directory's card, answering for the rounds already scored on
+   * ours. Nothing on the first press, so the server can say what it costs.
+   */
+  const takeSourceCard = (courseId: string, courseName: string, played?: "keep-history" | "rescore") =>
+    startTransition(async () => {
+      setError("");
+      const res = await applySourceCard(courseId, played ?? "ask");
+      if (res.needsConfirm) {
+        setSourceScored({ cards: res.cards ?? 0, events: res.events ?? [] });
+        return;
+      }
+      setSourceScored(null);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't take the directory's card.");
+        return;
+      }
+      // Reading the differences hole by hole and accepting them IS checking
+      // the card, so it lands confirmed rather than going back to unverified.
+      setNotice(
+        played === "keep-history"
+          ? `${courseName} now matches the directory. The rounds already played keep the card they were scored on.`
+          : `${courseName} now matches the directory, and is marked as checked by you.`,
+      );
+      setCheck(null);
+    });
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -532,6 +622,16 @@ export function CourseLibrary({
             </>
           )}
 
+          {/* The directory's card overwrites the club's, so it asks the same
+              question the editor does — same component, same two answers. */}
+          <PlayedCardsQuestion
+            scored={sourceScored}
+            pending={pending}
+            onKeep={() => takeSourceCard(check.courseId, check.name, "keep-history")}
+            onRescore={() => takeSourceCard(check.courseId, check.name, "rescore")}
+            onCancel={() => setSourceScored(null)}
+          />
+
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {check.differences.length > 0 && (
               <button
@@ -539,20 +639,7 @@ export function CourseLibrary({
                 className="btn btn-secondary"
                 style={{ fontSize: 12 }}
                 disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await applySourceCard(check.courseId);
-                    if (!res.ok) {
-                      setError(res.error ?? "Couldn't take the directory's card.");
-                      return;
-                    }
-                    // Reading the differences hole by hole and accepting them
-                    // IS checking the card, so it lands confirmed rather than
-                    // going back to unverified.
-                    setNotice(`${check.name} now matches the directory, and is marked as checked by you.`);
-                    setCheck(null);
-                  })
-                }
+                onClick={() => takeSourceCard(check.courseId, check.name)}
               >
                 <Icon name="download-simple" /> Take the directory&rsquo;s card
               </button>
@@ -768,53 +855,13 @@ export function CourseLibrary({
             </table>
           </div>
 
-          {/* WHAT THIS CARD IS HOLDING UP. A venue is a live record and the
-              card a round was scored against is history, so correcting the
-              card asks which of the two this edit is. Inline under the
-              control, not a dialog — the same shape as `RescoreWarning`. */}
-          {scored && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: "8px 10px",
-                border: "1px solid var(--color-accent)",
-                borderRadius: 8,
-                fontSize: 12.5,
-                lineHeight: 1.55,
-              }}
-            >
-              <b>
-                <Icon name="warning" /> {scored.cards} card{scored.cards === 1 ? " has" : "s have"}
-                {" "}already been scored on this course.
-              </b>
-              <div className="text-muted" style={{ marginTop: 4 }}>
-                Pars and stroke indexes decide to-par, net scores and which holes shots fall on,
-                so changing them re-scores{" "}
-                {scored.events.length > 0 ? scored.events.join(", ") : "the rounds already played"}.
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending}
-                  onClick={() => save("keep-history")}
-                >
-                  Keep those results as they were
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  disabled={pending}
-                  onClick={() => save("rescore")}
-                >
-                  Re-score them on the new card
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setScored(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          <PlayedCardsQuestion
+            scored={scored}
+            pending={pending}
+            onKeep={() => save("keep-history")}
+            onRescore={() => save("rescore")}
+            onCancel={() => setScored(null)}
+          />
 
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button

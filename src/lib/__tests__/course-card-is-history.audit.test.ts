@@ -17,8 +17,39 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
 
+/**
+ * The directory, mocked — the card it hands back is the subject, not the
+ * network. Everything else in `course-directory` stays real.
+ */
+const DIRECTORY_ID = "zz-directory-course";
+vi.mock("@/lib/services/course-directory", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/services/course-directory")>();
+  return {
+    ...real,
+    fetchLiveDirectoryCourse: async (id: string) =>
+      id === DIRECTORY_ID
+        ? {
+            id,
+            name: "ZZ directory links",
+            city: "",
+            state: "",
+            country: "",
+            website: "",
+            address: "",
+            card: {
+              usable: true as const,
+              pars: [4, 4, 4, 5, ...new Array(14).fill(4)],
+              strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+              yards: new Array(18).fill(400),
+            },
+            tees: [],
+          }
+        : null,
+  };
+});
+
 import { createSession, setActiveEvent } from "@/lib/auth";
-import { saveClubCourse } from "@/app/actions/courses";
+import { saveClubCourse, applySourceCard } from "@/app/actions/courses";
 import { resolveCourse } from "@/lib/courses";
 
 /**
@@ -213,5 +244,44 @@ describe("editing a club course that rounds were scored on", () => {
     });
     const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
     expect(event.customPars, "its own card was overwritten").toBe(arr(18, 3));
+  });
+});
+
+describe("taking the directory's card", () => {
+  /**
+   * THE SECOND DOOR. `applySourceCard` overwrites the same pars and stroke
+   * index from the course directory, so it re-scores the same rounds. A rule
+   * enforced in one of two write paths is a rule with a door beside it.
+   *
+   * The directory itself is mocked: this is about what the app does with the
+   * card it is handed, not about the network.
+   */
+  it("asks the same question, and keeps the played rounds when told to", async () => {
+    const { courseId, eventId } = await venue(true);
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { sourceUrl: `https://api.opengolfapi.org/api/v1/courses/${DIRECTORY_ID}` },
+    });
+
+    const first = await applySourceCard(courseId);
+    expect(first).toMatchObject({ ok: false, needsConfirm: true, cards: 1 });
+    expect(
+      (await prisma.course.findUniqueOrThrow({ where: { id: courseId } })).pars,
+      "refused and took the card anyway",
+    ).toBe(PAR_4S);
+
+    expect(await applySourceCard(courseId, "keep-history")).toMatchObject({ ok: true });
+    expect((await prisma.course.findUniqueOrThrow({ where: { id: courseId } })).pars).toBe(PAR_WITH_A_FIVE);
+    expect((await cardOf(eventId)).pars[3], "the finished round kept its card").toBe(4);
+  });
+
+  it("takes it without a question when nothing has been scored on it", async () => {
+    const { courseId } = await venue(false);
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { sourceUrl: `https://api.opengolfapi.org/api/v1/courses/${DIRECTORY_ID}` },
+    });
+    expect(await applySourceCard(courseId)).toMatchObject({ ok: true });
+    expect((await prisma.course.findUniqueOrThrow({ where: { id: courseId } })).pars).toBe(PAR_WITH_A_FIVE);
   });
 });
