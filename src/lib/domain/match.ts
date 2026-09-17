@@ -103,6 +103,32 @@ export function matchIsOver(holes: HoleResult[]): boolean {
   return resolveMatch(holes).complete;
 }
 
+/**
+ * The same question, asked of a STORED match row.
+ *
+ * `matchIsOver` takes parsed holes; every caller that has a database row
+ * instead needs the same three lines around it — parse, treat a forfeit as
+ * decided, and refuse to read a parse error as a finished match. Written once
+ * because it was already written twice: `expenses.ts` has had a private copy
+ * since the money gate was fixed, and `live-board.ts` grew a second one on
+ * 2026-09-16 when the public board stopped calling a match final on one hole.
+ *
+ * Two copies of a rule this easy to get subtly wrong is how the loose and
+ * strict tests came to be confused three times in the first place — see
+ * `match-settled-source.test.ts`. A caller written later should not have to
+ * know that a forfeit counts.
+ */
+export function storedMatchIsOver(m: { holes: string; forfeitedBy?: string | null }): boolean {
+  if (m.forfeitedBy) return true;
+  try {
+    return matchIsOver(JSON.parse(m.holes) as HoleResult[]);
+  } catch {
+    // An unreadable card is not a finished match. Reading it as one would
+    // settle a round, and money, on a parse error.
+    return false;
+  }
+}
+
 export function resolveMatch(holes: HoleResult[]): MatchResolution {
   const total = holes.length;
 
