@@ -77,6 +77,23 @@ export async function effectiveAccess(email: string, eventId: string): Promise<E
     });
     if (membership && orgRoleGrantsAdmin(membership.role)) {
       fromOrg = { role: "admin", source: "organization", accountId: "", name: user.name || email };
+    } else if (membership && !(ORG_GUEST_ROLES as readonly string[]).includes(membership.role)) {
+      /**
+       * A PLAIN MEMBER, AND THIS MUST AGREE WITH `accessibleEvents`.
+       *
+       * These are two functions answering one question — "may this person open
+       * this tournament" — from opposite ends: one lists, one checks. When
+       * club-wide visibility was added to the list alone, the club's events
+       * appeared on a member's screen and then refused to open, because
+       * `enterTournament` asks THIS one and it returned null. A list of doors
+       * that are all locked is worse than no list.
+       *
+       * So the same rule, spelled the same way: membership grants `player`,
+       * guests are excluded, and an explicit Account still wins on rank below.
+       * If one of these two ever changes, the other has to change with it —
+       * `a-member-can-watch-not-play.audit.test.ts` drives both.
+       */
+      fromOrg = { role: "player", source: "organization", accountId: "", name: user.name || email };
     }
   }
 

@@ -1,3 +1,4 @@
+import { screenName } from "@/lib/nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -383,6 +384,20 @@ export default async function PlayTodayPage() {
               rather than this morning — but present at all for the first time:
               the weekly sign-up lived only on /dashboard, which is precisely
               the screen players are routed away from. */}
+          {/* WHAT ELSE THE CLUB HAS ON.
+              The way in to the club's calendar, and the only one — a member
+              could previously reach a tournament only if an organizer had
+              added them to it by hand, so "what's on next month?" was a
+              question you asked a person. Deliberately not a fifth tab: see
+              PLAYER_EVENTS in player-nav.ts. */}
+          <Link
+            className="btn btn-ghost"
+            href="/me/events"
+            style={{ alignSelf: "flex-start", marginTop: 12 }}
+          >
+            <Icon name="calendar-dots" /> {screenName("/me/events")}
+          </Link>
+
           {availability.playerId && (
             <div style={{ marginTop: 12 }}>
               <RoundAvailability
