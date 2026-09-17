@@ -258,6 +258,65 @@ describe("the league table", () => {
   });
 });
 
+describe("how many pairs a meeting should have is the LEAGUE's choice", () => {
+  /**
+   * Six is one club's number, not a rule. Some leagues play four a side, some
+   * eight, and the app has no business insisting — so `Event.leaguePairs`
+   * carries it and zero means nobody has said.
+   *
+   * It is stored at all because being SHORT is a state somebody must act on: a
+   * captain who has nominated five of six needs telling on Thursday afternoon,
+   * and no count of the rows can tell five deliberate pairings from six with
+   * one missing.
+   */
+  it("says nothing when the league has not declared a number", async () => {
+    // The default, and every tournament that exists today.
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: 0 } });
+    const meetings = await leagueMeetings(eventId, stageId, "match");
+    expect(meetings.every((m) => m.short), "nobody declared a number").toBe(false);
+  });
+
+  it("is content when the meetings match the number", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: PAIRS_PER_CLUB } });
+    const meetings = await leagueMeetings(eventId, stageId, "match");
+    expect(meetings.every((m) => m.short)).toBe(false);
+    expect(meetings[0].expectedPairings).toBe(PAIRS_PER_CLUB);
+  });
+
+  it("flags every meeting as short when the league expects more", async () => {
+    // A league of eight pairs, played with six.
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: 8 } });
+    const meetings = await leagueMeetings(eventId, stageId, "match");
+    expect(meetings.every((m) => m.short), "six of eight is short").toBe(true);
+    expect(meetings[0].pairings).toHaveLength(PAIRS_PER_CLUB);
+  });
+
+  it("does not complain about a meeting with MORE than expected", async () => {
+    /**
+     * Only fewer is a problem. An extra pairing is an organizer doing
+     * something deliberate, and refusing it would be the app arguing with a
+     * club about its own league.
+     */
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: 4 } });
+    const meetings = await leagueMeetings(eventId, stageId, "match");
+    expect(meetings.every((m) => m.short), "six of four is not short").toBe(false);
+  });
+
+  it("does not change the points, only what is said about them", async () => {
+    /**
+     * The control. A setting about the SHAPE must not touch the scoring — a
+     * league that declares the wrong number would otherwise silently rescore
+     * its own season.
+     */
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: 8 } });
+    const short = await leagueMeetings(eventId, stageId, "match");
+    await prisma.event.update({ where: { id: eventId }, data: { leaguePairs: PAIRS_PER_CLUB } });
+    const exact = await leagueMeetings(eventId, stageId, "match");
+    expect(short[0].pointsA).toBe(exact[0].pointsA);
+    expect(short[0].pointsB).toBe(exact[0].pointsB);
+  });
+});
+
 describe("an ordinary four-ball that is not league play", () => {
   it("is no meeting at all", async () => {
     /**

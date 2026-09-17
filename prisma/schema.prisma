@@ -993,6 +993,36 @@ model Event {
    * want opposite answers. See domain/expense-entry.ts.
    */
   expenseEntry          String  @default("")
+
+  /**
+   * How an interclub league turns four-ball results into points — see
+   * `LEAGUE_POINTS_SYSTEMS` in domain/league-meeting.ts for the four on offer.
+   * On the EVENT rather than the round, deliberately: a league scores every
+   * week the same way, and a setting that could differ round to round is a
+   * league whose table cannot be added up.
+   * Empty means this is not a league, which is every tournament that exists
+   * today, so the column changes nothing for any of them.
+   */
+  leaguePoints          String  @default("")
+  /**
+   * What winning the MATCH is worth on top of the holes, for the systems that
+   * have a bonus. Clubs differ on it, so it is a number rather than a constant
+   * — the same reason `handicapAllowance` is a column and not a rule.
+   */
+  leagueMatchBonus      Int     @default(2)
+  /**
+   * How many pairs each club nominates for a meeting.
+   * The ONE number about a league's shape worth storing. How many clubs there
+   * are is however many club teams exist, and a roster is however many members
+   * it holds — neither needs declaring, and a column for either would be a
+   * second answer to a question the rows already answer.
+   * This one is different because being SHORT is a state somebody has to act
+   * on. A captain who has nominated five of six needs telling on Thursday
+   * afternoon rather than discovering it on the first tee, and nothing can
+   * infer the intended six from five rows.
+   * Zero means "do not check", which is every tournament that exists today.
+   */
+  leaguePairs           Int     @default(0)
   /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h

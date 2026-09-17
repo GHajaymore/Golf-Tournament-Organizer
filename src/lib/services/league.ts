@@ -53,6 +53,21 @@ export interface LeagueMeeting {
   pointsA: number;
   pointsB: number;
   pairings: LeaguePairing[];
+  /**
+   * How many pairings this meeting SHOULD have, from the league's own setting,
+   * and whether it has them.
+   *
+   * Six is a club's choice rather than a constant — some leagues play four,
+   * some eight — so `Event.leaguePairs` carries it and zero means nobody has
+   * said, in which case nothing is checked and `short` is false.
+   *
+   * It exists because being short is a state somebody has to ACT on. A captain
+   * who has nominated five of six needs telling on Thursday afternoon, not
+   * discovering it on the first tee, and no count of the rows can tell five
+   * deliberate pairings from six with one missing.
+   */
+  expectedPairings: number;
+  short: boolean;
 }
 
 /**
@@ -155,6 +170,7 @@ export async function leagueMeetings(
     );
     const scored = meetingPoints(own, system, matchBonus);
     const by = new Map(scored.map((s) => [s.teamId, s.points]));
+    const expectedPairings = event.leaguePairs;
     return {
       teamAId,
       teamBId,
@@ -163,6 +179,12 @@ export async function leagueMeetings(
       pointsA: by.get(teamAId) ?? 0,
       pointsB: by.get(teamBId) ?? 0,
       pairings: own,
+      expectedPairings,
+      // Zero means the league has not said, so nothing is checked. Only FEWER
+      // is a problem: a meeting with an extra pairing is an organizer doing
+      // something deliberate, and refusing it would be the app arguing with a
+      // club about its own league.
+      short: expectedPairings > 0 && own.length < expectedPairings,
     };
   });
 }

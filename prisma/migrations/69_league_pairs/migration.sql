@@ -1,0 +1,14 @@
+-- How many pairs each club nominates for a meeting.
+--
+-- The one number about a league's SHAPE worth storing. How many clubs there
+-- are is however many club teams exist, and a roster is however many members
+-- it holds — neither needs declaring, and a column for either would be a
+-- second answer to a question the rows already answer.
+--
+-- This one is different because being SHORT is a state somebody has to act on:
+-- a captain who has nominated five of six needs telling on Thursday afternoon,
+-- not discovering it on the first tee. Nothing can infer the intended six from
+-- five rows.
+--
+-- Zero means "do not check", which is every tournament that exists today.
+ALTER TABLE "Event" ADD COLUMN "leaguePairs" INTEGER NOT NULL DEFAULT 0;
