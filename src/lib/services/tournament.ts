@@ -443,7 +443,6 @@ export interface EventState {
    * See `roundProgress` for why "in" is not one of these words.
    */
   boardProgress: {
-    done: number;
     /** Somebody is out on the course. */
     started: number;
     /** The card has been RETURNED — certified, or approved since. */
@@ -1138,8 +1137,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         started: own.filter((c) => hasAnyHole(c.strokes)).length,
         certified: own.filter((c) => c.status === "certified" || c.status === "approved").length,
         approved: own.filter((c) => c.status === "approved").length,
-        done: own.filter((c) => c.status === "certified" || c.status === "approved").length,
-        total: confirmed.length,
+          total: confirmed.length,
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);
@@ -1147,7 +1145,6 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       started: own.filter((m) => matchSettled(m)).length,
       certified: own.filter((m) => storedMatchIsOver(m)).length,
       approved: own.filter((m) => m.scoreStatus === "confirmed").length,
-      done: own.filter((m) => storedMatchIsOver(m)).length,
       total: own.length,
     };
   };
@@ -1157,8 +1154,22 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   let feederDone = 0;
   let feederTotal = 0;
   for (const f of feeders) {
+    /**
+     * STARTED, because the bracket is asking a different question.
+     *
+     * `bracketVisibility` wants to know whether the thing that DECIDES the
+     * draw has got far enough to mean something — "has the field been out",
+     * not "have the cards come in". Those are different questions and this is
+     * the one it has always asked.
+     *
+     * Using `certified` here would hold the draw at "Provisional" for ever on
+     * one player who picks up on the 17th and never returns a full card: the
+     * qualifier could not reach 1, and `feederProgress >= 1` is what makes the
+     * draw read "Set". A screen that never goes firm is a worse answer than a
+     * screen that goes firm slightly early.
+     */
     const p = roundProgress(f);
-    feederDone += p.done;
+    feederDone += p.started;
     feederTotal += p.total;
   }
   // Null still means "nothing feeds it", which the rule reads as "show the
@@ -1181,9 +1192,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const bp = boardStage
     ? roundProgress(boardStage)
-    : { done: 0, started: 0, certified: 0, approved: 0, total: 0 };
+    : { started: 0, certified: 0, approved: 0, total: 0 };
   const boardProgress = {
-    done: bp.done,
     started: bp.started,
     certified: bp.certified,
     approved: bp.approved,
@@ -1219,7 +1229,19 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * to the round on the board, which is the one somebody reopening a finished
    * sheet wants.
    */
-  const nextUnplayedRound = playRounds.find((s) => roundProgress(s).done === 0) ?? null;
+  /**
+   * STARTED, not certified — the distinction the three counts exist for.
+   *
+   * "Nothing on it" means nobody has written anything down. A round where
+   * cards are entered but not yet certified HAS something on it: those players
+   * are out on the course, and offering their round as the next one to draw
+   * would hand an organizer a sheet for a round already being played.
+   *
+   * This read `done`, which until 2026-09-17 was `hasAnyHole` and is now
+   * `certified`. Both answers are wrong for this question in opposite
+   * directions, which is why the alias was a bad idea and is gone.
+   */
+  const nextUnplayedRound = playRounds.find((s) => roundProgress(s).started === 0) ?? null;
 
   const stageById = new Map(stages.map((s) => [s.id, s]));
   /** For `matchHandicapFor`, which needs a match's round before it can price it. */

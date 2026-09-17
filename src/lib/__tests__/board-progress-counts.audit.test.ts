@@ -162,7 +162,7 @@ describe("the round's progress, on a field of four whose cards are all full", ()
      * appears.
      */
     const p = await progress();
-    expect(p.done).toBe(p.certified);
-    expect(p.done >= p.total, "two cards are still out").toBe(false);
+    expect(p.certified, "the alias is gone; readers name the question").toBe(2);
+    expect(p.certified >= p.total, "two cards are still out").toBe(false);
   });
 });

@@ -836,21 +836,21 @@ export default async function DashboardPage() {
           {matchEvent ? (
             <StatCard
               label="Match"
-              value={state.boardProgress.done > 0 ? "Finished" : "Not finished"}
+              value={state.boardProgress.certified > 0 ? "Finished" : "Not finished"}
               sub="hole by hole"
               icon="ph ph-check-circle"
             />
           ) : state.boardProgress.unit === "cards" ? (
             <StatCard
               label="Cards in"
-              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
               sub={`${state.boardProgress.pct}% submitted`}
               icon="ph ph-cards"
             />
           ) : (
             <StatCard
               label="Matches complete"
-              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
               sub={`${state.boardProgress.pct}% of round robin`}
               icon="ph ph-check-circle"
             />

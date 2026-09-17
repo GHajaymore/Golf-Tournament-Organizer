@@ -136,6 +136,17 @@ async function build(
             stageId: feederId,
             playerId: p.id,
             strokes: JSON.stringify(new Array(18).fill(4)),
+            /**
+             * CERTIFIED, because this file is about a feeder that is FINISHED.
+             *
+             * `boardProgress` counted `hasAnyHole` until 2026-09-17 — "somebody
+             * typed a digit" — so a card with strokes on it was enough to read
+             * as in. It counts returned cards now, and a round is not finished
+             * because scores were typed: `Scorecard.status` is what says the
+             * card came back. Leaving these `entered` would make the fixture
+             * describe a round still being played while asserting it is over.
+             */
+            status: "certified",
           },
         });
       }
@@ -149,7 +160,25 @@ async function build(
             round: 1,
             playerAId: players[pair[0]].id,
             playerBId: players[pair[1]].id,
-            holes: JSON.stringify(["A", "A", "A", "A", "A", ...new Array(13).fill(null)]),
+            /**
+             * A MATCH THAT IS ACTUALLY OVER, which this was not.
+             *
+             * It read `["A" x5, null x13]` — A five up with THIRTEEN to play,
+             * a match barely started — under a describe block titled "a feeder
+             * that is finished reads finished". It passed because the counter
+             * asked `matchSettled`, which one hole satisfies.
+             *
+             * Eight to A, two to B, four halved, four never played: A is six up
+             * with four to play, so the match ended 6&4 and the remaining holes
+             * are the ones nobody walked. That is a result `resolveMatch` calls
+             * complete and a committee would recognise.
+             */
+            holes: JSON.stringify([
+              "A", "A", "A", "A", "A", "A", "A", "A",
+              "B", "B",
+              "H", "H", "H", "H",
+              null, null, null, null,
+            ]),
           },
         });
       }
@@ -261,7 +290,7 @@ describe("a feeder that has not been played reads unplayed", () => {
     // A medal is measured against the FIELD. Counting the cards that happen to
     // exist would read 100% off one card in.
     expect(medal.boardProgress.total).toBe(medal.confirmed.length);
-    expect(medal.boardProgress.done).toBe(4);
+    expect(medal.boardProgress.certified).toBe(4);
     expect(medal.boardProgress.pct).toBe(100);
 
     const robin = (await loadEventState(robinInStroke))!;
@@ -275,7 +304,7 @@ describe("a feeder that has not been played reads unplayed", () => {
      */
     expect(robin.confirmed.length).toBe(4);
     expect(robin.boardProgress.total).toBe(2);
-    expect(robin.boardProgress.done).toBe(2);
+    expect(robin.boardProgress.certified).toBe(2);
     expect(robin.boardProgress.pct).toBe(100);
   });
 

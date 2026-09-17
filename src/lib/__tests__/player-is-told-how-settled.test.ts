@@ -43,7 +43,7 @@ describe("the player's position says whether it can move", () => {
     // put two counts of one thing on two screens.
     const me = readSource("src", "lib", "services", "me.ts");
     const call = me.slice(me.indexOf("snapshotStanding("), me.indexOf("snapshotStanding(") + 320);
-    expect(call).toContain("state.boardProgress.done");
+    expect(call).toContain("state.boardProgress.certified");
     expect(call).toContain("state.boardProgress.total");
     expect(call).toContain("state.event.status");
   });
