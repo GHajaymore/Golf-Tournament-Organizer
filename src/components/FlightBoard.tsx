@@ -291,7 +291,14 @@ export function FlightBoard({
                       style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
                       value={(role === "captain" ? g.captainId : g.viceCaptainId) ?? ""}
                       onChange={(e) =>
-                        startTransition(() => void setFlightCaptain(g.id, e.target.value || null, role))
+                        // Reported, not discarded: the server refuses anyone
+                        // who is not in this flight, and a `void` call left the
+                        // picker showing a captain the club does not have.
+                        startTransition(async () => {
+                          const res = await setFlightCaptain(g.id, e.target.value || null, role);
+                          if (!res.ok) setError(res.error ?? "Couldn't set that captain.");
+                          else setError("");
+                        })
                       }
                     >
                       <option value="">—</option>

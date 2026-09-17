@@ -642,6 +642,7 @@ function StageCard({
   const [rescore, setRescore] = useState<
     | { kind: "holes"; holes: number; cards: number }
     | { kind: "basis"; basis: string; cards: number }
+    | { kind: "venue"; course: string | null; nine: string; cards: number }
     | null
   >(null);
   /**
@@ -670,7 +671,9 @@ function StageCard({
     setRescore(null);
     startTransition(async () => {
       if (p.kind === "holes") await setStageHoles(stage.id, p.holes, true);
-      else await setStageScoringBasis(stage.id, p.basis, true);
+      else if (p.kind === "venue") {
+        await setStageCourse(stage.id, p.course, p.nine, true);
+      } else await setStageScoringBasis(stage.id, p.basis, true);
     });
   };
   const cancelRescore = () => {
@@ -680,6 +683,10 @@ function StageCard({
     setRescore(null);
     if (p?.kind === "holes") setHoles(stage.holes);
     else if (p?.kind === "basis") setBasis(stage.scoringBasis);
+    else if (p?.kind === "venue") {
+      setCourseId(stage.courseId);
+      setNine(stage.nine);
+    }
   };
 
   const commitFormat = (v: string) => {
@@ -721,7 +728,20 @@ function StageCard({
   const commitVenue = (nextCourse: string | null, nextNine: string) => {
     setCourseId(nextCourse);
     setNine(nextNine);
-    startTransition(() => void setStageCourse(stage.id, nextCourse, holes === 9 ? nextNine : "full"));
+    /**
+     * THE VENUE RE-SCORES THE ROUND LIKE THE THREE CONTROLS AROUND IT, and
+     * `setStageCourse` has always refused a round holding cards and said how
+     * many. The answer was thrown away with `void`: the dropdown showed the
+     * new course, the server had saved nothing, and no warning appeared. The
+     * one control of the four where the guard existed and nobody listened.
+     */
+    startTransition(async () => {
+      const nine = holes === 9 ? nextNine : "full";
+      const res = await setStageCourse(stage.id, nextCourse, nine);
+      if (res?.needsConfirm) {
+        setRescore({ kind: "venue", course: nextCourse, nine, cards: res.cards ?? 0 });
+      }
+    });
   };
   const commitBasis = (next: string) => {
     setBasis(next);
@@ -1017,14 +1037,14 @@ function StageCard({
           {rescore && (
             <RescoreWarning
               cards={rescore.cards}
-              consequence={
-                rescore.kind === "holes" ? RESCORE_CONSEQUENCE.holes : RESCORE_CONSEQUENCE.basis
-              }
+              consequence={RESCORE_CONSEQUENCE[rescore.kind]}
               keepLabel={
                 rescore.kind === "holes"
                   ? `${stage.holes} holes`
-                  : BASIS_OPTIONS.find((o) => o.key === stage.scoringBasis)?.label ??
-                    stage.scoringBasis
+                  : rescore.kind === "venue"
+                    ? venues.find((v) => v.id === stage.courseId)?.name ?? "the tournament's course"
+                    : BASIS_OPTIONS.find((o) => o.key === stage.scoringBasis)?.label ??
+                      stage.scoringBasis
               }
               pending={pending}
               onConfirm={confirmRescore}

@@ -82,3 +82,109 @@ describe("a refusal the screen cannot explain", () => {
     expect(offenders, `use useAction() instead: ${offenders.join(", ")}`).toEqual([]);
   });
 });
+
+/**
+ * THE OTHER WAY A REFUSAL VANISHES: `void`.
+ *
+ * The cells above ban reporting a refusal only when it carries words. This
+ * bans throwing the whole answer away — `void someAction(...)` discards `ok`,
+ * `error` and `needsConfirm` together, so the control appears to work, the
+ * server saved nothing, and the screen goes on showing the value it refused.
+ *
+ * Found by sweeping the class after one instance: `setStageCourse` ASKS FOR
+ * CONFIRMATION on a round holding cards, and the venue dropdown voided the
+ * answer — the one control of the four on that screen where the guard existed
+ * and nobody listened. `setMatchCourse` and `setFlightCaptain` were the same
+ * shape with plain refusals.
+ *
+ * The remaining sites are listed rather than hidden. Each entry is an action
+ * whose refusal a screen currently drops, with the reason it is tolerable —
+ * and the test refuses an entry whose action has since learned to ask for
+ * confirmation, because that is the case nobody may ignore.
+ */
+const VOID_CALLS: Record<string, string> = {
+  // Never refuses: it writes and returns nothing.
+  markThreadRead: "returns void",
+  setMatchTiebreakers: "cannot refuse — writes and returns",
+  rotatePublicToken: "cannot refuse — writes and returns",
+  removeSignup: "returns a status string, and the row disappears either way",
+  setRegistrationOverride: "cannot refuse — writes and returns",
+  setRegistrationOpen: "cannot refuse — writes and returns",
+  setRegistrationApproval: "cannot refuse — writes and returns",
+  setRequirePhone: "cannot refuse — writes and returns",
+  approveSignup: "cannot refuse — writes and returns",
+  disputeMatch: "cannot refuse — writes and returns",
+  reopenMatch: "cannot refuse — writes and returns",
+  // The FORCED delete, from inside the confirmation it already asked for.
+  removeStage: "the force path, behind the confirmation it already showed",
+  setStageOptDeadline: "refuses only a malformed date the picker cannot produce",
+};
+
+describe("an action whose answer is thrown away", () => {
+  /** `void someAction(` where `someAction` was imported from the actions. */
+  function voidCalls(file: string): string[] {
+    const src = readSource(file);
+    const imported = new Set<string>();
+    for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*"@\/app\/actions\/[^"]+"/g)) {
+      for (const name of m[1].split(",")) {
+        const clean = name.trim().split(" as ").pop()?.trim();
+        if (clean && !clean.startsWith("type ")) imported.add(clean);
+      }
+    }
+    if (imported.size === 0) return [];
+    const found: string[] = [];
+    for (const line of src.split("\n")) {
+      const m = line.match(/\bvoid\s+([A-Za-z_$][\w$]*)\s*\(/);
+      if (m && imported.has(m[1])) found.push(m[1]);
+    }
+    return found;
+  }
+
+  const calls = sourceFiles().flatMap((f) => voidCalls(f).map((name) => ({ file: f, name })));
+
+  it("finds them — the control", () => {
+    /**
+     * A sweep that finds nothing may be broken rather than satisfied. These
+     * are known-present today; if the list empties, check the sweep before
+     * believing the app.
+     */
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it("is one the screen has a stated reason to ignore", () => {
+    const unlisted = calls.filter((c) => !(c.name in VOID_CALLS)).map((c) => `${c.file}: ${c.name}`);
+    expect(
+      unlisted,
+      "report the refusal, or add it to VOID_CALLS with the reason it cannot matter",
+    ).toEqual([]);
+  });
+
+  it("never drops an answer that asks for confirmation", () => {
+    /**
+     * The dangerous half, and the reason this test exists. An action that can
+     * come back `needsConfirm` has REFUSED and is waiting to be asked again —
+     * dropping that answer means the click did nothing at all and the screen
+     * says so nowhere. `removeStage` is exempt because its `void` call IS the
+     * second ask.
+     */
+    const actionSrc = readdirSync(join(process.cwd(), "src/app/actions"))
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => readSource(join("src/app/actions", f)))
+      .join("\n");
+
+    const asksConfirmation = (name: string): boolean => {
+      const at = actionSrc.indexOf(`export async function ${name}(`);
+      if (at < 0) return false;
+      const next = actionSrc.indexOf("export async function ", at + 1);
+      return /needsConfirm/.test(actionSrc.slice(at, next < 0 ? undefined : next));
+    };
+
+    const dropped = calls
+      .filter((c) => c.name !== "removeStage" && asksConfirmation(c.name))
+      .map((c) => `${c.file}: ${c.name}`);
+    expect(
+      dropped,
+      "this action asks for confirmation and the screen throws the question away",
+    ).toEqual([]);
+  });
+});
