@@ -268,6 +268,17 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
         net: netOf(a),
         points: a.points,
         thru: a.thru,
+        /**
+         * The card is IN — not merely started.
+         *
+         * `thru > 0` is the right filter for the ranking below (somebody who
+         * played is on the sheet) and the wrong one for "have they handed it
+         * in". A player on the 10th tee has a card with nine holes on it.
+         *
+         * `stoppedShort` counts as in: a card that is finished with holes
+         * never played — a conceded match — is not coming back.
+         */
+        complete: a.stoppedShort || a.thru >= stage.holes,
       };
     })
     // Somebody who did not play this week is not last — they are absent, and
@@ -286,9 +297,16 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * against the week's own field rather than the season roster, so the number
    * is "cards still to come" and not "members who were never coming".
    *
-   * `thru > 0` for returned, matching the filter the table itself uses — a
-   * card with nothing on it is not a card in, and counting it would tell an
-   * organizer the night was done while a scorer was still walking up 18.
+   * A card counts as returned when it is COMPLETE, not when it has been
+   * started. This used to be `thru > 0`, matching the filter the ranking uses,
+   * and the sentence justifying it described the bug it had: "counting it
+   * would tell an organizer the night was done while a scorer was still
+   * walking up 18." That is precisely what it did — a player on the 10th tee
+   * has a card with nine holes on it, and the sheet read "4 of 4 in have
+   * returned a card" with one still out on the course.
+   *
+   * Seen on the fixture 2026-09-18, beside a table that printed "thru 9" for
+   * that same player two lines below the sentence claiming everybody was in.
    */
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
   let attendance: WeekView["attendance"] = null;
@@ -304,7 +322,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
     attendance = {
       expected: resolved.in,
-      returned: scored.filter((r) => inIds.has(r.playerId)).length,
+      returned: scored.filter((r) => inIds.has(r.playerId) && r.complete).length,
       out: resolved.out,
     };
   }

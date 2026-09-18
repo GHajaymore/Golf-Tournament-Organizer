@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { weekViewFor } from "@/lib/services/week-view";
+import { weekReturnsNote } from "@/lib/domain/attendance";
 
 /**
  * Whether the night is finished, which the week sheet could not say.
@@ -51,6 +52,21 @@ const mark = (who: string, status: "in" | "out") =>
 const card = (who: string) =>
   prisma.scorecard.create({
     data: { eventId, stageId, playerId: player[who], strokes: JSON.stringify(A_ROUND) },
+  });
+
+/**
+ * A card with `holes` played and the rest not yet entered — somebody still out
+ * on the course. Nulls, which is how an unplayed hole is stored and how the
+ * aggregator tells "not yet" from "no score".
+ */
+const partialCard = (who: string, holes: number) =>
+  prisma.scorecard.create({
+    data: {
+      eventId,
+      stageId,
+      playerId: player[who],
+      strokes: JSON.stringify(A_ROUND.map((v, i) => (i < holes ? v : null))),
+    },
   });
 
 const attendanceOf = async () => (await weekViewFor(eventId))?.attendance ?? null;
@@ -142,6 +158,35 @@ describe("an opt-out week, where silence means playing", () => {
     await mark("dee", "out");
     for (const who of ["ann", "bea", "cal"]) await card(who);
     expect(await attendanceOf()).toEqual({ expected: 3, returned: 3, out: 1 });
+  });
+
+  it("does not count a card from somebody still out on the course", async () => {
+    /**
+     * THE CASE EVERY CELL ABOVE MISSES, because all of them hand in a full
+     * eighteen. `returned` was `thru > 0`, so a player on the 10th tee — whose
+     * card has nine holes on it and is coming back in two hours — counted as
+     * having returned one, and the week sheet read "4 of 4 in have returned a
+     * card" with somebody still playing.
+     *
+     * Seen on the fixture 2026-09-18 beside a table printing "thru 9" for that
+     * same player, two lines under the sentence saying everybody was in. The
+     * comment on the count had described this exact failure as the reason for
+     * the rule that caused it.
+     */
+    await card("ann");
+    await card("bea");
+    await partialCard("cal", 9);
+
+    const a = await attendanceOf();
+    expect(a, "a nine-hole card counted as returned").toEqual({ expected: 4, returned: 2, out: 0 });
+    expect(weekReturnsNote(a!)).toContain("2 still to come");
+  });
+
+  it("still counts every full card, so the fix did not just lower the number", async () => {
+    // The control on the change. A rule that counted nothing would satisfy the
+    // cell above just as well, and would read "0 of 4" on a finished night.
+    for (const who of WHO) await card(who);
+    expect(await attendanceOf()).toEqual({ expected: 4, returned: 4, out: 0 });
   });
 });
 
