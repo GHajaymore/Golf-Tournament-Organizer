@@ -116,6 +116,14 @@ export function CreateFirstTournament({
   const elsewhere = clubSteps.filter((s) => s.key !== "profile");
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
+  /** Whatever the action refused with, shown rather than swallowed. */
+  const [refusal, setRefusal] = useState("");
+  /**
+   * Set when the refusal was "an outfit of this name is already here", which is
+   * a QUESTION and not a failure: it turns the button into "Create it anyway"
+   * rather than leaving somebody pressing a button that keeps refusing.
+   */
+  const [sameName, setSameName] = useState(false);
   const [open, setOpen] = useState(first);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
   // Nothing preselected. See the field below.
@@ -158,13 +166,34 @@ export function CreateFirstTournament({
   const retention = retentionNotice(activePlan);
   const planName = planFor(activePlan).name;
 
-  const submit = () => {
+  const submit = (confirmedClubName = false) => {
     // A COPY NEEDS NO SHAPE. It is played the way its source was, and asking
     // would let the two disagree — the same rule `EventSwitcher` states.
     if (!name.trim() || (!copyFrom && !shape)) return;
     startTransition(async () => {
-      if (copyFrom) await cloneEvent(copyFrom.id, name);
-      else await createEvent(name, template, shape, orgName, organizationId || undefined);
+      if (copyFrom) {
+        await cloneEvent(copyFrom.id, name);
+        return;
+      }
+      /**
+       * THE ANSWER IS READ NOW, which it was not.
+       *
+       * This was `await createEvent(...)` with the result dropped on the
+       * floor, so every refusal the action can give — no shape, the club-first
+       * gate, and now "that outfit is already here" — arrived and was thrown
+       * away. On success the action redirects, so nothing here has to handle
+       * the happy path; what was missing was the unhappy one.
+       */
+      const res = await createEvent(
+        name,
+        template,
+        shape,
+        orgName,
+        organizationId || undefined,
+        confirmedClubName,
+      );
+      if (!res?.ok) setRefusal(res?.error ?? "That could not be created.");
+      if (res?.clubExists) setSameName(true);
     });
   };
 
@@ -415,6 +444,28 @@ export function CreateFirstTournament({
         </div>
       )}
 
+      {/* THE OUTFIT THAT IS ALREADY HERE, or any other refusal.
+          Ajay, 2026-09-17: a big club has one secretary and never meets this.
+          A local league or society has three people who each think they are
+          the one setting it up, and the first anybody notices is a season
+          later with the roster in two halves — so it is asked here, while it
+          is still one keystroke away from being avoided. */}
+      {refusal && (
+        <p
+          className="card"
+          role={sameName ? "status" : "alert"}
+          style={{
+            fontSize: 12.5,
+            margin: 0,
+            padding: "10px 12px",
+            gap: 0,
+            boxShadow: `inset 0 0 0 1px var(--color-${sameName ? "accent" : "danger"})`,
+          }}
+        >
+          {refusal}
+        </p>
+      )}
+
       <div style={{ display: "flex", gap: 8 }}>
         <button
           type="button"
@@ -429,9 +480,14 @@ export function CreateFirstTournament({
                answerable here, so the button waits rather than pretending. */
             elsewhere.length > 0
           }
-          onClick={submit}
+          onClick={() => submit(sameName)}
         >
-          {pending ? "Creating…" : "Create tournament"} <Icon name="arrow-right" />
+          {pending
+            ? "Creating…"
+            : sameName
+              ? `Create a separate ${outfit.noun} anyway`
+              : "Create tournament"}{" "}
+          <Icon name="arrow-right" />
         </button>
         {!first && (
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => setOpen(false)}>

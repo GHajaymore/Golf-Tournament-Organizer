@@ -9,6 +9,7 @@ import {
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
+import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
 import type { OrgKind } from "../domain/org-profile";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
@@ -148,20 +149,241 @@ async function nameIfStillUnnamed(
 ): Promise<void> {
   const wanted = (orgName ?? "").trim();
   if (!wanted) return;
+  if (!(await wouldTakeThisName(organizationId, userId, displayName, email))) return;
 
+  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+}
+
+/**
+ * The organization a new tournament would go into, or null for a brand new one.
+ *
+ * The preference order `organizationForNewEvent` documents, and nothing else:
+ * the id they picked if it is genuinely theirs, then the oldest club they own
+ * or administer, then nothing. Extracted so `clubNameClash` can ask WHICH
+ * organization is about to be named without running the resolution a second
+ * time in its own words — two rules deciding one thing is this codebase's
+ * most-repeated defect, and it is already written on the function above.
+ *
+ * Never trusts `preferredOrganizationId`: it arrives from a form, so it is
+ * re-read against this person's own owner/admin memberships.
+ */
+async function organizationThisEventWouldJoin(
+  userId: string,
+  preferredOrganizationId?: string | null,
+): Promise<string | null> {
+  const wanted = (preferredOrganizationId ?? "").trim();
+  if (wanted) {
+    const chosen = await prisma.organizationMember.findFirst({
+      where: { userId, organizationId: wanted, role: { in: ["owner", "admin"] } },
+      select: { organizationId: true },
+    });
+    if (chosen) return chosen.organizationId;
+  }
+
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId, role: { in: ["owner", "admin"] } },
+    include: { organization: true },
+    // Prefer a real club over the personal fallback, then oldest first so the
+    // choice is stable rather than shifting as rows are added.
+    orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
+  });
+  return membership?.organizationId ?? null;
+}
+
+/**
+ * Whether typing a name on a new tournament would actually land on this
+ * organization — owner, and not already named.
+ *
+ * Extracted so the WARNING and the WRITE read one rule. `clubNameClash` asks
+ * the question before the event is created and `nameIfStillUnnamed` does the
+ * naming, and a warning shown where no name would be applied is worse than no
+ * warning at all: it tells somebody their club is about to be duplicated when
+ * nothing of the sort is about to happen.
+ */
+async function wouldTakeThisName(
+  organizationId: string,
+  userId: string,
+  displayName: string,
+  email: string,
+): Promise<boolean> {
   const owner = await prisma.organizationMember.findFirst({
     where: { organizationId, userId, role: "owner" },
     select: { id: true },
   });
-  if (!owner) return;
+  if (!owner) return false;
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: { name: true },
   });
-  if (!org || organizationWasNamed(org.name, displayName, email)) return;
+  if (!org) return false;
+  return !organizationWasNamed(org.name, displayName, email);
+}
 
-  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+/**
+ * Another outfit already carrying a name, described in ITS OWN words.
+ *
+ * `country` and `communityNoun` ride along because the sentence is about
+ * somebody else's outfit: a community is a society in Britain and a league in
+ * the United States, and `orgProfile` needs all three to say which.
+ * `the-outfit-is-resolved-whole.test.ts` refuses a one-argument call and
+ * caught this being written that way.
+ */
+export interface NamesakeOutfit {
+  name: string;
+  kind: string;
+  country: string;
+  communityNoun: string;
+  /** Town, or region/country — what makes "which one?" answerable. */
+  where: string;
+  /**
+   * The owner's NAME, so "ask them to add you" names somebody — and never
+   * their email address. See `clubExistsQuestion` for where that line is drawn.
+   * Empty when the owner has no name on their account.
+   */
+  runBy: string;
+}
+
+/**
+ * THE CLUB THAT IS ALREADY HERE UNDER THIS NAME, if there is one.
+ *
+ * Asked before a tournament is created, so somebody about to build a second
+ * copy of their own league is told while it is still a question. Returns null
+ * when there is nothing to say, which is the overwhelmingly common case.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO is refuse. Two real outfits share a name —
+ * there is more than one Royal, and half the societies in the country are
+ * called after the day they play. `org-name-match.ts` carries that reasoning;
+ * this is the half that needs a database.
+ *
+ * FOUR WAYS IT STAYS QUIET, each of which is a false alarm avoided:
+ *
+ *   - no name typed: nothing is being named, so nothing can collide;
+ *   - the organization they are about to use already HAS a real name — their
+ *     club is not being renamed by this box, so a warning would be a lie
+ *     (`wouldTakeThisName`, the same rule the write uses);
+ *   - the only match is their OWN organization — that is not a duplicate,
+ *     that is them typing their club's name again;
+ *   - the match is somebody's `personal` tenant. Those are named after a
+ *     person by sign-up, they are nobody's club, and "ask them to add you"
+ *     is the wrong advice about a stranger's private workspace.
+ *
+ * A SCAN, and knowingly. There is no normalized name column and no index for
+ * one, so every club/society row is read and compared in memory. At this size
+ * that is a few milliseconds on an act that happens a handful of times per
+ * club per season. If the table ever gets big enough for that to matter, the
+ * fix is a stored `nameKey` written by the same `normalizeOrgName` — not a
+ * looser query, which would start missing the accented and punctuated names
+ * this exists to catch.
+ */
+export async function clubNameClash(
+  email: string,
+  displayName: string,
+  orgName: string | undefined,
+  preferredOrganizationId?: string | null,
+): Promise<NamesakeOutfit | null> {
+  const wanted = (orgName ?? "").trim();
+  if (!wanted) return null;
+
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return null;
+
+  const target = await organizationThisEventWouldJoin(user.id, preferredOrganizationId);
+  if (target && !(await wouldTakeThisName(target, user.id, displayName, email))) return null;
+
+  /**
+   * WHERE THEY ARE, when anybody knows. A tenant created at sign-up has no
+   * town on it, which resolves to "near everything" — deliberately, since that
+   * brand new tenant is precisely the one about to become a club's second
+   * half. An organizer who HAS filled in a town is not bothered about a
+   * namesake in another county.
+   */
+  const mine = target
+    ? await prisma.organization.findUnique({
+        where: { id: target },
+        select: { city: true, region: true, country: true },
+      })
+    : null;
+
+  return otherOrganizationNamed(wanted, target, {
+    city: mine?.city ?? "",
+    region: mine?.region ?? "",
+    country: mine?.country ?? "",
+  });
+}
+
+/**
+ * Another outfit already carrying this name, if there is one.
+ *
+ * The half that needs a database, shared by the question `createEvent` asks
+ * before creating a second tenant and the warning `saveOrganizationBranding`
+ * gives while naming one that already exists. Both say the same sentence
+ * because both read this and hand it to `clubExistsQuestion`.
+ */
+export async function otherOrganizationNamed(
+  name: string,
+  exceptOrganizationId?: string | null,
+  /**
+   * Where the outfit being named is, so a namesake three counties away is left
+   * alone. Unknown on either side means "near" — see `inTheSameArea`, and note
+   * that somebody who signed up an hour ago has no town at all.
+   */
+  near: Whereabouts = { city: "", region: "", country: "" },
+): Promise<NamesakeOutfit | null> {
+  const wanted = name.trim();
+  if (!wanted) return null;
+
+  const others = await prisma.organization.findMany({
+    where: {
+      kind: { not: "personal" },
+      ...(exceptOrganizationId ? { id: { not: exceptOrganizationId } } : {}),
+    },
+    select: {
+      id: true, name: true, kind: true, communityNoun: true,
+      city: true, region: true, country: true,
+      /**
+       * The owner's NAME. Selected deliberately narrowly — `select: { name }`
+       * on the user and nothing else — because the next field along is an
+       * email address that must not travel with this. The question names a
+       * person so the sentence "ask them to add you" means something; it does
+       * not hand out a contact address from somebody else's account.
+       */
+      members: {
+        where: { role: "owner" },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+        select: { user: { select: { name: true } } },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 5000,
+  });
+
+  const hit = others.find(
+    (o) =>
+      orgNamesLookLikeOne(o.name, wanted) &&
+      inTheSameArea({ city: o.city, region: o.region, country: o.country }, near),
+  );
+  if (!hit) return null;
+
+  return {
+    name: hit.name,
+    kind: hit.kind,
+    /**
+     * CARRIED, not dropped. `the-outfit-is-resolved-whole.test.ts` refuses a
+     * one-argument `orgProfile(kind)` and is right to: the warning is about
+     * SOMEBODY ELSE'S outfit, so it has to be described in their words — a
+     * community is a society in Cheshire and a league in Ohio, and telling an
+     * American organizer that a "society" holds their name is a sentence about
+     * a thing they have never heard of.
+     */
+    country: hit.country,
+    communityNoun: hit.communityNoun,
+    // The town answers "which one?", which is the whole question for a league
+    // named after the night it plays. Region or country when there is no town.
+    where: [hit.city, hit.region || hit.country].filter((s) => (s ?? "").trim()).join(", "),
+    runBy: hit.members[0]?.user?.name?.trim() ?? "",
+  };
 }
 
 export async function organizationForNewEvent(
@@ -184,32 +406,14 @@ export async function organizationForNewEvent(
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (user) {
-    const wanted = (preferredOrganizationId ?? "").trim();
-    if (wanted) {
-      const chosen = await prisma.organizationMember.findFirst({
-        where: { userId: user.id, organizationId: wanted, role: { in: ["owner", "admin"] } },
-        select: { organizationId: true },
-      });
-      if (chosen) {
-        await nameIfStillUnnamed(chosen.organizationId, user.id, orgName, displayName, email);
-        return chosen.organizationId;
-      }
-    }
-
-    const membership = await prisma.organizationMember.findFirst({
-      where: { userId: user.id, role: { in: ["owner", "admin"] } },
-      include: { organization: true },
-      // Prefer a real club over the personal fallback, then oldest first so
-      // the choice is stable rather than shifting as rows are added.
-      orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
-    });
-    if (membership) {
-      // BOTH return paths, deliberately. The picker appears only when somebody
-      // runs more than one organization, so a new secretary comes through the
-      // branch below and a club-and-society organizer through the one above —
-      // and the field is offered on whichever they see.
-      await nameIfStillUnnamed(membership.organizationId, user.id, orgName, displayName, email);
-      return membership.organizationId;
+    const existing = await organizationThisEventWouldJoin(user.id, preferredOrganizationId);
+    if (existing) {
+      // BOTH resolution paths pass through here, deliberately. The picker
+      // appears only when somebody runs more than one organization, so a new
+      // secretary comes through the fallback and a club-and-society organizer
+      // through the chosen id — and the field is offered on whichever they see.
+      await nameIfStillUnnamed(existing, user.id, orgName, displayName, email);
+      return existing;
     }
   }
 

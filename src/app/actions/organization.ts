@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
-import { isCommunityVoice } from "@/lib/domain/org-profile";
+import { isCommunityVoice, orgProfile } from "@/lib/domain/org-profile";
+import { clubExistsQuestion } from "@/lib/domain/org-name-match";
+import { otherOrganizationNamed } from "@/lib/services/organization";
 import { refusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
@@ -208,6 +210,28 @@ export async function saveOrganizationBranding(
   const cleanName = name.trim();
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
 
+  /**
+   * THE OTHER PLACE A CLUB GETS ITS NAME, and the one Ajay pointed at: setup
+   * happens AFTER login, so the second secretary of a Thursday league has
+   * already signed up and is sitting on this screen typing the league's name
+   * into their own brand new tenant.
+   *
+   * A WARNING rather than the question `createEvent` asks. The difference is
+   * what is about to happen: there the tenant does not exist yet and the
+   * answer changes whether a second one is made, so it is worth stopping for.
+   * Here it exists either way and they are naming their own — stopping the
+   * save would just be in the way. So the name is saved and they are told, in
+   * the same words, on the channel this action already has for exactly this.
+   */
+  const clash = await otherOrganizationNamed(cleanName, org.organizationId, {
+    // The town they are typing IN THIS SAVE, not the one on the row — this is
+    // the screen where a club fills its location in for the first time, and
+    // reading the stored value would scope the check by an empty string.
+    city: (location.city ?? "").trim(),
+    region: (location.region ?? "").trim(),
+    country: (location.country ?? "").trim(),
+  });
+
   const cleanLogo = logoUrl.trim();
 
   // Only hit the network when the URL actually changed — renaming the club
@@ -237,7 +261,23 @@ export async function saveOrganizationBranding(
   });
 
   revalidatePath("/", "layout");
-  return { ok: true, warning };
+  /**
+   * The logo's warning still wins when there is one: a logo that will not load
+   * is about the thing they just did, and a namesake three towns away is not.
+   */
+  return {
+    ok: true,
+    warning:
+      warning ??
+      (clash
+        ? clubExistsQuestion({
+            name: clash.name,
+            label: orgProfile(clash.kind, clash.country, clash.communityNoun).label,
+            where: clash.where,
+            runBy: clash.runBy,
+          })
+        : undefined),
+  };
 }
 
 /**

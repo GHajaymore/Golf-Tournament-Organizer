@@ -43,7 +43,9 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
-import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { clubExistsQuestion } from "@/lib/domain/org-name-match";
+import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
@@ -3119,7 +3121,15 @@ export async function createEvent(
    * create an event inside it.
    */
   chosenOrganizationId?: string,
-): Promise<{ ok: boolean; error?: string }> {
+  /**
+   * "Yes, I know, it is a different one" — the answer to the question below.
+   *
+   * Only ever set by somebody who has been shown `clubExistsQuestion` and
+   * chosen to carry on, which is why the check runs when it is absent and not
+   * when it is present.
+   */
+  confirmedClubName?: boolean,
+): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const clean = name.trim() || "New Tournament";
@@ -3157,6 +3167,35 @@ export async function createEvent(
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
   // one keeps it — orgName never renames an existing organization.
+  /**
+   * IS THIS THE OUTFIT THAT IS ALREADY HERE? Asked BEFORE anything is created,
+   * because after it the second tenant exists and only a merge undoes it.
+   *
+   * Ajay, 2026-09-17: a club with one secretary will never see this. A local
+   * league, a society or an outing has three people who each think they are
+   * the one setting it up, and the first any of them hears about it is a
+   * season later with the roster in two halves.
+   *
+   * Asked, not enforced — see `org-name-match.ts` for why a refusal here would
+   * be wrong — so a "no, mine is a different one" comes straight back with
+   * `confirmedClubName` and nothing stands in their way.
+   */
+  if (!confirmedClubName) {
+    const clash = await clubNameClash(session.email, session.name, orgName, chosenOrganizationId);
+    if (clash) {
+      return {
+        ok: false,
+        clubExists: clash.name,
+        error: clubExistsQuestion({
+          name: clash.name,
+          label: orgProfile(clash.kind, clash.country, clash.communityNoun).label,
+          where: clash.where,
+          runBy: clash.runBy,
+        }),
+      };
+    }
+  }
+
   const organizationId = await organizationForNewEvent(
     session.email,
     session.name,
