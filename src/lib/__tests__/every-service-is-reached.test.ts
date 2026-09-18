@@ -42,8 +42,10 @@ const UNREACHED: Record<string, string> = {
     "Where a club stands against its plan, whether or not limits bite. The service comment promises the UI 'can say so honestly' and no screen says it — so a club at 1 of 1 tournaments learns it by being refused. Wire it when the tiers are decided.",
   "roster.ts:memberHistory":
     "What one member has played, 'the answer the old per-event lists couldn't give'. Nothing shows it, so the club's handicap history is in the database and on no screen.",
-  "integrations.ts:handicapReadable":
-    "Asks whether a club's handicap integration has actually fetched anything. Its own comment says a club can sit in the broken state for a season unless a screen says so, and none does.",
+  // `integrations.ts:handicapReadable` was the second entry to leave, the day
+  // after it arrived: the roster screen asks it now, which is the screen its
+  // own comment always said should. Two of the nine are gone within a day of
+  // being written down, which is the argument for writing them down.
   "courses.ts:isMultiCourse":
     "Whether a tournament rotates venues, so the single-course case can stay invisible. Every picker decides that for itself instead.",
   "courses.ts:eventCourses":

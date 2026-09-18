@@ -61,6 +61,24 @@ export interface RosterRow {
 interface Props {
   clubName: string;
   /**
+   * The club's handicap policy — club, ghin or hybrid.
+   *
+   * A blank index means different things under each, which is why this screen
+   * takes the policy rather than guessing from the rows: under a club keeping
+   * its own handicaps there is nothing to fetch and nothing is wrong, and
+   * under an association policy the same row is unfinished.
+   */
+  handicapPolicy?: string;
+  /**
+   * Whether indexes can actually be read right now — `handicapReadable`.
+   *
+   * True for a club keeping its own. False means the club has chosen an
+   * association and the integration has never successfully fetched, which its
+   * own service comment says a club can sit in for a whole season without
+   * noticing unless a screen says so. This is the screen that says so.
+   */
+  indexesReadable?: boolean;
+  /**
    * The tournament currently open, or "" when there is none.
    *
    * EMPTY IS A REAL STATE NOW. The roster is the club's standing member list
@@ -103,6 +121,8 @@ const BLANK: MemberInput = {
 
 export function RosterClient({
   clubName,
+  handicapPolicy = "club",
+  indexesReadable = true,
   eventName,
   fieldLocked,
   members,
@@ -363,6 +383,37 @@ export function RosterClient({
           </div>
         </div>
       </div>
+
+      {/* WHY THE INDEXES ARE BLANK, said once at the top rather than implied
+          by a column of empty cells.
+
+          A club that has chosen to play off association indexes and has never
+          successfully fetched one has every member unfinished, and until now
+          the only evidence was a roster full of zeros — which read as a club
+          of scratch golfers. `handicapReadable` was written for this sentence
+          and had no caller.
+
+          Not shown to a club keeping its own handicaps: there is nothing to
+          fetch, so there is nothing wrong. */}
+      {!indexesReadable && handicapPolicy !== "club" && (
+        <div
+          style={{
+            margin: "0 0 12px",
+            padding: "10px 12px",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 32%, transparent)",
+          }}
+        >
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-danger)" }}>
+            <Icon name="warning-circle" /> No indexes have been fetched yet
+          </span>
+          <p style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}>
+            This club plays off association indexes, and none have come through — so members below
+            show no index rather than a figure. Nobody plays off scratch by accident: finish the
+            handicap connection in settings, or switch the club to its own handicaps.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-danger)" }}>
@@ -729,9 +780,33 @@ export function RosterClient({
                     )}
                   </td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {m.handicap}
-                    {m.handicapType === "9" && (
-                      <span className="text-muted" style={{ fontSize: 10 }}> (9)</span>
+                    {/**
+                     * NOBODY HAS CLAIMED A FIGURE IS NOT THE SAME AS SCRATCH.
+                     *
+                     * `handicapSource: "none"` is how the rest of the app says
+                     * "no index yet" — `upsertMember` writes it deliberately
+                     * for a club playing off association indexes, whose own
+                     * comment calls such a row "an unfinished roster row
+                     * rather than a player at zero".
+                     *
+                     * This cell printed `{m.handicap}`, so that row read as a
+                     * flat **0**: indistinguishable from a scratch golfer, on
+                     * the club's own list. `handicap-policy.ts` calls that
+                     * outcome catastrophic and exists to make it impossible —
+                     * a 24-handicapper playing off scratch "does not look like
+                     * an outage; it looks like a competition, and it is
+                     * settled and paid out before anybody works out why the
+                     * results are absurd".
+                     */}
+                    {m.handicapSource === "none" ? (
+                      <span className="text-muted" style={{ fontSize: 12 }}>no index yet</span>
+                    ) : (
+                      <>
+                        {m.handicap}
+                        {m.handicapType === "9" && (
+                          <span className="text-muted" style={{ fontSize: 10 }}> (9)</span>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="text-muted" style={{ fontSize: 12 }}>

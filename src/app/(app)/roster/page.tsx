@@ -4,6 +4,7 @@ import { requireOrgScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadRoster } from "@/lib/services/roster";
+import { handicapReadable } from "@/lib/services/integrations";
 import { RosterClient } from "@/components/RosterClient";
 import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roster-link";
 
@@ -43,7 +44,10 @@ export default async function RosterPage() {
   const [org, members, event] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, shortName: true, kind: true },
+      // `handicapPolicy` comes too: this screen shows indexes, and whether a
+      // blank one is an unfinished row or an ordinary club-handicap member is
+      // a question only the policy answers.
+      select: { name: true, shortName: true, kind: true, handicapPolicy: true },
     }),
     loadRoster(organizationId),
     session.eventId
@@ -98,6 +102,20 @@ export default async function RosterPage() {
   return (
     <RosterClient
       clubName={org.shortName || org.name}
+      /**
+       * WHETHER THIS CLUB CAN READ INDEXES AT ALL.
+       *
+       * `handicapReadable` was written for exactly this screen — its comment
+       * says so — and nothing called it until now, which is why a club on GHIN
+       * with no working integration could sit a whole season with every member
+       * at zero and nothing on any screen saying why.
+       *
+       * Asked only when the policy actually depends on an association: a club
+       * keeping its own handicaps has nothing to fetch and must not be shown a
+       * warning about a service it does not use.
+       */
+      handicapPolicy={org.handicapPolicy}
+      indexesReadable={org.handicapPolicy === "club" ? true : await handicapReadable(organizationId)}
       eventName={event?.name ?? ""}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}
