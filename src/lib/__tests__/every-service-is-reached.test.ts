@@ -38,8 +38,12 @@ import { readSource } from "./source";
 /** `file:function` → why nothing calls it. Every entry is a decision. */
 const UNREACHED: Record<string, string> = {
   // ── Behaviour that was designed and never given a screen ───────────────
-  "limits.ts:limitStatus":
-    "Where a club stands against its plan, whether or not limits bite. The service comment promises the UI 'can say so honestly' and no screen says it — so a club at 1 of 1 tournaments learns it by being refused. Wire it when the tiers are decided.",
+  //
+  // `limits.ts:limitStatus` was the first entry here and is GONE, which is the
+  // register working: the club's plan panel calls it now, the second cell
+  // below failed the moment it did, and the entry came off. An allowlist that
+  // keeps an entry after somebody wires the function turns this file into
+  // folklore.
   "roster.ts:memberHistory":
     "What one member has played, 'the answer the old per-event lists couldn't give'. Nothing shows it, so the club's handicap history is in the database and on no screen.",
   "integrations.ts:handicapReadable":

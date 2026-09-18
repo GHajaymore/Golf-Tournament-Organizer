@@ -12,6 +12,7 @@ import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { pendingAsks } from "@/lib/services/join-requests";
+import { limitStatus } from "@/lib/services/limits";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -251,7 +252,7 @@ export default async function OrganizationPage() {
           club runs, so it is where the question of what the club is paying
           for belongs. */}
       <SettingsSectionAnchor id="plan">
-        <PlanPanel planKey={org.subscription?.plan ?? "free"} />
+        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={await limitStatus(org.id)} />
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
