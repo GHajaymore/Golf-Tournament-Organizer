@@ -16,7 +16,7 @@
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
   /* Declared in both files, as --color-divider already is: globals.css carries
      the app's ground, and this file has to stand up on its own. */
-  --color-text-muted: color-mix(in srgb, #e9e9ed 62%, transparent);
+  --color-text-muted: color-mix(in srgb, #e9e9ed 68%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #232532);
   --color-warning: #e8a33c;
   --color-on-accent: #16181a;
@@ -179,7 +179,11 @@ h4 { font-size: 16px; }
 h5 { font-size: 14px; letter-spacing: -0.008em; }
 h6 { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600; }
 p { margin: 0 0 var(--space-3); }
-a { color: var(--color-accent); text-underline-offset: 3px; }
+/* Links are text, so they take the accent's TEXT step. `--color-accent` is
+   step 500, which reads 4.02:1 on a card for the heather palette on the dark
+   ground — every inline link in every muted help sentence, for any club that
+   picked it. See accent-is-not-a-text-colour.test.ts. */
+a { color: var(--color-accent-300); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
 figure { margin: 0; }
 figcaption {
@@ -281,7 +285,10 @@ figcaption {
 }
 .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 13%, transparent); }
 
-.btn-ghost { color: var(--color-accent); padding-inline: var(--space-2); }
+/* A ghost button IS its label — there is no fill to carry it — so the label
+   takes the text step. contrastFloors raised step 500's floor on exactly this
+   argument, but measured it against the ground; the button sits on a card. */
+.btn-ghost { color: var(--color-accent-300); padding-inline: var(--space-2); }
 .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
 
@@ -522,7 +529,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   color: color-mix(in srgb, var(--color-text) 78%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent);
 }
-.tag-outline { box-shadow: inset 0 0 0 1px var(--color-accent); color: var(--color-accent); }
+.tag-outline { box-shadow: inset 0 0 0 1px var(--color-accent); color: var(--color-accent-300); }
 
 /* — navigation — */
 .nav {
@@ -552,8 +559,9 @@ textarea.input { min-height: 90px; resize: vertical; }
   font-weight: 600;
   /* Was a 52% mix of its own, a third muted weight nobody had measured: 3.49:1
      on the light ground, on the smallest uppercase type in the app, naming the
-     columns of a leaderboard. `--color-text-muted` is 62% and the weight the
-     rest of the app already uses — 4.78:1 light, 5.91:1 dark. */
+     columns of a leaderboard. `--color-text-muted` is the weight the rest of
+     the app uses, and is solved to clear on its tinted surfaces too — see
+     themeVarsFor. */
   color: var(--color-text-muted);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);

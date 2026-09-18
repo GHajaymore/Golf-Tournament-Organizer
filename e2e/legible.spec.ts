@@ -1,6 +1,19 @@
 import { test, expect, type Page } from "@playwright/test";
 import { join } from "node:path";
 import { standaloneScreens, consoleScreens, playerScreens, entryUrl } from "./routes";
+import {
+  THEME_PRESETS,
+  SECONDARY_PRESETS,
+  DARK_GROUND,
+  LIGHT_GROUND,
+  DEFAULT_CLUB_THEME,
+  themeScale,
+  themeVarsFor,
+  resolveTheme,
+  resolveSecondary,
+  contrastRatio,
+  type Ground,
+} from "../src/lib/themes";
 
 /**
  * EVERY WORD CLEARS ITS CONTRAST FLOOR, ON BOTH GROUNDS.
@@ -246,51 +259,172 @@ async function controlResult(page: Page): Promise<{ caught: number; falsePositiv
 const CONSOLE = [...consoleScreens(), ...standaloneScreens()].sort();
 const PLAYER = playerScreens();
 
+/**
+ * THE FIXTURE'S CLUB IS ONE PALETTE, AND A SWEEP OVER ONE PALETTE CANNOT SEE A
+ * DEFECT THAT DEPENDS ON WHICH PALETTE A CLUB PICKED.
+ *
+ * The e2e club runs Verdigris, which happens to be one of the accents that
+ * clears on the dark ground. So `--color-accent` used as text — step 500,
+ * 3.48:1 on a plain card for the worst secondary — rendered fine on every
+ * screen here while failing for real clubs. `accent-is-not-a-text-colour`
+ * proves the ARITHMETIC over every preset; only a render can say which
+ * components are subject to it. This pass is the second half.
+ *
+ * The worst palette is DERIVED, not named: for each ground, the accent and the
+ * secondary whose step 500 reads worst against the card. A preset added
+ * tomorrow that is worse becomes the one rendered here without anyone editing
+ * this file. It is injected as a stylesheet over the club's own, so nothing
+ * is written to the fixture — which is shared with every other spec and, per
+ * `e2e-fixture-collides-across-worktrees`, with other checkouts.
+ */
+const hex = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+function tintOver(fg: string, bg: string, a: number): string {
+  const f = hex(fg);
+  const b = hex(bg);
+  return `#${[0, 1, 2]
+    .map((i) => Math.round(f[i] * a + b[i] * (1 - a)).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/**
+ * Worst by the surfaces accent text actually SITS ON — the card and the 12%
+ * and 16% tints of the accent itself — not the card alone.
+ *
+ * The first version ranked on the card only, and on the light ground that
+ * ranking puts Verdigris last: the FIXTURE'S OWN palette. So the "worst" light
+ * pass rendered Verdigris again, its injection check compared Verdigris with
+ * Verdigris and passed, and the whole light half measured nothing new while
+ * looking like it had. The tints are where the light ground actually fails.
+ */
+function worstPalette(ground: Ground): { accentKey: string; secondaryKey: string; label: string } {
+  const floor = (scale: Record<number, string>) =>
+    Math.min(
+      ...[0, 0.12, 0.16].map((t) =>
+        contrastRatio(scale[500], t ? tintOver(scale[500], ground.surface, t) : ground.surface),
+      ),
+    );
+  const worst = (keys: string[], resolve: (k: string) => Parameters<typeof themeScale>[0]) =>
+    keys
+      .map((k) => ({ k, r: floor(themeScale(resolve(k), ground)) }))
+      .sort((a, b) => a.r - b.r)[0];
+  const a = worst(
+    THEME_PRESETS.map((p) => p.key),
+    (k) => resolveTheme(k, ""),
+  );
+  const s = worst(
+    SECONDARY_PRESETS.map((p) => p.key),
+    (k) => resolveSecondary(k, ""),
+  );
+  return { accentKey: a.k, secondaryKey: s.k, label: `${a.k}+${s.k}` };
+}
+
+/**
+ * Put a palette on the page, and PROVE it is on the page.
+ *
+ * The layouts theme `#club-theme` and `#player-theme`, and a value declared on
+ * an element beats one it inherits — so an injection on `:root` alone is
+ * shadowed exactly where the club's own palette is declared. The first version
+ * of this targeted `[data-club-theme]`, which nothing in the app uses, and
+ * every dark "worst" test went on to re-measure Verdigris and pass.
+ *
+ * So the check is here, in every test, not in one control: the accent the
+ * text beneath `<main>` actually resolves must be the one injected. A future
+ * layout that themes a third element fails loudly on its first screen rather
+ * than quietly measuring the fixture's palette.
+ */
+async function wearPalette(page: Page, ground: Ground, accentKey: string, secondaryKey: string) {
+  /**
+   * Only where a club palette can APPLY. The standalone pages — /choose,
+   * /play, /privacy — sit outside both layouts and wear no club theme, so no
+   * club can change their colours. Injecting one anyway painted a light card
+   * behind the browser's default white button text on /choose and reported
+   * 1.01:1: a page no club could ever produce, reported as a defect.
+   */
+  const themed = await page.evaluate(() => !!document.querySelector("#club-theme, #player-theme"));
+  test.skip(!themed, "this page wears no club theme, so no club palette reaches it");
+
+  const vars = themeVarsFor({ ...DEFAULT_CLUB_THEME, accentKey, secondaryKey }, ground);
+  const body = Object.entries(vars)
+    .map(([k, v]) => `${k}: ${v} !important;`)
+    .join(" ");
+  await page.addStyleTag({ content: `:root, #club-theme, #player-theme { ${body} }` });
+
+  const got = await page.evaluate(() => {
+    const el = document.querySelector("main") ?? document.body;
+    return getComputedStyle(el).getPropertyValue("--color-accent-500").trim().toLowerCase();
+  });
+  expect(got, `the ${accentKey} palette did not take`).toBe(vars["--color-accent-500"].toLowerCase());
+}
+
+const GROUNDS = { light: LIGHT_GROUND, dark: DARK_GROUND } as const;
+
 for (const scheme of ["light", "dark"] as const) {
-  test.describe(`the ${scheme} ground`, () => {
-    test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
+  const ground = GROUNDS[scheme];
+  const worst = worstPalette(ground);
 
-    test(`the measurement can see text that fails (${scheme})`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.goto("/dashboard");
-      await page.waitForLoadState("networkidle");
+  for (const palette of ["club", "worst"] as const) {
+    const tag = palette === "club" ? scheme : `${scheme}, ${worst.label}`;
+    const prepare = async (page: Page) => {
+      if (palette === "worst") await wearPalette(page, ground, worst.accentKey, worst.secondaryKey);
+    };
 
-      expect(await illegibleText(page), "/dashboard is not clean to begin with").toEqual([]);
+    test.describe(`the ${scheme} ground, ${palette} palette`, () => {
+      test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
-      const control = await controlResult(page);
-      expect(control.caught, "the sweep cannot see grey on white").toBe(1);
-      expect(control.falsePositives, "the sweep misreads color() syntax").toEqual([]);
+      test(`the measurement can see text that fails (${tag})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto("/dashboard");
+        await page.waitForLoadState("networkidle");
+        await prepare(page);
+
+        if (palette === "worst") {
+          // And it must be a DIFFERENT palette from the fixture's, or this
+          // pass is the club pass run twice — which is what it silently was
+          // on the light ground before the ranking counted the tints.
+          expect(worst.accentKey, "the worst accent IS the fixture's accent").not.toBe(
+            DEFAULT_CLUB_THEME.accentKey,
+          );
+        }
+
+        expect(await illegibleText(page), "/dashboard is not clean to begin with").toEqual([]);
+
+        const control = await controlResult(page);
+        expect(control.caught, "the sweep cannot see grey on white").toBe(1);
+        expect(control.falsePositives, "the sweep misreads color() syntax").toEqual([]);
+      });
+
+      for (const path of CONSOLE) {
+        test(`${path} is legible (${tag})`, async ({ page }) => {
+          await page.emulateMedia({ colorScheme: scheme });
+          const res = await page.goto(entryUrl(path));
+          expect(res?.status(), `${path} did not render`).toBeLessThan(500);
+          await page.waitForLoadState("networkidle");
+          await prepare(page);
+
+          const bad = await illegibleText(page);
+          expect(bad, `${path} on ${tag}: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
+        });
+      }
     });
 
-    for (const path of CONSOLE) {
-      test(`${path} is legible (${scheme})`, async ({ page }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        const res = await page.goto(entryUrl(path));
-        expect(res?.status(), `${path} did not render`).toBeLessThan(500);
-        await page.waitForLoadState("networkidle");
+    test.describe(`the ${scheme} ground, ${palette} palette, as a player`, () => {
+      test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
 
-        const bad = await illegibleText(page);
-        expect(bad, `${path} on ${scheme}: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
-      });
-    }
-  });
+      for (const path of PLAYER) {
+        test(`${path} is legible (${tag})`, async ({ page }) => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.goto(path);
+          await page.waitForLoadState("networkidle");
+          // A redirect to sign-in renders a page with almost no text on it,
+          // which passes this sweep perfectly. CLAUDE.md: assert the status
+          // before asserting anything about the body.
+          expect(new URL(page.url()).pathname, "not signed in as a player").toBe(path);
+          await prepare(page);
 
-  test.describe(`the ${scheme} ground, as a player`, () => {
-    test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
-
-    for (const path of PLAYER) {
-      test(`${path} is legible (${scheme})`, async ({ page }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.goto(path);
-        await page.waitForLoadState("networkidle");
-        // A redirect to sign-in renders a page with almost no text on it,
-        // which passes this sweep perfectly. CLAUDE.md: assert the status
-        // before asserting anything about the body.
-        expect(new URL(page.url()).pathname, "not signed in as a player").toBe(path);
-
-        const bad = await illegibleText(page);
-        expect(bad, `${path} on ${scheme}: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
-      });
-    }
-  });
+          const bad = await illegibleText(page);
+          expect(bad, `${path} on ${tag}: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
+        });
+      }
+    });
+  }
 }

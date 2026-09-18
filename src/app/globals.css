@@ -80,7 +80,7 @@
      step on the tournament journey was painted exactly like a done one, and
      `--color-surface-2` made `background` invalid, so a received message had
      no bubble at all while your own did. */
-  --color-text-muted: color-mix(in srgb, #e9e9ed 62%, transparent);
+  --color-text-muted: color-mix(in srgb, #e9e9ed 68%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #21231f);
 
   /* A distinct display face for headings, tournament names and big scores —
