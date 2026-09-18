@@ -432,6 +432,52 @@ export async function seed() {
      * and course names above are: a short one would prove nothing about the
      * row it sits in.
      */
+    /**
+     * A ROSTER, AND ONE MEMBER NOBODY HAS AN INDEX FOR.
+     *
+     * The club had no `Member` rows at all, so `/roster` rendered empty in
+     * every end-to-end run: the layout sweep measured a blank screen at three
+     * viewports and no browser has ever seen a member row.
+     *
+     * The third row is the one that matters. `handicapSource: "none"` is how
+     * the app says nobody has claimed a figure — written deliberately by
+     * `upsertMember` for a club playing off association indexes — and until
+     * 2026-09-18 every screen printed the stored 0 beside it, which reads as a
+     * scratch golfer. `handicap-policy.ts` calls that outcome catastrophic.
+     * Now a browser sees the difference on every run.
+     */
+    await prisma.member.createMany({
+      data: [
+        {
+          organizationId: org.id,
+          name: "Aj Moore",
+          email: `${MARK}-0@example.invalid`,
+          handicap: 12.4,
+          handicapType: "18",
+          handicapSource: "manual",
+        },
+        {
+          // A genuine scratch player, so "no index" cannot be implemented by
+          // hiding every zero — the direction a careless fix breaks.
+          organizationId: org.id,
+          name: "Pat Scratch",
+          email: `${MARK}-scratch@example.invalid`,
+          handicap: 0,
+          handicapType: "18",
+          handicapSource: "manual",
+        },
+        {
+          organizationId: org.id,
+          name: "Síobhán O’Donnell-Fitzgerald",
+          email: `${MARK}-noindex@example.invalid`,
+          ghin: "1234567",
+          handicap: 0,
+          handicapType: "18",
+          handicapSource: "none",
+        },
+      ],
+    });
+
     const asker = await prisma.user.create({
       data: {
         email: `${MARK}-asks-to-join@example.invalid`,
