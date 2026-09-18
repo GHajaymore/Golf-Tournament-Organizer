@@ -24,7 +24,7 @@ import {
 } from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 import { matchCourse, teeProblems } from "@/lib/domain/venue";
-import { libraryOrganizationFor, organizationIdsFor } from "@/lib/services/organization";
+import { libraryOrganizationFor, organizationIdsForPlayer } from "@/lib/services/organization";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
 
@@ -1056,7 +1056,7 @@ export async function searchCourseDirectory(
    * Read-only, and deliberately NOT `libraryOrgFor`: decorating a search
    * result must never create an organization as a side effect of typing.
    */
-  const organizationIds = await organizationIdsFor(session.email);
+  const organizationIds = await organizationIdsForPlayer(session.email);
   const mine = organizationIds.length
     ? await prisma.course.findMany({
         where: { organizationId: { in: organizationIds } },

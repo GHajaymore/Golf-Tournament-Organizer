@@ -2,7 +2,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
-import { organizationIdsFor } from "@/lib/services/organization";
+import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -103,7 +103,7 @@ export default async function EntryPage() {
      * third judgement call.
      */
     const saved = await clubCourses(
-      casualRound ? await organizationIdsFor(session.email) : state.event.organizationId,
+      casualRound ? await organizationIdsForPlayer(session.email) : state.event.organizationId,
       session.eventId,
     );
     return (
@@ -420,7 +420,7 @@ export default async function EntryPage() {
    * courses exist is the split worth avoiding.
    */
   const clubLibrary = await clubCourses(
-    casualRound ? await organizationIdsFor(session.email) : state.event.organizationId,
+    casualRound ? await organizationIdsForPlayer(session.email) : state.event.organizationId,
     session.eventId,
   );
   // Kept only for its NAME, in the header. Every card on this screen is now

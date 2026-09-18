@@ -274,13 +274,19 @@ describe("the card screen on a casual round", () => {
      * screen asked THAT organization for its courses and got none. A secretary
      * setting up a fourball at their own course could no longer find it.
      *
-     * `/match/new` has always read the person's memberships for the same
-     * picker, so the two screens now ask one question. A golf course is a
-     * physical place, not club apparatus — offering it is a convenience, not
-     * the club taking the round over.
+     * `/match/new` has always read the person's clubs for the same picker, so
+     * the two screens ask one question. A golf course is a physical place, not
+     * club apparatus — offering it is a convenience, not the club taking the
+     * round over.
+     *
+     * That one question is the PLAYER's clubs since 2026-09-18. It used to be
+     * the staff scope, which meant "a secretary setting up a fourball at their
+     * own course" was literally the only person it worked for.
      */
     const page = readSource("src", "app", "(app)", "entry", "page.tsx");
-    expect(page).toMatch(/casualRound \? await organizationIdsFor\(session\.email\) : state\.event\.organizationId/);
+    expect(page).toMatch(
+      /casualRound \? await organizationIdsForPlayer\(session\.email\) : state\.event\.organizationId/,
+    );
   });
 });
 
@@ -310,7 +316,7 @@ describe("reading a club's lists from a casual round", () => {
     for (const [i, call] of calls.entries()) {
       const args = call.slice(0, 160);
       expect(args, `clubCourses call ${i + 1}`).toMatch(
-        /casualRound \? await organizationIdsFor\(session\.email\) : state\.event\.organizationId/,
+        /casualRound \? await organizationIdsForPlayer\(session\.email\) : state\.event\.organizationId/,
       );
     }
   });
@@ -319,8 +325,43 @@ describe("reading a club's lists from a casual round", () => {
     // Wider than the round's organization, and still a re-read: an id from a
     // form is never believed. See casual-round-member-link.audit.test.ts.
     const setup = readSource("src/app/actions/match-setup.ts");
-    expect(setup).toMatch(/organizationId: \{ in: await organizationIdsFor\(session\.email\) \}/);
+    expect(setup).toMatch(/organizationId: \{ in: await organizationIdsForPlayer\(session\.email\) \}/);
     expect(setup).toMatch(/realMembers\.has\(p\.memberId\) \? p\.memberId : null/);
+  });
+
+  it("asks the SAME question everywhere, and it is the player's clubs", () => {
+    /**
+     * THE INVARIANT ALL OF THE ABOVE IS REALLY PROTECTING, pinned once.
+     *
+     * `searchCourseDirectory` says it out loud — "it has to ask the question
+     * that list asked … `organizationIdsFor` is that scope named once so the
+     * other readers ask the same question" — and the cost of them drifting is
+     * on the record: a course marked as already held, and held by nobody.
+     *
+     * The scope was `organizationIdsFor`, which reads `OrganizationMember`,
+     * and that table holds club OFFICERS only: approving a join request and
+     * adding staff are the sole writers anywhere in `src`. So every one of
+     * these reads was answered for the committee and for nobody else — on the
+     * casual round, which exists for the person who has no committee. The
+     * roster picker was built, shipped, and invisible to its users.
+     *
+     * A player scope is strictly wider than a staff one, so nothing an
+     * organizer could reach has narrowed.
+     */
+    const sources = [
+      ["entry/page.tsx", readSource("src", "app", "(app)", "entry", "page.tsx")],
+      ["match-setup.ts", readSource("src/app/actions/match-setup.ts")],
+      ["courses.ts", readSource("src/app/actions/courses.ts")],
+      ["match/new/page.tsx", readSource("src", "app", "match", "new", "page.tsx")],
+    ] as const;
+
+    for (const [name, body] of sources) {
+      expect(body, `${name} no longer asks the player scope`).toContain("organizationIdsForPlayer(");
+      expect(
+        /organizationIdsFor\(/.test(body.split("organizationIdsForPlayer(").join("")),
+        `${name} still reads the STAFF scope for a casual round — the picker and the re-read must agree, or a member picked off the list is recorded as a guest`,
+      ).toBe(false);
+    }
   });
 
   it("still creates the round in the person's own organization", () => {
