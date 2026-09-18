@@ -145,7 +145,7 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
                         ? "All square"
                         : `${res.lead > 0 ? r.aName : r.bName} ${Math.abs(res.lead)} up`;
                   return (
-                    <div key={s.key} style={{ padding: "8px 10px", borderRadius: 8, background: "var(--color-surface-2, rgba(127,127,127,0.08))" }}>
+                    <div key={s.key} style={{ padding: "8px 10px", borderRadius: 8, background: "var(--color-surface-2)" }}>
                       <div className="card-kicker" style={{ fontSize: 11 }}>{s.label}</div>
                       <div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>{label}</div>
                       {res && !res.complete && s.played > 0 && (

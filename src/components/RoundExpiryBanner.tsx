@@ -67,7 +67,7 @@ export function RoundExpiryBanner({
         alignItems: "center",
         gap: 12,
         flexWrap: "wrap",
-        borderColor: "var(--color-warning, var(--color-divider))",
+        borderColor: "var(--color-warning)",
       }}
     >
       <Icon name="clock" style={{ flex: "none" }} />

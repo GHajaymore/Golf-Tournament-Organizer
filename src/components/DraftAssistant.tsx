@@ -169,7 +169,7 @@ export function DraftAssistant({
                 margin: 0,
                 padding: "10px 12px",
                 borderRadius: 10,
-                background: "var(--color-surface-2, rgba(127,127,127,0.08))",
+                background: "var(--color-surface-2)",
                 fontSize: 11.5,
                 lineHeight: 1.6,
                 whiteSpace: "pre-wrap",

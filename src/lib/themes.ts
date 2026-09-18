@@ -217,6 +217,19 @@ export interface Ground {
   danger: string;
   dangerBg: string;
   /**
+   * Caution amber — a thing worth reading before it becomes an error.
+   *
+   * Four components asked for `--color-warning` and nothing declared it, so a
+   * photographed card that read rows for players not in the group, an expiring
+   * round code and a stalled live refresh all announced themselves in ordinary
+   * body text. Distinct from `danger`, which is the colour of something that
+   * has already gone wrong.
+   *
+   * Measured rather than picked: 7.35:1 on the dark surface, which clears
+   * `SUNLIGHT_RATIO`, and 6.28:1 on the light one.
+   */
+  warning: string;
+  /**
    * Label colour for text sitting ON the accent — the filled primary button.
    *
    * Not derived from the page background. Mixing toward it looked principled
@@ -244,6 +257,7 @@ export const DARK_GROUND: Ground = {
   neutrals: ["#f3f5fe", "#e4e7f5", "#cfd3e5", "#b2b6ca", "#9397ab", "#75798c", "#595d6c", "#3f424d", "#292b31"],
   danger: "#e0665a",
   dangerBg: "#2a1512",
+  warning: "#e8a33c",
   // Near-black on a light accent: the dark ramp puts step 500 in the upper
   // lightness range, so dark text is what clears the bar there.
   onAccent: "#16181a",
@@ -270,6 +284,9 @@ export const LIGHT_GROUND: Ground = {
   // read.
   danger: "#b3261e",
   dangerBg: "#fdecea",
+  // The dark ground's amber is a mid-tone and reads as a highlighter on paper;
+  // the light ground takes a deep ochre, the same move `danger` makes above.
+  warning: "#8a5300",
   // Pure white on a light-mode accent, which the ramp keeps dark enough to
   // carry it. An off-white mixed from the page background measured 3.87:1.
   onAccent: "#ffffff",
@@ -749,7 +766,23 @@ export function themeVarsFor(theme: ClubTheme, ground: Ground): Record<string, s
     "--color-divider": `color-mix(in srgb, ${ground.text} 16%, transparent)`,
     "--color-danger": ground.danger,
     "--color-danger-bg": ground.dangerBg,
+    "--color-warning": ground.warning,
     "--color-on-accent": ground.onAccent,
+    /**
+     * Muted label text, and the surface one step above the card.
+     *
+     * Both were being ASKED FOR long before they existed — eight components
+     * each wrote `var(--color-text-muted)` and `var(--color-surface-2)`
+     * against nothing. Derived from `--color-text` and `--color-surface` so
+     * they follow the club's theme and reverse with the ground on their own,
+     * which is the property the hard-coded fallbacks they carried did not
+     * have.
+     *
+     * 62% is the weight `.text-muted` already used, so the class and the
+     * inline callers now name one value instead of two.
+     */
+    "--color-text-muted": `color-mix(in srgb, ${ground.text} 62%, transparent)`,
+    "--color-surface-2": `color-mix(in srgb, ${ground.text} 6%, ${ground.surface})`,
   };
   STEPS.forEach((step, i) => {
     vars[`--color-accent-${step}`] = accent[step];

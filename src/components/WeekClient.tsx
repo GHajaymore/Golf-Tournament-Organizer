@@ -76,7 +76,7 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
     borderTop: "none",
     fontSize: 11.5,
     fontWeight: 600,
-    color: "var(--color-text-muted, #888)",
+    color: "var(--color-text-muted)",
   };
   const balanced = purse.wonCents === purse.stakeCents;
 
@@ -198,7 +198,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
     letterSpacing: ".06em",
     fontWeight: 600,
     padding: "0 0 6px",
-    color: "var(--color-text-muted, #888)",
+    color: "var(--color-text-muted)",
   };
   const td: React.CSSProperties = {
     padding: "7px 0",

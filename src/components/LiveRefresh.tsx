@@ -108,7 +108,7 @@ export function LiveRefresh({
         // 393px viewport. The label is allowed to wrap; the header it sits in
         // is allowed to stack, and the `minWidth: 0` below is what lets this
         // shrink inside a flex parent at all.
-        color: stale || offline ? "var(--color-warning, var(--color-neutral-300))" : "var(--color-neutral-400)",
+        color: stale || offline ? "var(--color-warning)" : "var(--color-neutral-400)",
         display: "flex",
         alignItems: "center",
         justifyContent: compact ? "flex-start" : "center",
