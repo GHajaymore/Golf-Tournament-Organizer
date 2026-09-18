@@ -107,7 +107,20 @@ function hasAResult(json: string): boolean {
 }
 
 /** One player's strokes for one round, whichever table they were stored in. */
-export type PlayerStrokes = { playerId: string; stageId: string; strokes: string };
+export type PlayerStrokes = {
+  playerId: string;
+  stageId: string;
+  strokes: string;
+  /**
+   * Somebody has said this card is WRONG. Present only when true, so every
+   * other row keeps exactly the shape it had.
+   *
+   * Only a stroke `Scorecard` can say so — the match and team tables carry no
+   * status. Money reads it: a disputed card's strokes can still change, so a
+   * round holding one is not final (see `roundMoneyFinality`).
+   */
+  disputed?: true;
+};
 
 /**
  * EVERY STROKE A ROUND HOLDS, KEYED BY THE PLAYER WHO PLAYED IT.
@@ -159,7 +172,7 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
   const [stroke, match, team] = await Promise.all([
     prisma.scorecard.findMany({
       where: { eventId, ...round },
-      select: { playerId: true, stageId: true, strokes: true },
+      select: { playerId: true, stageId: true, strokes: true, status: true },
     }),
     /**
      * Match cards are keyed on the FIXTURE, so both the round and the player
@@ -194,7 +207,13 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
     out.push({ playerId, stageId: stage, strokes });
   };
 
-  for (const c of stroke) take(c.playerId, c.stageId, c.strokes);
+  for (const c of stroke) {
+    take(c.playerId, c.stageId, c.strokes);
+    if (c.status === "disputed") {
+      const row = out.find((r) => r.playerId === c.playerId && r.stageId === c.stageId);
+      if (row) row.disputed = true;
+    }
+  }
   for (const c of match) {
     take(c.slot === "A" ? c.match.playerAId : c.match.playerBId, c.match.stageId, c.strokes);
   }
