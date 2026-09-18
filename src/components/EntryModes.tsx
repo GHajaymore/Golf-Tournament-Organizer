@@ -104,6 +104,8 @@ export function EntryModes({
     id: string;
     name: string;
     handicap: number;
+    handicapType?: string | null;
+    handicapSource?: string | null;
     /** Which set this player is on, already resolved by policy and flight. */
     tee?: { name: string; rated: boolean } | null;
   }>;

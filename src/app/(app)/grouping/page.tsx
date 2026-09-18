@@ -85,7 +85,7 @@ export default async function GroupingPage() {
       )}
 
       <GroupingControls
-        players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
+        players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         currentRule={state.event.formationRule as FormationRule}
         currentMode={mode}
         currentValue={state.event.flightValue}

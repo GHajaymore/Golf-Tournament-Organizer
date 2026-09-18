@@ -14,6 +14,7 @@ import { csvSizeRefusal } from "@/lib/csv";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 
 interface Signup {
@@ -23,6 +24,12 @@ interface Signup {
   name: string;
   handicap: number;
   handicapType?: string;
+  /**
+   * ghin | manual | none. "none" is nobody having claimed a figure, which is
+   * NOT a scratch handicap — see `indexLabel`, which is the only thing allowed
+   * to turn these two fields into words.
+   */
+  handicapSource?: string;
   seed: number;
   email?: string;
   phone?: string;
@@ -1132,8 +1139,11 @@ export function RegistrationClient({
                       <tr key={p.id}>
                         <td style={{ fontWeight: 500 }}>{p.name}</td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                          {p.handicap}
-                          {p.handicapType === "9" ? " (9h)" : ""}
+                          {/* One reader for the two fields. A pending entry
+                              from a club playing off association indexes has
+                              no figure yet, and printing the stored 0 puts a
+                              scratch golfer in the queue. */}
+                          {indexLabel(p)}
                         </td>
                         <td className="text-muted" style={{ fontSize: 12 }}>{p.email || "—"}</td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>

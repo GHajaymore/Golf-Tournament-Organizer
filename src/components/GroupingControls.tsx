@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { regenGroups } from "@/app/actions/tournament";
@@ -280,7 +281,7 @@ export function GroupingControls({
                 {flightPlayers.map((p) => (
                   <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                    <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{p.handicap}</span>
+                    <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(p)}</span>
                   </div>
                 ))}
               </div>

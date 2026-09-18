@@ -293,7 +293,7 @@ export default async function FoursomesPage({
         </div>
       )}
       <FoursomeMaker
-        players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
+        players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         standings={standings}
         holes={holes}
         stageId={stage?.id ?? ""}

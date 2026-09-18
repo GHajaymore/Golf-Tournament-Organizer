@@ -868,7 +868,7 @@ export default async function EntryPage() {
         // The tee each player is on, resolved through the policy and their
         // flight — see `teeFor`. Carried on the player rather than as a
         // parallel map so it cannot drift out of step with the name beside it.
-        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, tee: teeFor(p.id) }))}
+        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, tee: teeFor(p.id) }))}
       absentByStage={absentByStage}
       // A quick round has no field, no spreadsheet and no draw. See the prop.
       casual={casualRound}

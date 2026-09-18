@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
@@ -23,6 +24,8 @@ interface StrokePlayer {
   id: string;
   name: string;
   handicap: number;
+  handicapType?: string | null;
+  handicapSource?: string | null;
   /**
    * Which set of tees this player is on, for the head of their card.
    *
@@ -377,18 +380,18 @@ export function StrokePlayEntry({
           <select className="input" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
             {absentPlayers.length === 0 ? (
               players.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+                <option key={p.id} value={p.id}>{p.name} (hcp {indexLabel(p)})</option>
               ))
             ) : (
               <>
                 <optgroup label="Playing this round">
                   {presentPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+                    <option key={p.id} value={p.id}>{p.name} (hcp {indexLabel(p)})</option>
                   ))}
                 </optgroup>
                 <optgroup label="Marked out this week">
                   {absentPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+                    <option key={p.id} value={p.id}>{p.name} (hcp {indexLabel(p)})</option>
                   ))}
                 </optgroup>
               </>
