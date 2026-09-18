@@ -70,6 +70,7 @@ export default async function RegistrationPage() {
         name: p.name,
         handicap: p.handicap,
         handicapType: p.handicapType,
+        handicapSource: p.handicapSource,
         seed: p.seed,
         email: p.email,
         phone: p.phone,
@@ -80,10 +81,10 @@ export default async function RegistrationPage() {
         // "2 days ago" is relative to the reader's clock, not the server's.
         promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
       }))}
-      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
+      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed, email: p.email, phone: p.phone }))}
       pendingEntries={state.players
         .filter((p) => p.status === "pending")
-        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
+        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed, email: p.email, phone: p.phone }))}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
       roster={roster}

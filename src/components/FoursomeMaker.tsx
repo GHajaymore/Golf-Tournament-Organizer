@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import FieldInfo from "./FieldInfo";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
@@ -631,7 +632,7 @@ export function FoursomeMaker({
                       )}
                       {p.name}
                     </span>
-                    <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{p.handicap}</span>
+                    <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(p)}</span>
                   </div>
                 );
               })}

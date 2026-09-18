@@ -6,6 +6,7 @@ import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import {
@@ -798,15 +799,15 @@ export function RosterClient({
                      * settled and paid out before anybody works out why the
                      * results are absurd".
                      */}
+                    {/* `indexLabel` rather than this screen's own ternary. Five
+                        screens print this number and the rule that tells "no
+                        claim" from "scratch" now lives in one place, so the
+                        sixth screen is correct without its author reading
+                        this. */}
                     {m.handicapSource === "none" ? (
-                      <span className="text-muted" style={{ fontSize: 12 }}>no index yet</span>
+                      <span className="text-muted" style={{ fontSize: 12 }}>{indexLabel(m)} yet</span>
                     ) : (
-                      <>
-                        {m.handicap}
-                        {m.handicapType === "9" && (
-                          <span className="text-muted" style={{ fontSize: 10 }}> (9)</span>
-                        )}
-                      </>
+                      indexLabel(m)
                     )}
                   </td>
                   <td className="text-muted" style={{ fontSize: 12 }}>
