@@ -37,6 +37,24 @@ export interface ReviewQueue {
   /** Certified scorecards the committee has not accepted. */
   cards: number;
   total: number;
+  /**
+   * Cards and match results somebody has said are WRONG. Not in `total`.
+   *
+   * Kept out of the queue on purpose — see `cardAwaitsReview`: approving a
+   * disputed result is exactly what must not happen, and the place to settle
+   * one is the card or the match, not a sign-off list. But being out of the
+   * queue made them invisible to the one other thing that read it:
+   * `finishRefusal` gated completing a tournament on `total` alone, so a
+   * tournament could be marked FINISHED — standings published as final — with
+   * a card still in dispute. Found on the look-at-screens fixture, 2026-09-18,
+   * where Sang-woo Kim's 18-hole card is disputed and the dashboard's own
+   * sentence said only one card stood between the organizer and finishing.
+   *
+   * Rule 20.2c: a question about a result is decided by the Committee, and the
+   * result is final only when it has been. So this is counted separately and
+   * handed to the finish gate by name.
+   */
+  disputed: number;
 }
 
 /**
@@ -80,7 +98,17 @@ export function reviewQueue(input: {
    * belongs to lives in the service layer and a domain module reaching up into
    * that is the inversion this directory exists to avoid.
    */
-  matches: ReadonlyArray<{ complete: boolean; status: string }>;
+  matches: ReadonlyArray<{
+    complete: boolean;
+    status: string;
+    /**
+     * True when the stored holes could not be read at all. The service
+     * reports those as "disputed" so no queue can clear them — but nobody
+     * DISPUTED them, and counting them as disputes would let one corrupt row
+     * block finishing a tournament for ever, with a remedy no organizer has.
+     */
+    unreadable?: boolean;
+  }>;
   cards: ReadonlyArray<{ status: string }>;
   /** Whether a committee signs things off in this tournament at all. */
   staffApproves: boolean;
@@ -95,7 +123,12 @@ export function reviewQueue(input: {
    */
   const matches = input.matches.filter((m) => m.complete && m.status === "pending").length;
   const cards = input.cards.filter((c) => cardAwaitsReview(c.status, input.staffApproves)).length;
-  return { matches, cards, total: matches + cards };
+  // Whether or not this tournament has a reviewer: a dispute is a claim that a
+  // result is wrong, and that is true with or without a committee queue.
+  const disputed =
+    input.cards.filter((c) => c.status === "disputed").length +
+    input.matches.filter((m) => m.status === "disputed" && !m.unreadable).length;
+  return { matches, cards, total: matches + cards, disputed };
 }
 
 /**

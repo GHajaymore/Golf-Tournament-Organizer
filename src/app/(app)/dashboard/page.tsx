@@ -432,7 +432,10 @@ export default async function DashboardPage() {
           confirmed: state.confirmed.length,
         })
       : lifecycleAction?.to === "completed"
-        ? finishRefusal({ pendingConfirmations: state.pendingConfirmations })
+        ? finishRefusal({
+            pendingConfirmations: state.pendingConfirmations,
+            disputed: state.reviewing.disputed,
+          })
         : null;
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
@@ -1022,10 +1025,18 @@ export default async function DashboardPage() {
                 {state.boardProgress.certified}/{state.boardProgress.total}{" "}
                 {state.boardProgress.unit === "cards" ? "scorecards certified" : "matches complete"}
               </div>
-              {state.boardProgress.started > state.boardProgress.certified && (
+              {/* Out on the course EXCLUDES a dispute: a player disputing a
+                  finished card is not playing, and counting them as if they
+                  were hid the one card the committee has to act on. */}
+              {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed > 0 && (
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                  {state.boardProgress.started - state.boardProgress.certified}{" "}
+                  {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed}{" "}
                   {state.boardProgress.unit === "cards" ? "still out on the course" : "still being played"}
+                </div>
+              )}
+              {state.boardProgress.disputed > 0 && (
+                <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--color-danger)" }}>
+                  {state.boardProgress.disputed} disputed
                 </div>
               )}
             </div>

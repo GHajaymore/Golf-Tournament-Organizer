@@ -69,6 +69,35 @@ its own comment defends ranking a partial card with the example *"thru 12,
 own medal may prefer the board to mean nothing until the cards are in, rather
 than to reorder every few minutes.
 
+**And the number the board PRINTS is a different statistic from the one it
+ranks on** — found on the same fixture later that day, by reading the player's
+Board tab and the public `/live` link rather than the organizer's table. Those
+two show one number per player, from `rankedScore` in
+`domain/ranked-score.ts`, whose own doc calls it "the one number a player is
+RANKED on". It returns `toParText(row.toPar)`, and `toPar` is
+`gross - parThru` — GROSS to par — on a round whose `scoringBasis` is `net`.
+So both boards read:
+
+```
+1  Aj Moore                   thru 9   E
+2  Sang-woo Kim               F        E
+3  Síle Ní Bhraonáin-O’Dwyer  F        E
+4  Marcus Webb                F        E
+```
+
+Four players ranked one to four, all level, and nothing on the board a
+spectator can use to see why. The organizer's table at least has a Net column
+beside it; the public link does not.
+
+**These are one decision, not two, and the order matters.** Printing net to
+par on its own would make those rows `−2 (thru 9)`, `−15`, `−11`, `−8` — so the
+public board would put −2 above −15 in plain sight. Correct numbers over the
+wrong order is worse to show a field than the uninformative "E"s it has now.
+Ranking on net to par (the fix above) and printing net to par want to land
+together: `RankedRow` carries `toPar` only, so it needs the net figure or the
+strokes received, and the three readers of `rankedScore` — the Board tab, the
+Today card and the public board — change with it.
+
 Adjacent and already decided the other way: `lowScoreWinners` has the same
 shape and is deliberately withheld until final, because CLAUDE.md's money rule
 asks "can the amount still change" rather than "has the event happened". No
