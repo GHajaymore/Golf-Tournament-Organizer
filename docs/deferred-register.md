@@ -29,6 +29,52 @@ tournaments currently being *played in draft*, of which the seeded Demo Cup is
 one. Turning the gate on retroactively would lock live players out of rounds
 they are in the middle of.
 
+### A live board ranks on raw strokes, so the leader is whoever has played fewest holes
+
+**Found by looking at the board, 2026-09-18.** Not by reading the code — every
+one of 7,682 unit tests and 1,192 audit tests passes on it, because after the
+last card is in it is correct.
+
+Measured on the seeded fixture, `/leaderboard`, mid-round:
+
+```
+#   PLAYER                       THRU  GROSS  NET  TO PAR
+1   Aj Moore                        9     36   34   E
+2   Sang-woo Kim                   18     71   56   E
+3   Síle Ní Bhraonáin-O’Dwyer      18     71   60   E
+4   Marcus Webb                    18     71   63   E
+```
+
+All four are level par. Aj Moore is first on **net 34 against net 56** — a
+number that is lower only because it covers nine holes rather than eighteen.
+The dashboard states it outright: *"Aj Moore leads at level par (net 34)."*
+
+The mechanism is one line. `compareOnBasis` in `domain/stroke-countback.ts`
+compares `scoreOnBasis`, which is the raw `gross`, `net` or `points` total.
+Raw totals are only comparable between players who have played the same holes.
+`StrokeAgg` already carries `parThru` — par for the holes THAT PLAYER played —
+and `x.net - x.parThru` would be the comparable figure.
+
+**Why it is here and not fixed.** After the round it changes nothing:
+`parThru` is equal for everyone, so the ordering is identical, which is why no
+test sees it. During the round it changes the board, the cut line, the
+qualification bubble and anything reading `strokeStandings` — the most
+dangerous code in the repo to alter at three in the morning on one person's
+reading of golf convention.
+
+And it is partly a product question. Ranking by to-par mid-round is what every
+televised leaderboard does and what `stroke-agg.ts` already says it intends —
+its own comment defends ranking a partial card with the example *"thru 12,
+−1"*, which is a to-par reading, not a raw-strokes one. But a club watching its
+own medal may prefer the board to mean nothing until the cards are in, rather
+than to reorder every few minutes.
+
+Adjacent and already decided the other way: `lowScoreWinners` has the same
+shape and is deliberately withheld until final, because CLAUDE.md's money rule
+asks "can the amount still change" rather than "has the event happened". No
+money moves off this board — only what an organizer and a field see while they
+play.
+
 ### Shared places vs the tiebreak chain
 `rankPlayers` shares a place only when the club's whole tiebreak chain comes
 back level, and the default chain ends in `lower-handicap`, which separates
