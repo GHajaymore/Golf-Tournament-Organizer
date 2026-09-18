@@ -3,6 +3,13 @@
 **Proposal, not a decision.** Written 2026-09-11 at Ajay's request, after
 looking at what the US market actually charges. Nothing here is built.
 
+**Read `pricing-gates-today.md` beside it.** This document decides the tiers;
+that one measures what the code enforces on 2026-09-18 — which gates exist,
+which the table below would need built, the two places the app currently
+promises the opposite in public, and the fact that there is no payment path at
+all. Deciding a ladder against remembered behaviour is how a tier ships that
+nothing enforces.
+
 The three problems it has to solve, in his words:
 
 1. groups taking advantage of the free plan by signing up fresh each year;
@@ -124,14 +131,19 @@ This is the shape the one-off organizer actually wants — Event Caddy and Golf
 Genius have trained them to expect per-event, and a subscription is the wrong
 promise for something that happens each September.
 
-**Society — $299/yr, up to 30 active members.**
-Unlimited tournaments, the roster, handicap history, season standings, three
-staff seats, results kept for good.
+**Society — $10 per active member / yr, minimum $199.**
+Unlimited tournaments, the roster, handicap history, season standings, five
+staff seats, results kept for good. It also carries the weekly apparatus a
+league runs on — availability, the week view, the season skins table — all of
+which is already built.
 
-**League — $599/yr, up to 60 active members.**
-As Society, five staff seats, and the weekly apparatus a league actually
-runs on — availability, the week view, the season skins table — all of which
-is already built.
+> **Corrected 2026-09-18.** These two paragraphs described "Society — $299/yr,
+> up to 30" and a separate "League — $599/yr, up to 60": the FLAT bands this
+> document's own table and reasoning abandoned, a few paragraphs above, for
+> inverting against LeagueGolfer at around 80 members. A reader working down
+> the page acted on the superseded answer. There is no League tier — the
+> per-member metric covers a league and caps itself at the point Club is
+> cheaper.
 
 **Club — $699/yr, unlimited.**
 Everything, unlimited members and tournaments, ten staff seats, the club's own
@@ -170,9 +182,15 @@ to exactly the small clubs this is meant to serve.
 Earlier advice in this repo was: **do not fork features by organization KIND.**
 That still holds, and this proposal does not.
 
-`kind` (club / community / personal) is a self-declared radio button at sign-up
-that is not even editable afterwards. Pricing or gating on it would be an
-honour system with no verification, and anyone who picked wrong would be stuck.
+`kind` (club / community / personal) is a self-declared radio button. Pricing
+or gating on it would be an honour system with no verification.
+
+**Corrected 2026-09-18:** this said "not even editable afterwards", and that
+half is no longer true — #434 added a "What this is" control to club settings,
+because an organization created lazily defaults to `personal` and outfits were
+stuck being called an outing for ever. The conclusion is unchanged and if
+anything stronger: a self-declared value is not a billing metric, and one the
+customer can now change at will is plainly not one.
 
 **Forking by TIER is different and ordinary**, because a tier is *purchased* —
 it is verified by the fact of payment. So Club may carry features Society does
@@ -256,8 +274,8 @@ written down before it is not:
 ## Two cautions
 
 **Pricing 50% below the leader is easy to go down from and very hard to climb
-back up.** The Society and League tiers already make the product affordable for
-community golf on their own. Club could sit nearer **$899** (still −38% against
+back up.** The per-member Society tier already makes the product affordable for
+community golf on its own. Club could sit nearer **$899** (still −38% against
 Golf Genius) and keep room to rise as the club feature set grows. Worth
 deciding deliberately rather than by anchoring on one number.
 
