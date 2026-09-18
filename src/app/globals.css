@@ -49,6 +49,14 @@
      one taking a deep ochre. */
   --color-warning: #e8a33c;
 
+  /* Label colour on a filled accent. Three rules in design-system.css used to
+     carry it as a fallback — `var(--color-on-accent, #16181a)` — so the
+     primary button stayed readable on the marketing pages, which render
+     outside the club theme. A default declared here does that job for every
+     page this stylesheet reaches, and leaves one value to update instead of
+     four. The --color-danger note above is the same story. */
+  --color-on-accent: #16181a;
+
   --color-accent-2-100: #e7f5ec;
   --color-accent-2-200: #c3e6d0;
   --color-accent-2-300: #93d0ac;

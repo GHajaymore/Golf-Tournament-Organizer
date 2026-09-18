@@ -108,7 +108,7 @@ export function RegisterClient({
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
         <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
-          style={{ fontSize: 34, color: good ? "var(--color-accent-2-300, var(--color-accent))" : "var(--color-accent)" }}
+          style={{ fontSize: 34, color: good ? "var(--color-accent-2-300)" : "var(--color-accent)" }}
         />
         <h2 style={{ fontSize: 20, margin: 0, fontFamily: "var(--font-heading)" }}>{heading}</h2>
         <p className="text-muted" style={{ fontSize: 13.5, margin: 0, maxWidth: 340 }}>{detail}</p>
