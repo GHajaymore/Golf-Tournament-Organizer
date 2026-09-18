@@ -94,7 +94,11 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     >
       <style dangerouslySetInnerHTML={{ __html: themeCss(theme, "#player-theme") }} />
 
+      {/* Off the printout with the tab bar — see the note on PlayTabs. A
+          player printing their card was getting the club lockup, the messages
+          button and a sign-out control on the paper. */}
       <header
+        className="no-print"
         style={{
           display: "flex",
           alignItems: "center",

@@ -19,6 +19,13 @@ export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
   return (
     <nav
       aria-label="Sections"
+      /* `no-print`, because a player prints their CARD and this is the app
+         around it. The print block in globals.css hides chrome by class and
+         names the console's — `.app-sidebar`, `.m-topbar`, `.m-tabbar` — and
+         this shell was built later with inline styles and carries none of
+         them. Measured with print media emulated: "Today Board My card Rules
+         Money" came out on the sheet. */
+      className="no-print"
       style={{
         position: "fixed",
         left: 0,
