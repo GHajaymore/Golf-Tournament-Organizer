@@ -168,6 +168,24 @@ export function rankByCountback<T extends CountbackCard>(
 export type RankingBasis = "stableford" | "gross" | "net";
 
 /** The three numbers a stroke row carries; one of them is the competition. */
+/**
+ * A RAW TOTAL, WHICH IS ONLY COMPARABLE BETWEEN EQUAL NUMBERS OF HOLES.
+ *
+ * After the last card is in, every player has played the same holes and this
+ * is exactly right. DURING a round it is not: a player through nine has a
+ * lower total than a player through eighteen for no reason but arithmetic, and
+ * the board ranks them first.
+ *
+ * Measured on the fixture 2026-09-18 — four players all level par, ordered
+ * 34, 56, 60, 63 by net, the 34 being nine holes. `StrokeAgg.parThru` is the
+ * missing term: par for the holes THAT PLAYER played, which turns a raw total
+ * into a comparable one and changes nothing once everyone has finished.
+ *
+ * Deliberately not changed here. It moves the cut line and the qualification
+ * bubble as well as the board, and whether a club wants its medal reordering
+ * mid-round is the club's call. `docs/deferred-register.md` carries the
+ * measurement and the argument on both sides.
+ */
 export interface BasisScore {
   gross: number;
   net: number;
