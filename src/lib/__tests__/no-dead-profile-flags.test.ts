@@ -46,9 +46,11 @@ const UNREAD: Record<string, string> = {
 };
 
 describe("every profile flag decides something", () => {
-  const flags = Object.keys(orgProfile("club")).filter(
-    (k) => typeof (orgProfile("club") as Record<string, unknown>)[k] === "boolean",
-  );
+  // Spread rather than cast: `OrgProfile` has no index signature, so
+  // `as Record<string, unknown>` is a TS2352 error — and a spread is what the
+  // sweep actually wants, which is the object read by key rather than by name.
+  const club: Record<string, unknown> = { ...orgProfile("club") };
+  const flags = Object.keys(club).filter((k) => typeof club[k] === "boolean");
 
   it("has flags and files to search", () => {
     // The control, in both directions: a sweep with no flags or no files is a
@@ -79,8 +81,8 @@ describe("every profile flag decides something", () => {
      * only worth guarding if they actually differ between kinds. If every kind
      * agreed on all four, the profile would be describing nothing.
      */
-    const rows = ORG_KINDS.map((k) => orgProfile(k));
-    const differs = flags.some((f) => new Set(rows.map((r) => (r as Record<string, unknown>)[f])).size > 1);
+    const rows: Record<string, unknown>[] = ORG_KINDS.map((k) => ({ ...orgProfile(k) }));
+    const differs = flags.some((f) => new Set(rows.map((r) => r[f])).size > 1);
     expect(differs, "no flag differs between kinds — the profile decides nothing at all").toBe(true);
   });
 });
