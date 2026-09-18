@@ -64,6 +64,8 @@ const UNREACHED: Record<string, string> = {
     "Flights that have fielded a side. The league screens ask `flightsIn` instead, which is the right question before the first nomination — see its comment.",
   "tournament.ts:expectedRrTotal":
     "How many matches a full round robin should have. The draw checks its own arithmetic now.",
+  "tournament.ts:matchProgress":
+    "Matches done out of total. FOUND 2026-09-18, the day tests stopped counting as callers — it had been masked by its own test since its readers were removed. Every other mention of it in the codebase is a comment explaining why something deliberately does NOT use it: the dashboard dropped its one reader, `lifecycle-state` reads `state.resultsIn` instead because this counts only the ACTIVE round, and `tournament.ts` names it twice more as the thing not being read. So it is not waiting for a screen — it lost an argument, and the comments are the record of it. Delete it and those four explanations point at nothing; keep it and a dead function sits in the file. Ajay's call, deliberately not taken here.",
 };
 
 /** Every `.ts` under services. */
@@ -77,12 +79,26 @@ function serviceFiles(): string[] {
   return out;
 }
 
-/** Everything that could hold a caller: the app, the e2e suite, the scripts. */
+/**
+ * Everything that could hold a caller: the app, the e2e suite, the scripts.
+ *
+ * NOT THE UNIT AND AUDIT TESTS. A test calling a function is not the thing
+ * this register asks about — the question is whether any SCREEN, action or
+ * script reaches it, and the entries below are written in exactly those words
+ * ("nothing shows it", "no screen"). Counting a test as a caller means writing
+ * a test for an unreached service silently takes it off the register, which is
+ * the opposite of what a test for it should do: `memberHistory` gained proper
+ * coverage and would have been reported as reached, with no screen anywhere.
+ *
+ * `e2e` and `scripts` DO count. Both drive the real app, so a service one of
+ * them reaches is genuinely in use.
+ */
 function callerFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
-    if (statSync(full).isDirectory()) callerFiles(full, out);
-    else if (/\.(ts|tsx|mjs)$/.test(entry)) out.push(full.slice(process.cwd().length + 1));
+    if (statSync(full).isDirectory()) {
+      if (entry !== "__tests__") callerFiles(full, out);
+    } else if (/\.(ts|tsx|mjs)$/.test(entry)) out.push(full.slice(process.cwd().length + 1));
   }
   return out;
 }
@@ -97,6 +113,32 @@ const CALLERS = [
 // above it explaining what calls it. The `readSource` trap, which this repo
 // has paid for twice.
 const BODIES = new Map(CALLERS.map((f) => [f, readSource(f)]));
+
+/**
+ * Does this file use `name`, other than to define it?
+ *
+ * THE OWN-FILE CASE IS WHY THIS EXISTS. A helper exported for a test but used
+ * only by its own module IS reached — `staffSeatCount` is called twice inside
+ * `limits.ts` and is no more a dead feature than a private function would be.
+ * The sweep used to skip the service's own file entirely, so nineteen of those
+ * looked unreachable the moment tests stopped counting as callers, and burying
+ * nineteen true helpers in the register would have made it unreadable — which
+ * is how a register becomes folklore nobody checks.
+ *
+ * The definition line has to come off, or every service trivially calls itself.
+ */
+function usesIt(body: string, name: string, isOwnFile: boolean): boolean {
+  const lines = body.split("\n").filter((line) => {
+    if (!isOwnFile) return true;
+    return !(
+      line.includes(`export function ${name}`) ||
+      line.includes(`export async function ${name}`) ||
+      line.includes(`export const ${name}`)
+    );
+  });
+  const rest = lines.join("\n");
+  return rest.includes(`${name}(`) || rest.includes(`${name},`) || rest.includes(`${name} }`);
+}
 
 describe("every exported service has a caller", () => {
   it("can see the codebase at all", () => {
@@ -124,9 +166,7 @@ describe("every exported service has a caller", () => {
       const key = `${file}:${name}`;
 
       const called = [...BODIES].some(
-        ([caller, body]) =>
-          !caller.endsWith(join("services", file)) &&
-          (body.includes(`${name}(`) || body.includes(`${name},`) || body.includes(`${name} }`)),
+        ([caller, body]) => usesIt(body, name, caller.endsWith(join("services", file))),
       );
       if (!called && !UNREACHED[key]) unreached.push(key);
     }
@@ -149,9 +189,7 @@ describe("every exported service has a caller", () => {
     for (const key of Object.keys(UNREACHED)) {
       const [file, name] = key.split(":");
       const called = [...BODIES].some(
-        ([caller, body]) =>
-          !caller.endsWith(join("services", file)) &&
-          (body.includes(`${name}(`) || body.includes(`${name},`) || body.includes(`${name} }`)),
+        ([caller, body]) => usesIt(body, name, caller.endsWith(join("services", file))),
       );
       if (called) stale.push(key);
     }

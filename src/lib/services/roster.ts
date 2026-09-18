@@ -305,6 +305,21 @@ export interface MemberHistoryEntry {
   /** Handicap as it stood for that tournament, not the member's current index. */
   handicap: number;
   handicapType: string;
+  /**
+   * WHETHER ANYBODY HAD CLAIMED THAT FIGURE, which the number alone cannot say.
+   *
+   * `handicapSource: "none"` means no index was ever claimed, and the stored
+   * handicap is then 0 by default — indistinguishable from a genuine scratch
+   * golfer to any reader that sees only the number. #441-#443 swept fourteen
+   * screens for exactly that and put every one behind `indexLabel`.
+   *
+   * This shape was missed by that sweep because it has no screen yet: it is on
+   * the unreached-service register waiting for a decision about whether to
+   * build one. Carried now, so the screen that is eventually written has the
+   * answer to hand — widening the service was the awkward part four times over
+   * in #443, and it is free here.
+   */
+  handicapSource: string;
 }
 
 /** What one member has played — the answer the old per-event lists couldn't give. */
@@ -320,5 +335,6 @@ export async function memberHistory(memberId: string): Promise<MemberHistoryEntr
     status: e.status,
     handicap: e.handicap,
     handicapType: e.handicapType,
+    handicapSource: e.handicapSource,
   }));
 }

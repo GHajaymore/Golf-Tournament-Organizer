@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { upsertMember } from "@/lib/services/roster";
+import { upsertMember, memberHistory } from "@/lib/services/roster";
+import { randomBytes } from "node:crypto";
 
 /**
  * A blank handicap box must not wipe the index the club already had.
@@ -24,6 +25,11 @@ const TAG = "ZZ-AUDIT-HCP";
 let orgId = "";
 
 async function cleanup() {
+  // Players and events first — the history cells at the bottom need a member
+  // to have actually entered something, and a row left behind here is a row
+  // the next run counts.
+  await prisma.player.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.member.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
@@ -326,5 +332,115 @@ describe("a club that plays off association indexes", () => {
       "staff",
     );
     expect((await ghinMember("greta")).handicap).toBe(6.3);
+  });
+});
+
+describe("what one member has played", () => {
+  /**
+   * `memberHistory` is on the unreached-service register: it answers "what has
+   * this member played, and off what index each time", and no screen shows it
+   * yet. These cells exist because of what happens WHEN one is written.
+   *
+   * A player row stores a handicap of 0 when nobody has claimed an index, and
+   * 0 is also a real scratch golfer. #441-#443 found that reading as a scratch
+   * figure on fourteen screens and put every one behind `indexLabel`, which
+   * needs the SOURCE to tell the two apart. This shape did not carry it —
+   * missed by that sweep precisely because it has no screen to be caught on.
+   *
+   * It comes back per ENTRY rather than per member, because the index is a
+   * fact about the tournament it was entered for, not about the person now.
+   */
+  let memberId = "";
+
+  beforeAll(async () => {
+    const m = await prisma.member.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} hist`,
+        email: `${TAG}.hist@example.invalid`.toLowerCase(),
+        handicap: 0,
+        handicapSource: "none",
+      },
+    });
+    memberId = m.id;
+
+    const event = (name: string) => ({
+      organizationId: orgId,
+      name: `${TAG} ${name}`,
+      status: "registration",
+      shape: "single",
+      format: "stroke",
+      dates: "",
+      course: "",
+      city: "",
+      address: "",
+      regDeadline: "",
+      capacity: 0,
+      shareToken: randomBytes(12).toString("hex"),
+      registrationToken: randomBytes(8).toString("hex"),
+    });
+
+    const spring = await prisma.event.create({ data: event("spring medal") });
+    const autumn = await prisma.event.create({ data: event("autumn medal") });
+
+    // The first time out, nobody had claimed a figure for them.
+    await prisma.player.create({
+      data: {
+        eventId: spring.id,
+        memberId,
+        name: `${TAG} hist`,
+        handicap: 0,
+        handicapType: "18",
+        handicapSource: "none",
+        seed: 1,
+        status: "confirmed",
+      },
+    });
+    // By the autumn they had one.
+    await prisma.player.create({
+      data: {
+        eventId: autumn.id,
+        memberId,
+        name: `${TAG} hist`,
+        handicap: 12.4,
+        handicapType: "18",
+        handicapSource: "manual",
+        seed: 1,
+        status: "confirmed",
+      },
+    });
+  });
+
+  it("returns both entries", async () => {
+    expect((await memberHistory(memberId)).length).toBe(2);
+  });
+
+  it("says which entries nobody had claimed an index for", async () => {
+    const history = await memberHistory(memberId);
+    const unclaimed = history.filter((h) => h.handicapSource === "none");
+    const claimed = history.filter((h) => h.handicapSource === "manual");
+
+    expect(unclaimed.length, "the entry with no claimed index lost its source").toBe(1);
+    expect(claimed.length).toBe(1);
+
+    // The whole point of carrying it: without the source a screen sees 0 and
+    // cannot tell "nobody said" from "scratch golfer".
+    expect(unclaimed[0].handicap).toBe(0);
+    expect(claimed[0].handicap).toBeCloseTo(12.4, 5);
+  });
+
+  it("does not report another member's entries", async () => {
+    // The control. A query that lost its `where` would return every player row
+    // in the database, and every cell above would still pass.
+    const other = await prisma.member.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} other`,
+        email: `${TAG}.other@example.invalid`.toLowerCase(),
+        handicap: 8,
+        handicapSource: "manual",
+      },
+    });
+    expect(await memberHistory(other.id)).toEqual([]);
   });
 });
