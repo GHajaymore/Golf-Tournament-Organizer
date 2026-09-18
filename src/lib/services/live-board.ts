@@ -1,6 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
+import { organizationAllows } from "./entitlements";
 import { COURSE_REF, cardForStage } from "./course-resolution";
 import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
@@ -141,6 +142,28 @@ async function withAttendance(
 async function gather(eventId: string): Promise<LiveBoardView | null> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return null;
+
+  /**
+   * THE TIER, BEFORE ANY OF IT IS BUILT.
+   *
+   * `docs/pricing-proposal.md` puts the public link on the paid tiers and the
+   * code gave it to everybody, with nowhere to even express the rule. On for
+   * every plan today — the ladder is undecided — so this changes nothing now
+   * and makes the change a boolean later.
+   *
+   * NULL, which this page already means something by: `/live/[token]` answers
+   * 404 identically for a wrong token and for a board the organizer has
+   * unpublished, so that switching a link off never confirms the tournament
+   * exists. A tier that does not include the public board lands in exactly
+   * that answer, and says nothing to a stranger about why.
+   *
+   * INSIDE the cached gather, deliberately. It costs one query rather than one
+   * per spectator — the whole point of the cache, measured at 20.7 queries per
+   * request before it existed — and the cost is that a plan change takes up to
+   * sixty seconds to reach the board, which is the same window every score on
+   * it already has.
+   */
+  if (!(await organizationAllows(event.organizationId, "publicBoard"))) return null;
 
   const state = await loadEventState(eventId);
   if (!state) return null;

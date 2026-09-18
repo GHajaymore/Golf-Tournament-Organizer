@@ -121,6 +121,16 @@ export interface Plan {
 
     /** The honours board — who won what, kept beyond the tournaments. */
     honours: boolean;
+
+    /**
+     * The public leaderboard link: `/live/<token>`, readable without signing in.
+     *
+     * Gated in `live-board.ts` where the board is BUILT, so a tier that does
+     * not include it withholds the rows rather than the page — and the refusal
+     * is the 404 that screen already gives for an unpublished board, which
+     * tells a stranger nothing about whether the tournament exists.
+     */
+    publicBoard: boolean;
   };
 }
 
@@ -139,7 +149,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // to upgrade, and the single most important thing to say before anyone
     // plays — one number, read by every surface that mentions it.
     retentionHours: 48,
-    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true },
+    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
   club: {
     key: "club",
@@ -158,7 +168,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // Flipping them here is the whole of turning them on, and the upgrade
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
-    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true },
+    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
 };
 
