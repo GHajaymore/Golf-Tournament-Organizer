@@ -250,6 +250,29 @@ export default async function DashboardPage() {
   // an allowance for "the one place that is fine" is how the next one that is
   // not fine gets written.
   const casualStage = matchEvent ? state.boardStage ?? state.stages[0] ?? null : null;
+
+  /**
+   * IS THIS CASUAL ROUND ACTUALLY A MATCH — which `shape` cannot tell you.
+   *
+   * `shape: "match"` is how a casual round is STORED. It was named when the
+   * quick round was only ever one person against another, and the word stuck
+   * while the screen grew four more formats: stroke play, modified Stableford,
+   * four-ball and foursomes. So every sentence below keyed off `matchEvent`
+   * described a medal as a match.
+   *
+   * Walked on 2026-09-18 after setting one up as a player: a Stroke Play
+   * round, stored `format: "stroke"` with a "Stroke Play Round" stage, was
+   * headed "The match", reported "head to head", and ranked under "Holes
+   * won" — on the dashboard a casual player lands on. The leaderboard one
+   * click away had it right all along, gross, net and to-par, because it asks
+   * the ROUND. This is `event-answer-vs-round-answer` again, in the words
+   * rather than in the arithmetic.
+   *
+   * `boardIsStroke` is the round's own basis and is what every board here
+   * already reads. `matchEvent` keeps deciding LAYOUT — what a casual round
+   * shows and hides — which is the question `shape` genuinely answers.
+   */
+  const casualMatch = matchEvent && !state.boardIsStroke;
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
@@ -258,7 +281,13 @@ export default async function DashboardPage() {
       // anything the two people playing it would recognise. The type is a
       // truthful label for a tournament with several kinds of round in it and
       // a piece of internal vocabulary here.
-      "The match"
+      //
+      // "The round" when it is not a match: four of the five formats the
+      // casual screen offers are not one, and calling a medal a match is a
+      // claim about how it is decided.
+      casualMatch
+      ? "The match"
+      : "The round"
     : state.playRounds.length > 1 && currentStage
       ? roundLabelWith(state.playRounds, currentStage.id, currentStage.type)
       : currentStage?.type ?? "—";
@@ -266,7 +295,9 @@ export default async function DashboardPage() {
     ? // A round robin of two IS the match, and telling two friends that
       // "every player meets everyone in their flight" describes the schema
       // rather than the golf.
-      "One match, decided hole by hole."
+      casualMatch
+      ? "One match, decided hole by hole."
+      : "One round. Everyone returns a card."
     : currentStage?.type === "Round Robin"
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
@@ -625,7 +656,9 @@ export default async function DashboardPage() {
           {/* A match is not a tournament, and calling its one screen a
               "Tournament dashboard" is the app telling two friends they have
               set up the wrong thing. */}
-          <h1 className="page-title">{matchEvent ? "The match" : "Tournament dashboard"}</h1>
+          <h1 className="page-title">
+            {matchEvent ? (casualMatch ? "The match" : "The round") : "Tournament dashboard"}
+          </h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {/* The library's venues stand in for the free-text course when
                 there is none — see `attachedVenues`. Named rather than
@@ -823,7 +856,11 @@ export default async function DashboardPage() {
             value={state.confirmed.length}
             sub={
               matchEvent
-                ? "head to head"
+                ? // "head to head" is a claim about the format, and a casual
+                  // medal of four is not one. See `casualMatch`.
+                  casualMatch
+                  ? "head to head"
+                  : "in this round"
                 : `${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`
             }
             icon="ph ph-users-three"
@@ -835,9 +872,12 @@ export default async function DashboardPage() {
               is counting. */}
           {matchEvent ? (
             <StatCard
-              label="Match"
+              label={casualMatch ? "Match" : "Round"}
               value={state.boardProgress.certified > 0 ? "Finished" : "Not finished"}
-              sub="hole by hole"
+              // "hole by hole" is how a MATCH is decided. A medal is decided
+              // on the total, and saying otherwise on the card that reports
+              // whether it is finished is the same error as "Holes won" below.
+              sub={casualMatch ? "hole by hole" : "on the card"}
               icon="ph ph-check-circle"
             />
           ) : state.boardProgress.unit === "cards" ? (
@@ -885,11 +925,28 @@ export default async function DashboardPage() {
             {showStandings ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <span className="card-title">{matchEvent ? "Where the match stands" : "Live leaderboard"}</span>
+                  <span className="card-title">
+                    {matchEvent
+                      ? casualMatch
+                        ? "Where the match stands"
+                        : "Where the round stands"
+                      : "Live leaderboard"}
+                  </span>
                   {/* "Overall · all flights" is a claim about scope, and a
-                      match has no other flights for this one to be all of. */}
+                      match has no other flights for this one to be all of.
+
+                      "Holes won" is a claim about the BASIS, and it was made
+                      for every casual round including the four formats that
+                      are not decided that way. The table underneath is fed
+                      `isStroke` and has always printed gross, net and to-par
+                      for them — so the heading contradicted the columns
+                      directly below it. */}
                   <span className="text-muted" style={{ fontSize: 12 }}>
-                    {matchEvent ? "Holes won" : "Overall · all flights"}
+                    {matchEvent
+                      ? casualMatch
+                        ? "Holes won"
+                        : "Gross, net and to-par"
+                      : "Overall · all flights"}
                   </span>
                 </div>
                 <LeaderboardTable

@@ -371,3 +371,74 @@ describe("reading a club's lists from a casual round", () => {
     expect(setup).toMatch(/personalOrganizationFor\(session\.email, session\.name\)/);
   });
 });
+
+/**
+ * A CASUAL ROUND IS NOT NECESSARILY A MATCH.
+ *
+ * `shape: "match"` is how a casual round is STORED, and the name was accurate
+ * when the quick round was only ever one person against another. It then grew
+ * four more formats — stroke play, modified Stableford, four-ball, foursomes —
+ * and the dashboard's words never followed, because they all keyed off the
+ * shape.
+ *
+ * Walked on 2026-09-18 by setting one up as a player. A Stroke Play round,
+ * stored `format: "stroke"` with a "Stroke Play Round" stage, came out headed
+ * **The match**, reporting **head to head**, and ranked under **Holes won** —
+ * over a table that was printing gross, net and to-par directly underneath,
+ * because `LeaderboardTable` is fed `isStroke` and asks the ROUND. The heading
+ * contradicted its own columns.
+ *
+ * `event-answer-vs-round-answer` again, and this time in the words rather than
+ * the arithmetic — which is why no scoring test could see it.
+ */
+describe("what the dashboard calls a casual round", () => {
+  const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+
+  /** Phrases that are true only of a round decided hole by hole. */
+  const MATCH_ONLY = [
+    "The match",
+    "Where the match stands",
+    "Holes won",
+    "head to head",
+    "One match, decided hole by hole.",
+  ];
+
+  it("reads the round's basis, not the event's shape", () => {
+    expect(dash, "casualMatch is gone — the words are back on the shape").toContain(
+      "const casualMatch = matchEvent && !state.boardIsStroke",
+    );
+  });
+
+  it("guards every match-only phrase with it", () => {
+    const unguarded: string[] = [];
+    for (const phrase of MATCH_ONLY) {
+      let at = dash.indexOf(phrase);
+      expect(at, `"${phrase}" is not on the dashboard at all — did the copy change?`).toBeGreaterThan(-1);
+      while (at !== -1) {
+        // The ternary that chooses it sits immediately before the string.
+        const before = dash.slice(Math.max(0, at - 220), at);
+        if (!before.includes("casualMatch")) unguarded.push(`${phrase} @${at}`);
+        at = dash.indexOf(phrase, at + 1);
+      }
+    }
+    expect(
+      unguarded,
+      "a casual round that is a medal would be told it is a match: " + unguarded.join(", "),
+    ).toEqual([]);
+  });
+
+  it("can see the shape it is looking for", () => {
+    /**
+     * The control. If `readSource` returned nothing, or the phrases were
+     * reworded, the cell above would pass by finding nothing to check — and
+     * the first expectation inside it is what catches that, so this pins the
+     * instrument itself.
+     */
+    expect(dash.length).toBeGreaterThan(2000);
+    expect(MATCH_ONLY.every((p) => dash.includes(p))).toBe(true);
+    // And the alternative branch exists, so the guard is a real choice rather
+    // than a phrase that is simply always printed.
+    expect(dash).toContain("Where the round stands");
+    expect(dash).toContain("Gross, net and to-par");
+  });
+});
