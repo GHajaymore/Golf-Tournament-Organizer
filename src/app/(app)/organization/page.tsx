@@ -10,6 +10,7 @@ import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
+import { pendingAsks } from "@/lib/services/join-requests";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -86,6 +87,8 @@ export default async function OrganizationPage() {
   const canEdit = access?.canEdit ?? false;
 
   const report = await organizationAccessReport(org.id);
+  // Who is waiting to be let in. Almost always empty; see OrganizationAccess.
+  const asks = await pendingAsks(org.id);
 
   /**
    * What this page contains, in the order it contains it.
@@ -233,7 +236,7 @@ export default async function OrganizationPage() {
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
-        <OrganizationAccess report={report} canEdit={canEdit} />
+        <OrganizationAccess report={report} canEdit={canEdit} asks={asks} />
       </SettingsSectionAnchor>
     </>
   );

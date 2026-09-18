@@ -425,6 +425,107 @@ export type FieldChange = "promoted" | "waitlisted";
  * Fire-and-forget, like every other send here: the field is already correct in
  * the database, and a bounced notification must never undo a place in it.
  */
+/**
+ * Text from a person, going into an email body made of HTML string concatenation.
+ *
+ * Every other sender in this file interpolates values the APP produced — a club
+ * name it stored, a role from a closed list, a URL it built. The join request
+ * carries a sentence somebody TYPED, and a `<script>` or a stray `<` in it
+ * would land unescaped in a stranger's inbox. So it is escaped here, at the one
+ * place free text enters an email.
+ *
+ * Ampersand first, or the escapes escape each other.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Tell a club that somebody has asked to be let in.
+ *
+ * WHY EMAIL AT ALL, when the request is already on the access screen: a club
+ * secretary does not sign in on a Tuesday to check whether anybody asked. The
+ * screen is the record; this is what makes anybody look at it.
+ *
+ * THE ASYMMETRY IS DELIBERATE. This mail carries the asker's name AND their
+ * address, because the club is being asked to hand somebody the keys and
+ * cannot sensibly decide without knowing who they are. Nothing anywhere gives
+ * the ASKER the club owner's address — they get a name and a button. They
+ * chose to approach the club; the club did not choose to be approached.
+ *
+ * Fire-and-forget like every other sender here. The request row is already
+ * written, so a bounced notification loses nothing: the ask still exists and is
+ * still on the screen.
+ */
+export async function sendJoinRequestEmail(
+  to: string,
+  opts: {
+    organizationName: string;
+    askerName: string;
+    askerEmail: string;
+    note: string;
+    toName?: string;
+  },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping join request to ${maskEmail(to)}.`);
+    return;
+  }
+
+  const club = opts.organizationName || "your club";
+  const base = appUrl().base;
+  const note = opts.note.trim()
+    ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid #ddd">${escapeHtml(opts.note.trim())}</blockquote>`
+    : "";
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `${opts.askerName} asked to join ${club} on TourneyHQ`,
+      html:
+        `<p><strong>${escapeHtml(opts.askerName)}</strong> (${escapeHtml(opts.askerEmail)}) asked to join <strong>${escapeHtml(club)}</strong> on TourneyHQ.</p>` +
+        note +
+        /**
+         * `#access`, not the top of the page. Walked it on 2026-09-17: club
+         * settings is a long screen — branding, colour, house defaults,
+         * handicaps, money, plan — and the request sits under "Staff & access"
+         * at the bottom. A link to `/organization` lands somebody who came to
+         * answer one question in front of a logo upload form.
+         */
+        `<p>Nothing has changed yet. Answer it here: <a href="${base}/organization#access">${base}/organization#access</a></p>` +
+        `<p>If you do not recognise them, decline — they are told nothing about you beyond the name already shown when they searched.</p>`,
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the join request notice for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "join",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: [],
+        toEmail: to,
+        toName: opts.toName ?? "",
+      });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending join request notice to ${maskEmail(to)}: ${message}`);
+    await recordFailure({
+      kind: "join",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: [],
+      toEmail: to,
+      toName: opts.toName ?? "",
+    });
+  }
+}
+
 export async function sendFieldStatusEmail(
   to: string,
   opts: {

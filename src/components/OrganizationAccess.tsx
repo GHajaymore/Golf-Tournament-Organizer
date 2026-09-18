@@ -6,7 +6,9 @@ import {
   setOrganizationMemberRole,
   removeOrganizationMember,
 } from "@/app/actions/organization";
+import { approveJoinRequest, declineJoinRequest } from "@/app/actions/join";
 import type { AccessReport } from "@/lib/services/access";
+import type { PendingAsk } from "@/lib/services/join-requests";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
@@ -58,9 +60,12 @@ const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant
 export function OrganizationAccess({
   report,
   canEdit,
+  asks,
 }: {
   report: AccessReport;
   canEdit: boolean;
+  /** People waiting to be let in. Empty for almost every club, almost always. */
+  asks: PendingAsk[];
 }) {
   /** "club" / "society" / "outing" — the thing a role can be inherited FROM. */
   // The RESOLVED profile from the console context, not `orgProfile(orgKind)`:
@@ -71,6 +76,8 @@ export function OrganizationAccess({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("member");
+  /** The role each waiting person would be given, keyed by request. */
+  const [grant, setGrant] = useState<Record<string, string>>({});
   const { pending, error, run } = useAction();
 
   const staff = report.people.filter((p) => p.orgRole);
@@ -82,6 +89,87 @@ export function OrganizationAccess({
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
+      )}
+
+      {/* ── Somebody asking to be let in ──────────────────────────────────
+          ABOVE THE STAFF LIST, because it is the only thing on this screen
+          with a person waiting on the other end of it. The same-name warning
+          tells the second secretary of a league "ask them to add you"; this is
+          where that ask arrives.
+
+          Only shown when there is one — an empty "no requests" panel on every
+          club's screen forever is noise, and this feature is rare by design. */}
+      {asks.length > 0 && (
+        <div className="card elev-sm" style={{ boxShadow: "inset 0 0 0 1px var(--color-accent)" }}>
+          <span className="card-title" style={{ fontSize: 15 }}>
+            Asked to join ({asks.length})
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+            They typed this {from}&rsquo;s name when setting up their own and were told it already
+            exists. Nothing has changed yet — they see nothing of yours until you say so.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {asks.map((ask) => (
+              <div
+                key={ask.id}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingTop: 8,
+                  borderTop: "1px solid var(--color-divider)",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ask.name}</div>
+                  <div className="text-muted" style={{ fontSize: 12 }}>
+                    {ask.email}
+                    {ask.note ? ` — “${ask.note}”` : ""}
+                  </div>
+                </div>
+                {canEdit && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {/* ADMIN FIRST, and it is the default the button grants.
+                        Whoever sends one of these is the league's other
+                        organizer, not a spectator: let them in as a Member and
+                        they can see the calendar and run nothing, so they go
+                        back and build their own outfit anyway — which is the
+                        split this whole feature exists to stop. */}
+                    <select
+                      className="input"
+                      style={{ width: "auto", fontSize: 13 }}
+                      value={grant[ask.id] ?? "admin"}
+                      onChange={(e) => setGrant({ ...grant, [ask.id]: e.target.value })}
+                      aria-label={`Role for ${ask.name}`}
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                      <option value="guest">Guest</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={pending}
+                      onClick={() => run(() => approveJoinRequest(ask.id, grant[ask.id] ?? "admin"))}
+                    >
+                      Add them
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={pending}
+                      onClick={() => run(() => declineJoinRequest(ask.id))}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ── Staff ─────────────────────────────────────────────────────── */}

@@ -230,6 +230,17 @@ async function wouldTakeThisName(
  * caught this being written that way.
  */
 export interface NamesakeOutfit {
+  /**
+   * SERVER-SIDE ONLY. It is here so `askToJoinNamesake` can create the request
+   * against the outfit the WARNING itself found, rather than trusting an id
+   * posted by a caller — a "use server" export is a public HTTP endpoint, and
+   * an id from a form is how somebody asks to join a club they never saw.
+   *
+   * It must never travel to a browser. Both actions that hand this to a screen
+   * name their fields one by one for that reason, and
+   * `one-club-not-two.audit.test.ts` asserts the answer carries no id.
+   */
+  organizationId: string;
   name: string;
   kind: string;
   country: string;
@@ -367,6 +378,7 @@ export async function otherOrganizationNamed(
   if (!hit) return null;
 
   return {
+    organizationId: hit.id,
     name: hit.name,
     kind: hit.kind,
     /**

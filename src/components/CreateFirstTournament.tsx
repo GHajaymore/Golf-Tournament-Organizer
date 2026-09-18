@@ -4,6 +4,7 @@ import { createEvent, cloneEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
+import { askToJoinNamesake } from "@/app/actions/join";
 import { Icon } from "./Icon";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
@@ -124,6 +125,10 @@ export function CreateFirstTournament({
    * rather than leaving somebody pressing a button that keeps refusing.
    */
   const [sameName, setSameName] = useState(false);
+  /** One line they can send with the ask: "I run the Thursday draw with Dana." */
+  const [askNote, setAskNote] = useState("");
+  /** Set once they have asked, so the panel says so instead of offering again. */
+  const [asked, setAsked] = useState("");
   const [open, setOpen] = useState(first);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
   // Nothing preselected. See the field below.
@@ -464,6 +469,57 @@ export function CreateFirstTournament({
         >
           {refusal}
         </p>
+      )}
+
+      {/* ── Asking them to add you ────────────────────────────────────────
+          The warning above names who runs the outfit and says "ask them to add
+          you". Without this, that sentence sends somebody off to find a phone
+          number — so the ask happens here, and the club answers on its own
+          access screen.
+
+          NOTHING HERE BLOCKS THEM. The Create button below stays live the
+          whole time: they came to run a tournament on Thursday, and a
+          secretary who reads email on Sunday must not be able to stop them. */}
+      {sameName && (
+        <div className="card" style={{ gap: 8, padding: "10px 12px" }}>
+          {asked ? (
+            <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+              <Icon name="check" /> Asked {asked}. They will see it on their access screen and by
+              email. You can still set up your own below — nothing is waiting on them.
+            </p>
+          ) : (
+            <>
+              <label style={{ fontSize: 12.5 }}>
+                Ask them to add you{" "}
+                <span className="text-muted" style={{ fontWeight: 400 }}>
+                  — they see your name and email, you are told nothing about them
+                </span>
+              </label>
+              <input
+                className="input"
+                value={askNote}
+                maxLength={300}
+                onChange={(e) => setAskNote(e.target.value)}
+                placeholder="e.g. I run the Thursday night draw with Dana"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ alignSelf: "flex-start" }}
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await askToJoinNamesake(orgName, askNote);
+                    if (res.ok) setAsked(res.asked ?? "them");
+                    else setRefusal(res.error ?? "That could not be sent.");
+                  })
+                }
+              >
+                <Icon name="user-plus" /> Ask them to add me
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
