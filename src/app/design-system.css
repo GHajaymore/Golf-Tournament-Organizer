@@ -283,7 +283,13 @@ figcaption {
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
-.btn-block { width: 100%; margin-top: var(--space-2); }
+/* A block button spans its column and its label is a SENTENCE — usually with a
+   tournament or club name in it — where an inline `.btn` label is two words.
+   `.btn` sets `white-space: nowrap`, which is right there and wrong here: the
+   label does not clip, it inflates the whole document sideways, and the page
+   then scrolls on a phone with the bottom tab bar stretched behind it.
+   `anywhere` covers the club whose name has no spaces to break at. */
+.btn-block { width: 100%; margin-top: var(--space-2); white-space: normal; overflow-wrap: anywhere; }
 
 /* — forms — */
 .field > label {
