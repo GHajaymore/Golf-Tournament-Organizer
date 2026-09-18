@@ -19,6 +19,7 @@
   --color-text-muted: color-mix(in srgb, #e9e9ed 62%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #232532);
   --color-warning: #e8a33c;
+  --color-on-accent: #16181a;
 
   /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
      same step of any role matches the others in visual value. */
@@ -258,12 +259,13 @@ figcaption {
    It was mixed from the page background instead, which sounded principled and
    measured 3.87:1 in light mode — the mix lands as a pale off-white on a
    mid-dark accent. The token is a value chosen to clear the bar, not derived
-   from something that happens to be nearby. The fallback keeps the button
-   readable on the marketing pages, which render outside the club theme. */
+   from something that happens to be nearby. The marketing pages render
+   outside the club theme, so the token has a default at :root rather than a
+   fallback here — see globals.css. */
 .btn-primary {
   background: var(--color-accent);
   border-color: transparent;
-  color: var(--color-on-accent, #16181a);
+  color: var(--color-on-accent);
   font-weight: 600;
 }
 .btn-primary:hover:not(:disabled) { background: var(--color-accent-400); }
@@ -770,11 +772,11 @@ textarea.input { min-height: 90px; resize: vertical; }
 }
 .sc-pick > button[aria-pressed="true"].is-a {
   background: var(--color-accent);
-  color: var(--color-on-accent, #16181a);
+  color: var(--color-on-accent);
 }
 .sc-pick > button[aria-pressed="true"].is-b {
   background: var(--color-accent-2);
-  color: var(--color-on-accent, #16181a);
+  color: var(--color-on-accent);
 }
 .sc-pick > button[aria-pressed="true"].is-h {
   background: var(--color-text);

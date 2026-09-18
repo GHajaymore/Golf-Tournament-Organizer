@@ -180,21 +180,76 @@ describe("every colour token a component names is declared somewhere", () => {
 });
 
 /**
- * WHAT IS DELIBERATELY NOT ASSERTED HERE, and why it is written down rather
- * than left out silently.
+ * NO FALLBACK ON A COLOUR TOKEN, with one exemption that has been looked at.
  *
- * The obvious companion rule is "no `var(--color-x, fallback)` at all" —
- * `brand-consistency.test.ts` already says so for `--color-danger`, on the
- * grounds that a fallback on a token that exists is a second source of truth.
- * Swept across `src` it reports ELEVEN, and they are not one class: three sit
- * on `--color-on-accent` in the stylesheet, four are in `Logo.tsx`, which is
- * artwork that renders in places no stylesheet reaches, and two are inside
- * `brand-consistency.test.ts` itself, quoting the component it checks.
+ * `brand-consistency.test.ts` says this for `--color-danger` alone: a fallback
+ * on a token that exists is a second source of truth nobody would update. This
+ * was deferred from #464 because the sweep reported eleven and they were not
+ * one class. Each was then read, and they came out three ways:
  *
- * Deciding each of those is a separate pass with its own reading. Writing a
- * register of reasons tonight would mean inventing reasons for cases nobody
- * has looked at, which is worse than the gap.
+ *   design-system.css x3   `var(--color-on-accent, #16181a)`, so the primary
+ *                          button read on the marketing pages, which sit
+ *                          outside the club theme. A default at :root does
+ *                          that for every page — the --color-danger fix again.
+ *   RegisterClient         `var(--color-accent-2-300, var(--color-accent))` —
+ *                          a fallback for a ramp step that always exists. Dead.
+ *   PlayClient             `var(--color-accent-100, #fff)` as the label of the
+ *                          SELECTED Me / ½ / Opp button on the casual-round
+ *                          scorer. The fallback never ran; the token it named
+ *                          was the wrong one. Step 100 on a filled accent
+ *                          measures 1.25:1 at worst on the dark ground, and
+ *                          `--color-on-accent`, solved for exactly this, 4.50.
  *
- * The rule above does not depend on it: a phantom token is caught whether or
- * not it carries a fallback, because what is checked is the DECLARATION.
+ * That third one is the argument for the rule. A fallback reads as caution,
+ * and it made the line look deliberate enough that nobody asked which token
+ * was the right one.
+ *
+ * THE EXEMPTION is `Logo.tsx`, and it is the only one. The mark is also drawn
+ * by the Open Graph images through Satori, which has no stylesheet — see the
+ * note in themes.ts — and `opengraph-image.tsx` passes no `cup` colour, so the
+ * `currentColor` at the end of that chain is the only thing a share card gets.
+ * Test files are excluded because they QUOTE component source; they declare
+ * nothing and render nothing.
  */
+describe("no colour token carries a fallback", () => {
+  const EXEMPT: Record<string, string> = {
+    "src/components/Logo.tsx": "also drawn by Satori for share cards, which cannot read custom properties",
+  };
+
+  function fallbacks(): string[] {
+    const out: string[] = [];
+    for (const f of FILES) {
+      if (f.includes("/__tests__/") || EXEMPT[f]) continue;
+      read(f)
+        .split("\n")
+        .forEach((line, i) => {
+          for (const part of line.split("var(--color-").slice(1)) {
+            const name = nameAt(part);
+            if (!name) continue;
+            const after = part.slice(name.length - "--color-".length).trimStart();
+            if (after.startsWith(",")) out.push(`${name} at ${f}:${i + 1}`);
+          }
+        });
+    }
+    return out;
+  }
+
+  it("finds a fallback when there is one", () => {
+    // The control: the exempt file really does carry them, so a sweep that
+    // cannot see a fallback cannot hide behind the exemption.
+    const logo = read("src/components/Logo.tsx");
+    expect(logo.split("var(--color-").slice(1).some((p) => {
+      const name = nameAt(p);
+      return name !== null && p.slice(name.length - "--color-".length).trimStart().startsWith(",");
+    }), "the fallback detector sees nothing even in Logo.tsx").toBe(true);
+  });
+
+  it("has none outside the exemption", () => {
+    const found = fallbacks();
+    expect(found, `colour tokens given a fallback:\n  ${found.join("\n  ")}`).toEqual([]);
+  });
+
+  it("keeps the exemption list to files that exist", () => {
+    for (const f of Object.keys(EXEMPT)) expect(FILES, `${f} is exempt but gone`).toContain(f);
+  });
+});

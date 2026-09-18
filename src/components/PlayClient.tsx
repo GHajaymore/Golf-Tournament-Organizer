@@ -777,7 +777,12 @@ export function PlayClient(props: Props) {
                         border: "1px solid var(--color-divider)",
                         background:
                           v === opt ? "var(--color-accent)" : "transparent",
-                        color: v === opt ? "var(--color-accent-100, #fff)" : "var(--color-text)",
+                        // On a FILLED accent the label is `--color-on-accent`,
+                        // the one token solved to clear against step 500 for
+                        // every palette. Step 100 read 1.25:1 here at worst on
+                        // the dark ground — a scoring button, on a phone, in
+                        // the sun.
+                        color: v === opt ? "var(--color-on-accent)" : "var(--color-text)",
                       }}
                     >
                       {opt === "A" ? "Me" : opt === "H" ? "½" : "Opp"}
