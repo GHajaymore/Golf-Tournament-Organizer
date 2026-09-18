@@ -25,6 +25,7 @@ import {
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 import { matchCourse, teeProblems } from "@/lib/domain/venue";
 import { libraryOrganizationFor, organizationIdsFor } from "@/lib/services/organization";
+import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
@@ -313,9 +314,10 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
     return { ok: true, courseId: input.id };
   }
 
-  const created = await prisma.course.create({ data: { ...data, organizationId } });
+  const added = await addCourseToLibrary({ organizationId, origin: "entered", data });
+  if (!added.ok) return { ok: false, error: added.error };
   await refresh();
-  return { ok: true, courseId: created.id };
+  return { ok: true, courseId: added.courseId };
 }
 
 /**
@@ -917,9 +919,10 @@ export async function importClubCourseCard(input: {
   // back out of a full card rather than carrying a separate shape.
   const toEighteen = (v: number[]) => (holes === 9 ? [...v, ...v] : v);
 
-  const created = await prisma.course.create({
+  const added = await addCourseToLibrary({
+    organizationId,
+    origin: "imported-card",
     data: {
-      organizationId,
       name,
       city: (input.city ?? "").trim(),
       pars: JSON.stringify(toEighteen(card.pars)),
@@ -931,9 +934,12 @@ export async function importClubCourseCard(input: {
       sourceUrl: (input.sourceUrl ?? "").trim().slice(0, 500),
     },
   });
+  // Pasting the same card twice used to make a second course. It now says so
+  // and names the one already there.
+  if (!added.ok) return { ok: false, error: added.error };
 
   await refresh();
-  return { ok: true, courseId: created.id };
+  return { ok: true, courseId: added.courseId };
 }
 
 /* ── Importing a course from the public directory ─────────────────────────── */
@@ -1110,18 +1116,13 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
   }
 
   // Adding the same course twice would leave the club choosing between two
-  // identical venues with no way to tell them apart.
-  const already = await prisma.course.findFirst({
-    where: { organizationId, name: course.name },
-    select: { id: true },
-  });
-  if (already) {
-    return { ok: false, error: `${course.name} is already in your course library.`, courseId: already.id };
-  }
-
-  const created = await prisma.course.create({
+  // identical venues with no way to tell them apart. The check used to live
+  // here and was case-SENSITIVE; it is the door's now, and applies to the
+  // three paths that never had one.
+  const added = await addCourseToLibrary({
+    organizationId,
+    origin: "imported-directory",
     data: {
-      organizationId,
       name: course.name,
       city: [course.city, course.state].filter(Boolean).join(", "),
       address: course.address,
@@ -1148,11 +1149,12 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
       },
     },
   });
+  if (!added.ok) return { ok: false, error: added.error, courseId: added.courseId };
 
   await refresh();
   return {
     ok: true,
-    courseId: created.id,
+    courseId: added.courseId,
     cardImported: course.card.usable,
     teeCount: course.tees.length,
     cardProblem: course.card.usable ? undefined : course.card.reason,
@@ -1385,9 +1387,13 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
         error: `This club already has ${m.candidates.map((x) => `"${x.name}"`).join(" and ")}. Pick one of those instead, or give this course its full name.`,
       };
     } else {
-      const created = await prisma.course.create({
+      // `matchCourse` above has already had the better conversation — it can
+      // suggest, which the door cannot — so by here there is genuinely no
+      // course of this name. The door's own check is the backstop.
+      const added = await addCourseToLibrary({
+        organizationId: event.organizationId,
+        origin: "entered-at-scoring",
         data: {
-          organizationId: event.organizationId,
           name: c.name.trim(),
           city: c.city.trim(),
           address: c.address.trim(),
@@ -1397,7 +1403,8 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
           source: "entered-at-scoring",
         },
       });
-      courseId = created.id;
+      if (!added.ok) return { ok: false, error: added.error };
+      courseId = added.courseId;
     }
   }
 

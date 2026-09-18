@@ -1023,7 +1023,14 @@ describe("naming a venue can only reach this club's own courses", () => {
     // The scope check must not turn "we played somewhere new" into an error —
     // that path passes no courseId at all and is the reason this action exists.
     expect(fn).toMatch(/if \(!courseId\) \{/);
-    expect(fn).toMatch(/course\.create/);
+    // It creates through the one door now (`services/course-library.ts`)
+    // rather than writing the row itself. The ORIGIN is the half worth
+    // pinning: a casual round naming its own venue is the free thing anybody
+    // can do, and it is the reason the door takes an origin at all — so when a
+    // plan limit lands on the library, this path is the one that must never be
+    // refused for a club's allowance being full.
+    expect(fn).toMatch(/addCourseToLibrary\(/);
+    expect(fn).toMatch(/origin: "entered-at-scoring"/);
   });
 });
 
