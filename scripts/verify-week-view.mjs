@@ -55,7 +55,9 @@ async function main() {
       data: {
         name: `${MARK}-league`,
         organizationId: org.id,
-        status: "active",
+        // "live", not "active" — the app never writes "active", and an unknown
+        // status renders with the DRAFT label. See the note in e2e/fixture.mjs.
+        status: "live",
         shape: "series",
         format: "stroke",
         dates: "May 2026",

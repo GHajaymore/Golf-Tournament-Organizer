@@ -157,7 +157,30 @@ export async function seed() {
       data: {
         name: `${MARK}-${EVENT_NAME}`,
         organizationId: org.id,
-        status: "active",
+        /**
+         * A STATUS THE APP ACTUALLY WRITES.
+         *
+         * This said "active", which is not one of them. The app writes exactly
+         * "draft", "live" and "completed"; `STATUS_META` labels those five
+         * (with "registration" and "ready"), and an unknown status falls back
+         * to the DRAFT label. So the whole suite rendered a launched
+         * tournament that called itself a draft, and three behaviours differed
+         * from production on every screen it touched:
+         *
+         *   - the status tag read "Draft" on a tournament with cards in it;
+         *   - `nextLifecycleAction` returned NULL rather than "Complete
+         *     tournament", so the dashboard offered no way to finish, and no
+         *     test has ever exercised that control from this fixture;
+         *   - the live dot beside the name never appeared.
+         *
+         * `isLaunched` treats "active" as launched — it is simply not on the
+         * pre-launch list — which is why setup locking and everything reading
+         * that behaved correctly and hid the rest. Exactly the divergence
+         * `lifecycle-state.ts` predicts in its own comment: the two lists
+         * "agree today because the two sets happen to cover every status, and
+         * they would diverge the moment a sixth is added".
+         */
+        status: "live",
         shape: "single",
         format: "stroke",
         dates: "May 2026",
