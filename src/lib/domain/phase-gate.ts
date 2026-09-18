@@ -106,6 +106,16 @@ export function playRefusal(facts: PlayFacts): string | null {
 export interface FinishFacts {
   /** Cards complete but still waiting for somebody to sign them off. */
   pendingConfirmations: number;
+  /**
+   * Cards and match results somebody has said are wrong.
+   *
+   * Required rather than optional on purpose. This gate used to read the
+   * review queue's total alone, and disputes are deliberately NOT in that
+   * total — so a tournament could be finished, its standings published as
+   * final, over a result still in dispute. A caller that forgets this field
+   * now fails to compile instead of reopening that hole.
+   */
+  disputed: number;
 }
 
 /**
@@ -121,6 +131,13 @@ export interface FinishFacts {
  * an abandoned event would be the app arguing with the weather.
  */
 export function finishRefusal(facts: FinishFacts): string | null {
+  // First, because it is the stronger reason and has a different remedy: a
+  // dispute is settled on the card or the match, not approved from a list.
+  // Rule 20.2c — the Committee decides, and the result is final only then.
+  if (facts.disputed > 0) {
+    const n = facts.disputed;
+    return `${n} result${n === 1 ? " is" : "s are"} disputed, so the tournament can’t be finished yet. Open ${n === 1 ? "it" : "them"} on Score entry, settle the question, then finish.`;
+  }
   if (facts.pendingConfirmations > 0) {
     const n = facts.pendingConfirmations;
     return `${n} card${n === 1 ? " is" : "s are"} still waiting to be signed off, so the result is not settled yet. Approve or correct ${n === 1 ? "it" : "them"} on Score entry, then finish.`;

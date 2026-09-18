@@ -449,6 +449,15 @@ export interface EventState {
     certified: number;
     /** The committee has accepted it. Only now is it a result. */
     approved: number;
+    /**
+     * Started, not returned, and DISPUTED — so not out on the course.
+     *
+     * `started - certified` was printed as "still out on the course", and a
+     * disputed card is inside that difference: on the look-at-screens fixture
+     * a player who had finished eighteen holes and was disputing his card was
+     * counted as still playing. Separate so the dashboard can say both.
+     */
+    disputed: number;
     total: number;
     pct: number;
     unit: "cards" | "matches";
@@ -1137,6 +1146,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         started: own.filter((c) => hasAnyHole(c.strokes)).length,
         certified: own.filter((c) => c.status === "certified" || c.status === "approved").length,
         approved: own.filter((c) => c.status === "approved").length,
+        // Among the STARTED only, since the dashboard subtracts it from them.
+        disputed: own.filter((c) => c.status === "disputed" && hasAnyHole(c.strokes)).length,
           total: confirmed.length,
       };
     }
@@ -1145,6 +1156,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       started: own.filter((m) => matchSettled(m)).length,
       certified: own.filter((m) => storedMatchIsOver(m)).length,
       approved: own.filter((m) => m.scoreStatus === "confirmed").length,
+      // Only among the unfinished: `certified` above already counts a match
+      // that is over whatever its status, so counting an over-and-disputed
+      // one here too would subtract it twice from "still being played".
+      disputed: own.filter((m) => m.scoreStatus === "disputed" && !storedMatchIsOver(m)).length,
       total: own.length,
     };
   };
@@ -1192,11 +1207,12 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const bp = boardStage
     ? roundProgress(boardStage)
-    : { started: 0, certified: 0, approved: 0, total: 0 };
+    : { started: 0, certified: 0, approved: 0, disputed: 0, total: 0 };
   const boardProgress = {
     started: bp.started,
     certified: bp.certified,
     approved: bp.approved,
+    disputed: bp.disputed,
     total: bp.total,
     /**
      * The bar measures CERTIFIED, which is what the number beside it says.
@@ -1666,7 +1682,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       } catch {
         // Unreadable holes cannot be a finished match, so it is not in a queue
         // anybody can clear — the same reading the card approval takes.
-        return { complete: false, status: "disputed" };
+        return { complete: false, status: "disputed", unreadable: true };
       }
       return {
         complete: resolveMatch(holes).complete,

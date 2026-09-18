@@ -3456,7 +3456,12 @@ export async function setEventStatus(status: string): Promise<{ ok: boolean; err
    */
   if (s === "completed") {
     const state = await loadEventState(eventId);
-    const refusal = state ? finishRefusal({ pendingConfirmations: state.pendingConfirmations }) : null;
+    const refusal = state
+      ? finishRefusal({
+          pendingConfirmations: state.pendingConfirmations,
+          disputed: state.reviewing.disputed,
+        })
+      : null;
     if (refusal) return { ok: false, error: refusal };
   }
   // Stamp the completion time, because on a free plan it starts the clock the

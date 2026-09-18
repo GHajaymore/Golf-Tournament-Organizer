@@ -53,19 +53,40 @@ describe("going live", () => {
 
 describe("declaring it finished", () => {
   it("refuses while cards are still waiting to be signed off", () => {
-    const r = finishRefusal({ pendingConfirmations: 3 });
+    const r = finishRefusal({ pendingConfirmations: 3, disputed: 0 });
     expect(r).toContain("3 cards are still waiting");
     expect(r).toContain("Score entry");
   });
 
   it("says it in the singular for one card", () => {
-    const r = finishRefusal({ pendingConfirmations: 1 });
+    const r = finishRefusal({ pendingConfirmations: 1, disputed: 0 });
     expect(r).toContain("1 card is still waiting");
     expect(r).toContain("Approve or correct it");
   });
 
   it("allows a tournament with nothing outstanding", () => {
-    expect(finishRefusal({ pendingConfirmations: 0 })).toBeNull();
+    expect(finishRefusal({ pendingConfirmations: 0, disputed: 0 })).toBeNull();
+  });
+
+  it("refuses while a result is disputed, even with nothing to sign off", () => {
+    /**
+     * The hole this closes. Disputes are deliberately out of the sign-off
+     * queue, and this gate read only the queue — so with every other card
+     * approved, a tournament could be finished and its standings published as
+     * final over a card somebody had said was wrong. Rule 20.2c: the
+     * Committee decides, and only then is the result final.
+     */
+    const r = finishRefusal({ pendingConfirmations: 0, disputed: 1 });
+    expect(r, "finished over a disputed result").not.toBeNull();
+    expect(r).toContain("1 result is disputed");
+    expect(r, "a dispute is settled, not approved").not.toContain("Approve");
+  });
+
+  it("names the dispute first when both are outstanding", () => {
+    // Different remedy: approving the queue does not settle a dispute, so
+    // leading with the queue would send the organizer to the wrong fix.
+    const r = finishRefusal({ pendingConfirmations: 2, disputed: 3 });
+    expect(r).toContain("3 results are disputed");
   });
 
   it("does not refuse a tournament nobody played", () => {
@@ -74,7 +95,7 @@ describe("declaring it finished", () => {
      * insisting on scores would be the app arguing with the weather, and there
      * is no remedy to name — which is the test of whether a refusal is fair.
      */
-    expect(finishRefusal({ pendingConfirmations: 0 })).toBeNull();
+    expect(finishRefusal({ pendingConfirmations: 0, disputed: 0 })).toBeNull();
   });
 });
 
@@ -88,7 +109,9 @@ describe("where the gates are enforced", () => {
   it("is checked inside the actions, not only on the screen", () => {
     const actions = readSource("src", "app", "actions", "tournament.ts");
     expect(actions).toMatch(/const refusal = launchRefusal\(/);
-    expect(actions).toMatch(/finishRefusal\(\{ pendingConfirmations/);
+    // Both facts, at the enforcement point. The screen alone passing
+    // `disputed` would leave the endpoint finishing over a dispute.
+    expect(actions).toMatch(/finishRefusal\(\{[^}]*pendingConfirmations[^}]*disputed: state\.reviewing\.disputed/);
     // And the refusal is returned rather than thrown away.
     expect(actions).toMatch(/if \(refusal\) return \{ ok: false, error: refusal \}/);
   });
