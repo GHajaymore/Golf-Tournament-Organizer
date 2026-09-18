@@ -1,8 +1,24 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
+
+/**
+ * The board's cache, stood down for the duration.
+ *
+ * `liveBoard` wraps its builder in `unstable_cache`, which throws outside a
+ * Next request — "Invariant: incrementalCache missing" — so without this the
+ * cells below measure nothing but the absence of a server. Replacing it with the
+ * identity function runs the REAL builder, which is the code the gate lives
+ * in; the caching itself is Next's to test.
+ */
+vi.mock("next/cache", () => ({
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+  revalidateTag: () => {},
+  revalidatePath: () => {},
+}));
 import { organizationAllows, entitlementForEvent } from "@/lib/services/entitlements";
 import { honoursBoard } from "@/lib/services/honours";
+import { liveBoard } from "@/lib/services/live-board";
 
 /**
  * A GATE THAT MOVES WITH THE TIER, PROVED AGAINST REAL ROWS.
@@ -133,6 +149,44 @@ describe("the honours board, gated at the sink", () => {
 
     await setOverrides("");
     expect((await honoursBoard(orgId)).flatMap((y) => y.entries).length).toBe(2);
+  });
+});
+
+describe("the public board, gated where it is built", () => {
+  it("is on for every tier today", async () => {
+    expect(await organizationAllows(orgId, "publicBoard")).toBe(true);
+    // A board for a completed event with no rounds is thin, but it EXISTS —
+    // which is the difference this cell and the next one turn on.
+    expect(await liveBoard(eventId)).not.toBeNull();
+  });
+
+  it("gives back nothing at all when the tier does not include it", async () => {
+    /**
+     * NULL is the answer on purpose. `/live/[token]` already answers 404
+     * identically for a wrong token and for a board the organizer has
+     * unpublished — so that switching a link off never confirms the tournament
+     * exists — and a tier that excludes the public board lands in exactly that
+     * answer rather than inventing a new one that leaks.
+     *
+     * A SECOND EVENT, so nothing here can be answered by the previous cell's
+     * work. The cache is mocked away at the top of this file — it throws
+     * outside a Next request — but a fresh event also means the builder runs
+     * from nothing, which is the state a real spectator's first request is in.
+     */
+    const other = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} Autumn Meeting`,
+        status: "completed", shape: "series", format: "stroke", formationRule: "balanced",
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        shareToken: `${TAG.toLowerCase()}-share-2`,
+        registrationToken: `${TAG.toLowerCase()}-reg-2`,
+      },
+    });
+
+    await setOverrides('{"publicBoard":false}');
+    expect(await organizationAllows(orgId, "publicBoard")).toBe(false);
+    expect(await liveBoard(other.id), "the board was built for a club without it").toBeNull();
   });
 });
 
