@@ -4,7 +4,7 @@ import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } fro
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
@@ -1197,15 +1197,32 @@ export function RegistrationClient({
  * whatever the page was last rendered.
  */
 function PromotedBadge({ promotedAt }: { promotedAt?: string | null }) {
-  const state = promotionState(promotedAt, Date.now());
+  /**
+   * "Rendered on the client on purpose" above is half right, and the half it
+   * misses is what made this a bug: a `"use client"` component is still
+   * SERVER-rendered for the initial HTML. Both sides ran `Date.now()`, so a
+   * badge sitting either side of the 48-hour line went out as one label and
+   * hydrated as the other — React #418, the same fault as `MessagesClient`'s
+   * relative timestamps and the one `LiveRefresh` documents.
+   *
+   * Mount-only, so the server and the first client render agree. Until then
+   * there is no clock and the badge is not drawn; a waitlist badge is not
+   * worth a mismatch, and it appears on the same tick as everything else.
+   */
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
+
+  if (now === null) return null;
+  const state = promotionState(promotedAt, now);
   if (state.kind === "none") return null;
   const overdue = state.kind === "overdue";
   return (
     <span
       // `text-muted` and the two tokens below are the ones this app actually
-      // defines. An invented `--color-warning` would resolve to nothing and the
-      // badge would inherit whatever was around it — wrong in a way that only
-      // shows up on one theme.
+      // defines. `--color-warning` was invented when this was written and
+      // resolved to nothing, which is why it was avoided; it is a real token
+      // since #464. `danger` is still right here — an unanswered promotion is
+      // a problem to chase, not a caution.
       className={overdue ? undefined : "text-muted"}
       title={
         overdue
