@@ -809,7 +809,16 @@ export function themeVarsFor(theme: ClubTheme, ground: Ground): Record<string, s
  * that rather than assuming it, because the assumption is one refactor away
  * from being wrong and the failure would be silent.
  */
-const SAFE_CSS_VALUE = /^(#[0-9a-f]{6}|color-mix\(in srgb, #[0-9a-f]{6} \d{1,3}%, transparent\))$/i;
+/*
+ * The second color-mix form — one generated hex mixed into ANOTHER generated
+ * hex — was added for `--color-surface-2` on 2026-09-18. It was dropped here
+ * silently from the day it was introduced (#464): only `, transparent` was
+ * allowed, so every themed page fell back to the dark ground's static default
+ * and painted a dark surface on the light ground. Both operands are still
+ * hexes this module produced, so nothing a club typed can reach the output.
+ */
+const SAFE_CSS_VALUE =
+  /^(#[0-9a-f]{6}|color-mix\(in srgb, #[0-9a-f]{6} \d{1,3}%, (transparent|#[0-9a-f]{6})\))$/i;
 
 function declarations(vars: Record<string, string>): string {
   return Object.entries(vars)

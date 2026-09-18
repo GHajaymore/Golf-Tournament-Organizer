@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { stripComments } from "./source";
-import { themeVarsFor, DEFAULT_CLUB_THEME, LIGHT_GROUND } from "../themes";
+import { themeVarsFor, themeCss, DEFAULT_CLUB_THEME, LIGHT_GROUND, DARK_GROUND } from "../themes";
 
 /**
  * EVERY `var(--color-*)` NAMES A TOKEN THAT EXISTS.
@@ -168,7 +168,27 @@ describe("every colour token a component names is declared somewhere", () => {
      * which is what `design-system.css` says where it declares them.
      */
     const DECK_ONLY = ["--color-section", "--color-section-glow", "--color-section-ghost"];
-    const themed = new Set(Object.keys(themeVarsFor(DEFAULT_CLUB_THEME, LIGHT_GROUND)));
+    /**
+     * WHAT THE STYLESHEET ACTUALLY SAYS, not what `themeVarsFor` returns.
+     *
+     * This read the keys of `themeVarsFor` and so passed while
+     * `--color-surface-2` never reached a page: `themeCss` runs every value
+     * through a safety pattern that did not recognise its shape and dropped
+     * it without a word. Found by LOOKING at the rebuilt Today screen — the
+     * group avatars were dark circles on a light page. The sink is the
+     * stylesheet, so the check reads the stylesheet, on both grounds.
+     */
+    const css = [DARK_GROUND, LIGHT_GROUND]
+      .map((g) => themeCss({ ...DEFAULT_CLUB_THEME, appearance: g.key }, "#x"))
+      .join("\n");
+    const themed = new Set(
+      Object.keys(themeVarsFor(DEFAULT_CLUB_THEME, LIGHT_GROUND)).filter((k) =>
+        [DARK_GROUND, LIGHT_GROUND].every((g) =>
+          themeCss({ ...DEFAULT_CLUB_THEME, appearance: g.key }, "#x").includes(`${k}:`),
+        ),
+      ),
+    );
+    expect(css.length, "themeCss wrote nothing — the check would pass vacuously").toBeGreaterThan(200);
 
     const frozen = [...REFERENCED.keys()]
       .filter((name) => !themed.has(name) && !DECK_ONLY.includes(name))

@@ -93,8 +93,19 @@ test.describe("the player's own round", () => {
         );
         return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : -1;
       };
-      return { pinned: y(/tee times are up/i), position: y(/^Position$/), unpinned: y(/halfway house/i) };
+      /**
+       * The ROUND, found by what it is rather than by a word inside it. This
+       * anchored on the "Position" label, which the round-first rebuild of
+       * 2026-09-18 replaced with a hero section; the order it asserts — pinned
+       * above the round, the rest below — is unchanged.
+       */
+      const round = document.querySelector('[aria-label="Your round"]');
+      const position = round
+        ? Math.round(round.getBoundingClientRect().top + window.scrollY)
+        : y(/^Position$/);
+      return { pinned: y(/tee times are up/i), position, unpinned: y(/halfway house/i) };
     });
+    expect(order.position, "the round itself was not found on Today").toBeGreaterThan(-1);
     expect(order.pinned, "pinned notice not found").toBeGreaterThan(-1);
     expect(order.pinned).toBeLessThan(order.position);
     expect(order.unpinned, "unpinned notice should sit below the round").toBeGreaterThan(order.position);
