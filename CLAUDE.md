@@ -981,6 +981,41 @@ bug, two missing features), and money writes with no audit line (ten, including
 the whole of `skins.ts`). The first two came back clean, which is itself the
 result worth having: it is how you learn a class is finished.
 
+**AND STILL — WALK THE SCREENS, because there is one class no sweep sees.** The
+paragraph above is about not SAMPLING when you could be closing a class, and it
+stands. It is not an argument against looking, and on 2026-09-18 six screens
+walked with the fixture in front of them turned up two defects that 7,682 unit
+tests, 1,194 audit tests, the smoke pass and Playwright had all passed:
+
+- club settings showed **Staff 0** while the plan allowance on the SAME page
+  counted two. A club on the free plan is refused the next person it adds by a
+  limit its own screen has just said it is nowhere near;
+- the league week read **"4 of 4 in have returned a card"** and printed
+  "thru 9" for one of those players two lines below.
+
+Both are the same shape, and it is the shape a test suite is blind to by
+construction: **two screens, or two panels of one screen, answering the same
+question with different numbers.** Every function involved is individually
+correct, every test of it passes, and nothing anywhere compares the two
+answers. That is a class, and the only instrument that finds it is a pair of
+eyes on real rows.
+
+```bash
+node --env-file=.env scripts/look-at-screens.mjs           # seed + cookies
+node --env-file=.env scripts/look-at-screens.mjs --teardown
+```
+
+It seeds the e2e fixture into the development database and prints the cookies
+to paste in. It **refuses any database whose host is not localhost** — checked
+on the host, because a password can contain the word — since a seed pointed at
+production cannot be undone from here.
+
+Two things make it worth the four minutes: read the numbers on a screen
+AGAINST EACH OTHER rather than against your expectation, and follow anything
+that disagrees to the two functions producing it. The staff number took about
+four seconds to notice and an hour to prove; the noticing is the part no test
+does for you.
+
 ## Testing: the combination sweep
 
 The 2026-08-12 audit found ~80 defects against a suite of 1400 passing tests.
