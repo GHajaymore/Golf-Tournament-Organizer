@@ -23,17 +23,53 @@ import { join } from "node:path";
 test.describe("the console prints as content", () => {
   test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
-  test("hides its own chrome", async ({ page }) => {
-    // The control. These carry the classes the print block names, so if this
-    // ever fails the block itself has broken and the player result below means
-    // nothing.
-    await page.goto("/foursomes");
-    await page.waitForLoadState("networkidle");
-    await page.emulateMedia({ media: "print" });
+  for (const path of ["/foursomes", "/reports", "/scorecard"]) {
+    test(`${path} hides its own chrome`, async ({ page }) => {
+      // Also the control for the player result below: these carry the classes
+      // the print block names, so if they ever fail the block itself has
+      // broken and the player screens say nothing.
+      const res = await page.goto(path);
+      expect(res?.status(), `${path} did not render`).toBeLessThan(500);
+      await page.waitForLoadState("networkidle");
+      await page.emulateMedia({ media: "print" });
 
-    const shown = await chromeStillShowing(page);
-    expect(shown, `console chrome printed: ${JSON.stringify(shown)}`).toEqual([]);
-  });
+      const shown = await chromeStillShowing(page);
+      expect(shown, `${path} printed chrome: ${JSON.stringify(shown)}`).toEqual([]);
+    });
+  }
+
+  /**
+   * AND THE SHEET ITSELF COMES OUT, which is the question a starter has.
+   *
+   * Hiding the app is only half of printing. `TeeSheetPrint` returns null
+   * until a sheet has been SAVED, and `ReportsClient` carries a note about
+   * exactly that — so "the chrome is gone" and "there is a tee sheet on the
+   * paper" are two different claims and only one of them was being made.
+   */
+  for (const [path, needle] of [
+    ["/foursomes", /group|tee/i],
+    ["/reports", /standings|player/i],
+  ] as const) {
+    test(`${path} still has something on the page in print`, async ({ page }) => {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await page.emulateMedia({ media: "print" });
+
+      const printed = await page.evaluate(() => {
+        const main = document.querySelector("main") ?? document.body;
+        const visible = [...main.querySelectorAll("*")].filter((el) => {
+          const cs = getComputedStyle(el);
+          if (cs.display === "none" || cs.visibility === "hidden") return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 40 && r.height > 12;
+        });
+        return { blocks: visible.length, text: (main.textContent || "").replace(/\s+/g, " ").trim() };
+      });
+
+      expect(printed.blocks, `${path} prints a blank sheet`).toBeGreaterThan(3);
+      expect(printed.text, `${path} printed nothing recognisable`).toMatch(needle);
+    });
+  }
 });
 
 test.describe("the player's screens print as content", () => {
