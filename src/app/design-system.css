@@ -321,9 +321,33 @@ figcaption {
        scorecard's `repeat(3, minmax(0, 1fr))` two screens away.
 
    Two things DO change it: the same rule from a class, and the same rule
-   marked `!important`. A clone of the row mounted at body level also lays out
-   correctly with the inline style, so something in the ancestry is implicated
-   even though the immediate parent is not.
+   marked `!important`.
+
+   WHERE IT BREAKS WAS THEN BISECTED, because the first note here guessed at
+   "something in the ancestry" and guessing is what this file keeps paying for.
+   A clone of the row carrying the inline style was inserted at each ancestor
+   in turn and its computed tracks read:
+
+     inside [role=grid]        1 track
+     inside the section        1 track
+     inside .card              1 track
+     inside <main>             1 track
+     one level ABOVE <main>    7 tracks
+
+   So the boundary is `<main>` exactly. It is NOT the immediate parent — an
+   earlier note here said so and was wrong; stripping that parent's own
+   `display: grid` changes nothing, and a fresh grid built at body level holds
+   the clone perfectly. It is not width either: the same clone gets its seven
+   tracks in a 311px box at body level, which is the width it has inside main.
+
+   And it is not anything ON main. Its inline style was copied onto a fresh
+   div at body level — `max-width`, the `flex: 1`, the `calc()` padding with
+   `env(safe-area-inset-*)` in it, all of it — and the clone laid out correctly
+   inside that. Nothing in main's computed style is unusual: block, no
+   containment, no zoom, no transform, no container query.
+
+   That is as far as measurement took it. Deterministic, reproducible on
+   demand, localised to the real `<main>` subtree, and unexplained.
 
    The class is where this belonged anyway — `.sc` and the other grids in this
    file are classes for the same reason — so the fix is the thing that should
