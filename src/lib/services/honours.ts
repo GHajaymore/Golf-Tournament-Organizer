@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
+import { organizationAllows } from "./entitlements";
 import { loadEventState } from "./tournament";
 import { finishingPositions } from "./finish-order";
 import {
@@ -49,6 +50,27 @@ export interface PendingChampion {
  * tournaments still exist.
  */
 export async function honoursBoard(organizationId: string) {
+  /**
+   * THE TIER, ASKED WHERE THE ROWS ARE BUILT.
+   *
+   * Gated here and not on the page, for the reason `seriesTable` gives one file
+   * over: an unentitled club must not be able to read the names out of the
+   * RESPONSE either. A caller trusted to hide what it was handed is a caller
+   * that will one day forget to — and this response is a list of every champion
+   * the club has ever had.
+   *
+   * ON FOR EVERY TIER TODAY. The gate exists so the ladder, when it is decided,
+   * is a boolean rather than a change to this file; `organizationAllows` reads
+   * the club's own overrides as well as its plan, so a club grandfathered into
+   * the board keeps it whatever its tier later says.
+   *
+   * EMPTY, not an error. A board with nothing on it is a state this screen
+   * already renders — a club in its first season has one — so an unentitled
+   * club sees the same honest "nothing here yet" rather than a broken panel.
+   * What it must never see is somebody else's history it has not paid for.
+   */
+  if (!(await organizationAllows(organizationId, "honours"))) return [];
+
   const rows = await prisma.honoursEntry.findMany({
     where: { organizationId },
     orderBy: [{ year: "desc" }, { eventName: "asc" }],

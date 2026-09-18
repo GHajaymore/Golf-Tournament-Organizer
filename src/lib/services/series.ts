@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
 import { loadEventState } from "./tournament";
-import { hasFeature, SEASON_LOCKED } from "../plans";
-import { planForOrganization } from "./entitlements";
+import { SEASON_LOCKED } from "../plans";
+import { organizationAllows } from "./entitlements";
 import { finishingPositions } from "./finish-order";
 import {
   seriesStandings,
@@ -156,7 +156,7 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
    * RESPONSE either. A caller trusted to hide rows it was handed is a caller
    * that will one day forget to.
    */
-  if (!hasFeature(await planForOrganization(series.organizationId), "seasonStandings")) {
+  if (!(await organizationAllows(series.organizationId, "seasonStandings"))) {
     const locked = configOf(series);
     return {
       allowed: false,
