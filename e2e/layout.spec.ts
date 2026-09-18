@@ -1,10 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-// Relative, not the `@/` alias: Playwright compiles this file with its own
-// tsconfig and does not resolve the app's path aliases.
-import { readSource } from "../src/lib/__tests__/source";
-import { standaloneScreens, entryUrl } from "./routes";
+import { standaloneScreens, consoleScreens, playerScreens, entryUrl } from "./routes";
 import { overflowing } from "./overflow";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
@@ -25,59 +22,16 @@ test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
  */
 
 /**
- * Every console screen, read off the filesystem rather than listed by hand.
+ * Both filesystem walks now live in `./routes`, alongside `standaloneScreens`.
  *
- * The hand-written list held fourteen of the twenty-two routes that exist —
- * /bracket, /qualification, /grouping, /scoring, /series, /week, /scorecard
- * and /access had no layout assertion at all. That is the failure mode of a
- * curated list: it covers the screens somebody thought about, which are never
- * the ones that break.
- *
- * Deriving it means a new screen is swept the day it is added, without anyone
- * remembering to come back here.
+ * They were written here and moved when `legible.spec` needed the same two
+ * lists — which is exactly the case the comment at the top of that file makes
+ * about `standaloneScreens`: two copies of a walk is how one of them quietly
+ * stops covering a route somebody added. The reasoning for deriving them at
+ * all, and for the redirect-stub filter, went with them.
  */
-const SCREENS = readdirSync(join(process.cwd(), "src", "app", "(app)"), { withFileTypes: true })
-  .filter((e) => e.isDirectory())
-  // Route groups, private folders, and dynamic segments that need a param.
-  .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
-  .filter((e) => existsSync(join(process.cwd(), "src", "app", "(app)", e.name, "page.tsx")))
-  // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
-  // /stages. They have a page.tsx and no page: asserting the URL afterwards
-  // fails on the redirect, and there is no layout of their own to measure.
-  // Detected rather than listed, so a route that stops being a stub rejoins
-  // the sweep on its own.
-  .filter((e) => {
-    const src = readSource("src", "app", "(app)", e.name, "page.tsx");
-    return !/^\s*redirect\(/m.test(src);
-  })
-  .map((e) => `/${e.name}`)
-  .sort();
-
-/**
- * The PLAYER's screens, read off the filesystem the same way.
- *
- * `SCREENS` above reads `(app)` and only `(app)`, so the heading sweep it
- * feeds covered the console and nothing else — and `/me/money` was found on
- * 2026-09-07 with no heading at ANY level, opening straight into "The pots".
- *
- * That is the failure the comment above SCREENS describes, one level up: the
- * list was derived rather than curated, and the DIRECTORY it was derived from
- * was still a choice somebody made once. A rule worth sweeping is worth
- * sweeping over both shells.
- *
- * `/me` is the index page, which has no directory of its own.
- */
-const PLAYER_SCREENS = [
-  "/me",
-  ...readdirSync(join(process.cwd(), "src", "app", "(player)", "me"), { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
-    .filter((e) =>
-      existsSync(join(process.cwd(), "src", "app", "(player)", "me", e.name, "page.tsx")),
-    )
-    .map((e) => `/me/${e.name}`)
-    .sort(),
-];
+const SCREENS = consoleScreens();
+const PLAYER_SCREENS = playerScreens();
 
 /**
  * `overflowing` used to live here. It moved to `./overflow` when the league

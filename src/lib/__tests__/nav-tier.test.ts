@@ -91,15 +91,37 @@ describe("the on-course tier holds the screens worked outdoors", () => {
  */
 describe("the layout sweep still walks the filesystem", () => {
   const SPEC = readSource("e2e/layout.spec.ts");
+  /**
+   * The walk itself moved to `e2e/routes.ts` on 2026-09-18, when `legible.spec`
+   * needed the same two lists and a second copy of a filesystem walk would have
+   * been the thing that quietly stops covering a route. So this follows it
+   * there rather than asserting on the file it used to live in — the rule is
+   * about where the routes COME FROM, not which file the `readdirSync` sits in.
+   */
+  const ROUTES = readSource("e2e/routes.ts");
 
   it("does not take its routes from the nav or the tier", () => {
-    expect(SPEC, "layout.spec derives routes from NAV; the hand-list problem is back").not.toMatch(
-      /\bNAV\b|routesForTier|allNavItems/,
-    );
+    for (const [name, src] of [
+      ["layout.spec", SPEC],
+      ["routes.ts", ROUTES],
+    ] as const) {
+      expect(src, `${name} derives routes from NAV; the hand-list problem is back`).not.toMatch(
+        /\bNAV\b|routesForTier|allNavItems/,
+      );
+    }
   });
 
   it("still reads the app directory", () => {
-    expect(SPEC).toMatch(/readdir|readdirSync/);
+    expect(ROUTES, "the filesystem walk is gone").toMatch(/readdir|readdirSync/);
+    expect(ROUTES, "the console screens are no longer derived").toMatch(/consoleScreens/);
+    expect(ROUTES, "the player screens are no longer derived").toMatch(/playerScreens/);
+  });
+
+  it("is what layout.spec actually uses", () => {
+    // Deriving the lists and then not reading them would satisfy everything
+    // above while measuring nothing, which is the shape this file exists for.
+    expect(SPEC, "layout.spec no longer sweeps the console").toMatch(/consoleScreens\(/);
+    expect(SPEC, "layout.spec no longer sweeps the player shell").toMatch(/playerScreens\(/);
   });
 });
 

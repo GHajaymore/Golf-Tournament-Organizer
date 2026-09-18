@@ -1,5 +1,70 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+// Relative, not the `@/` alias: Playwright compiles these files with its own
+// tsconfig and does not resolve the app's path aliases.
+import { readSource } from "../src/lib/__tests__/source";
+
+const usable = (name: string) =>
+  !name.startsWith("[") && !name.startsWith("_") && !name.startsWith("(");
+
+/**
+ * Every CONSOLE screen, read off the filesystem rather than listed by hand.
+ *
+ * The hand-written list this replaced held fourteen of the twenty-two routes
+ * that exist — /bracket, /qualification, /grouping, /scoring, /series, /week,
+ * /scorecard and /access had no layout assertion at all. That is the failure
+ * mode of a curated list: it covers the screens somebody thought about, which
+ * are never the ones that break.
+ *
+ * Deriving it means a new screen is swept the day it is added, without anyone
+ * remembering to come back here.
+ *
+ * It lived in `layout.spec` until `legible.spec` needed the same list, at
+ * which point the comment at the top of this file applied to it: two copies of
+ * a filesystem walk is how one of them quietly stops covering a route.
+ */
+export function consoleScreens(cwd: string = process.cwd()): string[] {
+  const root = join(cwd, "src", "app", "(app)");
+  return readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .filter((e) => usable(e.name))
+    .filter((e) => existsSync(join(root, e.name, "page.tsx")))
+    // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
+    // /stages. They have a page.tsx and no page: asserting the URL afterwards
+    // fails on the redirect, and there is no layout of their own to measure.
+    // Detected rather than listed, so a route that stops being a stub rejoins
+    // the sweep on its own.
+    .filter((e) => !/^\s*redirect\(/m.test(readSource("src", "app", "(app)", e.name, "page.tsx")))
+    .map((e) => `/${e.name}`)
+    .sort();
+}
+
+/**
+ * The PLAYER's screens, read off the filesystem the same way.
+ *
+ * `consoleScreens` reads `(app)` and only `(app)`, so the heading sweep it
+ * feeds covered the console and nothing else — and `/me/money` was found on
+ * 2026-09-07 with no heading at ANY level, opening straight into "The pots".
+ *
+ * That is the failure the comment above it describes, one level up: the list
+ * was derived rather than curated, and the DIRECTORY it was derived from was
+ * still a choice somebody made once. A rule worth sweeping is worth sweeping
+ * over both shells.
+ *
+ * `/me` is the index page, which has no directory of its own.
+ */
+export function playerScreens(cwd: string = process.cwd()): string[] {
+  const root = join(cwd, "src", "app", "(player)", "me");
+  return [
+    "/me",
+    ...readdirSync(root, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .filter((e) => usable(e.name))
+      .filter((e) => existsSync(join(root, e.name, "page.tsx")))
+      .map((e) => `/me/${e.name}`)
+      .sort(),
+  ];
+}
 
 /**
  * The routes that are in neither shell, derived once and read by both specs.
@@ -20,9 +85,6 @@ import { join } from "node:path";
  */
 export function standaloneScreens(cwd: string = process.cwd()): string[] {
   const root = join(cwd, "src", "app");
-  const usable = (name: string) =>
-    !name.startsWith("[") && !name.startsWith("_") && !name.startsWith("(");
-
   return readdirSync(root, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .filter((e) => usable(e.name))

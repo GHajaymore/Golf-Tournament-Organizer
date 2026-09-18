@@ -469,7 +469,9 @@ export function OrganizationClient(props: Props) {
                     display: "grid",
                     placeItems: "center",
                     background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-                    color: "var(--color-accent)",
+                    // Step 300, matching OrgBrand: the letter sits on a tint of
+                    // its own colour, where step 500 is 2.94:1 at worst.
+                    color: "var(--color-accent-300)",
                     fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 15,
                     fontWeight: 600,
                   }}
@@ -625,7 +627,9 @@ export function OrganizationClient(props: Props) {
                   display: "grid",
                   placeItems: "center",
                   background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-                  color: "var(--color-accent)",
+                  // As above — the same tile, re-implemented, as the comment
+                  // over this card says.
+                  color: "var(--color-accent-300)",
                   fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 13,
                   fontWeight: 600,
                 }}
