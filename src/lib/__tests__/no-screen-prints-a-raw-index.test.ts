@@ -89,6 +89,36 @@ describe("nothing prints an index without asking whether there is one", () => {
     ).toEqual([]);
   });
 
+  it("leaves no screen deciding for itself what a missing index looks like", () => {
+    /**
+     * THE SECOND COPY OF THE RULE, which the label alone does not close.
+     *
+     * A screen can call `indexLabel` and STILL compare `handicapSource` to
+     * `"none"` itself — the roster did, to say "no index yet" rather than "no
+     * index" on the list a club fixes it from. The wording is a fair choice;
+     * the comparison is not. It is a second place that knows how "nobody has
+     * claimed a figure" is encoded, and when that encoding changes the second
+     * place is the one nobody edits.
+     *
+     * `hasIndex` is the question, `NO_INDEX` is the words. Between them a
+     * screen can phrase it however it likes without knowing what is stored.
+     *
+     * Services are NOT swept: `upsertMember` reads the source to decide
+     * whether an incoming claim is authoritative, which is a write-path
+     * judgement about a caller rather than a label, and the same string doing
+     * a different job.
+     */
+    const deciders = files.filter((f) => {
+      const body = readSource("src", "components", f);
+      return body.includes(`handicapSource === "none"`) || body.includes(`handicapSource !== "none"`);
+    });
+
+    expect(
+      deciders,
+      "ask hasIndex() from domain/handicap-label instead — a screen comparing handicapSource itself is a second copy of the rule, and NO_INDEX is there for the words",
+    ).toEqual([]);
+  });
+
   it("can still see the shape it is looking for", () => {
     /**
      * The control that matters. A regex that matches nothing passes this file

@@ -6,7 +6,7 @@ import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
-import { indexLabel } from "@/lib/domain/handicap-label";
+import { indexLabel, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import {
@@ -804,10 +804,18 @@ export function RosterClient({
                         claim" from "scratch" now lives in one place, so the
                         sixth screen is correct without its author reading
                         this. */}
-                    {m.handicapSource === "none" ? (
-                      <span className="text-muted" style={{ fontSize: 12 }}>{indexLabel(m)} yet</span>
-                    ) : (
+                    {/* `hasIndex`, not `m.handicapSource === "none"`. The
+                        wording here is deliberately the club's own — "no index
+                        YET" is a nudge on the list you fix it from, where every
+                        other screen just reports the fact — but the QUESTION
+                        must be asked in one place. An inline comparison is a
+                        second copy of the rule, and the second copy is the one
+                        that gets missed when the encoding of "nobody claimed a
+                        figure" changes. */}
+                    {hasIndex(m) ? (
                       indexLabel(m)
+                    ) : (
+                      <span className="text-muted" style={{ fontSize: 12 }}>{NO_INDEX} yet</span>
                     )}
                   </td>
                   <td className="text-muted" style={{ fontSize: 12 }}>
