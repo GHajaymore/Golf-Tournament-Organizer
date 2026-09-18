@@ -412,6 +412,41 @@ export async function seed() {
     await prisma.account.create({
       data: { eventId: event.id, name: "O. Ganizer", email: organizer.email, role: "admin" },
     });
+    /**
+     * SOMEBODY WAITING TO BE LET IN, so the panel that answers them is on a
+     * screen the layout sweep already walks at every viewport.
+     *
+     * The alternative was a spec of its own, and this is better: `/organization`
+     * is in `layout.spec`'s filesystem sweep, so one fixture row buys the
+     * request panel a width check at 320, 393 and 1280 on every run, for ever,
+     * without anybody remembering to write one.
+     *
+     * It is the exact class that has already bitten twice. The Guest role added
+     * a fourth option to a segmented control and pushed `/organization` past a
+     * 320px phone (#429); the league shipped across five pull requests with no
+     * screen ever rendered by a test (#430). A control is exactly as wide as
+     * the data it is given, and a fixture with no request in it measures a
+     * panel that is not there.
+     *
+     * The note is deliberately long and awkward, for the same reason the club
+     * and course names above are: a short one would prove nothing about the
+     * row it sits in.
+     */
+    const asker = await prisma.user.create({
+      data: {
+        email: `${MARK}-asks-to-join@example.invalid`,
+        name: "Síobhán O’Donnell-Fitzgerald",
+        password: "x:unusable",
+      },
+    });
+    await prisma.joinRequest.create({
+      data: {
+        organizationId: org.id,
+        userId: asker.id,
+        note: "I run the Thursday night draw with Dana — we should be one society, not two.",
+      },
+    });
+
     const player = await prisma.user.create({
       data: { email: `${MARK}-0@example.invalid`, name: "Aj Moore", password: "x:unusable" },
     });
