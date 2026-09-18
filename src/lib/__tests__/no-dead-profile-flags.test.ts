@@ -1,0 +1,86 @@
+import { describe, it, expect } from "vitest";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { readSource } from "./source";
+import { orgProfile, ORG_KINDS } from "@/lib/domain/org-profile";
+
+/**
+ * EVERY FLAG ON AN OUTFIT'S PROFILE DECIDES SOMETHING.
+ *
+ * `no-dead-feature-keys.test.ts` asks this of plan features. `OrgProfile` is
+ * the same shape of trap and was never swept: four booleans describing what a
+ * club, a society or a personal account IS, each read — or not — by whatever
+ * happens to remember.
+ *
+ * It had a live example the day this was written. `seasonPlay` sits in
+ * `org-profile.ts` with a comment describing what it means, and **nothing in
+ * the application reads it**. It was found on 2026-09-17 only because somebody
+ * tried to advertise it in a picker and went to check what it did — which is
+ * precisely how long a flag can gate nothing before anybody notices.
+ *
+ * The cost is the same as a dead plan feature: a profile flag reads as a rule
+ * the app enforces, so the next person reasons from it, writes a screen around
+ * it, and ships behaviour that was never there.
+ */
+
+const SRC = join(process.cwd(), "src");
+
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) sourceFiles(full, out);
+    else if (/\.tsx?$/.test(entry) && !full.includes("__tests__")) out.push(full.slice(process.cwd().length + 1));
+  }
+  return out;
+}
+
+// Comments stripped: every flag is named in the paragraph explaining it, and a
+// raw search would find each one in its own documentation and call it read.
+const FILES = sourceFiles(SRC).filter((f) => !f.endsWith(join("domain", "org-profile.ts")));
+const BODIES = new Map(FILES.map((f) => [f, readSource(f)]));
+
+/** `flag` → why nothing reads it. Every entry is a decision somebody owes. */
+const UNREAD: Record<string, string> = {
+  seasonPlay:
+    "Whether this kind of outfit plays a season. Read NOWHERE in the app: season standings are gated by the PLAN (`seasonStandings`) and the league screens key off flights and four-ball rounds, so nothing has ever consulted the kind. Ajay's call whether it should gate something or go — flagged 2026-09-18, deliberately not deleted, because deleting it would erase the only record that the distinction was ever intended.",
+};
+
+describe("every profile flag decides something", () => {
+  const flags = Object.keys(orgProfile("club")).filter(
+    (k) => typeof (orgProfile("club") as Record<string, unknown>)[k] === "boolean",
+  );
+
+  it("has flags and files to search", () => {
+    // The control, in both directions: a sweep with no flags or no files is a
+    // sweep that passes for ever.
+    expect(flags.length).toBeGreaterThanOrEqual(4);
+    expect(FILES.length).toBeGreaterThan(200);
+  });
+
+  for (const flag of flags) {
+    it(`"${flag}" is read somewhere`, () => {
+      const readers = [...BODIES]
+        .filter(([, body]) => body.includes(`.${flag}`))
+        .map(([file]) => file);
+      if (UNREAD[flag]) {
+        expect(readers, `${flag} is read now — take it off the UNREAD list`).toEqual([]);
+        return;
+      }
+      expect(
+        readers,
+        `${flag} is on every outfit's profile and nothing reads it. A flag that decides nothing reads as a rule the app enforces, and the next person will build a screen around it.`,
+      ).not.toEqual([]);
+    });
+  }
+
+  it("means the same thing for every kind it describes", () => {
+    /**
+     * Not a sweep — a sanity check on the data itself, because the flags are
+     * only worth guarding if they actually differ between kinds. If every kind
+     * agreed on all four, the profile would be describing nothing.
+     */
+    const rows = ORG_KINDS.map((k) => orgProfile(k));
+    const differs = flags.some((f) => new Set(rows.map((r) => (r as Record<string, unknown>)[f])).size > 1);
+    expect(differs, "no flag differs between kinds — the profile decides nothing at all").toBe(true);
+  });
+});
