@@ -78,6 +78,35 @@ node scripts/verify-week-view.mjs
 node scripts/verify-lifecycle.mjs
 ```
 
+**`npm run smoke:all` is that whole step, locally, against a BUILT server** — and it is the one
+to reach for. It builds into `.next-ci`, starts it on 3102, runs all five in order, stops at the
+first failure and kills the server afterwards. `-- --no-build` reuses the last build. It refuses
+to run when something is already listening on that port rather than testing somebody else's
+build, which is the trap `reuseExistingServer` sets for Playwright one section down.
+
+Use it INSTEAD OF pointing the scripts at the dev server, because on a developer machine the dev
+server does not survive the walk. Measured 2026-09-17: three attempts, three failures, always
+partway through — and Next says why in its own log, seven times in one evening:
+
+```
+⚠ Server is approaching the used memory threshold, restarting...
+```
+
+`next dev` compiles each route on demand and holds the graph, so a 41-route walk compiles most of
+the app in one process; on a 16GB machine also running a build and a test suite it reaches the
+threshold and respawns itself. Every request in flight then returns nothing, which the scripts
+print as `→ 0` / `fetch failed` — the "no server" signature described below, which reads exactly
+like a broken route. The same five scripts, unchanged, passed first time against the built
+server. A production server compiles nothing and stays flat.
+
+Two more ways to lose an hour here, both worth knowing before blaming a route:
+
+- **the scripts default to port 3000**, and the dev server in this repo is on **3100**. Every
+  route then reports `fetch failed` while `curl` says 200, because they are talking to different
+  ports. `SMOKE_BASE_URL` is the fix; `smoke:all` sets it for you.
+- **`| tail` swallows the exit code.** `node script.mjs | tail -4` exits with `tail`'s status, so
+  a failed run reads as `exit=0`. Check the script's own status, or do not pipe it.
+
 Three of the other four assert CONTENT — that a control is on the screens that need it and off
 the ones that do not, that the locked drafting panel still says what to do instead, that the
 movement column says somebody climbed exactly when they did. They pin user-facing STRINGS
