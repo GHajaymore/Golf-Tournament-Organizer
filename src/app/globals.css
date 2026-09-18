@@ -42,6 +42,13 @@
   --color-danger: #e0665a;
   --color-danger-bg: #2a1512;
 
+  /* Caution, as distinct from error — and the same story one paragraph later.
+     Four components wrote `var(--color-warning)` against a token nothing
+     declared, so an expiring round code and a mis-photographed card spoke in
+     ordinary body text. Emitted by themeVarsFor for both grounds, the light
+     one taking a deep ochre. */
+  --color-warning: #e8a33c;
+
   --color-accent-2-100: #e7f5ec;
   --color-accent-2-200: #c3e6d0;
   --color-accent-2-300: #93d0ac;
@@ -58,6 +65,15 @@
   --color-bg: #16181a;
   --color-surface: #21231f;
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  /* Muted label text, and the surface one step above a card. Sixteen
+     components between them asked for these two before either existed —
+     `--color-text-muted` silently inherited its parent's colour, so a "todo"
+     step on the tournament journey was painted exactly like a done one, and
+     `--color-surface-2` made `background` invalid, so a received message had
+     no bubble at all while your own did. */
+  --color-text-muted: color-mix(in srgb, #e9e9ed 62%, transparent);
+  --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #21231f);
 
   /* A distinct display face for headings, tournament names and big scores —
      a soft-optical serif with real character.

@@ -1292,7 +1292,7 @@ function ShareField({
                 ? "var(--color-accent)"
                 : c.state === "off"
                   ? "var(--color-divider)"
-                  : "var(--color-border, var(--color-divider))"
+                  : "var(--color-divider)"
             }`,
             color: c.payer
               ? "var(--color-accent)"

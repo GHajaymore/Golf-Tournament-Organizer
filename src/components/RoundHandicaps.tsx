@@ -109,7 +109,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
       ))}
 
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger-300)" }}>{error}</p>
+        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>
       )}
       {note && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -133,7 +133,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                 gap: 8,
                 flexWrap: "wrap",
                 padding: "4px 0",
-                borderTop: "1px solid var(--color-border)",
+                borderTop: "1px solid var(--color-divider)",
               }}
             >
               <span style={{ fontSize: 13, minWidth: 0, flex: "1 1 140px" }}>{r.name}</span>

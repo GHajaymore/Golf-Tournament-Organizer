@@ -172,7 +172,7 @@ function Shell({
               alignItems: "center",
               gap: 10,
               flexWrap: "wrap",
-              borderColor: "var(--color-warning, var(--color-divider))",
+              borderColor: "var(--color-warning)",
             }}
           >
             <Icon name="clock" style={{ flex: "none" }} />

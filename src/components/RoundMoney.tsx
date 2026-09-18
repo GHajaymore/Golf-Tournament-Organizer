@@ -63,7 +63,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
             gap: 10,
             padding: "8px 12px",
             borderRadius: "var(--radius-md)",
-            border: "1px solid var(--color-border)",
+            border: "1px solid var(--color-divider)",
             minWidth: 0,
           }}
         >
