@@ -46,7 +46,7 @@ function parseTable(json: string): number[] {
   return DEFAULT_POINTS_TABLE;
 }
 
-export function configOf(s: { pointsTable: string; bestOf: number; minEvents: number }): SeriesConfig {
+function configOf(s: { pointsTable: string; bestOf: number; minEvents: number }): SeriesConfig {
   return { pointsTable: parseTable(s.pointsTable), bestOf: s.bestOf, minEvents: s.minEvents };
 }
 

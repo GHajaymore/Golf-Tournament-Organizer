@@ -1305,7 +1305,7 @@ export async function moneyFor(
  * disappear for the players who staked in it, which is the same shape of bug
  * as reading pot membership three ways.
  */
-export async function hasMoneyGames(eventId: string): Promise<boolean> {
+async function hasMoneyGames(eventId: string): Promise<boolean> {
   const [skins, side, contest] = await Promise.all([
     prisma.skinsPot.findFirst({ where: { eventId }, select: { id: true } }),
     prisma.sideGame.findFirst({ where: { eventId }, select: { id: true } }),

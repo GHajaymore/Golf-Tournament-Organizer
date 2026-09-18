@@ -5,6 +5,7 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
+import { sinceWords } from "@/lib/domain/since";
 import { Icon } from "./Icon";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
@@ -24,6 +25,7 @@ export function CreateFirstTournament({
   orgNoun = "",
   copyable = [],
   organizations = [],
+  asks = [],
 }: {
   first: boolean;
   /**
@@ -103,6 +105,15 @@ export function CreateFirstTournament({
    * AND a society was never asked at all, and always got the club.
    */
   organizations?: Array<{ id: string; name: string; kind: string; plan: string }>;
+  /**
+   * Outfits this person has asked to join, and how those asks ended.
+   *
+   * Carried from the server so the answer SURVIVES A RELOAD. #433 kept it in
+   * component state alone, so refreshing offered the button again and the
+   * second press met "you have already asked" as an error — the app telling
+   * somebody off for a thing it had forgotten.
+   */
+  asks?: Array<{ status: string; outfit: string; askedAt: string | Date; decidedAt: string | Date | null }>;
 }) {
   /** Every word on this screen that names the outfit comes from here. */
   const outfit = orgProfile(orgKind, orgCountry, orgNoun);
@@ -469,6 +480,38 @@ export function CreateFirstTournament({
         >
           {refusal}
         </p>
+      )}
+
+      {/* WHAT THEY ASKED LAST TIME, before anything else on this form.
+          Shown whether or not the same-name question comes up again, because
+          the person refreshing this page wants to know where their ask got to
+          — and because the alternative is meeting "you have already asked" as
+          an error the second time they press the button.
+
+          Never a reason not to carry on: the create form below stays exactly
+          as it was. A secretary who reads email on Sunday must not be able to
+          stop somebody running a tournament on Thursday. */}
+      {asks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {asks.map((ask) => (
+            <p key={`${ask.outfit}-${ask.status}`} className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              {ask.status === "pending" ? (
+                <>
+                  <Icon name="clock" /> You asked <b>{ask.outfit}</b> to add you{" "}
+                  {sinceWords(ask.askedAt)}. No answer yet — you can still set one up of your own below.
+                </>
+              ) : ask.status === "approved" ? (
+                <>
+                  <Icon name="check" /> <b>{ask.outfit}</b> added you. Their tournaments are in the list above.
+                </>
+              ) : (
+                <>
+                  <Icon name="x" /> <b>{ask.outfit}</b> said no. Set up your own below, or ask them directly.
+                </>
+              )}
+            </p>
+          ))}
+        </div>
       )}
 
       {/* ── Asking them to add you ────────────────────────────────────────

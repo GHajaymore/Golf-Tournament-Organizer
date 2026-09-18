@@ -232,7 +232,7 @@ export async function membershipFor(
  * scope has exactly one conversation, which is the model that matches how
  * these are actually used: a channel per place you stand, not a forum.
  */
-export function threadIdFor(organizationId: string, eventId: string | null, key: ScopeKey): string {
+function threadIdFor(organizationId: string, eventId: string | null, key: ScopeKey): string {
   const hash = createHash("sha256").update(`${organizationId}|${eventId ?? ""}|${key}`).digest("hex");
   return `th_${hash.slice(0, 24)}`;
 }
