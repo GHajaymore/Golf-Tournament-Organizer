@@ -266,6 +266,18 @@ describe("a stroke round, which has no fixtures", () => {
     expect(r.final).toBe(false);
   });
 
+  it("is NOT final while a complete card is disputed", () => {
+    // Eighteen holes on both cards, so only the dispute can hold it open.
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [card("s1", full), { ...card("s1", full), disputed: true }],
+      matches: [],
+      eventCompleted: false,
+    });
+    expect(r.final, "settled on a card somebody said was wrong").toBe(false);
+  });
+
   it("is final once every card is complete", () => {
     const r = roundMoneyFinality({
       stageId: "s1",

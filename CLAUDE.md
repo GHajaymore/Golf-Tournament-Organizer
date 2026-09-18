@@ -594,6 +594,26 @@ What it should change is BEHAVIOUR, not configuration. Batch the work into fewer
 and push each branch once. Opening a PR per small improvement is the habit that spends the
 allowance, and the allowance is shared with the previews a human needs to review anything.
 
+**And the fourth reads CANCELLED, and production may be fine.** On 2026-09-18
+`ad73af3` (#470) had `verify` green and `Deploy to production` cancelled at
+exactly 20 minutes — the job's `timeout-minutes`. The log ended:
+
+```
+Building…
+Completing…
+##[error]The operation was canceled.
+```
+
+Vercel's dashboard showed that same deployment **Ready, Production, built in
+1m40s**, promoted twenty minutes earlier. The build finished; the `vercel` CLI
+on the runner hung waiting to be told so, and the timeout killed the CLI rather
+than the deploy. A re-run of the job deployed the same commit a second time,
+which changed nothing and spent one deployment from the allowance.
+
+So a CANCELLED deploy after a long `Completing…` is NOT evidence production
+missed the commit. Check the Vercel dashboard for that SHA before re-running —
+and if it is Ready and marked Production, there is nothing to do.
+
 So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
 on a green `verify` is the token, the database, or the allowance, and the message names which.
 Nothing shipped unverified either way — `deploy` has `needs: verify` — but a commit CAN sit

@@ -38,7 +38,12 @@ interface Round {
 }
 
 /** Two confirmed players, the first finished; `second` is the other's card. */
-async function round(label: string, second: string, secondStatus = "confirmed"): Promise<Round> {
+async function round(
+  label: string,
+  second: string,
+  secondStatus = "confirmed",
+  secondCardStatus = "entered",
+): Promise<Round> {
   const org = await prisma.organization.create({
     data: { name: `${TAG}-${label}`, kind: "club" },
     select: { id: true },
@@ -93,7 +98,13 @@ async function round(label: string, second: string, secondStatus = "confirmed"):
       select: { id: true },
     });
     await prisma.scorecard.create({
-      data: { eventId: event.id, stageId: stage.id, playerId: p.id, strokes: i === 0 ? FULL : second },
+      data: {
+        eventId: event.id,
+        stageId: stage.id,
+        playerId: p.id,
+        strokes: i === 0 ? FULL : second,
+        status: i === 0 ? "entered" : secondCardStatus,
+      },
     });
   }
   return { eventId: event.id, stageId: stage.id, email: mine };
@@ -115,12 +126,29 @@ afterAll(async () => {
 let midRound: Round;
 let finished: Round;
 let walkedOff: Round;
+let disputed: Round;
 
 beforeAll(async () => {
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   midRound = await round("mid", NINE);
   finished = await round("done", FULL);
   walkedOff = await round("wd", NINE, "withdrawn");
+  // Both cards complete; the second is DISPUTED. Differs from `finished` in
+  // that one field alone, which is what makes it a test of the status.
+  disputed = await round("disp", FULL, "confirmed", "disputed");
+});
+
+describe("a stroke round with a disputed card", () => {
+  it("is not final while the dispute stands", async () => {
+    /**
+     * The gap #470 named and left: a disputed card's strokes can still
+     * change, so the amount can, so CLAUDE.md's money rule says not final.
+     * `roundStrokes` now carries the status from `Scorecard` — the only one
+     * of its three tables that has one.
+     */
+    const r = await row(disputed);
+    expect(r.final, "skins settled on a card somebody said was wrong").toBe(false);
+  });
 });
 
 describe("a stroke round with one player still out", () => {

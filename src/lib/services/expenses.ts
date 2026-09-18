@@ -290,7 +290,7 @@ export interface RoundFinality {
 export function roundMoneyFinality(input: {
   stageId: string;
   holeCount: number;
-  cards: ReadonlyArray<{ stageId: string; strokes: string; playerId?: string }>;
+  cards: ReadonlyArray<{ stageId: string; strokes: string; playerId?: string; disputed?: boolean }>;
   matches: ReadonlyArray<{ stageId: string; holes: string; forfeitedBy?: string | null }>;
   eventCompleted: boolean;
   /**
@@ -328,7 +328,11 @@ export function roundMoneyFinality(input: {
      * requiring a row per entrant would hold team rounds open for ever. The
      * organizer closing the tournament remains the backstop.
      */
+    // A DISPUTED card returns nothing: its strokes can still change, and the
+    // money rule asks whether the amount can. It holds the round open until
+    // the dispute is settled or the organizer closes the tournament.
     const played = forStage.length > 0 && forStage.every((c) => {
+      if (c.disputed) return false;
       try {
         return (JSON.parse(c.strokes) as (number | null)[])[h] != null;
       } catch {
