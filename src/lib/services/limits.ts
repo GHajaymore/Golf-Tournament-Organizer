@@ -88,7 +88,7 @@ export async function staffSeatCount(organizationId: string): Promise<number> {
 }
 
 /** Whether refusals are live for this organization. */
-export async function enforcementActive(organizationId: string): Promise<boolean> {
+async function enforcementActive(organizationId: string): Promise<boolean> {
   const sub = await prisma.subscription.findUnique({ where: { organizationId } });
   return !!sub && sub.provider.trim() !== "";
 }

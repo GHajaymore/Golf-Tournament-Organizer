@@ -17,6 +17,7 @@ import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor, organizationsForOrganizer } from "@/lib/services/organization";
+import { myAsks } from "@/lib/services/join-requests";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
@@ -320,6 +321,14 @@ export default async function ChooseTournamentPage({
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}
+          /* WHAT THEY HAVE ALREADY ASKED, so the answer survives a reload.
+             The ask itself was built in #433 and the "you have asked" state
+             lived only in the component — so somebody who refreshed was
+             offered the button again and met "you have already asked" as an
+             error. The service to answer it properly existed from that day and
+             nothing called it, which is exactly the class
+             `every-service-is-reached.test.ts` was written to catch. */
+          asks={await myAsks(session.email)}
         />
 
         {/* A player given a round code but never added by email lands here with
