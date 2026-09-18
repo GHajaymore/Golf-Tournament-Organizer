@@ -35,13 +35,33 @@ import { Icon } from "./Icon";
  * another to a member on a US phone. The club's locale comes from the same
  * context the club's currency does — see CurrencyProvider.
  */
-function when(ts: number, locale: string): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
+function when(ts: number, locale: string, now: number | null): string {
+  const date = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(
+    new Date(ts),
+  );
+  /**
+   * THE CLOCK IS AN ARGUMENT, and `null` until the component has mounted.
+   *
+   * This read `Date.now()` directly, during render, in a component Next.js
+   * server-renders for the initial HTML — so a message posted 59 seconds
+   * before the response was written went out as "now" and hydrated a moment
+   * later as "1m". React discards the server HTML for that subtree and warns:
+   * "Minified React error #418 ... args[]=text", which appeared seven times in
+   * one CI run on 2026-09-18 and never reproduced on demand, because it needs
+   * a second boundary to fall between the two renders.
+   *
+   * `LiveRefresh` already solved this and wrote down why — "relative time is
+   * the classic hydration mismatch" — and this is the same fix: the server and
+   * the first client render both produce the absolute date, which agrees, and
+   * the relative form appears once there is a clock to measure against.
+   */
+  if (now === null) return date;
+  const s = Math.floor((now - ts) / 1000);
   if (s < 60) return "now";
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   if (s < 604800) return `${Math.floor(s / 86400)}d`;
-  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(new Date(ts));
+  return date;
 }
 
 const KIND_ICON: Record<string, string> = {
@@ -122,6 +142,14 @@ export function MessagesClient({
 }) {
   // The club's way of writing a date, from the same context its currency comes from.
   const { locale } = useFormatting();
+  // Mounted-only, so the server and the first client render agree — see `when`.
+  // A minute is enough: the shortest thing it says is "1m".
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const tick = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(tick);
+  }, []);
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<ThreadView | null>(null);
   const [draft, setDraft] = useState("");
@@ -262,7 +290,7 @@ export function MessagesClient({
               )}
               <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               <div style={{ fontSize: 10.5, opacity: 0.7, marginTop: 3, textAlign: "right" }}>
-                {when(m.createdAt, locale)}
+                {when(m.createdAt, locale, now)}
               </div>
             </div>
           ))}
@@ -390,7 +418,7 @@ export function MessagesClient({
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-              <span className="text-muted" style={{ fontSize: 11 }}>{when(t.lastMessageAt, locale)}</span>
+              <span className="text-muted" style={{ fontSize: 11 }}>{when(t.lastMessageAt, locale, now)}</span>
               {t.unread > 0 && (
                 <span
                   style={{
