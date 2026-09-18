@@ -265,7 +265,14 @@ export function OrganizationClient(props: Props) {
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Staff</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{props.memberCount}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>organizers &amp; assistants</div>
+          {/* "IN ANY TOURNAMENT" is the load-bearing half.
+              This counts a SEAT — anybody holding organizer or assistant
+              rights anywhere in the club, including on one event — which is
+              what the plan allowance counts and therefore what can refuse the
+              next person added. The "Organization staff" table below is a
+              narrower thing, and says so: club-level staff only. Without this
+              line the two read as the same question with two answers. */}
+          <div className="text-muted" style={{ fontSize: 12 }}>organizers &amp; assistants, in any tournament</div>
         </div>
       </div>
 
