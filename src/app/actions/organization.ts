@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
-import { isCommunityVoice, orgProfile } from "@/lib/domain/org-profile";
+import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { refusalFor } from "@/lib/services/limits";
@@ -442,6 +442,95 @@ export async function saveOrganizationLocale(locale: string): Promise<OrgResult>
  * a `"use server"` export is a public HTTP endpoint and TypeScript types are
  * erased at runtime, so this will be called with whatever the caller likes.
  */
+/**
+ * SAY WHAT THIS OUTFIT ACTUALLY IS.
+ *
+ * `Organization.kind` was written once, when the organization was created, and
+ * updated NOWHERE. Whatever it was at birth it stayed for ever — and an
+ * organization is created lazily, defaulting to `personal`, for anybody whose
+ * tenant came from a casual round or a first tournament rather than from the
+ * sign-up question. Measured on 2026-09-17 in the development database: three
+ * of six organizations were `personal`, including two belonging to somebody
+ * plainly running a club.
+ *
+ * WHAT THAT COSTS, measured rather than assumed — the first version of this
+ * comment overstated it, and a comment that overstates a consequence is the
+ * same defect as a warning nobody can act on:
+ *
+ *   the WORDS, everywhere. Sidebar, settings, tab titles: an outing.
+ *   what SETUP ASKS FOR — a members list (`sharedRoster`), a home course
+ *   (`ownsCourse`).
+ *   what MONEY DEFAULTS TO — `money-mode.ts` reads `ledger` to choose between
+ *   split and none.
+ *
+ * The Members screen itself is present for every kind, so a personal tenant is
+ * not locked out of a roster. What it does not get is the setup step that asks
+ * for one, or the words of the outfit it actually is.
+ *
+ * MOVING TO `personal` IS STILL THE DIRECTION THAT TAKES SOMETHING AWAY: the
+ * setup checklist stops asking for the members list, and the screens stop
+ * calling it shared. Nothing is deleted. So it asks first and names the
+ * number, in the same shape as the same-name warning — a question with a way
+ * through it, not a refusal.
+ */
+export async function saveOrganizationKind(
+  kind: string,
+  /** "Yes, hide the roster" — only meaningful when moving to `personal`. */
+  confirmHidingRoster?: boolean,
+): Promise<OrgResult & { hidesRoster?: number }> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  const value = (kind ?? "").trim();
+  // Sanitised, not trusted: a public endpoint, and this value decides what
+  // whole screens do rather than merely what they are called.
+  if (!isOrgKind(value)) return { ok: false, error: "Pick one of the listed kinds." };
+
+  const current = await prisma.organization.findUnique({
+    where: { id: org.organizationId },
+    // The country and the outfit's own word come along so the profile is
+    // resolved WHOLE — `the-outfit-is-resolved-whole.test.ts` refuses a
+    // one-argument `orgProfile(kind)` and caught this being written that way.
+    // `sharedRoster` happens not to vary by country, but a rule that holds
+    // "except where I checked" is the rule that gets forgotten next time.
+    select: { kind: true, country: true, communityNoun: true },
+  });
+  if (current?.kind === value) return { ok: true };
+
+  const next = orgProfile(value, current?.country, current?.communityNoun);
+  if (!next.sharedRoster && !confirmHidingRoster) {
+    const members = await prisma.member.count({ where: { organizationId: org.organizationId } });
+    if (members > 0) {
+      return {
+        ok: false,
+        hidesRoster: members,
+        error:
+          /**
+           * SAYS WHAT ACTUALLY HAPPENS. This read "the list stops being
+           * reachable", which is not true — the Members screen is there for
+           * every kind — and a warning that overstates its consequence is the
+           * one people learn to click past.
+           */
+          `Your members list has ${members} ${members === 1 ? "person" : "people"} on it. ` +
+          `A personal account treats it as your own list of players rather than the outfit's ` +
+          `shared roster, and setup stops asking you to keep it up. Nothing is deleted, and it ` +
+          `reads as a shared roster again if you switch back.`,
+      };
+    }
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { kind: value },
+  });
+  // The layout resolves the profile once and hands it to eleven components
+  // through OrgProfileProvider, so the whole tree has to re-render: this
+  // changes the words in the sidebar and which screens are in it.
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };

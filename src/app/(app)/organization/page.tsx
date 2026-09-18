@@ -9,6 +9,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
+import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { pendingAsks } from "@/lib/services/join-requests";
 import { organizationAccessReport } from "@/lib/services/access";
@@ -195,6 +196,24 @@ export default async function OrganizationPage() {
             The country on this page already picks a default — a society in
             Britain and Ireland, a league in the United States — and a country
             is only ever a good guess. This is where the outfit overrules it. */}
+        {/* WHAT THIS IS, above what it is CALLED — the order they are decided
+            in, and the kind is what makes the noun question exist at all.
+
+            It had no control anywhere until 2026-09-17: the kind was written
+            when the organization came into being and never again, so a
+            society whose tenant was created lazily was a "personal" account
+            for ever — called an outing on every screen, and with no members
+            list, because `sharedRoster` is read off the kind. */}
+        {canEdit && (
+          <section className="card elev-sm" style={{ marginBottom: 16 }}>
+            <span className="card-title" style={{ fontSize: 15 }}>What this is</span>
+            <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+              It decides what the console calls this outfit, what setup asks you for, and what
+              money does by default.
+            </p>
+            <OrgKindPicker kind={org.kind} country={org.country} noun={org.communityNoun} />
+          </section>
+        )}
         {canEdit && org.kind === "community" && (
           <section className="card elev-sm" style={{ marginBottom: 16 }}>
             <span className="card-title" style={{ fontSize: 15 }}>What we are called</span>
