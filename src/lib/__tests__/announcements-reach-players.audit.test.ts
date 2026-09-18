@@ -155,9 +155,28 @@ describe("what the notices service returns", () => {
  */
 describe("who shows the notices", () => {
   it("shows them on the screen players actually land on", () => {
+    /**
+     * IN TWO LISTS SINCE 2026-09-18, and both halves are asserted because the
+     * risk of a split is that one of them is quietly dropped.
+     *
+     * Pinned sit at the top, which is what pinning means and what
+     * `/announcements` promises in those words. The rest moved under the
+     * player's own round: at 375x812 the card's own button sat at y=765 behind
+     * a nav fixed from y=747, so an unpinned "halfway house is open" was
+     * taking the screen from the thing a player opens this page to press.
+     *
+     * Asserted as a PARTITION rather than as two strings that happen to be
+     * present — pinned and not-pinned, nothing else — so a filter that grew a
+     * third condition and started hiding notices fails here.
+     * `e2e/player-round.spec.ts` renders it and checks the order.
+     */
     const me = readSource("src", "app", "(player)", "me", "page.tsx");
     expect(me).toMatch(/announcementsFor\(session\.eventId\)/);
-    expect(me).toMatch(/<AnnouncementList items=\{announcements\} \/>/);
+
+    const lists = me.match(/<AnnouncementList items=\{[^}]*\}/g) ?? [];
+    expect(lists.length, "both halves of the split must render").toBe(2);
+    expect(lists.some((l) => /filter\(\(a\) => a\.pinned\)/.test(l))).toBe(true);
+    expect(lists.some((l) => /filter\(\(a\) => !a\.pinned\)/.test(l))).toBe(true);
   });
 
   it("still shows them to staff on the dashboard", () => {
