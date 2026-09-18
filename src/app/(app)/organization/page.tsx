@@ -54,12 +54,34 @@ export default async function OrganizationPage() {
        * disagreed about the same number, on the same screen.
        */
       _count: {
-        select: { events: { where: { shape: { not: "match" } } }, members: true },
+        select: { events: { where: { shape: { not: "match" } } } },
       },
     },
   });
   if (!org) redirect("/dashboard");
 
+  /**
+   * ONE STAFF NUMBER, and it is the one that can refuse somebody.
+   *
+   * The Staff card read `_count.members` — rows in `OrganizationMember` — while
+   * the plan panel a few hundred lines below reads `limitStatus`, which counts
+   * a SEAT: anybody holding organizer or assistant rights anywhere in the club,
+   * including on a single event, deduplicated by email. `limits.ts` explains
+   * why it has to be that way, and the sentence is the whole argument: counting
+   * club membership alone "would have made the limit meaningless … anyone could
+   * add unlimited staff by granting them on each event instead".
+   *
+   * So the two disagreed on the same screen. Measured on a club with an event
+   * organizer and a league secretary and no OrganizationMember rows at all: the
+   * card said 0, the allowance said 2. On the free plan, which includes one
+   * seat, that club is refused the next person it adds while its own settings
+   * page shows it has none.
+   *
+   * The events number beside it had exactly this bug and it is already fixed —
+   * see the comment on the `_count` above, which ends "disagreed about the same
+   * number, on the same screen". This is the other half of that fix.
+   */
+  const standing = await limitStatus(org.id);
   const handicaps = await integrationSetup(org.id);
 
   /**
@@ -127,7 +149,7 @@ export default async function OrganizationPage() {
         communityNoun={org.communityNoun}
         plan={org.subscription?.plan ?? "free"}
         eventCount={org._count.events}
-        memberCount={org._count.members}
+        memberCount={standing.staffSeats.current}
         canEdit={canEdit}
       />
       </section>
@@ -252,7 +274,9 @@ export default async function OrganizationPage() {
           club runs, so it is where the question of what the club is paying
           for belongs. */}
       <SettingsSectionAnchor id="plan">
-        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={await limitStatus(org.id)} />
+        {/* The SAME `standing` the Staff card above is drawn from, resolved
+            once. Two calls would be two truths the moment one of them moved. */}
+        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={standing} />
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
