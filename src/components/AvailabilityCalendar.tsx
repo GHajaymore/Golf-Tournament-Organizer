@@ -142,10 +142,7 @@ export function AvailabilityCalendar({
               decoration — every square already carries its own date in its
               accessible name — and a `row` of nothing but hidden cells is an
               empty row to anything reading the structure. */}
-          <div
-            aria-hidden
-            style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}
-          >
+          <div aria-hidden className="cal-week">
             {WEEKDAY_INITIALS.map((d, i) => (
               <div
                 key={`${d}${i}`}
@@ -170,11 +167,7 @@ export function AvailabilityCalendar({
             style={{ display: "grid", gap: 4 }}
           >
             {m.weeks.map((week, wi) => (
-              <div
-                key={week[0]?.iso ?? wi}
-                role="row"
-                style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}
-              >
+              <div key={week[0]?.iso ?? wi} role="row" className="cal-week">
                 {week.map((day) => (
                   <Square
                     key={day.iso}

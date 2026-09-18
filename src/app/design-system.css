@@ -291,6 +291,50 @@ figcaption {
    `anywhere` covers the club whose name has no spaces to break at. */
 .btn-block { width: 100%; margin-top: var(--space-2); white-space: normal; overflow-wrap: anywhere; }
 
+/* A WEEK OF A CALENDAR: seven columns, whatever else is going on.
+
+   This lived as an inline style on every week row and on the weekday strip,
+   and on a 375px phone it was not being applied — measured 2026-09-18, the
+   computed value came back as a single 311px track while the element's own
+   style attribute and its CSSOM entry both read
+   `repeat(7, minmax(0, 1fr))`. The result was one date per row: a month drawn
+   as forty-two stacked bars, 1,859px per month, and the availability card
+   alone was 4,121px of a 4,932px page — 83% of the player's screen, for a
+   league with four rounds in it.
+
+   THE MECHANISM IS NOT UNDERSTOOD, and that is written down rather than
+   dressed up, because the next person will meet it somewhere else. What was
+   ruled out, each by measurement on the live page:
+
+     - a competing author rule. Every stylesheet was searched for another
+       `grid-template-columns` — including `!important`, the `grid` and
+       `grid-template` shorthands, adopted stylesheets and raw `<style>`
+       text. There is none;
+     - invalid CSS. The author's exact string applies correctly to a fresh
+       element on the same page, and the CSSOM parsed it on the real one:
+       `el.style.gridTemplateColumns` reads back the full value;
+     - the parent. Removing the containing grid's own `display: grid` changes
+       nothing;
+     - containment, `zoom`, `transform`, container queries — none present
+       anywhere in the ancestor chain;
+     - inline styles in general. The identical shape works inline on the
+       scorecard's `repeat(3, minmax(0, 1fr))` two screens away.
+
+   Two things DO change it: the same rule from a class, and the same rule
+   marked `!important`. A clone of the row mounted at body level also lays out
+   correctly with the inline style, so something in the ancestry is implicated
+   even though the immediate parent is not.
+
+   The class is where this belonged anyway — `.sc` and the other grids in this
+   file are classes for the same reason — so the fix is the thing that should
+   have been done first rather than a workaround. `e2e/player-calendar.spec.ts`
+   measures it at three viewports so it cannot come back quietly. */
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
 /* — forms — */
 .field > label {
   display: block; font-size: 12px; margin-bottom: 6px; font-weight: 500;
