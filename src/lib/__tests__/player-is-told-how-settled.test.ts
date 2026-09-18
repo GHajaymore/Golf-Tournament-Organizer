@@ -55,9 +55,34 @@ describe("the player's position says whether it can move", () => {
      * of completing an incomplete one.
      */
     const page = readSource("src", "app", "(player)", "me", "page.tsx");
-    expect(page).toContain("me.standing.note");
-    expect(page.indexOf("me.standing.note")).toBeGreaterThan(page.indexOf("me.standing?.position"));
-    expect(page.indexOf("me.standing.note")).toBeLessThan(page.indexOf("me.standing?.scoreLabel"));
+
+    /**
+     * Today was rebuilt round-first on 2026-09-18: the SCORE moved into the
+     * hero at the top and the POSITION became its own row beneath it. The
+     * rule this pins survives the move, so it is asserted against the new
+     * layout rather than against the old variable names.
+     */
+    // The hero carries the score, and the qualifier is NOT in it.
+    const heroStart = page.indexOf('aria-label="Your round"');
+    const heroEnd = page.indexOf("</section>", heroStart);
+    expect(heroStart, "the round-first hero is gone").toBeGreaterThan(-1);
+    const hero = page.slice(heroStart, heroEnd);
+    expect(hero).toContain("standing?.scoreLabel");
+    expect(hero, "the qualifier moved beside the score").not.toContain("standing.note");
+
+    // The position row carries the place, and the qualifier sits under it.
+    const rowStart = page.indexOf('href="/me/board"');
+    const rowEnd = page.indexOf("</Link>", rowStart);
+    const row = page.slice(rowStart, rowEnd);
+    expect(row).toContain("standing.position");
+    expect(row).toContain("standing.note");
+    expect(row.indexOf("standing.note")).toBeGreaterThan(row.indexOf("standing.position"));
+
+    // And the card a match player still sees keeps the old order: place,
+    // then its qualifier, then the score label.
+    const card = page.slice(page.indexOf('"Position"'));
+    expect(card.indexOf("standing.note")).toBeGreaterThan(-1);
+    expect(card.indexOf("standing.note")).toBeLessThan(card.indexOf("standing.scoreLabel"));
   });
 
   it("says nothing once the tournament is closed", () => {
