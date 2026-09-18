@@ -193,3 +193,17 @@ meets on a Thursday afternoon, and the seat limit is the live example — a club
 at its cap cannot add the organizer who just asked to join. Grandfathering and
 the wording of each refusal are part of the tier decision, not an afterthought
 to it.
+
+**A club can at least SEE where it stands on seats now, which it could not
+before** (#450). Club settings counted rows in `OrganizationMember` under the
+kicker "Staff" while the plan panel on the same screen counted seats — so a
+club whose organizers were named on tournaments rather than on the club read
+**Staff 0** while its allowance counted two. On free, which includes one seat,
+that club is refused the next person it adds by a limit its own settings page
+has just told it it is nowhere near.
+
+That bears on the decision above rather than on the tiers themselves: a refusal
+is a very different experience when the number that caused it has been on
+screen all along, and every tier this ladder adds will have the same
+requirement — **the screen that shows a limit and the code that enforces it
+must be reading the same number.**

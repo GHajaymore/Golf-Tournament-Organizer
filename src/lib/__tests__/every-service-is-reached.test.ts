@@ -90,8 +90,18 @@ function serviceFiles(): string[] {
  * the opposite of what a test for it should do: `memberHistory` gained proper
  * coverage and would have been reported as reached, with no screen anywhere.
  *
- * `e2e` and `scripts` DO count. Both drive the real app, so a service one of
- * them reaches is genuinely in use.
+ * `scripts/` DOES count — those are the tools an operator actually runs.
+ *
+ * `e2e/` DOES NOT, and that was wrong here for a day. The comment said "both
+ * drive the real app", which is true of what an e2e spec DOES and not of what
+ * it IMPORTS: a spec that called a service directly would be a test standing in
+ * for a way to use the feature, which is the same mistake as counting a unit
+ * test. `every-endpoint-is-reachable.test.ts` reached that conclusion first and
+ * says it plainly — "a test may PROVE an action works and may not stand in for
+ * a way to use it" — so the two registers now agree on what a caller is.
+ *
+ * Measured before changing it: no file under `e2e/` imports a service at all,
+ * so nothing moved. This closes the door rather than clearing a backlog.
  */
 function callerFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -106,7 +116,6 @@ function callerFiles(dir: string, out: string[] = []): string[] {
 const SERVICES = serviceFiles();
 const CALLERS = [
   ...callerFiles(join(process.cwd(), "src")),
-  ...callerFiles(join(process.cwd(), "e2e")),
   ...callerFiles(join(process.cwd(), "scripts")),
 ];
 // Comments stripped — otherwise every function is "called" by the paragraph
