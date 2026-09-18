@@ -129,8 +129,22 @@ export default async function PlayTodayPage() {
        * High, under the expiry warning and above everything else: a notice is
        * "tee times are back an hour", which is worth less the further down it
        * is. The banner above it still leads, because that one has a deadline.
+       *
+       * PINNED ONLY, SINCE 2026-09-18, and the rest sit under the round below.
+       * The sentence above is still right and is the reason the split falls
+       * here rather than somewhere arbitrary: pinning is the organizer SAYING
+       * this one is worth the top of the screen, and `/announcements` promises
+       * exactly that — "Pinned posts sit at the top of every player's
+       * dashboard". An unpinned "halfway house is open" was taking that space
+       * from the player's own card.
+       *
+       * Measured at 375x812 before the change: the card's own button — the
+       * thing a player opens this screen to press — sat at y=765 behind a
+       * navigation bar fixed from y=747. The primary action was underneath the
+       * navigation on first load, and moving 70px of club notices below the
+       * round is what puts it back on screen.
        */}
-      <AnnouncementList items={announcements} />
+      <AnnouncementList items={announcements.filter((a) => a.pinned)} />
 
       {!me.playerId && (
         <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
@@ -379,6 +393,17 @@ export default async function PlayTodayPage() {
               </>
             )}
           </section>
+
+          {/* THE REST OF WHAT THE CLUB POSTED, under the player's own round.
+              Same list, same component, same order — the only thing that
+              changed is that an unpinned notice no longer comes before the
+              card. See the note beside the pinned list above for the
+              measurement that moved it. */}
+          {announcements.some((a) => !a.pinned) && (
+            <div style={{ marginTop: 12 }}>
+              <AnnouncementList items={announcements.filter((a) => !a.pinned)} />
+            </div>
+          )}
 
           {/* Am I playing, and when. Last because it is about weeks to come
               rather than this morning — but present at all for the first time:
