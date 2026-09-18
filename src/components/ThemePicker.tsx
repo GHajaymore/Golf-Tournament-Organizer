@@ -513,7 +513,7 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
           <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15 }}>
             Leaderboard
           </span>
-          <span style={{ fontSize: 11, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
             after Round 2
           </span>
         </div>
@@ -578,7 +578,7 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
           >
             Publish
           </span>
-          <span style={{ fontSize: 11, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
             {accent.name}
             {secondary.key === "fairway" ? "" : ` + ${secondary.name}`}
           </span>

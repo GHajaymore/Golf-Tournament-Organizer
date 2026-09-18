@@ -51,7 +51,12 @@ export function OrgBrand({ brand, size = LOGO_SIZE.md }: { brand?: Brand | null;
             display: "grid",
             placeItems: "center",
             background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-            color: "var(--color-accent)",
+            // The TEXT step, not `--color-accent` (which is step 500). The
+            // letter sits on a 16% tint of the accent itself, so the surface
+            // moves toward the very colour being read against it: step 500
+            // measures 2.94:1 there for the worst club palette. See
+            // accent-is-not-a-text-colour.test.ts.
+            color: "var(--color-accent-300)",
             // Two letters need to sit smaller than one, or the tile crops.
             fontSize: (brand.monogram ?? "").length > 1 ? size * 0.42 : size * 0.6,
             fontWeight: 600,
@@ -102,7 +107,9 @@ export function OrgBrand({ brand, size = LOGO_SIZE.md }: { brand?: Brand | null;
               fontSize: 10,
               letterSpacing: "0.01em",
               fontWeight: 500,
-              color: "var(--color-accent)",
+              // 10px is the smallest type in the app; step 500 reads 3.48:1
+              // on a card for the worst palette.
+              color: "var(--color-accent-300)",
             }}
           >
             Powered by TourneyHQ

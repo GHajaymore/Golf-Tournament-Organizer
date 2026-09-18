@@ -117,10 +117,14 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         >
           {flow.steps.map((s, i) => {
             const here = s.href === href;
+            // The 300 steps, which are the TEXT steps. This is an 11px bold
+            // uppercase label, and the "Now" pill sits on a 12% tint of the
+            // accent — where step 500 measures 3.05:1 for the worst club
+            // palette, on both grounds. See accent-is-not-a-text-colour.test.ts.
             const tone = s.done
-              ? "var(--color-accent-2)"
+              ? "var(--color-accent-2-300)"
               : s.state === "current"
-                ? "var(--color-accent)"
+                ? "var(--color-accent-300)"
                 : "var(--color-neutral-500)";
             return (
               <li key={s.key} style={{ flex: "1 1 0", minWidth: 132 }}>
