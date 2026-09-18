@@ -88,7 +88,7 @@ test.describe("the launch dialog", () => {
   test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
   /**
-   * Launch is offered for a DRAFT, and the fixture tournament is active — it
+   * Launch is offered for a DRAFT, and the fixture tournament is live — it
    * has a played round and cards against it, which is what the rest of the
    * suite needs. So the status is moved for this test and put back afterwards,
    * the same way `player.spec` moves `leaderboardVisibility`.
@@ -113,7 +113,10 @@ test.describe("the launch dialog", () => {
       await expect(dialog).toContainText(/launch/i);
       await fitsTheViewport(page, dialog, "the launch dialog");
     } finally {
-      await prisma.event.update({ where: { id: data.eventId }, data: { status: "active" } });
+      // Back to what the fixture seeds. These two must move together — see the
+      // note on `status` in `fixture.mjs` for why it is "live" and not
+      // "active", and what an invented status hid.
+      await prisma.event.update({ where: { id: data.eventId }, data: { status: "live" } });
       await prisma.$disconnect();
     }
   });

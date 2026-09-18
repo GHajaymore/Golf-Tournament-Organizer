@@ -87,7 +87,9 @@ async function main() {
       data: {
         name: `${MARK}-event`,
         organizationId: org.id,
-        status: "active",
+        // "live", not "active" — the app never writes "active", and an unknown
+        // status renders with the DRAFT label. See the note in e2e/fixture.mjs.
+        status: "live",
         shape: "single",
         dates: "May 1, 2026",
         course: "",
