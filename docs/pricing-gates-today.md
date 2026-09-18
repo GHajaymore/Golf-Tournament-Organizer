@@ -24,10 +24,28 @@ Two, in `src/lib/plans.ts`: **Free** ($0) and **Club** ($29/month).
 | Attribution hidden (`whiteLabel`) | no | yes | **yes** — `showAttribution` in `services/organization.ts` |
 | Season standings | no | yes | **yes** — `services/series.ts` |
 | SMS · card scan · AI assist | off | **off** | entitlement checks exist and work; all three are dark on **both** tiers, switched off by cost rather than by tier |
+| Honours board (`honours`) | on | on | **gateable, deliberately ungated** — sink in `services/honours.ts` |
+| Public leaderboard (`publicBoard`) | on | on | **gateable, deliberately ungated** — sink in `services/live-board.ts` |
+| Per-club exceptions (`featureOverrides`) | — | — | **yes** — any feature can be turned on or off for one organization without moving its tier |
 | 48-hour retention on Free | declared | — | **nothing purges.** `dueForPurge` has never had a caller outside its own tests |
 
 So the live difference between Free and Club is: **unlimited tournaments, ten
 seats instead of one, no attribution, and season standings.** Nothing else.
+
+**"Gateable, deliberately ungated" is a state, and it is the answer to
+*"start gating the features we need per tier, and make it dynamic"*
+(Ajay, 2026-09-18).** The capability is wired to a sink that can refuse, the
+tier table decides it, and one club can be excepted from its tier — so turning
+it into a tier difference later is editing a boolean in `plans.ts`, not writing
+a gate. It is ON for everybody until the ladder is decided, because choosing
+which tier loses a feature *is* the tier decision, and
+`no-dead-feature-keys.test.ts` fails the day one is switched off, so it cannot
+happen by accident.
+
+Gate at the SINK, never at the screen: `honours` returns an empty list and
+`publicBoard` returns null, so a second screen reading the same service is
+gated without knowing the rule exists. A gate on a screen is a gate the next
+screen forgets.
 
 The retention gap is known and already handled honestly — `retentionNotice`
 says only that the plan "doesn't guarantee that a finished tournament is kept",
@@ -74,13 +92,13 @@ Each row of the proposal's feature table, against the code:
 |---|---|
 | Casual ≤ 8 players · Event ≤ 72 | **none, and the type forbids it** — `playersPerEvent` is typed as the literal `null`, commented "Always unlimited", and the plan panel says "players are always unlimited" on screen |
 | Casual: one round per tournament | **none** — no per-tournament round limit anywhere |
-| Public leaderboard link from Event up | **none** — `leaderboardVisibility` is a per-event setting, not plan-gated |
+| Public leaderboard link from Event up | **gateable, and ON for everybody** — `publicBoard`, withheld at the sink in `services/live-board.ts` (returns null). `leaderboardVisibility` remains the per-event setting and is a separate question |
 | Flights, cuts, brackets, tee sheet from Event up | **none** |
 | Roster & handicap history from Society up | **none** — the Members screen is present for every kind and plan |
 | Season standings from Society up | **exists** (`seasonStandings`) |
-| Honours board on Club | **none** |
+| Honours board on Club | **gateable, and ON for everybody** — `honours`, withheld at the sink in `services/honours.ts` (returns an empty list) |
 | Club branding on Club | **exists** (`whiteLabel`) |
-| Course library: 1 on Event, unlimited above | **none** |
+| Course library: 1 on Event, unlimited above | **no limit, but the door is built** — every `Course` is now created through `addCourseToLibrary` (#446) and nothing else may; the cap is one `refusalFor` call on that line. Its `origin` already carries the exemption a cap needs: a casual round naming its own venue must never be refused |
 | Staff seats 1 / 2 / 5 / 10 | **exists** (`staffSeats`), enforced in three places |
 | Results kept 24h / 12mo / for good | `retentionHours` exists per plan; **nothing enforces it** |
 | Per-active-member pricing | **none** — no active-member count, and `LimitKey` is only `"activeEvents" \| "staffSeats"` |
@@ -95,7 +113,11 @@ code currently asserts the opposite in public:
 2. **Feature gating by tier.** Everything in the "from Event up" and "from
    Society up" rows is presently available to everyone, including on Free. The
    proposal's own distinction holds — gating by purchased TIER is ordinary,
-   gating by self-declared KIND is not — but the gates themselves are unwritten.
+   gating by self-declared KIND is not. Two of those rows now have their
+   machinery (`honours`, `publicBoard`) and are ungated by choice; the rest —
+   flights, cuts, brackets, the tee sheet, the roster — have no sink wired at
+   all, and wiring one is a product decision about what Free stops being, not a
+   refactor.
 
 ---
 
@@ -129,6 +151,20 @@ code currently asserts the opposite in public:
 - **Guest costs no seat** (#429), so a charity field or a league substitute
   never counts against the cap. That stays true at any tier and should survive
   the redesign.
+- **The course library has one door now** (#446), which is the prerequisite the
+  "1 course on Event" row needed — four separate creates could not have been
+  capped without four separate guards, and two of them were already forgetting
+  the duplicate check they did have. The cap is one line on that door when the
+  ladder says what it is. It also closed a live defect on the way: pasting the
+  same scorecard twice made a second course, and two rows for one golf course
+  are not interchangeable when one carries the real stroke index.
+- **A tier limit needs an exemption vocabulary, and the door is the first place
+  it exists.** `origin` distinguishes a club building its library from a casual
+  round naming where it was played. Every limit the ladder adds will need the
+  same distinction somewhere, because the casual round is the free product and
+  must never be refused for a paid allowance being full — `limits.ts` already
+  makes that argument for tournaments, and this is the second instance of it.
+  Worth deciding once, generally, rather than per gate.
 
 ---
 
