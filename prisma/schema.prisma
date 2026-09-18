@@ -721,6 +721,30 @@ model Subscription {
   providerCustomerId     String?
   providerSubscriptionId String?
   currentPeriodEnd       DateTime?
+  /**
+   * THIS CLUB'S EXCEPTIONS TO ITS TIER, as `{"honours": true}`.
+   *
+   * The dynamic half of the gating. A tier is a rule about a class of
+   * customers; this is the answer for one of them, and every product that
+   * charges by tier needs it within a month of charging anything:
+   *
+   *   - GRANDFATHERING. A club that had a feature before it was priced keeps
+   *     it. The alternative is telling paying customers their app got smaller,
+   *     and the alternative to that is never moving a feature between tiers.
+   *   - a trial of one capability, for one club, without a deploy.
+   *   - turning something off for one tenant when it is going wrong for them,
+   *     at three in the morning, without shipping code.
+   *
+   * JSON in a string column rather than a table of rows: it is read on nearly
+   * every entitlement check and written by hand a handful of times a year, so
+   * the shape that costs nothing to read wins. Unknown keys and malformed JSON
+   * are ignored by `featureOverrides` in plans.ts — a typo here must never be
+   * able to lock a club out of its own tournaments.
+   *
+   * An override is an EXCEPTION and not a tier. Anything true of a whole tier
+   * belongs in `plans.ts`, where it can be read, tested and priced.
+   */
+  featureOverrides       String    @default("")
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

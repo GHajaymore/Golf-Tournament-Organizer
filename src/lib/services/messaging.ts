@@ -15,8 +15,8 @@ import {
   type SmsRecipient,
 } from "@/lib/domain/sms";
 import { sendSms, smsConfig } from "@/lib/sms";
-import { hasFeature, METERED_FEATURES } from "@/lib/plans";
-import { planForOrganization } from "@/lib/services/entitlements";
+import { METERED_FEATURES } from "@/lib/plans";
+import { organizationAllows } from "@/lib/services/entitlements";
 import {
   scopeKey,
   parseScopeKey,
@@ -926,7 +926,7 @@ export async function planSmsBroadcast(
   // Not on this plan: report it as the reason rather than as a carrier
   // problem, and say what still happens. An organizer who reads "SMS isn't
   // configured" will go looking for a setting that isn't the issue.
-  if (!hasFeature(await planForOrganization(ctx.organizationId), "sms")) {
+  if (!(await organizationAllows(ctx.organizationId, "sms"))) {
     return {
       text: composed.text,
       segmentsEach: plan.segmentsEach,
@@ -984,7 +984,7 @@ export async function broadcastWithSms(
   // the endpoint directly cannot spend the club's money. The in-app message
   // above has already been written and is not affected — a club without texting
   // still reaches everybody, which is the point of the ordering.
-  if (!hasFeature(await planForOrganization(ctx.organizationId), "sms")) {
+  if (!(await organizationAllows(ctx.organizationId, "sms"))) {
     return { ...posted, texted: 0, failed: 0, skipped: 0 };
   }
 

@@ -2,13 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, stripComments } from "./source";
-import {
-  PLANS,
-  planFor,
-  hasFeature,
-  upgradeBenefits,
-  METERED_FEATURES,
-} from "@/lib/plans";
+import { PLANS, planFor, hasFeature, upgradeBenefits, METERED_FEATURES, FEATURE_KEYS, type Plan } from "@/lib/plans";
 
 /**
  * The features that cost money every time somebody uses them.
@@ -90,9 +84,16 @@ describe("the upgrade pitch", () => {
   it("says nothing at all once everything is on", () => {
     // The state after the flags flip. If this starts failing, the benefits
     // list is offering something that is already included.
+    /**
+     * DERIVED from the key list rather than written out, because written out
+     * is what broke: this listed five features by hand, and the day five
+     * became ten it stopped compiling — which was the lucky outcome. Had the
+     * new keys been optional it would have gone on passing while testing a
+     * plan shape the app no longer has.
+     */
     const everything = {
       ...PLANS.club,
-      features: { whiteLabel: true, seasonStandings: true, sms: true, cardScan: true, aiAssist: true },
+      features: Object.fromEntries(FEATURE_KEYS.map((k) => [k, true])) as Plan["features"],
     };
     const listed = METERED_FEATURES.filter((f) => !everything.features[f.key]);
     expect(listed).toEqual([]);
@@ -120,8 +121,15 @@ describe("every metered feature is actually gated", () => {
       // sometimes `hasFeature(await planForOrganization(id), "sms")`, and the
       // inner `)` defeats any [^)]* pattern.
       const lines = readSource("src", file).split("\n");
+      /**
+       * `organizationAllows` joined this list when the gates became dynamic.
+       * It is the read that consults a club's own overrides as well as its
+       * tier, and messaging.ts moved to it — so a guard that knew only the
+       * older two would have reported the SMS spender as ungated on the day it
+       * became better gated.
+       */
       const gated = lines.some(
-        (l) => /entitlementForEvent|hasFeature/.test(l) && l.includes(`"${feature}"`),
+        (l) => /entitlementForEvent|organizationAllows|hasFeature/.test(l) && l.includes(`"${feature}"`),
       );
       expect(gated, `${file} must gate on ${feature}`).toBe(true);
     });

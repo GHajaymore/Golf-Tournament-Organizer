@@ -95,6 +95,32 @@ export interface Plan {
     /** AjAi: drafted commentary, invitations, and setup suggestions. The flag
      *  keeps the neutral name; the label people read is the brand. */
     aiAssist: boolean;
+
+    /**
+     * ON FOR EVERYBODY, AND HERE ON PURPOSE.
+     *
+     * Ajay, 2026-09-18: "while building please start gating the features we
+     * need to provide per tiers. And make it dynamic." The tiers themselves are
+     * not decided — three to five of them, priced, once the app is ready — so
+     * switching anything OFF today would be choosing a ladder by accident.
+     *
+     * What the gate buys is that the choosing is later a DATA change: the day a
+     * tier says no, one boolean in this file says it, with nothing to wire and
+     * no screen still showing what the response withheld.
+     *
+     * ONE KEY PER PR, AND ONLY WHEN IT IS WIRED. Five were added here at once
+     * and `no-dead-feature-keys.test.ts` refused four of them on the spot:
+     * declared on every plan, read by nothing, indistinguishable from a working
+     * gate when read from this file or from a pricing page generated off it.
+     * That is the `seasonPlay` lesson — a flag in `org-profile.ts` that gates
+     * nothing to this day and was found only because somebody tried to
+     * advertise it. The remaining four (the public board, flights, the roster,
+     * the course library) come back one at a time, each with the sink that
+     * refuses and the test that proves it.
+     */
+
+    /** The honours board — who won what, kept beyond the tournaments. */
+    honours: boolean;
   };
 }
 
@@ -113,7 +139,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // to upgrade, and the single most important thing to say before anyone
     // plays — one number, read by every surface that mentions it.
     retentionHours: 48,
-    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false },
+    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true },
   },
   club: {
     key: "club",
@@ -132,7 +158,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // Flipping them here is the whole of turning them on, and the upgrade
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
-    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false },
+    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true },
   },
 };
 
@@ -244,6 +270,17 @@ export function keepsDataForever(planKey: string): boolean {
 export type FeatureKey = keyof Plan["features"];
 
 /**
+ * Every feature key, at RUNTIME — because a type is erased and an override is
+ * a string somebody typed.
+ *
+ * Derived from a plan rather than written out again: `Object.keys` of the free
+ * tier's features IS the set, so a key added to the interface appears here
+ * without anybody remembering, and a list that drifts from the interface
+ * cannot exist. `no-dead-feature-keys.test.ts` pins that it stays that way.
+ */
+export const FEATURE_KEYS: FeatureKey[] = Object.keys(PLANS.free.features) as FeatureKey[];
+
+/**
  * Is this feature switched on for this plan?
  *
  * One entry point, so a feature is never gated by an inline plan comparison
@@ -252,6 +289,60 @@ export type FeatureKey = keyof Plan["features"];
  */
 export function hasFeature(planKey: string | null | undefined, feature: FeatureKey): boolean {
   return planFor(planKey).features[feature] === true;
+}
+
+/**
+ * ONE CLUB'S EXCEPTIONS TO ITS TIER, parsed from what is stored.
+ *
+ * A pure function over a string, so the rule can be tested without a database
+ * and so the one place that decides what an override MEANS is not inside a
+ * query.
+ *
+ * REFUSES TO THROW, and that is the whole design. This value is hand-edited —
+ * that is its purpose — and it is read on the way to answering "may this club
+ * do the thing it is trying to do right now". Malformed JSON, a string where a
+ * boolean belongs, a key from a feature that has since been renamed: every one
+ * of them is ignored, and the club falls back to exactly what its tier says.
+ * A typo in an operations column must never be able to lock a club out of its
+ * own tournaments.
+ */
+export function featureOverrides(stored: string | null | undefined): Partial<Record<FeatureKey, boolean>> {
+  const raw = (stored ?? "").trim();
+  if (!raw) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+  const out: Partial<Record<FeatureKey, boolean>> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    // Both halves matter: a key nothing knows about is ignored rather than
+    // stored, and a truthy string like "false" is NOT a boolean and is not
+    // treated as one. JSON written by hand contains both mistakes.
+    if (!FEATURE_KEYS.includes(key as FeatureKey)) continue;
+    if (typeof value !== "boolean") continue;
+    out[key as FeatureKey] = value;
+  }
+  return out;
+}
+
+/**
+ * What this club may do, tier and exceptions together.
+ *
+ * The ONE answer. Callers ask this rather than reading `features` themselves,
+ * so an override cannot be honoured on one screen and forgotten on another —
+ * the shape `standingRows` uses when it returns `[]` on its first line.
+ */
+export function featureAllowed(
+  planKey: string | null | undefined,
+  overrides: string | null | undefined,
+  feature: FeatureKey,
+): boolean {
+  const exception = featureOverrides(overrides)[feature];
+  return exception ?? hasFeature(planKey, feature);
 }
 
 /**

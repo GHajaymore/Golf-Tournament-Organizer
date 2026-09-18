@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { DEFAULT_PLAN, hasFeature, METERED_FEATURES, type FeatureKey } from "@/lib/plans";
+import { DEFAULT_PLAN, featureAllowed, METERED_FEATURES, type FeatureKey } from "@/lib/plans";
 
 /**
  * What a club's plan entitles it to.
@@ -23,6 +23,32 @@ export async function planForOrganization(organizationId: string): Promise<strin
     select: { plan: true },
   });
   return sub?.plan ?? DEFAULT_PLAN;
+}
+
+/**
+ * MAY THIS CLUB DO THIS? The one question, and the one place it is answered.
+ *
+ * Tier first, then this club's own exceptions — `featureAllowed` decides which
+ * wins, and it is a pure function so the rule is testable without a database.
+ *
+ * WHY EVERY GATE COMES THROUGH HERE rather than reading `hasFeature` on a plan
+ * key it fetched itself: an override honoured in one place and forgotten in
+ * another is worse than no override at all. A club told it has the honours
+ * board, on a screen that then shows nothing, has been lied to twice.
+ *
+ * No row means the free tier, which is what `planForOrganization` already
+ * says. A club with no subscription row and an override is not a state that
+ * exists — the override lives ON the subscription.
+ */
+export async function organizationAllows(
+  organizationId: string,
+  feature: FeatureKey,
+): Promise<boolean> {
+  const sub = await prisma.subscription.findUnique({
+    where: { organizationId },
+    select: { plan: true, featureOverrides: true },
+  });
+  return featureAllowed(sub?.plan ?? DEFAULT_PLAN, sub?.featureOverrides, feature);
 }
 
 /** The plan key for the club that owns an event. */
@@ -53,7 +79,21 @@ export async function entitlementForEvent(
   eventId: string,
   feature: FeatureKey,
 ): Promise<Entitlement> {
-  if (hasFeature(await planForEvent(eventId), feature)) return { allowed: true };
+  /**
+   * THE CLUB, not the plan key, because a club's exceptions are the club's.
+   *
+   * This read `hasFeature(planForEvent(...))`, which answers from the tier
+   * alone — so a club grandfathered into a feature would have been allowed it
+   * everywhere `organizationAllows` is asked and refused it everywhere this
+   * is, which is four of the app's gates. One question, one answer.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organizationId: true },
+  });
+  if (!event) return { allowed: featureAllowed(DEFAULT_PLAN, "", feature) };
+
+  if (await organizationAllows(event.organizationId, feature)) return { allowed: true };
   const row = METERED_FEATURES.find((f) => f.key === feature);
   return { allowed: false, reason: row?.locked ?? "That isn't included in your plan." };
 }
