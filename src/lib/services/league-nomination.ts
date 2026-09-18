@@ -30,6 +30,9 @@ export interface NomineeRow {
   playerId: string;
   name: string;
   handicap: number;
+  handicapType?: string | null;
+  /** ghin | manual | none — see indexLabel. A captain must not pick a pair on a figure nobody has claimed. */
+  handicapSource?: string | null;
   /**
    * What the player said, resolved through the round's attendance mode — so an
    * opt-out league reads silence as "in" and an opt-in one reads it as "out",
@@ -66,7 +69,7 @@ export async function nominationsFor(
     prisma.group.findFirst({
       where: { id: clubId, eventId, isCarrier: false },
       include: {
-        players: { select: { id: true, name: true, handicap: true } },
+        players: { select: { id: true, name: true, handicap: true, handicapType: true, handicapSource: true } },
         captain: { select: { name: true } },
       },
     }),
@@ -119,6 +122,8 @@ export async function nominationsFor(
       playerId: p.id,
       name: p.name,
       handicap: p.handicap,
+      handicapType: p.handicapType,
+      handicapSource: p.handicapSource,
       available: a ? a.available : true,
       answered: a ? a.answered : false,
       pairId: inPair?.id ?? "",

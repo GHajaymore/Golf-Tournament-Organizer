@@ -175,6 +175,9 @@ export interface ModStablefordRow {
   playerId: string;
   name: string;
   handicap: number;
+  handicapType?: string | null;
+  /** ghin | manual | none — see indexLabel. */
+  handicapSource?: string | null;
   points: number;
   played: number;
   gross: number;
@@ -190,7 +193,7 @@ export async function modifiedStablefordBoard(
     prisma.scorecard.findMany({ where: { eventId, stageId } }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, name: true, handicap: true },
+      select: { id: true, name: true, handicap: true, handicapType: true, handicapSource: true },
       orderBy: { seed: "asc" },
     }),
     playingHandicapFor(eventId, stageId),
@@ -214,7 +217,18 @@ export async function modifiedStablefordBoard(
       gross += s;
       played += 1;
     }
-    return { playerId: p.id, name: p.name, handicap: p.handicap, points, played, gross };
+    return {
+      playerId: p.id,
+      name: p.name,
+      handicap: p.handicap,
+      // The source travels with the figure, so the board can tell a claimed
+      // scratch handicap from nobody having claimed one at all.
+      handicapType: p.handicapType,
+      handicapSource: p.handicapSource,
+      points,
+      played,
+      gross,
+    };
   });
 
   // Highest points wins. Unlike standard Stableford there is no floor at zero,

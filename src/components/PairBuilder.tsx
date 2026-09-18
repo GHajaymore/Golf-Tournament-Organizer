@@ -1,5 +1,6 @@
 "use client";
 
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState, useTransition } from "react";
 import { nominatePair, withdrawPair } from "@/app/actions/league";
 import { Icon } from "@/components/Icon";
@@ -157,7 +158,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
                     <span>
                       {r.name}{" "}
                       <span className="text-muted" style={{ fontSize: 12 }}>
-                        ({r.handicap})
+                        ({indexLabel(r)})
                       </span>
                     </span>
                     {/* Said so, or merely assumed by the round's mode. A

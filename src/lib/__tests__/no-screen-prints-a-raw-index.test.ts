@@ -56,14 +56,16 @@ const RAW = [
  * list without somebody writing a line here saying why.
  */
 const ALLOWED: Record<string, string> = {
-  "FlightBoard.tsx": "Flight standings. Needs the source plumbed from the flights page.",
-  "NewMatchForm.tsx": "Picking two players for a casual match — a personal outfit, where indexes are typed and `none` is rare. Lowest stakes of the eight.",
-  "PairBuilder.tsx": "League nominations: the roster list a captain picks a pair from.",
-  "PointsLeaderboard.tsx": "The points board. Reads a standings row rather than a player, so the source has to come through the standings service.",
-  "RosterPicker.tsx": "Choosing club members to add to a field. Reads `RosterCandidate`, which carries the source already — the smallest of the eight to finish.",
-  "TeamEntryClient.tsx": "Team score entry: the pair's two names and figures.",
-  "TeamsClient.tsx": "Team lists. Same shape as the flight board.",
-  "TeeSheetPrint.tsx": "The printed tee sheet. Worth care: this is the sheet a starter holds, so 'no index' has to fit the column it prints in.",
+  // EMPTY, AND THAT IS THE POINT. This list held eight screens the day it was
+  // written — the flight board, the tee sheet a starter holds, the points
+  // board, the league pair builder and four others — each with what it would
+  // take to finish. They are all finished. The list stays because the next
+  // screen to print a bare index has to come through here and say why.
+  //
+  // One entry, and it is the reason an allowlist beats a rule with no
+  // exceptions: this one is not the same shape at all.
+  "NewMatchForm.tsx":
+    "A casual round's own picker, whose `handicap` is a STRING — '+2' for a plus-handicap, already formatted by the form that typed it. It is not a stored Player figure and has no source to ask about; a casual round belongs to a person, not a club playing off association indexes. Passing it to indexLabel is a type error, which is the type system making the same point.",
 };
 
 describe("nothing prints an index without asking whether there is one", () => {

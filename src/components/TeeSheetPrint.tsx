@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
 import { Icon } from "./Icon";
 
@@ -15,7 +16,7 @@ export interface PrintGroup {
    * field prints each player their own. Empty when the course has no rated
    * tees, in which case the card says nothing rather than inventing a set.
    */
-  players: Array<{ name: string; handicap: number; tee?: string }>;
+  players: Array<{ name: string; handicap: number; handicapType?: string | null; handicapSource?: string | null; tee?: string }>;
 }
 
 /**
@@ -163,7 +164,7 @@ export function TeeSheetPrint({
                 {g.players.map((p) => (
                   <tr key={p.name} style={{ height: 30 }}>
                     <td>
-                      {p.name} <span style={{ fontSize: 9 }}>({p.handicap})</span>
+                      {p.name} <span style={{ fontSize: 9 }}>({indexLabel(p)})</span>
                       {p.tee ? (
                         <span style={{ fontSize: 8.5, marginLeft: 4, opacity: 0.75 }}>{p.tee}</span>
                       ) : null}
