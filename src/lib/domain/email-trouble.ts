@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset" | "invite" | "field";
+export type EmailKind = "registration" | "reset" | "invite" | "field" | "join";
 
 /**
  * Classify a provider error.
@@ -145,6 +145,16 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One player was not told their place in the field changed, so they may not know whether they are playing."
       : `${n} players were not told their place in the field changed, so they may not know whether they are playing.`,
+  /**
+   * The person who asked is waiting and cannot chase anybody — they were given
+   * a name, deliberately never an address. So the consequence is stated from
+   * the club's side: somebody is sitting there, and the request is on the
+   * access screen whether or not this mail arrived.
+   */
+  join: (n) =>
+    n === 1
+      ? "One request to join did not reach you by email, so somebody may be waiting — it is still on the access screen."
+      : `${n} requests to join did not reach you by email, so those people may be waiting — they are still on the access screen.`,
 };
 
 /** Who was affected, derived from the rows rather than from counts passed in. */

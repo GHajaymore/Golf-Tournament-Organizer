@@ -51,7 +51,8 @@ export type RateLimitKind =
   | "round-code"
   | "register-token"
   | "register-email"
-  | "card-photo";
+  | "card-photo"
+  | "join-request";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -103,6 +104,17 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  entered in one sitting, with re-takes, and stops a stuck loop running up
    *  a bill nobody authorised. */
   "card-photo": { limit: 40, windowMs: 60 * MINUTE },
+  /**
+   * Asking a club to let you in. It sends mail to somebody who did not ask to
+   * hear from you, which is the same risk `password-reset` guards — a way to
+   * make this app pester a stranger's inbox.
+   *
+   * Tight on purpose: a person asks their own club to add them once, perhaps
+   * twice if they mistype the name. Three an hour is already generous, and the
+   * unique row per person per outfit means the second ask updates the first
+   * rather than sending a second mail.
+   */
+  "join-request": { limit: 3, windowMs: 60 * MINUTE },
 };
 
 /**
@@ -272,5 +284,7 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return "Too many card readings just now. Wait a few minutes, or type the scores in.";
     case "register-email":
       return `Too many registration attempts. Wait ${wait} and try again.`;
+    case "join-request":
+      return `Too many requests to join. Wait ${wait} and try again.`;
   }
 }

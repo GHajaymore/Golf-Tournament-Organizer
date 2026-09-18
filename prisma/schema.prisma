@@ -41,6 +41,7 @@ model User {
 
   resetTokens PasswordResetToken[]
   memberships OrganizationMember[]
+  joinRequests JoinRequest[]
 }
 
 /**
@@ -331,6 +332,7 @@ model Organization {
   locale         String @default("en-US")
 
   members      OrganizationMember[]
+  joinRequests JoinRequest[]
   roster       Member[]
   courses      Course[]
   events       Event[]
@@ -631,6 +633,46 @@ model Member {
  * Staff membership in an organization. Distinct from per-event Account
  * roles: this is who belongs to the club, not who does what in one event.
  */
+/**
+ * SOMEBODY ASKING TO BE LET INTO AN OUTFIT THAT IS ALREADY HERE.
+ *
+ * The other half of the same-name warning. That warning tells the second
+ * secretary of a Thursday league "ask them to add you" and then abandons them:
+ * they have to find the other organizer's phone number themselves, and the
+ * app will not give it to them. This is that ask, made in the app, without
+ * either person learning anything about the other they should not.
+ *
+ * ONE ROW PER PERSON PER OUTFIT — `@@unique` — so asking twice updates the
+ * first ask rather than filling the club's screen with copies of one person.
+ *
+ * `status` is pending | approved | declined, and a declined row is KEPT. It is
+ * what stops the same person asking forty times, and it is the record of a
+ * decision somebody made about somebody else, which is not a thing to delete
+ * quietly.
+ */
+model JoinRequest {
+  id             String   @id @default(cuid())
+  organizationId String
+  /** The person asking. They are signed in; that is the whole identification. */
+  userId         String
+  /** One line of their own: "I run the Thursday draw with Dana." Optional. */
+  note           String   @default("")
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  decidedAt      DateTime?
+  /** Who answered it, by name, so the club can see who let somebody in. */
+  decidedBy      String   @default("")
+  /** The role they were given on approval — owner | admin | member | guest. */
+  decidedRole    String   @default("")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([userId])
+}
+
 model OrganizationMember {
   id             String   @id @default(cuid())
   organizationId String
