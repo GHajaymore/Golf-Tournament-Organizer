@@ -210,6 +210,73 @@ describe("a stroke round, which has no fixtures", () => {
     expect(r.holesReturned).toBe(9);
   });
 
+  it("is NOT final while one player is still out on the course", () => {
+    /**
+     * The medal-round twin of the match-round defect this file opens with —
+     * "an incomplete ROUND paid out on somebody else's card" — which was fixed
+     * for rounds WITH fixtures and left in place for rounds without.
+     *
+     * `holesReturned` counted a hole as returned if ANY card had a score on
+     * it, so the first player to finish eighteen made every hole "in", and a
+     * skins pot settled with the rest of the field still on the course. Every
+     * cell above passes ONE card, which cannot tell "some" from "every" —
+     * the one-player fixture CLAUDE.md warns cannot fail.
+     */
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [card("s1", full), card("s1", half)],
+      matches: [],
+      eventCompleted: false,
+    });
+    expect(r.final, "paid out with a player on the 10th tee").toBe(false);
+    expect(r.holesReturned, "a hole is in when EVERY card has it").toBe(9);
+  });
+
+  it("does not let a withdrawn player's half card hold the pot for ever", () => {
+    // Otherwise the stricter rule above would trade paying early for never
+    // paying: the player walked off on the 9th and is not coming back.
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [
+        { ...card("s1", full), playerId: "stayed" },
+        { ...card("s1", half), playerId: "withdrew" },
+      ],
+      matches: [],
+      eventCompleted: false,
+      playingIds: new Set(["stayed"]),
+    });
+    expect(r.final).toBe(true);
+  });
+
+  it("still holds the pot for a player who is PLAYING and not finished", () => {
+    // The control for the one above: same cards, both still in the field.
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [
+        { ...card("s1", full), playerId: "stayed" },
+        { ...card("s1", half), playerId: "withdrew" },
+      ],
+      matches: [],
+      eventCompleted: false,
+      playingIds: new Set(["stayed", "withdrew"]),
+    });
+    expect(r.final).toBe(false);
+  });
+
+  it("is final once every card is complete", () => {
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [card("s1", full), card("s1", full), card("s1", full)],
+      matches: [],
+      eventCompleted: false,
+    });
+    expect(r.final).toBe(true);
+  });
+
   it("an empty round is never final by having no matches", () => {
     /**
      * `matchesDone` requires fixtures to EXIST. Without that guard, "every

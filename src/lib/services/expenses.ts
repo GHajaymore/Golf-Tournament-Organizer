@@ -290,16 +290,45 @@ export interface RoundFinality {
 export function roundMoneyFinality(input: {
   stageId: string;
   holeCount: number;
-  cards: ReadonlyArray<{ stageId: string; strokes: string }>;
+  cards: ReadonlyArray<{ stageId: string; strokes: string; playerId?: string }>;
   matches: ReadonlyArray<{ stageId: string; holes: string; forfeitedBy?: string | null }>;
   eventCompleted: boolean;
+  /**
+   * Who is still PLAYING. When given, a withdrawn player's card is left out —
+   * otherwise their half-finished round would hold the pot open until the
+   * organizer closed the whole tournament, for a player who is never coming
+   * back to finish it.
+   */
+  playingIds?: ReadonlySet<string>;
 }): RoundFinality {
   const { stageId, holeCount } = input;
 
-  const forStage = input.cards.filter((c) => c.stageId === stageId);
+  const forStage = input.cards.filter(
+    (c) =>
+      c.stageId === stageId &&
+      (!input.playingIds || !c.playerId || input.playingIds.has(c.playerId)),
+  );
   let holesReturned = 0;
   for (let h = 0; h < holeCount; h += 1) {
-    const played = forStage.some((c) => {
+    /**
+     * EVERY card, not SOME.
+     *
+     * This was `some`, so a hole counted as returned the moment ANY player had
+     * a score on it — and the first player to finish eighteen made the whole
+     * round "in". A stroke round's skins then settled with the rest of the
+     * field still on the course: the medal-round twin of the match-round
+     * defect `cardsCanSettle` below was written for ("an incomplete ROUND
+     * paid out on somebody else's card"), fixed there and left here.
+     *
+     * Every test of it passed one card, which cannot tell the two apart.
+     *
+     * Still NOT covered, and said so rather than implied: a player who has not
+     * teed off and so has no card row at all. `roundStrokes` returns rows, not
+     * the field, and team formats file one card for several players, so
+     * requiring a row per entrant would hold team rounds open for ever. The
+     * organizer closing the tournament remains the backstop.
+     */
+    const played = forStage.length > 0 && forStage.every((c) => {
       try {
         return (JSON.parse(c.strokes) as (number | null)[])[h] != null;
       } catch {
@@ -586,6 +615,8 @@ async function gameNets(
        * the answer is a property of the round, not of the pot.
        */
       const finalByStage = new Map<string, boolean>();
+      // Everyone still playing; a withdrawal's half card must not hold a pot.
+      const playingIds = new Set(fieldIds);
       const roundIsFinal = (stageId: string, holeCount: number): boolean => {
         const cached = finalByStage.get(stageId);
         if (cached !== undefined) return cached;
@@ -595,6 +626,7 @@ async function gameNets(
           cards,
           matches: finalityMatches,
           eventCompleted: state.event.status === "completed",
+          playingIds,
         }).final;
         finalByStage.set(stageId, answer);
         return answer;
@@ -1595,6 +1627,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       cards,
       matches,
       eventCompleted: state?.event.status === "completed",
+      playingIds: new Set(fieldIds),
     });
 
     // Nothing is computed for a round in progress. Not hidden after the fact —
