@@ -8,6 +8,8 @@ import {
   resolveTheme,
   resolveSecondary,
   contrastRatio,
+  themeVarsFor,
+  DEFAULT_CLUB_THEME,
   type Ground,
 } from "../themes";
 
@@ -135,4 +137,43 @@ describe("the accent's text step is legible on every surface it is used on", () 
     const distinct = new Set(ramps.map((r) => r.scale[500]));
     expect(distinct.size, "every preset resolved to the same ramp").toBeGreaterThan(5);
   });
+});
+
+/**
+ * AND MUTED TEXT CLEARS ON THOSE SAME TINTED SURFACES.
+ *
+ * `--color-text-muted` started at 62% and cleared the plain card. It does not
+ * only sit on the plain card: a selected option in the theme picker puts its
+ * description on a 12% accent tint, and there it read 4.47:1 for azalea on the
+ * light ground — found by rendering the worst palette, which the fixture's
+ * own Verdigris could never show. Across every palette, tints up to 16%, over
+ * both the card and the ground, 62% was 4.37 dark and 4.07 light at worst.
+ *
+ * The weight is READ from `themeVarsFor` rather than restated here, so this
+ * measures the token that ships and cannot pass against a number nobody uses.
+ */
+describe("muted text is legible on every surface the app puts it on", () => {
+  for (const ground of [DARK_GROUND, LIGHT_GROUND]) {
+    it(`clears 4.5 on the card, the ground and every accent tint, ${ground.key} ground`, () => {
+      const token = themeVarsFor(DEFAULT_CLUB_THEME, ground)["--color-text-muted"];
+      // `includes`, not `endsWith`: the word is "68%," with the comma of the
+      // color-mix() argument list attached. parseFloat stops at the "%".
+      const pctWord = token.split(" ").find((w) => w.includes("%"));
+      expect(pctWord, `could not read a weight out of ${token}`).toBeTruthy();
+      const weight = parseFloat(pctWord!) / 100;
+      expect(weight, "the weight parsed as nonsense").toBeGreaterThan(0.3);
+
+      let out = { ratio: Infinity, where: "" };
+      for (const { label, scale } of everyRamp(ground)) {
+        for (const base of [ground.surface, ground.bg]) {
+          for (const tint of TINTS) {
+            const bg = tint ? tintOver(scale[500], base, tint) : base;
+            const ratio = contrastRatio(tintOver(ground.text, bg, weight), bg);
+            if (ratio < out.ratio) out = { ratio, where: `${label} at ${tint * 100}%` };
+          }
+        }
+      }
+      expect(out.ratio, `muted text reads ${out.ratio.toFixed(2)}:1 over ${out.where}`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

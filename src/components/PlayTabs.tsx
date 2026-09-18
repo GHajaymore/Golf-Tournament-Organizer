@@ -61,7 +61,9 @@ export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
               justifyContent: "center",
               gap: 3,
               textDecoration: "none",
-              color: active ? "var(--color-accent)" : "var(--color-neutral-400)",
+              // The text step: an 11px label on the player's tab bar, read on
+              // the course. accent-is-not-a-text-colour.test.ts has the numbers.
+              color: active ? "var(--color-accent-300)" : "var(--color-neutral-400)",
               fontSize: 11,
               fontWeight: active ? 700 : 500,
             }}

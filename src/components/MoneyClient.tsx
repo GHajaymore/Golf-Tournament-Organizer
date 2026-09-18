@@ -1294,8 +1294,10 @@ function ShareField({
                   ? "var(--color-divider)"
                   : "var(--color-divider)"
             }`,
+            // The text step for the letters, step 500 for the ring above: 10px
+            // initials in step 500 read 4.02:1 for the heather palette.
             color: c.payer
-              ? "var(--color-accent)"
+              ? "var(--color-accent-300)"
               : c.state === "off"
                 ? "var(--color-text-muted)"
                 : "var(--color-text)",

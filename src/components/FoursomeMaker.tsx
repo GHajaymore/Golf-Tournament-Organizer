@@ -326,7 +326,7 @@ export function FoursomeMaker({
                   className="btn"
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                    color: on ? "var(--color-accent)" : "var(--color-text)",
+                    color: on ? "var(--color-accent-300)" : "var(--color-text)",
                     opacity: off ? 0.45 : 1,
                   }}
                 >
@@ -369,7 +369,7 @@ export function FoursomeMaker({
                   className="btn"
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                    color: on ? "var(--color-accent)" : "var(--color-text)",
+                    color: on ? "var(--color-accent-300)" : "var(--color-text)",
                     opacity: off ? 0.45 : 1,
                   }}
                 >

@@ -124,7 +124,7 @@ export function GroupingControls({
                 className="btn"
                 style={{
                   border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                  color: on ? "var(--color-accent)" : "var(--color-text)",
+                  color: on ? "var(--color-accent-300)" : "var(--color-text)",
                 }}
               >
                 <Icon name={r.icon} /> {r.label}

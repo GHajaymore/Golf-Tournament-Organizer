@@ -778,10 +778,16 @@ export function themeVarsFor(theme: ClubTheme, ground: Ground): Record<string, s
      * which is the property the hard-coded fallbacks they carried did not
      * have.
      *
-     * 62% is the weight `.text-muted` already used, so the class and the
+     * It began as the weight `.text-muted` already used, so the class and the
      * inline callers now name one value instead of two.
      */
-    "--color-text-muted": `color-mix(in srgb, ${ground.text} 62%, transparent)`,
+    //
+    // 68%, NOT the 62% it started at. 62% cleared the plain card and failed on
+    // the app's own tinted surfaces: muted text sits on a 12% accent tint in a
+    // selected option, and across every palette and tints up to 16% it read
+    // 4.37:1 at worst on the dark ground and 4.07:1 on the light. 68% is the
+    // first weight that clears both with margin — 4.92 and 4.83.
+    "--color-text-muted": `color-mix(in srgb, ${ground.text} 68%, transparent)`,
     "--color-surface-2": `color-mix(in srgb, ${ground.text} 6%, ${ground.surface})`,
   };
   STEPS.forEach((step, i) => {
