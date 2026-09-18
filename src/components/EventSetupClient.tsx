@@ -22,6 +22,8 @@ interface EventForm {
   city: string;
   address: string;
   regDeadline: string;
+  /** First day entries are taken (ISO), or "". */
+  regOpens: string;
   capacity: number;
   playerCountMode: string;
   manualPlayerCount: number;
@@ -559,6 +561,24 @@ export function EventSetupClient({
             heading below. */}
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration</span>
         <div className="pair-grid">
+          {/* Members see both dates on their list of the club's tournaments,
+              and entries are refused before this one — see
+              `registrationStatus`. Empty means "as soon as self sign-up is on",
+              which is how every tournament behaved before it existed. */}
+          <div className="field">
+            <label htmlFor="reg-opens">Entries open</label>
+            <input
+              id="reg-opens"
+              className="input"
+              type="date"
+              value={parseDeadlineIso(f.regOpens)}
+              max={parseDeadlineIso(f.regDeadline) || undefined}
+              onChange={(e) => set("regOpens", e.target.value)}
+            />
+            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+              {f.regOpens ? formatDeadline(f.regOpens, locale) : "Leave empty to open as soon as sign-up is on"}
+            </p>
+          </div>
           <div className="field">
             <label>Registration deadline</label>
             <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
@@ -674,7 +694,7 @@ export function EventSetupClient({
               startTransition(() =>
                 saveEvent({
                   name: f.name, dates: f.dates, format: f.format, course: f.course, courseId: f.courseId, city: f.city,
-                  address: f.address, regDeadline: f.regDeadline, capacity: f.capacity, playerCountMode: f.playerCountMode,
+                  address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
                   courseMode: f.courseMode, sideStyle: f.sideStyle,
                 }),
               );

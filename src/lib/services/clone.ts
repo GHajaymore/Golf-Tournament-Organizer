@@ -149,6 +149,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   inviteMessage:
     "the same reason as dates, in prose. It was carried, alone among these fields with no reason written beside it — and the demo club's own message reads \"You're invited to the Demo Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls\", which names the tournament, the dates AND the venue, none of which a copy inherits. So the one field that carried them was the one nobody had thought about, and it is the field that gets SENT to the whole membership. A stale sentence sitting in a textarea is harmless; a stale sentence one WhatsApp button away from four hundred members is not. The screen suggests one built from this tournament's own details instead, as a placeholder — which cannot go stale because it is never stored",
   regDeadline: "same reason as dates",
+  regOpens:
+    "same reason as dates — and worse carried than left out: last year's opening day has passed, so a copied one would read as open-from-the-start while the organizer believed they had scheduled it",
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",

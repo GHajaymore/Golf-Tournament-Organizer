@@ -13,11 +13,12 @@
  * needs the app to agree rather than argue.
  */
 
-import { deadlineState, deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso } from "./deadline";
+import { deadlineState, deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso, todayIso } from "./deadline";
 
 export { deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso };
 
 export type RegistrationState =
+  | "not-open-yet"
   | "open"
   | "full"
   | "closed-deadline"
@@ -74,6 +75,17 @@ export interface RegistrationInput {
   eventStatus: string;
   /** ISO yyyy-mm-dd, or free text from before the date picker existed. */
   deadline: string;
+  /**
+   * The first day entries are taken, as ISO yyyy-mm-dd — or "" for "as soon as
+   * self sign-up is switched on", which is how every tournament behaved before
+   * this existed.
+   *
+   * REQUIRED, for the reason `eventStatus` is: this function is the one rule
+   * the organizer's screen, the member's list of club tournaments and the
+   * public entry form all read. A caller that could leave it out would take
+   * entries before the date its own screen advertises.
+   */
+  opens: string;
   /** 0 or less means no limit. */
   capacity: number;
   confirmedCount: number;
@@ -86,8 +98,27 @@ export interface RegistrationInput {
   now?: Date;
 }
 
+/**
+ * The entry window in one line, for a member deciding whether to enter:
+ * "Entries open 14 Sep · close 27 Sep", or just the half that is set.
+ *
+ * Only dates that PARSE are printed. A deadline stored as free text ("end of
+ * the month") is shown as typed on the organizer's own screen, but printed
+ * here beside a status it cannot affect it would be a date with nothing behind
+ * it. Nothing at all once the tournament is over.
+ */
+export function entryDatesOf(opens: string, closes: string, eventStatus: string): string {
+  if (eventStatus === "completed") return "";
+  const o = parseDeadlineIso(opens) ? formatDeadline(opens) : "";
+  const c = parseDeadlineIso(closes) ? formatDeadline(closes) : "";
+  if (o && c) return `Entries open ${o} · close ${c}`;
+  if (o) return `Entries open ${o}`;
+  if (c) return `Entries close ${c}`;
+  return "";
+}
+
 export function registrationStatus(input: RegistrationInput): RegistrationStatus {
-  const { eventStatus, deadline, capacity, confirmedCount, override, now = new Date() } = input;
+  const { eventStatus, deadline, opens, capacity, confirmedCount, override, now = new Date() } = input;
   const unlimited = capacity <= 0;
   const full = !unlimited && confirmedCount >= capacity;
   // The deadline half of the question is the shared rule; capacity is layered
@@ -122,6 +153,33 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       label: "Closed",
       detail: "Closed by the organizer. Reopen it to take more entries.",
       short: "closed by the organizer",
+    };
+  }
+
+  /**
+   * NOT OPEN YET — before the day entries open.
+   *
+   * Compared as dates, like the deadline, and the opening day itself is open:
+   * "entries open on the 14th" means a member can enter ON the 14th.
+   *
+   * The organizer's keep-open override (`false`) lets entries in early too.
+   * It is the same button — "take entries now, whatever the dates say" — and a
+   * second switch that meant nearly the same thing would be one more thing an
+   * organizer has to understand to open their own tournament.
+   *
+   * A date that names nothing ("", or free text) opens nothing and closes
+   * nothing, exactly as `parseDeadlineIso` treats a deadline: refusing entries
+   * on a date nobody actually set would be worse than taking them.
+   */
+  const opensIso = parseDeadlineIso(opens);
+  if (override !== false && opensIso && todayIso(now) < opensIso) {
+    return {
+      state: "not-open-yet",
+      acceptingEntries: false,
+      waitlisting: false,
+      label: "Opens soon",
+      detail: `Entries open ${formatDeadline(opens)}.`,
+      short: `not open until ${formatDeadline(opens)}`,
     };
   }
 

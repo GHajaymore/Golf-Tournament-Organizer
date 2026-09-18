@@ -101,6 +101,13 @@ export default async function ClubEventsPage() {
                 {[e.dates, e.venue].filter(Boolean).join(" · ") || "Dates to be confirmed"}
               </div>
 
+              {/* The entry window, whether or not it is open yet — a member
+                  deciding what to play next month wants the dates as much as
+                  the badge. */}
+              {e.entryDates && !e.entered && (
+                <div style={{ fontSize: 13, marginTop: 4, fontWeight: 500 }}>{e.entryDates}</div>
+              )}
+
               {/* Why it is shut, in the console's own sentence. Only where it
                   adds something the badge did not already say. */}
               {!e.canEnter && !e.entered && e.statusDetail && (

@@ -252,7 +252,7 @@ export default async function EventPage({
         locale={fmt.locale}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
-          address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,
+          address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
           courseMode: e.courseMode, sideStyle: e.sideStyle, courseId: e.courseId ?? "",
         }}

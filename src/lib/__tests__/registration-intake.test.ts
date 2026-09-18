@@ -23,6 +23,7 @@ import {
 const OPEN = {
   eventStatus: "registration",
   deadline: "2099-12-31",
+  opens: "",
   capacity: 16,
   confirmedCount: 4,
   override: null as boolean | null,
