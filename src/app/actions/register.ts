@@ -118,6 +118,8 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     reg: {
       eventStatus: event.status,
       deadline: event.regDeadline,
+      // The enforcement point: the form and the lists only DISPLAY the date.
+      opens: event.regOpens,
       capacity: event.capacity,
       confirmedCount,
       override: event.registrationOverride,

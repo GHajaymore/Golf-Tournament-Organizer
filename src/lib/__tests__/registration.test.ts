@@ -6,6 +6,7 @@ import {
   isIsoDate,
   parseDeadlineIso,
   formatDeadline,
+  entryDatesOf,
   type RegistrationInput,
 } from "../registration";
 
@@ -22,6 +23,7 @@ const at = (iso: string) => new Date(`${iso}T12:00:00`);
 const input = (over: Partial<RegistrationInput> = {}): RegistrationInput => ({
   eventStatus: "registration",
   deadline: "2026-06-14",
+  opens: "",
   capacity: 0,
   confirmedCount: 0,
   override: null,
@@ -269,5 +271,80 @@ describe("the case that started this", () => {
       expect(s.label, `capacity ${capacity}`).not.toContain("Open");
       expect(s.acceptingEntries, `capacity ${capacity}`).toBe(false);
     }
+  });
+});
+
+/**
+ * THE DAY ENTRIES OPEN.
+ *
+ * There was only a closing date, so "entries open on the 1st" could be printed
+ * on a member's list of club tournaments and not enforced — entries opened
+ * whenever the organizer flipped self sign-up on. The fixture's deadline is
+ * the 14th of June; each cell below differs from its neighbour in one field.
+ */
+describe("the opening date", () => {
+  it("refuses entries before it", () => {
+    const s = registrationStatus(input({ opens: "2026-06-01", now: at("2026-05-31") }));
+    expect(s.acceptingEntries, "took an entry the day before entries open").toBe(false);
+    expect(s.state).toBe("not-open-yet");
+    expect(s.label).toBe("Opens soon");
+    expect(s.detail).toContain(formatDeadline("2026-06-01"));
+  });
+
+  it("is open ON the day itself", () => {
+    // "Entries open on the 1st" means a member can enter on the 1st.
+    const s = registrationStatus(input({ opens: "2026-06-01", now: at("2026-06-01") }));
+    expect(s.acceptingEntries).toBe(true);
+    expect(s.state).toBe("open");
+  });
+
+  it("lets the organizer open early with the keep-open switch", () => {
+    const s = registrationStatus(input({ opens: "2026-06-01", override: false, now: at("2026-05-20") }));
+    expect(s.acceptingEntries, "the organizer said take entries now").toBe(true);
+  });
+
+  it("stays shut when the organizer has closed it, whatever the dates say", () => {
+    const s = registrationStatus(input({ opens: "2026-06-01", override: true, now: at("2026-05-20") }));
+    expect(s.state).toBe("closed-manual");
+  });
+
+  it("opens nothing on a date it cannot read", () => {
+    // Same rule as the deadline: refusing entries on a date nobody set would
+    // be worse than taking them.
+    const s = registrationStatus(input({ opens: "early June", now: at("2026-05-01") }));
+    expect(s.acceptingEntries).toBe(true);
+  });
+
+  it("changes nothing without an opening date, which is every tournament until now", () => {
+    const s = registrationStatus(input({ opens: "", now: at("2026-01-01") }));
+    expect(s.acceptingEntries).toBe(true);
+  });
+});
+
+describe("the entry window a member reads", () => {
+  it("names both dates when both are set", () => {
+    expect(entryDatesOf("2026-06-01", "2026-06-14", "registration")).toBe(
+      `Entries open ${formatDeadline("2026-06-01")} · close ${formatDeadline("2026-06-14")}`,
+    );
+  });
+
+  it("names the half that is set", () => {
+    expect(entryDatesOf("", "2026-06-14", "registration")).toBe(`Entries close ${formatDeadline("2026-06-14")}`);
+    expect(entryDatesOf("2026-06-01", "", "registration")).toBe(`Entries open ${formatDeadline("2026-06-01")}`);
+  });
+
+  it("prints no date it cannot read, and nothing once the tournament is over", () => {
+    expect(entryDatesOf("", "end of the month", "registration")).toBe("");
+    expect(entryDatesOf("2026-06-01", "2026-06-14", "completed")).toBe("");
+  });
+});
+
+describe("where the opening date is enforced", () => {
+  it("is passed by the public entry action, not only shown on screens", () => {
+    // `register.ts` is the endpoint that writes the entry. A screen saying
+    // "Opens soon" while this took the entry anyway would be the date printed
+    // and not enforced — the defect this closes.
+    const action = readSource("src", "app", "actions", "register.ts");
+    expect(action).toMatch(/opens: event\.regOpens/);
   });
 });

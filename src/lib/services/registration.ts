@@ -81,6 +81,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
   const status = registrationStatus({
     eventStatus: event.status,
     deadline: event.regDeadline,
+    opens: event.regOpens,
     capacity: event.capacity,
     confirmedCount,
     override: event.registrationOverride,

@@ -847,6 +847,9 @@ model Event {
   customYards       String  @default("")
   customStrokeIndex String  @default("")
   regDeadline       String
+  /// The first day entries are taken (yyyy-mm-dd), or "" for "as soon as self
+  /// sign-up is on". Read by `registrationStatus` alongside `regDeadline`.
+  regOpens          String  @default("")
   /**
    * fixed | open — whether one venue covers the whole tournament.
    * "open" is the society or inter-club league where each pairing arranges

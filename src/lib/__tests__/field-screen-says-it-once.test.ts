@@ -24,6 +24,7 @@ import { readSource } from "./source";
 const base: RegistrationInput = {
   eventStatus: "live",
   deadline: "2026-05-07",
+  opens: "",
   capacity: 32,
   confirmedCount: 10,
   override: null,

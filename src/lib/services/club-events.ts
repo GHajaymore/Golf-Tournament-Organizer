@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { accessibleEvents } from "./access";
-import { registrationStatus } from "../registration";
+import { registrationStatus, entryDatesOf } from "../registration";
 import { venueOf } from "./registration";
 
 /**
@@ -40,6 +40,15 @@ export interface ClubEventRow {
   statusLabel: string;
   /** One sentence saying why, for the ones that are shut. */
   statusDetail: string;
+  /**
+   * When entries open and close, as a member reads it — "Entries open 14 Sep ·
+   * close 27 Sep", "Entries close 27 Sep" — or "" when neither is set, or the
+   * tournament is over and the dates no longer mean anything.
+   *
+   * Written here rather than on the screen so it is one sentence with one set
+   * of rules, next to the status it has to agree with.
+   */
+  entryDates: string;
   /** Whether this member could put their name down right now. */
   canEnter: boolean;
   /** Whether they already have. */
@@ -120,6 +129,7 @@ export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,
+      opens: event.regOpens,
       capacity: event.capacity,
       confirmedCount: confirmedBy.get(event.id) ?? 0,
       override: event.registrationOverride,
@@ -142,6 +152,7 @@ export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
       eventStatus: event.status,
       statusLabel: status.label,
       statusDetail: status.detail,
+      entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status),
       canEnter,
       entered,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",

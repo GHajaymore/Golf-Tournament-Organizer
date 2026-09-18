@@ -44,6 +44,8 @@ interface EventInfo {
    *  takes no more entries, whatever the switch and the deadline say. */
   status: string;
   regDeadline: string;
+  /** First day entries are taken, or "" — see `Event.regOpens`. */
+  regOpens: string;
   /** Organizer overriding the deadline: null follows it, true closes, false extends. */
   registrationOverride: boolean | null;
   inviteMessage: string;
@@ -177,6 +179,7 @@ export function RegistrationClient({
   const reg = registrationStatus({
     eventStatus: event.status,
     deadline: event.regDeadline,
+    opens: event.regOpens,
     capacity: event.capacity,
     confirmedCount: confirmed.length,
     override: event.registrationOverride,

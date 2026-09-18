@@ -5582,7 +5582,7 @@ describe("registration and field", () => {
       <RegistrationClient
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "",
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, phoneLocked: false, registrationToken: "",
@@ -5695,7 +5695,7 @@ describe("tournament details", () => {
         {...props}
         initial={{
           name: "zz-Club Championship", dates: "", format: "match", course: "Bushwood",
-          courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
+          courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", regOpens: "", capacity: 32,
           playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",
           ...over,
         }} />,

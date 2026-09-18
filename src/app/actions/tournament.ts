@@ -1,5 +1,6 @@
 "use server";
 import { COURSE_REF } from "@/lib/services/course-resolution";
+import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
 import { roundTeeId, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
@@ -840,6 +841,8 @@ export async function saveEvent(data: {
   city: string;
   address: string;
   regDeadline: string;
+  /** First day entries are taken. Optional so an older caller leaves it alone. */
+  regOpens?: string;
   capacity: number;
   playerCountMode: string;
   courseMode: string;
@@ -908,6 +911,12 @@ export async function saveEvent(data: {
       // whether every match asks where it was played.
       courseMode: data.courseMode === "open" ? "open" : "fixed",
       regDeadline: data.regDeadline,
+      // A real date or nothing. This is a public endpoint, and free text here
+      // would be displayed as a date while opening nothing — see
+      // `parseDeadlineIso`. Left out entirely, the stored value is kept.
+      ...(data.regOpens === undefined
+        ? {}
+        : { regOpens: parseDeadlineIso(String(data.regOpens)) }),
       // 0 is the deliberate "open / unlimited field" sentinel (see the Fixed/Open
       // toggle in EventSetupClient) — only clamp upward when the organizer has
       // actually set a positive fixed capacity, otherwise every save was
