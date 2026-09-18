@@ -823,6 +823,50 @@ export async function organizationIdsFor(email: string): Promise<string[]> {
   return [...new Set(rows.map((r) => r.organizationId))];
 }
 
+/**
+ * THE CLUBS A PERSON PLAYS IN — which is not the clubs they STAFF.
+ *
+ * `organizationIdsFor` above reads `OrganizationMember`, and that table is
+ * written in exactly two places: approving a join request, and adding staff.
+ * Both are staff acts. **An ordinary member of a club's roster is never in it**
+ * — measured 2026-09-18, no other writer exists anywhere in `src`.
+ *
+ * So the casual round's roster picker, which exists precisely so nobody types
+ * an index from memory, was offered only to the club's officers. Everybody
+ * else — which is almost everybody, and is the whole point of a free-tier
+ * Sunday fourball — got four blank name boxes. The feature was built, shipped
+ * and invisible to its users.
+ *
+ * Ajay, 2026-09-18: *"if player is a member of an org, let him choose the
+ * player from the drop down, or a free text guest option to add a player."*
+ *
+ * WHY MATCHING ON EMAIL IS ACCEPTABLE HERE, and where the line is. There is no
+ * email verification in this app, so an address is a claim rather than a proof.
+ * That is not a new exposure opened by this function: `/me` already resolves a
+ * player by `Player.email` against the session address, so claiming an address
+ * already reaches that person's card and their club's board. The rows this
+ * adds are club-ISSUED — an organizer typed that address into the roster — and
+ * what it grants is the same club's member names and indexes, to somebody the
+ * club has already named.
+ *
+ * It is deliberately NOT used to widen anything a club ADMINISTERS. Staff
+ * scope stays `organizationIdsFor`; this answers "whose roster am I on", and
+ * the two must not be confused.
+ */
+export async function organizationIdsForPlayer(email: string): Promise<string[]> {
+  const clean = email.trim().toLowerCase();
+  if (!clean) return [];
+
+  const [staff, roster] = await Promise.all([
+    organizationIdsFor(clean),
+    prisma.member.findMany({
+      where: { email: { equals: clean, mode: "insensitive" } },
+      select: { organizationId: true },
+    }),
+  ]);
+  return [...new Set([...staff, ...roster.map((m) => m.organizationId)])];
+}
+
 /** The organizations a person owns, administers, or is staff in. */
 export async function organizationsFor(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });

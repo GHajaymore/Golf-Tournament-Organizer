@@ -224,7 +224,10 @@ describe("which library a search result is compared against", () => {
       src.indexOf("export async function searchCourseDirectory"),
       src.indexOf("export interface DirectoryImportResult"),
     );
-    expect(fn).toMatch(/organizationIdsFor\(session\.email\)/);
+    // `organizationIdsForPlayer` since 2026-09-18 — the same widening the
+    // picker took, and for the reason this cell exists: the two must ask one
+    // question or a course reads as held by nobody.
+    expect(fn).toMatch(/organizationIdsForPlayer\(session\.email\)/);
   });
 
   it("does not hide a hit because some OTHER library holds it", () => {
@@ -285,11 +288,23 @@ describe("which library a search result is compared against", () => {
   });
 
   it("is the same scope /match/new builds its picker from", () => {
-    // One question, two readers. If the page ever stops using memberships this
-    // goes red rather than the picker quietly disagreeing again.
+    /**
+     * One question, two readers. If the page ever stops asking it this goes
+     * red rather than the picker quietly disagreeing again.
+     *
+     * The question WAS `organizationMember.findMany` — the club's officers —
+     * and the page reading it directly is how the roster picker came to be
+     * offered to committees only. It asks `organizationIdsForPlayer` now, and
+     * so does the decoration above; pinning the shared name rather than a
+     * query shape is what keeps them from drifting apart again.
+     */
     const page = readSource("src", "app", "match", "new", "page.tsx");
-    expect(page).toMatch(/organizationMember\.findMany/);
-    expect(page).toMatch(/organizationId: \{ in: memberships\.map/);
+    expect(page).toMatch(/organizationIdsForPlayer\(session\.email\)/);
+    expect(page).toMatch(/organizationId: \{ in: clubIds \}/);
+    expect(
+      page.includes("organizationMember.findMany"),
+      "the picker is back on club staff, which no ordinary member is ever in",
+    ).toBe(false);
   });
 
   it("reports nothing held for somebody who holds nothing", async () => {

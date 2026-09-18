@@ -330,3 +330,122 @@ describe("a quick round's players getting to their own cards", () => {
     expect(event.leaderboardVisibility).toBe("participants");
   });
 });
+
+/**
+ * AN ORDINARY MEMBER OF THE CLUB, WHICH IS ALMOST EVERYBODY.
+ *
+ * Every cell above signs in as the club's SECRETARY — a row in
+ * `OrganizationMember`. That table is written in exactly two places, approving
+ * a join request and adding staff, so it holds officers and nobody else: no
+ * code path anywhere in `src` puts an ordinary roster member in it.
+ *
+ * The scope the picker and the re-read both used was that table. So the roster
+ * picker on `/match/new` — which exists precisely so nobody types an index
+ * from memory, the one thing that gets a net round scored wrong invisibly —
+ * was offered to the committee and to nobody else, on the screen built for the
+ * person who has no committee. Everybody else got blank name boxes.
+ *
+ * These cells sign in as somebody whose only connection to the club is a
+ * roster row with their email on it, which is what a member is.
+ */
+describe("a player who is on the roster but is not staff", () => {
+  const PLAYER = `${TAG} Player`;
+  let asStaff: typeof session = null;
+
+  beforeAll(async () => {
+    await prisma.user.create({ data: { email: at("player"), name: PLAYER } });
+    // A roster row, and deliberately NO OrganizationMember: this is a member
+    // of the club, not an officer of it.
+    await prisma.member.create({
+      data: { organizationId: club.id, name: PLAYER, email: at("player"), handicap: 18 },
+    });
+  });
+
+  beforeEach(() => {
+    asStaff = session;
+    session = { email: at("player"), name: PLAYER, eventId: "", role: "player" };
+  });
+
+  afterAll(() => {
+    session = asStaff;
+  });
+
+  it("keeps the member link on somebody picked from their club's roster", async () => {
+    // THE FAULT, and it is the same one the top of this file describes — the
+    // member came back unmatched and was filed as a guest — except that it
+    // survived for everybody who is not an officer.
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: PLAYER, handicap: "18", memberId: "" },
+        { name: `${TAG} Ours`, handicap: "12", memberId: ourMember.id },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+
+    const players = await roundPlayers(res.eventId!);
+    const ours = players.find((p) => p.name === `${TAG} Ours`);
+    expect(ours?.memberId, "a member picked by a fellow member was recorded as a guest").toBe(
+      ourMember.id,
+    );
+  });
+
+  it("still refuses an id from a club they are not on the roster of", async () => {
+    /**
+     * THE CONTROL, and the reason this is a wider scope rather than no scope.
+     * Widening from "clubs I staff" to "clubs I play in" must not become
+     * "any id I can type". A stranger's member id still matches nothing and
+     * still becomes a guest.
+     */
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: PLAYER, handicap: "18", memberId: "" },
+        { name: `${TAG} Stranger`, handicap: "3", memberId: strangerMember.id },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+
+    const players = await roundPlayers(res.eventId!);
+    const stranger = players.find((p) => p.name === `${TAG} Stranger`);
+    expect(stranger?.memberId, "a stranger's club roster was reachable").toBeNull();
+  });
+
+  it("takes a guest by name with the handicap that was typed", async () => {
+    /**
+     * Ajay, 2026-09-18: *"a free text guest option to add a player"*, then
+     * *"guest entry along with handicap"*.
+     *
+     * A guest is a player on this round and nothing else — no roster row is
+     * written for them, which `casual-rounds-are-the-free-tier` is explicit
+     * about — but the figure typed for them has to reach the card, or the net
+     * round is scored wrong for the one player whose index nobody looked up.
+     */
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: PLAYER, handicap: "18", memberId: "" },
+        { name: `${TAG} Visitor`, handicap: "7.4", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+
+    const players = await roundPlayers(res.eventId!);
+    const guest = players.find((p) => p.name === `${TAG} Visitor`);
+    expect(guest?.memberId).toBeNull();
+    expect(guest?.handicap, "the guest's typed handicap did not reach the round").toBeCloseTo(7.4, 5);
+
+    // And nobody filed them into the club.
+    const filed = await prisma.member.findFirst({
+      where: { organizationId: club.id, name: `${TAG} Visitor` },
+      select: { id: true },
+    });
+    expect(filed, "a guest was added to the club's roster").toBeNull();
+  });
+});

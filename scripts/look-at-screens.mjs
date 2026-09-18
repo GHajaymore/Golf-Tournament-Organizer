@@ -86,6 +86,25 @@ async function main() {
     `  document.cookie='ng_session=${data.league.organizer.session}; path=/'`,
     `  document.cookie='ng_active_event=${data.league.organizer.event}; path=/'`,
     "",
+    /**
+     * A PLAYER, which is a different app and not a narrower console.
+     *
+     * `/me` and its children are the screens the field actually opens, and the
+     * class of defect this script exists to find — two surfaces answering one
+     * question differently — is at its sharpest between what an organizer sees
+     * and what the player in the same tournament sees. `services/me.ts` once
+     * handed a player a rank and a to-par for a round the leaderboard refuses
+     * to score, so the screen contradicting the organizer was the one the
+     * player looks at.
+     */
+    "A player in the same tournament, for /me and the play shell:",
+    "",
+    `  document.cookie='ng_session=${data.player.session}; path=/'`,
+    `  document.cookie='ng_active_event=${data.player.event}; path=/'`,
+    "",
+    // No session at all. The public board is the one screen a stranger opens.
+    `The public board, signed out: /live/${data.shareToken}`,
+    "",
     "Tear down with --teardown when you have finished looking.",
     "",
   ];

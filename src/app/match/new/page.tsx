@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { NOINDEX } from "@/lib/site";
 import { tournamentClashFor } from "@/lib/services/tournament-clash";
+import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { TournamentClashNotice } from "@/components/TournamentClashNotice";
 
 export const metadata = { title: "Set up a round", robots: NOINDEX };
@@ -36,12 +37,24 @@ export default async function NewMatchPage() {
    * signed up and wants to play their mate on Sunday has no event at all, and
    * a query hanging off one would send them to the picker screen instead.
    */
-  const memberships = await prisma.organizationMember.findMany({
-    where: { user: { email: session.email } },
-    select: { organizationId: true },
-  });
+  /**
+   * THE CLUBS THIS PERSON PLAYS IN, not the ones they staff.
+   *
+   * This read `OrganizationMember` directly, which holds club OFFICERS and
+   * nobody else — no code path anywhere puts an ordinary roster member in it.
+   * So the picker below, and the course list, were offered to the committee
+   * and to no one else, on the one screen built for somebody who has no
+   * committee. Four blank boxes for everybody who actually plays.
+   *
+   * `organizationIdsForPlayer` carries the reasoning and the limits of matching
+   * a person to a club by email. It must stay the SAME scope the setup action
+   * re-reads a picked `memberId` against — see `match-setup.ts` — or a member
+   * picked off this list is silently recorded as a guest and the link that
+   * makes the handicap the club's own is lost on every round.
+   */
+  const clubIds = await organizationIdsForPlayer(session.email);
   const courses = await prisma.course.findMany({
-    where: { organizationId: { in: memberships.map((m) => m.organizationId) } },
+    where: { organizationId: { in: clubIds } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, city: true, pars: true, strokeIndex: true },
   });
@@ -65,7 +78,7 @@ export default async function NewMatchPage() {
    * the first slice is still enterable as a guest.
    */
   const members = await prisma.member.findMany({
-    where: { organizationId: { in: memberships.map((m) => m.organizationId) } },
+    where: { organizationId: { in: clubIds } },
     orderBy: { name: "asc" },
     take: 500,
     select: { id: true, name: true, handicap: true },

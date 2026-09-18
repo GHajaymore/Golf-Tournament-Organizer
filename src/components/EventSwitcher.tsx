@@ -1,6 +1,5 @@
 "use client";
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
@@ -393,75 +392,26 @@ export function EventSwitcher({
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
       {error && <p className="form-error">{error}</p>}
 
-      {/* THE OTHER THING SOMEBODY COMES HERE TO MAKE, and until now the only
-          screen offering it was one they could no longer reach.
+      {/* THE CASUAL ROUND IS NOT AN ORGANIZER FEATURE, and the card that
+          used to sit here has gone.
 
-          `/match/new` is "two people, one round, one screen", and it was
-          linked from exactly one place: `/choose`. But `page.tsx` sends anyone
-          with an active event straight to their landing screen, so once the
-          first tournament exists that door only reopens through the ORG
-          onboarding checklist — which disappears at 3 of 3. This screen is
-          where a returning organizer goes to create anything, and every one of
-          its six templates is a tournament.
+          Ajay, 2026-09-18: "since you are doing casual round, take it out
+          from organizer side and made it player side." A quick round belongs
+          to a PERSON. `casual-rounds-are-the-free-tier` is explicit that
+          anything making it look like club software is a bug rather than a
+          missing feature, and this screen is the club's create-a-tournament
+          screen — six templates, every one of them a tournament.
 
-          The cost of the gap is on the record: two abandoned draft events in
-          the development database, five minutes apart, both with zero players
-          and both with their round left on the default Round Robin. Somebody
-          wanting one match against one person built a tournament twice and
-          gave up. The option they wanted already existed.
+          ITS DOORS ARE STILL OPEN, and deliberately. `/choose` is where
+          somebody with no tournament at all lands, and `/me` is the player
+          app. Both are the person rather than the committee.
 
-          A LINK, not another form. The same argument as on /choose: what the
-          match screen asks — two names, holes, whether shots are given —
-          belongs together on one page, and half of it inline here would split
-          the decision across two places again. */}
-      <Link
-        href="/match/new"
-        className="card elev-sm"
-        style={{
-          marginTop: 4,
-          display: "flex",
-          // `.card` is `display: flex; flex-direction: column`, so setting
-          // `display: flex` inline changes nothing and the row comes out as a
-          // centred stack. Both cards on /choose had exactly this.
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          textDecoration: "none",
-          color: "var(--color-text)",
-          border: "1px solid var(--color-divider)",
-        }}
-      >
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            flex: "none",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 9,
-            background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)",
-          }}
-        >
-          <Icon name="sword" style={{ color: "var(--color-accent-2)", fontSize: 16 }} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
-            Just playing a round?
-          </div>
-          {/* Said "two players, one round, hole by hole", which described the
-              screen exactly until it learned about medals and fourballs. A
-              door that undersells what is behind it is not a small error: it
-              is read INSTEAD of the screen by everybody who decides here. */}
-          <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
-            A match, a medal or a fourball. Up to eight players, one round, no tournament
-            needed.
-          </div>
-        </div>
-        <Icon
-          name="arrow-right"
-          style={{ color: "var(--color-accent-300)", marginLeft: "auto", flex: "none" }}
-        />
-      </Link>
+          WHAT REMOVING IT COSTS, because the record said why it was added:
+          two abandoned draft events in the development database, five
+          minutes apart, zero players, rounds left on the default. Somebody
+          wanting one match built a tournament twice and gave up. If that
+          recurs, the answer is a better door on /choose, not this one
+          back. */}
     </div>
   );
 }
