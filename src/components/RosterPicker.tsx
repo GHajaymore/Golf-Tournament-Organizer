@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { addMembersToEvent } from "@/app/actions/roster";
@@ -176,7 +177,7 @@ export function RosterPicker({
                   )}
                 </span>
                 <span className="text-muted" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
-                  {c.handicap}
+                  {indexLabel(c)}
                   {c.handicapType === "9" ? " (9)" : ""}
                 </span>
               </label>

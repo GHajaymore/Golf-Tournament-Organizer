@@ -231,7 +231,7 @@ export default async function FoursomesPage({
     players: g.playerIds
       .map((id) => nameOf.get(id))
       .filter((pl): pl is NonNullable<typeof pl> => !!pl)
-      .map((pl) => ({ name: pl.name, handicap: pl.handicap, tee: teeNames.get(pl.id) ?? "" })),
+      .map((pl) => ({ name: pl.name, handicap: pl.handicap, handicapType: pl.handicapType, handicapSource: pl.handicapSource, tee: teeNames.get(pl.id) ?? "" })),
   }));
 
   return (

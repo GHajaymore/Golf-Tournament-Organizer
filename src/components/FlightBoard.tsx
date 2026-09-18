@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
 import { setFlightCaptain } from "@/app/actions/attendance";
@@ -9,6 +10,9 @@ export interface FlightPlayer {
   id: string;
   name: string;
   handicap: number;
+  /** ghin | manual | none. 'none' is no claimed figure — see indexLabel. */
+  handicapSource?: string | null;
+  handicapType?: string | null;
 }
 
 export interface FlightCard {
@@ -375,7 +379,7 @@ export function FlightBoard({
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {pl.name}
                 </span>
-                <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{pl.handicap}</span>
+                <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(pl)}</span>
                 {/* The route that works without a mouse, and the only one that
                     works on a touch screen. */}
                 {!disabled && cards.length > 1 && (

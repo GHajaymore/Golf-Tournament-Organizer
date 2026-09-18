@@ -1,3 +1,4 @@
+import { indexLabel } from "@/lib/domain/handicap-label";
 import type { SkinsBoard, NassauMatchRow, ModStablefordRow } from "@/lib/services/points-standings";
 import { placesByValue } from "@/lib/domain/flight-places";
 
@@ -198,7 +199,7 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
                   <tr key={r.playerId}>
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
                     <td style={{ fontWeight: 500 }}>{r.name}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.handicap}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{indexLabel(r)}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.played}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {r.played > 0 ? r.gross : "—"}

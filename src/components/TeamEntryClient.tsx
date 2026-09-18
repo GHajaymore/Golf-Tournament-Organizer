@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
 import { ScoreCell } from "@/components/ScorecardTable";
@@ -8,6 +9,9 @@ export interface TeamCardRow {
   playerId: string;
   playerName: string;
   handicap: number;
+  /** ghin | manual | none. 'none' is no claimed figure — see indexLabel. */
+  handicapSource?: string | null;
+  handicapType?: string | null;
   /**
    * Handicap strokes this card receives, hole by hole.
    *
@@ -186,7 +190,7 @@ export function TeamEntryClient({
                     {c.playerId ? c.playerName : "Team card"}
                   </span>
                   {c.playerId !== "" && (
-                    <span className="text-muted" style={{ fontSize: 12 }}>h/cap {c.handicap}</span>
+                    <span className="text-muted" style={{ fontSize: 12 }}>h/cap {indexLabel(c)}</span>
                   )}
                   <button
                     type="button"

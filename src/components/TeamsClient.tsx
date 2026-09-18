@@ -1,4 +1,5 @@
 "use client";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState } from "react";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import { ConfirmButton } from "./ConfirmButton";
@@ -19,6 +20,9 @@ export interface TeamMemberRow {
   playerId: string;
   name: string;
   handicap: number;
+  /** ghin | manual | none. 'none' is no claimed figure — see indexLabel. */
+  handicapSource?: string | null;
+  handicapType?: string | null;
   position: number;
 }
 
@@ -368,7 +372,7 @@ export function TeamsClient({
                     <li key={m.playerId} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                       <span style={{ flex: 1 }}>{m.name}</span>
                       <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {m.handicap}
+                        {indexLabel(m)}
                       </span>
                       <button
                         type="button"
@@ -403,7 +407,7 @@ export function TeamsClient({
                 >
                   <option value="">Choose a player…</option>
                   {unassigned.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.handicap})</option>
+                    <option key={p.id} value={p.id}>{p.name} ({indexLabel(p)})</option>
                   ))}
                 </select>
               ) : (
