@@ -57,6 +57,22 @@
      four. The --color-danger note above is the same story. */
   --color-on-accent: #16181a;
 
+  /* TOURNEYHQ'S OWN COLOURS — the mark and the wordmark, and nothing else.
+     Decided 2026-09-18: TourneyHQ looks the same at every club. These are
+     deliberately NOT --color-* tokens: `themeCss` writes every --color-* from
+     the club's palette, and until today the flag took the club's accent, the
+     ball its second colour and the wordmark gradient was built from the
+     accent ramp — so TourneyHQ was a different colour at every club. Nothing a
+     club sets can reach a --thq-* variable.
+     The flag and ball match `scripts/gen-icons.mjs` exactly (FLAG, BALL), so
+     the home-screen icon and the mark in the app are one drawing in one set of
+     colours; brand-consistency.test.ts holds the two together. */
+  --thq-flag: #f2862e;
+  --thq-ball: #5fb484;
+  --thq-orange-light: #f6a566;
+  --thq-orange-deep: #d06f23;
+  --thq-on-flag: #16181a;
+
   --color-accent-2-100: #e7f5ec;
   --color-accent-2-200: #c3e6d0;
   --color-accent-2-300: #93d0ac;
@@ -145,12 +161,14 @@ a.card:active, button.card:active, .card-hover:active {
 
 /* Wordmark — a brushed gradient foil instead of flat text, so "Tourney"
    reads as a crafted mark wherever it appears (sidebar, mobile bar, landing). */
+/* TourneyHQ's own orange, never the club's accent — see --thq-* above. The
+   pale end of the old gradient was dropped: on the light ground it vanished
+   into the page, and the wordmark has to read on both. */
 .brand-mark {
   background: linear-gradient(115deg,
-    var(--color-accent-200) 0%,
-    var(--color-accent) 45%,
-    var(--color-accent-600) 75%,
-    var(--color-accent-300) 100%);
+    var(--thq-orange-light) 0%,
+    var(--thq-flag) 45%,
+    var(--thq-orange-deep) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -168,8 +186,8 @@ a.card:active, button.card:active, .card-hover:active {
   font-size: 0.42em;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--color-bg);
-  background: var(--color-accent);
+  color: var(--thq-on-flag);
+  background: var(--thq-flag);
   padding: 0.22em 0.4em;
   border-radius: 0.35em;
   vertical-align: 0.62em;

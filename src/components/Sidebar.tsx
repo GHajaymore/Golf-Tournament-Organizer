@@ -4,8 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
-import { Logo, LOGO_SIZE } from "@/components/Logo";
-import { BrandMark } from "@/components/BrandMark";
+import { LOGO_SIZE } from "@/components/Logo";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
 import { Icon } from "./Icon";
 
@@ -88,26 +87,10 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
       >
         {/* sm: the scale's "beside a nav label or in a dense bar". A bare 20
             was a fifth size nobody chose and no guard was catching. */}
-        {brand?.name ? (
-          <OrgBrand brand={brand} size={LOGO_SIZE.sm} />
-        ) : (
-          <>
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                flex: "none",
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 8,
-                background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-              }}
-            >
-              <Logo size={LOGO_SIZE.sm} style={{ color: "var(--color-accent)" }} />
-            </div>
-            <BrandMark size={LOGO_SIZE.sm} />
-          </>
-        )}
+        {/* One lockup for every club: TourneyHQ first with its tagline — the
+            sidebar is the one header with room for it — and the club beneath,
+            unless a white-label club has uploaded its own logo. */}
+        <OrgBrand brand={brand} size={LOGO_SIZE.sm} tagline />
       </div>
 
       {/* The only band that scrolls. min-height:0 is what allows it to. */}
