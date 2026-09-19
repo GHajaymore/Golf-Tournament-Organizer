@@ -20,34 +20,66 @@ import { readSource } from "../../__tests__/source";
 
 describe("going live", () => {
   it("refuses a tournament with nothing to play", () => {
-    const r = launchRefusal({ playingRounds: 0, confirmed: 12 });
+    const r = launchRefusal({ playingRounds: 0, confirmed: 12, dated: true });
     expect(r).toContain("no rounds");
     // Every refusal names the screen that fixes it.
     expect(r).toContain("Rounds & formats");
   });
 
   it("refuses a tournament with nobody to play it", () => {
-    const r = launchRefusal({ playingRounds: 2, confirmed: 0 });
+    const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true });
     expect(r).toContain("Nobody is in the field");
     expect(r).toContain("Registration & field");
   });
 
   it("allows the ordinary case", () => {
-    expect(launchRefusal({ playingRounds: 1, confirmed: 1 })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: true })).toBeNull();
   });
 
-  it("does not demand flights, a venue or a date", () => {
+  it("does not demand flights or a venue", () => {
     /**
      * THE MINIMUM, not a checklist of good practice.
      *
      * A medal has no flights and never will. "No fixed course — players
-     * choose" is a real answer to the venue question, and a league that fixes
-     * its dates a week at a time has none to give. A gate that asked for any
-     * of those would refuse tournaments that are perfectly ready, which is the
+     * choose" is a real answer to the venue question. A gate that asked for
+     * either would refuse tournaments that are perfectly ready, which is the
      * failure mode the course-card rules are written about — "a guard that
      * refuses a real golf course is worse than no guard".
      */
-    expect(launchRefusal({ playingRounds: 1, confirmed: 40 })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true })).toBeNull();
+  });
+
+  it("does demand a date, which it did not until 2026-09-19", () => {
+    /**
+     * A DELIBERATE REVERSAL, so read this before restoring the old rule.
+     *
+     * The case above used to end "or a date", and the reasoning was that a
+     * league fixing its dates a week at a time has none to give. Ajay's rule
+     * on 2026-09-19: every tournament carries dates, and where they are not
+     * settled they are TENTATIVE rather than absent.
+     *
+     * That answers the league objection rather than overruling it. The column
+     * is free text, so "Thursdays, April to September" is a date, and
+     * `datesTentative` is how the club says the committee has not fixed it.
+     * What is refused is a tournament published to its members saying nothing
+     * at all about when it is played — the first question every one of them
+     * asks.
+     *
+     * A CASUAL ROUND IS NOT AFFECTED. It never reaches this gate: it is
+     * created by `match-setup` with an expiry and is played the same day.
+     * Casual stays casual.
+     */
+    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false });
+    expect(r).toContain("no dates");
+    // Every refusal names the screen that fixes it, and this one names the
+    // escape hatch too.
+    expect(r).toContain("Tournament setup");
+    expect(r).toContain("tentative");
+  });
+
+  it("takes whitespace as no date at all", () => {
+    // The gate reads `!!dates.trim()` at the call site; a space is not an answer.
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: false })).not.toBeNull();
   });
 });
 

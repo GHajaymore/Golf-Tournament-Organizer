@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
-import { saveEvent, applyManualCount } from "@/app/actions/tournament";
+import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -13,7 +13,13 @@ import { TournamentJourney } from "./TournamentJourney";
 
 interface EventForm {
   name: string;
+  /** The first and last day played, `yyyy-mm-dd`. The stored truth. */
+  startOn: string;
+  endOn: string;
+  /** Those dates as a sentence, derived from them — never typed. */
   dates: string;
+  /** Whether the club has fixed those dates, or is still proposing them. */
+  datesTentative: boolean;
   format: string;
   course: string;
   /** The club course this points at, or "" — see the note on Event.courseId. */
@@ -153,17 +159,39 @@ export function EventSetupClient({
           ? ""
           : (byName.get(initial.course) ?? "__other");
   const [courseSelect, setCourseSelect] = useState(initialSelect);
+  /**
+   * The dates save on their own — see the button below the field for why.
+   * Tracked separately so "unsaved dates" is not confused with "unsaved
+   * everything else", which is what the sticky bar is about.
+   */
+  const [savedDates, setSavedDates] = useState({
+    startOn: initial.startOn,
+    endOn: initial.endOn,
+    datesTentative: initial.datesTentative,
+  });
+  const [datesPending, startDatesTransition] = useTransition();
+  const datesDirty =
+    f.startOn !== savedDates.startOn ||
+    f.endOn !== savedDates.endOn ||
+    f.datesTentative !== savedDates.datesTentative;
   const [zip, setZip] = useState("");
   const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
 
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
-  // The calendar picker writes ISO here and derives the display string stored
-  // in f.dates — an existing free-text value stays untouched until the
-  // organizer actually sets a date, since "Spring meeting, first week" can't be
-  // reverse-parsed and nothing depends on it being a date.
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  /**
+   * THE DATES, AS DATES (2026-09-19). The picker used to write only a display
+   * string into `f.dates` and keep the ISO values in local state that was
+   * thrown away on reload — so the app held a sentence and nothing that could
+   * be sorted, grouped or compared. `startOn`/`endOn` are now the stored
+   * truth and this is filled from them; `f.dates` is derived for screens.
+   *
+   * A row saved before those columns existed opens with empty pickers and its
+   * old sentence still showing, because "Spring meeting, first week" cannot be
+   * reverse-parsed and is the only record of when that tournament was played.
+   */
+  const [startDate, setStartDate] = useState(initial.startOn);
+  const [endDate, setEndDate] = useState(initial.endOn);
   // The deadline is the exception: it is stored as the ISO date it is, so the
   // picker can be filled from it and — the reason any of this matters —
   // deadlinePassed can read it. Legacy free text parses to "" and leaves the
@@ -174,13 +202,13 @@ export function EventSetupClient({
     setStartDate(v);
     const end = endDate || v;
     if (!endDate) setEndDate(v);
-    if (v) set("dates", formatDayRange(v, end, locale));
+    setF((prev) => ({ ...prev, startOn: v, endOn: end, dates: v ? formatDayRange(v, end, locale) : prev.dates }));
   };
   const onEndDate = (v: string) => {
     setEndDate(v);
     const start = startDate || v;
     if (!startDate) setStartDate(v);
-    if (v) set("dates", formatDayRange(start, v, locale));
+    setF((prev) => ({ ...prev, startOn: start, endOn: v, dates: v ? formatDayRange(start, v, locale) : prev.dates }));
   };
   const onDeadlineDate = (v: string) => {
     setDeadlineDate(v);
@@ -356,7 +384,10 @@ export function EventSetupClient({
         </div>
         <div className="pair-grid">
           <div className="field">
-            <label>Tournament dates</label>
+            <label>
+              Tournament dates{" "}
+              {!f.dates.trim() && <span style={{ color: "var(--color-accent-300)" }}>· required to launch</span>}
+            </label>
             {/* `minWidth: 0` on the inputs, not just `flex: 1`.
                 A native date input's intrinsic minimum is its own chrome — the
                 spinners and separators the browser draws — and a flex item
@@ -369,6 +400,54 @@ export function EventSetupClient({
               <input className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
             </div>
             {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
+            {/* TENTATIVE IS A REAL ANSWER (2026-09-19). A club fixes its
+                calendar months before it fixes a tee time, and the app had one
+                word for both — so a member booking a holiday around a date the
+                committee had not agreed had no way to know. Launching now
+                requires dates; this is how a club gives them honestly before
+                they are settled. */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, minHeight: 44 }}>
+              <input
+                type="checkbox"
+                checked={f.datesTentative}
+                onChange={(e) => set("datesTentative", e.target.checked)}
+              />
+              These dates are tentative
+            </label>
+            {/* ITS OWN SAVE, because the dates outlive the setup lock.
+                A tentative date becomes a fixed one weeks later, by which time
+                the tournament is live and `saveEvent` refuses every field on
+                this screen. Confirming a date would then have meant unlocking
+                a tournament that is being played, which is how a flag nobody
+                can clear gets shipped. `setTournamentDates` is not behind the
+                lock, for the reason written beside it. */}
+            {datesDirty && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={datesPending}
+                  onClick={() =>
+                    startDatesTransition(async () => {
+                      await setTournamentDates(f.startOn, f.endOn, f.datesTentative, f.dates);
+                      setSavedDates({ startOn: f.startOn, endOn: f.endOn, datesTentative: f.datesTentative });
+                      setSavedSnapshot((prev) => ({
+                        ...prev,
+                        startOn: f.startOn,
+                        endOn: f.endOn,
+                        dates: f.dates,
+                        datesTentative: f.datesTentative,
+                      }));
+                    })
+                  }
+                >
+                  <Icon name="check" /> {datesPending ? "Saving…" : "Save dates"}
+                </button>
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  Dates save on their own, so they can be changed after launch.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -693,7 +772,7 @@ export function EventSetupClient({
             onClick={() => {
               startTransition(() =>
                 saveEvent({
-                  name: f.name, dates: f.dates, format: f.format, course: f.course, courseId: f.courseId, city: f.city,
+                  name: f.name, dates: f.dates, datesTentative: f.datesTentative, format: f.format, course: f.course, courseId: f.courseId, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
                   courseMode: f.courseMode, sideStyle: f.sideStyle,
                 }),

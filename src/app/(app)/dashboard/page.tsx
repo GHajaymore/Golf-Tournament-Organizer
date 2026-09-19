@@ -430,6 +430,7 @@ export default async function DashboardPage() {
       ? launchRefusal({
           playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
           confirmed: state.confirmed.length,
+          dated: !!state.event.dates.trim(),
         })
       : lifecycleAction?.to === "completed"
         ? finishRefusal({

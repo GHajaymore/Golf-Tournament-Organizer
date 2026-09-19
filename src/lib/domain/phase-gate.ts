@@ -38,6 +38,20 @@ export interface LaunchFacts {
   playingRounds: number;
   /** Entries in the field, confirmed. */
   confirmed: number;
+  /**
+   * Whether the tournament says when it is played — `Event.dates`, in the
+   * organizer's own words.
+   *
+   * Required only to LAUNCH, which is the moment a field is told about it. A
+   * draft with no date is somebody thinking, and this file's own rule is that
+   * a gate states the minimum that makes the phase mean anything: a
+   * tournament published to its members without a date cannot be planned
+   * around, and "when is it?" is the first question every one of them asks.
+   *
+   * "Tentative" is a real answer — see `datesTentative` on the schema — so
+   * this refuses an EMPTY date, never an unsettled one.
+   */
+  dated: boolean;
 }
 
 /**
@@ -54,6 +68,9 @@ export function launchRefusal(facts: LaunchFacts): string | null {
   }
   if (facts.confirmed < 1) {
     return "Nobody is in the field yet, so there is nobody to launch it for. Enter the field on Registration & field, then launch.";
+  }
+  if (!facts.dated) {
+    return "This tournament has no dates, so nobody can plan around it. Add them on Tournament setup — mark them tentative if the committee hasn't fixed them yet — then launch.";
   }
   return null;
 }
