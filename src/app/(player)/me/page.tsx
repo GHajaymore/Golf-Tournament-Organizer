@@ -18,6 +18,14 @@ import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
+import { standingRows } from "@/lib/services/tournament";
+import { canSeeLeaderboard } from "@/lib/tournament-settings";
+import { boardKind } from "@/lib/formats";
+import { holesPlayed } from "@/lib/domain/handicap";
+import { rankedScore } from "@/lib/domain/ranked-score";
+import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark } from "@/lib/domain/scoreboard";
+import { roundCardFor } from "@/lib/services/round-card";
+import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching } from "@/lib/domain/tournament-switcher";
 
@@ -110,6 +118,34 @@ export default async function PlayTodayPage() {
   const holes = round?.holes ?? 0;
   const strokes: (number | null)[] = card?.strokes ?? Array.from({ length: holes }, () => null);
   const next = card ? nextHoleToPlay(strokes, round?.group?.startHole ?? 1) : 1;
+
+  /** The round's pars, for marking the tiles — the card page's own reading. */
+  const roundStage = round ? (state.stages.find((s) => s.id === round.stageId) ?? null) : null;
+  const roundCard = await roundCardFor(state, roundStage, holes);
+
+  /**
+   * THE LEADERS BOARD, from the Board tab's own rows and under its own two
+   * gates: the club has published standings to players, and the round ranks
+   * individuals (`boardKind` — a manual or team round has no board to hang).
+   */
+  const boardStage = state.boardStage;
+  const boardRows =
+    canSeeLeaderboard(settingsOf(state.event), session.viewRole) && boardKind(boardStage?.format) === "standard"
+      ? standingRows(state)
+      : [];
+  const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
+  const shownNames = boardNames(shown.map((s) => s.row.name));
+  const isStableford = boardStage?.scoringBasis === "stableford";
+  const leaders: LeaderTile[] = shown.map(({ row, gap }, i) => ({
+    id: row.id,
+    pos: positionLabel(row, boardRows),
+    name: shownNames[i],
+    thru: thruTile(row, holesPlayed(boardStage?.holes)),
+    total: rankedScore(row, { isStroke: state.boardIsStroke, isStableford }).text,
+    under: state.boardIsStroke && !isStableford && row.started && row.toPar < 0,
+    you: row.id === me.playerId,
+    gap,
+  }));
 
   return (
     <div>
@@ -205,130 +241,39 @@ export default async function PlayTodayPage() {
         </section>
       )}
 
+      {/**
+       * YOUR CARD, HUNG ON THE BOARD (design D, 2026-09-19). The round as
+       * eighteen tiles — ringed red under par, boxed over — with the same one
+       * button and the same words as before: the action comes from
+       * `cardState`, so "Finish my card" is never offered over a signed,
+       * complete card, and the hole number is added, never substituted.
+       */}
       {hero && (
-        <section
-          aria-label="Your round"
-          style={{
-            marginTop: 14,
-            borderRadius: 22,
-            padding: 20,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            // The filled accent with the label colour solved to read on it —
-            // `--color-on-accent` clears 4.5:1 against step 500 for every
-            // palette a club can pick (accent-is-not-a-text-colour.test.ts).
-            background: "var(--color-accent)",
-            color: "var(--color-on-accent)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                {standing ? "Your round" : "Not started"}
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-heading)",
-                  fontSize: 38,
-                  lineHeight: 1,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {/* "Thru 9", "Final" — the service's own label for where this
-                    card has got to, measured against the holes it owes. */}
-                {standing?.scoreLabel ?? (card ? `${card.filled} in` : "Tee off")}
-              </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Score
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-heading)",
-                  fontSize: 38,
-                  lineHeight: 1,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {/* The number this player is RANKED on — to-par in a stroke
-                    round, points in a Stableford one. */}
-                {standing?.scoreText || "–"}
-              </span>
-            </div>
-          </div>
-
-          {holes > 0 && (
-            <div
-              role="img"
-              aria-label={`${card?.filled ?? 0} of ${holes} holes in`}
-              // FLEX, NOT GRID. An inline `grid-template-columns` is collapsed to
-              // one column inside <main> at phone width — the availability
-              // calendar hit the same rule and moved to the `.cal-week` class —
-              // and this strip rendered as eighteen stacked bars on first look.
-              style={{ display: "flex", gap: 3 }}
-            >
-              {strokes.map((s, i) => (
-                <span
-                  key={i}
-                  style={{
-                    flex: "1 1 0",
-                    minWidth: 0,
-                    height: 8,
-                    borderRadius: 3,
-                    background:
-                      s !== null && s !== undefined
-                        ? "var(--color-on-accent)"
-                        : "color-mix(in srgb, var(--color-on-accent) 25%, transparent)",
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* ONE BUTTON, and its words come from the same place as the line
-              under it — "Finish my card" over a signed, complete card was the
-              loudest half of an untruth. The hole number is added, never
-              substituted, so the action keeps its own name. */}
-          {(!card || cardState.action) && (
-            <Link
-              href="/me/card"
-              style={{
-                minHeight: 58,
-                borderRadius: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                textDecoration: "none",
-                background: "var(--color-on-accent)",
-                color: "var(--color-accent)",
-                fontFamily: "var(--font-heading)",
-                fontSize: 19,
-                fontWeight: 600,
-              }}
-            >
-              <Icon name={!card || cardState.action === "Finish my card" ? "pencil-simple" : "eye"} />
-              {!card ? "Start my card" : cardState.action}
-              {card && cardState.action === "Finish my card" && next !== null && (
-                <span style={{ fontFamily: "var(--font-body)", fontSize: 13.5, fontWeight: 500 }}>
-                  · hole {next} next
-                </span>
-              )}
-            </Link>
-          )}
-
-          <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-            {card ? (
-              <>
-                {card.filled} of {holes} holes in · {cardState.label}
-              </>
-            ) : (
-              "Nothing returned yet."
-            )}
-          </div>
-        </section>
+        <ScoreboardCard
+          headline={`YOUR CARD · ${(standing?.scoreLabel ?? (card ? `${card.filled} in` : "Not started")).toUpperCase()}`}
+          total={standing?.scoreText || "–"}
+          tiles={strokes.map((s, i) => ({
+            n: i + 1,
+            stroke: s ?? null,
+            // No real card, no mark: a score is never called a birdie
+            // against a placeholder par.
+            mark: tileMark(s, roundCard.known ? roundCard.card.pars[i] : undefined),
+            next: card !== null && cardState.action === "Finish my card" && next === i + 1,
+          }))}
+          action={
+            !card || cardState.action
+              ? {
+                  href: "/me/card",
+                  label: !card
+                    ? "Start my card"
+                    : cardState.action === "Finish my card" && next !== null
+                      ? `${cardState.action} · hole ${next}`
+                      : cardState.action,
+                }
+              : null
+          }
+          footer={card ? `${card.filled} of ${holes} holes in · ${cardState.label}` : "Nothing returned yet."}
+        />
       )}
 
       {/* A player whose round is scored for them — a match or a team round —
@@ -415,46 +360,47 @@ export default async function PlayTodayPage() {
         </>
       )}
 
-      {/* WHERE I STAND, as one row that opens the board. The hero above
-          already carries the score, so this says the place — and whether it
-          can still move — without repeating the number. */}
-      {hero && standing && (
-        <Link
-          href="/me/board"
-          className="card elev-sm"
-          style={{
-            marginTop: 12,
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 14,
-            textDecoration: "none",
-            color: "var(--color-text)",
-          }}
-        >
-          <span
+      {/**
+       * WHERE I STAND, ON THE LEADERS BOARD. The top five and the player,
+       * from `standingRows` — the Board tab's own rows — and only where the
+       * Board tab would show them: the club has published standings, and the
+       * round ranks individuals. The qualifier ("2 of 4 cards in — these
+       * standings will change") is printed under the board it qualifies.
+       */}
+      {leaders.length > 0 ? (
+        <ScoreboardLeaders rows={leaders} note={standing?.note || standing?.record || ""} />
+      ) : (
+        hero &&
+        standing && (
+          <Link
+            href="/me/board"
+            className="card elev-sm"
             style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: 30,
-              lineHeight: 1,
-              minWidth: 48,
-              fontVariantNumeric: "tabular-nums",
+              marginTop: 12,
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              textDecoration: "none",
+              color: "var(--color-text)",
             }}
           >
-            {standing.position || "–"}
-          </span>
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>
-              {standing.position ? "On the board" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
+            <span style={{ fontFamily: "var(--font-heading)", fontSize: 30, lineHeight: 1, minWidth: 48, fontVariantNumeric: "tabular-nums" }}>
+              {standing.position || "–"}
             </span>
-            {(standing.note || standing.record) && (
-              <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>
-                {standing.note || standing.record}
+            <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>
+                {standing.position ? "On the board" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
               </span>
-            )}
-          </span>
-          <Icon name="arrow-right" />
-        </Link>
+              {(standing.note || standing.record) && (
+                <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+                  {standing.note || standing.record}
+                </span>
+              )}
+            </span>
+            <Icon name="arrow-right" />
+          </Link>
+        )
       )}
 
       {/* Who I go off with. The question every player asks first. */}

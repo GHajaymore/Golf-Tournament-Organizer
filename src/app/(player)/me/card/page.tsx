@@ -7,15 +7,13 @@ import { generatesPairings } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
-import { resolveCourse, hasCourseData } from "@/lib/courses";
-import { courseForRound, applyNine, cleanNine } from "@/lib/services/course-resolution";
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
-import { prisma } from "@/lib/db";
 import { meFor } from "@/lib/services/me";
 import { cardBrand } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 import { partnerCardsFor } from "@/lib/services/group-cards";
+import { roundCardFor } from "@/lib/services/round-card";
 import { Icon } from "@/components/Icon";
 
 export const metadata = screenMetadata("/me/card");
@@ -110,14 +108,8 @@ export default async function PlayCardPage() {
   // — not the event's, which is only the fallback. A player standing on a
   // second venue was being shown the first course's par, yardage and stroke
   // index, and a stroke index is what decides where their shots fall.
-  const venue = stage?.courseId
-    ? await prisma.course.findFirst({ where: { id: stage.courseId, events: { some: { eventId: state.event.id } } } })
-    : null;
-  const resolved = courseForRound(venue, state.event);
-  const known = !!resolved || hasCourseData(state.event);
-  const card = resolved
-    ? applyNine(resolved, cleanNine(stage?.nine), holes)
-    : { ...resolveCourse(state.event), pars: resolveCourse(state.event).pars, strokeIndex: resolveCourse(state.event).strokeIndex };
+  // One reading, shared with Today's tiles — see services/round-card.ts.
+  const { venue, known, card } = await roundCardFor(state, stage, holes);
 
   /**
    * Handicap strokes per hole, resolved on the SERVER.

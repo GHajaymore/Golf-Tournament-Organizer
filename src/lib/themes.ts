@@ -754,8 +754,17 @@ export const DEFAULT_CLUB_THEME: ClubTheme = {
 
 /** Every custom property a theme sets, for one ground. */
 export function themeVarsFor(theme: ClubTheme, ground: Ground): Record<string, string> {
-  const accent = themeScale(resolveTheme(theme.accentKey, theme.accentHex), ground);
-  const secondary = themeScale(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
+  return varsForPresets(
+    resolveTheme(theme.accentKey, theme.accentHex),
+    resolveSecondary(theme.secondaryKey, theme.secondaryHex),
+    ground,
+  );
+}
+
+/** The same token set, from two presets directly — the scoreboard's route. */
+export function varsForPresets(accentPreset: ThemePreset, secondaryPreset: ThemePreset, ground: Ground): Record<string, string> {
+  const accent = themeScale(accentPreset, ground);
+  const secondary = themeScale(secondaryPreset, ground);
 
   const vars: Record<string, string> = {
     "--color-accent": accent[500],
@@ -861,6 +870,74 @@ export function themeCss(theme: ClubTheme, selector = "[data-club-theme]"): stri
  * If the two ever need to diverge again, they should diverge on something a
  * club can see and set, not on which function a screen happened to import.
  */
+
+/* ── The player app's own ground: the hand-hung scoreboard ────────────────── */
+
+/**
+ * THE PLAYER APP IS A SCOREBOARD — decided by the club 2026-09-19.
+ *
+ * They chose design D for Today ("go with the scorecard look") and then, asked
+ * whether the whole player app should wear it, said yes. So the play shell no
+ * longer takes the club's theme: it is the green frame of a scoreboard beside
+ * an 18th green, with cream lettering, the TourneyHQ orange for what you press
+ * and a gold for what goes well. The same at every club, like the mark.
+ *
+ * This is the divergence the note above `playerColorScheme` asks to be made
+ * deliberately, and it is: the console keeps the club's theme and its one
+ * ground setting; the player app is a product decision, not a club one. If a
+ * club ever needs to change it, that should become a club setting rather than
+ * a second import.
+ *
+ * A DARK ground in the ramp's sense — light lettering on a deep field — so the
+ * same solver and the same floors apply, and every pair is measured in
+ * `scoreboard-ground.test.ts` like the two grounds above.
+ */
+export const SCOREBOARD_GROUND: Ground = {
+  key: "dark",
+  bg: "#123422",
+  surface: "#18432e",
+  text: "#f7f3e6",
+  neutrals: ["#fbf8ee", "#efe9d5", "#ddd6bb", "#c9c4a6", "#aeae93", "#8a917a", "#63735f", "#3f5a47", "#2a4a37"],
+  danger: "#ffb0a4",
+  dangerBg: "#4a1f1a",
+  warning: "#f5c56b",
+  onAccent: "#16181a",
+};
+
+/** The orange of the TourneyHQ flag, as a ramp: buttons, links, the thing you press. */
+export const SCOREBOARD_ACCENT: ThemePreset = {
+  key: "scoreboard-flag",
+  name: "Scoreboard flag",
+  blurb: "The TourneyHQ orange on the scoreboard's green.",
+  hue: 27,
+  saturation: 0.87,
+};
+
+/**
+ * The second colour — birdies, the live dot, money owed to you — is the red a
+ * scoreboard paints under par in. Not gold: the note above DEFAULT_THEME warns
+ * that an amber secondary rings birdies in the caution colour, and this
+ * ground's `warning` is amber. A deep red would sit at nearly the same
+ * luminance as the green field, so the solver lifts the ramp to a light scarlet
+ * until it clears its floors — measured in scoreboard-ground.test.ts.
+ */
+export const SCOREBOARD_SECONDARY: ThemePreset = {
+  key: "scoreboard-red",
+  name: "Scoreboard red",
+  blurb: "Under par, the way it is painted beside the 18th.",
+  hue: 358,
+  saturation: 0.85,
+};
+
+/** Every token the player app renders, from the scoreboard ground. */
+export function scoreboardVars(): Record<string, string> {
+  return varsForPresets(SCOREBOARD_ACCENT, SCOREBOARD_SECONDARY, SCOREBOARD_GROUND);
+}
+
+/** The player app's stylesheet, scoped to its shell — see SCOREBOARD_GROUND. */
+export function scoreboardCss(selector: string): string {
+  return `${selector}{${declarations(scoreboardVars())}}`;
+}
 
 /**
  * What `color-scheme` a player-facing surface should declare, so native chrome

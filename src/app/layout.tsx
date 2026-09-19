@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { Fraunces } from "next/font/google";
+import { Fraunces, Oswald } from "next/font/google";
 /**
  * THE ICON FONT IS GONE.
  *
@@ -84,6 +84,19 @@ const display = Fraunces({
   weight: ["500", "600", "700"],
   style: ["normal", "italic"],
   variable: "--font-display",
+  display: "swap",
+});
+
+/**
+ * The hand-hung scoreboard's face (design D, chosen 2026-09-19): a condensed
+ * sans that reads like the painted tiles beside an 18th green. Used only by
+ * the scoreboard panels on the player's Today screen, through
+ * `--font-scoreboard`. Three weights, latin only.
+ */
+const scoreboard = Oswald({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-board",
   display: "swap",
 });
 
@@ -205,7 +218,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable} ${scoreboard.variable}`}>
       <body>
         {/* First in the body, so every <use href="#i-…"> below it resolves
             against symbols that are already in the document. */}

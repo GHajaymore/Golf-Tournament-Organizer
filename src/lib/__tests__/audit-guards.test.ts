@@ -1952,10 +1952,14 @@ describe("a round's card is narrowed in exactly one place", () => {
     // `/me/card` is exempt because applyNine picked the nine before the slice.
     // If that call goes, the slice becomes the front nine of an eighteen-hole
     // card and the exemption is wrong.
+    // Since 2026-09-19 the narrowing lives in `services/round-card.ts`, shared
+    // with Today's tiles, and the page must still get its card from there.
     const card = stripComments(
       readFileSync(join(process.cwd(), "src/app/(player)/me/card/page.tsx"), "utf8"),
     );
-    expect(card).toMatch(/applyNine\(/);
+    expect(card).toMatch(/roundCardFor\(state, stage, holes\)/);
+    const helper = stripComments(readFileSync(join(process.cwd(), "src/lib/services/round-card.ts"), "utf8"));
+    expect(helper).toMatch(/applyNine\(/);
   });
 
   /**

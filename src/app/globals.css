@@ -73,6 +73,23 @@
   --thq-orange-deep: #d06f23;
   --thq-on-flag: #16181a;
 
+  /* THE HAND-HUNG SCOREBOARD (design D, chosen 2026-09-19). A physical object
+     on the page — a cream board in a green frame with white tiles — so, like
+     the mark above, it is the same at every club and on either ground, and
+     nothing a club sets reaches it. Red is under par, as on every scoreboard
+     beside an 18th green. Every text pair is MEASURED in
+     scoreboard-colours.test.ts rather than quoted here; red and green are
+     never the only signal, the tile is also ringed or boxed. */
+  --sb-frame: #1f5a3d;
+  --sb-trim: #e8e2cf;
+  --sb-board: #fbfaf5;
+  --sb-tile: #ffffff;
+  --sb-blank: #ece8da;
+  --sb-ink: #1b1d1c;
+  --sb-red: #b3261e;
+  --sb-green: #1f6b43;
+  --sb-on-frame: #ffffff;
+
   --color-accent-2-100: #e7f5ec;
   --color-accent-2-200: #c3e6d0;
   --color-accent-2-300: #93d0ac;
@@ -823,4 +840,130 @@ body {
 }
 details[open] > .expense-row .expense-caret {
   transform: rotate(180deg);
+}
+
+/* THE HAND-HUNG SCOREBOARD — the player's Today screen (design D).
+   Classes, not inline grids: main [style*="grid-template-columns"] stacks
+   every inline grid at phone width, and a scoreboard in one column is a list.
+   Colours are the fixed --sb-* object palette at the top of this file. */
+.sb-frame {
+  background: var(--sb-frame);
+  padding: 6px;
+  border-radius: 10px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+}
+.sb-board {
+  background: var(--sb-board);
+  border: 3px solid var(--sb-trim);
+  border-radius: 4px;
+  color: var(--sb-ink);
+  font-family: var(--font-scoreboard);
+}
+.sb-title {
+  text-align: center;
+  padding: 8px 8px 6px;
+  border-bottom: 3px solid var(--sb-frame);
+  color: var(--sb-frame);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.18em;
+}
+.sb-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 40px 54px;
+  gap: 3px;
+  padding: 0 6px 4px;
+}
+.sb-head {
+  padding-top: 6px;
+  color: var(--sb-frame);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+.sb-tile {
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  background: var(--sb-tile);
+  color: var(--sb-ink);
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+}
+.sb-name {
+  justify-items: start;
+  padding: 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-you {
+  background: var(--thq-flag);
+  color: var(--thq-on-flag);
+}
+.sb-under {
+  color: var(--sb-red);
+}
+.sb-gap {
+  height: 6px;
+  margin: 2px 12px 6px;
+  border-bottom: 2px dashed var(--sb-trim);
+}
+.sb-card {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 3px;
+}
+.sb-hole {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+.sb-hole-n {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sb-frame);
+}
+.sb-hole .sb-tile {
+  min-height: 30px;
+  font-size: 16px;
+}
+.sb-hole .is-blank {
+  background: var(--sb-blank);
+}
+.sb-hole .is-next {
+  background: var(--thq-flag);
+  color: var(--thq-on-flag);
+}
+.sb-hole .is-under {
+  color: var(--sb-red);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--sb-red);
+}
+.sb-hole .is-over {
+  box-shadow: inset 0 0 0 2px var(--sb-green);
+}
+.sb-action {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--sb-frame);
+  color: var(--sb-on-frame);
+  font-family: var(--font-scoreboard);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  text-transform: uppercase;
 }
