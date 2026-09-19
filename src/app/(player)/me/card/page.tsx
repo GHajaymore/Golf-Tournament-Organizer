@@ -15,6 +15,7 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { partnerCardsFor } from "@/lib/services/group-cards";
 import { roundCardFor } from "@/lib/services/round-card";
 import { Icon } from "@/components/Icon";
+import { WayForward } from "@/components/WayForward";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -49,6 +50,12 @@ export default async function PlayCardPage() {
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           You aren&rsquo;t entered in this tournament, so there&rsquo;s no card to fill in.
         </p>
+        <WayForward
+          links={[
+            { href: "/me/events", label: "What my club has on", icon: "calendar-dots" },
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+          ]}
+        />
       </div>
     );
   }
@@ -61,6 +68,12 @@ export default async function PlayCardPage() {
           Scores for this tournament are entered by the organizer. Your card will appear on the board once
           it is in.
         </p>
+        <WayForward
+          links={[
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+            { href: "/me", label: "Back to today", icon: "flag" },
+          ]}
+        />
       </div>
     );
   }
@@ -88,16 +101,20 @@ export default async function PlayCardPage() {
             not theirs, and until now the only offer was the whole board. Their
             own match is one tap away and is what they came for — so it is
             offered first, and only when there is one to offer. */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-          {me.round.matches.length > 0 && (
-            <Link className="btn btn-primary" href="/me">
-              <Icon name="sword" /> {me.round.matches.length === 1 ? "See my match" : "See my matches"}
-            </Link>
-          )}
-          <Link className="btn btn-secondary" href="/me/board">
-            <Icon name="ranking" /> See the board
-          </Link>
-        </div>
+        <WayForward
+          links={[
+            ...(me.round.matches.length > 0
+              ? [
+                  {
+                    href: "/me",
+                    label: me.round.matches.length === 1 ? "See my match" : "See my matches",
+                    icon: "sword",
+                  },
+                ]
+              : []),
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+          ]}
+        />
       </div>
     );
   }
