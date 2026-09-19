@@ -131,8 +131,10 @@ describe("the one list, read by both", () => {
      * should have to leave — and this is what makes that a decision rather
      * than a drift.
      */
+    // 2026-09-19: something did leave. Events took Rules' place — the club's
+    // choice — and Rules is linked from Board and My card instead.
     expect(PLAYER_TABS).toHaveLength(4);
-    expect(PLAYER_TABS.map((t) => t.href)).toEqual(["/me", "/me/board", "/me/card", "/me/rules"]);
+    expect(PLAYER_TABS.map((t) => t.href)).toEqual(["/me", "/me/board", "/me/card", "/me/events"]);
   });
 
   it("gives the console's name to /me, where the two navs disagree", () => {

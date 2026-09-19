@@ -1,4 +1,3 @@
-import { screenName } from "@/lib/nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -53,21 +52,6 @@ import { isWatching } from "@/lib/domain/tournament-switcher";
  * marketing sentence, the same as the organizer's twenty-one.
  */
 export const metadata = screenMetadata("/me");
-
-/** A tinted row that opens another screen — the tournaments list, a casual round. */
-const ROW: React.CSSProperties = {
-  minHeight: 56,
-  borderRadius: 16,
-  padding: "10px 16px",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  textDecoration: "none",
-  color: "var(--color-text)",
-  background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
-};
-const ROW_ICON: React.CSSProperties = { color: "var(--color-accent-300)", display: "grid", placeItems: "center" };
-const ROW_TEXT: React.CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 };
 
 /** Up to two letters for a name, for the little group avatars. */
 function initialsOf(name: string): string {
@@ -149,38 +133,23 @@ export default async function PlayTodayPage() {
 
   return (
     <div>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.09em",
-          textTransform: "uppercase",
-          color: "var(--color-neutral-400)",
-        }}
-      >
-        {/* Same label slot, same rule as the Board's — `label` prefers the
-            organizer's description, and a description may be a whole
-            sentence. `name` is the short one ("Round 1"), already resolved by
-            the service for exactly this reason. */}
-        {[round ? roundKicker(round.label, round.name) : "Today", round?.venue].filter(Boolean).join(" · ")}
-      </div>
-      {/* Smaller than it was, and held to two lines. A championship's full
-          name ran to three lines at phone width and pushed the player's own
-          round below the fold; the name is still all here for anyone who
-          wants it, on the Board and in the header above. */}
+      {/* THE ROUND, NOT THE TOURNAMENT AGAIN (2026-09-19). The tournament's
+          full name is in the switcher strip directly above, so repeating it as
+          this heading put it on the screen twice before anything the player
+          came for. The heading is the round — `roundKicker` prefers the
+          organizer's short label ("Round 1") — and where it is played. */}
       <h1
         style={{
           fontFamily: "var(--font-heading)",
-          fontSize: 21,
+          fontSize: 20,
           lineHeight: 1.2,
-          margin: "4px 0 0",
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
+          margin: 0,
+          whiteSpace: "nowrap",
           overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        {state.event.name}
+        {[round ? roundKicker(round.label, round.name) : "Today", round?.venue].filter(Boolean).join(" · ")}
       </h1>
 
       {/**
@@ -272,7 +241,10 @@ export default async function PlayTodayPage() {
                 }
               : null
           }
-          footer={card ? `${card.filled} of ${holes} holes in · ${cardState.label}` : "Nothing returned yet."}
+          // The card's state only: "thru 9" is already the panel's headline
+          // and the tiles show which holes are in, so "9 of 18 holes in" was
+          // the same fact a third time.
+          footer={card ? cardState.label : "Nothing returned yet."}
         />
       )}
 
@@ -451,32 +423,9 @@ export default async function PlayTodayPage() {
         </div>
       )}
 
-      {/* WHAT ELSE THE CLUB HAS ON, and a round of your own. The club's
-          tournaments — where a member enters one — and the free-tier casual
-          round, which is for anybody, not only organizers. Deliberately not
-          tabs: see PLAYER_EVENTS in player-nav.ts. */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-        <Link href="/me/events" style={ROW}>
-          <span style={ROW_ICON}>
-            <Icon name="calendar-dots" />
-          </span>
-          <span style={ROW_TEXT}>
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{screenName("/me/events")}</span>
-            <span className="text-muted" style={{ fontSize: 12.5 }}>Everything your club is running, and entering</span>
-          </span>
-          <Icon name="arrow-right" />
-        </Link>
-        <Link href="/match/new" style={ROW}>
-          <span style={ROW_ICON}>
-            <Icon name="sword" />
-          </span>
-          <span style={ROW_TEXT}>
-            <span style={{ fontSize: 15, fontWeight: 600 }}>Play a casual round</span>
-            <span className="text-muted" style={{ fontSize: 12.5 }}>Just you and your group — no tournament needed</span>
-          </span>
-          <Icon name="arrow-right" />
-        </Link>
-      </div>
+      {/* The club's tournaments and a casual round used to be two rows here.
+          Both live on the Events tab now (player-nav.ts), one tap from
+          anywhere — a row on Today was a second way to the same place. */}
 
       {/* Am I playing, and when — the calendar, unchanged. */}
       {me.playerId && availability.playerId && (

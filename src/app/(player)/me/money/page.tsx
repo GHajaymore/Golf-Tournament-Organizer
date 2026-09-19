@@ -195,6 +195,12 @@ export default async function MoneyPage() {
           groups={publishedSheet?.groups ?? []}
         />
       )}
+      {/* Said ONCE, for the whole screen (2026-09-19). The pots and the
+          settle-up each ended with their own version of it, so a player with
+          both read it twice. */}
+      <p className="text-muted" style={{ fontSize: 11.5, margin: "14px 0 0", lineHeight: 1.5 }}>
+        TourneyHQ works the money out and writes it down. It never moves money.
+      </p>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Icon } from "@/components/Icon";
 import { requireSession } from "@/lib/page-helpers";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
@@ -40,9 +42,8 @@ async function openTournament(formData: FormData): Promise<void> {
  * a member ENTERS: the organizer sets the tournament up and when entries open
  * and close, and every member sees it here — an email is optional.
  *
- * NOT A FIFTH TAB. `player-nav.ts` keeps the play shell to four and says why —
- * Money is the single exception and earns it by being conditional. This is a
- * destination reached from Today.
+ * A TAB SINCE 2026-09-19, in place of Rules — the club's choice; see
+ * PLAYER_TABS in `player-nav.ts`. The casual round lives here too.
  *
  * EVERY EVENT IS SHOWN, INCLUDING THE ONES THAT ARE SHUT. A closed tournament
  * with an honest band tells a member the club exists and is busy; hiding it
@@ -61,6 +62,32 @@ export default async function ClubEventsPage() {
     <>
       <div className="page-kicker">Your club</div>
       <h1 className="page-title">Events</h1>
+
+      {/* A ROUND OF YOUR OWN, beside everything the club runs. It was a row on
+          Today; since Events became a tab (2026-09-19) this is where "what can
+          I play" lives, so there is one place to look rather than two. */}
+      <Link
+        href="/match/new"
+        className="card elev-sm"
+        style={{
+          marginTop: 12,
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          textDecoration: "none",
+          color: "var(--color-text)",
+        }}
+      >
+        <Icon name="sword" style={{ color: "var(--color-accent-300)", fontSize: 20 }} />
+        <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Play a casual round</span>
+          <span className="text-muted" style={{ fontSize: 12.5 }}>
+            Just you and your group — no tournament needed
+          </span>
+        </span>
+        <Icon name="arrow-right" />
+      </Link>
 
       {events.length === 0 ? (
         <div className="card elev-sm" style={{ marginTop: 16 }}>

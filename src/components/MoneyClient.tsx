@@ -970,10 +970,21 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                 payments they would otherwise have made.{" "}
               </>
             ) : (
-              <>The fewest handovers that make everyone square. </>
+              <>The fewest handovers that make everyone square.</>
             )}
-            TourneyHQ works the money out; it never moves it.
           </p>
+          {/* YOUR POSITION, once — it was repeated under every handover that
+              involved you, identically, since it describes you rather than the
+              handover. It answers "for what?" about the POSITION, not about a
+              transfer: a netted handover cannot be attributed to particular
+              lines, and somebody else's breakdown is not ours to state. */}
+          {shownTransfers.some((t) => t.fromPlayerId === view.playerId || t.toPlayerId === view.playerId) && (
+            <p className="text-muted" style={{ fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+              Your position: {money(view.expensesCents)} of shared costs
+              {view.gamesCents !== 0 && <> · {money(view.gamesCents)} from the games</>}
+              {view.settledCents !== 0 && <> · {money(view.settledCents)} already settled</>}
+            </p>
+          )}
           {shownTransfers.map((t) => (
             <div
               key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
@@ -981,27 +992,6 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             >
               <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
                 {t.fromName} <Icon name="arrow-right" aria-label="pays" /> {t.toName}
-                {/* WHAT IT IS FOR.
-                    A handover says an amount and nothing else, which is the
-                    moment somebody asks "for what?" and nobody can answer
-                    without scrolling.
-
-                    It explains the POSITION, not the transfer, and says so.
-                    A netted handover cannot be attributed to particular
-                    lines — that is what netting means — and labelling this
-                    one "the lodging" would be a tidy lie. Shown only on your
-                    own rows, because these are the only parts this screen
-                    knows: somebody else's breakdown is not ours to state. */}
-                {(t.fromPlayerId === view.playerId || t.toPlayerId === view.playerId) && (
-                  <span
-                    className="text-muted"
-                    style={{ display: "block", fontSize: 11.5, lineHeight: 1.5, marginTop: 2 }}
-                  >
-                    Your position: {money(view.expensesCents)} of shared costs
-                    {view.gamesCents !== 0 && <> · {money(view.gamesCents)} from the games</>}
-                    {view.settledCents !== 0 && <> · {money(view.settledCents)} already settled</>}
-                  </span>
-                )}
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
               <button

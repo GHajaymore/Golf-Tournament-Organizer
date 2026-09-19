@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { enterTournament } from "@/app/actions/auth";
 import type { Switcher } from "@/lib/domain/tournament-switcher";
 import { Icon } from "./Icon";
@@ -126,9 +125,8 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
               </button>
             </form>
           ))}
-          <Link href="/me/events" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-300)", padding: "10px 2px", minHeight: 44, display: "flex", alignItems: "center" }}>
-            All your club&rsquo;s tournaments, and how to enter
-          </Link>
+          {/* The full list — entering, dates, results — is the Events tab now,
+              so there is no second link to it here. */}
         </div>
       </details>
     </nav>
