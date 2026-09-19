@@ -64,6 +64,7 @@ export function PlayerCard({
   savePartial = true,
   staffApproves = true,
   partners = [],
+  startHole = 1,
 }: {
   /**
    * The rest of the foursome on the round's PUBLISHED tee sheet, whose cards
@@ -71,6 +72,8 @@ export function PlayerCard({
    * `saveScorecard` enforces). Empty means a card for one, as before.
    */
   partners?: GroupPartner[];
+  /** Where this player’s group teed off, so the card opens on the hole they are playing. */
+  startHole?: number;
   stageId: string;
   playerId: string;
   playerName: string;
@@ -654,6 +657,7 @@ export function PlayerCard({
               myStrokes={strokes}
               onSetMine={setHole}
               partners={partners}
+              startHole={startHole}
               holding={(s) => !savePartial && s.filter((v) => v != null).length < holes}
             />
           ) : view === "hole" ? (
@@ -672,6 +676,7 @@ export function PlayerCard({
               holes={holes}
               onSet={(_pid, hole, value) => setHole(hole, value)}
               meId={playerId}
+              startHole={startHole}
             />
           ) : (
             <>
