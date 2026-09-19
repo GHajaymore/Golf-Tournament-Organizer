@@ -14,6 +14,7 @@ import {
   type EventBand,
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
+import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -39,8 +40,12 @@ import { venueOf } from "./registration";
 export interface ClubEventRow {
   eventId: string;
   name: string;
-  /** The organizer's own words for when it is played. May be empty. */
+  /** When it is played, as a sentence derived from the dates below. May be empty. */
   dates: string;
+  /** The first day played, `yyyy-mm-dd`, or "" — what seasons are worked out from. */
+  startOn: string;
+  /** Whether the club has fixed those dates — see `datesTentative` on Event. */
+  datesTentative: boolean;
   /** "Royal Ashdown, Forest Row" — course and town, as the entry form shows it. */
   venue: string;
   /** The league or society this belongs to, when it belongs to one. */
@@ -98,13 +103,47 @@ export interface ClubEventRow {
  */
 export const clubEventsFor = cache(clubEventsUncached);
 
+/**
+ * The season window of the club this tournament belongs to.
+ *
+ * Read from the club rather than passed around, so the player's list and the
+ * organizer's screens group by the same answer. A tournament with no club, or
+ * a club that has never set one, falls back to the calendar year — which is
+ * `seasonWindow`'s own reading of an unanswered question.
+ */
+export async function clubSeasonFor(eventId: string): Promise<SeasonWindow> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { seasonStartsOn: true, seasonEndsOn: true } } },
+  });
+  return seasonWindow(event?.organization?.seasonStartsOn ?? "", event?.organization?.seasonEndsOn ?? "");
+}
+
 async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const reachable = await accessibleEvents(email);
   if (reachable.length === 0) return [];
 
   const ids = reachable.map((r) => r.eventId);
+  /**
+   * TOURNAMENTS, NOT CASUAL ROUNDS (2026-09-19, Ajay's rule: "casual rounds or
+   * your side bets should not count as previous rounds").
+   *
+   * A casual round is stored as an Event because that is what the app hangs a
+   * card off, not because it is one — the same distinction `activeEventCount`
+   * draws for billing and the club settings page draws for its tournament
+   * count. Without this filter, a fourball somebody set up on a Tuesday
+   * appeared on the club's fixture list beside the Club Championship, and
+   * once seasons group that list it would be filed as part of the club's
+   * history for ever.
+   *
+   * TWO TESTS, because either alone is a guess. `shape: "match"` is what
+   * `match-setup` writes, and `expiresAt` is the expiry only a casual round
+   * carries — `round-expiry.ts`: "a casual round carries an expiry and a
+   * tournament does not". A row that fails either test is not something a club
+   * organized, whatever it is.
+   */
   const events = await prisma.event.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, shape: { not: "match" }, expiresAt: null },
     include: { series: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -201,6 +240,13 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       eventId: event.id,
       name: event.name,
       dates: event.dates,
+      // The calendar date this is grouped by — see `domain/club-season.ts`. The
+      // sentence above is what a member READS; this is what the app sorts on,
+      // and the two cannot disagree because the sentence is derived from it.
+      startOn: event.startOn,
+      // Said on the card, because a member plans around this one line. See
+      // `datesTentative` on the schema.
+      datesTentative: event.datesTentative,
       venue: venueOf(event.course, event.city),
       seriesName: event.series?.name ?? "",
       eventStatus: event.status,

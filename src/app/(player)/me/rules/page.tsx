@@ -3,12 +3,52 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
-import { RULES, RULE_SOURCE_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
+import {
+  RULES,
+  RULE_SOURCE_LABEL,
+  tournamentTerms,
+  ruleFor,
+  ruleForFormat,
+  rulesInPlay,
+  type RuleRef,
+} from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/me/rules");
+
+/** One governing rule, as a row that opens the USGA's own page for it. */
+function RuleLink({ rule }: { rule: RuleRef }) {
+  return (
+    <a
+      href={rule.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="card elev-sm"
+      style={{
+        display: "flex",
+        // `.card` is a COLUMN. Setting `display: flex` inline sets the display
+        // it already had and leaves the direction alone, so this rule link
+        // stacked its title above its arrow instead of pushing the arrow to
+        // the end of the row.
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        textDecoration: "none",
+        color: "inherit",
+        padding: "12px 14px",
+      }}
+    >
+      <span style={{ fontSize: 14 }}>
+        <span style={{ color: "var(--color-accent-300)", marginRight: 6 }}>{rule.number}</span>
+        {rule.title}
+      </span>
+      <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
+    </a>
+  );
+}
 
 /**
  * The rules, for a player standing on the course.
@@ -66,6 +106,17 @@ export default async function PlayRulesPage() {
         carryForwardPct: stage.carryForwardPct,
       })
     : [];
+
+  /**
+   * Which governing rules this tournament is actually under — the ones its own
+   * terms cite, plus the formats of every OTHER round in it, because a
+   * tournament whose second round is a foursomes is under Rule 22 whether or
+   * not that is the round on the board today.
+   */
+  const { inPlay, rest } = rulesInPlay([
+    ...terms.map((t) => t.rule),
+    ...state.stages.map((s) => ruleForFormat(s.format)),
+  ]);
 
   const courses = await prisma.course.findMany({
     where: { events: { some: { eventId: state.event.id } }, localRules: { not: "" } },
@@ -151,39 +202,32 @@ export default async function PlayRulesPage() {
           The Rules of Golf
         </h2>
         <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
-          Published by the USGA and The R&amp;A. Links open their site.
+          {inPlay.length
+            ? "The ones this tournament plays under. Published by the USGA and The R&A; links open their site."
+            : "Published by the USGA and The R&A. Links open their site."}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {Object.values(RULES).map((r) => (
-            <a
-              key={r.key}
-              href={r.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card elev-sm"
-              style={{
-                display: "flex",
-                // `.card` is a COLUMN. Setting `display: flex` inline sets the
-                // display it already had and leaves the direction alone, so
-                // this rule link stacked its title above its arrow instead of
-                // pushing the arrow to the end of the row.
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                textDecoration: "none",
-                color: "inherit",
-                padding: "12px 14px",
-              }}
-            >
-              <span style={{ fontSize: 14 }}>
-                <span style={{ color: "var(--color-accent-300)", marginRight: 6 }}>{r.number}</span>
-                {r.title}
-              </span>
-              <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
-            </a>
+          {(inPlay.length ? inPlay : Object.values(RULES)).map((r) => (
+            <RuleLink key={r.key} rule={r} />
           ))}
         </div>
+
+        {/* AND THE REST, REACHABLE (2026-09-19). A rule the app decides not to
+            show is a rule a player cannot look up — next month's outing is a
+            foursomes and they are entitled to read Rule 22 today. Behind a
+            disclosure, because on a stroke-play medal those three are noise. */}
+        {inPlay.length > 0 && rest.length > 0 && (
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center", gap: 6 }}>
+              The rest of the Rules of Golf
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              {rest.map((r) => (
+                <RuleLink key={r.key} rule={r} />
+              ))}
+            </div>
+          </details>
+        )}
       </section>
     </div>
   );

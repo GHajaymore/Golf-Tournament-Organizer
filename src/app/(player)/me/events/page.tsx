@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { requireSession } from "@/lib/page-helpers";
-import { clubEventsFor } from "@/lib/services/club-events";
+import { clubEventsFor, clubSeasonFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { ClubEventsList } from "@/components/ClubEventsList";
@@ -57,6 +57,8 @@ async function openTournament(formData: FormData): Promise<void> {
 export default async function ClubEventsPage() {
   const session = await requireSession();
   const events = await clubEventsFor(session.email);
+  // The club's own season, so this list groups the way its fixture card reads.
+  const season = await clubSeasonFor(session.eventId);
 
   return (
     <>
@@ -98,7 +100,7 @@ export default async function ClubEventsPage() {
           </p>
         </div>
       ) : (
-        <ClubEventsList events={events} openAction={openTournament} />
+        <ClubEventsList events={events} openAction={openTournament} season={season} />
       )}
     </>
   );

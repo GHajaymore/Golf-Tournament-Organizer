@@ -395,6 +395,56 @@ export async function saveOrganizationCurrency(currency: string): Promise<OrgRes
 }
 
 /**
+ * THE CLUB'S SEASON, as the two days that bound it.
+ *
+ * Stored as `mm-dd` because a season RECURS: a club opening on 1 April opens
+ * on 1 April every year, and storing a full date would make next year a second
+ * row somebody has to remember to add. The organizer picks both from a
+ * calendar; the year they pick is the one thing thrown away.
+ *
+ * Both halves are optional and independent. "We open in April" is a complete
+ * answer on its own — `seasonWindow` reads a missing end as the end of the
+ * year — and clearing both returns the club to the calendar year.
+ *
+ * Anything that is not a month and a day is stored as "" rather than refused:
+ * this decides how a list is GROUPED, and the fallback is the calendar year,
+ * which is exactly what an unanswered question means.
+ */
+export async function saveOrganizationSeason(startsOn: string, endsOn: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { seasonStartsOn: monthDayOrBlank(startsOn), seasonEndsOn: monthDayOrBlank(endsOn) },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * `mm-dd` from a calendar picker's `yyyy-mm-dd`, or from `mm-dd` itself.
+ *
+ * A `"use server"` export is a public HTTP endpoint and will be called with
+ * whatever the caller likes, so the shape is checked here rather than trusted
+ * from the screen. Validated against the longest each month can be, so
+ * "02-30" is refused and 29 February is not — the window has no year, and a
+ * club whose season opens on the 29th opens on it in a leap year.
+ */
+function monthDayOrBlank(value: string): string {
+  const v = (value ?? "").trim();
+  if (!v) return "";
+  const m = /^(?:\d{4}-)?(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return "";
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  const longest = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > longest[month - 1]) return "";
+  return `${m[1]}-${m[2]}`;
+}
+
+/**
  * How this club writes a date and a number.
  *
  * Beside the currency and validated the same way — through `isSupportedLocale`

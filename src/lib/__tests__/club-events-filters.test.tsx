@@ -16,6 +16,8 @@ function row(i: number): ClubEventRow {
     eventId: `zz-ev-${i}`,
     name: `zz-filters Medal ${i}`,
     dates: "",
+    startOn: "2026-05-14",
+    datesTentative: false,
     venue: "zz-filters Course",
     seriesName: "",
     eventStatus: "registration",
@@ -41,6 +43,40 @@ const html = (n: number) =>
   renderToStaticMarkup(
     <ClubEventsList events={Array.from({ length: n }, (_, i) => row(i))} openAction={open} />,
   );
+
+describe("dates a club has not fixed", () => {
+  /**
+   * SAID IN WORDS, on the line a member plans around.
+   *
+   * Ajay's rule, 2026-09-19: every tournament carries dates, and where the
+   * committee has not settled them they are tentative rather than absent.
+   * Launching requires dates (`launchRefusal`), so the honest answer had to
+   * be available — and an honest answer nobody can see is not one.
+   */
+  const withDates = (over: Partial<ClubEventRow>) =>
+    renderToStaticMarkup(
+      <ClubEventsList events={[{ ...row(0), dates: "14–15 June", ...over }]} openAction={open} />,
+    );
+
+  it("says so beside the dates", () => {
+    expect(withDates({ datesTentative: true })).toContain("Tentative");
+  });
+
+  it("says nothing when the club has fixed them", () => {
+    const out = withDates({ datesTentative: false });
+    expect(out).toContain("14–15 June");
+    expect(out).not.toContain("Tentative");
+  });
+
+  it("does not label an empty date tentative", () => {
+    // "Dates to be confirmed" already says it, and a chip beside it would be
+    // the same fact twice. The venue is cleared too, because the card joins
+    // the two and only falls back when it has neither.
+    const out = withDates({ dates: "", venue: "", datesTentative: true });
+    expect(out).toContain("Dates to be confirmed");
+    expect(out).not.toContain("Tentative");
+  });
+});
 
 describe("the Events tab's filters", () => {
   it("are not offered over a single tournament", () => {

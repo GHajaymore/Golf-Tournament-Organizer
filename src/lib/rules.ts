@@ -143,6 +143,34 @@ export function ruleFor(key: string): RuleRef | null {
   return RULES[key] ?? null;
 }
 
+/**
+ * THE RULES THIS TOURNAMENT ACTUALLY PLAYS UNDER, AND THE REST.
+ *
+ * The player's screen listed all eight, so a stroke-play medal offered Four-
+ * Ball, Foursomes and Match Play — three rules that cannot apply to the round
+ * in the player's hand — in a list the two that do were buried in.
+ *
+ * "Relevant" is not a judgement made here: it is the rules the tournament's
+ * own published terms CITE, which `tournamentTerms` derives from the
+ * configuration. So a four-ball round lists Four-Ball because its format line
+ * points at it, and nothing has to be kept in step by hand.
+ *
+ * The rest are still on the screen, behind a disclosure — a player looking up
+ * Foursomes because next month's outing is one should find it, and a rule the
+ * app has decided not to show is a rule a player cannot reach.
+ */
+export function rulesInPlay(citedKeys: readonly (string | undefined)[]): {
+  inPlay: RuleRef[];
+  rest: RuleRef[];
+} {
+  const cited = new Set(citedKeys.filter((k): k is string => !!k && k in RULES));
+  const all = Object.values(RULES);
+  return {
+    inPlay: all.filter((r) => cited.has(r.key)),
+    rest: all.filter((r) => !cited.has(r.key)),
+  };
+}
+
 /* ── Tier 2: the terms of this competition, derived ────────────────────────
    Read off the configuration rather than typed by an organizer, so the
    published terms and the way the app actually scores cannot disagree. That
@@ -172,7 +200,7 @@ export interface TermsInput {
 }
 
 /** Which tier-1 rule a format is played under, where one names it directly. */
-function ruleForFormat(format: string): string | undefined {
+export function ruleForFormat(format: string): string | undefined {
   const f = format.toLowerCase();
   if (f.includes("four-ball") || f.includes("fourball")) return "fourBall";
   if (f.includes("foursome") || f.includes("greensome")) return "foursomes";

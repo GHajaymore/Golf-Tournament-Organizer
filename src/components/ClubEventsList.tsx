@@ -1,10 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import type { ClubEventRow } from "@/lib/services/club-events";
 import { byBand, type EventBand } from "@/lib/domain/club-event-card";
+import {
+  bySeason,
+  currentSeason,
+  seasonWindow,
+  type SeasonGroup,
+  type SeasonWindow,
+} from "@/lib/domain/club-season";
+import { todayIso } from "@/lib/deadline";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB RUNS — found, understood and entered from
@@ -51,10 +59,16 @@ const LABEL: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: "va
 export function ClubEventsList({
   events,
   openAction,
+  season = seasonWindow("", ""),
 }: {
   events: ClubEventRow[];
   /** Moves the active tournament so the play shell shows this one. */
   openAction: (formData: FormData) => Promise<void>;
+  /**
+   * The club's season, which decides how this list is grouped. Defaults to the
+   * calendar year so a caller that does not know one renders as it always did.
+   */
+  season?: SeasonWindow;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -162,8 +176,10 @@ export function ClubEventsList({
           </p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-          {shown.map((e) => (
+        <SeasonSections
+          groups={bySeason(shown, season)}
+          currentKey={currentSeason(todayIso(), season)?.key ?? null}
+          render={(e) => (
             <article
               key={e.eventId}
               className="card elev-sm"
@@ -195,6 +211,25 @@ export function ClubEventsList({
                   <span style={{ fontFamily: "var(--font-heading)", fontSize: 18, lineHeight: 1.25 }}>{e.name}</span>
                   <span className="text-muted" style={{ fontSize: 13 }}>
                     {[e.dates, e.venue].filter(Boolean).join(" · ") || "Dates to be confirmed"}
+                    {/* SAID, NOT IMPLIED. A member plans around this line, and
+                        a date the committee has not fixed read exactly like
+                        one it had. In words rather than by styling alone. */}
+                    {e.dates && e.datesTentative && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "1px 7px",
+                          borderRadius: 999,
+                          border: "1px solid var(--color-divider)",
+                          color: "var(--color-text)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Tentative
+                      </span>
+                    )}
                   </span>
                 </div>
 
@@ -270,9 +305,93 @@ export function ClubEventsList({
                 )}
               </div>
             </article>
-          ))}
-        </div>
+          )}
+        />
       )}
+    </>
+  );
+}
+
+/**
+ * THE CLUB'S TOURNAMENTS, A SEASON AT A TIME.
+ *
+ * A club that has run for three years hands a member everything it has ever
+ * run, newest first — and the thing they came for, the season they are in, is
+ * somewhere down the list. So this season is open and the ones before it are
+ * a line each until asked for.
+ *
+ * ONE SEASON RENDERS FLAT, with no heading at all: a club in its first year
+ * would otherwise get a header that divides nothing, which is a label for the
+ * app's benefit rather than the member's.
+ *
+ * Undated tournaments are their own group and say so. They are last because
+ * "we have not said when" is the least useful answer to "what is on", and
+ * named because silently dropping them would hide a tournament a member could
+ * enter.
+ */
+function SeasonSections({
+  groups,
+  currentKey,
+  render,
+}: {
+  groups: SeasonGroup<ClubEventRow>[];
+  currentKey: number | null;
+  render: (e: ClubEventRow) => React.ReactNode;
+}) {
+  const list = (items: ClubEventRow[]) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+      {items.map((e) => (
+        <React.Fragment key={e.eventId}>{render(e)}</React.Fragment>
+      ))}
+    </div>
+  );
+
+  if (groups.length <= 1) return list(groups[0]?.items ?? []);
+
+  return (
+    <>
+      {groups.map((g) => {
+        const label = g.season ? g.season.label : "No dates yet";
+        const open = g.season ? g.season.key === currentKey : false;
+        const count = `${g.items.length} tournament${g.items.length === 1 ? "" : "s"}`;
+        return open ? (
+          <section key={label} style={{ marginTop: 16 }}>
+            <h2
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                letterSpacing: "0.09em",
+                textTransform: "uppercase",
+                color: "var(--color-text-muted)",
+                margin: 0,
+              }}
+            >
+              {label} · this season
+            </h2>
+            {list(g.items)}
+          </section>
+        ) : (
+          <details key={label} style={{ marginTop: 12 }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                minHeight: 44,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13.5,
+                fontWeight: 600,
+              }}
+            >
+              {label}
+              <span className="text-muted" style={{ fontWeight: 400 }}>
+                · {count}
+              </span>
+            </summary>
+            {list(g.items)}
+          </details>
+        );
+      })}
     </>
   );
 }

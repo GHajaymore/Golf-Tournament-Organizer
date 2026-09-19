@@ -918,6 +918,12 @@ export async function setInviteMessage(message: string) {
 export async function saveEvent(data: {
   name: string;
   dates: string;
+  /**
+   * Whether those dates are still a proposal. Optional so an older caller —
+   * or a screen that does not ask the question — leaves the club's answer
+   * alone rather than quietly settling it.
+   */
+  datesTentative?: boolean;
   format: string;
   course: string;
   courseId: string;
@@ -981,6 +987,7 @@ export async function saveEvent(data: {
     data: {
       name: data.name,
       dates: data.dates,
+      ...(data.datesTentative === undefined ? {} : { datesTentative: data.datesTentative }),
       format: data.format === "stroke" ? "stroke" : "match",
       course: data.course,
       // The id and the name together, from the one choice the organizer
@@ -1399,6 +1406,56 @@ export async function setStageDeadline(stageId: string, deadline: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
+  await refresh();
+}
+
+/**
+ * The tournament's own dates, and whether the club has fixed them yet.
+ *
+ * SEPARATE FROM `saveEvent`, and deliberately NOT behind the setup lock — the
+ * same reasoning as `setStagePlayedOn` directly below, and found the same way:
+ * by trying it. Launching now requires dates, and the honest answer for a club
+ * that has not settled them is "tentative". A tentative date becomes a fixed
+ * one WEEKS LATER, by which time the tournament is live and its configuration
+ * locked, so the whole feature would have been a flag nobody could ever clear
+ * without unlocking a tournament that is being played.
+ *
+ * A date is not structure: it moves no score, no draw and no flight. What it
+ * moves is what the field is told, which is the point of it.
+ */
+export async function setTournamentDates(
+  startOn: string,
+  endOn: string,
+  tentative: boolean,
+  label: string,
+) {
+  const eventId = await requireAdminEvent();
+  /**
+   * CALENDAR DATES ARE THE TRUTH; the label is what screens read.
+   *
+   * `cleanIsoDate` is the same reader every other date in this file goes
+   * through, so anything that is not a date becomes "" rather than being
+   * stored — a `"use server"` export is a public HTTP endpoint and will be
+   * called with whatever the caller likes. An end before the start is taken
+   * as a single day: a golf tournament cannot finish before it starts, and
+   * refusing the save would lose the start date the organizer did give.
+   */
+  const start = cleanIsoDate(startOn);
+  const end = cleanIsoDate(endOn);
+  const ordered = start && end && end < start ? start : end;
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      startOn: start,
+      endOn: ordered,
+      // Derived, never typed — but taken from the caller so it is formatted in
+      // the club's own date order, which only the screen knows. Empty dates
+      // leave whatever an older row already said: that sentence is the only
+      // record of when a tournament created before these columns was played.
+      ...(start ? { dates: label.trim() } : {}),
+      datesTentative: tentative,
+    },
+  });
   await refresh();
 }
 
@@ -3622,12 +3679,13 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * The two conditions are in `launchRefusal` with the reasoning. Guided
    * inside setting up, gated between phases — see phase-gate.ts.
    */
-  const [stages, confirmed] = await Promise.all([
+  const [stages, confirmed, event] = await Promise.all([
     prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
+    prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
   ]);
   const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
-  const refusal = launchRefusal({ playingRounds, confirmed });
+  const refusal = launchRefusal({ playingRounds, confirmed, dated: !!event?.dates.trim() });
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration

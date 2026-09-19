@@ -8,6 +8,7 @@ import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
+import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
@@ -257,6 +258,12 @@ export default async function OrganizationPage() {
                 and was wrong. */}
             <div style={{ marginTop: 14 }}>
               <LocalePicker locale={org.locale} />
+            </div>
+            {/* The club's season, beside how it writes a date — the same kind
+                of setting, answered once and read by every screen that lists
+                tournaments. See domain/club-season.ts. */}
+            <div style={{ marginTop: 14 }}>
+              <SeasonPicker startsOn={org.seasonStartsOn} endsOn={org.seasonEndsOn} />
             </div>
           </section>
         )}

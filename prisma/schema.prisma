@@ -81,6 +81,34 @@ model Organization {
    */
   moneyMode String @default("")
 
+  /**
+   * THE DAY THE CLUB'S SEASON TURNS OVER, as `mm-dd`, or "" for the calendar
+   * year — which is what every club has today and what most of them mean.
+   *
+   * A month and a day rather than a date, because a season RECURS: a club
+   * whose year opens on 1 April opens on 1 April every year, and storing
+   * "2026-04-01" would make 2027 a second row somebody has to remember to
+   * add. The organizer still picks it from a calendar; the year they pick is
+   * the one thing thrown away.
+   *
+   * What it is FOR: grouping a club's tournaments into seasons, so a member
+   * opening Events sees the season they are in rather than everything the
+   * club has ever run. Derived from `Event.startOn` — see `domain/season.ts`.
+   */
+  seasonStartsOn String @default("")
+  /**
+   * The last day of the club's season, as `mm-dd`, or "" for the end of the
+   * calendar year.
+   *
+   * A season is a WINDOW, not just a turnover day: "January to December" and
+   * "April to September" are both real answers, and so is "October to May",
+   * which crosses the new year and is why the label can read "2026–27". The
+   * end is what makes the difference visible — a club playing April to
+   * September has half a year that is out of season, and a member looking at
+   * a fixture list should not be told a December outing is "next season".
+   */
+  seasonEndsOn String @default("")
+
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
 
@@ -819,7 +847,49 @@ model Event {
    */
   localeOverride    String  @default("")
   currencyOverride  String  @default("")
+  /**
+   * WHEN IT IS PLAYED, as calendar dates — `yyyy-mm-dd`, or "" where the club
+   * has not said yet. The same shape as `Stage.playedOn`, so every date in the
+   * app is one kind of thing.
+   *
+   * These are the TRUTH; `dates` below is a sentence derived from them for
+   * screens. Until 2026-09-19 it was the other way round: an organizer typed
+   * "May 2026" or "Thursdays through the summer" and nothing else existed, so
+   * nothing could sort, group or answer "is this one on this season" without
+   * parsing prose. `honoursYear` did exactly that, and a tournament whose text
+   * omitted a year fell back to the day it was completed.
+   */
+  startOn           String  @default("")
+  endOn             String  @default("")
+  /**
+   * The dates as a screen shows them — derived from `startOn`/`endOn` in the
+   * club's own date order, never typed. Kept as a column rather than formatted
+   * at each of its fourteen readers, because the formatting depends on the
+   * club's locale and half those readers (an email, a printed card, a share
+   * card) are nowhere near a request that knows it.
+   *
+   * Rows created before the two columns above keep whatever an organizer
+   * typed, which is why this is not simply deleted: it is the only record of
+   * when those tournaments were played.
+   */
   dates             String
+  /**
+   * Whether those dates are still a proposal.
+   *
+   * A club fixes its calendar months before it fixes a tee time, and until
+   * 2026-09-19 the app had one word for both: whatever the organizer typed
+   * read as settled on every screen a member sees. A member who books a
+   * holiday around "14 June" deserves to know the committee has not agreed it.
+   *
+   * The ORGANIZER says, rather than this being derived from whether the rounds
+   * carry dates. A club can know the weekend and not yet have drawn a single
+   * round, and calling that tentative would be the app disagreeing with the
+   * committee about its own calendar.
+   *
+   * Defaults to false so every tournament that already exists keeps reading as
+   * it does today: a date nobody flagged is a date the club meant.
+   */
+  datesTentative    Boolean @default(false)
   format            String  @default("match") // match | stroke
   course            String
   /**

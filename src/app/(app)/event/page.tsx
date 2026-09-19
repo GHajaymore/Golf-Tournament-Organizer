@@ -251,7 +251,8 @@ export default async function EventPage({
         scored={cardsIn > 0}
         locale={fmt.locale}
         initial={{
-          name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
+          name: e.name, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
+          format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
           courseMode: e.courseMode, sideStyle: e.sideStyle, courseId: e.courseId ?? "",
