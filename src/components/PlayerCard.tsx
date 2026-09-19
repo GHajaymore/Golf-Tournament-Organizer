@@ -65,7 +65,6 @@ export function PlayerCard({
   staffApproves = true,
   partners = [],
   startHole = 1,
-  tournamentName = "",
 }: {
   /**
    * The rest of the foursome on the round's PUBLISHED tee sheet, whose cards
@@ -75,8 +74,6 @@ export function PlayerCard({
   partners?: GroupPartner[];
   /** Where this player’s group teed off, so the card opens on the hole they are playing. */
   startHole?: number;
-  /** The tournament this card belongs to, named on the card itself. */
-  tournamentName?: string;
   stageId: string;
   playerId: string;
   playerName: string;
@@ -529,32 +526,25 @@ export function PlayerCard({
         line, compact stats, one row of controls, and the microphone beside the
         hole number rather than a full-width bar.
       */}
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 20, lineHeight: 1.2, margin: "0 0 2px" }}>
-        {playerName || "My card"}
-      </h1>
-      {/* WHICH TOURNAMENT THESE NUMBERS GO TO, with the round and the course.
-          A player entered in several picks one in the switcher at the top;
-          this says, on the screen where the scores are typed, which one that
-          was — so a score cannot quietly land on the wrong tournament's card. */}
-      <p
+      {/* THE ROUND AND THE COURSE, as Today heads itself (2026-09-19). This
+          used to be the player's own name over "Scoring for <tournament> ·
+          round · course" — and at phone width the tournament's name took the
+          whole line, so the round and course, the part this screen adds,
+          were the part cut off. Which tournament the scores go to is the
+          switcher strip directly above, on every player screen. */}
+      <h1
         style={{
+          fontFamily: "var(--font-heading)",
+          fontSize: 20,
+          lineHeight: 1.2,
           margin: "0 0 10px",
-          fontSize: 12.5,
-          lineHeight: 1.4,
-          color: "var(--color-text-muted)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
       >
-        {tournamentName && (
-          <>
-            Scoring for <strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{tournamentName}</strong>
-            {" · "}
-          </>
-        )}
-        {[roundLabel, courseName].filter(Boolean).join(" · ")}
-      </p>
+        {[roundLabel, courseName].filter(Boolean).join(" · ") || "My card"}
+      </h1>
 
       {locked ? (
         /**
