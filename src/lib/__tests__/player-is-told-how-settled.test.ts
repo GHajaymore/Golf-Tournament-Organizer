@@ -71,7 +71,9 @@ describe("the player's position says whether it can move", () => {
     expect(hero, "the qualifier moved beside the score").not.toContain("standing.note");
 
     // The position row carries the place, and the qualifier sits under it.
-    const rowStart = page.indexOf('href="/me/board"');
+    // Searched from the end of the hero: the watching card above it also
+    // links to the board, and is not the position row.
+    const rowStart = page.indexOf('href="/me/board"', heroEnd);
     const rowEnd = page.indexOf("</Link>", rowStart);
     const row = page.slice(rowStart, rowEnd);
     expect(row).toContain("standing.position");

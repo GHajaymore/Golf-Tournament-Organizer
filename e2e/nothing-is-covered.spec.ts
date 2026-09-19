@@ -67,6 +67,14 @@ async function coveredControls(page: Page): Promise<Covered[]> {
       if (cs.visibility === "hidden" || cs.display === "none") continue;
       if (cs.pointerEvents === "none") continue;
       if (Number(cs.opacity) < 0.1) continue;
+      /**
+       * Inside a CLOSED <details>. Chromium hides a disclosure's contents with
+       * `content-visibility: hidden` on the slot, so the control's own
+       * `display` and `visibility` read as shown and it still reports a box —
+       * which put the play shell's tournament list, folded shut, on this
+       * report as "covered". `checkVisibility()` knows about that ancestor.
+       */
+      if (!el.checkVisibility()) continue;
 
       if (el.getBoundingClientRect().height < 8) continue;
 

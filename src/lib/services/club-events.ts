@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "../db";
 import { accessibleEvents } from "./access";
 import { registrationStatus, entryDatesOf } from "../registration";
@@ -89,7 +90,15 @@ export interface ClubEventRow {
   placesNote: string;
 }
 
-export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
+/**
+ * Memoised per request with React's `cache`: the play shell's layout reads
+ * this for the tournament switcher and Today reads it again for the watching
+ * card, and one render should not count the club's cards twice. Outside a
+ * render (the audit tests) it is simply the function.
+ */
+export const clubEventsFor = cache(clubEventsUncached);
+
+async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const reachable = await accessibleEvents(email);
   if (reachable.length === 0) return [];
 

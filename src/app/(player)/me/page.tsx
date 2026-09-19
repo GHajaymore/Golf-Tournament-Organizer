@@ -18,6 +18,8 @@ import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
+import { clubEventsFor } from "@/lib/services/club-events";
+import { isWatching } from "@/lib/domain/tournament-switcher";
 
 /**
  * Today — the player's home.
@@ -75,6 +77,14 @@ export default async function PlayTodayPage() {
   const me = await meFor(state, session.email);
   const availability = await availabilityFor(state, session.email);
   const announcements = await announcementsFor(session.eventId);
+  /**
+   * The events-list row for this tournament — the same one the switcher above
+   * reads, memoised for the request — so "watching" and the way in agree with
+   * the header and with the list.
+   */
+  const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  const watching = !me.playerId && isWatching(myRow, isStaff);
 
   const round = me.round;
   const card = round?.card ?? null;
@@ -157,11 +167,42 @@ export default async function PlayTodayPage() {
        */}
       <AnnouncementList items={announcements.filter((a) => a.pinned)} />
 
-      {!me.playerId && (
+      {!me.playerId && !watching && (
         <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           You aren&rsquo;t entered in this tournament, so there&rsquo;s no card here. The board is still
           open on the next tab.
         </p>
+      )}
+
+      {/**
+       * WATCHING — a member looking at one of the club's tournaments they are
+       * not in, reached from the switcher or the events list. Said once, here,
+       * in words: everything is theirs to read and nothing is theirs to change,
+       * and if the door is open, this is where it is.
+       */}
+      {watching && (
+        <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="card-title">You&rsquo;re watching this one</span>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+            You aren&rsquo;t entered, so there&rsquo;s no card for you here. The board, the groups and the
+            notices are all open to read.
+          </p>
+          {myRow?.windowNote && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {myRow.windowNote}
+            </span>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {myRow?.canEnter && (
+              <Link className="btn btn-primary" href={myRow.registrationHref} style={{ flex: "1 1 160px" }}>
+                Enter this tournament <Icon name="arrow-right" />
+              </Link>
+            )}
+            <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
+              See the board <Icon name="arrow-right" />
+            </Link>
+          </div>
+        </section>
       )}
 
       {hero && (

@@ -18,6 +18,9 @@ import { membershipFor, unreadTotal } from "@/lib/services/messaging";
 import { BackLink } from "@/components/BackLink";
 import { PlayerSignOut } from "@/components/PlayerSignOut";
 import { Icon } from "@/components/Icon";
+import { TournamentSwitcher } from "@/components/TournamentSwitcher";
+import { clubEventsFor } from "@/lib/services/club-events";
+import { switcherFor } from "@/lib/domain/tournament-switcher";
 
 /**
  * The player's app.
@@ -66,6 +69,9 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     ? await membershipFor(session.eventId, session.email, session.role)
     : null;
   const unread = ctx ? await unreadTotal(ctx) : 0;
+  // Which tournament every tab is showing, and the way to the others. The same
+  // rows the events list renders, so the two cannot disagree about a door.
+  const switcher = switcherFor(await clubEventsFor(session.email), session.eventId ?? null, isStaff);
   /**
    * The club's currency, for the player half too.
    *
@@ -172,6 +178,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           <PlayerSignOut name={session.name} />
         </div>
       </header>
+
+      <TournamentSwitcher switcher={switcher} />
 
       <main
         style={{
