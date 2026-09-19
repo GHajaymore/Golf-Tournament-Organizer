@@ -27,21 +27,35 @@ export const dynamic = "force-dynamic";
 // Reached with a Round Code, and it renders the field's names once redeemed.
 export const metadata = { title: "Enter your score", robots: NOINDEX };
 
-export default async function PlayPage() {
+export default async function PlayPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const session = await getPlaySession();
 
   // No session yet — show the code prompt.
   if (!session) return <PlayClient stage="code" />;
 
-  const [event, match] = await Promise.all([
+  /**
+   * EVERY MATCH THIS PLAYER HAS IN THE ROUND, not an arbitrary one.
+   *
+   * A round robin draws one player into several matches inside one round, and
+   * this was `findFirst` with no ordering — so the database chose which one a
+   * code holder could score, and the others were unreachable. Found by the
+   * player-side audit of 2026-09-19. Now they are listed in a stable order,
+   * `?m=` picks one, and the rest are offered as links. Only this player's
+   * own matches are ever looked up, so a forged `m` finds nothing and falls
+   * back to the first — and the save re-checks membership regardless.
+   */
+  const { m: pickedMatch } = await searchParams;
+  const [event, myMatches] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId }, include: COURSE_REF }),
-    prisma.match.findFirst({
+    prisma.match.findMany({
       where: {
         stageId: session.stageId,
         OR: [{ playerAId: session.playerId }, { playerBId: session.playerId }],
       },
+      orderBy: { id: "asc" },
     }),
   ]);
+  const match = myMatches.find((x) => x.id === pickedMatch) ?? myMatches[0] ?? null;
   if (!event) return <PlayClient stage="code" />;
 
   const settings = settingsOf(event);
@@ -141,6 +155,8 @@ export default async function PlayPage() {
         <PlayClient
           expiryNotice={expiry}
           stage="card"
+          stageId={session.stageId}
+          playerId={session.playerId}
           brand={brand}
           playerName={session.playerName}
           eventName={event.name}
@@ -222,10 +238,28 @@ export default async function PlayPage() {
   });
   const iAmA = match.playerAId === session.playerId;
 
+  // The other matches, named by opponent, for the picker above the card.
+  const others = myMatches.filter((x) => x.id !== match.id);
+  const otherIds = others.map((x) => (x.playerAId === session.playerId ? x.playerBId : x.playerAId));
+  const otherNames = otherIds.length
+    ? new Map(
+        (await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
+          (p) => [p.id, p.name],
+        ),
+      )
+    : new Map<string, string>();
+  const otherMatches = others.map((x, i) => ({
+    id: x.id,
+    label: `v ${otherNames.get(otherIds[i]) ?? "opponent"}`,
+  }));
+
   return (
     <PlayClient
       expiryNotice={expiry}
       stage="score"
+      stageId={session.stageId}
+      playerId={session.playerId}
+      otherMatches={otherMatches}
       brand={brand}
       playerName={session.playerName}
       eventName={event.name}
