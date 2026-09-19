@@ -1,7 +1,8 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
+import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
@@ -28,6 +29,17 @@ interface PlayMatch {
 
 interface Props {
   stage: "code" | "score" | "no-match" | "card";
+  /**
+   * The round and the code holder, for keeping their card on the phone while
+   * it is sent (`usePendingCard`). Both come from the play session.
+   */
+  stageId?: string;
+  playerId?: string;
+  /**
+   * The code holder's OTHER matches in this round — a round robin draws one
+   * player into several. Offered as links; the one on screen is `match`.
+   */
+  otherMatches?: { id: string; label: string }[];
   brand?: Brand | null;
   playerName?: string;
   eventName?: string;
@@ -210,6 +222,80 @@ export function PlayClient(props: Props) {
   const [card, setCard] = useState<(number | null)[]>(() =>
     Array.from({ length: props.holes || props.pars?.length || 18 }, (_, i) => props.card?.[i] ?? null),
   );
+
+  /**
+   * "SAVES AS YOU GO" — AND NOW IT DOES (2026-09-19).
+   *
+   * Both views said so and neither did: every tap only changed the screen,
+   * and nothing reached the server until the player pressed Save. There was
+   * no copy on the phone either, so a reload, a dead spot or a closed tab
+   * lost every hole since the last press. Found by the player-side audit.
+   *
+   * The same queue the signed-in card uses: each change is written to the
+   * phone FIRST, then sent a moment later, retried when signal returns, and a
+   * refusal is reported as a refusal rather than retried for ever. Called
+   * here, unconditionally, because hooks cannot sit inside the view branches
+   * below; each is switched on only in its own view.
+   *
+   * The match queue is keyed apart from the card's, so the two never share a
+   * device copy.
+   */
+  const holeCount0 = props.holes || props.pars?.length || 18;
+  const cardQueue = usePendingCard<(number | null)[]>({
+    stageId: props.stageId ?? "play",
+    playerId: props.playerId ?? "code",
+    enabled: props.stage === "card",
+    // A tournament that takes whole cards: kept on the phone until the last
+    // hole is in, then sent on its own.
+    holding: !!props.submitWhole && card.filter((h) => typeof h === "number" && h > 0).length < holeCount0,
+    send: async (value) => {
+      const res = await savePlayCard(value);
+      if (!res.ok) throw new Error(res.error ?? "Couldn't save that card.");
+      setSaved(true);
+      return "sent";
+    },
+  });
+  /**
+   * HOLES LEFT ON THE PHONE LAST TIME ARE TAKEN BACK UP AND SENT.
+   *
+   * The device copy only ever holds holes the server had not confirmed — it is
+   * deleted the moment a send lands — so finding one means this phone has work
+   * nobody else has seen: the signal died, or the tab was closed. On this
+   * surface that is the whole point of keeping it, and there is no second
+   * scorer's version to choose between: the Round Code save is the holder's
+   * own card, written whole. So it is simply picked up where it was left.
+   */
+  const { recovered: cardRecovered, clearRecovered: clearCardRecovered, push: pushCard } = cardQueue;
+  useEffect(() => {
+    if (props.stage !== "card" || !cardRecovered) return;
+    const back = Array.from({ length: holeCount0 }, (_, i) => cardRecovered[i] ?? null);
+    setCard(back);
+    clearCardRecovered();
+    pushCard(back);
+  }, [props.stage, cardRecovered, clearCardRecovered, pushCard, holeCount0]);
+
+  const matchQueue = usePendingCard<HoleResult[]>({
+    stageId: props.stageId ?? "play",
+    playerId: `match:${props.match?.id ?? "none"}`,
+    enabled: props.stage === "score" && !!props.match,
+    holding: !!props.submitWhole && holes.filter((h) => h !== null).length < holeCount0,
+    send: async (value) => {
+      const m = props.match!;
+      // Stored results are always A-relative; flip back if this player is B.
+      const outgoing = m.flipped ? value.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h)) : value;
+      const res = await savePlayMatchHoles(m.id, outgoing as Array<"A" | "B" | "H" | null>);
+      if (!res.ok) throw new Error(res.error ?? "Couldn't save.");
+      setSaved(true);
+      return "sent";
+    },
+  });
+  const { recovered: matchRecovered, clearRecovered: clearMatchRecovered, push: pushMatch } = matchQueue;
+  useEffect(() => {
+    if (props.stage !== "score" || !matchRecovered) return;
+    setHoles(matchRecovered);
+    clearMatchRecovered();
+    pushMatch(matchRecovered);
+  }, [props.stage, matchRecovered, clearMatchRecovered, pushMatch]);
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
@@ -516,29 +602,25 @@ export function PlayClient(props: Props) {
             strokeIndex={props.strokeIndex ?? []}
             holes={holeCount}
             onSet={(_id, hole, value) => {
-              setCard((prev) => {
-                const next = Array.from({ length: holeCount }, (_, i) => prev[i] ?? null);
-                next[hole] = value;
-                return next;
-              });
+              const next = Array.from({ length: holeCount }, (_, i) => card[i] ?? null);
+              next[hole] = value;
+              setCard(next);
               setSaved(false);
+              // Onto the phone now, to the server a moment later.
+              cardQueue.push(next);
             }}
+            meId="me"
           />
 
-          <button
-            type="button"
-            className={certified ? "btn btn-secondary" : "btn btn-primary"}
-            disabled={pending || (props.submitWhole && !cardComplete)}
-            onClick={saveCard}
-          >
-            {pending ? "Saving…" : saved ? "Saved" : props.submitWhole ? "Submit my card" : "Save"}
-          </button>
-          {/* A disabled button that does not say why is a dead end, and this
-              one is disabled for exactly one reason. */}
-          {props.submitWhole && !cardComplete && !pending && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-              Fill all {holeCount} holes to submit.
-            </p>
+          {/* Where the card is — the same words the signed-in card uses. */}
+          <p role="status" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+            {cardQueue.status.label}
+          </p>
+          {/* Only when the server said no: a way to try again by hand. */}
+          {cardQueue.status.tone === "warn" && (
+            <button type="button" className="btn btn-secondary" disabled={pending} onClick={saveCard}>
+              Try saving again
+            </button>
           )}
 
           {/* SIGNING IT — Rule 3.3b, and the half this surface did not have.
@@ -604,16 +686,22 @@ export function PlayClient(props: Props) {
           <span className="card-title">No match for you in {props.roundLabel}</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
             {props.playerName}, you don&rsquo;t have a match scheduled in this round of {props.eventName}.
-            Check with your organizer.
+            If you were given a code for a different round, enter that one instead — otherwise check with
+            your organizer.
           </p>
-          <button
-            type="button"
-            className="btn"
-            style={{ alignSelf: "flex-start", marginTop: 12 }}
-            onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
-          >
-            Sign out
-          </button>
+          {/* A WAY FORWARD. This screen offered only "Sign out", which for a
+              code holder is the same act but reads as the end of the road. The
+              commonest cause is simply the wrong round's code. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+            >
+              Enter a different code
+            </button>
+          </div>
         </div>
       </Shell>
     );
@@ -627,16 +715,15 @@ export function PlayClient(props: Props) {
   // of those is what decides how many holes a round is.
   const holeCount = props.holes || props.pars?.length || holes.length || 18;
   const filled = holes.filter((h) => h !== null).length;
-  const complete = filled === holeCount;
 
   const setHole = (i: number, value: HoleResult) => {
-    setHoles((prev) => {
-      const next = [...prev];
-      while (next.length < holeCount) next.push(null);
-      next[i] = next[i] === value ? null : value;
-      return next;
-    });
+    const next = [...holes];
+    while (next.length < holeCount) next.push(null);
+    next[i] = next[i] === value ? null : value;
+    setHoles(next);
     setSaved(false);
+    // Onto the phone now, to the server a moment later — see matchQueue.
+    matchQueue.push(next);
   };
 
   const save = () => {
@@ -681,6 +768,20 @@ export function PlayClient(props: Props) {
         <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
           {m.aName} <span className="text-muted" style={{ fontSize: 15 }}>vs</span> {m.bName}
         </h1>
+        {/* THE OTHER MATCHES THIS CODE HOLDER HAS IN THE ROUND — a round robin
+            has several, and only one was ever reachable. */}
+        {props.otherMatches && props.otherMatches.length > 0 && (
+          <nav aria-label="Your other matches" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+            <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
+              Your other matches:
+            </span>
+            {props.otherMatches.map((o) => (
+              <a key={o.id} href={`/play?m=${encodeURIComponent(o.id)}`} className="btn btn-secondary" style={{ fontSize: 12.5, minHeight: 44 }}>
+                {o.label}
+              </a>
+            ))}
+          </nav>
+        )}
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 12 }}>
           Tap who won each hole. {props.submitWhole
             ? "Your organizer wants the full round submitted at the end."
@@ -800,22 +901,22 @@ export function PlayClient(props: Props) {
           </p>
         )}
 
-        <button
-          type="button"
-          className="btn btn-primary btn-block"
-          disabled={pending || (props.submitWhole && !complete)}
-          onClick={save}
-        >
-          {pending
-            ? "Saving…"
-            : saved
-              ? "Saved — your organizer will review it"
-              : props.submitWhole
-                ? complete
-                  ? "Submit my card"
-                  : `Fill all ${holeCount} holes to submit`
-                : "Save"}
-        </button>
+        {/* Where the holes are — saved as they are tapped, so there is no
+            button to forget. Only a refusal offers one, to try by hand. */}
+        <p role="status" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          {matchQueue.status.label}
+        </p>
+        {/* Counted out of the ROUND's holes — render.test pins nine for a nine. */}
+        {props.submitWhole && filled < holeCount && (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            Fill all {holeCount} holes to submit — the card goes in when the last one does.
+          </p>
+        )}
+        {matchQueue.status.tone === "warn" && (
+          <button type="button" className="btn btn-secondary btn-block" disabled={pending} onClick={save}>
+            Try saving again
+          </button>
+        )}
       </div>
       )}
 
