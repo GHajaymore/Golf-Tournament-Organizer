@@ -223,7 +223,6 @@ export default async function PlayCardPage() {
       savePartial={mayReportPartialCard(settings, session.role)}
       partners={partners}
       startHole={me.round.group?.startHole ?? 1}
-      tournamentName={state.event.name}
     />
     {/* Rules left the tab bar for Events (2026-09-19); the card is where a
         local rule or the handicap allowance comes up, so it is linked here. */}

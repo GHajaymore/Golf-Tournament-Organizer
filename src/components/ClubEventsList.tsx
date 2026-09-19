@@ -26,7 +26,10 @@ import { byBand, type EventBand } from "@/lib/domain/club-event-card";
  * should not wait on a round trip to narrow a list it is holding.
  */
 
-type StatusFilter = "all" | "open" | "entered" | "soon" | "now" | "finished";
+/** How many tournaments a club lists before a search and a filter earn their space. */
+export const FILTER_FROM = 5;
+
+type StatusFilter ="all" | "open" | "entered" | "soon" | "now" | "finished";
 
 /**
  * The band's look. Background and text are each the token built for the job:
@@ -93,6 +96,10 @@ export function ClubEventsList({
 
   return (
     <>
+      {/* Filters only once there is something to filter. A club running one
+          or two tournaments showed a search box, a status menu and a count
+          ("1 tournament") above the one card they were about. */}
+      {events.length >= FILTER_FROM && (
       <section
         aria-label="Filter tournaments"
         className="card elev-sm"
@@ -145,6 +152,7 @@ export function ClubEventsList({
           )}
         </div>
       </section>
+      )}
 
       {shown.length === 0 ? (
         <div className="card elev-sm" style={{ marginTop: 12 }}>

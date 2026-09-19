@@ -329,9 +329,10 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
-        Money
+        {/* Not "Money": the screen's h1 says that directly above. This
+            section is the shared costs and who squares with whom. */}
+        Expenses and settling up
       </div>
-
 
       {/* Add — the common case is an amount and a label. */}
       {!view.canAddExpense ? (
@@ -973,18 +974,9 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               <>The fewest handovers that make everyone square.</>
             )}
           </p>
-          {/* YOUR POSITION, once — it was repeated under every handover that
-              involved you, identically, since it describes you rather than the
-              handover. It answers "for what?" about the POSITION, not about a
-              transfer: a netted handover cannot be attributed to particular
-              lines, and somebody else's breakdown is not ours to state. */}
-          {shownTransfers.some((t) => t.fromPlayerId === view.playerId || t.toPlayerId === view.playerId) && (
-            <p className="text-muted" style={{ fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-              Your position: {money(view.expensesCents)} of shared costs
-              {view.gamesCents !== 0 && <> · {money(view.gamesCents)} from the games</>}
-              {view.settledCents !== 0 && <> · {money(view.settledCents)} already settled</>}
-            </p>
-          )}
+          {/* No "Your position" line here. It restated the Expenses / Side
+              bets / Settled parts printed under the one number above, in the
+              same figures, one card apart. */}
           {shownTransfers.map((t) => (
             <div
               key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
