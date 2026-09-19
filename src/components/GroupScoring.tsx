@@ -43,6 +43,7 @@ export function GroupScoring({
   onSetMine,
   partners,
   holding,
+  startHole = 1,
 }: {
   stageId: string;
   holes: number;
@@ -55,6 +56,7 @@ export function GroupScoring({
   partners: GroupPartner[];
   /** The tournament takes whole cards only: keep them on the phone until whole. */
   holding: (strokes: (number | null)[]) => boolean;
+  startHole?: number;
 }) {
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() =>
     Object.fromEntries(partners.map((p) => [p.id, Array.from({ length: holes }, (_, i) => p.strokes[i] ?? null)])),
@@ -109,6 +111,7 @@ export function GroupScoring({
         holes={holes}
         onSet={setHole}
         meId={me.id}
+        startHole={startHole}
       />
 
       {/* Where each partner's card has got to — the same words the player's

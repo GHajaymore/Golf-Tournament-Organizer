@@ -6,6 +6,7 @@ import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { Icon } from "./Icon";
 import { startDictation } from "@/lib/dictation";
 import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
+import { nextHoleToPlay } from "@/lib/domain/next-hole";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -96,6 +97,7 @@ export function HoleByHoleCard({
   holes,
   onSet,
   meId,
+  startHole = 1,
 }: {
   players: CardPlayer[];
   cards: Record<string, (number | null)[]>;
@@ -110,15 +112,30 @@ export function HoleByHoleCard({
    * THESE players only — see `parseHoleTranscript`.
    */
   meId?: string;
+  /** Where the holder's group teed off, from the published sheet. 1 when unknown. */
+  startHole?: number;
 }) {
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
-  // Open where the card has got to: the first hole nobody has scored yet.
+  // Open where the card has got to.
   //
-  // Not "the first hole someone is missing" — scoring is allowed to be partial,
-  // so one player who has not reported would pin the screen to hole 1 for the
-  // whole round while everyone else played on.
+  // With the phone's holder known, that is THEIR next hole in playing order —
+  // `nextHoleToPlay`, the same number Today's "Finish my card · hole N next"
+  // button names, so tapping it lands on the hole it promised. A group sent off
+  // the 10th opens on the 10th, not the 1st. Without this, the group view
+  // opened at the first hole nobody in the group had scored, which is hole 18
+  // for a marker whose partners' cards the committee had already entered.
+  //
+  // Otherwise: the first hole nobody has scored yet. Not "the first hole
+  // someone is missing" — scoring is allowed to be partial, so one player who
+  // has not reported would pin the screen to hole 1 for the whole round while
+  // everyone else played on.
   const [hole, setHole] = useState(() => {
+    if (meId) {
+      const mine = Array.from({ length: holes }, (_, i) => (cards[meId] ?? [])[i] ?? null);
+      const next = nextHoleToPlay(mine, startHole);
+      return next === null ? Math.max(0, holes - 1) : next - 1;
+    }
     for (let i = 0; i < holes; i += 1) {
       if (players.every((p) => (cards[p.id] ?? [])[i] == null)) return i;
     }
