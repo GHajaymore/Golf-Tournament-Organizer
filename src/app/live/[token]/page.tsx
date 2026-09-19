@@ -131,7 +131,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
               nav label. The same argument as the landing lockup: on the one
               page whose job is to say whose competition this is, the mark
               should not read as chrome. */}
-          <OrgBrand brand={board.brand} size={LOGO_SIZE.lg} />
+          <OrgBrand brand={board.brand} size={LOGO_SIZE.lg} tagline />
         </div>
 
         <header style={{ marginBottom: 22 }}>

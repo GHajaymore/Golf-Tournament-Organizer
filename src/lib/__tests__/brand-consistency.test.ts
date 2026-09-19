@@ -74,7 +74,10 @@ const drawing = files.filter((f) => read(f).includes('d="M18.6 6.1 V23.1"'));
     expect(logo, "an outline variable survives a fill-only cup").not.toContain(
       "var(--logo-rim",
     );
-    expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brand-amber)"');
+    // The variables stay so a renderer with no stylesheet (the share card) can
+    // be given colours — but no PAGE re-skins the mark's flag or ball any
+    // more. TourneyHQ looks the same everywhere (2026-09-18).
+    expect(read("src/app/page.tsx"), "the homepage recolours the flag again").not.toContain('"--logo-flag"');
   });
 });
 
@@ -115,13 +118,13 @@ describe("the wordmark is written once too", () => {
     expect(offenders, `wordmark rebuilt by hand in: ${offenders.join(", ")}`).toEqual([]);
   });
 
-  it("lets a different palette re-skin the one lockup", () => {
-    // Why the duplicate existed: the landing page has its own ground and does
-    // not define --color-*. Mapping those tokens is what makes one component
-    // serve both, exactly as --logo-flag does for the mark.
+  it("uses the one lockup on the homepage too, in the same colours", () => {
+    // The homepage used to re-point the wordmark's --color-accent* at its own
+    // amber. The wordmark now reads the fixed --thq-* colours, so the homepage
+    // renders exactly the lockup the app does — and must not re-skin it.
     const landing = read("src/app/page.tsx");
     expect(landing).toContain("<BrandMark");
-    expect(landing, "landing must map the tokens BrandMark reads").toContain('"--color-accent": "var(--brand-amber)"');
+    expect(landing, "the homepage re-skins the wordmark again").not.toMatch(/<BrandMark[^>]*style=/);
   });
 });
 
@@ -261,19 +264,49 @@ describe("the mark is the same colour in both renderings", () => {
   const logo = read("src/components/Logo.tsx");
   const gen = stripComments(readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8"));
 
-  it("draws the flag from the accent (orange) in the component", () => {
-    // The PENNANT falls back to --color-accent. The stick no longer does: the
-// T is lettering and takes --color-text, so the mark and the wordmark
-// beside it read as one lockup rather than two accents competing.
-    expect(logo).toContain("var(--logo-flag, var(--color-accent, currentColor))");
+  /**
+   * TOURNEYHQ'S OWN COLOURS, NOT THE CLUB'S — decided 2026-09-18.
+   *
+   * These two cells used to assert the opposite: that the flag fell back to
+   * `--color-accent` and the ball to `--color-accent-2`. Both are written by
+   * `themeCss` from each club's palette, so the mark was a different colour at
+   * every club. Ajay decided TourneyHQ looks the same everywhere, so the mark
+   * now reads `--thq-*`, which nothing a club sets can reach — and it must not
+   * drift back to a club token.
+   */
+  it("draws the flag in TourneyHQ's own orange, never the club's accent", () => {
+    expect(logo).toContain("var(--logo-flag, var(--thq-flag))");
+    expect(logo, "the flag follows the club's palette again").not.toMatch(/--logo-flag, var\(--color-accent/);
   });
 
-  it("draws the ball from accent-2 (green), and as a variable at all", () => {
+  it("draws the ball in TourneyHQ's own green, never the club's second colour", () => {
+    expect(logo).toContain("var(--logo-ball, var(--thq-ball))");
+    expect(logo, "the ball follows the club's palette again").not.toMatch(/--logo-ball, var\(--color-accent-2/);
     // `currentColor` is not a colour decision, it is the absence of one.
-    expect(logo).toContain("var(--logo-ball, var(--color-accent-2, currentColor))");
     expect(logo, "the ball must not be currentColor again").not.toMatch(
       /<circle[^>]*fill="currentColor"/,
     );
+  });
+
+  it("gives the app mark exactly the home-screen icon's colours", () => {
+    // One drawing, one pair of colours: the icon generator writes FLAG and
+    // BALL as hex because a rasterizer cannot read custom properties, and the
+    // app's --thq-* must be those two values, not a near miss.
+    const css = read("src/app/globals.css");
+    const thq = (name: string) => new RegExp(`--thq-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)?.[1]?.toLowerCase();
+    const flag = /const FLAG = "(#[0-9a-fA-F]{6})"/.exec(gen)?.[1]?.toLowerCase();
+    const ball = /const BALL = "(#[0-9a-fA-F]{6})"/.exec(gen)?.[1]?.toLowerCase();
+    expect(thq("flag"), "--thq-flag is not declared").toBeTruthy();
+    expect(thq("flag")).toBe(flag);
+    expect(thq("ball")).toBe(ball);
+  });
+
+  it("builds the wordmark from TourneyHQ's colours, not the club's accent", () => {
+    const css = read("src/app/globals.css");
+    const block = (sel: string) => css.slice(css.indexOf(sel), css.indexOf("}", css.indexOf(sel)));
+    expect(block(".brand-mark {"), "the wordmark gradient follows the club again").not.toContain("--color-accent");
+    expect(block(".brand-hq {"), "the HQ chip follows the club again").not.toContain("--color-accent");
+    expect(block(".brand-mark {")).toContain("--thq-flag");
   });
 
   it("uses the same two colours in the generated icons", async () => {
@@ -298,12 +331,13 @@ describe("the mark is the same colour in both renderings", () => {
     expect(g, `BALL ${ball} should be green-dominant`).toBeGreaterThan(b);
   });
 
-  it("keeps the landing page's mapping honest", () => {
-    // This page has its own palette, and its mapping said "pennant orange"
-    // while pointing at --flag, which is its green.
+  it("leaves the mark's colours to TourneyHQ on the homepage too", () => {
+    // It used to map the flag and ball to this page's own amber and green —
+    // honest about its own palette, and a different logo from the app's. One
+    // brand now: the homepage sets neither.
     const landing = read("src/app/page.tsx");
-    expect(landing).toContain('"--logo-flag": "var(--brand-amber)"');
-    expect(landing).toContain('"--logo-ball": "var(--brand-green)"');
+    expect(landing).not.toContain('"--logo-flag"');
+    expect(landing).not.toContain('"--logo-ball"');
   });
 
   /**
@@ -323,8 +357,11 @@ describe("the mark is the same colour in both renderings", () => {
   it("never wires the mark to a colour the page is free to retune", () => {
     const landing = read("src/app/page.tsx");
 
-    // The four mappings that colour the mark, as `"--token": "value"` pairs.
-    const marks = ["--logo-flag", "--logo-ball", "--color-accent", "--color-accent-600"];
+    // The mappings that still colour the mark on this page, as
+    // `"--token": "value"` pairs. The flag, ball and wordmark mappings are
+    // gone (TourneyHQ's own --thq-* colours now); the stick and cup answer to
+    // the page's ground and are what remains.
+    const marks = ["--logo-stick", "--logo-cup"];
     // The page's own design variables. Every one of these is retuned whenever
     // the landing palette is redesigned.
     // Every one of these is now GENERATED by landing-palette.ts, which makes
@@ -348,17 +385,19 @@ describe("the mark is the same colour in both renderings", () => {
     }
   });
 
-  it("draws the mark in the brand's own colours, on both grounds", () => {
-    // And those tokens hold the colours the mark has always been: the orange
-    // pennant and the green ball, per ground. If a redesign wants a different
-    // logo it has to say so HERE, which is a decision rather than a side
-    // effect.
-    const landing = read("src/app/page.tsx");
-    const declared = (token: string) =>
-      [...landing.matchAll(new RegExp(`${token}:\\s*(#[0-9A-Fa-f]{6})`, "g"))].map((m) => m[1].toUpperCase());
-
-    // Dark ground first, then the daylight pair.
-    expect(declared("--brand-amber")).toEqual(["#E8A33D", "#A8701A"]);
-    expect(declared("--brand-green")).toEqual(["#4FA97C", "#1F7A50"]);
+  it("draws the mark in one pair of colours, on both grounds", () => {
+    // The decision this used to guard — the homepage's own amber and green,
+    // a different pair per ground — was reversed on 2026-09-18: TourneyHQ is
+    // the same colour everywhere. So the colours are declared ONCE, in
+    // globals.css, and no ground or theme block redeclares them. A redesign
+    // that wants a different logo still has to say so here.
+    const css = read("src/app/globals.css");
+    for (const token of ["--thq-flag", "--thq-ball"]) {
+      const declarations = [...css.matchAll(new RegExp(`${token}:\\s*(#[0-9A-Fa-f]{6})`, "g"))];
+      expect(declarations.length, `${token} is declared ${declarations.length} times`).toBe(1);
+    }
+    // And nothing theme-driven may write them: themeCss emits --color-* only.
+    const themes = read("src/lib/themes.ts");
+    expect(themes, "the club theme writes a TourneyHQ colour").not.toContain("--thq-");
   });
 });

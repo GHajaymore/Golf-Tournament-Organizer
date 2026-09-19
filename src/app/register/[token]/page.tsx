@@ -43,7 +43,7 @@ function NotOpen() {
     <div style={pageStyle}>
       <div style={{ maxWidth: 440, margin: "0 auto", paddingTop: "12vh", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-          <OrgBrand brand={null} />
+          <OrgBrand brand={null} tagline />
         </div>
         <div className="card elev-sm" style={{ alignItems: "center", gap: 8 }}>
           <Icon name="lock-simple" style={{ fontSize: 26, color: "var(--color-neutral-500)" }} />
@@ -76,7 +76,7 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
     <div style={pageStyle}>
       <div style={{ maxWidth: 460, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-          <OrgBrand brand={view.brand} />
+          <OrgBrand brand={view.brand} tagline />
         </div>
 
         <div style={{ marginBottom: 18 }}>

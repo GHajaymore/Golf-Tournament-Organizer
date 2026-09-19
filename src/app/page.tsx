@@ -21,26 +21,13 @@ import { BrandMark } from "@/components/BrandMark";
  */
 export const metadata = { alternates: { canonical: "/" } };
 
-/**
- * The app's wordmark tokens, mapped to the BRAND's own colours.
- *
- * BrandMark reads --color-accent* and --color-bg, which the landing page does
- * not define — it has its own ground. Mapping them here is what lets one
- * component serve both, exactly as --logo-flag does for the mark itself, and
- * is why there is no second copy of the lockup to drift.
- *
- * These map to --brand-*, NOT to the page accent. They were pointed at
- * --brass, which meant retuning the page's palette silently recoloured the
- * logo — a brand changing because a background did. The mark is fixed; the
- * page around it is the variable.
+/*
+ * There used to be a BRAND_TOKENS map here, re-pointing the wordmark's
+ * --color-accent* at this page's amber so the lockup had its own colours on
+ * the front door. Since 2026-09-18 the wordmark reads TourneyHQ's fixed
+ * --thq-* colours — the same on this page as inside every club's app — so the
+ * map had nothing left to re-skin and went.
  */
-const BRAND_TOKENS = {
-  "--color-accent": "var(--brand-amber)",
-  "--color-accent-200": "var(--brand-amber)",
-  "--color-accent-300": "var(--brand-amber)",
-  "--color-accent-600": "var(--brand-green-soft)",
-  "--color-bg": "var(--ground)",
-} as React.CSSProperties;
 
 /**
  * The front door.
@@ -641,8 +628,10 @@ function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
           // mapped it to --flag, which is this page's GREEN. The mark rendered
           // green-on-green and the ball took the ink colour, because it was
           // not a variable at all.
-          "--logo-flag": "var(--brand-amber)",
-          "--logo-ball": "var(--brand-green)",
+          // Flag and ball are NOT re-skinned any more: TourneyHQ's own orange
+          // and green, the same as inside the app (decided 2026-09-18 — "same
+          // color and font across"). Only the two that answer to this page's
+          // ground stay: the stick in its ink, the cup open on the green.
           "--logo-stick": "currentColor",
           "--logo-cup": "transparent",
         } as React.CSSProperties
@@ -716,7 +705,7 @@ export default async function LoginPage() {
                 out here by hand in the sans face with an italic "HQ", so the
                 wordmark above the sign-in button was not the wordmark inside
                 the product. */}
-            <BrandMark size={22} style={BRAND_TOKENS} />
+            <BrandMark size={22} />
           </div>
           <div className="nav-actions">
             <a className="btn btn-ghost" href="#signin" role="button">Sign in</a>
@@ -1437,7 +1426,7 @@ export default async function LoginPage() {
         <div className="wrap foot-in">
           <div className="foot-brand">
             <FlagMark size={LOGO_SIZE.sm} />
-            <BrandMark size={16} style={BRAND_TOKENS} />
+            <BrandMark size={16} />
           </div>
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>

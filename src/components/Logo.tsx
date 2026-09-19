@@ -97,9 +97,18 @@ export function Logo({
   style?: React.CSSProperties;
   colors?: LogoColors;
 }) {
-  const flag = colors?.flag ?? "var(--logo-flag, var(--color-accent, currentColor))";
-  const stick = colors?.stick ?? colors?.flag ?? "var(--logo-stick, var(--logo-flag, var(--color-accent, currentColor)))";
-  const ball = colors?.ball ?? "var(--logo-ball, var(--color-accent-2, currentColor))";
+  /**
+   * TOURNEYHQ'S OWN COLOURS, never the club's. Decided 2026-09-18: the mark
+   * looks the same at every club. It used to fall back to `--color-accent` and
+   * `--color-accent-2`, which `themeCss` writes from each club's palette, so
+   * the flag and ball changed colour with every club that picked a theme.
+   *
+   * The stick is lettering — the T of the wordmark beside it — so it takes the
+   * ground's text colour, which follows light and dark but no club setting.
+   */
+  const flag = colors?.flag ?? "var(--logo-flag, var(--thq-flag))";
+  const stick = colors?.stick ?? colors?.flag ?? "var(--logo-stick, var(--color-text, currentColor))";
+  const ball = colors?.ball ?? "var(--logo-ball, var(--thq-ball))";
   const cup = colors?.cup ?? "var(--logo-cup, var(--color-neutral-800, currentColor))";
   return (
     <svg
