@@ -107,6 +107,19 @@ beforeAll(async () => {
     },
   });
 
+  // And on the waiting list for another — a row, but not a place.
+  id.waiting = await makeEvent(org.id, "waiting", {});
+  await prisma.player.create({
+    data: {
+      eventId: id.waiting,
+      name: `${TAG} member`,
+      email: MEMBER,
+      handicap: 12,
+      seed: 1,
+      status: "waitlisted",
+    },
+  });
+
   // Somebody else fills the one-place tournament.
   await prisma.player.create({
     data: {
@@ -188,6 +201,15 @@ describe("what a member is told about each of their club's tournaments", () => {
     expect(r.entered, "they are in the field").toBe(true);
     expect(r.canEnter, "so there is nothing to sign up for").toBe(false);
     expect(r.registrationHref, "and no form to send them to").toBe("");
+  });
+
+  it("does not call a waiting-list place 'in', and does not offer the form again", async () => {
+    // Found 2026-09-19: any Player row counted as entered, so the switcher said
+    // "You’re in" while Today — asking the CONFIRMED field — said they were not.
+    const r = (await rows()).get(id.waiting)!;
+    expect(r.entered, "a waiting-list row is not a place in the field").toBe(false);
+    expect(r.canEnter, "and they have already asked").toBe(false);
+    expect(r.windowNote).toMatch(/waiting list/i);
   });
 
   it("offers the full one as a WAITLIST rather than shutting it", async () => {

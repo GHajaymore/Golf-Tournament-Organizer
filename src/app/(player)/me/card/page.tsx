@@ -222,6 +222,7 @@ export default async function PlayCardPage() {
       savePartial={mayReportPartialCard(settings, session.role)}
       partners={partners}
       startHole={me.round.group?.startHole ?? 1}
+      tournamentName={state.event.name}
     />
   );
 }

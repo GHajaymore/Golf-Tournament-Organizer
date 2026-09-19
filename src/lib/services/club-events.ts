@@ -125,9 +125,19 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
 
   const mine = await prisma.player.findMany({
     where: { eventId: { in: ids }, email: { equals: email, mode: "insensitive" } },
-    select: { eventId: true },
+    select: { eventId: true, status: true },
   });
-  const enteredIn = new Set(mine.map((p) => p.eventId));
+  /**
+   * ENTERED MEANS CONFIRMED — the rule `myPlayerIds` and every card guard use.
+   * This counted any row, so a player on the waiting list read "You’re in" in
+   * the switcher while Today, asking the confirmed field, told them they were
+   * not entered. A pending or waitlisted row is said as such, and is not
+   * offered the entry form a second time.
+   */
+  const enteredIn = new Set(mine.filter((p) => p.status === "confirmed").map((p) => p.eventId));
+  const waitingIn = new Set(
+    mine.filter((p) => p.status === "waitlisted" || p.status === "pending").map((p) => p.eventId),
+  );
 
   /**
    * WHETHER THERE IS ANYTHING BEHIND THE LINK, COUNTED RATHER THAN ASSUMED.
@@ -171,7 +181,8 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
      * the four reasons above: a club that has not opened entries at all has no
      * form to send anybody to, however healthy the deadline looks.
      */
-    const canEnter = !entered && status.acceptingEntries && event.registrationOpen;
+    const waiting = !entered && waitingIn.has(event.id);
+    const canEnter = !entered && !waiting && status.acceptingEntries && event.registrationOpen;
     const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered });
     const today = todayIso();
 
@@ -179,7 +190,9 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       band,
       bandLabel: BAND_LABEL[band],
       when: whenOf(band),
-      windowNote: entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
+      windowNote: waiting
+        ? "You’re on the waiting list — the organizer will confirm your place."
+        : entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
       progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
       placesNote:
         band === "open" || band === "soon"

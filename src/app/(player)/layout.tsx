@@ -51,13 +51,19 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * The fifth tab appears only where the tournament is actually splitting
    * costs — a league that never buys a round together keeps its four.
    *
-   * Staff see it regardless, because somebody has to be able to add the FIRST
-   * expense: a tab that only appears once the feature has been used is a tab
-   * nobody can ever reach. The organizer starts the ledger, and from that
-   * moment every player on the outing has it too.
+   * EXACTLY WHEN THE PAGE WILL OPEN (2026-09-19). Staff used to see it
+   * regardless, "so somebody can add the FIRST expense" — but `usesExpenses`
+   * reads the tournament's money SETTING, not whether anything has been spent,
+   * and the Money page redirects to Today whenever it is false. So for staff
+   * on a tournament without money the tab was a door that bounced them back.
+   * The setting is turned on in the console; once it is, everyone has the tab.
+   *
+   * And not while WATCHING: the page redirects anyone who is neither in the
+   * field nor on the ledger, so the tab would do the same to a spectator.
+   * `watching` is filled in below, once the switcher has been worked out.
    */
   const isStaff = session.role === "admin" || session.role === "assistant";
-  const showMoney = session.eventId ? isStaff || (await usesExpenses(session.eventId)) : false;
+  const moneyOn = session.eventId ? await usesExpenses(session.eventId) : false;
 
   /**
    * Messages sit in the header, not the tab bar.
@@ -195,7 +201,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         {children}
       </main>
 
-      <PlayTabs showMoney={showMoney} />
+      <PlayTabs showMoney={moneyOn && !switcher.current?.watching} />
     </div>
     </CurrencyProvider>
   );

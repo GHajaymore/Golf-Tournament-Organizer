@@ -239,18 +239,22 @@ export function ClubEventsList({
                   </span>
                 )}
 
-                {(e.canEnter || e.canView) && (
+                {(e.canEnter || e.canView || e.entered) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {e.canEnter && (
                       <Link className="btn btn-primary" href={e.registrationHref} style={{ flex: "1 1 140px" }}>
                         Enter this tournament <Icon name="arrow-right" />
                       </Link>
                     )}
-                    {e.canView && (
+                    {(e.canView || e.entered) && (
                       <form action={openAction} style={{ flex: "1 1 140px", display: "flex" }}>
                         <input type="hidden" name="eventId" value={e.eventId} />
+                        {/* Entered, with nothing on the board yet: open Today,
+                            where the player's tee time and card are. It had no
+                            button at all, while the switcher offered it. */}
+                        {!e.canView && <input type="hidden" name="to" value="today" />}
                         <button className="btn btn-secondary" type="submit" style={{ flex: 1 }}>
-                          {e.viewLabel} <Icon name="arrow-right" />
+                          {e.canView ? e.viewLabel : "Open"} <Icon name="arrow-right" />
                         </button>
                       </form>
                     )}

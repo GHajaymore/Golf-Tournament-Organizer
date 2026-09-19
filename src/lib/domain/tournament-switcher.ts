@@ -23,6 +23,12 @@ export interface SwitchableRow {
   bandLabel: string;
   entered: boolean;
   canView: boolean;
+  /**
+   * The organizer’s lifecycle word — "live" is how the switcher tells a
+   * player which of their tournaments is being played now. Optional so a
+   * caller without it behaves as before.
+   */
+  eventStatus?: string;
 }
 
 export interface SwitcherEntry {
@@ -53,7 +59,10 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
   // finished band says "Finished" whether they played or not, so who they
   // were in it comes first.
   const who = row.entered ? "You’re in" : isStaff ? "" : "Watching";
-  const what = row.band === "entered" ? "" : row.bandLabel;
+  // A tournament the player is IN and that is live is the one they are
+  // playing — said in those words, because a player entered in three needs to
+  // know which one their card belongs to today.
+  const what = row.band === "entered" ? (row.eventStatus === "live" ? "Playing now" : "") : row.bandLabel;
   return [who, what].filter(Boolean).join(" · ");
 }
 
@@ -64,7 +73,7 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
    * on it to look at. A draft with no cards is left out for the same reason
    * the events list offers it no board: an empty table reads as a broken link.
    */
-  const others = byBand(rows.filter((r) => r.eventId !== activeId && (r.entered || r.canView))).map((r) => ({
+  const others = playingFirst(byBand(rows.filter((r) => r.eventId !== activeId && (r.entered || r.canView)))).map((r) => ({
     eventId: r.eventId,
     name: r.name,
     note: noteOf(r, isStaff),
@@ -75,4 +84,16 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
       : null,
     others,
   };
+}
+
+/**
+ * Within the player’s own tournaments, the one being played now comes first —
+ * a stable move, so everything else keeps the events list’s order.
+ */
+function playingFirst<T extends SwitchableRow>(rows: T[]): T[] {
+  const now = (r: T) => (r.band === "entered" && r.eventStatus === "live" ? 0 : 1);
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => {
+    if (a.r.band === "entered" && b.r.band === "entered") return now(a.r) - now(b.r) || a.i - b.i;
+    return a.i - b.i;
+  }).map(({ r }) => r);
 }
