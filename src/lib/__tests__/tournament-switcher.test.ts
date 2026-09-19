@@ -63,6 +63,24 @@ describe("the tournament switcher", () => {
     expect(switcherFor([row("cup", "live")], null, false).current).toBeNull();
   });
 
+  it("says which of the player's own tournaments is being played now, and puts it first", () => {
+    // The club's ask: a player in several tournaments picks the one they are playing.
+    const s = switcherFor(
+      [
+        row("league", "entered", { eventStatus: "draft" }),
+        row("medal", "entered", { eventStatus: "live" }),
+        row("cup", "live"),
+      ],
+      null,
+      false,
+    );
+    expect(s.others.map((o) => [o.eventId, o.note])).toEqual([
+      ["medal", "You’re in · Playing now"],
+      ["league", "You’re in"],
+      ["cup", "Watching · On now"],
+    ]);
+  });
+
   it("isWatching needs a row", () => {
     expect(isWatching(null, false)).toBe(false);
   });

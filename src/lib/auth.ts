@@ -198,11 +198,12 @@ export async function getSession(): Promise<Session | null> {
   if (!current) {
     const events = await prisma.event.findMany({
       where: { id: { in: accessible.map((a) => a.eventId) } },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, status: true },
       orderBy: { createdAt: "desc" },
     });
-    // Their own newest, not the club's — see landing-event.ts.
-    current = landingEvent(accessible, events.map((e) => e.id)) ?? accessible[0];
+    // Their own tournament being played now, not the club's newest — see
+    // landing-event.ts.
+    current = landingEvent(accessible, events) ?? accessible[0];
   }
 
   const access = await effectiveAccess(user.email, current.eventId);

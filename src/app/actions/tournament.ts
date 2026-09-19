@@ -149,8 +149,10 @@ async function requireStaffEvent(): Promise<string> {
  * self-reporting — and this is the check that matters, because hiding the
  * entry screen in the sidebar stops nobody from calling the action directly.
  */
-async function requireScoreEntry(): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
-  const session = await getSession();
+async function requireScoreEntry(
+  scoped?: Session,
+): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+  const session = scoped ?? (await getSession());
   if (!session) throw new Error("Not authenticated");
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
   if (!event) throw new Error("Event not found");
@@ -177,6 +179,47 @@ async function requireScoreEntry(): Promise<{ eventId: string; session: Session;
   const notStarted = await playRefusalFor(session.eventId);
   if (notStarted) throw new Error(notStarted);
   return { eventId: session.eventId, session, settings };
+}
+
+/**
+ * SCORE ENTRY FOR THE TOURNAMENT A CARD BELONGS TO, not the one last opened.
+ *
+ * Found by the player-side audit of 2026-09-19. The session's tournament is
+ * whichever the switcher chose most recently, and it is one cookie for every
+ * tab. A player entered in two tournaments with the medal card open on their
+ * home screen who looks at the league in a browser tab has moved that cookie —
+ * and every save from the card, including the ones queued offline, was then
+ * refused as "That round isn't in this tournament". The strokes stayed on the
+ * phone and never arrived.
+ *
+ * So a card action names its round, and the round names its tournament. The
+ * person's access to THAT tournament is resolved afresh by `effectiveAccess` —
+ * the same rule the switcher and `enterTournament` use — and their role there
+ * is the one checked, not the role they hold in the other tab's tournament. A
+ * round in a tournament they cannot reach gets no scope at all, and falls
+ * through to the session's own, where `assertEventStage` refuses it exactly as
+ * before. Nothing here widens who may write; it only stops the wrong
+ * tournament being asked.
+ */
+async function requireScoreEntryForStage(
+  stageId: unknown,
+): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const stage =
+    typeof stageId === "string" && stageId
+      ? await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } })
+      : null;
+  if (!stage || stage.eventId === session.eventId) return requireScoreEntry(session);
+  const access = await effectiveAccess(session.email, stage.eventId);
+  if (!access) return requireScoreEntry(session);
+  return requireScoreEntry({
+    ...session,
+    eventId: stage.eventId,
+    accountId: access.accountId,
+    role: access.role,
+    viewRole: access.role,
+  });
 }
 
 /**
@@ -2162,7 +2205,7 @@ export async function saveScorecard(
    */
   expectedRevision?: string,
 ): Promise<SaveCardResult> {
-  const { eventId, session, settings } = await requireScoreEntry();
+  const { eventId, session, settings } = await requireScoreEntryForStage(stageId);
   // Both ids, not just the player's. The upsert below is keyed on
   // (stageId, playerId) — the `eventId` in its `create` branch decorates a new
   // row and constrains nothing — so an unscoped pair let a staff member of any
@@ -4304,7 +4347,7 @@ export async function clearRoundScores(
  * no result.
  */
 export async function certifyScorecard(stageId: string, playerId: string) {
-  const { eventId, session } = await requireScoreEntry();
+  const { eventId, session } = await requireScoreEntryForStage(stageId);
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);
@@ -4336,7 +4379,7 @@ export async function certifyScorecard(stageId: string, playerId: string) {
  * back out of the results, and nothing recorded that they had.
  */
 export async function disputeScorecard(stageId: string, playerId: string) {
-  const { eventId, session } = await requireScoreEntry();
+  const { eventId, session } = await requireScoreEntryForStage(stageId);
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);

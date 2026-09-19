@@ -24,7 +24,11 @@ async function openTournament(formData: FormData): Promise<void> {
   "use server";
   const eventId = String(formData.get("eventId") ?? "");
   if (!eventId) return;
-  await enterTournament(eventId);
+  // Stay in the player app, and land where the button said: the board for
+  // Leaderboard / Results, Today for a tournament you are in that has no
+  // results yet. It sent everybody to their role's home, so an organizer who
+  // also plays was thrown into the console from a player screen.
+  await enterTournament(eventId, formData.get("to") === "today" ? "player" : "board");
 }
 
 /**

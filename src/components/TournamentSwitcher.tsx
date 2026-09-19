@@ -62,6 +62,11 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
                 {current.name}
               </span>
             )}
+            {current?.note && !current.watching && (
+              <span className="text-muted" style={{ fontSize: 11.5 }}>
+                {current.note}
+              </span>
+            )}
           </span>
           {current?.watching && (
             <span

@@ -65,6 +65,7 @@ export function PlayerCard({
   staffApproves = true,
   partners = [],
   startHole = 1,
+  tournamentName = "",
 }: {
   /**
    * The rest of the foursome on the round's PUBLISHED tee sheet, whose cards
@@ -74,6 +75,8 @@ export function PlayerCard({
   partners?: GroupPartner[];
   /** Where this player’s group teed off, so the card opens on the hole they are playing. */
   startHole?: number;
+  /** The tournament this card belongs to, named on the card itself. */
+  tournamentName?: string;
   stageId: string;
   playerId: string;
   playerName: string;
@@ -528,9 +531,19 @@ export function PlayerCard({
       >
         {[roundLabel, courseName].filter(Boolean).join(" · ")}
       </div>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "6px 0 14px" }}>
+      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "6px 0 4px" }}>
         {playerName || "My card"}
       </h1>
+      {/* WHICH TOURNAMENT THESE NUMBERS GO TO. A player entered in several
+          picks one in the switcher at the top; this line says, on the screen
+          where the scores are typed, which one that was — so a score cannot
+          quietly land on the wrong tournament's card. */}
+      {tournamentName && (
+        <p style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.45, color: "var(--color-text-muted)" }}>
+          Scoring for <strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{tournamentName}</strong>
+        </p>
+      )}
+      {!tournamentName && <div style={{ height: 10 }} />}
 
       {locked ? (
         /**

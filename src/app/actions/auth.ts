@@ -352,7 +352,9 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
   const access = await effectiveAccess(session.email, eventId);
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
-  redirect(stay === "player" ? "/me" : homeFor(access.role));
+  // "board" is the events list's Leaderboard / Results button, which should
+  // land on the board it names rather than on Today.
+  redirect(stay === "board" ? "/me/board" : stay === "player" ? "/me" : homeFor(access.role));
 }
 
 export async function signOutAction() {
