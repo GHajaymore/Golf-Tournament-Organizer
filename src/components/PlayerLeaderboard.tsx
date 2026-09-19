@@ -128,7 +128,14 @@ export function PlayerLeaderboard({
   const showCut = lastAdvancing !== null;
   const markEachRow = !showCut && rows.some((r) => r.advancing) && rows.some((r) => !r.advancing);
 
-  const you = youId ? rows.find((r) => r.id === youId) : undefined;
+  const youIndex = youId ? rows.findIndex((r) => r.id === youId) : -1;
+  /**
+   * Only when the player's own row is out of sight (2026-09-19). "Where am I"
+   * answered above the board is the point for somebody 23rd of 40; for the
+   * leader it printed their row twice, one line apart — the first thing the
+   * club named as redundant. The top five are on the first screen anyway.
+   */
+  const you = youIndex >= 5 ? rows[youIndex] : undefined;
   const yourScore = you ? rankedScore(you, { isStroke, isStableford }).text : "";
 
   return (

@@ -169,6 +169,7 @@ export default async function PlayCardPage() {
   );
 
   return (
+    <>
     <PlayerCard
       stageId={me.round.stageId}
       playerId={me.playerId}
@@ -224,5 +225,16 @@ export default async function PlayCardPage() {
       startHole={me.round.group?.startHole ?? 1}
       tournamentName={state.event.name}
     />
+    {/* Rules left the tab bar for Events (2026-09-19); the card is where a
+        local rule or the handicap allowance comes up, so it is linked here. */}
+    <p style={{ margin: "14px 0 0" }}>
+      <Link
+        href="/me/rules"
+        style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-300)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
+      >
+        <Icon name="book-open" /> This tournament&rsquo;s rules
+      </Link>
+    </p>
+    </>
   );
 }

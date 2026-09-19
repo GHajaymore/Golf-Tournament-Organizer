@@ -61,11 +61,20 @@ export interface PlayerScreen {
  * read past while standing on a tee. If a fifth is ever needed, something here
  * should have to leave.
  */
+/*
+ * EVENTS TOOK RULES' PLACE — the club's choice, 2026-09-19 ("Today · Board ·
+ * Card · Events"). The rule above held: a fifth was needed, so something had
+ * to leave. Rules is reference a player opens once, before the round; Events
+ * is where they find, enter and switch between the club's tournaments and
+ * start a casual round — reachable before only from a row on Today and a link
+ * in the switcher. Rules is now a link on Board and My card, where its
+ * questions actually arise.
+ */
 export const PLAYER_TABS: readonly PlayerScreen[] = [
   { href: "/me", label: "Today", icon: "ph ph-flag", iconActive: "ph-fill ph-flag" },
   { href: "/me/board", label: "Board", icon: "ph ph-ranking", iconActive: "ph-fill ph-ranking" },
   { href: "/me/card", label: "My card", icon: "ph ph-cards", iconActive: "ph-fill ph-cards" },
-  { href: "/me/rules", label: "Rules", icon: "ph ph-book-open", iconActive: "ph-fill ph-book-open" },
+  { href: "/me/events", label: "Events", icon: "ph ph-calendar-dots", iconActive: "ph-fill ph-calendar-dots" },
 ];
 
 /**
@@ -99,17 +108,13 @@ export const PLAYER_MESSAGES: PlayerScreen = {
 };
 
 /**
- * The club's calendar — what is on, and how to enter it.
- *
- * NOT A TAB, for the reason stated above the money one: the shell is four
- * screens a person needs while they are on a golf course, and this is not one
- * of them. It is reached from Today, which is where somebody stands when they
- * are wondering what is on next month rather than what they scored on the 4th.
+ * The tournament's rules — no longer a tab (see PLAYER_TABS). Reached from a
+ * link on Board and on My card.
  */
-export const PLAYER_EVENTS: PlayerScreen = {
-  href: "/me/events",
-  label: "Events",
-  icon: "ph ph-calendar-dots",
+export const PLAYER_RULES: PlayerScreen = {
+  href: "/me/rules",
+  label: "Rules",
+  icon: "ph ph-book-open",
 };
 
 /** Every player screen, tab or not — the lookup `screenName` walks. */
@@ -117,5 +122,5 @@ export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   ...PLAYER_TABS,
   PLAYER_MONEY_TAB,
   PLAYER_MESSAGES,
-  PLAYER_EVENTS,
+  PLAYER_RULES,
 ];

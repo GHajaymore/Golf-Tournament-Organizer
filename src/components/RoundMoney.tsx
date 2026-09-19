@@ -246,10 +246,6 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
           )}
         </>
       )}
-
-      <p className="text-muted" style={{ fontSize: 11.5, margin: "2px 0 0" }}>
-        TourneyHQ works this out and writes it down. It never moves money.
-      </p>
     </section>
   );
 }

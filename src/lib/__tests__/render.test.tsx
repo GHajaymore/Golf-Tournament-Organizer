@@ -3802,15 +3802,31 @@ describe("the board answers 'where am I' first", () => {
     row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
   ];
 
-  it("puts your own position above the list", async () => {
+  it("puts your own position above the list when your row is out of sight", async () => {
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const longer = [
+      ...field,
+      row({ id: "p4", rank: 4, name: "D. Ward", toPar: 4 }),
+      row({ id: "p5", rank: 5, name: "E. Fox", toPar: 5 }),
+      row({ id: "p6", rank: 6, name: "F. Hale", toPar: 6, thru: 11 }),
+    ];
     const html = render(
-      <PlayerLeaderboard isStroke rows={field} holes={18} youId="p3" unit="strokes" />,
+      <PlayerLeaderboard isStroke rows={longer} holes={18} youId="p6" unit="strokes" />,
     );
     const you = html.indexOf("You");
     expect(you, "your line renders").toBeGreaterThan(-1);
     expect(you, "and it comes before the field").toBeLessThan(html.indexOf("A. Moore"));
-    expect(html).toContain("thru 14");
+    expect(html).toContain("thru 11");
+  });
+
+  it("does not repeat your row above the list when it is already in the top five", async () => {
+    // Found 2026-09-19: the leader's board printed their row twice, one line
+    // apart — the first thing the club called redundant.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard isStroke rows={field} holes={18} youId="p3" unit="strokes" />,
+    );
+    expect(html.split("thru 14").length - 1, "your row, once").toBe(1);
   });
 
   it("says what the numbers are", async () => {
@@ -4101,8 +4117,13 @@ describe("the board answers 'where am I' first", () => {
 
     it("the player's own board says nothing rather than the gross", async () => {
       const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+      // Five ahead of them, so the "You" line is drawn at all — it only
+      // appears when the player's own row is out of sight (2026-09-19).
+      const ahead = [1, 2, 3, 4, 5].map((i) =>
+        row({ id: `a${i}`, rank: i, name: `Z. Ahead${i}`, toPar: 0, parKnown: true }),
+      );
       const html = render(
-        <PlayerLeaderboard isStroke rows={[noPar]} holes={18} youId="p1" unit="strokes" />,
+        <PlayerLeaderboard isStroke rows={[...ahead, noPar]} holes={18} youId="p1" unit="strokes" />,
       );
       expect(html, "the gross wearing a plus sign").not.toContain("+71");
       // Twice: the "You" summary at the top reads through the same function.

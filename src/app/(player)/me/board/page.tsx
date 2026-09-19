@@ -1,3 +1,5 @@
+import { Icon } from "@/components/Icon";
+import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
@@ -94,9 +96,18 @@ export default async function PlayBoardPage() {
           card", "Rules" — so this was also the one breaking the app's own
           convention. The kicker above already names the round, which is the
           part a player actually needs. */}
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "6px 0 18px" }}>
-        Board
-      </h1>
+      {/* The heading, and Rules beside it — Rules left the tab bar for Events
+          (2026-09-19), and "how are ties broken?" is a question the board
+          raises. */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, margin: "6px 0 18px" }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: 0 }}>Board</h1>
+        <Link
+          href="/me/rules"
+          style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-300)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
+        >
+          <Icon name="book-open" /> Rules
+        </Link>
+      </div>
 
       <PlayerLeaderboard
         isStroke={state.boardIsStroke}

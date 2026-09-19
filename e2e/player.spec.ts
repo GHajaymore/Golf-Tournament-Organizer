@@ -31,8 +31,10 @@ test("Today answers the three questions a player actually has", async ({ page })
   await expect(page.getByText("08:10")).toBeVisible();
   await expect(page.getByText(/With .*Marcus Webb/)).toBeVisible();
 
-  // What my card still needs. The fixture leaves nine holes in.
-  await expect(page.getByText(`${data.partialHolesFilled} of 18 holes in`)).toBeVisible();
+  // What my card still needs. The fixture leaves nine holes in. Read off the
+  // panel's headline — the footer that also said "9 of 18 holes in" was the
+  // same fact a third time and went on 2026-09-19.
+  await expect(page.getByText(`YOUR CARD · THRU ${data.partialHolesFilled}`)).toBeVisible();
 });
 
 test("My card opens on the holes already returned", async ({ page }) => {
