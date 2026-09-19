@@ -2,6 +2,16 @@ import "server-only";
 import { prisma } from "../db";
 import { accessibleEvents } from "./access";
 import { registrationStatus, entryDatesOf } from "../registration";
+import { todayIso } from "../deadline";
+import {
+  eventBand,
+  whenOf,
+  entryWindowNote,
+  entryProgress,
+  placesNote,
+  BAND_LABEL,
+  type EventBand,
+} from "../domain/club-event-card";
 import { venueOf } from "./registration";
 
 /**
@@ -66,6 +76,17 @@ export interface ClubEventRow {
   canView: boolean;
   /** "Results" once it is over, "Leaderboard" while it is being played. */
   viewLabel: string;
+  /** The coloured band across the card — see `domain/club-event-card.ts`. */
+  band: EventBand;
+  bandLabel: string;
+  /** Which "When" filter it falls under. */
+  when: "upcoming" | "now" | "finished";
+  /** "Closes in 9 days" / "Entries open tomorrow", or "". */
+  windowNote: string;
+  /** 0..1 through the entry window, or null without two real dates. */
+  progress: number | null;
+  /** "18 of 32 places left", "Full — waiting list open", or "". */
+  placesNote: string;
 }
 
 export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
@@ -142,8 +163,19 @@ export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
      * form to send anybody to, however healthy the deadline looks.
      */
     const canEnter = !entered && status.acceptingEntries && event.registrationOpen;
+    const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered });
+    const today = todayIso();
 
     return {
+      band,
+      bandLabel: BAND_LABEL[band],
+      when: whenOf(band),
+      windowNote: entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
+      progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
+      placesNote:
+        band === "open" || band === "soon"
+          ? placesNote(event.capacity, confirmedBy.get(event.id) ?? 0, status.waitlisting)
+          : "",
       eventId: event.id,
       name: event.name,
       dates: event.dates,
