@@ -101,7 +101,9 @@ async function main() {
 
   if (build) {
     console.log(`Building into ${DIST} (leaves .next alone, so a dev server can keep running)…\n`);
-    const code = await run("npx", ["next", "build"], { NEXT_DIST_DIR: DIST });
+    // The checked build — rebuilds once if a page's client manifest is missing
+    // a module (scripts/build-checked.mjs), the fault that 500s a random route.
+    const code = await run("node", ["scripts/build-checked.mjs"], { NEXT_DIST_DIR: DIST });
     if (code !== 0) process.exit(code);
   } else if (!existsSync(join(process.cwd(), DIST, "BUILD_ID"))) {
     console.error(`--no-build, but there is no ${DIST} build to run. Drop the flag.`);

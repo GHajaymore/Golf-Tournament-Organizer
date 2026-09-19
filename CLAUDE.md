@@ -343,6 +343,23 @@ rather than an e2e assertion — `/grouping` had gone 500 on the route walk the 
 red reads much more like "you broke a page" than a heading assertion does, so check for
 `Client Manifest` in the log before believing the route.
 
+**SINCE 2026-09-19 EVERY BUILD CHECKS ITSELF FOR THIS, and rebuilds once.** It struck four times
+that day (FoursomeMaker, LocalePicker, AnnouncementsClient — one of them on `main`, which left a
+merged change undeployed until the job was re-run by hand). What was measured: eight local builds
+of one commit gave identical manifests, so it does not reproduce on demand, and no Next.js release
+note from 15.5.23 to 15.5.25 mentions it — the cause is still unknown. But in this app EVERY
+page's client-reference manifest lists the same set of client modules (50 manifests, 81 each), so
+one build can be checked against itself: a page missing a module the others list IS the fault.
+
+`npm run build`, `vercel-build` and `smoke:all` now go through `scripts/build-checked.mjs`:
+`next build`, then that check, then — only if a manifest is provably missing a module — one
+rebuild, and a hard failure if the rebuild is bad too. The log line is
+`[build-checked] build 1: INCONSISTENT client manifests` with the page and the module named. This
+is NOT the `retries` the e2e section forbids: nothing the code could be at fault for is retried,
+only a build artifact that fails a deterministic check. If that log line starts appearing often,
+or ever twice in one build, it is time to chase the cause properly; `--check` inspects an existing
+build without building.
+
 **And a THIRD, which is a click that never lands.** `offline.spec.ts:245` — "taking their
 card clears the queue without sending anything" — times out on the desktop project trying to
 press the card chooser's button:
