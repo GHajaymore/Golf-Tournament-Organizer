@@ -66,6 +66,29 @@ export function roundDates(start: IsoDate, count: number, intervalDays: number):
   return out;
 }
 
+/**
+ * DATING A SEASON THAT WAS SET UP WITHOUT DATES (2026-09-19).
+ *
+ * A league created without a start date has rounds with no `playedOn`, and a
+ * player's availability then has no calendar to draw — they get a list,
+ * which is what the club saw on its Thursday league. Dating eighteen weeks
+ * one field at a time is how that never gets fixed.
+ *
+ * So: the undated rounds, in running order, take `start` and every
+ * `intervalDays` after it. A round that already has a date is left alone —
+ * that is a rain-out somebody moved on purpose — and does not shift the
+ * sequence either. Pure, so the rule is tested without a database.
+ */
+export function planSeasonDates(
+  rounds: readonly { id: string; playedOn: string }[],
+  start: IsoDate,
+  intervalDays: number,
+): { id: string; playedOn: IsoDate }[] {
+  const undated = rounds.filter((r) => !cleanIsoDate(r.playedOn));
+  const dates = roundDates(start, undated.length, intervalDays);
+  return undated.map((r, i) => ({ id: r.id, playedOn: dates[i] }));
+}
+
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** Which weekday a date falls on, so the UI can say "every Tuesday". */

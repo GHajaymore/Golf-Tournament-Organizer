@@ -520,30 +520,41 @@ export function PlayerCard({
 
   return (
     <div>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.09em",
-          textTransform: "uppercase",
-          color: "var(--color-neutral-400)",
-        }}
-      >
-        {[roundLabel, courseName].filter(Boolean).join(" · ")}
-      </div>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "6px 0 4px" }}>
+      {/*
+        THE SCORE PAD ABOVE THE FOLD (2026-09-19). On a phone the card spent
+        its first screen on a round label, the player's name, the tournament
+        again, a stats panel, two rows of toggles and the hole strip — and the
+        buttons a player opens this screen to press started at the bottom edge.
+        Everything is still here, packed tighter: the name and one context
+        line, compact stats, one row of controls, and the microphone beside the
+        hole number rather than a full-width bar.
+      */}
+      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 20, lineHeight: 1.2, margin: "0 0 2px" }}>
         {playerName || "My card"}
       </h1>
-      {/* WHICH TOURNAMENT THESE NUMBERS GO TO. A player entered in several
-          picks one in the switcher at the top; this line says, on the screen
-          where the scores are typed, which one that was — so a score cannot
-          quietly land on the wrong tournament's card. */}
-      {tournamentName && (
-        <p style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.45, color: "var(--color-text-muted)" }}>
-          Scoring for <strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{tournamentName}</strong>
-        </p>
-      )}
-      {!tournamentName && <div style={{ height: 10 }} />}
+      {/* WHICH TOURNAMENT THESE NUMBERS GO TO, with the round and the course.
+          A player entered in several picks one in the switcher at the top;
+          this says, on the screen where the scores are typed, which one that
+          was — so a score cannot quietly land on the wrong tournament's card. */}
+      <p
+        style={{
+          margin: "0 0 10px",
+          fontSize: 12.5,
+          lineHeight: 1.4,
+          color: "var(--color-text-muted)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {tournamentName && (
+          <>
+            Scoring for <strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{tournamentName}</strong>
+            {" · "}
+          </>
+        )}
+        {[roundLabel, courseName].filter(Boolean).join(" · ")}
+      </p>
 
       {locked ? (
         /**
@@ -595,8 +606,8 @@ export function PlayerCard({
               alignItems: "center",
               justifyContent: "space-between",
               gap: 10,
-              padding: "12px 14px",
-              marginBottom: 12,
+              padding: "8px 14px",
+              marginBottom: 10,
             }}
           >
             <Stat label="Thru" value={summary.played === 0 ? "–" : String(summary.played)} />
@@ -622,42 +633,46 @@ export function PlayerCard({
               a phone between shots. The full card is the check afterwards —
               against the paper one in your pocket, where every hole, the
               shots you got and both totals have to be visible at once. */}
-          <div className="seg" style={{ marginBottom: 12 }}>
-            <label className="seg-opt">
-              <input
-                type="radio"
-                name="card-view"
-                checked={view === "hole"}
-                onChange={() => setView("hole")}
-              />
-              <Icon name="flag" /> Hole by hole
-            </label>
-            <label className="seg-opt">
-              <input
-                type="radio"
-                name="card-view"
-                checked={view === "card"}
-                onChange={() => setView("card")}
-              />
-              <Icon name="table" /> Full card
-            </label>
-          </div>
-
-          {/* Whose card this phone is keeping. Only offered when the published
-              tee sheet put this player in a group — the marker system — and
-              only for the numbers: signing stays each player's own. */}
-          {view === "hole" && partners.length > 0 && (
-            <div className="seg" style={{ marginBottom: 12 }}>
+          {/* ONE ROW OF CONTROLS: how to fill the card, and — where the
+              published tee sheet put this player in a group — whose card this
+              phone is keeping. Two stacked rows cost the score pad its place
+              above the fold. Wraps on a narrow phone rather than squeezing. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+            <div className="seg">
               <label className="seg-opt">
-                <input type="radio" name="card-who" checked={who === "me"} onChange={() => setWho("me")} />
-                <Icon name="golf" /> Just me
+                <input
+                  type="radio"
+                  name="card-view"
+                  checked={view === "hole"}
+                  onChange={() => setView("hole")}
+                />
+                <Icon name="flag" /> By hole
               </label>
               <label className="seg-opt">
-                <input type="radio" name="card-who" checked={who === "group"} onChange={() => setWho("group")} />
-                <Icon name="users-three" /> My group ({partners.length + 1})
+                <input
+                  type="radio"
+                  name="card-view"
+                  checked={view === "card"}
+                  onChange={() => setView("card")}
+                />
+                <Icon name="table" /> Full card
               </label>
             </div>
-          )}
+
+            {/* Only the numbers: signing stays each player's own. */}
+            {view === "hole" && partners.length > 0 && (
+              <div className="seg">
+                <label className="seg-opt">
+                  <input type="radio" name="card-who" checked={who === "me"} onChange={() => setWho("me")} />
+                  Me
+                </label>
+                <label className="seg-opt">
+                  <input type="radio" name="card-who" checked={who === "group"} onChange={() => setWho("group")} />
+                  <Icon name="users-three" /> Group ({partners.length + 1})
+                </label>
+              </div>
+            )}
+          </div>
 
           {view === "hole" && who === "group" && partners.length > 0 ? (
             <GroupScoring
@@ -914,7 +929,7 @@ function Stat({
         title={hint}
         style={{
           fontFamily: "var(--font-heading)",
-          fontSize: 26,
+          fontSize: 21,
           lineHeight: 1.1,
           fontVariantNumeric: "tabular-nums",
           color: tone === "good" ? "var(--color-accent-2-300)" : "var(--color-text)",

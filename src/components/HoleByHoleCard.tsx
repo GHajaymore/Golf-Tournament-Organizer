@@ -295,23 +295,43 @@ export function HoleByHoleCard({
           </div>
         </div>
 
+        {/* Said, not tapped — a round button beside the hole rather than a
+            full-width bar, so the pad stays above the fold on a phone. The
+            name says what it does for a screen reader; the ring says it is
+            listening. */}
         {meId && (
-          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={listen}
               aria-pressed={listening}
-              style={{ minHeight: 48, justifyContent: "center", gap: 8 }}
+              aria-label={solo ? `Say your score for hole ${hole + 1}` : `Say the scores for hole ${hole + 1}`}
+              style={{
+                width: 48,
+                height: 48,
+                minHeight: 48,
+                padding: 0,
+                borderRadius: "50%",
+                justifyContent: "center",
+                flex: "none",
+                boxShadow: listening ? "0 0 0 3px var(--color-accent)" : undefined,
+              }}
             >
-              <Icon name="microphone" />
-              {listening ? "Listening…" : solo ? `Say your score for hole ${hole + 1}` : `Say the scores for hole ${hole + 1}`}
+              <Icon name="microphone" style={{ fontSize: 20 }} />
             </button>
-            {heard && (
-              <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>
-                {heard}
-              </p>
-            )}
+            {/* aria-live, NOT role="status": the card's save line is THE status
+                of this screen (offline.spec finds it by that role), and a hint
+                that is always there is not a status — only what was heard
+                needs announcing, which a polite live region does. */}
+            <span style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--color-neutral-400)", minWidth: 0 }} aria-live="polite">
+              {listening
+                ? "Listening…"
+                : heard ||
+                  (solo
+                    ? "Or say it: “four”, “par”, “bogey”."
+                    : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
+            </span>
           </div>
         )}
 
