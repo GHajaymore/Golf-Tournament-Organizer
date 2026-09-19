@@ -405,7 +405,10 @@ jobs:
       # second build of the same source. That reasoning is sound in general and
       # wrong for this repository, because `vercel-build` is
       #
-      #     pad-migration-names && deploy-migrations && next build
+      #     pad-migration-names && deploy-migrations && build-checked
+      #
+      # (build-checked is `next build` plus the client-manifest consistency
+      # check — scripts/build-checked.mjs.)
       #
       # — it runs `prisma migrate deploy` against the PRODUCTION database. To
       # build here, this runner would need production database credentials, and
