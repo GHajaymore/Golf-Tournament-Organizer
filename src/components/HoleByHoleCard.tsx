@@ -4,6 +4,8 @@ import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { Icon } from "./Icon";
+import { startDictation } from "@/lib/dictation";
+import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -93,6 +95,7 @@ export function HoleByHoleCard({
   strokeIndex,
   holes,
   onSet,
+  meId,
 }: {
   players: CardPlayer[];
   cards: Record<string, (number | null)[]>;
@@ -101,7 +104,15 @@ export function HoleByHoleCard({
   strokeIndex: number[];
   holes: number;
   onSet: (playerId: string, hole: number, value: number | null) => void;
+  /**
+   * The player holding the phone. When given, the hole gets a microphone:
+   * "four five three four", or "Marcus five, me four". Names resolve against
+   * THESE players only — see `parseHoleTranscript`.
+   */
+  meId?: string;
 }) {
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState("");
   // Open where the card has got to: the first hole nobody has scored yet.
   //
   // Not "the first hole someone is missing" — scoring is allowed to be partial,
@@ -142,6 +153,36 @@ export function HoleByHoleCard({
     // through the hole and moving the screen out from under them would be
     // actively hostile.
     if (solo && v != null && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+  };
+
+  /**
+   * SAY THE HOLE. One press, one hole, the whole group. What was heard is
+   * written through `onSet` exactly as taps are, then read back in a line so
+   * a misheard "four" for "five" is seen and fixed with the stepper.
+   */
+  const listen = () => {
+    if (listening) return;
+    setHeard("");
+    const started = startDictation({
+      onTranscript: (transcript) => {
+        const got = parseHoleTranscript(
+          transcript,
+          players.map((p) => ({ id: p.id, name: p.name, isMe: p.id === meId })),
+          par ?? 4,
+        );
+        const names = players.filter((p) => got[p.id] !== undefined);
+        for (const p of names) onSet(p.id, hole, got[p.id]);
+        setHeard(
+          names.length
+            ? `Heard “${transcript}” — ${names.map((p) => `${p.name.split(" ")[0]} ${got[p.id]}`).join(", ")}. Check and fix with − and +.`
+            : `Heard “${transcript}” but no scores in it. Try “four five three four”.`,
+        );
+      },
+      onError: () => setHeard("Didn’t catch that. Try again, or tap the scores in."),
+      onEnd: () => setListening(false),
+    });
+    if (started) setListening(true);
+    else setHeard("This browser can’t listen. Tap the scores in instead.");
   };
 
   const holeDone = (i: number) => players.every((p) => strokesOf(p.id)[i] != null);
@@ -237,6 +278,26 @@ export function HoleByHoleCard({
           </div>
         </div>
 
+        {meId && (
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={listen}
+              aria-pressed={listening}
+              style={{ minHeight: 48, justifyContent: "center", gap: 8 }}
+            >
+              <Icon name="microphone" />
+              {listening ? "Listening…" : solo ? `Say your score for hole ${hole + 1}` : `Say the scores for hole ${hole + 1}`}
+            </button>
+            {heard && (
+              <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>
+                {heard}
+              </p>
+            )}
+          </div>
+        )}
+
         {solo ? (
           <SoloPad
             player={players[0]}
@@ -304,6 +365,12 @@ export function HoleByHoleCard({
                     className={`sc-score${scoreMark(value, par)}`}
                     aria-label={`${p.name}, hole ${hole + 1}${value == null ? ", not scored" : `, ${value} strokes`}`}
                     style={{
+                      // `.sc-score` is `width: 100%` for the grid cells it was
+                      // written for; in this row that took 193 of 311px and
+                      // squeezed the player's name to a letter per line. The
+                      // group view was never rendered until 2026-09-19.
+                      width: 44,
+                      flex: "none",
                       minWidth: 44,
                       minHeight: 44,
                       display: "inline-flex",
