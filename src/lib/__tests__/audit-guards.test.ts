@@ -585,7 +585,17 @@ describe("a player writes their own scores and nobody else's", () => {
     const start = src.indexOf("export async function saveScorecard");
     const after = src.indexOf("\nexport ", start + 1);
     const card = stripComments(src.slice(start, after === -1 ? undefined : after));
-    expect(card).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    // Widened on purpose to the published foursome (domain/group-entry.ts),
+    // and proven against real rows in a-marker-keeps-the-group-card.audit.
+    expect(card).toMatch(/assertMayKeepCard\(session, eventId, stageId, playerId\)/);
+
+    // Keeping a partner's numbers is not signing for them: certify and
+    // dispute stay on the own-card rule.
+    for (const fn of ["certifyScorecard", "disputeScorecard"]) {
+      const s = src.indexOf(`export async function ${fn}`);
+      const e = src.indexOf("\nexport ", s + 1);
+      expect(stripComments(src.slice(s, e === -1 ? undefined : e)), fn).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    }
   });
 
   /**
@@ -895,7 +905,7 @@ describe("a card is written to the round and the player it names, not to an id",
     const fn = stripComments(src.slice(start, after === -1 ? undefined : after));
     expect(fn).toMatch(/assertEventStage\(eventId, stageId\)/);
     expect(fn).toMatch(/assertEventPlayer\(eventId, playerId\)/);
-    expect(fn).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    expect(fn).toMatch(/assertMayKeepCard\(session, eventId, stageId, playerId\)/);
   });
 
   it("both assertions narrow by eventId and refuse rather than fall through", () => {

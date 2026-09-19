@@ -19,6 +19,8 @@ import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, sc
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { publishedFoursomes, mayWriteCard } from "@/lib/domain/group-entry";
 
 /**
  * The acting PLAYER's id, or "" when staff entered the score.
@@ -229,6 +231,44 @@ async function assertOwnCard(session: Session, eventId: string, playerId: string
   if (session.role !== "player") return;
   const own = await ownPlayerIds(eventId, session.email);
   if (!own.has(playerId)) throw new Error("You can only enter your own scorecard.");
+}
+
+/**
+ * KEEPING the numbers on a stroke card: your own, or a partner's in the
+ * foursome you were drawn with on THIS round's published tee sheet — the
+ * marker system (`domain/group-entry.ts`). Staff pass, as everywhere.
+ *
+ * Only `saveScorecard` asks this. Certifying and disputing a card still go
+ * through `assertOwnCard`: keeping a partner's score is not signing for them.
+ *
+ * `stageId` is already proven to be this event's by `assertEventStage`, and
+ * the sheet is read from that stage, so a caller cannot borrow another
+ * round's (or another club's) grouping to reach a card.
+ */
+async function assertMayKeepCard(
+  session: Session,
+  eventId: string,
+  stageId: string,
+  playerId: string,
+): Promise<void> {
+  if (session.role !== "player") return;
+  const own = await ownPlayerIds(eventId, session.email);
+  if (own.has(playerId)) return;
+  const [stage, confirmed] = await Promise.all([
+    prisma.stage.findFirst({
+      where: { id: stageId, eventId },
+      select: { teeSheet: true, teeSheetPublished: true },
+    }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } }),
+  ]);
+  const foursomes = publishedFoursomes(
+    stage ? parseTeeSheet(stage.teeSheet) : null,
+    !!stage?.teeSheetPublished,
+    new Set(confirmed.map((p) => p.id)),
+  );
+  if (!mayWriteCard(own, playerId, foursomes)) {
+    throw new Error("You can only keep score for yourself and the group you were drawn with.");
+  }
 }
 
 /**
@@ -2131,7 +2171,7 @@ export async function saveScorecard(
   // checks the playerId, leaving the round free to point anywhere.
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
-  await assertOwnCard(session, eventId, playerId);
+  await assertMayKeepCard(session, eventId, stageId, playerId);
 
   /**
    * The write itself, in `services/scorecard-write.ts`.

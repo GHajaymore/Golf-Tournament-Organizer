@@ -11,14 +11,18 @@ import { cardRevision } from "@/lib/domain/pending-card";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 import { ConfirmButton } from "./ConfirmButton";
+import { GroupScoring, type GroupPartner } from "./GroupScoring";
+import { parseTypedCard } from "@/lib/domain/score-entry-input";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
  *
- * Deliberately thinner than the console's StrokePlayEntry: no player picker,
- * no tee-group switch, no voice entry. A player entering their own round needs
- * none of it, and every control that offers one is a thing to get wrong with a
- * glove on.
+ * Deliberately thinner than the console's StrokePlayEntry: no player picker
+ * and no tee-group switch. What it does offer, since 2026-09-19, is the three
+ * ways the club asked for: tap hole by hole, SAY the hole ("four", or "Marcus
+ * five, me four"), or TYPE the whole card in one line — and, where the
+ * published tee sheet put this player in a group, keep the group's cards on
+ * this one phone (`GroupScoring`). Signing stays each player's own.
  *
  * Three things this screen has to do that the old one did not:
  *
@@ -59,7 +63,14 @@ export function PlayerCard({
   initialRevision = "",
   savePartial = true,
   staffApproves = true,
+  partners = [],
 }: {
+  /**
+   * The rest of the foursome on the round's PUBLISHED tee sheet, whose cards
+   * this player may keep (`services/group-cards.ts` — the same rule
+   * `saveScorecard` enforces). Empty means a card for one, as before.
+   */
+  partners?: GroupPartner[];
   stageId: string;
   playerId: string;
   playerName: string;
@@ -130,6 +141,10 @@ export function PlayerCard({
   const [state, setState] = useState(status);
   /** Hole by hole for the round; the full card for checking it after. */
   const [view, setView] = useState<"hole" | "card">("hole");
+  /** Keeping score for yourself, or for the whole group on this phone. */
+  const [who, setWho] = useState<"me" | "group">("me");
+  const [typed, setTyped] = useState("");
+  const [typedNote, setTypedNote] = useState("");
   const [error, setError] = useState("");
   /** What the server holds, when it refused our write for disagreeing. */
   const [conflict, setConflict] = useState<{ strokes: (number | null)[]; revision: string } | null>(null);
@@ -395,6 +410,25 @@ export function PlayerCard({
   };
 
   /**
+   * THE WHOLE CARD, TYPED IN ONE LINE — for the player who kept a paper card
+   * and wants it in before the bar. Read by `parseTypedCard`; a hole typed as
+   * a dash is left as it was, never cleared, so typing the back nine onto a
+   * card with the front nine in does not wipe the front nine.
+   */
+  const applyTyped = () => {
+    const read = parseTypedCard(typed, holes);
+    if (!read.ok) {
+      setTypedNote(read.problem);
+      return;
+    }
+    dirty.current = true;
+    setNote("");
+    setStrokes((prev) => prev.map((s, i) => read.strokes[i] ?? s));
+    setTyped("");
+    setTypedNote(`${read.filled} ${read.filled === 1 ? "hole" : "holes"} filled in. Check them against your card below.`);
+  };
+
+  /**
    * SAYING THE CARD IS WRONG.
    *
    * DELIBERATELY DOES NOT SAVE FIRST, unlike `certify` directly below. Certify
@@ -593,7 +627,36 @@ export function PlayerCard({
             </label>
           </div>
 
-          {view === "hole" ? (
+          {/* Whose card this phone is keeping. Only offered when the published
+              tee sheet put this player in a group — the marker system — and
+              only for the numbers: signing stays each player's own. */}
+          {view === "hole" && partners.length > 0 && (
+            <div className="seg" style={{ marginBottom: 12 }}>
+              <label className="seg-opt">
+                <input type="radio" name="card-who" checked={who === "me"} onChange={() => setWho("me")} />
+                <Icon name="golf" /> Just me
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="card-who" checked={who === "group"} onChange={() => setWho("group")} />
+                <Icon name="users-three" /> My group ({partners.length + 1})
+              </label>
+            </div>
+          )}
+
+          {view === "hole" && who === "group" && partners.length > 0 ? (
+            <GroupScoring
+              stageId={stageId}
+              holes={holes}
+              pars={pars}
+              yards={yards}
+              strokeIndex={strokeIndex}
+              me={{ id: playerId, name: playerName, shotsOn: (hole: number) => shotsPerHole[hole] ?? 0 }}
+              myStrokes={strokes}
+              onSetMine={setHole}
+              partners={partners}
+              holding={(s) => !savePartial && s.filter((v) => v != null).length < holes}
+            />
+          ) : view === "hole" ? (
             <HoleByHoleCard
               players={[
                 {
@@ -608,8 +671,45 @@ export function PlayerCard({
               strokeIndex={strokeIndex}
               holes={holes}
               onSet={(_pid, hole, value) => setHole(hole, value)}
+              meId={playerId}
             />
           ) : (
+            <>
+            <details style={{ marginBottom: 12 }}>
+              <summary style={{ fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                <Icon name="note-pencil" style={{ marginRight: 6 }} /> Type the whole card
+              </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 6 }}>
+                <label htmlFor="typed-card" style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>
+                  Your {holes} scores in order, with spaces — “4 5 3 4 …”. A dash skips a hole.
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    id="typed-card"
+                    className="input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={typed}
+                    onChange={(e) => {
+                      setTyped(e.target.value);
+                      setTypedNote("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") applyTyped();
+                    }}
+                    style={{ flex: 1, minWidth: 0, minHeight: 44, fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em" }}
+                  />
+                  <button type="button" className="btn btn-primary" onClick={applyTyped} style={{ minHeight: 44 }}>
+                    Fill in
+                  </button>
+                </div>
+                {typedNote && (
+                  <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>
+                    {typedNote}
+                  </p>
+                )}
+              </div>
+            </details>
             <ScorecardTable
               holes={holes}
               pars={pars}
@@ -624,6 +724,7 @@ export function PlayerCard({
               venueIsHome={venueIsHome}
               onSet={setHole}
             />
+            </>
           )}
 
           {/*

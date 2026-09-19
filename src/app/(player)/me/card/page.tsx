@@ -15,6 +15,7 @@ import { meFor } from "@/lib/services/me";
 import { cardBrand } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
+import { partnerCardsFor } from "@/lib/services/group-cards";
 import { Icon } from "@/components/Icon";
 
 export const metadata = screenMetadata("/me/card");
@@ -155,6 +156,21 @@ export default async function PlayCardPage() {
     )
   ).find((r) => r.playerId === me.playerId);
   const tee = teeRow?.teeName ? { name: teeRow.teeName, rated: teeRow.rated } : null;
+  /**
+   * The group this player may keep score for — the rest of their foursome on
+   * this round's published sheet, by the same rule `saveScorecard` enforces.
+   * Only when players enter scores at all, which the guard above settled.
+   */
+  const partners = stage
+    ? await partnerCardsFor({
+        eventId: state.event.id,
+        stage,
+        playerId: me.playerId,
+        holes,
+        confirmed: state.confirmed,
+      })
+    : [];
+
   const alloc = allocationHoles(holes);
   const shots = Array.from({ length: holes }, (_, i) =>
     known ? holeStrokesReceived(playing, card.strokeIndex[i] ?? 18, alloc) : 0,
@@ -212,6 +228,7 @@ export default async function PlayCardPage() {
        * before you sign." for the whole round.
        */
       savePartial={mayReportPartialCard(settings, session.role)}
+      partners={partners}
     />
   );
 }

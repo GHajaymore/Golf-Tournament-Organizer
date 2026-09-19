@@ -217,27 +217,46 @@ const NUMBER_WORDS: Record<string, number> = {
  * recognized token. Unrecognized filler words ("and", "then") are skipped.
  */
 export function parseStrokesTranscript(transcript: string, pars: number[], startIndex: number): number[] {
-  const tokens = transcript.toLowerCase().replace(/-/g, " ").split(/[\s,]+/).filter(Boolean);
+  const tokens = transcriptTokens(transcript);
   const results: number[] = [];
   let hole = startIndex;
   let j = 0;
   while (j < tokens.length && hole < pars.length) {
-    const t = tokens[j];
-    const par = pars[hole] ?? 4;
-    if (t === "double" && tokens[j + 1] === "bogey") { results.push(par + 2); j += 2; hole += 1; continue; }
-    if (t === "triple" && tokens[j + 1] === "bogey") { results.push(par + 3); j += 2; hole += 1; continue; }
-    if (t === "double") { results.push(par + 2); j += 1; hole += 1; continue; }
-    if (t === "triple") { results.push(par + 3); j += 1; hole += 1; continue; }
-    if (t === "bogey") { results.push(par + 1); j += 1; hole += 1; continue; }
-    if (t === "par") { results.push(par); j += 1; hole += 1; continue; }
-    if (t === "birdie") { results.push(par - 1); j += 1; hole += 1; continue; }
-    if (t === "eagle") { results.push(par - 2); j += 1; hole += 1; continue; }
-    if (t === "albatross") { results.push(par - 3); j += 1; hole += 1; continue; }
-    if (/^\d+$/.test(t)) { results.push(parseInt(t, 10)); j += 1; hole += 1; continue; }
-    if (t in NUMBER_WORDS) { results.push(NUMBER_WORDS[t]); j += 1; hole += 1; continue; }
+    const read = readScoreToken(tokens, j, pars[hole] ?? 4);
+    if (read) { results.push(read.value); j = read.next; hole += 1; continue; }
     j += 1;
   }
   return results;
+}
+
+/** A spoken transcript as the lower-case words the readers below walk. */
+export function transcriptTokens(transcript: string): string[] {
+  return transcript.toLowerCase().replace(/-/g, " ").split(/[\s,.]+/).filter(Boolean);
+}
+
+/**
+ * One score read off the words at `j`, or null when they are not a score.
+ *
+ * The single reading of "double bogey", "par", "four", "5" — shared by the
+ * whole-card dictation above and the one-hole, whole-group dictation in
+ * `score-entry-input.ts`, so the two cannot come to disagree about what a
+ * word means. `next` is where reading resumes: two words for "double bogey".
+ */
+export function readScoreToken(tokens: readonly string[], j: number, par: number): { value: number; next: number } | null {
+  const t = tokens[j];
+  if (t === undefined) return null;
+  if (t === "double" && tokens[j + 1] === "bogey") return { value: par + 2, next: j + 2 };
+  if (t === "triple" && tokens[j + 1] === "bogey") return { value: par + 3, next: j + 2 };
+  if (t === "double") return { value: par + 2, next: j + 1 };
+  if (t === "triple") return { value: par + 3, next: j + 1 };
+  if (t === "bogey") return { value: par + 1, next: j + 1 };
+  if (t === "par") return { value: par, next: j + 1 };
+  if (t === "birdie") return { value: par - 1, next: j + 1 };
+  if (t === "eagle") return { value: par - 2, next: j + 1 };
+  if (t === "albatross") return { value: par - 3, next: j + 1 };
+  if (/^\d+$/.test(t)) return { value: parseInt(t, 10), next: j + 1 };
+  if (t in NUMBER_WORDS) return { value: NUMBER_WORDS[t], next: j + 1 };
+  return null;
 }
 
 /**
