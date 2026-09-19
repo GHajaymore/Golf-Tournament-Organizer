@@ -1,4 +1,5 @@
 import { Icon } from "@/components/Icon";
+import { WayForward } from "@/components/WayForward";
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
@@ -35,6 +36,12 @@ export default async function PlayBoardPage() {
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           The organizer hasn&rsquo;t published standings for this tournament yet.
         </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "Back to today", icon: "flag" },
+            { href: "/me/card", label: "My card", icon: "cards" },
+          ]}
+        />
       </div>
     );
   }
@@ -61,6 +68,12 @@ export default async function PlayBoardPage() {
               ? "This round ranks teams rather than players. Ask your organizer for the team board."
               : "This round is scored a different way. Ask your organizer for the current standings."}
         </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "Back to today", icon: "flag" },
+            { href: "/me/card", label: "My card", icon: "cards" },
+          ]}
+        />
       </div>
     );
   }
