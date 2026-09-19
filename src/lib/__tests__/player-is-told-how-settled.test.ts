@@ -62,17 +62,32 @@ describe("the player's position says whether it can move", () => {
      * rule this pins survives the move, so it is asserted against the new
      * layout rather than against the old variable names.
      */
-    // The hero carries the score, and the qualifier is NOT in it.
-    const heroStart = page.indexOf('aria-label="Your round"');
-    const heroEnd = page.indexOf("</section>", heroStart);
-    expect(heroStart, "the round-first hero is gone").toBeGreaterThan(-1);
+    /**
+     * And re-hung as a SCOREBOARD on 2026-09-19 (design D): the hero is now
+     * `<ScoreboardCard>` and the position is the LEADERS board, which takes
+     * the qualifier as its `note` and prints it beneath the rows. The plain
+     * position row remains where there is no board to hang.
+     */
+    // The card panel carries the score, and the qualifier is NOT in it.
+    const heroStart = page.indexOf("<ScoreboardCard");
+    const heroEnd = page.indexOf("/>", heroStart);
+    expect(heroStart, "the scoreboard card is gone").toBeGreaterThan(-1);
     const hero = page.slice(heroStart, heroEnd);
     expect(hero).toContain("standing?.scoreLabel");
     expect(hero, "the qualifier moved beside the score").not.toContain("standing.note");
+    expect(hero, "the qualifier moved beside the score").not.toContain("standing?.note");
 
-    // The position row carries the place, and the qualifier sits under it.
-    // Searched from the end of the hero: the watching card above it also
-    // links to the board, and is not the position row.
+    // The leaders board is handed the qualifier…
+    const board = page.slice(page.indexOf("<ScoreboardLeaders"));
+    expect(board.slice(0, board.indexOf("/>"))).toContain("standing?.note");
+    // …and prints it UNDER the rows it qualifies.
+    const panel = readSource("src", "components", "Scoreboard.tsx");
+    const leaders = panel.slice(panel.indexOf("export function ScoreboardLeaders"), panel.indexOf("export interface HoleTile"));
+    expect(leaders.indexOf("{note}")).toBeGreaterThan(leaders.indexOf("</ol>"));
+
+    // Without a board, the position row carries the place, and the qualifier
+    // sits under it. Searched from the end of the card panel: the watching
+    // card above it also links to the board, and is not the position row.
     const rowStart = page.indexOf('href="/me/board"', heroEnd);
     const rowEnd = page.indexOf("</Link>", rowStart);
     const row = page.slice(rowStart, rowEnd);

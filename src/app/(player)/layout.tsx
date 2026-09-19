@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
-import { brandForEvent, themeForEvent } from "@/lib/services/organization";
-import { themeCss, playerColorScheme } from "@/lib/themes";
+import { brandForEvent } from "@/lib/services/organization";
+import { scoreboardCss } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { formattingForEvent } from "@/lib/services/organization";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -36,15 +36,17 @@ import { switcherFor } from "@/lib/domain/tournament-switcher";
  * scoring engine — the split is in presentation only, which is what keeps the
  * two from disagreeing about who is winning.
  *
- * Same ground as the console, from the club's one theme setting. The shells
- * differ in structure — four tabs against fifteen screens — and not in
- * palette, so a club that has picked its look gets that look wherever anyone
- * opens the app. `auto` resolves dark unless the device asks for light.
+ * THE SCOREBOARD, NOT THE CLUB'S THEME — since 2026-09-19. The club chose the
+ * hand-hung scoreboard (design D) for Today and then for the whole player app,
+ * so every screen in this shell is drawn on `SCOREBOARD_GROUND`: a deep green
+ * field, cream lettering, the TourneyHQ orange to press and scoreboard red for
+ * under par. The console keeps the club's theme and its ground setting; the
+ * note on SCOREBOARD_GROUND in themes.ts says why this one divergence is a
+ * product decision rather than a club setting.
  */
 export default async function PlayLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
-  const theme = await themeForEvent(session.eventId);
   /**
    * The fifth tab appears only where the tournament is actually splitting
    * costs — a league that never buys a round together keeps its four.
@@ -89,7 +91,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     <div
       id="player-theme"
       style={{
-        colorScheme: playerColorScheme(theme),
+        colorScheme: "dark",
         minHeight: "100vh",
         background: "var(--color-bg)",
         color: "var(--color-text)",
@@ -98,7 +100,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         flexDirection: "column",
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: themeCss(theme, "#player-theme") }} />
+      <style dangerouslySetInnerHTML={{ __html: scoreboardCss("#player-theme") }} />
 
       {/* Off the printout with the tab bar — see the note on PlayTabs. A
           player printing their card was getting the club lockup, the messages

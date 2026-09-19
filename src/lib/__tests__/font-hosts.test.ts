@@ -151,7 +151,7 @@ describe("every font token names a face the app actually serves", () => {
    * generic/system keyword as a fallback. A bare quoted family name is the
    * shape that went wrong.
    */
-  const TOKENS = ["--font-body", "--font-mono", "--font-heading"];
+  const TOKENS = ["--font-body", "--font-mono", "--font-heading", "--font-scoreboard"];
   const DS = readSource("src/app/design-system.css");
 
   it.each(TOKENS)("%s leads with a served face, not a bare family name", (token) => {

@@ -96,6 +96,8 @@
   --font-heading-weight: 500;
   --font-body: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* The hand-hung scoreboard on the player's Today screen (Oswald, layout.tsx). */
+  --font-scoreboard: var(--font-board), "Arial Narrow", system-ui, sans-serif;
 
   /* A 4px grid. The scale was 2.8/5.6/8.4/11.2 — a 2.8px base, which lands
      every padding and gap on a fractional pixel and is why edges through the
