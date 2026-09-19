@@ -337,15 +337,22 @@ export async function signUp(
  * somebody typed /me by hand.
  *
  * Staff still land on the dashboard: it is their tournament's command centre
- * and the thing they came for.
+ * and the thing they came for — EXCEPT from the play shell's own tournament
+ * switcher, which passes `"player"`. Somebody switching tournaments there is
+ * using the player app, and throwing them into the console because they also
+ * happen to run the club is the same mistake as above in the other direction.
+ *
+ * `stay` arrives from the client like every argument here, so it is compared
+ * with `===` and can only ever choose between the two homes; access is still
+ * decided by `effectiveAccess` alone.
  */
-export async function enterTournament(eventId: string): Promise<void> {
+export async function enterTournament(eventId: string, stay?: unknown): Promise<void> {
   const session = await getSession();
   if (!session) redirect("/");
   const access = await effectiveAccess(session.email, eventId);
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
-  redirect(homeFor(access.role));
+  redirect(stay === "player" ? "/me" : homeFor(access.role));
 }
 
 export async function signOutAction() {

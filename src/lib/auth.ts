@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import { accessibleEvents, effectiveAccess } from "./services/access";
+import { landingEvent } from "./domain/landing-event";
 
 // Lightweight signed-cookie sessions plus scrypt password hashing (both
 // Node built-ins, no external auth provider). Swap this module for
@@ -171,7 +172,7 @@ export async function getSession(): Promise<Session | null> {
 
   // A session belongs to a person, not to a tournament. Which tournament
   // they're currently working in is resolved separately — from the active-event
-  // cookie if it's set, otherwise their most recently created one. Someone who
+  // cookie if it's set, otherwise the newest one that is their own. Someone who
   // has signed up but has no tournaments yet gets a valid session with no
   // event; the app shell sends them to /choose to create or pick one.
   //
@@ -200,8 +201,8 @@ export async function getSession(): Promise<Session | null> {
       select: { id: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     });
-    const newest = events[0];
-    current = accessible.find((a) => a.eventId === newest?.id) ?? accessible[0];
+    // Their own newest, not the club's — see landing-event.ts.
+    current = landingEvent(accessible, events.map((e) => e.id)) ?? accessible[0];
   }
 
   const access = await effectiveAccess(user.email, current.eventId);
