@@ -71,7 +71,7 @@
   "dependencies": {
     "@prisma/client": "^6.3.1",
     "geist": "^1.7.2",
-    "next": "15.5.22",
+    "next": "15.5.25",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "^6.18.1",
@@ -91,7 +91,7 @@
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.22",
+    "eslint-config-next": "^15.5.25",
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
