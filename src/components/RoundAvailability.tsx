@@ -166,6 +166,18 @@ export function RoundAvailability({
         )}
       </div>
 
+      {/* WHY THERE IS NO CALENDAR, when there is none. A season whose rounds
+          have no dates can only be a list, and a player who liked the
+          calendar elsewhere reads its absence as the app going back to the
+          old way (the club's Thursday league, 2026-09-19). Saying so names
+          who can change it. */}
+      {!canCalendar && all.length > 1 && (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <Icon name="calendar-blank" /> These rounds don&rsquo;t have dates yet, so they&rsquo;re listed in
+          order. Once your organizer dates them, they appear on a calendar here.
+        </p>
+      )}
+
       {/* The next round sits above both views, always.
           It is what most players opened the app to answer, it is the only one
           with a deadline worth printing in words, and a month grid answers

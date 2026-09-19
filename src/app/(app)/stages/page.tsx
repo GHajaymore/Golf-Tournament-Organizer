@@ -10,6 +10,9 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
+import { SeasonDates } from "@/components/SeasonDates";
+import { cleanIsoDate } from "@/lib/domain/round-dates";
+import { todayIso } from "@/lib/deadline";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
@@ -75,6 +78,10 @@ export default async function StagesPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  // For "date the season": playing rounds, and how many of them have no day.
+  const playingRounds = playingStages(state.stages);
+  const playingCount = playingRounds.length;
+  const seasonUndated = playingRounds.filter((s) => !cleanIsoDate(s.playedOn)).length;
   /**
    * Whether the event's Scoring can rank what these rounds produce.
    *
@@ -279,6 +286,12 @@ export default async function StagesPage() {
         </div>
       )}
       {!locked && stages.length === 0 && describeTournament}
+      {/* Undated rounds cannot go on a player's availability calendar. Only
+          worth offering where there is a season to date — two or more
+          playing rounds — and something left to date. */}
+      {seasonUndated > 0 && playingCount >= 2 && (
+        <SeasonDates undated={seasonUndated} suggestedStart={todayIso()} />
+      )}
       <StagesClient
         stages={stages}
         singleMatches={singleMatches}

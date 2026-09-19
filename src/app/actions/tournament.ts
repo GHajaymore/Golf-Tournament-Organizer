@@ -54,7 +54,7 @@ import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
-import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
+import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, type SaveCardResult } from "@/lib/services/scorecard-write";
@@ -1415,12 +1415,54 @@ export async function setStageDeadline(stageId: string, deadline: string) {
  */
 export async function setStagePlayedOn(stageId: string, date: string) {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  /**
+   * NOT behind the setup lock (2026-09-19). A date is not structure: it moves
+   * no score, no draw and no flight, and the field's own help text promises
+   * "Rained off? Change the date here" — which is a mid-season act, on a
+   * league that is live and therefore locked. The field stayed editable and
+   * the save then failed, so a rain-out could not be recorded without first
+   * unlocking the whole tournament's setup.
+   */
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { playedOn: cleanIsoDate(date) },
   });
   await refresh();
+}
+
+/**
+ * Date every undated round in one go — `planSeasonDates` says which gets what.
+ *
+ * Staff only, on an unlocked tournament, like `setStagePlayedOn` above; each
+ * write is bounded by `{ id, eventId }`, so a round of another tournament can
+ * never be touched. Only PLAYING rounds are dated: a cut is not a day anybody
+ * turns up for.
+ */
+export async function dateUndatedRounds(startDate: string, intervalDays: unknown): Promise<{ dated: number }> {
+  const eventId = await requireStaffEvent();
+  // Not behind the setup lock, for the reason on setStagePlayedOn: a live
+  // league is exactly the one whose players are missing their calendar.
+  const start = cleanIsoDate(startDate);
+  if (!start) throw new Error("Choose the date of the first round.");
+  const step = Number(intervalDays);
+  if (!Number.isInteger(step) || step < 1 || step > 31) {
+    throw new Error("How often the rounds are played should be between 1 and 31 days.");
+  }
+  const stages = await prisma.stage.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true, playedOn: true },
+  });
+  const plan = planSeasonDates(
+    stages.filter((s) => isPlayingRound(s.type)),
+    start,
+    step,
+  );
+  for (const p of plan) {
+    await prisma.stage.updateMany({ where: { id: p.id, eventId }, data: { playedOn: p.playedOn } });
+  }
+  await refresh();
+  return { dated: plan.length };
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
