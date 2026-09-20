@@ -2141,6 +2141,37 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * AND THE SAME TEST FOR WHETHER THE ROUND IS SCORED ON A CARD AT ALL.
+   *
+   * The gate above closed the committee-scored case and left the SHAPE of the
+   * round decided by two different rules. `ownCard` asked
+   * `generatesPairings(stage.type)` — true only of a Round Robin — so a
+   * BRACKET STAGE answered "this is your card" and Today rendered "Start my
+   * card" over a knockout, while `/me/card` said "Round 2 is match play, so
+   * your score is recorded against your opponent". Read off the seeded club as
+   * a player on 2026-09-20.
+   *
+   * Wrong in the other direction too: a legacy medal — a Round Robin set to
+   * Stroke Play — is a card the player owns and `/me/card` shows, and Today
+   * refused to offer it on the stage type alone.
+   *
+   * `roundIsStroke(type, format)` is what `/me/card` branches on and it gets
+   * both directions right, so pinning BOTH readers to it is what keeps the
+   * contract this field exists for: Today never offers a card My card refuses.
+   */
+  it("ownCard decides the round's shape the way /me/card does", () => {
+    const me = stripComments(readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"));
+    expect(me, "ownCard reads a different rule from /me/card").toMatch(
+      /ownCard:[\s\S]{0,300}roundIsStroke\(/,
+    );
+    expect(me, "the stage type alone is back").not.toMatch(/generatesPairings\(/);
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
+    );
+    expect(card).toMatch(/roundIsStroke\(/);
+  });
+
+  /**
    * The tee sheet is judged against the field it was DRAWN from.
    *
    * `teeSheetDrift` compares a published sheet with a set of ids, and the
