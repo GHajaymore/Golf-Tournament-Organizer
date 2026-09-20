@@ -107,7 +107,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
-import { cardForStage, cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
+import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
@@ -2669,9 +2669,28 @@ async function recomputeTeamMatch(
       countBest: true,
       holes: true,
       nine: true,
+      // And WHERE it was played. The three fields above were added because
+      // the round's own settings decide how a side is scored; the venue is
+      // one of those settings and was the one still missing, so this path
+      // could not have read the right card even if it had asked for it.
+      courseId: true,
     },
   });
-  const course = cardForStage(resolveCourse(event), stage);
+  /**
+   * The round's card, for the same reason the net import needs it.
+   *
+   * This scored a team match off `resolveCourse(event)` — the tournament's
+   * venue — so a side playing a round somewhere else received its strokes on
+   * the holes that are hardest at HOME. The comment above already establishes
+   * the principle for the allowance and the nine ("the round's own handicap
+   * settings, not just the format's defaults"); the venue belongs with them.
+   */
+  const roundVenue = stage?.courseId
+    ? await prisma.course.findFirst({
+        where: { id: stage.courseId, events: { some: { eventId } } },
+      })
+    : null;
+  const course = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage);
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
 
   /**
@@ -4154,7 +4173,29 @@ export async function importScores(
     // back to gross allocates strokes hole by hole, so reading the raw
     // eighteen-hole indexes here would bake the wrong holes into stored
     // strokes — and stored strokes are the one thing that cannot be recomputed.
-    netSi = cardForStage(resolveCourse(event), stage).strokeIndex;
+    /**
+     * THE ROUND'S OWN CARD, not the tournament's.
+     *
+     * This read `resolveCourse(event)` — the tournament's venue — so a round
+     * played anywhere else converted its net scores against the wrong stroke
+     * index and STORED the result. The two comments above already say why that
+     * is the worst place for it: a stored gross cannot be recomputed, and it is
+     * indistinguishable from a gross somebody actually shot.
+     *
+     * Measured with two cards whose stroke indexes are mirror images: a player
+     * off one shot had it added to hole 1, the tournament's hardest, when the
+     * round was played somewhere hole 1 is the easiest. See
+     * `net-import-uses-the-round-card.audit.test.ts`.
+     *
+     * `courseForRound` falls back to the event when the round names no venue,
+     * so a single-venue club is scored exactly as before.
+     */
+    const roundVenue = stage.courseId
+      ? await prisma.course.findFirst({
+          where: { id: stage.courseId, events: { some: { eventId } } },
+        })
+      : null;
+    netSi = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage).strokeIndex;
     if (netSi.length === 0) {
       return {
         ok: false,
