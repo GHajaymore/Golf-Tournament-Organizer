@@ -11,6 +11,8 @@ import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
+import { teamStandings } from "@/lib/services/teams";
+import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
 import { ResultLines } from "@/components/ResultLines";
 
 export const metadata = screenMetadata("/me/board");
@@ -60,6 +62,40 @@ export default async function PlayBoardPage() {
   // as where they stand.
   const kind = boardKind(stage?.format);
   if (kind !== "standard") {
+    /**
+     * A TEAM ROUND HAS A BOARD; IT IS JUST NOT A BOARD OF PLAYERS.
+     *
+     * This screen used to say "Ask your organizer for the team board" and then
+     * print the round's winning side four lines below it, out of
+     * `ResultLines` — one screen telling a member to go and ask a human for an
+     * answer it was already showing them. Read off the seeded club's foursomes
+     * on 2026-09-20.
+     *
+     * So it shows the sides, through the table the organizer's leaderboard and
+     * the public board both render. `canSeeLeaderboard` above still decides
+     * whether standings are published at all; this branch is about the format,
+     * and a club that has published its standings has published these.
+     */
+    // The ROUND's card, from the state — `strokeCourseFor` is the resolver
+    // every screen that scores a card here goes through, so a round played at
+    // another venue or over the back nine is priced off its own card rather
+    // than off the tournament's.
+    const roundCard = stage ? state.strokeCourseFor(stage.id) : null;
+    const sides =
+      kind === "team" && stage && roundCard
+        ? await teamStandings(
+            state.event.id,
+            stage.id,
+            stage.format,
+            roundCard.pars,
+            roundCard.holeDifficulty,
+            stage.scoringBasis,
+            stage.handicapAllowance,
+            stage.allowanceWeights,
+            stage.countBest,
+          )
+        : null;
+    const stableford = (stage?.scoringBasis ?? "") === "stableford";
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
@@ -67,9 +103,18 @@ export default async function PlayBoardPage() {
           {kind === "manual"
             ? "This round is scored by hand — the committee works out the result and posts it when it's settled."
             : kind === "team"
-              ? "This round ranks teams rather than players. Ask your organizer for the team board."
+              ? `This round ranks sides rather than players. ${teamBoardNote(
+                  stage?.format ?? "",
+                  sides?.length ?? 0,
+                  stableford,
+                )}`
               : "This round is scored a different way. Ask your organizer for the current standings."}
         </p>
+        {sides && (
+          <div style={{ marginTop: 14 }}>
+            <TeamStandingsTable stableford={stableford} rows={sides} />
+          </div>
+        )}
         {/* THE RESULT STILL BELONGS HERE (2026-09-19). A team round or a round
             scored by hand has no player ranking — which is why this branch
             exists — and that is exactly the day whose result a member cannot
