@@ -17,7 +17,8 @@ import {
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { isManualFormat, stablefordTableFor } from "../formats";
+import { isManualFormat, needsTeams, stablefordTableFor } from "../formats";
+import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
   compareOnBasis,
@@ -27,6 +28,7 @@ import {
   type WeekBasis,
 } from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { placesByValue } from "../domain/flight-places";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -54,6 +56,16 @@ export interface WeekResult {
   position: number;
 }
 
+/**
+ * A side's night, with its place on it.
+ *
+ * `position` is null for a side that has returned nothing. A side yet to hand
+ * a card in is not last — it is out on the course or it did not play, the same
+ * distinction the player table draws by dropping the absent, and printing
+ * "8th" against a side with no score is a result the club never played for.
+ */
+export type WeekSide = TeamStanding & { position: number | null };
+
 /** One skins game on one round: which game it is, and how it finished. */
 export interface SkinsGame {
   net: boolean;
@@ -73,6 +85,15 @@ export interface WeekView {
   holes: number;
   /** Ranked by the round's own basis: Stableford by points, otherwise by net. */
   results: WeekResult[];
+  /**
+   * The SIDES, on a night played in teams — empty on every other night.
+   *
+   * Not an alternative presentation of `results`: on a foursomes there is no
+   * individual score to present, and on a four-ball an individual score is
+   * half of what the side scored. Both are ranked by side on the leaderboard
+   * and were ranked nowhere at all here.
+   */
+  sides: WeekSide[];
   /**
    * What the night is decided on — see `week-basis.ts`.
    *
@@ -181,6 +202,14 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   if (!stage) return null;
 
   const cards = await prisma.scorecard.findMany({ where: { eventId } });
+  // The other card table. A side's round is filed here and nowhere else, so
+  // every question this file asks of `cards` has a team-round answer only if
+  // it also asks this one. `stageId` alone: what is wanted is which nights
+  // have a card on them, not what is on it.
+  const teamCards = await prisma.teamScorecard.findMany({
+    where: { eventId },
+    select: { stageId: true },
+  });
   const course = await resolveCourse(state.event);
   // Event level on purpose, and the only thing still resolved that way here:
   // this orders MATCH tiebreaks across a whole season's chain, not one round's
@@ -221,6 +250,57 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   });
 
   /**
+   * A TEAM NIGHT RANKS SIDES, and the table it ranks them in is this one.
+   *
+   * `teamStandings` is the reader the organizer's own leaderboard and the
+   * public board both use, so the sides named here are the sides named there.
+   *
+   * A four-ball comes through here too. It is a team format that files a card
+   * per player, so a per-player table would be half of each side's story, and
+   * the leaderboard has ranked it by side since the format was added.
+   */
+  const team = !manual && needsTeams(stage.format);
+  const stageCard = courseFor(stage.id);
+  const sideRows: TeamStanding[] = team
+    ? await teamStandings(
+        eventId,
+        stage.id,
+        stage.format,
+        stageCard.pars,
+        stageCard.holeDifficulty,
+        stage.scoringBasis ?? "net",
+        stage.handicapAllowance,
+        stage.allowanceWeights,
+        stage.countBest,
+      )
+    : [];
+  /**
+   * PLACED THE WAY THE TEAM LEADERBOARD PLACES THEM, which is not the way the
+   * player table above places players.
+   *
+   * `placesByValue` ties on the ranked figure alone; `levelOnBasis`, which the
+   * player rows use, breaks a net tie on gross. Both conventions are live in
+   * this app on purpose (see the shared-places decision, still open), and the
+   * comparison a club actually makes is this table against the leaderboard's
+   * table of THE SAME SIDES ON THE SAME NIGHT.
+   *
+   * Written after reading the seeded club's foursomes: three sides on net 60,
+   * shown as a three-way tie for first on the leaderboard and as 1st, 2nd and
+   * 3rd here. One of those is wrong on any convention, and it is the new one.
+   *
+   * The figure is `teamStandings`' own sort key — points for a Stableford,
+   * otherwise net — so the places run in the order the rows are already in.
+   */
+  const sides: WeekSide[] = (() => {
+    const places = placesByValue(
+      sideRows,
+      (s) => (weekBasis(stage.scoringBasis) === "stableford" ? s.points : s.net),
+      (s) => s.played > 0,
+    );
+    return sideRows.map((s, i) => ({ ...s, position: places[i] ?? null }));
+  })();
+
+  /**
    * WHETHER A NIGHT HAS BEEN PLAYED, ASKED THE WAY THAT NIGHT IS SCORED.
    *
    * `results` below is built from CARDS, and a match-play week keeps its
@@ -253,9 +333,28 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * Seen on the Demo Cup on 2026-09-12: week 2 is a Stroke Play Round with
    * seven cards returned, and the strip wore the "no scores yet" dot.
    */
-  const played = roundIsStroke(stage.type, stage.format)
-    ? cards.some((c) => c.stageId === stage.id)
-    : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
+  /**
+   * AND THE THIRD KIND, WHICH NEITHER BRANCH ABOVE CAN SEE.
+   *
+   * Both of them read the individual table or the matches, and a side files
+   * `TeamScorecard` — one row per side for a shared ball, one per player for a
+   * four-ball. So a foursomes league night found no cards and no matches and
+   * declared itself unplayed for ever.
+   *
+   * Measured on the seeded club 2026-09-20: the leaderboard read "Foursomes ·
+   * 8 sides · lowest net wins" with all eight round in eighteen, and the week
+   * sheet for that same night read "No scores are in for week 2 yet."
+   *
+   * Asked as "a card has been filed", which is exactly what the stroke branch
+   * beside it asks of the individual table — and asked of the same list the
+   * week STRIP uses below, so a night cannot be played in the header and
+   * undotted in the strip.
+   */
+  const played = team
+    ? teamCards.some((c) => c.stageId === stage.id)
+    : roundIsStroke(stage.type, stage.format)
+      ? cards.some((c) => c.stageId === stage.id)
+      : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
 
   const basis = weekBasis(stage.scoringBasis);
   const scored = state.confirmed
@@ -351,8 +450,14 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    *
    * A stroke league sums every counted week, so all of them feed it.
    */
+  //
+  // AND A TEAM NIGHT REACHES NEITHER. `standingsWithMovement` sums individual
+  // cards, which a side's round does not file, so a foursomes week contributes
+  // nothing to the table however the league is scored — and the heading would
+  // have said "after this week" over a column of dashes, which is the fault
+  // the comment above was written for, arriving by a different door.
   const standingsIncludeThisWeek =
-    state.isStroke || state.rrStages.some((s) => s.id === stage.id);
+    !team && (state.isStroke || state.rrStages.some((s) => s.id === stage.id));
 
   /**
    * Every skins game this round actually ran, not a fixed gross-and-net pair.
@@ -400,9 +505,13 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       // is scored: one value for every week in it. A league with a medal week
       // among its match nights wore the "no scores yet" dot on that week for
       // ever, because it went looking for matches on it.
-      played: roundIsStroke(s.type, s.format)
-        ? cards.some((c) => c.stageId === s.id)
-        : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
+      // And the third kind here too, for the same reason: a foursomes week
+      // wore the "no scores yet" dot with every side round in eighteen.
+      played: needsTeams(s.format)
+        ? teamCards.some((c) => c.stageId === s.id)
+        : roundIsStroke(s.type, s.format)
+          ? cards.some((c) => c.stageId === s.id)
+          : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
     })),
     stageId: stage.id,
     label: `Week ${idx + 1}`,
@@ -410,6 +519,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     format: stage.format,
     holes: stage.holes,
     results,
+    sides,
     basis,
     standings,
     standingsIncludeThisWeek,

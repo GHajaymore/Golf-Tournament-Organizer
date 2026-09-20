@@ -220,6 +220,16 @@ export interface TeamStanding {
   teamId: string;
   name: string;
   members: string[];
+  /**
+   * The same members, by id — so a screen can ask "is this side mine?".
+   *
+   * Names are for reading and ids are for deciding: two members of a club can
+   * share a name, and every score guard in this app links a person by id or by
+   * registration email for exactly that reason. A player's own Today screen
+   * needs to find their side, and finding it by name would put somebody else's
+   * result on their phone.
+   */
+  memberIds: string[];
   playingHandicap: number;
   gross: number;
   net: number;
@@ -290,6 +300,7 @@ export async function teamStandings(
       teamId: t.id,
       name: t.name,
       members: t.members.map((m) => m.name),
+      memberIds: t.members.map((m) => m.playerId),
       playingHandicap: t.playingHandicap,
       gross: card.grossTotal,
       net: card.netTotal,

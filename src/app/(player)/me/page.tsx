@@ -12,6 +12,8 @@ import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
+import { teamStandings } from "@/lib/services/teams";
+import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
@@ -117,6 +119,53 @@ export default async function PlayTodayPage() {
     canSeeLeaderboard(settingsOf(state.event), session.viewRole) && boardKind(boardStage?.format) === "standard"
       ? standingRows(state)
       : [];
+  /**
+   * MY SIDE, on a round where the side is the thing that scores.
+   *
+   * `me.standing` is a PLAYER's standing, and a foursomes files no player's
+   * card — so this screen showed "Not started · Your position and score appear
+   * here as soon as the first hole goes in" to somebody whose side had been
+   * round in eighteen and finished seventh. Read off the seeded club on
+   * 2026-09-20, the same day the week sheet and the player's board were found
+   * saying the same thing about the same rounds.
+   *
+   * Found by id, never by name: two members of a club can share one, and the
+   * result on somebody's phone is the one thing that must not be somebody
+   * else's. See `TeamStanding.memberIds`.
+   */
+  const sidesThisRound =
+    me.playerId && roundStage && boardKind(roundStage.format) === "team"
+      ? await teamStandings(
+          state.event.id,
+          roundStage.id,
+          roundStage.format,
+          roundCard.card.pars,
+          roundCard.card.strokeIndex,
+          roundStage.scoringBasis,
+          roundStage.handicapAllowance,
+          roundStage.allowanceWeights,
+          roundStage.countBest,
+        )
+      : [];
+  const myIdx = sidesThisRound.findIndex((s) => s.memberIds.includes(me.playerId ?? ""));
+  const mySide = myIdx >= 0 ? sidesThisRound[myIdx] : null;
+  /**
+   * And WHERE that side stands, by the board's own rule.
+   *
+   * `placesByValue` is what the team leaderboard, the player's board and the
+   * week sheet all place sides with, so the number on this phone is the number
+   * on the board rather than a fourth opinion. Sides level on the night share
+   * a place; a side with no card has none at all.
+   */
+  const myPlace =
+    mySide && roundStage
+      ? placesByValue(
+          sidesThisRound,
+          (s) => (roundStage.scoringBasis === "stableford" ? s.points : s.net),
+          (s) => s.played > 0,
+        )[myIdx]
+      : null;
+
   const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
   const shownNames = boardNames(shown.map((s) => s.row.name));
   const isStableford = boardStage?.scoringBasis === "stableford";
@@ -252,7 +301,41 @@ export default async function PlayTodayPage() {
           keeps the cards this screen always had. */}
       {me.playerId && !hero && (
         <>
-          {!standing && !round?.matches.length && (
+          {/* YOUR SIDE'S ROUND, which on a team day is your round.
+              Above the "not started" panel and in place of it: a player whose
+              side has a card has started, whatever the individual table says,
+              and this screen used to tell them otherwise. */}
+          {mySide && (
+            <section className="card elev-sm" style={{ marginTop: 18 }}>
+              <span className="card-kicker">
+                {mySide.played > 0 ? "Your side" : "Your side · not started"}
+              </span>
+              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{mySide.name}</div>
+              <div className="text-muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                {mySide.members.join(" · ")}
+              </div>
+              {mySide.played > 0 ? (
+                <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+                  {mySide.played >= holes ? "Round complete" : `Thru ${mySide.played}`} ·{" "}
+                  {roundStage?.scoringBasis === "stableford"
+                    ? `${mySide.points} points`
+                    : `${mySide.gross} gross, ${mySide.net} net`}
+                  {myPlace
+                    ? ` · ${placeLabel(myPlace)} of ${sidesThisRound.length} sides`
+                    : ""}
+                </p>
+              ) : (
+                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+                  Your side&rsquo;s card hasn&rsquo;t been started yet.
+                </p>
+              )}
+              {/* Where the rest of the field is. The board has the sides now. */}
+              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
+                See every side <Icon name="arrow-right" />
+              </Link>
+            </section>
+          )}
+          {!standing && !mySide && !round?.matches.length && (
             <section className="card elev-sm" style={{ marginTop: 18 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }} className="text-muted">

@@ -191,6 +191,16 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
   const router = useRouter();
   const pathname = usePathname();
 
+  /**
+   * What a SIDE is ranked on, which is not always what the night is.
+   *
+   * `teamStandings` sorts sides on points for a Stableford and on net for
+   * everything else — it has no gross branch — so a team round set to gross is
+   * still ordered by net, and labelling that column "Gross" would print a
+   * column that does not run in order under a heading claiming it does.
+   */
+  const sideBasis = view.basis === "stableford" ? "stableford" : "net";
+
   const th: React.CSSProperties = {
     textAlign: "left",
     fontSize: 11,
@@ -364,6 +374,78 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
           </Section>
           )}
 
+          {/* THE NIGHT'S SIDES, on a night played in teams.
+              Its own section rather than a second shape for the one above:
+              a foursomes has no individual score to rank, and a four-ball's
+              individual score is half of what the side went round in. Both
+              were ranked by side on the leaderboard and by nothing here — the
+              week sheet showed a finished team night as "no scores are in". */}
+          {view.sides.length > 0 && (
+          <Section
+            kicker="The night"
+            title="Sides"
+            aside={
+              <span className="text-muted" style={{ fontSize: 12 }}>
+                {/* Counted in sides, because that is what returned a card.
+                    "8 played" beside a foursomes reads as eight players. */}
+                {view.sides.filter((s) => s.played > 0).length} of {view.sides.length} sides in
+              </span>
+            }
+          >
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, width: 44 }}>Pos</th>
+                    <th style={th}>Side</th>
+                    {/* BOTH COLUMNS, ALWAYS, and not the round's basis.
+                        `teamStandings` ranks sides on points or on net — it
+                        has no gross branch — so a round set to gross would
+                        have printed a single "Gross" column that did not run
+                        in order. The team leaderboard shows both for the same
+                        reason. */}
+                    <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                    <th style={{ ...th, textAlign: "right" }}>
+                      {WEEK_BASIS_COLUMN[sideBasis]}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.sides.map((s) => (
+                    <tr key={s.teamId}>
+                      <td style={{ ...td, fontVariantNumeric: "tabular-nums", fontWeight: s.position === 1 ? 700 : 400 }}>
+                        {s.position === null ? "—" : ordinal(s.position)}
+                      </td>
+                      <td style={{ ...td, fontWeight: s.position === 1 ? 600 : 400 }}>
+                        <div>
+                          {s.name}
+                          {s.played > 0 && s.played < view.holes && (
+                            <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                              thru {s.played}
+                            </span>
+                          )}
+                        </div>
+                        {/* Who is in it, on its own line and in the same words
+                            as the team leaderboard — a side is called "Hattie &
+                            Gordon" and its members are "Hattie Mwangi · Gordon
+                            Pyle", so inline they ran into one another and read
+                            as the same two names printed twice. */}
+                        <div className="text-muted" style={{ fontSize: 11 }}>
+                          {s.members.join(" · ") || "No players"}
+                        </div>
+                      </td>
+                      <td style={num}>{s.played > 0 ? s.gross : "—"}</td>
+                      <td style={{ ...num, fontWeight: 600 }}>
+                        {s.played > 0 ? valueOnBasis(sideBasis, s) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+          )}
+
           {/* THE HEADING FOLLOWS THE TABLE, rather than claiming for it.
 
               A medal night in a match-play league earns no match points, so
@@ -389,6 +471,18 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               </span>
             }
           >
+            {/* A HEADED TABLE WITH NO ROWS IS A CLAIM THAT NOBODY IS IN THE
+                LEAGUE. Seen on the seeded club's foursomes night: "Season
+                standings going into this week" over four column headings and
+                nothing underneath, which reads as a table the app has lost.
+                It is a season table of PLAYERS, and a night played in sides
+                files no player's card — so it says that instead. */}
+            {view.standings.length === 0 ? (
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.7 }}>
+                Nothing in the season table yet. It adds up the rounds scored
+                player by player, and a night played in sides doesn&rsquo;t reach it.
+              </p>
+            ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
@@ -413,6 +507,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 </tbody>
               </table>
             </div>
+            )}
           </Section>
 
           {view.skins.some((g) => g.view.result) && (

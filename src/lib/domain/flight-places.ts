@@ -101,3 +101,18 @@ export function placesByValue<T>(
     return place;
   });
 }
+
+/**
+ * A place, written the way it is read: 1st, 2nd, 3rd, 11th, 21st.
+ *
+ * Beside `placesByValue` because a place and the words for it belong together
+ * — and because there were already two private copies of this in the codebase
+ * (`domain/series.ts`, `domain/voice-query.ts`) and a third in `WeekClient`
+ * when a fourth was nearly written for the player's own screen. Those are
+ * worth collapsing into this one; they are not touched here because a
+ * rewording pass over three screens is not part of a scoring fix.
+ */
+export function placeLabel(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  return `${n}${teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+}

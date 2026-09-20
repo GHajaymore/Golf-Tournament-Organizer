@@ -14,6 +14,7 @@ import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 import { partnerCardsFor } from "@/lib/services/group-cards";
 import { roundCardFor } from "@/lib/services/round-card";
+import { teamStandings } from "@/lib/services/teams";
 import { Icon } from "@/components/Icon";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
@@ -104,6 +105,36 @@ export default async function PlayCardPage() {
    */
   const matchRound = !!stage && !roundIsStroke(stage.type, stage.format);
 
+  /**
+   * IS THE SIDE'S CARD ACTUALLY IN?
+   *
+   * This screen ended on "it appears on the board as soon as it's in" whether
+   * or not it was in — read on the seeded club beside a side that had finished
+   * eighteen holes and was seventh of eight. A sentence that is true before the
+   * round and false after it is a sentence nobody can act on, so it says which.
+   *
+   * Found by id, the same as Today: see `TeamStanding.memberIds`.
+   */
+  // The round's own card, resolved here rather than reusing the one built
+  // below: that one is built after this branch has already returned.
+  const sideCard = teamRound && stage ? await roundCardFor(state, stage, me.round.holes) : null;
+  const myCardedSide =
+    teamRound && stage && sideCard && me.playerId
+      ? (
+          await teamStandings(
+            state.event.id,
+            stage.id,
+            stage.format,
+            sideCard.card.pars,
+            sideCard.card.strokeIndex,
+            stage.scoringBasis,
+            stage.handicapAllowance,
+            stage.allowanceWeights,
+            stage.countBest,
+          )
+        ).find((s) => s.memberIds.includes(me.playerId!) && s.played > 0) ?? null
+      : null;
+
   if (teamRound || matchRound) {
     return (
       <div>
@@ -112,7 +143,9 @@ export default async function PlayCardPage() {
           {teamRound
             ? `${me.round.name} is played as ${stage?.format}, so the card belongs to your side rather than to you individually.`
             : `${me.round.name} is match play, so your score is recorded against your opponent rather than as your own card.`}{" "}
-          Your organizer enters it, and it appears on the board as soon as it&rsquo;s in.
+          {myCardedSide
+            ? `Your side's card is in: ${myCardedSide.name} went round in ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
+            : "Your organizer enters it, and it appears on the board as soon as it’s in."}
         </p>
         {/* A way forward out of what was otherwise a dead end.
             A player taps "My card" on a match-play round, is told the card is

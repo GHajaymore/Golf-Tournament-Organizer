@@ -85,11 +85,24 @@ describe("the player's position says whether it can move", () => {
     const leaders = panel.slice(panel.indexOf("export function ScoreboardLeaders"), panel.indexOf("export interface HoleTile"));
     expect(leaders.indexOf("{note}")).toBeGreaterThan(leaders.indexOf("</ol>"));
 
-    // Without a board, the position row carries the place, and the qualifier
-    // sits under it. Searched from the end of the card panel: the watching
-    // card above it also links to the board, and is not the position row.
-    const rowStart = page.indexOf('href="/me/board"', heroEnd);
-    const rowEnd = page.indexOf("</Link>", rowStart);
+    /**
+     * Without a board, the position row carries the place, and the qualifier
+     * sits under it.
+     *
+     * ANCHORED ON THE ROW ITSELF, not on "the first link to the board after
+     * the hero". That anchor has now been wrong twice: the watching card above
+     * it links to the board, and on 2026-09-20 so does the panel showing a
+     * player their SIDE on a team round. Each time the slice landed on
+     * somebody else's link and the failure read as "the position row lost its
+     * position" — which it had not.
+     *
+     * A third link would break it again, so it searches back from the row's
+     * own label to the link that opens it.
+     */
+    const rowAnchor = page.indexOf('"On the board"');
+    expect(rowAnchor, "the position row is gone").toBeGreaterThan(heroEnd);
+    const rowStart = page.lastIndexOf('href="/me/board"', rowAnchor);
+    const rowEnd = page.indexOf("</Link>", rowAnchor);
     const row = page.slice(rowStart, rowEnd);
     expect(row).toContain("standing.position");
     expect(row).toContain("standing.note");
