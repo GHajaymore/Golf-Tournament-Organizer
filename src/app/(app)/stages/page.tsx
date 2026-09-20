@@ -320,6 +320,11 @@ export default async function StagesPage() {
         singleMatches={singleMatches}
         thirdPlaces={thirdPlaces}
         venues={venues}
+        // The tournament's own course, for the rounds that name none. Never
+        // shown on a one-venue tournament; the moment a club plays a round
+        // somewhere else, "Round 1" and "Round 3" have to say WHICH, and a
+        // round with no `courseId` is on this one.
+        homeVenue={state.event.course?.trim() || ""}
         activeStageId={state.activeStage?.id ?? null}
         roundsWithResults={[...state.roundsWithResults]}
         handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}

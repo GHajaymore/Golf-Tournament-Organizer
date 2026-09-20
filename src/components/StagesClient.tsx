@@ -541,6 +541,7 @@ function StageCard({
   confirmedCount,
   flightCount,
   venues,
+  homeVenue,
   chainWarnings,
   chainsRounds,
   expanded,
@@ -587,6 +588,8 @@ function StageCard({
   /** Flights the field is split into — decides what a per-flight cut advances. */
   flightCount: number;
   venues: Array<{ id: string; name: string }>;
+  /** The tournament's own course, named only when there is more than one. */
+  homeVenue: string;
   /** Ways this round doesn't fit the one before it. */
   chainWarnings: string[];
   /** False for a single-round tournament, which has no next round. */
@@ -853,6 +856,27 @@ function StageCard({
           ? "Gross scoring"
           : "Gross + net",
   );
+
+  /**
+   * AND WHERE IT IS PLAYED, once the club has somewhere else to play.
+   *
+   * Silent on a one-venue tournament, where the course is the tournament's and
+   * repeating it on every row is noise — the same rule the basis follows. The
+   * moment a round moves, the venue is the fact that decides that round's
+   * card: its pars, its stroke index, how many holes. This screen describes
+   * the rounds and said nothing about it, so two rounds at two courses read
+   * identically here.
+   *
+   * Found on the seeded club's first away round, 2026-09-20 — "Foursomes · 9
+   * holes · Net scoring", with no way to tell it was the one played at
+   * Ardmore. Both cards were listed at the top of the screen with a trust
+   * warning each, which makes the omission worse rather than better: the
+   * screen knew there were two.
+   */
+  if (venues.length > 1) {
+    const played = venues.find((v) => v.id === stage.courseId)?.name ?? homeVenue;
+    if (played) customizeParts.push(played);
+  }
   if (showTransition) {
     customizeParts.push(
       nextStage
@@ -1730,6 +1754,7 @@ export function StagesClient({
   confirmedCount,
   flightCount = 1,
   venues = [],
+  homeVenue = "",
   chainsRounds = true,
   handicapWarning = null,
   activeStageId = null,
@@ -1749,6 +1774,8 @@ export function StagesClient({
   flightCount?: number;
   /** Courses this tournament may be played on; more than one shows the picker. */
   venues?: Array<{ id: string; name: string }>;
+  /** The tournament's own course. Only used when `venues` has more than one. */
+  homeVenue?: string;
   /** Whether rounds feed each other — false for a single-round tournament. */
   chainsRounds?: boolean;
   /** Set when net scoring is running on unrated tees. */
@@ -1909,6 +1936,7 @@ export function StagesClient({
             confirmedCount={confirmedCount}
             flightCount={flightCount}
             venues={venues}
+            homeVenue={homeVenue}
             chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
             chainsRounds={chainsRounds}
           />
