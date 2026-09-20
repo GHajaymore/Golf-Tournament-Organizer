@@ -830,9 +830,29 @@ function StageCard({
   }
   const customizeParts: string[] = [];
   if (deadline) customizeParts.push(`Due ${deadline}`);
-  if (basis !== "gross") {
-    customizeParts.push(basis === "net" ? "Net scoring" : basis === "stableford" ? "Stableford" : "Gross + net");
-  }
+  /**
+   * WHAT DECIDES THE ROUND, NAMED FOR ALL FOUR — gross included.
+   *
+   * This read `basis !== "gross"`, so the schema's default was the one value
+   * the row never mentioned: a round decided on gross summarised as "Standard
+   * settings", on the screen an organizer opens to check what a round is
+   * settled on. Read off the seeded festival's gross scramble, 2026-09-20,
+   * where it sat under ten rows that each named theirs.
+   *
+   * Silence is not a safe default for a scoring rule. It is the same fault as
+   * the team board announcing "lowest net wins" over a gross round, one screen
+   * earlier in the organizer's day: the app knowing the basis and not saying
+   * it.
+   */
+  customizeParts.push(
+    basis === "net"
+      ? "Net scoring"
+      : basis === "stableford"
+        ? "Stableford"
+        : basis === "gross"
+          ? "Gross scoring"
+          : "Gross + net",
+  );
   if (showTransition) {
     customizeParts.push(
       nextStage
