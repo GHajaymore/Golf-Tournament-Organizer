@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
@@ -764,7 +765,30 @@ export function strokeHandicapResolver(ctx: {
   };
 }
 
-export async function loadEventState(eventId: string): Promise<EventState | null> {
+/**
+ * MEMOISED PER REQUEST, exactly as `clubEventsFor` is and for the same reason
+ * — see its comment, which describes this situation in its own words: a
+ * LAYOUT and a PAGE both needing one load, and one render not paying twice.
+ *
+ * The sidebar needs to say WHICH round its five round-scoped screens are
+ * about, and the only honest source is `currentPlayedRoundIndex` below, which
+ * every board already reads. Without this the console layout would either
+ * call this a second time on the 13 pages that already call it — and outright
+ * on the other 13 — or invent a cheaper rule of its own, which would be a
+ * second reader of a question that already has an answer and would disagree
+ * with the boards on exactly the tournaments where the answer is interesting.
+ *
+ * `cache` from React, not `unstable_cache`: no revalidation, no tag, no
+ * persistence between requests. It dedupes within one render and outside a
+ * render — which is where the audit suite calls this — it is simply the
+ * function, so nothing about the tests changes.
+ *
+ * The exported NAME is unchanged, so none of the 21 caller files under
+ * `src/app` needed touching.
+ */
+export const loadEventState = cache(loadEventStateUncached);
+
+async function loadEventStateUncached(eventId: string): Promise<EventState | null> {
   /**
    * The event, with the club course it points at.
    *

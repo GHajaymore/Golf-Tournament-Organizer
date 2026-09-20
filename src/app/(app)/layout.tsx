@@ -4,6 +4,8 @@ import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
+import { loadEventState } from "@/lib/services/tournament";
+import { roundLabelWith } from "@/lib/domain/round-label";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent, themeForEvent, formattingForEvent } from "@/lib/services/organization";
@@ -79,6 +81,37 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const ownEntries = event ? (await myPlayerIds(event.id, session.email)).size : 0;
 
   /**
+   * WHICH ROUND the sidebar's round section is about.
+   *
+   * The five screens under that heading — tee sheet, score entry, leaderboard,
+   * bracket, this week — all describe ONE round, and until this they sat under
+   * headings that never said which. On a tournament whose rounds are each a
+   * different format, "Live leaderboard" with no round named is an incomplete
+   * sentence.
+   *
+   * `loadEventState` is the ONLY honest source: `currentPlayedRoundIndex`
+   * inside it is what every board on every screen already reads. The cheap
+   * alternative — the latest round whose `playedOn` has passed — is a second
+   * reader of a settled question and would disagree with the boards on exactly
+   * the tournaments where it matters: a round dated today nobody has teed off
+   * in, a round played early.
+   *
+   * It costs nothing on the 13 console pages that load this state themselves,
+   * because it is `cache`d per request and theirs is the same call. It is a
+   * real extra load on the others, and that is the price of the sidebar
+   * agreeing with the screen beside it rather than guessing.
+   *
+   * Suffix is the round's FORMAT, falling back to its stage type — the same
+   * pair `dashboard` and `teams` already pass to this function, so the sidebar
+   * cannot name a round differently from the screens it links to.
+   */
+  const roundState = event ? await loadEventState(event.id) : null;
+  const activeRound = roundState?.activeStage ?? null;
+  const roundName = activeRound
+    ? roundLabelWith(roundState!.playRounds, activeRound.id, activeRound.format || activeRound.type)
+    : undefined;
+
+  /**
    * The club this person runs, asked for only when there is no tournament to
    * answer from — so the ordinary console request costs nothing extra.
    */
@@ -111,6 +144,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : undefined,
     // A club with no tournament yet still has club settings to reach.
     orgAdminWithoutEvent: !event && ownedOrgs.length > 0,
+    roundName,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

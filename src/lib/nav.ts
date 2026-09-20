@@ -502,6 +502,30 @@ export function navForRole(
      * tournament with no rounds has no round in play, and the fallback heading
      * says exactly that without claiming a number. Never assembled here — this
      * file is a constant map of the console and has no event to read.
+     *
+     * NOT YET FED BY THE LAYOUT, and the reason is a rule rather than a
+     * to-do. "Which round is in play" already has one answer —
+     * `currentPlayedRoundIndex`, via `loadEventState`, which is what every
+     * board on every screen reads. The layout does not load that state: 13 of
+     * the 26 console pages call `loadEventState` themselves and it is not
+     * memoized, so calling it here would double the work on half the console
+     * and add it outright to the other half.
+     *
+     * The tempting shortcut is a cheaper rule just for this heading — the
+     * latest stage whose `playedOn` has passed, say. That is a SECOND READER
+     * of a question that already has one, and it would disagree with the
+     * boards on exactly the tournaments where the answer is interesting: a
+     * round dated today that nobody has teed off in, a round played early.
+     * This codebase has nine recorded instances of that shape and every one
+     * of them was found by a person noticing two screens saying different
+     * things.
+     *
+     * So the heading falls back until the real answer is in scope, which
+     * means sharing one `loadEventState` per request between the layout and
+     * the page rather than computing a rival. Until then this parameter is
+     * the seam, and it is asserted in `nav-sections-are-scoped.test.ts` in
+     * both directions so wiring it later is a one-line change to a tested
+     * behaviour rather than a new one.
      */
     roundName?: string;
   } = {},
