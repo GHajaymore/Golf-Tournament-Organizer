@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { EnterButton } from "@/components/EnterButton";
 import type { ClubEventRow } from "@/lib/services/club-events";
 import { byBand, type EventBand } from "@/lib/domain/club-event-card";
 import {
@@ -313,9 +313,7 @@ export function ClubEventsList({
                 {(e.canEnter || e.canView || e.entered) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {e.canEnter && (
-                      <Link className="btn btn-primary" href={e.registrationHref} style={{ flex: "1 1 140px" }}>
-                        Enter this tournament <Icon name="arrow-right" />
-                      </Link>
+                      <EnterButton eventId={e.eventId} href={e.registrationHref} style={{ flex: "1 1 140px" }} />
                     )}
                     {(e.canView || e.entered) && (
                       <form action={openAction} style={{ flex: "1 1 140px", display: "flex" }}>
