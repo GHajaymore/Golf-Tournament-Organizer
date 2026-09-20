@@ -5,6 +5,7 @@ import { findFormat, sideSizeRange } from "../formats";
 import { courseHandicapMap, holesPlayed } from "../domain/handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
+import { weekBasis, compareOnBasis } from "../domain/week-basis";
 import {
   sideHandicap,
   committeeWeights,
@@ -310,13 +311,25 @@ export async function teamStandings(
     };
   });
 
-  const stableford = basis === "stableford";
+  /**
+   * RANKED ON WHAT THE ROUND IS ACTUALLY DECIDED ON, which for a year meant
+   * "points if Stableford, otherwise net" — with no gross branch at all.
+   *
+   * A gross team round is an ordinary thing: a scratch Am-Am, a club's gross
+   * scramble. Every one of them was ordered by NET while its own screens said
+   * "gross strokes" at the top, so the side with the lowest gross was not the
+   * side printed first. Read off the seeded festival's gross scramble on
+   * 2026-09-20: 69, 71, 70, 72 down the page, in net order.
+   *
+   * `compareOnBasis` is the same comparison the individual boards use, so a
+   * gross team round and a gross medal now agree about which way is winning.
+   */
+  const order = weekBasis(basis);
   return rows.sort((a, b) => {
     // A side with no card yet has nothing to rank, and a gross of zero would
     // otherwise put it top.
     if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
-    if (stableford) return b.points - a.points || a.name.localeCompare(b.name);
-    return a.net - b.net || a.gross - b.gross || a.name.localeCompare(b.name);
+    return compareOnBasis(order, a, b) || a.name.localeCompare(b.name);
   });
 }
 

@@ -13,6 +13,7 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
 import { teamStandings } from "@/lib/services/teams";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import { weekBasis } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
 
 export const metadata = screenMetadata("/me/board");
@@ -95,7 +96,6 @@ export default async function PlayBoardPage() {
             stage.countBest,
           )
         : null;
-    const stableford = (stage?.scoringBasis ?? "") === "stableford";
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
@@ -106,13 +106,13 @@ export default async function PlayBoardPage() {
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",
                   sides?.length ?? 0,
-                  stableford,
+                  weekBasis(stage?.scoringBasis),
                 )}`
               : "This round is scored a different way. Ask your organizer for the current standings."}
         </p>
         {sides && (
           <div style={{ marginTop: 14 }}>
-            <TeamStandingsTable stableford={stableford} rows={sides} />
+            <TeamStandingsTable basis={weekBasis(stage?.scoringBasis)} rows={sides} />
           </div>
         )}
         {/* THE RESULT STILL BELONGS HERE (2026-09-19). A team round or a round

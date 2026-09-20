@@ -1,4 +1,5 @@
 import type { TeamStanding } from "@/lib/services/teams";
+import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
 import { toParText } from "@/lib/domain";
 import { placesByValue } from "@/lib/domain/flight-places";
 
@@ -10,11 +11,11 @@ import { placesByValue } from "@/lib/domain/flight-places";
  */
 export function TeamLeaderboard({
   format,
-  stableford,
+  basis,
   rows,
 }: {
   format: string;
-  stableford: boolean;
+  basis: WeekBasis;
   rows: TeamStanding[];
 }) {
   return (
@@ -23,10 +24,10 @@ export function TeamLeaderboard({
         <div className="page-kicker">Overview</div>
         <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          {teamBoardNote(format, rows.length, stableford)}
+          {teamBoardNote(format, rows.length, basis)}
         </p>
       </div>
-      <TeamStandingsTable stableford={stableford} rows={rows} />
+      <TeamStandingsTable basis={basis} rows={rows} />
     </>
   );
 }
@@ -37,11 +38,21 @@ export function TeamLeaderboard({
  * The player's own board shows the same sides through `TeamStandingsTable`,
  * and two sentences written separately are two sentences that will disagree
  * about what the round is ranked on.
+ *
+ * It took a `stableford` boolean until 2026-09-20, so everything that was not
+ * Stableford announced itself as "lowest net wins" — including a round set to
+ * GROSS, which is a real thing a club runs and which the sides underneath were
+ * not ordered by either. Same shape as the fault `week-basis.ts` was written
+ * for, on the team side of the app.
  */
-export function teamBoardNote(format: string, sides: number, stableford: boolean): string {
-  return `${format} · ${sides} ${sides === 1 ? "side" : "sides"}${
-    stableford ? " · Stableford points (higher is better)." : " · lowest net wins."
-  }`;
+export function teamBoardNote(format: string, sides: number, basis: WeekBasis): string {
+  const decided =
+    basis === "stableford"
+      ? "Stableford points (higher is better)."
+      : basis === "gross"
+        ? "lowest gross wins."
+        : "lowest net wins.";
+  return `${format} · ${sides} ${sides === 1 ? "side" : "sides"} · ${decided}`;
 }
 
 /**
@@ -53,13 +64,14 @@ export function teamBoardNote(format: string, sides: number, stableford: boolean
  * `e2e/layout.spec.ts` asserts against on every route, at every viewport.
  */
 export function TeamStandingsTable({
-  stableford,
+  basis,
   rows,
 }: {
-  stableford: boolean;
+  basis: WeekBasis;
   rows: TeamStanding[];
 }) {
   const started = rows.filter((r) => r.played > 0);
+  const stableford = basis === "stableford";
   /**
    * ON WHATEVER THIS ROUND IS RANKED BY, which the sort already knows and the
    * `#` column did not: points for a Stableford round, net strokes otherwise.
@@ -67,12 +79,13 @@ export function TeamStandingsTable({
    * Both branches of that sort end in `name.localeCompare`, so two sides level
    * on the score were printed 1st and 2nd in alphabetical order — on the
    * console, on Reports and on the public share link.
+   *
+   * And GROSS since 2026-09-20 — `valueOnBasis` reads the round's own basis,
+   * where this had two branches and no third. The rows were in net order on a
+   * gross round and the places numbered them 1, 2, 3 down that order, so the
+   * `#` column agreed with the sort and both were wrong together.
    */
-  const places = placesByValue(
-    rows,
-    (r) => (stableford ? r.points : r.net),
-    (r) => r.played > 0,
-  );
+  const places = placesByValue(rows, (r) => valueOnBasis(basis, r), (r) => r.played > 0);
 
   return (
     <>
@@ -119,7 +132,16 @@ export function TeamStandingsTable({
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {r.played}
                     </td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {/* The RANKED column is the bold one, and on a gross round
+                        that is this one. It was always Net in bold, so a gross
+                        round emphasised a number the order did not follow. */}
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
+                        fontWeight: basis === "gross" ? 600 : 400,
+                      }}
+                    >
                       {r.played > 0 ? r.gross : "—"}
                     </td>
                     {stableford ? (
@@ -128,7 +150,13 @@ export function TeamStandingsTable({
                       </td>
                     ) : (
                       <>
-                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                        <td
+                          style={{
+                            textAlign: "right",
+                            fontVariantNumeric: "tabular-nums",
+                            fontWeight: basis === "net" ? 600 : 400,
+                          }}
+                        >
                           {r.played > 0 ? r.net : "—"}
                         </td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
@@ -145,7 +173,9 @@ export function TeamStandingsTable({
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {stableford
             ? "Points are Stableford against the side's playing handicap."
-            : "Net is the side's gross minus the handicap strokes it receives. "}
+            : basis === "gross"
+              ? "This round is decided on gross: the handicap column is shown for reference and takes no part in the order. "
+              : "Net is the side's gross minus the handicap strokes it receives. "}
           Sides that haven&apos;t returned a card yet are unranked rather than shown level with the
           field.
           {started.length > 0 && started.length < rows.length

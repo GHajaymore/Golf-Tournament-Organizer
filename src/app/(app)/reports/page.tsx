@@ -9,6 +9,7 @@ import { brandForEvent } from "@/lib/services/organization";
 import { boardKind } from "@/lib/formats";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { weekBasis } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { teamStandings } from "@/lib/services/teams";
@@ -111,7 +112,7 @@ export default async function ReportsPage() {
       unit: state.boardProgress.unit,
       noun: "team standings",
     }).title;
-    board = <TeamLeaderboard format={activeStage.format} stableford={stableford} rows={teams} />;
+    board = <TeamLeaderboard format={activeStage.format} basis={weekBasis(activeStage.scoringBasis)} rows={teams} />;
     extraCsv = [
       {
         label: "Team standings",

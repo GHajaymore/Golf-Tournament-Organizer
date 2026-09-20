@@ -14,6 +14,7 @@ import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
 import { teamStandings } from "@/lib/services/teams";
 import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
+import { weekBasis, valueOnBasis } from "@/lib/domain/week-basis";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
@@ -161,7 +162,7 @@ export default async function PlayTodayPage() {
     mySide && roundStage
       ? placesByValue(
           sidesThisRound,
-          (s) => (roundStage.scoringBasis === "stableford" ? s.points : s.net),
+          (s) => valueOnBasis(weekBasis(roundStage.scoringBasis), s),
           (s) => s.played > 0,
         )[myIdx]
       : null;

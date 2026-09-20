@@ -757,7 +757,7 @@ describe("picking a course, wherever you pick one", () => {
 describe("leaderboards for every format", () => {
   it("renders a team board, unplayed sides unranked", () => {
     const html = render(
-      <TeamLeaderboard format="Scramble" stableford={false}
+      <TeamLeaderboard format="Scramble" basis="net"
         rows={[
           { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: 0 },
@@ -771,7 +771,7 @@ describe("leaderboards for every format", () => {
   });
 
   it("renders an empty team board", () => {
-    const html = render(<TeamLeaderboard format="Four-Ball" stableford={false} rows={[]} />);
+    const html = render(<TeamLeaderboard format="Four-Ball" basis="net" rows={[]} />);
     expect(html).toContain("No sides drawn");
   });
 
@@ -890,7 +890,7 @@ describe("leaderboards for every format", () => {
 
   it("shares a team place between two sides level on net", () => {
     const html = render(
-      <TeamLeaderboard format="Four-Ball" stableford={false}
+      <TeamLeaderboard format="Four-Ball" basis="net"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7 },
@@ -912,7 +912,7 @@ describe("leaderboards for every format", () => {
      * and the board's own sort, which this must agree with, uses points here.
      */
     const html = render(
-      <TeamLeaderboard format="Four-Ball" stableford
+      <TeamLeaderboard format="Four-Ball" basis="stableford"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
             gross: 72, net: 65, points: 38, played: 18, toPar: 0 },
@@ -955,7 +955,7 @@ describe("leaderboards for every format", () => {
       pars, si, 100, 2,
     );
     const html = render(
-      <TeamLeaderboard format="Best Ball" stableford={false}
+      <TeamLeaderboard format="Best Ball" basis="net"
         rows={[{
           teamId: "t1", name: "Ants", members: ["Ann", "Bob", "Cal", "Dee"],
           memberIds: ["p1", "p2", "p3", "p4"],
@@ -970,7 +970,7 @@ describe("leaderboards for every format", () => {
 
   it("still leaves a side that has not returned a card unplaced", () => {
     const html = render(
-      <TeamLeaderboard format="Scramble" stableford={false}
+      <TeamLeaderboard format="Scramble" basis="net"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
             gross: 72, net: 65, points: 0, played: 18, toPar: -7 },

@@ -192,14 +192,15 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
   const pathname = usePathname();
 
   /**
-   * What a SIDE is ranked on, which is not always what the night is.
+   * What a SIDE is ranked on: the night's own basis, all three of them.
    *
-   * `teamStandings` sorts sides on points for a Stableford and on net for
-   * everything else — it has no gross branch — so a team round set to gross is
-   * still ordered by net, and labelling that column "Gross" would print a
-   * column that does not run in order under a heading claiming it does.
+   * This read "points for a Stableford, otherwise net" for a day, to match
+   * `teamStandings`, which had no gross branch — so a team round set to gross
+   * was ordered by net everywhere and a "Gross" heading would have sat over a
+   * column that did not run in order. The service reads the basis now, and so
+   * does this: one rule, three screens.
    */
-  const sideBasis = view.basis === "stableford" ? "stableford" : "net";
+  const sideBasis = view.basis;
 
   const th: React.CSSProperties = {
     textAlign: "left",
@@ -398,13 +399,12 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   <tr>
                     <th style={{ ...th, width: 44 }}>Pos</th>
                     <th style={th}>Side</th>
-                    {/* BOTH COLUMNS, ALWAYS, and not the round's basis.
-                        `teamStandings` ranks sides on points or on net — it
-                        has no gross branch — so a round set to gross would
-                        have printed a single "Gross" column that did not run
-                        in order. The team leaderboard shows both for the same
-                        reason. */}
-                    <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                    {/* Not Gross twice on a gross round — the same rule the
+                        player table above states: "no handicap is involved, so
+                        a net column would be a column of the same numbers". */}
+                    {view.basis !== "gross" && (
+                      <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                    )}
                     <th style={{ ...th, textAlign: "right" }}>
                       {WEEK_BASIS_COLUMN[sideBasis]}
                     </th>
@@ -434,7 +434,9 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                           {s.members.join(" · ") || "No players"}
                         </div>
                       </td>
-                      <td style={num}>{s.played > 0 ? s.gross : "—"}</td>
+                      {view.basis !== "gross" && (
+                        <td style={num}>{s.played > 0 ? s.gross : "—"}</td>
+                      )}
                       <td style={{ ...num, fontWeight: 600 }}>
                         {s.played > 0 ? valueOnBasis(sideBasis, s) : "—"}
                       </td>

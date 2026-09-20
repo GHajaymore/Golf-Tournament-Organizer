@@ -180,7 +180,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
         ) : board.teamRound ? (
           <TeamLeaderboard
             format={board.teamFormat}
-            stableford={board.isStableford}
+            basis={board.teamBasis}
             rows={board.teamRows}
           />
         ) : board.kind === "skins" && board.skins ? (

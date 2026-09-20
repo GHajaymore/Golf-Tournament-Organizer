@@ -43,10 +43,20 @@ const SI = [1, 11, 17, 5, 3, 13, 15, 7, 9, 2, 12, 18, 6, 4, 14, 16, 8, 10];
  */
 const TIE_GAP = 10;
 
+/**
+ * And the gap that makes the two orders DISAGREE, for the gross week.
+ *
+ * Anything strictly less than `TIE_GAP` does it: the high side gives back ten
+ * shots, so conceding eight on gross leaves it two better on net. Asserted in
+ * the gross test rather than trusted, for the same reason as above.
+ */
+const GROSS_GAP = 8;
+
 let eventId = "";
 let foursomesId = "";
 let fourBallId = "";
 let tieWeekId = "";
+let grossWeekId = "";
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -246,6 +256,52 @@ beforeAll(async () => {
     }
     await sharedCard(eventId, tieWeekId, t.id, [...strokes]);
   }
+
+  /**
+   * WEEK 4 IS THE SAME TWO SIDES, DECIDED ON GROSS.
+   *
+   * A gross team round is an ordinary fixture — a scratch Am-Am, a club's
+   * gross scramble — and `teamStandings` had no gross branch at all: points
+   * for a Stableford, net for everything else. So every gross team round in
+   * the app was ordered by NET under a heading saying "gross strokes".
+   *
+   * THE FIXTURE HAS TO INVERT THE TWO ORDERS, and a net TIE does not do it.
+   * The first attempt gave these sides the same net and a different gross, and
+   * the mutation that should have failed it passed: `compareOnBasis`'s net
+   * branch is `a.net - b.net || a.gross - b.gross`, so it breaks a net tie on
+   * gross and lands on the same order the gross branch would. A tie tests the
+   * TIEBREAK, not the basis.
+   *
+   * So the high side is eight over rather than ten: gross 72 against 80 (the
+   * low pair wins on gross) and net 64 against 62 (the high pair wins on net).
+   * Every reading now names a different winner, which is the only shape that
+   * can tell them apart.
+   */
+  const grossWeek = await prisma.stage.create({
+    data: {
+      eventId,
+      position: 3,
+      description: "Week 4",
+      type: "Stroke Play Round",
+      format: "Foursomes",
+      scoringBasis: "gross",
+      holes: 18,
+    },
+  });
+  grossWeekId = grossWeek.id;
+
+  for (const [name, members, strokes] of [
+    [`${TAG} Low gross`, low, PARS],
+    [`${TAG} High gross`, high, PARS.map((p, i) => (i < GROSS_GAP ? p + 1 : p))],
+  ] as const) {
+    const t = await prisma.team.create({
+      data: { eventId, stageId: grossWeekId, name, seed: name.includes("Low") ? 1 : 2 },
+    });
+    for (let m = 0; m < members.length; m += 1) {
+      await prisma.teamMember.create({ data: { teamId: t.id, playerId: members[m].id, position: m } });
+    }
+    await sharedCard(eventId, grossWeekId, t.id, [...strokes]);
+  }
 });
 
 afterAll(async () => {
@@ -374,6 +430,41 @@ describe("two sides level on the night", () => {
      */
     const view = await weekViewFor(eventId, tieWeekId);
     expect(view!.sides.map((s) => s.position)).toEqual([1, 1]);
+  });
+});
+
+describe("a team round decided on gross", () => {
+  it("ranks the sides on gross, not on net", async () => {
+    /**
+     * `teamStandings` had two branches — Stableford points, otherwise net —
+     * and a gross round fell through to net. It is the third value of the
+     * round's own basis, the same one `week-basis.ts` was written for on the
+     * individual side, and it was missing in three places at once: the
+     * service's sort, the board's `#` column and the week sheet's places.
+     *
+     * Read off the seeded festival's gross scramble on 2026-09-20: four sides
+     * printed 69, 71, 70, 72 down the page, which is net order under a heading
+     * saying "gross strokes".
+     */
+    const view = await weekViewFor(eventId, grossWeekId);
+    expect(view!.basis).toBe("gross");
+    const [first, second] = view!.sides;
+
+    /**
+     * THE CONTROL: the two orders really do disagree here. Without this, a
+     * fixture whose net order happens to match its gross order passes on
+     * either reading and proves nothing — which is exactly what the first
+     * draft of this test did.
+     */
+    expect(first.gross, "the low side is not lower on gross").toBeLessThan(second.gross);
+    expect(first.net, "the low side is not HIGHER on net, so nothing is being told apart").toBeGreaterThan(
+      second.net,
+    );
+
+    expect(first.name, "the sides are in net order on a gross round").toContain("Low gross");
+    expect(first.gross).toBe(72);
+    expect(second.gross).toBe(80);
+    expect(view!.sides.map((s) => s.position)).toEqual([1, 2]);
   });
 });
 
