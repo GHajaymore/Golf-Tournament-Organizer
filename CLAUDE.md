@@ -377,6 +377,29 @@ only a build artifact that fails a deterministic check. If that log line starts 
 or ever twice in one build, it is time to chase the cause properly; `--check` inspects an existing
 build without building.
 
+**IT STILL GETS THROUGH, so do not read a green build as this being closed.** On 2026-09-20 the
+`small-phone` job of a push-event run failed three tests on `/organization` and `/access` with
+`Could not find the module ".../LocalePicker.tsx#LocalePicker" in the React Client Manifest` — and
+that job's build goes through `build-checked` (`ci.yml` says so in its own words: "it builds its
+own bundle into .next-e2e … which is why this job does not run `npm run build` first", and
+`webServer.command` is `npm run build`, which is `scripts/build-checked.mjs`). The tests RAN, so
+the build did not hard-fail: either no inconsistency was detected, or one was and the single
+rebuild produced a manifest that passed the check while the server still could not resolve the
+module at request time.
+
+So the check narrows this class; it does not close it. Read the failure the way this section
+already says — the component name is noise, the tell is `Client Manifest` in the log plus the
+same commit passing elsewhere. That day the `pull_request` run of the identical SHA was green on
+all three viewports while the `push` run was red, which is as clean a control as this fault ever
+offers.
+
+**And that pair is worth knowing about on its own: `ci.yml` runs on BOTH `push` and
+`pull_request`, so one commit has TWO workflow runs and two sets of identically-named checks.**
+A merge watcher reading `commits/<sha>/check-runs` sees both and will refuse on a failure in
+either, which is the conservative and correct behaviour — but `gh run view <id>` on one of them
+can show all green while the SHA is still red. Ask which RUN before concluding anything, and
+re-run the failed jobs of the red one (`gh run rerun <id> --failed`) rather than the PR.
+
 **And a THIRD, which is a click that never lands.** `offline.spec.ts:245` — "taking their
 card clears the queue without sending anything" — times out on the desktop project trying to
 press the card chooser's button:
