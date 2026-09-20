@@ -11,8 +11,7 @@ import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
-import { resultSummary } from "@/lib/domain/tournament-result";
-import { resultHeading } from "@/lib/domain/play-kind";
+import { ResultLines } from "@/components/ResultLines";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -71,6 +70,18 @@ export default async function PlayBoardPage() {
               ? "This round ranks teams rather than players. Ask your organizer for the team board."
               : "This round is scored a different way. Ask your organizer for the current standings."}
         </p>
+        {/* THE RESULT STILL BELONGS HERE (2026-09-19). A team round or a round
+            scored by hand has no player ranking — which is why this branch
+            exists — and that is exactly the day whose result a member cannot
+            work out for themselves. Walked on the seeded club's foursomes:
+            the board refused, the card refused, and nothing anywhere said who
+            had won.
+
+            Not in the branch above it: a club that has not PUBLISHED its
+            standings has not published them, and listing each round's winner
+            underneath would be the app overruling that. This branch is about
+            the format, not about what the club has chosen to show. */}
+        <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} />
         <WayForward
           links={[
             { href: "/me", label: "Back to today", icon: "flag" },
@@ -133,29 +144,7 @@ export default async function PlayBoardPage() {
           Headed with whatever the club called this one: "Outing result",
           "League result". Only where there is more than one round, because on
           a single-round medal the board below IS the result. */}
-      {lines.length > 1 && (
-        <section className="card elev-sm" style={{ marginBottom: 14 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>
-            {resultHeading(state.event.playKind)}
-          </span>
-          <span className="text-muted" style={{ fontSize: 12.5 }}>{resultSummary(lines)}</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-            {lines.map((l) => (
-              <div key={l.label} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                <span
-                  className="text-muted"
-                  style={{ fontSize: 12, minWidth: 92, flex: "none" }}
-                >
-                  {l.label}
-                </span>
-                <span style={{ fontSize: 13.5, lineHeight: 1.5, color: l.settled ? "var(--color-text)" : "var(--color-text-muted)" }}>
-                  {l.result}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <ResultLines lines={lines} kind={state.event.playKind} />
 
       <PlayerLeaderboard
         isStroke={state.boardIsStroke}
