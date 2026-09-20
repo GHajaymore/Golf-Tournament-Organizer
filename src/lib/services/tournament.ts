@@ -5,7 +5,7 @@ import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
-import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
+import { survivors, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
@@ -1278,7 +1278,24 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         approved: own.filter((c) => c.status === "approved").length,
         // Among the STARTED only, since the dashboard subtracts it from them.
         disputed: own.filter((c) => c.status === "disputed" && hasAnyHole(c.strokes)).length,
+        /**
+         * THE FIELD OF THIS ROUND, not the entry list of the tournament.
+         *
+         * A medal is measured against the field rather than against the cards
+         * that happen to exist — otherwise one card in reads 100%, which is
+         * the rule this line was written for and it still holds. What it got
+         * wrong is WHICH field: a cut shrinks it, and after one the entry list
+         * is a denominator nobody in the round belongs to.
+         *
+         * Read off the seeded club's Club Championship, cut to 16 of 28: a
+         * COMPLETED championship where all sixteen survivors had handed in a
+         * card said "Cards in 16/28 · 57% submitted". The twelve missing cards
+         * belonged to players who had been cut the day before.
+         */
+        total: fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
           total: confirmed.length,
+          flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
+        }),
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);

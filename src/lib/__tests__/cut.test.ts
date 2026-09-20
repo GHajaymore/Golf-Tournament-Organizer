@@ -8,6 +8,7 @@ import {
   describeCut,
   currentRoundCut,
   currentRoundCutRule,
+  fieldEnteringRound,
   isCutScope,
   type CutCandidate,
   type CutRule,
@@ -357,6 +358,83 @@ describe("the cut line for the current round", () => {
     expect(currentRoundCutRule([round(), round()], 0)).toBeNull();
     expect(currentRoundCutRule([round(), round({ cutEnabled: true })], 1)).toBeNull();
     expect(currentRoundCutRule([round({ cutEnabled: true })], -1)).toBeNull();
+  });
+});
+
+describe("how many players a round is actually played by", () => {
+  /**
+   * THE DENOMINATOR OF "CARDS IN", and it was the entry list.
+   *
+   * Read off the seeded club's Club Championship on 2026-09-20 — 36 holes
+   * gross, cut to 16 of 28, COMPLETED, every survivor's card returned:
+   *
+   *     CARDS IN  16/28  ·  57% submitted
+   *
+   * The twelve cards were not missing. Those twelve players had been cut the
+   * day before, and no screen in the app thought to stop counting them.
+   */
+  const round = (over: Partial<RoundCutFields> = {}): RoundCutFields => ({
+    cutEnabled: false,
+    cutMode: "count",
+    cutCount: 16,
+    cutPercent: 50,
+    cutScope: "overall",
+    ...over,
+  });
+
+  it("is the whole field before anybody is cut", () => {
+    const rounds = [round(), round({ cutEnabled: true })];
+    expect(fieldEnteringRound(rounds, 0, { total: 28 })).toBe(28);
+  });
+
+  it("is the survivors once the cut that feeds the round has been taken", () => {
+    // The championship's own numbers.
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 16 })];
+    expect(fieldEnteringRound(rounds, 1, { total: 28 })).toBe(16);
+  });
+
+  it("reads a percentage against the field that is left", () => {
+    const rounds = [round(), round({ cutEnabled: true, cutMode: "percent", cutPercent: 50 })];
+    expect(fieldEnteringRound(rounds, 1, { total: 30 })).toBe(15);
+  });
+
+  it("compounds two cuts rather than applying the last one to everybody", () => {
+    /**
+     * A three-round championship that halves twice: 32 → 16 → 8. Reading only
+     * the round's own cut would say 16 for the third round, which is a
+     * denominator no round of this tournament ever had.
+     */
+    const rounds = [
+      round(),
+      round({ cutEnabled: true, cutMode: "percent", cutPercent: 50 }),
+      round({ cutEnabled: true, cutMode: "percent", cutPercent: 50 }),
+    ];
+    expect(fieldEnteringRound(rounds, 2, { total: 32 })).toBe(8);
+  });
+
+  it("sizes a per-flight cut against each flight", () => {
+    // "Top 2 per flight" out of four flights is eight, not two — the whole
+    // reason `cutScope` exists.
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 2, cutScope: "perFlight" })];
+    expect(fieldEnteringRound(rounds, 1, { total: 28, flights: [7, 7, 7, 7] })).toBe(8);
+  });
+
+  it("never returns more than the flight holds", () => {
+    // A flight of one cannot send two through, and `survivorCount` floors at
+    // one rather than zero so a flight is never wiped out entirely.
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 4, cutScope: "perFlight" })];
+    expect(fieldEnteringRound(rounds, 1, { total: 3, flights: [1, 2] })).toBe(3);
+  });
+
+  it("is never larger than the field it started with", () => {
+    // "Top 16" of a twelve-player field is twelve, not sixteen.
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 16 })];
+    expect(fieldEnteringRound(rounds, 1, { total: 12 })).toBe(12);
+  });
+
+  it("leaves a tournament with no cut at all exactly as it was", () => {
+    const rounds = [round(), round(), round()];
+    expect(fieldEnteringRound(rounds, 2, { total: 41 })).toBe(41);
   });
 });
 
