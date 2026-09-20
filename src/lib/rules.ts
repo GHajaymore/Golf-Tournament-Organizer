@@ -1,3 +1,4 @@
+import { isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, seededFromQualifiers } from "@/lib/stage-types";
 
@@ -227,17 +228,34 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
   out.push({ label: "Holes", value: String(input.holes) });
 
   if (input.scoringBasis) {
+    /**
+     * THE FORMAT AND THE BASIS SAY DIFFERENT THINGS, and this line has to
+     * carry both.
+     *
+     * A Stableford competition is decided on POINTS, and gross/net only says
+     * whether handicap strokes are applied while computing them. Reading the
+     * basis alone, this told a member of the seeded club's Thursday league —
+     * `format: "Stableford"`, `scoringBasis: "net"` — that the round was
+     * scored on "Net", on the one screen in the app whose entire job is to
+     * tell them the terms they are playing under. It also withheld the
+     * Stableford RULE reference from every such round.
+     *
+     * "Stableford (net)" rather than either alone, because a player needs both
+     * halves: what wins, and whether they get their shots.
+     */
+    const stableford = isStablefordRound(input.scoringBasis, input.format);
+    const allocation =
+      input.scoringBasis === "gross" ? "gross" : input.scoringBasis === "both" ? "gross and net" : "net";
     out.push({
       label: "Scoring",
-      value:
-        input.scoringBasis === "stableford"
-          ? "Stableford"
-          : input.scoringBasis === "net"
-            ? "Net"
-            : input.scoringBasis === "both"
-              ? "Gross and net"
-              : "Gross",
-      rule: input.scoringBasis === "stableford" ? "stableford" : undefined,
+      value: stableford
+        ? `Stableford (${allocation})`
+        : input.scoringBasis === "net"
+          ? "Net"
+          : input.scoringBasis === "both"
+            ? "Gross and net"
+            : "Gross",
+      rule: stableford ? "stableford" : undefined,
     });
   }
 

@@ -8,7 +8,7 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domai
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
-import { weekBasis, type WeekBasis } from "../domain/week-basis";
+import { weekBasis, isStablefordRound, type WeekBasis } from "../domain/week-basis";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-standings";
 import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
@@ -357,8 +357,8 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     kind,
     teamRound,
     isStroke: state.boardIsStroke,
-    isStableford: activeStage?.scoringBasis === "stableford",
-    teamBasis: weekBasis(activeStage?.scoringBasis),
+    isStableford: isStablefordRound(activeStage?.scoringBasis, activeStage?.format),
+    teamBasis: weekBasis(activeStage?.scoringBasis, activeStage?.format),
     holeCount,
     // Cached WITH the rows, deliberately: it describes this exact standing,
     // and a note cached apart from the board it explains would eventually be

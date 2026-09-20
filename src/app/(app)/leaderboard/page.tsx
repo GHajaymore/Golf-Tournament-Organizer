@@ -12,7 +12,7 @@ import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
-import { weekBasis } from "@/lib/domain/week-basis";
+import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { boardKind } from "@/lib/formats";
@@ -73,7 +73,7 @@ export default async function LeaderboardPage() {
     return (
       <TeamLeaderboard
         format={activeStage.format}
-        basis={weekBasis(activeStage.scoringBasis)}
+        basis={weekBasis(activeStage.scoringBasis, activeStage.format)}
         rows={standings}
       />
     );
@@ -137,7 +137,7 @@ export default async function LeaderboardPage() {
     // footnote describes what is on screen. Its `stableford` neighbour has
     // always read the stage, which is half of the same question.
     isStroke: state.boardIsStroke,
-    stableford: activeStage?.scoringBasis === "stableford",
+    stableford: isStablefordRound(activeStage?.scoringBasis, activeStage?.format),
     casual: casualRound,
   };
   const commentary = await prisma.commentary.findMany({
@@ -247,7 +247,7 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <LeaderboardBoard isStroke={state.boardIsStroke} isStableford={activeStage?.scoringBasis === "stableford"} rows={rows} isStaff={isStaff} />
+        <LeaderboardBoard isStroke={state.boardIsStroke} isStableford={isStablefordRound(activeStage?.scoringBasis, activeStage?.format)} rows={rows} isStaff={isStaff} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {boardFootnote(boardCopy)}
         </p>

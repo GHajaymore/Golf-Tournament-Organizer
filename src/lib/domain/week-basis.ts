@@ -1,3 +1,5 @@
+import { lookupFormat } from "@/lib/formats";
+
 /**
  * What a league night is decided on, and what to call it.
  *
@@ -29,17 +31,80 @@ export type WeekBasis = "stableford" | "gross" | "net";
 /**
  * Which of the three this round is scored on.
  *
+ * THE FORMAT GIVES THE UNIT; THE BASIS GIVES THE ALLOCATION. That is how a
+ * golf club runs it, and it is Ajay's ruling of 2026-09-20: a Stableford
+ * competition is decided on POINTS, and gross/net only says whether handicap
+ * strokes are applied while computing them. So the two settings were never in
+ * conflict — this function was simply reading one of them.
+ *
+ * It asked the BASIS alone, so eight weeks of the seeded club's Thursday
+ * league — every one `format: "Stableford"`, `scoringBasis: "net"` — were
+ * ranked on net strokes under a heading reading
+ *
+ *     Stableford · 18 holes · net strokes
+ *
+ * which names the competition and then says the night is decided on something
+ * else, on one line.
+ *
+ * WHAT IT DOES NOT DO IS MOVE ANYBODY. Measured across all four played weeks
+ * before the change: points and net produce the identical order, every week,
+ * because the two can only diverge on a hole whose points FLOOR at zero and no
+ * card in that fixture has one — the 99 and the 84 on week 3 both net 75 and
+ * both score 32. So this is a correctness and labelling fix rather than a
+ * re-decision, and the test that proves it works has to build a card with a
+ * wipe on it. See `stableford-ranks-on-points.audit.test.ts`.
+ *
+ * THE FORMAT IS REQUIRED, not optional. Ten callers each had the stage in hand
+ * and passed only the basis; an optional argument would have left all ten free
+ * to keep forgetting, which is the shape `cardForStage` was in when five
+ * boards scored a round against the wrong course (#521). A parameter you must
+ * pass cannot be forgotten.
+ *
  * "both" means both prizes are given, and it stays on NET here deliberately:
- * that is the figure a league table has always carried, and this change is
- * about the case that was provably wrong rather than about re-deciding one
- * that was not. Anything unrecognised lands on net for the same reason — it
- * is what every round got before this existed.
+ * that is the figure a league table has always carried. Anything unrecognised
+ * lands on net for the same reason — it is what every round got before this
+ * existed.
  */
-export function weekBasis(scoringBasis: string | null | undefined): WeekBasis {
+export function weekBasis(
+  scoringBasis: string | null | undefined,
+  format: string | null | undefined,
+): WeekBasis {
+  // The format first: a Stableford round is decided on points whatever the
+  // basis says, and the basis then decides whether those points are computed
+  // off net or off scratch.
+  const engine = lookupFormat((format ?? "").trim())?.engine;
+  if (engine === "stableford" || engine === "modified-stableford") return "stableford";
+
   const b = (scoringBasis ?? "").trim().toLowerCase();
+  // A basis naming a UNIT rather than an allocation is the older way of saying
+  // the same thing, and is still live on rows written before the format
+  // carried it. Kept, so nothing already stored changes meaning.
   if (b === "stableford" || b === "modified-stableford") return "stableford";
   if (b === "gross") return "gross";
   return "net";
+}
+
+/**
+ * Whether this round is a Stableford one — the same question `weekBasis` asks,
+ * for the screens that want a boolean rather than the basis.
+ *
+ * Eight of them asked `scoringBasis === "stableford"` directly: the dashboard,
+ * both console boards, the printed sheet, the player's board and Today. Every
+ * one answered FALSE for the seeded club's league, whose weeks are
+ * `format: "Stableford"` with `scoringBasis: "net"` — so a Stableford
+ * competition was given stroke columns and stroke sentences.
+ *
+ * That was survivable while the RANKING agreed with them and wrong in the same
+ * direction. It stopped being survivable the moment the ranking moved to
+ * points: a board ordered on points under a column headed Net is a worse
+ * screen than the one we started with. So this exists, and the guard in
+ * `audit-guards.test.ts` keeps the direct comparison from coming back.
+ */
+export function isStablefordRound(
+  scoringBasis: string | null | undefined,
+  format: string | null | undefined,
+): boolean {
+  return weekBasis(scoringBasis, format) === "stableford";
 }
 
 /** What the sheet calls it, in the words a league would use. */

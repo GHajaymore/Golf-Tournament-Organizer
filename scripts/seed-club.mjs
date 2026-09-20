@@ -1087,6 +1087,64 @@ export async function seed() {
         });
       }
     }
+    /**
+     * ONE PLAYER PUTS A TEN ON A PAR FOUR, and without it this league cannot
+     * show what a Stableford night IS.
+     *
+     * `cardFor` caps every hole at par + 2, so no hole is ever worse than a
+     * net double bogey — and a net double is exactly where Stableford points
+     * stop falling. Below that cap, points and net strokes are two ways of
+     * writing the same number: measured across all four played weeks on
+     * 2026-09-20, ranking by points and ranking by net gave the IDENTICAL
+     * order every week, and the 99 and the 84 on week 3 both netted 75 and
+     * both scored 32.
+     *
+     * So a league of tidy cards cannot express the one thing that makes a
+     * Stableford competition different from a medal: the wipe you can walk
+     * away from. A member who takes a ten on the 3rd loses six strokes off
+     * their net and only two points, and passes people on the points table
+     * they are behind on the net one.
+     *
+     * Applied AFTER the generator rather than inside it, so the random stream
+     * is untouched and every other card in this fixture stays exactly as it
+     * was — the away round's to-par among them.
+     */
+    {
+      const wipeWeek = weeks[0];
+      const cards = await prisma.scorecard.findMany({
+        where: { eventId: league.id, stageId: wipeWeek.id },
+      });
+      /**
+       * THE LEADER WIPES IT, not somebody at the bottom.
+       *
+       * Tried first on whichever card sorted first by id: it landed on a
+       * player lying 15th of 17, where a four-place swing has nothing to swing
+       * past, and exactly ONE place changed across the whole league — 17th to
+       * 16th. A fixture that technically contains the case but cannot show it
+       * is the same as not having it.
+       *
+       * So it goes on the best card of the night, which is also the version a
+       * club argues about: the one who was cruising and took ten on the 3rd.
+       * Measured after the change — she finishes 10th on net and 5th on
+       * POINTS, and four players shift a place as she goes past them. The
+       * winner is the same either way, which is the honest outcome rather than
+       * a fixture bent until it looks dramatic.
+       */
+      const best = cards
+        .map((c) => ({ c, gross: JSON.parse(c.strokes).reduce((a, b) => a + (b || 0), 0) }))
+        .sort((a, b) => a.gross - b.gross)[0];
+      if (best) {
+        const strokes = JSON.parse(best.c.strokes);
+        // A ten on a par four: a lost ball and a reload, the commonest way a
+        // club golfer wipes a hole.
+        strokes[2] = PARS_18[2] + 6;
+        await prisma.scorecard.update({
+          where: { id: best.c.id },
+          data: { strokes: JSON.stringify(strokes) },
+        });
+      }
+    }
+
     // Who has said they are in or out for the weeks still to come. The
     // signed-in player is IN for the next one and OUT for the one after, so
     // both answers are on the calendar they open.

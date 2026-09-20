@@ -32,13 +32,40 @@ const orderOn = (basis: Parameters<typeof compareOnBasis>[0]) =>
   [...FIELD].sort((a, b) => compareOnBasis(basis, a, b)).map((r) => r.name);
 
 describe("which figure a night is decided on", () => {
-  it("reads the round's own basis", () => {
-    expect(weekBasis("gross")).toBe("gross");
-    expect(weekBasis("net")).toBe("net");
-    expect(weekBasis("stableford")).toBe("stableford");
+  it("reads the round's own basis for a stroke-play round", () => {
+    expect(weekBasis("gross", "Stroke Play")).toBe("gross");
+    expect(weekBasis("net", "Stroke Play")).toBe("net");
+    expect(weekBasis("stableford", "Stroke Play")).toBe("stableford");
     // Modified Stableford is still points — a different table, not a
     // different kind of answer.
-    expect(weekBasis("modified-stableford")).toBe("stableford");
+    expect(weekBasis("modified-stableford", "Stroke Play")).toBe("stableford");
+  });
+
+  /**
+   * THE FORMAT GIVES THE UNIT; THE BASIS GIVES THE ALLOCATION.
+   *
+   * Ajay's ruling of 2026-09-20 and the way a club runs it: a Stableford
+   * competition is decided on POINTS, and gross/net only says whether handicap
+   * strokes are applied while computing them. This function read the basis
+   * alone, so eight weeks of the seeded club's Thursday league — every one
+   * `format: "Stableford"`, `scoringBasis: "net"` — were ranked on net strokes
+   * under a heading reading "Stableford · 18 holes · net strokes".
+   */
+  it("ranks a Stableford round on points whatever the basis says", () => {
+    expect(weekBasis("net", "Stableford")).toBe("stableford");
+    expect(weekBasis("gross", "Stableford")).toBe("stableford");
+    expect(weekBasis("both", "Stableford")).toBe("stableford");
+    expect(weekBasis("net", "Modified Stableford")).toBe("stableford");
+  });
+
+  it("does not make every round Stableford, which is how a fix like this goes wrong", () => {
+    // The control. "A Stableford format ranks on points" is satisfied
+    // perfectly by returning "stableford" for everything.
+    expect(weekBasis("net", "Stroke Play")).toBe("net");
+    expect(weekBasis("gross", "Stroke Play")).toBe("gross");
+    expect(weekBasis("net", "Four-Ball")).toBe("net");
+    expect(weekBasis("gross", "Scramble")).toBe("gross");
+    expect(weekBasis("net", "Match Play")).toBe("net");
   });
 
   it("leaves 'both' and anything unrecognised on net", () => {
@@ -48,10 +75,20 @@ describe("which figure a night is decided on", () => {
      * figure a league table has always carried; anything unrecognised lands
      * there too, which is what every round got before this existed.
      */
-    expect(weekBasis("both")).toBe("net");
-    expect(weekBasis("")).toBe("net");
-    expect(weekBasis(null)).toBe("net");
-    expect(weekBasis("something else")).toBe("net");
+    expect(weekBasis("both", "Stroke Play")).toBe("net");
+    expect(weekBasis("", "Stroke Play")).toBe("net");
+    expect(weekBasis(null, "Stroke Play")).toBe("net");
+    expect(weekBasis("something else", "Stroke Play")).toBe("net");
+  });
+
+  it("is unmoved by a format it has never heard of", () => {
+    // `lookupFormat` returns undefined rather than falling back to a real
+    // format, so an unknown name must leave the basis in charge instead of
+    // being judged as one engine or another.
+    expect(weekBasis("gross", "Some Club's Own Game")).toBe("gross");
+    expect(weekBasis("net", "Some Club's Own Game")).toBe("net");
+    expect(weekBasis("gross", "")).toBe("gross");
+    expect(weekBasis("net", null)).toBe("net");
   });
 });
 

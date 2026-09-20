@@ -22,7 +22,7 @@ import {
   MOD_STABLEFORD_NOTE,
 } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { weekBasis } from "@/lib/domain/week-basis";
+import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
 
 export const metadata = screenMetadata("/me/board");
@@ -179,7 +179,7 @@ export default async function PlayBoardPage() {
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",
                   sides?.length ?? 0,
-                  weekBasis(stage?.scoringBasis),
+                  weekBasis(stage?.scoringBasis, stage?.format),
                 )}`
               : points?.kind === "skins"
                 ? SKINS_NOTE(points.net)
@@ -202,7 +202,7 @@ export default async function PlayBoardPage() {
         )}
         {sides && (
           <div style={{ marginTop: 14 }}>
-            <TeamStandingsTable basis={weekBasis(stage?.scoringBasis)} rows={sides} />
+            <TeamStandingsTable basis={weekBasis(stage?.scoringBasis, stage?.format)} rows={sides} />
           </div>
         )}
         {/* THE RESULT STILL BELONGS HERE (2026-09-19). A team round or a round
@@ -283,7 +283,7 @@ export default async function PlayBoardPage() {
 
       <PlayerLeaderboard
         isStroke={state.boardIsStroke}
-        isStableford={stage?.scoringBasis === "stableford"}
+        isStableford={isStablefordRound(stage?.scoringBasis, stage?.format)}
         rows={rows}
         holes={holes}
         youId={me?.id ?? ""}

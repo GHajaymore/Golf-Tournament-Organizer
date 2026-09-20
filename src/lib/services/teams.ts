@@ -324,7 +324,7 @@ export async function teamStandings(
    * `compareOnBasis` is the same comparison the individual boards use, so a
    * gross team round and a gross medal now agree about which way is winning.
    */
-  const order = weekBasis(basis);
+  const order = weekBasis(basis, format);
   return rows.sort((a, b) => {
     // A side with no card yet has nothing to rank, and a gross of zero would
     // otherwise put it top.
