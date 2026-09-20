@@ -6,6 +6,7 @@ import {
   buildBracket,
   drawBrackets,
   firstRoundLosers,
+  knockoutProgress,
   SEED_ORDER_8,
   type BracketView,
 } from "../bracket";
@@ -150,6 +151,61 @@ describe("how the knockout is arranged", () => {
 
   it("defaults to the arrangement existing tournaments already use", () => {
     expect(drawBrackets(q).secondLabel).toBe("Consolation");
+  });
+});
+
+describe("how much of a knockout has been played", () => {
+  /**
+   * A BRACKET STAGE FILES NO `Match` ROWS — its results are `BracketWinner`
+   * rows keyed by slot — so every counter that measures a round in fixtures
+   * answers zero for one. The dashboard printed "Matches complete 0/0" and
+   * "0% of round robin" over the seeded club's Summer Knockout on 2026-09-20,
+   * which had five ties decided and its final drawn, two inches above a card
+   * describing that same bracket correctly.
+   *
+   * Eight players, so the draw is four ties, then two, then one.
+   */
+  const q = field(8);
+
+  it("counts only the ties that can actually be played", () => {
+    // Nothing decided: the semis and the final exist in the draw with nobody
+    // in them, and counting those would say 0 of 7 on the first morning.
+    const fresh = buildBracket("winners", q, {});
+    expect(knockoutProgress(fresh)).toEqual({ decided: 0, total: 4 });
+  });
+
+  it("moves as ties are decided", () => {
+    const one = buildBracket("winners", q, { "winners-0-0": "p1" });
+    expect(knockoutProgress(one)).toEqual({ decided: 1, total: 4 });
+  });
+
+  it("counts the next round once its ties have players in them", () => {
+    /**
+     * THE CASE THAT MAKES THE FRACTION HONEST. With the whole first round in,
+     * a semi-final exists AND has two players, so it is a tie that can be
+     * played — 4 of 6, not 4 of 4 (which would read as finished) and not 4 of
+     * 7 (which counts a final nobody can play yet).
+     */
+    const full = buildBracket("winners", q, {
+      "winners-0-0": "p1",
+      "winners-0-1": "p4",
+      "winners-0-2": "p3",
+      "winners-0-3": "p2",
+    });
+    expect(knockoutProgress(full)).toEqual({ decided: 4, total: 6 });
+  });
+
+  it("adds the plate's ties to the main bracket's", () => {
+    // A club running a consolation is playing those ties too, and the screen
+    // shows both brackets.
+    const a = buildBracket("winners", field(4), { "winners-0-0": "p1" });
+    const b = buildBracket("consolation", field(4), {});
+    expect(knockoutProgress(a, b)).toEqual({ decided: 1, total: 4 });
+  });
+
+  it("says nothing is drawn rather than dividing by zero", () => {
+    const empty = buildBracket("winners", [], {});
+    expect(knockoutProgress(empty)).toEqual({ decided: 0, total: 0 });
   });
 });
 

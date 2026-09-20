@@ -36,6 +36,41 @@ export interface BracketView {
   champion: BracketSlot | null;
 }
 
+/**
+ * HOW MUCH OF A KNOCKOUT HAS BEEN PLAYED, counted in its own unit.
+ *
+ * A bracket stage stores no `Match` rows at all — a knockout's results are
+ * `BracketWinner` rows keyed by slot — so every counter that measures a round
+ * in fixtures answers ZERO for one, however far through it is. The dashboard
+ * printed "Matches complete 0/0" and "0% of round robin" over a knockout with
+ * five results recorded and its final drawn, two inches above a card correctly
+ * describing the same bracket. Read off the seeded club on 2026-09-20.
+ *
+ * DECIDED, not started: a bracket match has no holes here, so the only thing
+ * knowable about it is whether somebody has been advanced. That is also the
+ * honest word — a knockout tie is either over or not.
+ *
+ * A match with an empty slot is NOT counted in the total. The later rounds of
+ * every bracket exist from the moment it is drawn, with nobody in them, so
+ * counting them would make a semi-final read "2 of 7" on the day it is played
+ * and leave the fraction stuck below 1 until the final is over. What a club
+ * means by "how much of this is done" is the ties that CAN be played.
+ */
+export function knockoutProgress(...views: BracketView[]): { decided: number; total: number } {
+  let decided = 0;
+  let total = 0;
+  for (const view of views) {
+    for (const round of view.rounds) {
+      for (const m of round.matches) {
+        if (!m.a.playerId || !m.b.playerId) continue;
+        total += 1;
+        if (m.winnerId) decided += 1;
+      }
+    }
+  }
+  return { decided, total };
+}
+
 /** Kept as reference for a future label pass; not read today. */
 const _ROUND_LABELS = ["Round of 8", "Semifinals", "Final"];
 
