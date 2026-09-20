@@ -208,7 +208,6 @@ const KNOWN_DEAD: string[] = [
   "lib/services/league-nomination.ts:clubsIn",
   "lib/services/roster.ts:memberHistory",
   "lib/services/tournament.ts:expectedRrTotal",
-  "lib/services/tournament.ts:matchProgress",
 ];
 
 const dead: Dead[] = [];

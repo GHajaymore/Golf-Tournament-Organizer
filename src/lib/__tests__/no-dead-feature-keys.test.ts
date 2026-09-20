@@ -12,9 +12,10 @@ import { FEATURE_KEYS, PLANS, featureOverrides, featureAllowed, type FeatureKey 
  * declared-and-unread flag looks exactly like a working one from the plan file
  * and from a pricing page generated off it.
  *
- * THE LESSON IS PAID FOR. `seasonPlay` sits in `org-profile.ts` to this day
+ * THE LESSON IS PAID FOR. `seasonPlay` sat in `org-profile.ts` for months
  * gating nothing whatsoever; it was found on 2026-09-17 only because somebody
- * tried to advertise it in a picker and went to check what it did. And
+ * tried to advertise it in a picker and went to check what it did, and was
+ * deleted on 2026-09-20. And
  * `seasonStandings` was sold by `upgradeBenefits` and given away by the season
  * screen for as long as both existed, because the one service that read the
  * flag was never called.

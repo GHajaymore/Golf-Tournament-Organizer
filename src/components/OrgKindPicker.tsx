@@ -23,7 +23,6 @@ import { Icon } from "./Icon";
  *   ledger        the club's DEFAULT MONEY MODE — `money-mode.ts` reads it to
  *                 choose between split and none. A real behavioural change.
  *   ownsCourse    whether setup asks for a home course.
- *   seasonPlay    nothing. It is read nowhere in the app.
  *
  * So the honest summary is: the words everywhere, what setup asks for, and
  * what money defaults to.
@@ -101,8 +100,9 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
                     decides whether SETUP ASKS for one and how three screens
                     word it. `ledger` decides the club's default money mode,
                     and `ownsCourse` whether setup asks for a home course.
-                    `seasonPlay` is read nowhere in the app at all, so it is
-                    not offered here as a reason to pick anything. */}
+                    A fourth flag, `seasonPlay`, was offered here in a first
+                    draft and turned out to be read nowhere in the app; it was
+                    deleted on 2026-09-20 rather than advertised. */}
                 <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
                   {p.sharedRoster ? "Setup asks for a members list" : "Just your own list of players"}
                   {p.ownsCourse ? " · asks for your home course" : ""}

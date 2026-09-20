@@ -14,7 +14,7 @@ import { orgProfile } from "@/lib/domain/org-profile";
  * two of them belonging to somebody plainly running a club.
  *
  * AND IT IS NOT A LABEL. `orgProfile` reads the kind for `sharedRoster`,
- * `ledger`, `seasonPlay` and `ownsCourse`, so a society born personal has no
+ * `ledger` and `ownsCourse`, so a society born personal has no
  * members list at all — and had no way to ask for one.
  *
  * The cells below are the rules that need real rows: that the change sticks,

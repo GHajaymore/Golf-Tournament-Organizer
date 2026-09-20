@@ -66,7 +66,6 @@ describe("what each kind of organization means", () => {
       expect(p.blurb.length, k).toBeGreaterThan(0);
       expect(typeof p.ledger, k).toBe("boolean");
       expect(typeof p.sharedRoster, k).toBe("boolean");
-      expect(typeof p.seasonPlay, k).toBe("boolean");
       expect(typeof p.ownsCourse, k).toBe("boolean");
     }
   });
