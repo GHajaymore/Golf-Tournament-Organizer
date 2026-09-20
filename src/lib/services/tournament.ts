@@ -3,7 +3,7 @@ import { roundTeeId, teeForPlay } from "./handicaps";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
-import { isManualFormat, needsTeams, stablefordTableFor } from "../formats";
+import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
@@ -1276,6 +1276,35 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         total: sides.length,
       };
     }
+    /**
+     * A NASSAU IS PLAYED AS MATCHES AND STORED AS MATCHES, whatever its stage
+     * type says.
+     *
+     * Its type is "Stroke Play Round" — the round is eighteen holes of
+     * stroke-play scoring — but a Nassau is three bets between two players and
+     * `Match` rows are what it writes. `roundIsStroke` looks at the type, so it
+     * answered "cards" and this counted a table the round never fills: 0 of the
+     * field, for ever, over a night every pair had finished.
+     *
+     * Measured on the seeded club's Festival of Formats: its Nassau round holds
+     * 0 `Scorecard` rows against 8 `Match` rows.
+     *
+     * `boardKind` is the reader that already knows this — `week-view.ts` asks
+     * it the same question to decide whether a league night has been played —
+     * and the answer did not travel to the counter. Same shape as the four
+     * `TeamScorecard` readers and the knockout: the rule existed, in a file one
+     * import away, and nothing pointed at it from here.
+     */
+    if (boardKind(s.format) === "nassau") {
+      const own = matches.filter((m) => m.stageId === s.id);
+      return {
+        started: own.filter((m) => matchSettled(m)).length,
+        certified: own.filter((m) => storedMatchIsOver(m)).length,
+        approved: own.filter((m) => m.scoreStatus === "confirmed").length,
+        disputed: own.filter((m) => m.scoreStatus === "disputed" && !storedMatchIsOver(m)).length,
+        total: own.length,
+      };
+    }
     if (roundIsStroke(s.type, s.format)) {
       const own = scorecards.filter((c) => c.stageId === s.id);
       return {
@@ -1376,9 +1405,13 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     pct: bp.total > 0 ? Math.round((bp.certified / bp.total) * 100) : 0,
     unit: (boardStage && needsTeams(boardStage.format)
       ? "sides"
-      : boardStage && !boardIsStroke
+      : // A Nassau's stage type says stroke play and its results are matches,
+        // so the word has to come from the same reader the count does.
+        boardStage && boardKind(boardStage.format) === "nassau"
         ? "matches"
-        : "cards") as "cards" | "matches" | "sides" | "ties",
+        : boardStage && !boardIsStroke
+          ? "matches"
+          : "cards") as "cards" | "matches" | "sides" | "ties",
   };
 
   /**
