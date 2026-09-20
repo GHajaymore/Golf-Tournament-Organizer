@@ -343,3 +343,136 @@ describe("the round's progress, on a foursomes day of three sides", () => {
     expect(p.pct).toBe(33);
   });
 });
+
+/**
+ * AND THE ROUND WHOSE RESULTS ARE IN NEITHER TABLE.
+ *
+ * A bracket stage files no `Scorecard` rows and no `Match` rows: a knockout's
+ * results are `BracketWinner` rows keyed by slot. So the counter answered 0 of
+ * 0 for one however far through the draw a club was, and three screens printed
+ * it — "Matches complete 0/0 · 0% of round robin" on the dashboard, the same
+ * on `/reports`, and "Nothing returned for this round yet" on the sheet that
+ * gets printed and pinned up. Read off the seeded club's Summer Knockout on
+ * 2026-09-20, which had five ties decided and its final drawn.
+ *
+ * FOUR PLAYERS, so the draw is two ties and then a final — and one recorded
+ * winner, so "decided", "playable" and "in the draw" are three different
+ * numbers and no wrong answer can satisfy them all.
+ */
+const KNOCKOUT_TAG = "zz-board-progress-knockout";
+let knockoutEventId = "";
+const KNOCKOUT_NAMES = ["Ann", "Bea", "Cal", "Dev"];
+
+async function cleanupKnockout() {
+  await prisma.event.deleteMany({ where: { name: { startsWith: KNOCKOUT_TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: KNOCKOUT_TAG } } });
+}
+
+describe("the round's progress, on a knockout", () => {
+  beforeAll(async () => {
+    await cleanupKnockout();
+    const org = await prisma.organization.create({
+      data: { name: `${KNOCKOUT_TAG} club`, kind: "club" },
+      select: { id: true },
+    });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: org.id,
+        name: `${KNOCKOUT_TAG} matchplay`,
+        status: "live",
+        shape: "series",
+        format: "match",
+        formationRule: "balanced",
+        // Everybody qualifies, so the bracket is the whole field and this
+        // fixture does not depend on a feeder round's standings.
+        qualifyPerGroup: 4,
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        shareToken: randomBytes(12).toString("hex"),
+        registrationToken: randomBytes(8).toString("hex"),
+      },
+      select: { id: true },
+    });
+    knockoutEventId = event.id;
+
+    await prisma.stage.create({
+      data: {
+        eventId: knockoutEventId,
+        position: 0,
+        description: "Knockout",
+        type: "Bracket Stage",
+        format: "Match Play",
+        holes: 18,
+        scoringBasis: "gross",
+      },
+      select: { id: true },
+    });
+
+    const group = await prisma.group.create({
+      data: { eventId: knockoutEventId, name: `${KNOCKOUT_TAG} A`, position: 0 },
+      select: { id: true },
+    });
+    const ids: string[] = [];
+    for (const [i, name] of KNOCKOUT_NAMES.entries()) {
+      const p = await prisma.player.create({
+        data: {
+          eventId: knockoutEventId,
+          groupId: group.id,
+          name: `${KNOCKOUT_TAG} ${name}`,
+          email: `${KNOCKOUT_TAG}-${name}@example.invalid`.toLowerCase(),
+          handicap: i,
+          seed: i + 1,
+          status: "confirmed",
+        },
+        select: { id: true },
+      });
+      ids.push(p.id);
+    }
+
+    // One tie decided, by slot key — the only place a knockout's result is
+    // ever written.
+    await prisma.bracketWinner.create({
+      data: { eventId: knockoutEventId, key: "winners-0-0", winnerId: ids[0], result: "3&2" },
+    });
+  });
+
+  afterAll(cleanupKnockout);
+
+  const knockoutProgressOf = async () => {
+    const state = await loadEventState(knockoutEventId);
+    expect(state, "the knockout did not load").not.toBeNull();
+    return state!.boardProgress;
+  };
+
+  it("counts the ties that can be played, not the fixtures it has none of", async () => {
+    const p = await knockoutProgressOf();
+    // Two first-round ties; the final has nobody in it yet.
+    expect(p.total, "the draw's playable ties").toBe(2);
+  });
+
+  it("counts the tie somebody has won", async () => {
+    // Zero before this, for every knockout in the app.
+    const p = await knockoutProgressOf();
+    expect(p.certified).toBe(1);
+    expect(p.pct).toBe(50);
+  });
+
+  it("names what it is counting, so no screen re-derives it", async () => {
+    /**
+     * The whole point of moving this out of the dashboard: `/reports` and
+     * `snapshotStanding` read the unit, so they print "Ties decided" and
+     * "1 of 2 ties in" without either of them knowing what a bracket is.
+     */
+    const p = await knockoutProgressOf();
+    expect(p.unit).toBe("ties");
+  });
+
+  it("does not report a tie as disputed or half played", async () => {
+    // A tie has no holes here and no committee step: it is decided or it is
+    // not, and inventing the other two counts would put numbers on a screen
+    // no action in the app can ever change.
+    const p = await knockoutProgressOf();
+    expect(p.started).toBe(1);
+    expect(p.approved).toBe(1);
+    expect(p.disputed).toBe(0);
+  });
+});
