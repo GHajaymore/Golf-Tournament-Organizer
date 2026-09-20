@@ -853,6 +853,35 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const confirmed = players.filter((p) => p.status === "confirmed");
   const venuesById = new Map(venues.map((c) => [c.id, c]));
 
+  /**
+   * EVERY CARD THIS TOURNAMENT HAS, WHICHEVER TABLE IT IS IN — built once,
+   * because "which tables hold cards" is a fact about the schema and not about
+   * the question being asked of them.
+   *
+   * Two readers below ask a question of the shape "has anybody played": the
+   * round the tournament is ON when there are no dates to go by, and
+   * `resultsIn`, which is the evidence route into "Play" for a club that never
+   * pressed Launch. Both were handed `scorecards` alone, and a side playing one
+   * ball files a `TeamScorecard` — so a team day sat on Round 1, in Draft, with
+   * its whole field out on the course.
+   *
+   * SPELT ONCE ON PURPOSE. Fixing the two call sites left the same spread
+   * written twice, and a third reader added later would have spelt it
+   * `scorecards` and been wrong in exactly the way the first two were. This is
+   * the same sink shape as `standingRows` returning `[]` on its first line for
+   * a manual format: state the rule where the data is built and a caller
+   * written later cannot forget it.
+   *
+   * `actions/tournament.ts`'s `hasPlayingHistory` had this right long before
+   * any of the four readers did — it puts `TeamScorecard` and `TeamMember` in
+   * the same `Promise.all` as `Scorecard`. It is deliberately NOT shared with
+   * this: it guards a DELETE and also counts memberships and stakes, so it
+   * answers a wider question that happens to agree today, and collapsing two
+   * questions that currently agree is how one function ends up subtly wrong for
+   * both. The pointer is the part that was missing, not the abstraction.
+   */
+  const playedCards = [...scorecards, ...teamCards];
+
   // Every handicap below this line is a Course Handicap, not an Index.
   // Resolved once, here, because converting at each consuming site means one
   // missed site silently reinstates the original bug with no visible symptom.
@@ -997,18 +1026,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // morning of Round 1 it named Round 2, and every screen that reads this
   // number believed it.
   const datedIdx = currentDatedRoundIndex(playRounds);
-  /**
-   * A TEAM ROUND IS EVIDENCE OF PLAY TOO, and its cards are in a third table.
-   *
-   * Undated tournaments ask this question — "which round is being played" —
-   * off the cards, and a team round files none of the individual kind. So a
-   * club running an undated team day over several rounds sat on Round 1 for
-   * ever however many sides were round, which is the same defect this function
-   * was written to fix for stroke play: a confident, specific, wrong answer on
-   * the one morning it matters.
-   */
-  const playedIdx =
-    datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, [...scorecards, ...teamCards], matches);
+  const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, playedCards, matches);
   const activeStage =
     rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
   // The chain runs up to the round being played, not past it. Running it to
@@ -1826,8 +1844,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
      * has started" — the evidence route into Play for a club that never
      * pressed Launch. Counting only the individual table left a team day
      * sitting in Draft on every screen with the field out on the course.
+     *
+     * Through `playedCards`, which is where that rule is stated. See its note.
      */
-    cards: [...scorecards, ...teamCards],
+    cards: playedCards,
   });
   const liveQualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
