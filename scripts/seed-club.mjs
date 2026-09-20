@@ -1217,6 +1217,82 @@ export async function seed() {
       }
     }
 
+    /**
+     * AND A ROUND PLAYED SOMEWHERE ELSE, which nothing here has ever been.
+     *
+     * Measured on 2026-09-20: across all ten seeded events there was not one
+     * stage whose `courseId` differed from its own event's. The club owned two
+     * courses and still never played away — "Twilight Nine at Ardmore" is an
+     * Ardmore EVENT end to end, row and stage both, so event-level and
+     * per-round course resolution agreed everywhere.
+     *
+     * That agreement is exactly why the app could answer "which card does this
+     * round use" two different ways in place after place and look correct on
+     * every screen. Two whole classes of defect were found that week by
+     * reading source rather than by walking the club, because the club could
+     * not express the state that reveals them: a card read from the
+     * TOURNAMENT'S venue instead of the ROUND'S, and — on the two paths that
+     * convert net to gross and STORE it — a wrong stroke index baked into rows
+     * nothing recomputes.
+     *
+     * So the invitational finishes at Ardmore. Nine holes, a different par and
+     * a different stroke index from Braid Hollow, and a shared ball, so it is
+     * away AND a nine AND a team round in one state — the combination
+     * `teamStandings`, the handicap allocator and the scorers all have to get
+     * right together.
+     *
+     * `seeder-plays-every-format.test.ts` guards the format axis the same way;
+     * the venue guard beside it stops this being quietly lost the next time
+     * the seeder is reshaped.
+     */
+    await prisma.eventCourse.create({ data: { eventId: teamEvent.id, courseId: away.id } });
+    const awayNine = await prisma.stage.create({
+      data: {
+        eventId: teamEvent.id,
+        position: 2,
+        description: "Evening nine at Ardmore",
+        type: "Stroke Play Round",
+        format: "Foursomes",
+        holes: 9,
+        // THE POINT OF THE ROUND: a venue of its own, which no other seeded
+        // stage has.
+        courseId: away.id,
+        teeId: awayTee.id,
+        scoringBasis: "net",
+        handicapAllowance: 50,
+        playedOn: dayOffset(-3),
+      },
+    });
+    for (let i = 0; i < teamField.length; i += 2) {
+      const a = teamField[i];
+      const b = teamField[i + 1];
+      const side = await prisma.team.create({
+        data: {
+          eventId: teamEvent.id,
+          stageId: awayNine.id,
+          name: `${a.name.split(" ")[0]} & ${b.name.split(" ")[0]}`,
+          seed: i / 2 + 1,
+        },
+      });
+      await prisma.teamMember.createMany({
+        data: [
+          { teamId: side.id, playerId: a.id, position: 0 },
+          { teamId: side.id, playerId: b.id, position: 1 },
+        ],
+      });
+      // One ball between them, over NINE holes — so a card of nine, not a
+      // card of eighteen with half of it blank.
+      await prisma.teamScorecard.create({
+        data: {
+          eventId: teamEvent.id,
+          stageId: awayNine.id,
+          teamId: side.id,
+          playerId: "",
+          strokes: JSON.stringify(cardFor(PARS_9, teamRand, Math.min(a.handicap, b.handicap))),
+        },
+      });
+    }
+
     const dinner = await prisma.expense.create({
       data: {
         eventId: teamEvent.id,
