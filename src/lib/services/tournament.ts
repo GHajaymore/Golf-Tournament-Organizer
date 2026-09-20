@@ -3,7 +3,7 @@ import { roundTeeId, teeForPlay } from "./handicaps";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
-import { isManualFormat, stablefordTableFor } from "../formats";
+import { isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
@@ -131,6 +131,23 @@ function toDomainPlayer(p: DbPlayer, courseHandicap?: number): Player {
  * The same test `matchProgress` calls "complete", so "the round being played"
  * and "N/M matches complete" can never disagree about which round that is.
  */
+/**
+ * The holes on a card, as an array, with a bad row reading as an empty one.
+ *
+ * `hasAnyHole` answers "is there anything here", which is the only question
+ * this file asked until a team round needed "how much of it is there" — a
+ * side's card is RETURNED when every hole is accounted for, and that cannot be
+ * decided without looking at the holes themselves.
+ */
+function parseHoles(holesJson: string): (number | null)[] {
+  try {
+    const holes = JSON.parse(holesJson) as (number | null)[];
+    return Array.isArray(holes) ? holes : [];
+  } catch {
+    return [];
+  }
+}
+
 export function hasAnyHole(holesJson: string): boolean {
   try {
     const holes = JSON.parse(holesJson) as HoleResultArr;
@@ -460,7 +477,16 @@ export interface EventState {
     disputed: number;
     total: number;
     pct: number;
-    unit: "cards" | "matches";
+    /**
+     * "sides" is a third unit, not a synonym for cards.
+     *
+     * A four-ball of eight sides holds sixteen team cards, so "16 cards in"
+     * would be a true sentence about rows and a false one about the round.
+     * What a club counts on a team day is sides, and the word has to travel
+     * with the number or a screen re-derives it from the event's format —
+     * which is the mistake `boardProgress` exists to have made once.
+     */
+    unit: "cards" | "matches" | "sides";
   };
   /**
    * The first round the field has not started, in play order — or null once
@@ -737,7 +763,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees, roundHandicaps] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, teamCards, teamSides, venues, tees, roundHandicaps] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     /**
@@ -784,6 +810,29 @@ export async function loadEventState(eventId: string): Promise<EventState | null
      * stroke aggregation takes it from there.
      */
     prisma.matchScorecard.findMany({ where: { eventId } }),
+    /**
+     * THE CARDS A TEAM ROUND ACTUALLY FILES, which nothing in this file read.
+     *
+     * A side playing one ball files a `TeamScorecard` with a blank `playerId`;
+     * a four-ball files one per player against the same team. The individual
+     * `Scorecard` table stays EMPTY for the whole round — measured on the
+     * seeded club, 0 against 16, 8 and 8 team cards on three completed rounds
+     * — so a counter reading `scorecards` answers zero for a round that is
+     * over. See `roundProgress` for the three readers that were taking it.
+     */
+    prisma.teamScorecard.findMany({
+      where: { eventId },
+      select: { stageId: true, teamId: true, strokes: true },
+    }),
+    /**
+     * The sides themselves, because they are the denominator.
+     *
+     * Counting distinct teams among the CARDS would make every team round
+     * read "all in" from its first card — a side that has not started has no
+     * row to be counted. Stage-less teams belong to no round and are filtered
+     * where they are used.
+     */
+    prisma.team.findMany({ where: { eventId }, select: { id: true, stageId: true } }),
     // The tournament's venues, so a round played at another club is scored
     // against that club's card rather than the first round's.
     prisma.course.findMany({ where: { events: { some: { eventId } } } }),
@@ -1140,6 +1189,58 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * compiling while they are moved over one at a time.
    */
   const roundProgress = (s: DbStage) => {
+    /**
+     * A TEAM ROUND FILES ITS CARDS SOMEWHERE ELSE, and is counted in SIDES.
+     *
+     * Foursomes and Greensomes are "Stroke Play Round" and are not head to
+     * head, so this fell through to the branch below and counted `Scorecard`
+     * rows — of which a team round has NONE. Every team round therefore read
+     * `started: 0, certified: 0` however complete it was, with `total` counting
+     * the players in the field rather than the sides in the draw.
+     *
+     * Three readers took that zero, and each turned it into a different false
+     * sentence. `/reports` printed "Nothing returned for this round yet" over
+     * eight finished sides. `nextUnplayedRound` offers "the first round nobody
+     * has started" to the tee-sheet screen, so a played team round stayed the
+     * next one to draw for ever. And the bracket feeder loop divides `started`
+     * by `total`, so a knockout fed by a team round could never reach the
+     * progress that makes its draw read "Set".
+     *
+     * THE UNIT IS THE SIDE, not the card and not the player. A shared-ball
+     * side files one card with a blank `playerId`; a four-ball side files one
+     * per player. Counting rows would say 16 for the same eight sides, and
+     * counting the field would say 16 for a round only eight things can return.
+     *
+     * RETURNED means the side's holes are all accounted for, because
+     * `TeamScorecard` has no status column — there is no marker's signature on
+     * a side's card to read, so the honest reading of "returned" is "there is
+     * nothing left to write down". `approved` is 0 for the same reason: no
+     * committee step exists here, and inventing one would put a number on a
+     * screen that no action in the app can ever change. A hole counts as
+     * played when ANY of the side's cards has a score on it, which is right
+     * for both shapes: a four-ball hole needs one partner's score, not both.
+     */
+    if (needsTeams(s.format)) {
+      const own = teamCards.filter((c) => c.stageId === s.id);
+      const holes = holesPlayed(s.holes);
+      const sides = teamSides.filter((t) => t.stageId === s.id);
+      const played = (teamId: string): number => {
+        const cards = own.filter((c) => c.teamId === teamId).map((c) => parseHoles(c.strokes));
+        let count = 0;
+        for (let i = 0; i < holes; i += 1) {
+          if (cards.some((holesOnCard) => typeof holesOnCard[i] === "number")) count += 1;
+        }
+        return count;
+      };
+      const counts = sides.map((t) => played(t.id));
+      return {
+        started: counts.filter((n) => n > 0).length,
+        certified: counts.filter((n) => n >= holes).length,
+        approved: 0,
+        disputed: 0,
+        total: sides.length,
+      };
+    }
     if (roundIsStroke(s.type, s.format)) {
       const own = scorecards.filter((c) => c.stageId === s.id);
       return {
@@ -1221,7 +1322,11 @@ export async function loadEventState(eventId: string): Promise<EventState | null
      * where every player had written one hole down read 100%.
      */
     pct: bp.total > 0 ? Math.round((bp.certified / bp.total) * 100) : 0,
-    unit: (boardStage && !boardIsStroke ? "matches" : "cards") as "cards" | "matches",
+    unit: (boardStage && needsTeams(boardStage.format)
+      ? "sides"
+      : boardStage && !boardIsStroke
+        ? "matches"
+        : "cards") as "cards" | "matches" | "sides",
   };
 
   /**
