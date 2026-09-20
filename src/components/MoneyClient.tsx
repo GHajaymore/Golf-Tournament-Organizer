@@ -1,5 +1,10 @@
 "use client";
-import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/domain/expense-categories";
+import {
+  EXPENSE_CATEGORIES,
+  expenseCategoryLabel,
+  guessExpenseCategory,
+  totalsByCategory,
+} from "@/lib/domain/expense-categories";
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, updateExpense, removeExpense, recordSettlement, removeSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
@@ -62,6 +67,8 @@ export function MoneyClient({ view }: { view: MoneyView }) {
 
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>("other");
+  /** Whether somebody has set the category by hand, which stops the guessing. */
+  const [categoryTouched, setCategoryTouched] = useState(false);
   // Defaults to you, which is the common case and what it always did.
   const [paidBy, setPaidBy] = useState<string>(view.playerId);
   const [amount, setAmount] = useState("");
@@ -202,6 +209,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     setDescription("");
     setAmount("");
     setCategory("other");
+    setCategoryTouched(false);
     setPaidBy(view.playerId);
     setStageId("");
     setScope("everyone");
@@ -379,7 +387,17 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                  and the meals, which are the LARGER half of a golf trip, went
                  into somebody else's app and a second settle-up. */
               placeholder="Lodging, travel, fuel, carts, food, green fees…"
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                // The category follows what they typed until they set it
+                // themselves. Editing an existing line never re-guesses: that
+                // row was filed by somebody, and a form that overrules them
+                // while they fix a typo is worse than one that asks twice.
+                if (!categoryTouched && !editing) {
+                  const guess = guessExpenseCategory(e.target.value);
+                  if (guess) setCategory(guess);
+                }
+              }}
               style={{ minHeight: 46 }}
             />
           </div>
@@ -412,12 +430,27 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="exp-category">Category</label>
+            {/* FILLED IN FROM WHAT THEY TYPED (2026-09-19). This asked the
+                same question as "What was it for?" one field above — a line
+                read "Buggies · Cart fees" — and nothing on the screen used the
+                answer. `guessExpenseCategory` reads the description; the label
+                says so, and it stays editable because a guess that cannot be
+                corrected is worse than no guess. */}
+            <label htmlFor="exp-category">
+              Category{" "}
+              <span className="text-muted" style={{ fontWeight: 400 }}>
+                · filled in from what you typed
+              </span>
+            </label>
             <select
               id="exp-category"
               className="input"
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                // Typed over, so stop guessing for this line.
+                setCategoryTouched(true);
+                setCategory(e.target.value);
+              }}
               style={{ minHeight: 46 }}
             >
               {EXPENSE_CATEGORIES.map((c) => (
@@ -1027,6 +1060,38 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         <span className="card-title" style={{ fontSize: 15 }}>
           Expenses ({view.expenses.length})
         </span>
+        {/* WHAT IT WENT ON — the reason the category column exists, and until
+            2026-09-19 the reason nobody could see. `totalsByCategory` was
+            written for "what did the lodging come to", tested, and rendered
+            NOWHERE: the picker asked a question the app then threw away. A
+            society deciding whether to go again asks this first.
+
+            Only from two categories up: one line under a list of three says
+            nothing the list does not. */}
+        {(() => {
+          const totals = totalsByCategory(
+            view.expenses.map((e) => ({ category: e.category ?? "", amountCents: e.amountCents })),
+          );
+          if (totals.length < 2) return null;
+          return (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "4px 14px",
+                margin: "8px 0 2px",
+                fontSize: 12.5,
+                color: "var(--color-text-muted)",
+              }}
+            >
+              {totals.map((t) => (
+                <span key={t.category}>
+                  {t.label} <b style={{ color: "var(--color-text)", fontWeight: 600 }}>{money(t.cents)}</b>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
         {view.expenses.length === 0 && (
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
             Nothing yet. Add what you paid for and it splits between whoever was there — carts with your
@@ -1067,7 +1132,16 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                       domain/expense-split-label.ts, where it can be asserted
                       without seeding a ledger. */}
                   {` · ${splitLabel(e.amountCents, e.shares, money)}`}
-                  {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
+                  {/* NOT WHEN IT ONLY REPEATS THE DESCRIPTION. "Buggies ·
+                      Cart fees" is the same fact twice on the tightest line
+                      of this screen, and the category is now usually guessed
+                      FROM that description, so the repeat became the common
+                      case rather than a rare one. The totals above still
+                      carry it. */}
+                  {e.category &&
+                    e.category !== "other" &&
+                    guessExpenseCategory(e.description) !== e.category &&
+                    ` · ${expenseCategoryLabel(e.category)}`}
                   {e.spentOn && ` · ${e.spentOn}`}
                 </span>
                 {/* WHO IS ON THIS LINE, WITHOUT OPENING IT.
