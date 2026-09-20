@@ -13,6 +13,15 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
 import { teamStandings } from "@/lib/services/teams";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import {
+  SkinsStandingsTable,
+  NassauMatches,
+  ModifiedStablefordTable,
+  SKINS_NOTE,
+  NASSAU_NOTE,
+  MOD_STABLEFORD_NOTE,
+} from "@/components/PointsLeaderboard";
+import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { weekBasis } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
 
@@ -82,6 +91,43 @@ export default async function PlayBoardPage() {
     // another venue or over the back nine is priced off its own card rather
     // than off the tournament's.
     const roundCard = stage ? state.strokeCourseFor(stage.id) : null;
+    /**
+     * AND THE THREE THAT ARE NOT TEAM ROUNDS AND NOT SCORED BY HAND.
+     *
+     * Skins, Nassau and Modified Stableford each have a board the organizer
+     * can see, and this screen told the player "Ask your organizer for the
+     * current standings" — the same dead end the team branch above had until
+     * 2026-09-20, for the same reason: the refusal was written when there was
+     * nothing to show, and stayed after there was.
+     */
+    const points =
+      stage && roundCard
+        ? kind === "skins"
+          ? {
+              kind,
+              net: stage.scoringBasis !== "gross",
+              board: await skinsBoard(
+                state.event.id,
+                stage.id,
+                holes,
+                stage.scoringBasis !== "gross",
+                roundCard.holeDifficulty,
+              ),
+            }
+          : kind === "nassau"
+            ? { kind, rows: await nassauBoard(state.event.id, stage.id) }
+            : kind === "modified-stableford"
+              ? {
+                  kind,
+                  rows: await modifiedStablefordBoard(
+                    state.event.id,
+                    stage.id,
+                    roundCard.pars,
+                    roundCard.holeDifficulty,
+                  ),
+                }
+              : null
+        : null;
     const sides =
       kind === "team" && stage && roundCard
         ? await teamStandings(
@@ -108,8 +154,25 @@ export default async function PlayBoardPage() {
                   sides?.length ?? 0,
                   weekBasis(stage?.scoringBasis),
                 )}`
-              : "This round is scored a different way. Ask your organizer for the current standings."}
+              : points?.kind === "skins"
+                ? SKINS_NOTE(points.net)
+                : points?.kind === "nassau"
+                  ? NASSAU_NOTE
+                  : points?.kind === "modified-stableford"
+                    ? MOD_STABLEFORD_NOTE
+                    : "This round is scored a different way. Ask your organizer for the current standings."}
         </p>
+        {points && (
+          <div style={{ marginTop: 14 }}>
+            {points.kind === "skins" ? (
+              <SkinsStandingsTable board={points.board} />
+            ) : points.kind === "nassau" ? (
+              <NassauMatches rows={points.rows} />
+            ) : (
+              <ModifiedStablefordTable rows={points.rows} />
+            )}
+          </div>
+        )}
         {sides && (
           <div style={{ marginTop: 14 }}>
             <TeamStandingsTable basis={weekBasis(stage?.scoringBasis)} rows={sides} />
