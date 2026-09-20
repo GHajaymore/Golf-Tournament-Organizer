@@ -13,8 +13,6 @@ import { weekBasis } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { teamStandings } from "@/lib/services/teams";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage } from "@/lib/services/course-resolution";
 import { toParText } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
@@ -62,9 +60,10 @@ export default async function ReportsPage() {
   const activeStage = state.boardStage;
   const kind = boardKind(activeStage?.format);
   const holes = holesPlayed(activeStage?.holes);
-  // The nine actually played, re-ranked — Reports has to agree with the
-  // leaderboard about which holes a stroke lands on.
-  const course = cardForStage(resolveCourse(event), activeStage);
+  // The card THIS ROUND is played on, narrowed to the nine actually played and
+  // re-ranked — Reports has to agree with the leaderboard about which holes a
+  // stroke lands on, and with the player's own card about what par is.
+  const course = state.strokeCourseFor(activeStage?.id ?? "");
 
   /**
    * WHETHER THIS SHEET MAY CALL ITSELF FINAL.
@@ -96,7 +95,7 @@ export default async function ReportsPage() {
       activeStage.id,
       activeStage.format,
       course.pars,
-      course.strokeIndex,
+      course.holeDifficulty,
       activeStage.scoringBasis,
       activeStage.handicapAllowance,
       activeStage.allowanceWeights,
@@ -135,7 +134,7 @@ export default async function ReportsPage() {
     ];
   } else if (kind === "skins" && activeStage) {
     const net = activeStage.scoringBasis !== "gross";
-    const skins = await skinsBoard(session.eventId, activeStage.id, holes, net, course.strokeIndex);
+    const skins = await skinsBoard(session.eventId, activeStage.id, holes, net, course.holeDifficulty);
     snapshotTitle = `Skins — ${net ? "net" : "gross"}`;
     board = <SkinsLeaderboard board={skins} net={net} />;
     extraCsv = [
@@ -190,7 +189,7 @@ export default async function ReportsPage() {
       session.eventId,
       activeStage.id,
       course.pars,
-      course.strokeIndex,
+      course.holeDifficulty,
     );
     snapshotTitle = "Modified Stableford standings";
     board = <ModifiedStablefordLeaderboard rows={mod} />;

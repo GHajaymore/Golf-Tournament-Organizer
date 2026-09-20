@@ -1989,8 +1989,63 @@ describe("a round's card is narrowed in exactly one place", () => {
   it("routes them through cardForStage instead", () => {
     for (const rel of CARD_RESOLVERS) {
       const body = readSource(rel);
-      expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
+      // `strokeCourseFor` is the second sanctioned reader: it is the same
+      // narrowing, already resolved per ROUND and cached on `EventState`, and
+      // three of these moved onto it when the sweep below was written.
+      expect(body, `${rel} should resolve its card through cardForStage or strokeCourseFor`).toMatch(
+        /cardForStage\(|strokeCourseFor\(/,
+      );
     }
+  });
+
+  /**
+   * AND IT MUST BE THE ROUND'S COURSE, NOT THE TOURNAMENT'S.
+   *
+   * `cardForStage` takes a stage and a course, and takes the NINE and the HOLE
+   * COUNT off the stage — which is what its docstring is about, and it is only
+   * half the question. The COURSE is the caller's to supply, and five of them
+   * supplied the event's: the two console boards, the public board, and the
+   * league week sheet, plus the skins and Modified Stableford boards riding on
+   * the same local.
+   *
+   * `Stage.courseId` is how a round says it is played somewhere else, and every
+   * WRITE path already walks round → event through `courseForRound`. So the
+   * scores stored were honest and only the boards were wrong, which is the
+   * quietest possible shape: read off the seeded club, one screen said the
+   * round was −1 and two said −5, the same eight sides in the same order.
+   *
+   * The two page screens cannot be reached from a test — they are server
+   * components — so this is the instrument that covers them. The VALUE is
+   * pinned in `board-scores-the-round-venue.audit.test.ts`, against the played
+   * course's par rather than against another screen.
+   *
+   * An absence assertion, and the safe direction: `readSource` strips comments,
+   * so the paragraph you are reading cannot satisfy it, and a comment that
+   * mentioned the shape would fail loudly rather than quietly granting cover.
+   */
+  const EVENT_CARD = /cardForStage\(\s*resolveCourse\(/;
+
+  it("nobody builds a round's card straight from the tournament's own course", () => {
+    const offending = sourceFiles(SRC)
+      .filter((f) => EVENT_CARD.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+    expect(
+      offending,
+      `these score a round against the TOURNAMENT's course — walk the round's own ` +
+        `courseId first (courseForRound, or state.strokeCourseFor):\n  ${offending.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("and the sweep can still see that shape when it is there", () => {
+    // The control. A sweep that finds nothing may be broken, and this one now
+    // reports nothing for ever if it is — so give it the string it exists to
+    // catch, built rather than written, so the file cannot trip its own guard.
+    const shape = `const c = cardForStage(${"resolveCourse"}(event), stage);`;
+    expect(EVENT_CARD.test(shape)).toBe(true);
+    // And it must not fire on the correct chain, or the guard is unusable.
+    expect(EVENT_CARD.test("cardForStage(courseForRound(venue, event) ?? resolveCourse(event), stage)")).toBe(
+      false,
+    );
   });
 
   /**

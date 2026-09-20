@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
-import { COURSE_REF, cardForStage } from "./course-resolution";
+import { COURSE_REF } from "./course-resolution";
 import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -10,7 +10,6 @@ import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
 import { weekBasis, type WeekBasis } from "../domain/week-basis";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-standings";
-import { resolveCourse } from "../courses";
 import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
 import { holesPlayed } from "../domain/handicap";
@@ -202,9 +201,21 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const kind = boardKind(activeStage?.format);
   const teamRound = kind === "team" && !!activeStage;
   const holeCount = holesPlayed(activeStage?.holes);
-  // Narrowed to the nine actually played and re-ranked, so the public board
-  // allocates the same strokes the console does.
-  const liveCourse = cardForStage(resolveCourse(event), activeStage);
+  /**
+   * THE CARD THIS ROUND IS PLAYED ON — the round's own course, then the
+   * event's, narrowed to the nine actually played and re-ranked.
+   *
+   * It resolved the EVENT's course and narrowed that, which is the venue line
+   * above answered a second time and answered differently: the board named
+   * Ardmore in its heading and scored Ardmore's nine against Braid Hollow's
+   * front nine. Par 32 against par 36, so every side on the public board read
+   * four better than it was, in the right order — see CLAUDE.md on an error
+   * that shifts every row by the same amount.
+   *
+   * `strokeCourseFor` is the resolver the individual stroke board on this same
+   * screen has always used, which is why the two halves of one board disagreed.
+   */
+  const liveCourse = state.strokeCourseFor(activeStage?.id ?? "");
 
   const teamRows = teamRound
     ? await teamStandings(
@@ -212,7 +223,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
         activeStage!.id,
         activeStage!.format,
         liveCourse.pars,
-        liveCourse.strokeIndex,
+        liveCourse.holeDifficulty,
         activeStage!.scoringBasis,
         activeStage!.handicapAllowance,
         activeStage!.allowanceWeights,
@@ -223,7 +234,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const skinsNet = activeStage ? activeStage.scoringBasis !== "gross" : true;
   const skins =
     kind === "skins" && activeStage
-      ? await skinsBoard(eventId, activeStage.id, holeCount, skinsNet, liveCourse.strokeIndex)
+      ? await skinsBoard(eventId, activeStage.id, holeCount, skinsNet, liveCourse.holeDifficulty)
       : null;
   const nassau = kind === "nassau" && activeStage ? await nassauBoard(eventId, activeStage.id) : null;
   const modStableford =
@@ -232,7 +243,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
           eventId,
           activeStage.id,
           liveCourse.pars,
-          liveCourse.strokeIndex,
+          liveCourse.holeDifficulty,
         )
       : null;
 

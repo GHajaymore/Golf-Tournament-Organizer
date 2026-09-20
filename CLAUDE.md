@@ -1272,6 +1272,29 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    that can still fail is one asserting to-par against the played course's
    actual par, because every screen will now agree on whatever it says.
 
+   **THAT NUMBER IS FIXED, AND THE CAUSE WAS ONE ARGUMENT.** `cardForStage`
+   takes which NINE and how many HOLES off the stage — which is what its own
+   docstring is about — and leaves the COURSE to the caller. Five callers
+   handed it the tournament's: both console boards, the public board and the
+   league week sheet, carrying the skins and Modified Stableford boards with
+   them, because those read the same local's stroke index. Every WRITE path
+   already walked round then event through `courseForRound`, so the stored
+   strokes were honest and only the reports were wrong.
+
+   Three of the five had the right answer in scope the whole time.
+   `state.strokeCourseFor(stageId)` is resolved per round and cached on
+   `EventState`, and it is what the individual stroke board on those same
+   screens reads — so one board disagreed with the other half of itself. The
+   guard is `nobody builds a round's card straight from the tournament's own
+   course` in `audit-guards.test.ts`, with a control; the VALUE is pinned in
+   `board-scores-the-round-venue.audit.test.ts` against the played course's
+   par, exactly as the paragraph above asks.
+
+   `regroup.ts` stays event-level on purpose and is the one exemption: it
+   resolves a single stroke index for a CHAIN of qualifying rounds, which has
+   no one card to be resolved per round. `week-view.ts` documents the same
+   exemption for its match tiebreaks.
+
 8. **ASK WHICH TABLE THIS ROUND FILES ITS RESULT IN, BEFORE BELIEVING ANY
    COUNT.** There are FOUR, and on 2026-09-20 six separate readers were asking
    a true question of one that is empty for the round in front of them:
@@ -1300,9 +1323,13 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    submitted" with every card in.
 
    Two things follow. Fix it where the data is built — `boardProgress` carries
-   the unit now (`cards | matches | sides | ties`) so a screen cannot re-derive
-   it from the event's format, which is how one absence came to have four
-   readers. And when a screen shows nothing, check the table before the code:
+   the unit now, and there are FIVE of those rather than four:
+   `cards | matches | sides | ties | manual`, the last being a round scored by
+   hand, which files cards and has no board for them to count towards. So a
+   screen cannot re-derive it from the event's format, which is how one
+   absence came to have four readers.
+
+   And when a screen shows nothing, check the table before the code:
    `grep` for every read of `prisma.scorecard` that decides EXISTENCE or
    PROGRESS rather than score found all four readers in twenty minutes, where
    walking screens had found one in an evening.

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { COURSE_REF, cardForStage } from "./course-resolution";
+import { COURSE_REF, cardForStage, courseForRound } from "./course-resolution";
 import { resolveCourse } from "../courses";
 import { aggregateTeamCard, teamMatchHoles, type TeamMemberCard } from "../domain/team";
 import { effectiveCountBest } from "./teams";
@@ -128,7 +128,24 @@ export async function leagueMeetings(
   ]);
   if (!event || !stage || sides.length === 0) return [];
 
-  const card = cardForStage(resolveCourse(event), stage);
+  /**
+   * THE CARD THIS WEEK IS PLAYED ON — the week's own course, then the club's.
+   *
+   * `COURSE_REF` above fixed half of this and its comment describes the other
+   * half exactly: "a league is the thing that rotates venues". It makes
+   * `resolveCourse` see the EVENT's linked course row; a league playing week
+   * three at another club names that course on the WEEK, and `resolveCourse`
+   * has never had a way to hear about it. So the round was still scored against
+   * the home card — the very defect the block above says it closed.
+   *
+   * Scoped to courses attached to this event, the same guard every other
+   * scoring path applies: a `courseId` is an id, and an id from somewhere else
+   * must not resolve.
+   */
+  const weekVenue = stage.courseId
+    ? await prisma.course.findFirst({ where: { id: stage.courseId, events: { some: { eventId } } } })
+    : null;
+  const card = cardForStage(courseForRound(weekVenue, event) ?? resolveCourse(event), stage);
   const countBest = effectiveCountBest(stage.format, stage.countBest);
 
   const cards = await prisma.teamScorecard.findMany({ where: { eventId, stageId } });
