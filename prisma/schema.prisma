@@ -862,6 +862,15 @@ model Event {
   startOn           String  @default("")
   endOn             String  @default("")
   /**
+   * What this one is CALLED — outing, charity day, league, medal, roll-up.
+   * See `domain/play-kind.ts`; "tournament" is the default and the fallback.
+   *
+   * COPY ONLY. Every one of them is this same model with rounds in it, and no
+   * rule may branch on this: the moment a "charity day" scores differently
+   * from a "medal", a club that picked the wrong word gets the wrong golf.
+   */
+  playKind          String  @default("tournament")
+  /**
    * The dates as a screen shows them — derived from `startOn`/`endOn` in the
    * club's own date order, never typed. Kept as a column rather than formatted
    * at each of its fourteen readers, because the formatting depends on the

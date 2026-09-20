@@ -17,6 +17,7 @@ function row(i: number): ClubEventRow {
     name: `zz-filters Medal ${i}`,
     dates: "",
     startOn: "2026-05-14",
+    playKind: "tournament",
     datesTentative: false,
     venue: "zz-filters Course",
     seriesName: "",

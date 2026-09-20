@@ -5715,7 +5715,7 @@ describe("tournament details", () => {
         courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
         {...props}
         initial={{
-          name: "zz-Club Championship", startOn: "", endOn: "", dates: "", datesTentative: false,
+          name: "zz-Club Championship", playKind: "tournament", startOn: "", endOn: "", dates: "", datesTentative: false,
           format: "match", course: "Bushwood",
           courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", regOpens: "", capacity: 32,
           playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",

@@ -82,6 +82,7 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
@@ -917,6 +918,11 @@ export async function setInviteMessage(message: string) {
 
 export async function saveEvent(data: {
   name: string;
+  /**
+   * What this one is called — outing, charity day, league. Copy only, and
+   * optional so an older caller leaves the club's answer alone.
+   */
+  playKind?: string;
   dates: string;
   /**
    * Whether those dates are still a proposal. Optional so an older caller —
@@ -986,6 +992,9 @@ export async function saveEvent(data: {
     where: { id: eventId },
     data: {
       name: data.name,
+      // Only a word this app offers, because a `"use server"` export is a
+      // public endpoint and this one prints into a member's sentence.
+      ...(data.playKind && isPlayKind(data.playKind) ? { playKind: data.playKind } : {}),
       dates: data.dates,
       ...(data.datesTentative === undefined ? {} : { datesTentative: data.datesTentative }),
       format: data.format === "stroke" ? "stroke" : "match",

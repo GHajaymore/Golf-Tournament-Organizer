@@ -42,6 +42,8 @@ export interface ClubEventRow {
   name: string;
   /** When it is played, as a sentence derived from the dates below. May be empty. */
   dates: string;
+  /** What the club calls this one — outing, charity day. See domain/play-kind.ts. */
+  playKind: string;
   /** The first day played, `yyyy-mm-dd`, or "" — what seasons are worked out from. */
   startOn: string;
   /** Whether the club has fixed those dates — see `datesTentative` on Event. */
@@ -244,6 +246,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       // sentence above is what a member READS; this is what the app sorts on,
       // and the two cannot disagree because the sentence is derived from it.
       startOn: event.startOn,
+      playKind: event.playKind,
       // Said on the card, because a member plans around this one line. See
       // `datesTentative` on the schema.
       datesTentative: event.datesTentative,

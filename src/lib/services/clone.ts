@@ -11,6 +11,11 @@
 /** Configuration worth carrying from one year's tournament to the next. */
 export const CLONED_EVENT_FIELDS = [
   "organizationId",
+  // Carried: a copy of last year's charity day is another charity day, and of
+  // the club championship another championship. It is the word members read,
+  // and re-answering it on every copy would be asking a question the copy has
+  // already answered by existing.
+  "playKind",
   "format",
   "course",
   // Carried with the name beside it. A tournament cloned from last year is

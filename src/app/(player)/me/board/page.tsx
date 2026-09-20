@@ -10,6 +10,9 @@ import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { resultLinesFor } from "@/lib/services/tournament-result";
+import { resultSummary } from "@/lib/domain/tournament-result";
+import { resultHeading } from "@/lib/domain/play-kind";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -79,6 +82,8 @@ export default async function PlayBoardPage() {
   }
 
   const rows = standingRows(state);
+  // The day's own result, round by round — see services/tournament-result.ts.
+  const lines = await resultLinesFor(state);
 
   // Which row is theirs, by the registration email — the same linkage every
   // score guard uses, rather than matching on a name two people can share.
@@ -121,6 +126,36 @@ export default async function PlayBoardPage() {
           <Icon name="book-open" /> Rules
         </Link>
       </div>
+
+      {/* WHAT HAPPENED, ROUND BY ROUND (2026-09-19). A day with more than one
+          round is more than one result — a team nine, a pairs match and a
+          medal — and until now a member had to visit each board and remember.
+          Headed with whatever the club called this one: "Outing result",
+          "League result". Only where there is more than one round, because on
+          a single-round medal the board below IS the result. */}
+      {lines.length > 1 && (
+        <section className="card elev-sm" style={{ marginBottom: 14 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>
+            {resultHeading(state.event.playKind)}
+          </span>
+          <span className="text-muted" style={{ fontSize: 12.5 }}>{resultSummary(lines)}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            {lines.map((l) => (
+              <div key={l.label} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                <span
+                  className="text-muted"
+                  style={{ fontSize: 12, minWidth: 92, flex: "none" }}
+                >
+                  {l.label}
+                </span>
+                <span style={{ fontSize: 13.5, lineHeight: 1.5, color: l.settled ? "var(--color-text)" : "var(--color-text-muted)" }}>
+                  {l.result}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <PlayerLeaderboard
         isStroke={state.boardIsStroke}

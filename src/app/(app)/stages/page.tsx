@@ -18,6 +18,8 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
+import { CardTrustNote } from "@/components/CardTrustNote";
+import { cardTrustNote } from "@/lib/domain/card-trust";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -210,7 +212,10 @@ export default async function StagesPage() {
   // per-round course picker.
   const venues = await prisma.course.findMany({
     where: { events: { some: { eventId: session.eventId } } },
-    select: { id: true, name: true },
+    // Provenance with the name: this is the screen that decides which card a
+    // round is scored against, so it is the screen that should say whether
+    // anybody has ever checked that card. See domain/card-trust.ts.
+    select: { id: true, name: true, source: true, verifiedAt: true, verifiedBy: true },
     orderBy: { name: "asc" },
   });
 
@@ -292,6 +297,19 @@ export default async function StagesPage() {
       {seasonUndated > 0 && playingCount >= 2 && (
         <SeasonDates undated={seasonUndated} suggestedStart={todayIso()} />
       )}
+      {/* A CARD NOBODY HAS CHECKED, NAMED WHERE IT IS CHOSEN (2026-09-19).
+          These rounds are scored against these cards, and a wrong stroke
+          index is invisible — it puts handicap shots on the wrong holes for
+          the life of the course. One line per course that needs a look, with
+          the way to do it; nothing is refused. */}
+      {venues
+        .filter((v) => cardTrustNote(v)?.warn)
+        .map((v) => (
+          <div key={v.id} className="card elev-sm" style={{ marginBottom: 10 }}>
+            <span className="card-title" style={{ fontSize: 14 }}>{v.name}</span>
+            <CardTrustNote card={v} fix={`/event?course=${v.id}`} />
+          </div>
+        ))}
       <StagesClient
         stages={stages}
         singleMatches={singleMatches}
