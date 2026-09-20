@@ -5,12 +5,14 @@ import { parseStrokeCards, playingStages } from "./tournament";
 import { tournamentResult, type OutingLine, type RoundOutcome } from "../domain/tournament-result";
 import { roundLabel } from "../domain/round-label";
 import { isManualFormat, needsTeams } from "../formats";
+import { roundUnit } from "../domain/round-unit";
 import { isHeadToHead } from "../stage-types";
 import { resolveMatch } from "../domain/match";
 import { aggregateStroke } from "../domain/stroke-agg";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { holesPlayed } from "../domain/handicap";
 import { cardForStage, courseForRound } from "./course-resolution";
+import { teamStandings } from "./teams";
 import { resolveCourse } from "../courses";
 
 /**
@@ -27,14 +29,6 @@ import { resolveCourse } from "../courses";
  * two of them it cannot say who won either. This aggregates each round's own
  * cards against that round's own course card and hole count.
  */
-
-/** How a round is ranked, in the round's own words. */
-function unitFor(stage: { scoringBasis?: string | null }): string {
-  const basis = (stage.scoringBasis ?? "net").toLowerCase();
-  if (basis === "stableford") return "pts";
-  if (basis === "gross") return "gross";
-  return "net";
-}
 
 export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
   const stages = playingStages(state.stages);
@@ -72,6 +66,37 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
   );
   const courseFor = (stageId: string) =>
     cardByStage.get(stageId) ?? { pars: [], holeDifficulty: [] };
+  /**
+   * A TEAM ROUND'S CARDS ARE NOT IN `Scorecard`.
+   *
+   * A side files `TeamScorecard` — one row per side for a shared ball, one per
+   * player for a four-ball — so reading the individual table for a team round
+   * finds nothing and reports a finished foursomes as "Not settled yet". Seen
+   * on the seeded club's four-ball: two rounds played, both reported as
+   * outstanding, which is worse than saying nothing at all.
+   *
+   * `teamStandings` is the reader the organizer's own team board uses, so the
+   * side named here is the side named there.
+   */
+  const teamRows = new Map<string, Awaited<ReturnType<typeof teamStandings>>>();
+  for (const stage of stages.filter((s) => needsTeams(s.format))) {
+    const card = cardByStage.get(stage.id) ?? { pars: [], holeDifficulty: [] };
+    teamRows.set(
+      stage.id,
+      await teamStandings(
+        state.event.id,
+        stage.id,
+        stage.format,
+        card.pars,
+        card.holeDifficulty,
+        stage.scoringBasis ?? "net",
+        stage.handicapAllowance,
+        stage.allowanceWeights,
+        stage.countBest,
+      ),
+    );
+  }
+
   const outcomes: RoundOutcome[] = stages.map((stage) => {
     const label = roundLabel(state.stages, stage.id) || stage.description || stage.type;
 
@@ -131,6 +156,28 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
     }
 
     /**
+     * A ROUND PLAYED BY SIDES, reported as the side that won it — from the
+     * same reader the organizer's team board uses.
+     */
+    if (needsTeams(stage.format)) {
+      const unit = roundUnit(stage);
+      const played = (teamRows.get(stage.id) ?? []).filter((t) => t.played > 0);
+      if (played.length === 0) return { kind: "pending", label };
+      const value = (t: (typeof played)[number]) =>
+        unit.higherWins ? t.points : unit.label === "gross" ? t.gross : t.net;
+      const best = unit.higherWins
+        ? Math.max(...played.map(value))
+        : Math.min(...played.map(value));
+      return {
+        kind: "team",
+        label,
+        winners: played
+          .filter((t) => value(t) === best)
+          .map((t) => ({ name: t.name, score: `${best} ${unit.label}` })),
+      };
+    }
+
+    /**
      * A ROUND SCORED BY CARDS, aggregated over ITS OWN course and hole count.
      * A two-course day scored round two against round one's par and stroke
      * index for a year — see `courseForRound`, which exists for exactly that.
@@ -149,8 +196,8 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
       allocationHoles,
     });
 
+    const unit = roundUnit(stage);
     const basis = (stage.scoringBasis ?? "net").toLowerCase();
-    const stableford = basis === "stableford";
     const scored = [...agg.entries()]
       // Only a complete card can win a round: ranking a fourteen-hole card
       // against an eighteen-hole one presents two numbers as comparable when
@@ -158,11 +205,17 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
       .filter(([, row]) => row.thru >= holes)
       .map(([playerId, row]) => ({
         playerId,
-        value: stableford ? row.points : basis === "gross" ? row.gross : row.gross - handicapOf(state, playerId, stage.id),
+        value: unit.higherWins
+          ? row.points
+          : basis === "gross"
+            ? row.gross
+            : row.gross - handicapOf(state, playerId, stage.id),
       }));
     if (scored.length === 0) return { kind: "pending", label };
 
-    const best = stableford
+    // Points: most wins. Strokes: fewest. The unit decides, so a Stableford
+    // round filed as "net" cannot be won by the lowest score.
+    const best = unit.higherWins
       ? Math.max(...scored.map((s) => s.value))
       : Math.min(...scored.map((s) => s.value));
     const winners = scored
@@ -174,7 +227,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
     // screen ranking a team round as an individual one.
     return needsTeams(stage.format)
       ? { kind: "team", label, winners }
-      : { kind: "stroke", label, winners, unit: unitFor(stage) };
+      : { kind: "stroke", label, winners, unit: unit.label };
   });
 
   return tournamentResult(outcomes);
