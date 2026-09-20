@@ -3,7 +3,7 @@ import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/hand
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { needsTeams } from "@/lib/formats";
-import { generatesPairings } from "@/lib/stage-types";
+import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -85,7 +85,24 @@ export default async function PlayCardPage() {
   // collect strokes the tournament never reads.
   const stage = state.stages.find((s) => s.id === me.round!.stageId) ?? null;
   const teamRound = !!stage && needsTeams(stage.format);
-  const matchRound = !!stage && generatesPairings(stage.type);
+  /**
+   * IS THIS ROUND SCORED AGAINST AN OPPONENT? — asked of the round, not of
+   * whether the app DREW it (2026-09-19).
+   *
+   * This read `generatesPairings`, which is true for exactly one type: Round
+   * Robin. A Bracket Stage and a Single Match Stage are head-to-head and draw
+   * no pairings — the organizer sets those matches — so a player in a knockout
+   * was handed an individual stroke card and a scoring pad for a round that is
+   * recorded against an opponent. Found on the seeded club's knockout, and
+   * predicted by `the-society-outing.test.ts`: "a screen using the second to
+   * decide whether a round is match play would score this nine as a medal".
+   *
+   * `roundIsStroke` is the one rule for this and gets BOTH directions right:
+   * a head-to-head type scored by a card (the Stableford charity day that
+   * `round-shape.ts` documents) is still the player's own card, and a
+   * head-to-head type scored as a match is not.
+   */
+  const matchRound = !!stage && !roundIsStroke(stage.type, stage.format);
 
   if (teamRound || matchRound) {
     return (
