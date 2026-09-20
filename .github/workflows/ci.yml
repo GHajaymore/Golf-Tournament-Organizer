@@ -227,6 +227,15 @@ jobs:
             node scripts/verify-lifecycle.mjs
             STATUS=$?
           fi
+          # And the same sweep pointed at the PLAYER. Everything above walks the
+          # console; the player app had only ever been walked in ONE state —
+          # confirmed, in a tournament with a round under way. Two of the other
+          # three were wrong: somebody on the waiting list and somebody entered
+          # in a tournament with no round were both told "You aren't entered".
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-player-states.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
 

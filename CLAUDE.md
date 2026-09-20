@@ -85,7 +85,7 @@ same lesson as the sweeps section: **a check whose failure looks like its
 success is not a check.**
 
 **`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
-server once and then runs FIVE scripts against it, of which `npm run smoke` is the first:
+server once and then runs SIX scripts against it, of which `npm run smoke` is the first:
 
 ```
 node scripts/smoke-routes.mjs        # what `npm run smoke` runs, and all it runs
@@ -93,10 +93,11 @@ node scripts/verify-round-controls.mjs
 node scripts/verify-drafting.mjs
 node scripts/verify-week-view.mjs
 node scripts/verify-lifecycle.mjs
+node scripts/verify-player-states.mjs
 ```
 
 **`npm run smoke:all` is that whole step, locally, against a BUILT server** — and it is the one
-to reach for. It builds into `.next-ci`, starts it on 3102, runs all five in order, stops at the
+to reach for. It builds into `.next-ci`, starts it on 3102, runs all six in order, stops at the
 first failure and kills the server afterwards. `-- --no-build` reuses the last build. It refuses
 to run when something is already listening on that port rather than testing somebody else's
 build, which is the trap `reuseExistingServer` sets for Playwright one section down.
@@ -113,7 +114,7 @@ partway through — and Next says why in its own log, seven times in one evening
 the app in one process; on a 16GB machine also running a build and a test suite it reaches the
 threshold and respawns itself. Every request in flight then returns nothing, which the scripts
 print as `→ 0` / `fetch failed` — the "no server" signature described below, which reads exactly
-like a broken route. The same five scripts, unchanged, passed first time against the built
+like a broken route. The same six scripts, unchanged, passed first time against the built
 server. A production server compiles nothing and stays flat.
 
 Two more ways to lose an hour here, both worth knowing before blaming a route:
@@ -124,7 +125,7 @@ Two more ways to lose an hour here, both worth knowing before blaming a route:
 - **`| tail` swallows the exit code.** `node script.mjs | tail -4` exits with `tail`'s status, so
   a failed run reads as `exit=0`. Check the script's own status, or do not pipe it.
 
-Three of the other four assert CONTENT — that a control is on the screens that need it and off
+Four of the other five assert CONTENT — that a control is on the screens that need it and off
 the ones that do not, that the locked drafting panel still says what to do instead, that the
 movement column says somebody climbed exactly when they did. They pin user-facing STRINGS
 verbatim, so rewording a sentence turns one of them red while all 39 routes still return 200. On
@@ -149,8 +150,36 @@ It also requires an `<h1>` on every screen at every stage, which `e2e/layout.spe
 every route and only ever checks on the populated case — the first fix for that 500 removed the
 heading and the whole suite stayed green.
 
+**`verify-player-states.mjs` IS THAT SWEEP POINTED AT THE PLAYER, and it was added on
+2026-09-20 because everything above it walks the CONSOLE.** The player app had been walked many
+times and always in one state: confirmed, in a tournament with a round under way. Two of the
+other three were wrong.
+
+    confirmed, round live     correct — the state everybody walks
+    on the waiting list       "You aren't entered in this tournament"     (#524)
+    entered, no round yet     "You aren't entered", plus an opponent who
+                              does not exist and a ranking of nothing     (#525)
+    not entered at all        correct
+
+Both were one collapse. `entered` means CONFIRMED — the rule every card guard uses, and rightly,
+since a card must never reach somebody without a place — so `!entered` swept the APPLICANT in
+with the STRANGER, and `!me.round` swept "nothing to play yet" in with "not entered".
+
+It asserts a RULE rather than four sentences: **nobody with a Player row in this event is ever
+told they are not in it.** And the CONTROL that makes that rule mean something — somebody with
+NO Player row IS told exactly that — because otherwise the rule is satisfied perfectly by
+deleting the sentence. All three of its checks were mutated separately and watched go red.
+
+**The fixture is the other half, and it is the reason this went unseen.** A state nothing can
+express is a state nobody walks: every roundless tournament in `seed-club.mjs` deliberately kept
+the signed-in player OUT — Captain's Day so that `/me/events` has an Enter button, the Winter
+Series because it has no entrants at all — so "entered, and nothing to play yet" was
+unreachable. It now seeds `Spring Meeting — Format To Follow` for exactly that cell, the same
+reasoning that added the away round. When a walk finds nothing, ask whether the fixture can
+reach the case before concluding the case is fine.
+
 So a green `npm run smoke` says every route renders for the demo, and says nothing about the
-other four. Run them too — against the same server, in that order — whenever you change copy,
+other five. Run them too — against the same server, in that order — whenever you change copy,
 move a control, or touch a screen that reads a list which can be empty.
 
 The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real

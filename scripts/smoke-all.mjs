@@ -44,6 +44,11 @@ const SCRIPTS = [
   "verify-drafting.mjs",
   "verify-week-view.mjs",
   "verify-lifecycle.mjs",
+  // The same sweep pointed at the PLAYER. `verify-lifecycle` walks the console
+  // at every stage a tournament passes through; this walks the player's screens
+  // in every state a MEMBER can be in — confirmed, on the waiting list, not
+  // entered — against a tournament with a round and one without.
+  "verify-player-states.mjs",
 ];
 
 /**
