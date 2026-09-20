@@ -15,6 +15,7 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { partnerCardsFor } from "@/lib/services/group-cards";
 import { roundCardFor } from "@/lib/services/round-card";
 import { Icon } from "@/components/Icon";
+import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
 
 export const metadata = screenMetadata("/me/card");
@@ -241,6 +242,12 @@ export default async function PlayCardPage() {
       partners={partners}
       startHole={me.round.group?.startHole ?? 1}
     />
+    {/* WHAT THIS CARD'S NET SCORE WAS WORKED OUT FROM (2026-09-19). The pars
+        and the stroke index on this screen decide where a player's shots
+        fall, and until now nothing said whether anybody at the club had ever
+        checked them. No "fix" link: a player cannot correct the club's card,
+        but they can ask, and they should not be the last to know. */}
+    <CardTrustNote card={venue} />
     {/* Rules left the tab bar for Events (2026-09-19); the card is where a
         local rule or the handicap allowance comes up, so it is linked here. */}
     <p style={{ margin: "14px 0 0" }}>
