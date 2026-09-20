@@ -211,7 +211,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           now". That is precisely the lie the label exists to prevent, and it
           would have no visible symptom.
         */}
-        <LiveRefresh renderedAt={new Date().toISOString()} />
+        <LiveRefresh renderedAt={new Date().toISOString()} final={board.allIn} />
       </div>
     </div>
   );

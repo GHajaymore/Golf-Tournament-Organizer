@@ -189,7 +189,12 @@ export default async function LeaderboardPage() {
             from a timestamp the SERVER stamped — so the label ageing IS the
             failure showing through, rather than a client clock ticking
             cheerfully over a dead connection. */}
-        <LiveRefresh renderedAt={new Date().toISOString()} compact />
+        {/* `status === "completed"` is the committee's own word, the same one
+            `/live` calls `declaredFinal`. Weaker than the public board's
+            `allIn` — it will not notice a round that is finished but not yet
+            closed — and never wrong in the other direction, which is the half
+            that matters for a label claiming to be live. */}
+        <LiveRefresh renderedAt={new Date().toISOString()} compact final={event.status === "completed"} />
       </div>
 
       {boardShowsHighlights(casualRound) && highlights.length > 0 && (
