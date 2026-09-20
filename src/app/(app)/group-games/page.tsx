@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
+import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
@@ -241,6 +242,25 @@ export default async function GroupGamesPage({
           <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
             No rounds yet. Add a round and publish its tee sheet, and each group can run its own
             game here.
+          </p>
+        </div>
+      )}
+
+      {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT (2026-09-20).
+          Skins, birdies, low net: every game on this screen is decided by what
+          a PLAYER did on a hole, and a foursomes has one card per side. The
+          actions refuse it — see `perPlayerPotRefusal` — and this is the
+          screen saying so BEFORE somebody types a stake, because a control
+          that takes an answer and then rejects it is worse than one that
+          explains itself. Measured on a seeded foursomes whose £5 pot could
+          never settle. */}
+      {week && perPlayerPotRefusal(week.format) && (
+        <div className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-title" style={{ fontSize: 14 }}>
+            No pots on this round
+          </span>
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+            {perPlayerPotRefusal(week.format)}
           </p>
         </div>
       )}

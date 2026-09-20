@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { isSkinsScope } from "@/lib/domain/skins-pot";
+import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { getSession } from "@/lib/auth";
@@ -59,6 +60,16 @@ function potName(net: boolean, scope: string, groupKey: string): string {
 }
 
 /**
+ * This round's format, for the guard below. One line, but its own function:
+ * the refusal is about golf and belongs next to the rule, not inlined into a
+ * validation block where the next reader will not see it.
+ */
+async function formatOfStage(stageId: string): Promise<string> {
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
+  return stage?.format ?? "";
+}
+
+/**
  * Set up (or change) the pot on a round.
  *
  * Creates it on first save, so an organizer never has to "start a pot" as a
@@ -90,6 +101,23 @@ export async function saveSkinsPot(
   if (!Number.isFinite(buyIn) || buyIn < 0) {
     return { ok: false, error: "A buy-in cannot be negative." };
   }
+  /**
+   * NOT ON A ROUND WHERE THE SIDE PLAYS ONE BALL.
+   *
+   * Skins are decided hole by hole between PLAYERS, and a foursomes has no
+   * individual score to decide them with — `round-cards.ts` keeps foursomes
+   * out of the per-player cards for exactly that reason, and is right to.
+   *
+   * What that left was a pot an organizer could take £5 a head for and which
+   * could never settle: no per-player cards, so no standings, so "Nothing
+   * settled yet" over eight complete cards, for ever. Measured on a seeded
+   * foursomes on 2026-09-20.
+   *
+   * At the WRITE, because a `"use server"` export is a public endpoint and the
+   * screen hiding the control stops nobody.
+   */
+  const refusal = perPlayerPotRefusal(await formatOfStage(stageId));
+  if (refusal) return { ok: false, error: refusal };
   if (!isSkinsScope(input.scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
