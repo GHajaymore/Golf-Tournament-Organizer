@@ -891,6 +891,18 @@ export default async function DashboardPage() {
               sub={`${state.boardProgress.pct}% submitted`}
               icon="ph ph-cards"
             />
+          ) : state.boardProgress.unit === "sides" ? (
+            /* A TEAM DAY IS COUNTED IN SIDES. Eight sides in a four-ball file
+               sixteen team cards between them, so "16 cards in" would be true
+               about the rows and wrong about the round — and until this counter
+               learned where a team round files its cards it said 0 of 16, with
+               the round finished. */
+            <StatCard
+              label="Sides in"
+              value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
+              sub={`${state.boardProgress.pct}% returned`}
+              icon="ph ph-users-three"
+            />
           ) : (
             <StatCard
               label="Matches complete"
@@ -1024,7 +1036,14 @@ export default async function DashboardPage() {
                   "21 still out" under "33 of 33 certified" is noise. */}
               <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
                 {state.boardProgress.certified}/{state.boardProgress.total}{" "}
-                {state.boardProgress.unit === "cards" ? "scorecards certified" : "matches complete"}
+                {state.boardProgress.unit === "cards"
+                  ? "scorecards certified"
+                  : state.boardProgress.unit === "sides"
+                    ? /* NOT "certified": a side's card has no marker's signature to
+                         read, so the word would describe a step this round does not
+                         have. "In" is the whole of what is known about it. */
+                      "sides in"
+                    : "matches complete"}
               </div>
               {/* Out on the course EXCLUDES a dispute: a player disputing a
                   finished card is not playing, and counting them as if they
@@ -1032,7 +1051,7 @@ export default async function DashboardPage() {
               {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed > 0 && (
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
                   {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed}{" "}
-                  {state.boardProgress.unit === "cards" ? "still out on the course" : "still being played"}
+                  {state.boardProgress.unit === "matches" ? "still being played" : "still out on the course"}
                 </div>
               )}
               {state.boardProgress.disputed > 0 && (

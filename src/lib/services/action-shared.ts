@@ -78,25 +78,36 @@ export async function playRefusalFor(eventId: string): Promise<string | null> {
   if (!PRE_LAUNCH_STATUSES.includes(event.status)) return null;
 
   /**
-   * "Any result" over the WHOLE tournament, both sources.
+   * "Any result" over the WHOLE tournament, all THREE sources.
    *
-   * A pure stroke tournament has no matches and a pure match one has no cards,
-   * so asking either alone answers this wrongly for half the product — the
-   * same fault `resultsIn` was written to fix for the dashboard banner, and
-   * the reason that function counts both.
+   * A pure stroke tournament has no matches, a pure match one has no cards and
+   * a team day has neither, so asking any one of them alone answers this
+   * wrongly for a third of the product — the same fault `resultsIn` was
+   * written to fix for the dashboard banner, and the reason that function
+   * counts more than one.
    *
    * `matchSettled` is not used: it wants a whole match object and this only
    * needs to know whether anybody has been out on the course. One hole
    * answers that, which is the same line the lifecycle warning draws.
    */
-  const [card, match] = await Promise.all([
+  const [card, teamCard, match] = await Promise.all([
     prisma.scorecard.findFirst({ where: { eventId }, select: { id: true } }),
+    /**
+     * THE THIRD TABLE, and the one a team round is the only writer of.
+     *
+     * The comment above says "both sources" and there are three: a side
+     * playing one ball files a `TeamScorecard` and nothing else, so a team day
+     * that had already started read as a tournament nobody had teed off in —
+     * and this function's whole job is to recognise a tournament that is under
+     * way and get out of its path.
+     */
+    prisma.teamScorecard.findFirst({ where: { eventId }, select: { id: true } }),
     prisma.match.findFirst({
       where: { eventId, NOT: { holes: { equals: "" } } },
       select: { holes: true },
     }),
   ]);
-  const played = !!card || !!(match && /[1-9AaBbHh]/.test(match.holes));
+  const played = !!card || !!teamCard || !!(match && /[1-9AaBbHh]/.test(match.holes));
   return playRefusal({ status: event.status, anyResult: played });
 }
 

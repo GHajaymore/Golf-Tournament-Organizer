@@ -146,4 +146,35 @@ describe("a tournament already under way is not locked out", () => {
       "a draft tournament with a hole played was locked out mid-round",
     ).toBeNull();
   });
+
+  it("a SIDE'S CARD counts as under way", async () => {
+    /**
+     * The third table, which the header above this file called "two".
+     *
+     * A side playing one ball files a `TeamScorecard` and NOTHING ELSE — no
+     * individual card, no match — so a team day under way in draft looked
+     * exactly like a tournament nobody had teed off in, and the people out on
+     * the course were told to ask an organizer to launch it. That is the one
+     * case this gate exists to let through.
+     */
+    const e = await event("team-card-in-draft", "draft");
+    const s = await prisma.stage.create({
+      data: { eventId: e.id, position: 0, type: "Stroke Play Round", format: "Foursomes", holes: 18 },
+    });
+    const side = await prisma.team.create({
+      data: { eventId: e.id, stageId: s.id, name: `${TAG} side`, seed: 1 },
+    });
+    await prisma.teamScorecard.create({
+      data: {
+        eventId: e.id,
+        stageId: s.id,
+        teamId: side.id,
+        strokes: JSON.stringify([4, ...new Array(17).fill(null)]),
+      },
+    });
+    expect(
+      await playRefusalFor(e.id),
+      "a team day already under way was told to launch itself first",
+    ).toBeNull();
+  });
 });

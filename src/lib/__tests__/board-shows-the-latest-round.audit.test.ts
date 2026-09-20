@@ -45,6 +45,8 @@ let drawnNotPlayed = "";
 let drawnNotPlayedWeek2 = "";
 let threeAnswers = "";
 let threeAnswersWeek3 = "";
+let teamDay = "";
+let teamDayWeek2 = "";
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -223,6 +225,47 @@ beforeAll(async () => {
     const w3 = await stage(eventId, 2, "Week 3", "Round Robin", "Match Play");
     threeAnswersWeek3 = w3.id;
   }
+
+  /**
+   * A TEAM DAY, UNDATED, WITH BOTH ROUNDS PLAYED — and its cards in neither
+   * table this question was reading.
+   *
+   * `currentPlayedRoundIndex` is the rule for a tournament with no dates and
+   * no matches: the last round with evidence of play. It was handed the
+   * individual `Scorecard` rows and the matches, and a side playing one ball
+   * writes a `TeamScorecard` — so a team day had evidence of play in neither
+   * and fell back to Round 1, whatever the field had done. That is the same
+   * defect the function was written to fix for stroke play: the morning of
+   * Round 2, every screen pointed at Round 1.
+   *
+   * UNDATED ON PURPOSE. A date answers this question before the cards are
+   * consulted, so the assertion below would pass on any implementation.
+   */
+  {
+    const { eventId, players } = await makeEvent("team-day");
+    teamDay = eventId;
+    const w1 = await stage(eventId, 0, "Morning foursomes", "Stroke Play Round", "Foursomes");
+    const w2 = await stage(eventId, 1, "Afternoon foursomes", "Stroke Play Round", "Foursomes");
+    teamDayWeek2 = w2.id;
+    for (const s of [w1, w2]) {
+      const side = await prisma.team.create({
+        data: { eventId, stageId: s.id, name: `${TAG} side`, seed: 1 },
+        select: { id: true },
+      });
+      for (const [i, p] of players.entries()) {
+        await prisma.teamMember.create({ data: { teamId: side.id, playerId: p.id, position: i } });
+      }
+      // One shared card per side: blank playerId, and holes on it.
+      await prisma.teamScorecard.create({
+        data: {
+          eventId,
+          stageId: s.id,
+          teamId: side.id,
+          strokes: JSON.stringify(new Array(18).fill(4)),
+        },
+      });
+    }
+  }
 }, 120_000);
 
 afterAll(async () => {
@@ -246,6 +289,17 @@ describe("the board follows the field", () => {
     expect(state.boardStage?.description).toBe("Week 3");
     // And it is scored as a medal, which is the whole reason the round matters.
     expect(state.boardIsStroke).toBe(true);
+  });
+
+  it("follows a TEAM day to the round it has reached", async () => {
+    /**
+     * Both rounds are complete and neither carries a date, so the answer comes
+     * off the cards — and the cards are `TeamScorecard` rows. Round 1 before
+     * this, on a day where everybody had finished.
+     */
+    const state = await stateOf(teamDay);
+    expect(state.boardStage?.id, "the board was stuck on the morning round").toBe(teamDayWeek2);
+    expect(state.boardStage?.description).toBe("Afternoon foursomes");
   });
 
   it("counts the medal rounds' cards at all", async () => {

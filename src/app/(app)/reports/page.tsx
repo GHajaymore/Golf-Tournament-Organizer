@@ -229,7 +229,18 @@ export default async function ReportsPage() {
             over two hand-built numbers; `boardProgress` already knows both the
             count and what it is counting. */}
         <StatCard
-          label={state.boardProgress.unit === "cards" ? "Cards in" : "Matches complete"}
+          label={
+            state.boardProgress.unit === "cards"
+              ? "Cards in"
+              : // A team round returns SIDES, and this tile sits above the
+                // sheet that gets printed and pinned up — the one that read
+                // "Cards in 0/16" over eight finished foursomes, counting a
+                // table the round never writes to against a field of players
+                // nobody was asking about.
+                state.boardProgress.unit === "sides"
+                ? "Sides in"
+                : "Matches complete"
+          }
           value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
           icon="ph ph-check-circle"
         />
