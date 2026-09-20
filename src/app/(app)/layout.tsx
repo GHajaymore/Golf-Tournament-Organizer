@@ -104,11 +104,39 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * Suffix is the round's FORMAT, falling back to its stage type — the same
    * pair `dashboard` and `teams` already pass to this function, so the sidebar
    * cannot name a round differently from the screens it links to.
+   *
+   * IT IS `boardStage`, NOT `activeStage`, AND THE DIFFERENCE IS THE WHOLE
+   * POINT OF THIS HEADING. `EventState` carries THREE round answers, because
+   * three different questions are being asked:
+   *
+   *   activeStage        the match-points chain's position — prefers a round
+   *                      still IN PROGRESS over the last one played
+   *   boardStage         the later of that and the last round with something
+   *                      on it — what every BOARD shows
+   *   nextUnplayedRound  the first round nobody has started — what a tee
+   *                      sheet is drawn for
+   *
+   * Written first with `activeStage`, which was wrong and would have built
+   * exactly the defect the comment above congratulates itself on avoiding: a
+   * heading naming one round with the leaderboard directly beneath it showing
+   * another. `boardStage` exists BECAUSE four boards each wrote
+   * `activeStage ?? stages[0]` and all showed Week 1 of a three-week league
+   * with cards in on Week 3.
+   *
+   * So the heading takes the board's answer. `/leaderboard` reads only
+   * `boardStage`, `/entry` reads it too, and those are the two screens under
+   * this heading somebody will compare it against.
+   *
+   * `/foursomes` is the known exception and is not a disagreement: a tee sheet
+   * is drawn for a round nobody has played yet, so it is FORWARD-looking by
+   * design and reads all three. A heading that refused to name a round
+   * whenever the tee sheet pointed elsewhere would be silent almost always,
+   * which trades a small honest imprecision for a large useless one.
    */
   const roundState = event ? await loadEventState(event.id) : null;
-  const activeRound = roundState?.activeStage ?? null;
-  const roundName = activeRound
-    ? roundLabelWith(roundState!.playRounds, activeRound.id, activeRound.format || activeRound.type)
+  const boardRound = roundState?.boardStage ?? null;
+  const roundName = boardRound
+    ? roundLabelWith(roundState!.playRounds, boardRound.id, boardRound.format || boardRound.type)
     : undefined;
 
   /**
