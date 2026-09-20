@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
+import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { MoneySetup } from "@/components/MoneySetup";
@@ -225,7 +226,37 @@ export default async function PrizesPage({
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((p) => ({ id: p.id, name: p.name }))}
       />
-      {week &&
+      {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
+          `/group-games` said this from the day the rule landed (#495) and this
+          one did not, which is the wrong way round: that screen is a
+          fourball's private game and THIS is where a club sets up the pots
+          everybody pays into. The actions refuse either way, so nothing could
+          be taken — but the controls were offered, a stake could be typed, and
+          the refusal arrived only on save. A control that takes an answer and
+          then rejects it is worse than one that explains itself, which is the
+          reason #495 gave for the other screen.
+          Read off the seeded foursomes on 2026-09-20: skins, low gross, low
+          net and the birdie pot all offered, with nothing saying why they
+          could never settle. */}
+      {week && perPlayerPotRefusal(week.format) ? (
+        <section className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-title" style={{ fontSize: 14 }}>
+            No pots on this round
+          </span>
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+            {perPlayerPotRefusal(week.format)}
+          </p>
+          {/* Said here rather than left to be inferred: the club's PRIZE list
+              above is unaffected, because a prize is awarded by the committee
+              to whoever they name — a side included — and never worked out
+              from an individual score. */}
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+            Prizes are unaffected: those are awarded, not worked out from the cards, so a side can
+            be named as the winner of one.
+          </p>
+        </section>
+      ) : (
+        week &&
         skinsGames.map((g) => (
           <SkinsPotClient
             key={g.key}
@@ -233,12 +264,13 @@ export default async function PrizesPage({
             activeStageId={week.id}
             view={g.view}
           />
-        ))}
+        ))
+      )}
       {/* Side bets sit with the skins pot for the same stated reason: they are
           a payout, and this is where a club comes to settle up. Per round,
           because closest-to-the-pin is a hole on a day rather than a
           tournament-wide setting. */}
-      {week && (
+      {week && !perPlayerPotRefusal(week.format) && (
         <ContestsClient
           roundLabel={roundLabel(weeks, week.id)}
           stageId={week.id}
