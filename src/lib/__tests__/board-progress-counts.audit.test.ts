@@ -322,6 +322,18 @@ describe("the round's progress, on a foursomes day of three sides", () => {
     expect(state!.nextUnplayedRound, "two sides are out on this one").toBeNull();
   });
 
+  it("counts a side's card as golf that has been played", async () => {
+    /**
+     * The third reader, and the one that decides where the whole tournament
+     * IS. `resultsIn` feeds the lifecycle bar and the journey card — it is the
+     * evidence route into "Play" for a club that never pressed Launch — and it
+     * was handed the individual cards alone. A team day therefore sat in Draft
+     * on every screen with its field out on the course.
+     */
+    const state = await loadEventState(teamEventId);
+    expect(state!.resultsIn, "two sides have cards on this round").toBe(2);
+  });
+
   it("does not claim a round is all in while a side is still out", async () => {
     // `snapshotStanding` prints "Nothing returned for this round yet" on
     // done <= 0 — which is the sentence that was over eight finished sides.

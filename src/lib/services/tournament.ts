@@ -1820,7 +1820,14 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const played = resultsIn({
     matches: matches.map((m) => ({ played: matchSettled(m) })),
-    cards: scorecards,
+    /**
+     * TEAM CARDS ARE CARDS. A side's round is golf that has been played, and
+     * this number is what the lifecycle bar and the journey card mean by "play
+     * has started" — the evidence route into Play for a club that never
+     * pressed Launch. Counting only the individual table left a team day
+     * sitting in Draft on every screen with the field out on the course.
+     */
+    cards: [...scorecards, ...teamCards],
   });
   const liveQualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
