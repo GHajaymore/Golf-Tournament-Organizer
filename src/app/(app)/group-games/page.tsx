@@ -65,6 +65,23 @@ export default async function GroupGamesPage({
    */
   const casual = isMatch(state.event.shape);
 
+  /**
+   * WHY NO POT CAN RUN ON THIS ROUND, OR "" — asked ONCE, because three things
+   * on this screen depend on the answer and two of them were not asking.
+   *
+   * The refusal panel below said "Foursomes is played with one ball per side,
+   * so there are no individual scores to decide a pot on", and then the screen
+   * carried on offering exactly that: a sentence promising "publish a tee
+   * sheet and every group gets its own pot here", and a Start a side bet
+   * control whose action refuses the same round with the same words. Read off
+   * the seeded club on 2026-09-20, all three in one screenful.
+   *
+   * The comment on that panel already stated the principle — "a control that
+   * takes an answer and then rejects it is worse than one that explains
+   * itself" — and the panel was the only part that kept it.
+   */
+  const noPerPlayerPot = week ? perPlayerPotRefusal(week.format) : null;
+
   const sheet = week ? parseTeeSheet(week.teeSheet ?? "") : null;
   // A group of one cannot run a skins game against itself. Filtering here
   // rather than in the loop keeps the empty-state message honest: "no groups"
@@ -254,13 +271,13 @@ export default async function GroupGamesPage({
           that takes an answer and then rejects it is worse than one that
           explains itself. Measured on a seeded foursomes whose £5 pot could
           never settle. */}
-      {week && perPlayerPotRefusal(week.format) && (
+      {noPerPlayerPot && (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 14 }}>
             No pots on this round
           </span>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
-            {perPlayerPotRefusal(week.format)}
+            {noPerPlayerPot}
           </p>
         </div>
       )}
@@ -270,7 +287,12 @@ export default async function GroupGamesPage({
           sheet — apparatus a quick round does not have and is never offered —
           so the money screen's entire content was an instruction they could
           not follow. Their pot renders below instead. */}
-      {week && groups.length === 0 && !casual && (
+      {/* And NOT on a round that can hold no pot whatever the tee sheet says.
+          "Publish one and every group gets its own pot here" is an instruction
+          with no outcome on a foursomes — the panel directly above has just
+          explained that there are no individual scores to divide, and this
+          promised the opposite two inches below it. */}
+      {week && groups.length === 0 && !casual && !noPerPlayerPot && (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
             No tee sheet on this round yet, so the app doesn&rsquo;t know who is playing with whom
@@ -355,7 +377,13 @@ export default async function GroupGamesPage({
         ) : null,
       )}
 
-      {week && (
+      {/* THE DOOR, CLOSED ON THE ROUND THAT REFUSES EVERYTHING BEHIND IT.
+          `saveSideGame` turns a shared-ball round down with the same sentence
+          the panel above prints, so this opened a form, took a name, a stake
+          and a list of players, and then said no. Offered again the moment the
+          organizer picks a round that plays its own ball — the picker is right
+          there, which is the thing to do about it. */}
+      {week && !noPerPlayerPot && (
         <SideBetStart
           stageId={week.id}
           field={fieldForBets}
