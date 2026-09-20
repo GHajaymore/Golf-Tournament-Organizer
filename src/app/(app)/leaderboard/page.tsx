@@ -20,8 +20,6 @@ import { isMatch } from "@/lib/tournament-shape";
 import { boardIntro, boardFootnote, boardShowsHighlights, boardShowsCommentary } from "@/lib/domain/board-copy";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage } from "@/lib/services/course-resolution";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 function ago(d: Date): string {
@@ -56,15 +54,17 @@ export default async function LeaderboardPage() {
   }
 
   if (kind === "team" && activeStage) {
-    // The nine actually played, re-ranked to 1..9 — not the first nine of an
-    // eighteen-hole card still carrying eighteen-hole index numbers.
-    const course = cardForStage(resolveCourse(event), activeStage);
+    // The card THIS ROUND is played on, narrowed to the nine actually played
+    // and re-ranked to 1..9. `strokeCourseFor` walks round → event and is what
+    // the individual board on this same screen reads, so the team branch and
+    // the stroke branch can no longer price one round two ways.
+    const course = state.strokeCourseFor(activeStage.id);
     const standings = await teamStandings(
       session.eventId,
       activeStage.id,
       activeStage.format,
       course.pars,
-      course.strokeIndex,
+      course.holeDifficulty,
       activeStage.scoringBasis,
       activeStage.handicapAllowance,
       activeStage.allowanceWeights,
@@ -84,12 +84,12 @@ export default async function LeaderboardPage() {
   // card, a Nassau is a match card — so these only change the reading.
   if (activeStage) {
     const holes = holesPlayed(activeStage.holes);
-    const c = cardForStage(resolveCourse(event), activeStage);
+    const c = state.strokeCourseFor(activeStage.id);
 
     if (kind === "skins") {
       const net = activeStage.scoringBasis !== "gross";
       const board = await skinsBoard(
-        session.eventId, activeStage.id, holes, net, c.strokeIndex,
+        session.eventId, activeStage.id, holes, net, c.holeDifficulty,
       );
       return <SkinsLeaderboard board={board} net={net} />;
     }
@@ -98,7 +98,7 @@ export default async function LeaderboardPage() {
     }
     if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(
-        session.eventId, activeStage.id, c.pars, c.strokeIndex,
+        session.eventId, activeStage.id, c.pars, c.holeDifficulty,
       );
       return <ModifiedStablefordLeaderboard rows={rows} />;
     }
