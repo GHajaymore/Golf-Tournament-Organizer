@@ -618,3 +618,121 @@ describe("the round's progress, on a Nassau night", () => {
     expect(p.unit).toBe("matches");
   });
 });
+
+/**
+ * AND THE ROUND NOTHING COUNTS, BY DESIGN.
+ *
+ * "Other (scored by hand)" carries `manual: true`, and its entry in
+ * `formats.ts` says why in its own words: "no engine computes this. That is
+ * the point." A club runs the competition and records the result themselves.
+ *
+ * The counter did not know that, so it measured the round the ordinary way —
+ * cards against the field — and produced "Cards in 0/16 · 0% submitted" over a
+ * round where no card is owed and the number would read zero for ever.
+ * `/reports` printed "Nothing returned for this round yet" two inches above
+ * its own notice explaining that the app does not work this result out.
+ *
+ * CARDS IN THE FIXTURE, deliberately: a full field with full cards on the
+ * round. If the counter ever goes back to counting them it says 4 of 4 and
+ * this fails loudly, which is a sharper control than an empty round — an
+ * absence would be satisfied by any broken counter that happens to answer
+ * zero.
+ */
+const MANUAL_TAG = "zz-board-progress-manual";
+let manualEventId = "";
+
+async function cleanupManual() {
+  await prisma.event.deleteMany({ where: { name: { startsWith: MANUAL_TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: MANUAL_TAG } } });
+}
+
+describe("the round's progress, on a round scored by hand", () => {
+  beforeAll(async () => {
+    await cleanupManual();
+    const org = await prisma.organization.create({
+      data: { name: `${MANUAL_TAG} club`, kind: "club" },
+      select: { id: true },
+    });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: org.id,
+        name: `${MANUAL_TAG} hand scored`,
+        status: "live",
+        shape: "series",
+        format: "stroke",
+        formationRule: "balanced",
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        shareToken: randomBytes(12).toString("hex"),
+        registrationToken: randomBytes(8).toString("hex"),
+        customPars: JSON.stringify(new Array(18).fill(4)),
+        customYards: JSON.stringify(new Array(18).fill(400)),
+        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+      select: { id: true },
+    });
+    manualEventId = event.id;
+
+    const stage = await prisma.stage.create({
+      data: {
+        eventId: manualEventId,
+        position: 0,
+        description: "Club fun day",
+        type: "Stroke Play Round",
+        format: "Other (scored by hand)",
+        holes: 18,
+        scoringBasis: "gross",
+      },
+      select: { id: true },
+    });
+
+    for (const [i, name] of ["Ann", "Bea", "Cal", "Dev"].entries()) {
+      const p = await prisma.player.create({
+        data: {
+          eventId: manualEventId,
+          name: `${MANUAL_TAG} ${name}`,
+          email: `${MANUAL_TAG}-${name}@example.invalid`.toLowerCase(),
+          handicap: 10 + i,
+          seed: i + 1,
+          status: "confirmed",
+        },
+        select: { id: true },
+      });
+      // A full card each, certified. Nothing should count them.
+      await prisma.scorecard.create({
+        data: {
+          eventId: manualEventId,
+          stageId: stage.id,
+          playerId: p.id,
+          strokes: JSON.stringify(new Array(18).fill(4)),
+          status: "certified",
+        },
+      });
+    }
+  });
+
+  afterAll(cleanupManual);
+
+  const manualProgress = async () => {
+    const state = await loadEventState(manualEventId);
+    expect(state, "the hand-scored event did not load").not.toBeNull();
+    return state!.boardProgress;
+  };
+
+  it("counts nothing, because nothing is owed", async () => {
+    const p = await manualProgress();
+    expect(p.total, "a field that owes no card is not a denominator").toBe(0);
+    expect(p.certified).toBe(0);
+    expect(p.started).toBe(0);
+    expect(p.pct).toBe(0);
+  });
+
+  it("says so in the unit, so no screen counts on its behalf", async () => {
+    /**
+     * The dashboard tile, the `/reports` tile and `snapshotStanding` all read
+     * this word. Without it each of them would have to learn what a manual
+     * format is, which is how one absence came to have four readers.
+     */
+    const p = await manualProgress();
+    expect(p.unit).toBe("manual");
+  });
+});

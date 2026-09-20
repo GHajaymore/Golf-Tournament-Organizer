@@ -448,6 +448,19 @@ export function snapshotStanding(input: {
    * while sitting under another.
    */
   const ties = input.unit === "ties";
+  /**
+   * A ROUND THE APP DOES NOT SCORE IS NOT A ROUND WAITING FOR CARDS.
+   *
+   * `isManualFormat` rounds are recorded by the committee — the format's own
+   * entry says "no engine computes this. That is the point" — so there is
+   * nothing to return and nothing that will change. "Nothing returned for this
+   * round yet" was an absence reported as a delay, printed on `/reports` two
+   * inches above the notice explaining that no result is expected here, and on
+   * the player's own screen where there is no notice at all.
+   */
+  if (input.unit === "manual") {
+    return { title, note: "This round is scored by hand — the committee records the result." };
+  }
   if (input.total <= 0 || input.done <= 0) {
     return {
       title,

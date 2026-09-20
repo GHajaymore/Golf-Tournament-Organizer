@@ -246,9 +246,20 @@ export default async function ReportsPage() {
                   // this screen now gets it without knowing what a bracket is.
                   state.boardProgress.unit === "ties"
                   ? "Ties decided"
-                  : "Matches complete"
+                  : // And a round the app does not score counts nothing: this
+                    // tile printed "Cards in 0/16" directly above the notice
+                    // that says the committee works the result out.
+                    state.boardProgress.unit === "manual"
+                    ? "Scored by hand"
+                    : "Matches complete"
           }
-          value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
+          value={
+            // "0/0" under "Scored by hand" is the fraction again, one word
+            // later. There is no count to print for a round nothing counts.
+            state.boardProgress.unit === "manual"
+              ? "—"
+              : `${state.boardProgress.certified}/${state.boardProgress.total}`
+          }
           icon="ph ph-check-circle"
         />
         <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />

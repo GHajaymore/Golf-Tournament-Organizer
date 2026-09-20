@@ -492,7 +492,7 @@ export interface EventState {
      * counting either answers 0 of 0 for a draw most of the way through. What
      * a club counts there is ties decided out of ties that can be played.
      */
-    unit: "cards" | "matches" | "sides" | "ties";
+    unit: "cards" | "matches" | "sides" | "ties" | "manual";
   };
   /**
    * The first round the field has not started, in play order — or null once
@@ -1982,19 +1982,43 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const bracketBoard = boardStage && isKnockoutRound(boardStage.type);
   const ties = bracketBoard ? knockoutProgress(brackets.winners, brackets.consolation) : null;
-  const boardProgress = ties
+  /**
+   * AND A ROUND THE APP DOES NOT SCORE COUNTS NOTHING, BY DEFINITION.
+   *
+   * `isManualFormat` is the format whose own entry says "no engine computes
+   * this. That is the point" — a club records the result themselves. There are
+   * no cards to come in, so counting the field as a denominator produces
+   * "Cards in 0/16 · 0% submitted" over a round that will read 0 for ever,
+   * with `/reports` printing "Nothing returned for this round yet" two inches
+   * above its own notice explaining that nothing is expected.
+   *
+   * Zeroes with a unit that says why, rather than a fraction of a field that
+   * owes nothing. The screens then say "scored by hand" instead of counting.
+   */
+  const handScored = !!boardStage && isManualFormat(boardStage.format);
+  const boardProgress = handScored
     ? {
-        // A tie is either decided or not: there are no holes here to be part
-        // way through, and no committee step to be waiting on.
-        started: ties.decided,
-        certified: ties.decided,
-        approved: ties.decided,
+        started: 0,
+        certified: 0,
+        approved: 0,
         disputed: 0,
-        total: ties.total,
-        pct: ties.total > 0 ? Math.round((ties.decided / ties.total) * 100) : 0,
-        unit: "ties" as const,
+        total: 0,
+        pct: 0,
+        unit: "manual" as const,
       }
-    : boardProgressOfCards;
+    : ties
+      ? {
+          // A tie is either decided or not: there are no holes here to be part
+          // way through, and no committee step to be waiting on.
+          started: ties.decided,
+          certified: ties.decided,
+          approved: ties.decided,
+          disputed: 0,
+          total: ties.total,
+          pct: ties.total > 0 ? Math.round((ties.decided / ties.total) * 100) : 0,
+          unit: "ties" as const,
+        }
+      : boardProgressOfCards;
 
   return {
     event,
