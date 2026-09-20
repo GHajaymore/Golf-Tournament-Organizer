@@ -1004,6 +1004,52 @@ describe("rounds and format", () => {
     expect(html).not.toContain("Carry forward");
   });
 
+  describe("where a round is played", () => {
+    const HOME = { id: "home", name: "Braid Hollow" };
+    const AWAY = { id: "away", name: "Ardmore Wee Nine" };
+    const rounds = [
+      stage({ id: "r1", position: 0, courseId: null }),
+      stage({ id: "r2", position: 1, courseId: "away", holes: 9 }),
+      stage({ id: "r3", position: 2, type: "Stroke Play Round" }),
+    ];
+
+    it("names the course on every round once the club plays two", () => {
+      /**
+       * Found on the seeded club's first away round, 2026-09-20. The row read
+       * "Foursomes · 9 holes · Net scoring" with no way to tell it was the one
+       * played at Ardmore — on the screen whose whole job is to describe the
+       * rounds, and with both course cards listed above it carrying a trust
+       * warning each. The screen knew there were two.
+       *
+       * The venue decides that round's card: its pars, its stroke index, how
+       * many holes. It belongs beside the basis for the same reason the basis
+       * belongs there at all.
+       */
+      const html = render(
+        <StagesClient {...base} stages={rounds} venues={[HOME, AWAY]} homeVenue="Braid Hollow" chainsRounds={false} />,
+      );
+      expect(html, "the away round does not say where it was played").toContain("Ardmore Wee Nine");
+      // And the rounds that name no course are on the tournament's own, which
+      // is a fact rather than an absence once there is more than one.
+      expect(html, "a round on the home course says nothing").toContain("Braid Hollow");
+    });
+
+    it("says nothing about the course when there is only one", () => {
+      /**
+       * The other half, and the reason this is gated rather than always on.
+       * Repeating one course on every row of a one-venue tournament is the
+       * noise the basis line was careful to avoid — a fact that cannot
+       * distinguish anything is not worth the width.
+       */
+      const html = render(
+        <StagesClient {...base} stages={[stage()]} venues={[HOME]} homeVenue="Braid Hollow" chainsRounds={false} />,
+      );
+      expect(html, "a single-venue tournament repeats its course on the round row").not.toContain(
+        "Braid Hollow",
+      );
+    });
+  });
+
   describe("the exports a tournament without a bracket is offered", () => {
     /**
      * The sidebar has hidden the Bracket link on tournaments without one since
