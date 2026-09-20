@@ -104,6 +104,38 @@ describe("the seeded club", () => {
     }
   });
 
+  it("plays at least one round away from its event's course", () => {
+    /**
+     * THE AXIS THE FORMAT SWEEP DOES NOT COVER, and the one that hid two
+     * whole classes of defect.
+     *
+     * Measured against the seeded database on 2026-09-20: ten events, two
+     * courses, and NOT ONE stage whose `courseId` differed from its own
+     * event's. "Twilight Nine at Ardmore" looks like the exception and is not
+     * — it is an Ardmore event end to end, row and stage both.
+     *
+     * So event-level and per-round course resolution agreed everywhere here,
+     * and a question answered two different ways across ten call sites looked
+     * right on every screen. Both the read consolidation and the two
+     * stored-gross write paths had to be found by reading source, because the
+     * club could not express the state that shows them.
+     *
+     * A round with its own `courseId` is ordinary in the world. This asserts
+     * the fixture keeps one, for the same reason the format sweep above
+     * exists: sampling finds this for ever, covering it closes it.
+     */
+    const src = readSource(SEEDER);
+    const away = src.indexOf("Evening nine at Ardmore");
+    expect(away, "the seeded club no longer plays a round away from its event's course").toBeGreaterThan(-1);
+
+    // Its own venue, not the tournament's — the whole point of the round.
+    const round = src.slice(away, away + 2200);
+    expect(round, "the away round does not name its own courseId").toMatch(/courseId:\s*away\.id/);
+    // And nine holes off the nine-hole card, so it is a second axis too.
+    expect(round).toMatch(/holes:\s*9/);
+    expect(round).toMatch(/PARS_9/);
+  });
+
   it("files a single-ball side's card with no player on it", () => {
     /**
      * The distinction the whole sweep turns on. A shared ball files ONE row

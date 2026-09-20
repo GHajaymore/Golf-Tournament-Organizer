@@ -1234,6 +1234,44 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    red.** If it stays green the fixture cannot express a wrong answer, and the
    cell is decoration however many sizes it runs at.
 
+7. **AN ERROR THAT SHIFTS EVERY ROW BY THE SAME AMOUNT IS INVISIBLE TO THE EYE
+   AND TO THE ORDERING TESTS**, which makes it more dangerous than one that
+   scrambles the order. A wrong order produces an argument and an argument
+   produces a bug report; eight plausible numbers in the right order produce
+   nothing at all.
+
+   Measured 2026-09-20, on the seeded club's first round played away from its
+   event's course. Every side's to-par on the leaderboard was out by exactly
+   four — a nine at Ardmore, par 32, scored against Braid Hollow's front nine,
+   par 36 — and the RANKING was untouched, because a constant offset cannot
+   reorder anything. Eight sides, correctly sorted, every number wrong, on the
+   screen a club sends to its members.
+
+   Nothing in eight thousand tests could see it: they assert shape, count and
+   order, which a constant offset preserves perfectly. That is point 6 on the
+   value axis rather than the shape axis.
+
+   Two consequences worth acting on. **Net totals cannot see a stroke-index
+   bug at all** — a side receives the same NUMBER of strokes whichever card is
+   read, so net is gross minus a constant and is blind by construction; assert
+   to-par, a Stableford point, a skin or a match hole instead. And when a
+   number looks plausible on every row, check one row against the RULES rather
+   than against the other rows: agreement between rows survives an error they
+   all share. That cost twenty minutes on the day it was found — the week
+   sheet and the leaderboard printed identical gross and net for the away
+   round, which read as confirmation and was two readers wrong the same way.
+
+   **AND CONSOLIDATION TAKES THE COMPARISON AWAY, which is the price of the
+   fix this file otherwise recommends everywhere.** Eight callers resolving a
+   card three different ways can be caught by diffing two screens; eight
+   callers behind one resolver cannot, because they now agree by construction
+   — and they agree whether the resolver is right or wrong. "One model per
+   act" is still correct, and the note on `standingRows` returning `[]` at its
+   own first line still holds. But a single reader must be pinned to the RULES
+   rather than to its peers: after the team-card consolidation the only test
+   that can still fail is one asserting to-par against the played course's
+   actual par, because every screen will now agree on whatever it says.
+
 The multi-agent exploratory audit that produced all this is a RELEASE GATE or
 post-feature pass, not a per-change step — it costs over a million tokens. Use
 it to find unknown classes of bug; use the sweep above to stop known ones
