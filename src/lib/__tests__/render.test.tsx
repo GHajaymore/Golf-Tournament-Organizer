@@ -6776,6 +6776,9 @@ describe("what a player has riding on the round", () => {
     yourTotalCents: 0,
     outingStanding: [],
     anyFinal: false,
+    // A tournament with pots in it, which is what the rest of these cases are
+    // about. The block below varies it deliberately.
+    anyGame: true,
   };
 
   it("shows the stake line when there are games still to play", () => {
@@ -6795,6 +6798,116 @@ describe("what a player has riding on the round", () => {
     // of one that would.
     const html = render(<RoundMoney view={{ ...base, stake: { games: 0, cents: 0 } }} />);
     expect(html).not.toMatch(/games? still to play/);
+  });
+
+  describe("with no money in it at all", () => {
+    /**
+     * "NOT YET" AND "NOT AT ALL" ARE DIFFERENT ANSWERS. `anyFinal` is false in
+     * both states, and the screen said "Nothing settled yet — a round's pots
+     * are worked out once every hole is in" to both: to a round still being
+     * played, correctly, and to a finished tournament that never had a pot,
+     * where it describes a settlement that is never coming.
+     *
+     * Read off the seeded club on 2026-09-20 over three complete team rounds,
+     * while the organizer's own Prizes screen said "No pots on this round".
+     */
+    const finished = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        stageId: `s${i + 1}`,
+        label: `Round ${i + 1}`,
+        final: true,
+        holesReturned: 18,
+        holeCount: 18,
+        matchesTotal: 0,
+        matchesOver: 0,
+        sharedBall: false,
+        yourCents: 0,
+        // The fixture's whole point: finished, and nobody won anything.
+        standing: [],
+      }));
+
+    it("says the pots are still to come while a round is out", () => {
+      const html = render(
+        <RoundMoney
+          view={{
+            ...base,
+            anyGame: true,
+            rounds: [...finished(1), { ...finished(1)[0], stageId: "s2", label: "Round 2", final: false }],
+            stake: { games: 0, cents: 0 },
+          }}
+        />,
+      );
+      expect(html).toMatch(/once every hole is in/i);
+      expect(html).not.toMatch(/no side games/i);
+    });
+
+    it("says there are none at all when the tournament has no pot in it", () => {
+      /**
+       * THE DEFECT. A club on shared costs, or a day of team rounds where a
+       * per-player pot is refused outright, has nothing to settle and was told
+       * to wait for holes that were already in.
+       */
+      const html = render(
+        <RoundMoney view={{ ...base, anyGame: false, rounds: finished(3), stake: { games: 0, cents: 0 } }} />,
+      );
+      expect(html).toMatch(/no side games on this tournament/i);
+      expect(html).not.toMatch(/once every hole is in/i);
+    });
+
+    it("says so when the pots existed and nobody won anything", () => {
+      // Every round in, a pot in the tournament, and no money moved. Neither
+      // "still to come" nor "there are none" is true, and this is the third
+      // state `anyFinal === false` covers.
+      const html = render(
+        <RoundMoney view={{ ...base, anyGame: true, rounds: finished(2), stake: { games: 0, cents: 0 } }} />,
+      );
+      expect(html).toMatch(/no pot changed hands/i);
+      expect(html).not.toMatch(/once every hole is in/i);
+    });
+
+    it("does not wait for a round that can never pay a per-player pot", () => {
+      /**
+       * THE SHARED-BALL CASE, and the reason the seeded club's finished
+       * invitational still said "once every hole is in".
+       *
+       * A foursomes side files ONE card with no player on it, so the money
+       * view sees a round with no cards and marks it not-final for ever. Read
+       * as "still being played", the screen waits on a round whose amount can
+       * never change — which is precisely the question `money-layout.ts` says
+       * to ask instead of "has the event happened".
+       *
+       * And it SAYS SO rather than quietly dropping the round: an absence with
+       * no reason given is the shape this screen keeps being fixed for.
+       */
+      const foursomes = {
+        stageId: "s2",
+        label: "Round 2",
+        final: false,
+        holesReturned: 0,
+        holeCount: 18,
+        matchesTotal: 0,
+        matchesOver: 0,
+        sharedBall: true,
+        yourCents: 0,
+        standing: [],
+      };
+      const html = render(
+        <RoundMoney
+          view={{ ...base, anyGame: true, rounds: [...finished(1), foursomes], stake: { games: 0, cents: 0 } }}
+        />,
+      );
+      expect(html).not.toMatch(/once every hole is in/i);
+      expect(html).toMatch(/no pot changed hands/i);
+      expect(html).toMatch(/one ball per side/i);
+    });
+
+    it("does not say a tournament with no rounds has finished without a pot", () => {
+      // Nothing is final BECAUSE nothing exists. With a pot set up and no
+      // round yet, the honest answer is still "not yet".
+      const html = render(<RoundMoney view={{ ...base, anyGame: true, stake: { games: 0, cents: 0 } }} />);
+      expect(html).toMatch(/once every hole is in/i);
+      expect(html).not.toMatch(/no pot changed hands/i);
+    });
   });
 
   it("shows nothing to somebody who is not in the field", () => {
@@ -6827,6 +6940,7 @@ describe("what a player has riding on the round", () => {
               // holes — see RoundMoneyRow.
               matchesTotal: 0,
               matchesOver: 0,
+              sharedBall: false,
               yourCents: 1500,
               standing: [{ playerId: "ann", name: "Ann", netCents: 1500 }],
             },
