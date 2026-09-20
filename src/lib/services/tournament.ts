@@ -997,7 +997,18 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // morning of Round 1 it named Round 2, and every screen that reads this
   // number believed it.
   const datedIdx = currentDatedRoundIndex(playRounds);
-  const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, scorecards, matches);
+  /**
+   * A TEAM ROUND IS EVIDENCE OF PLAY TOO, and its cards are in a third table.
+   *
+   * Undated tournaments ask this question — "which round is being played" —
+   * off the cards, and a team round files none of the individual kind. So a
+   * club running an undated team day over several rounds sat on Round 1 for
+   * ever however many sides were round, which is the same defect this function
+   * was written to fix for stroke play: a confident, specific, wrong answer on
+   * the one morning it matters.
+   */
+  const playedIdx =
+    datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, [...scorecards, ...teamCards], matches);
   const activeStage =
     rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
   // The chain runs up to the round being played, not past it. Running it to
