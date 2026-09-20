@@ -128,8 +128,17 @@ export default async function PlayTodayPage() {
    * individuals (`boardKind` — a manual or team round has no board to hang).
    */
   const boardStage = state.boardStage;
+  /**
+   * THREE gates now. `boardKind(undefined)` is "standard", so a tournament
+   * with NO ROUND passed the second one and this screen hung a leaders table
+   * — every member of the field, dashes across, under a heading claiming a
+   * ranking — beside a panel saying there was nothing to play. Two answers on
+   * one screen, which is the shape this file keeps finding.
+   */
   const boardRows =
-    canSeeLeaderboard(settingsOf(state.event), session.viewRole) && boardKind(boardStage?.format) === "standard"
+    canSeeLeaderboard(settingsOf(state.event), session.viewRole) &&
+    boardStage &&
+    boardKind(boardStage.format) === "standard"
       ? standingRows(state)
       : [];
   /**
@@ -234,6 +243,39 @@ export default async function PlayTodayPage() {
        */}
       <AnnouncementList items={announcements.filter((a) => a.pinned)} />
 
+      {/**
+       * ENTERED, AND THERE IS NOTHING TO PLAY YET.
+       *
+       * The state every club is in for its first ten minutes, from the side
+       * nothing walks. `verify-lifecycle.mjs` exists because `/entry` returned
+       * 500 on a tournament with no rounds and covers the ORGANIZER at each
+       * stage; the player's screens were never walked there, and said two
+       * things that were not true rather than the one that was.
+       *
+       * It says what will happen next and does not promise when: a club that
+       * has taken entries has not necessarily decided the format, and "your
+       * position appears as soon as the first hole goes in" is a promise about
+       * a round nobody has created.
+       */}
+      {me.playerId && !round && (
+        <section aria-label="Nothing to play yet" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="card-title">You&rsquo;re in — nothing to play yet</span>
+          {/* "No round to play" rather than "the organizer hasn't added one":
+              this branches on `me.round`, which is null when there is no
+              PLAYABLE round, and stages that are not playing rounds would make
+              the stronger sentence an overclaim. Say what the gate knows. */}
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+            Your entry is confirmed. There&rsquo;s no round to play in this tournament yet, so
+            there&rsquo;s no card and no board — both appear here as soon as there is one.
+          </p>
+          {myRow?.windowNote && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {myRow.windowNote}
+            </span>
+          )}
+        </section>
+      )}
+
       {waiting && (
         <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
@@ -326,8 +368,16 @@ export default async function PlayTodayPage() {
       )}
 
       {/* A player whose round is scored for them — a match or a team round —
-          keeps the cards this screen always had. */}
-      {me.playerId && !hero && (
+          keeps the cards this screen always had.
+
+          `round` as well, since 2026-09-20: a tournament whose organizer has
+          added no rounds landed here too, and every panel inside promises one.
+          A confirmed entrant of a brand-new Captain's Day was shown "Not
+          started · Your position and score appear here as soon as the first
+          hole goes in" and "your score is recorded against your opponent" —
+          two futures and an opponent, for a tournament with nothing in it.
+          The organizer's half of this is #518. */}
+      {me.playerId && round && !hero && (
         <>
           {/* YOUR SIDE'S ROUND, which on a team day is your round.
               Above the "not started" panel and in place of it: a player whose
@@ -452,7 +502,7 @@ export default async function PlayTodayPage() {
           <section className="card elev-sm" style={{ marginTop: 12 }}>
             <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
             <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-              {yourCardNote({ side: mySide, holes })}
+              {yourCardNote({ side: mySide, holes, round: !!round })}
             </p>
           </section>
         </>

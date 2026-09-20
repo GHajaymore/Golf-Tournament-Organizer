@@ -65,7 +65,20 @@ export default async function PlayCardPage() {
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          {onTheList ? (
+          {me.playerId ? (
+            /**
+             * ENTERED, AND THERE IS NO ROUND. The condition above is
+             * `!me.playerId || !me.round`, so a confirmed entrant of a
+             * tournament whose organizer has added no rounds fell through it
+             * and was told they were not entered — which is the one thing on
+             * this screen they can check, and it was false. Measured on the
+             * seeded club's Captain's Day: 18 confirmed entrants, no rounds.
+             */
+            <>
+              Your entry is confirmed. There&rsquo;s no round to play in this tournament yet, so
+              there&rsquo;s no card to fill in — it appears here as soon as there is one.
+            </>
+          ) : onTheList ? (
             <>
               You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The
               organizer will confirm your place if one opens up.

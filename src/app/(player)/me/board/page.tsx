@@ -66,6 +66,33 @@ export default async function PlayBoardPage() {
   const stage = state.boardStage;
   const holes = holesPlayed(stage?.holes);
 
+  /**
+   * NO ROUND, SO NO BOARD — asked before the format, because `boardKind`
+   * answers "standard" for a round that does not exist and this screen then
+   * ranked the whole field on nothing: every member listed, "not started"
+   * across, under "Ranked by net strokes". A member of a tournament their club
+   * has only just opened reads that as a competition already under way.
+   *
+   * The organizer's half of this is #518, on the dashboard's progress tile.
+   */
+  if (!stage) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          There&rsquo;s no round to play in this tournament yet, so there&rsquo;s nothing to rank.
+          The board appears here as soon as there is one.
+        </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "Back to today", icon: "flag" },
+            { href: "/me/events", label: "What my club has on", icon: "calendar-dots" },
+          ]}
+        />
+      </div>
+    );
+  }
+
   // The same branch the console leaderboard, Reports and /live make (D8). A
   // player looking at their own board is the last person who should be shown a
   // ranking the app cannot actually compute for this round — they will read it

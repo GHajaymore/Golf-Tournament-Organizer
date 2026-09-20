@@ -56,4 +56,26 @@ describe("what Today says about a card that is not the player's own", () => {
     // "every hole is in" would report a finished card off a missing number.
     expect(yourCardNote({ side: { played: 3 }, holes: 0 })).toMatch(/thru 3/i);
   });
+
+  /**
+   * NO ROUND AT ALL — the third shape, added 2026-09-20.
+   *
+   * There were two: a side's card, or a match. A tournament whose organizer
+   * has added no round is neither, so it fell through to the match sentence
+   * and named an opponent who does not exist, on a tournament that has not
+   * started. Read off the seeded club's roundless entry as a confirmed member.
+   */
+  it("says nothing at all when there is no round", () => {
+    expect(yourCardNote({ side: null, holes: 0, round: false })).toBe("");
+    // And not even when a side somehow came with it: no round, no sentence.
+    expect(yourCardNote({ side: { played: 4 }, holes: 18, round: false })).toBe("");
+  });
+
+  it("still speaks when there IS a round, however the caller says so", () => {
+    // The half a narrow fix breaks, and the old callers: `round` is optional,
+    // so every existing one must keep the sentence it had.
+    expect(yourCardNote({ side: null, holes: 18, round: true })).toMatch(/against your opponent/i);
+    expect(yourCardNote({ side: null, holes: 18 })).toMatch(/against your opponent/i);
+    expect(yourCardNote({ side: { played: 9 }, holes: 9, round: true })).toMatch(/card is in/i);
+  });
 });

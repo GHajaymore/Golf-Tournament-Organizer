@@ -2,12 +2,18 @@
  * A CLUB TO WALK AROUND IN.
  *
  * Seeds ONE invented club into the DEVELOPMENT database with a full roster and
- * nine tournaments covering as many permutations as the app has: a live net
+ * ELEVEN tournaments covering as many permutations as the app has: a live net
  * medal with a published draw and a part-finished card, a completed gross
  * championship with a cut and prizes, a live knockout with a drawn bracket, a
  * weekly league with rounds behind and ahead of today, a four-ball and a
- * foursomes round, a nine-hole Stableford on a second course, two tournaments
- * still taking entries, and a draft with nothing in it.
+ * foursomes round finishing away at a second course, a nine-hole Stableford,
+ * three tournaments still taking entries — one the player is OUT of, one where
+ * they are on the waiting list, and one where they are IN and no round exists
+ * yet — a draft with nothing in it, and a festival of every other format.
+ *
+ * The count has been wrong here twice, which is its own small lesson: this
+ * block is the first thing anybody reads about the fixture, and a fixture is
+ * only useful to the extent its description is true.
  *
  * WHY IT IS NOT THE E2E FIXTURE. `e2e/fixture.mjs` is shaped for assertions —
  * four players, one round, one of each card state — and every screen the suite
@@ -1475,6 +1481,45 @@ export async function seed() {
       format: "stroke",
     });
 
+    /**
+     * AND THE SAME STATE WITH THE PLAYER IN IT, which is the half nothing
+     * could reach.
+     *
+     * Captain's Day above keeps the signed-in player OUT on purpose, so that
+     * `/me/events` has a row with an Enter button on it; the Winter Series has
+     * no entrants at all. So every roundless tournament in this fixture was
+     * one the player could only ever look at from outside, and the player's
+     * own screens for "entered, and the club has not added a round yet" were
+     * unreachable — which is exactly the state a club is in between taking
+     * entries and deciding the format, and a common one.
+     *
+     * Walking it on 2026-09-20 found three untrue sentences at once: `/me/card`
+     * told a CONFIRMED entrant "You aren't entered in this tournament", Today
+     * promised "your position appears as soon as the first hole goes in" and
+     * named an opponent, and `/me/board` ranked the whole field on nothing.
+     * `verify-lifecycle.mjs` walks this state for the ORGANIZER and found the
+     * `/entry` 500; nobody had walked the player.
+     */
+    const meeting = await makeEvent("meeting", "Spring Meeting — Format To Follow", {
+      status: "registration",
+      shape: "single",
+      format: "stroke",
+      dates: dayOffset(60),
+      course: `${MARK}-Braid Hollow — Championship Course`,
+      courseId: home.id,
+      regOpens: dayOffset(-3),
+      regDeadline: dayOffset(50),
+      registrationOpen: true,
+      registrationToken: `${MARK}reg3`,
+      registrationApproval: "auto",
+      capacity: 40,
+      moneyMode: "",
+      leaderboardVisibility: "participants",
+    });
+    await prisma.eventCourse.create({ data: { eventId: meeting.id, courseId: home.id } });
+    // Ours FIRST, so the signed-in player is confirmed and there is no round.
+    await enter(meeting, [0, 3, 4, 5, 7, 8, 11]);
+
     /* ============================ 10. every other format the app plays ==== */
 
     /**
@@ -1791,9 +1836,12 @@ async function main() {
     `  document.cookie='ng_active_event=${sign(data.landing.id)}; path=/'`,
     "",
     /**
-     * A PLAYER IS A DIFFERENT APP, not a narrower console — and this one is in
-     * SIX of the nine tournaments, waitlisted in a seventh and merely able to
-     * see an eighth. That is the whole reason this fixture exists: the class of
+     * A PLAYER IS A DIFFERENT APP, not a narrower console — and this one is
+     * confirmed in EIGHT of the eleven tournaments, waitlisted in a ninth and
+     * merely able to look at a tenth. Each of those is a different set of
+     * sentences, and the three that are not "confirmed and playing" are where
+     * every defect walking this fixture has found on the player side has been.
+     * That is the whole reason this fixture exists: the class of
      * defect a test suite is blind to is two screens answering one question
      * differently, and it is sharpest between what the organizer sees and what
      * the player in the same tournament sees.
