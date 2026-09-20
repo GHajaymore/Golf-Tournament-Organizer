@@ -6901,6 +6901,48 @@ describe("what a player has riding on the round", () => {
       expect(html).toMatch(/one ball per side/i);
     });
 
+    it("does not list a shared-ball round under Still being played", () => {
+      /**
+       * The other half of the same fact, and the one that would contradict it
+       * on screen: the foot of this card names the rounds it is waiting for,
+       * and a foursomes round permanently reading "0/18 holes in" would sit
+       * there for ever under a heading saying the money is all in.
+       *
+       * Both readers take one list now — see `stillPlaying` — so the panel and
+       * the footer cannot come to disagree about which rounds are out.
+       */
+      const html = render(
+        <RoundMoney
+          view={{
+            ...base,
+            anyGame: true,
+            anyFinal: true,
+            yourTotalCents: 500,
+            rounds: [
+              { ...finished(1)[0], yourCents: 500, standing: [{ playerId: "ann", name: "Ann", netCents: 500 }] },
+              {
+                stageId: "s2",
+                label: "Round 2",
+                final: false,
+                holesReturned: 0,
+                holeCount: 18,
+                matchesTotal: 0,
+                matchesOver: 0,
+                sharedBall: true,
+                yourCents: 0,
+                standing: [],
+              },
+            ],
+            stake: { games: 0, cents: 0 },
+          }}
+        />,
+      );
+      expect(html).not.toMatch(/Still being played/i);
+      expect(html).not.toMatch(/0\/18 holes in/);
+      // And the header may say what it is: nothing is outstanding.
+      expect(html).toMatch(/over the whole tournament/i);
+    });
+
     it("does not say a tournament with no rounds has finished without a pot", () => {
       // Nothing is final BECAUSE nothing exists. With a pot set up and no
       // round yet, the honest answer is still "not yet".

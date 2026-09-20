@@ -29,15 +29,6 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
 
   const played = view.rounds.filter((r) => r.final);
   /**
-   * What the headline total is actually over.
-   *
-   * "the whole tournament" is only true once nothing is outstanding. Derived
-   * from the same test the "Still being played" line uses at the foot of this
-   * card, so the two cannot come to disagree about whether a round is still
-   * out — and so a tournament that finishes gets the fuller sentence back
-   * without anybody remembering to change it.
-   */
-  /**
    * A SHARED-BALL ROUND IS NOT OUTSTANDING. It is finished and unpayable.
    *
    * Foursomes, greensomes and a scramble have no individual scores, so a
@@ -57,7 +48,26 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
    * this screen keeps being fixed for.
    */
   const sharedBall = view.rounds.filter((r) => r.sharedBall);
-  const outstanding = view.rounds.some((r) => !r.final && !r.sharedBall);
+  /**
+   * ONE LIST, READ BY BOTH — the header's scope and the "Still being played"
+   * line at the foot of this card.
+   *
+   * They were two copies of `view.rounds.some((r) => !r.final)`, and a source
+   * test pinned the duplication precisely so the two could not drift. The rule
+   * has grown a second clause, so the list is built once instead: a copy that
+   * has to be updated twice is the thing that test was protecting against.
+   */
+  const stillPlaying = view.rounds.filter((r) => !r.final && !r.sharedBall);
+  const outstanding = stillPlaying.length > 0;
+  /**
+   * What the headline total is actually over.
+   *
+   * "the whole tournament" is only true once nothing is outstanding. Read off
+   * the same list the "Still being played" line uses at the foot of this card,
+   * so the two cannot come to disagree about whether a round is still out —
+   * and so a tournament that finishes gets the fuller sentence back without
+   * anybody remembering to change it.
+   */
   const scope = outstanding ? " on the rounds that have finished" : " over the whole tournament";
 
   return (
@@ -277,11 +287,10 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
           {/* Rounds still out there, so the total is not mistaken for the end
               of it. Named rather than counted: "Round 3 is still out" is a
               fact somebody can check against the leaderboard. */}
-          {view.rounds.some((r) => !r.final) && (
+          {outstanding && (
             <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0", lineHeight: 1.6 }}>
               Still being played:{" "}
-              {view.rounds
-                .filter((r) => !r.final)
+              {stillPlaying
                 /**
                  * MEASURED IN WHATEVER THIS ROUND IS ACTUALLY PLAYED IN.
                  *

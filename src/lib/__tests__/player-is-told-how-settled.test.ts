@@ -144,13 +144,24 @@ describe("what the money header is over", () => {
 
   it("asks the same question the sentence below it asks", () => {
     /**
-     * "Still being played: Round 1, Round 3…" is rendered from
-     * `view.rounds.some((r) => !r.final)`. The header reading anything else is
-     * how a card comes to hedge its total while telling the reader everything
-     * is in, or the reverse.
+     * "Still being played: Round 1, Round 3…" and the header's scope are one
+     * question. The header reading anything else is how a card comes to hedge
+     * its total while telling the reader everything is in, or the reverse.
+     *
+     * THIS USED TO PIN THE DUPLICATION — the same expression written twice,
+     * asserted to appear more than once — and that was the right guard while
+     * the rule was one clause long. It grew a second (a shared-ball round is
+     * finished and unpayable, so it is not something to wait for), at which
+     * point "both copies say the same thing" is a test that passes while
+     * somebody updates one of them. The list is built ONCE now and both read
+     * it, which is the guarantee the assertion was after.
      */
     const src = client();
-    expect(src.split("view.rounds.some((r) => !r.final)").length - 1).toBeGreaterThan(1);
+    expect(src.split("const stillPlaying =").length - 1, "the list is built once").toBe(1);
+    // Neither reader may go back to asking the rounds directly.
+    expect(src, "a second copy of the question is back").not.toContain("view.rounds.some((r) => !r.final)");
+    expect(src, "the header stopped reading the shared list").toContain("const outstanding = stillPlaying.length > 0");
+    expect(src, "the footer stopped reading the shared list").toContain("{stillPlaying");
   });
 
   it("changes no arithmetic", () => {
