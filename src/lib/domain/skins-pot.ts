@@ -73,11 +73,47 @@ export { splitExactly, settle, type Transfer } from "./money";
  * inventing a winner would be worse than the obvious answer: everyone gets
  * their own stake back.
  */
+/**
+ * HOW MANY HOLES OF THIS POT ARE STILL OUT, given every entrant's card.
+ *
+ * A skin is decided BETWEEN the entrants, so a hole is played when all of them
+ * have returned it — not when one of them has. The service asked whether ANY
+ * entrant had a score on a hole, which on a field where fifteen have finished
+ * and one is on the 12th tee reported all eighteen holes as played. The pot
+ * then settled, fed "You're owed", and offered real handovers to be marked
+ * settled while a player was still on the course. Found on 2026-09-19 by
+ * looking at a seeded club's Money screen, where the round's own panel said
+ * "Nothing settled yet" two cards above the pot that had.
+ *
+ * `money-layout.ts` opens with the rule this breaks — final only, never live —
+ * and the question it says to ask is "can the amount still change", not "has
+ * something happened". A player with holes to play can win a skin, which
+ * changes what everybody else holds.
+ *
+ * AN ENTRANT WITH NO CARD AT ALL DOES NOT HOLD THE POT OPEN, which is the same
+ * exception `roundMoneyFinality` documents beside its own check: somebody who
+ * never teed off has no row, team formats file one card for several players,
+ * and holding every pot open for ever on an absent card would be a different
+ * wrong answer. The organizer closing the tournament remains the backstop.
+ */
+export function holesUnplayedIn(
+  cards: readonly (readonly (number | null | undefined)[])[],
+  holeCount: number,
+): number {
+  const played = cards.filter((c) => c.some((s) => s != null));
+  if (played.length === 0) return holeCount;
+  let out = 0;
+  for (let h = 0; h < holeCount; h += 1) {
+    if (played.some((c) => c[h] == null)) out += 1;
+  }
+  return out;
+}
+
 export function skinsPot(
   outcome: SkinsOutcome,
   buyInCents: number,
   playerIds: string[],
-  /** Holes with no score anywhere yet — the sheet cannot be final. */
+  /** Holes at least one entrant has still to return — see `holesUnplayedIn`. */
   holesUnplayed = 0,
 ): PotResult {
   const stake = Math.max(0, Math.round(buyInCents));

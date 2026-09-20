@@ -12,6 +12,7 @@ import {
   settle,
   scopeRange,
   isSkinsScope,
+  holesUnplayedIn,
   type PotResult,
   type Transfer,
   type SkinsScope,
@@ -393,11 +394,18 @@ export async function skinsPotFor(
     { net, strokeIndex },
   );
 
-  // A hole nobody has returned a score for hasn't been played yet, and a
-  // settlement built on it would be a guess.
-  const unplayed = Array.from({ length: holeCount }, (_, h) =>
-    inPot.some((p) => (strokesBy.get(p.id) ?? []).slice(from, to)[h] != null) ? 0 : 1,
-  ).reduce((a: number, b: number) => a + b, 0);
+  /**
+   * Holes at least one entrant has still to return — `holesUnplayedIn`, which
+   * carries the reasoning.
+   *
+   * This asked whether ANY entrant had a score on a hole, so fifteen finished
+   * cards made all eighteen read as played and the pot settled while the
+   * sixteenth player was on the 12th tee.
+   */
+  const unplayed = holesUnplayedIn(
+    inPot.map((p) => (strokesBy.get(p.id) ?? []).slice(from, to)),
+    holeCount,
+  );
 
   const result =
     inPot.length > 0
