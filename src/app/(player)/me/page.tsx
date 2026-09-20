@@ -18,6 +18,7 @@ import { weekBasis, valueOnBasis, isStablefordRound } from "@/lib/domain/week-ba
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote } from "@/lib/domain/your-card";
+import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
@@ -318,9 +319,7 @@ export default async function PlayTodayPage() {
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {myRow?.canEnter && (
-              <Link className="btn btn-primary" href={myRow.registrationHref} style={{ flex: "1 1 160px" }}>
-                Enter this tournament <Icon name="arrow-right" />
-              </Link>
+              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} style={{ flex: "1 1 160px" }} />
             )}
             <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
               See the board <Icon name="arrow-right" />
