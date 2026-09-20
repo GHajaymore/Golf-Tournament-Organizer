@@ -8,6 +8,12 @@ import type { WeekView } from "@/lib/services/week-view";
 import { useMoney } from "@/components/CurrencyProvider";
 import { nightPurse, stakesGoBack } from "@/lib/domain/skins-pot";
 import { Icon } from "./Icon";
+import {
+  SkinsStandingsTable,
+  NassauMatches,
+  SKINS_NOTE,
+  NASSAU_NOTE,
+} from "./PointsLeaderboard";
 
 /**
  * One week of a league on one screen.
@@ -373,6 +379,39 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               </table>
             </div>
           </Section>
+          )}
+
+          {/* THE NIGHT'S OWN BOARD, when the gross-and-net table is the wrong
+              question. A skins round pays holes and a Nassau is three bets —
+              `positionsExist` says so — and this sheet ranked both on net
+              strokes, so a skins night read "1st · 57 net" here and "3 skins"
+              on the leaderboard, for different players. Same component as the
+              leaderboard renders, not a second telling of it. */}
+          {view.nightBoard?.kind === "skins" && (
+            <Section
+              kicker="The night"
+              title="Skins"
+              aside={
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  {SKINS_NOTE(view.nightBoard.net)}
+                </span>
+              }
+            >
+              <SkinsStandingsTable board={view.nightBoard.board} />
+            </Section>
+          )}
+          {view.nightBoard?.kind === "nassau" && (
+            <Section
+              kicker="The night"
+              title="Nassau"
+              aside={
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  {NASSAU_NOTE}
+                </span>
+              }
+            >
+              <NassauMatches rows={view.nightBoard.rows} />
+            </Section>
           )}
 
           {/* THE NIGHT'S SIDES, on a night played in teams.
