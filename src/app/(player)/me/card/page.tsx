@@ -18,6 +18,8 @@ import { teamStandings } from "@/lib/services/teams";
 import { Icon } from "@/components/Icon";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
+import { clubEventsFor } from "@/lib/services/club-events";
+import { isWaiting } from "@/lib/domain/tournament-switcher";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -46,11 +48,31 @@ export default async function PlayCardPage() {
   const brand = await cardBrand(session.eventId);
 
   if (!me.playerId || !me.round) {
+    /**
+     * WHY there is no card, which is not one answer but two.
+     *
+     * `me.playerId` is null for a waitlisted entry by design — `myPlayerIds`
+     * asks for `confirmed`, and a card must never reach somebody without a
+     * place. This screen then told an applicant "You aren't entered", the same
+     * words it says to a stranger, while the events list was telling them they
+     * were on the list. Same fault as Today's, on the screen they would open
+     * next. See `isWaiting`.
+     */
+    const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
+    const isStaff = session.role === "admin" || session.role === "assistant";
+    const onTheList = isWaiting(myRow, isStaff);
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          You aren&rsquo;t entered in this tournament, so there&rsquo;s no card to fill in.
+          {onTheList ? (
+            <>
+              You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The
+              organizer will confirm your place if one opens up.
+            </>
+          ) : (
+            <>You aren&rsquo;t entered in this tournament, so there&rsquo;s no card to fill in.</>
+          )}
         </p>
         <WayForward
           links={[

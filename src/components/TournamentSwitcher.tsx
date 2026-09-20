@@ -61,13 +61,17 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
                 {current.name}
               </span>
             )}
-            {current?.note && !current.watching && (
+            {current?.note && !current.watching && !current.waiting && (
               <span className="text-muted" style={{ fontSize: 11.5 }}>
                 {current.note}
               </span>
             )}
           </span>
-          {current?.watching && (
+          {/* ONE PILL, TWO STATES. A member on the waiting list read
+              "Watching · read-only" here — true of what they may DO and wrong
+              about who they are, and the events list was telling them the
+              opposite on the same row. See `isWaiting`. */}
+          {(current?.watching || current?.waiting) && (
             <span
               style={{
                 flex: "none",
@@ -80,7 +84,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
                 whiteSpace: "nowrap",
               }}
             >
-              Watching · read-only
+              {current?.waiting ? "Waiting list" : "Watching · read-only"}
             </span>
           )}
           {others.length > 0 && (

@@ -27,6 +27,7 @@ function row(i: number): ClubEventRow {
     entryDates: "",
     canEnter: true,
     entered: false,
+    waiting: false,
     registrationHref: "",
     canView: false,
     viewLabel: "Leaderboard",

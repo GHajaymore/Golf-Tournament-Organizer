@@ -15,7 +15,17 @@ const row = (eventId: string, band: EventBand, over: Partial<SwitchableRow> = {}
 describe("the tournament switcher", () => {
   it("names the tournament on screen and says the member is watching one they are not in", () => {
     const s = switcherFor([row("medal", "entered"), row("cup", "live")], "cup", false);
-    expect(s.current).toEqual({ eventId: "cup", name: "zz-cup", note: "Watching · On now", watching: true });
+    // `waiting` joined the shape on 2026-09-20, when a member on the waiting
+    // list stopped being called a spectator — see `waiting-is-not-watching`.
+    // Asserted here rather than loosened: this is the one place that pins the
+    // whole object, and a field arriving unnoticed is what it exists to stop.
+    expect(s.current).toEqual({
+      eventId: "cup",
+      name: "zz-cup",
+      note: "Watching · On now",
+      watching: true,
+      waiting: false,
+    });
   });
 
   it("does not call a member watching a tournament they are in", () => {
