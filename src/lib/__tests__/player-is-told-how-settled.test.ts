@@ -160,6 +160,23 @@ describe("the player's position says whether it can move", () => {
       expect(note).not.toContain("This round is all in");
     });
 
+    it("does not report a hand-scored round as one waiting for cards", () => {
+      /**
+       * `isManualFormat` rounds have no engine by design — the format's own
+       * entry says so — so nothing is owed and nothing will change. The note
+       * said "Nothing returned for this round yet" on `/reports`, two inches
+       * above its own notice explaining that no result is expected, and on the
+       * player's screen where there is no notice at all.
+       *
+       * The unit carries it, so neither screen has to know what a manual
+       * format is.
+       */
+      const note = snapshotStanding({ status: "live", done: 0, total: 0, unit: "manual" }).note;
+      expect(note).toContain("scored by hand");
+      expect(note).not.toContain("Nothing returned");
+      expect(note).not.toContain("will change");
+    });
+
     it("leaves every other unit exactly as it was", () => {
       // The control: this is a branch for one unit, and a change that reworded
       // the others would pass the three cases above.

@@ -888,6 +888,18 @@ export default async function DashboardPage() {
               sub={casualMatch ? "hole by hole" : "on the card"}
               icon="ph ph-check-circle"
             />
+          ) : state.boardProgress.unit === "manual" ? (
+            /* A ROUND THE APP DOES NOT SCORE HAS NO CARDS COMING IN. The
+               format's own entry says "no engine computes this. That is the
+               point" — the committee works the result out — so "Cards in 0/16
+               · 0% submitted" counted a field that owes nothing, and would
+               have read zero for ever. */
+            <StatCard
+              label="Scored by hand"
+              value="—"
+              sub="the committee works this round out"
+              icon="ph ph-clipboard-text"
+            />
           ) : !state.boardStage ? (
             /* A TOURNAMENT WITH NO ROUND HAS NOTHING TO BE A FRACTION OF.
                "Cards in 0/0 · 0% submitted" is the shape of an answer to a
@@ -1067,6 +1079,14 @@ export default async function DashboardPage() {
               {!state.boardStage ? (
                 <p className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.6 }}>
                   Add a round and the field&rsquo;s progress shows here.
+                </p>
+              ) : state.boardProgress.unit === "manual" ? (
+                /* Same reason, different absence: there is no progress to draw
+                   because no card is owed. Said once, here, rather than drawn
+                   as an empty bar over a count of nothing. */
+                <p className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.6 }}>
+                  This round is scored by hand, so no cards come in — the result is whatever the
+                  committee records.
                 </p>
               ) : (
                 <>
