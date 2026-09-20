@@ -166,11 +166,22 @@ export interface RoundCutFields {
  *
  * FLIGHTS ARE TRACKED WHERE THEY CAN BE, because "top 2 per flight" is a
  * different number from "top 2" and the difference compounds over two cuts.
- * After an OVERALL cut the flight split is no longer knowable from sizes alone
- * — the survivors can come from anywhere — so a later per-flight cut is sized
- * against the whole remaining field instead. That is an approximation and it is
- * named here rather than hidden: it needs two cuts of different scopes in one
- * tournament, and it is still far closer than the entry list.
+ * After an OVERALL cut the flight split is no longer derivable FROM SIZES —
+ * the survivors can come from anywhere — so a later per-flight cut is sized
+ * against the whole remaining field instead.
+ *
+ * WHICH WAY THAT ERRS IS THE PART TO KNOW: too BIG. A club would see "16 of 24
+ * · 67% submitted" over a round where all sixteen are in — cards reading as
+ * outstanding that do not exist, which is a smaller instance of the very
+ * defect this function was written for. It takes two cuts of different scopes
+ * in one tournament to appear at all, and it is still far closer than the
+ * entry list, so it is named here rather than hidden.
+ *
+ * The exact answer is available and costs more than a denominator is worth:
+ * flight membership travels with the PLAYERS, so chaining `survivors` round by
+ * round would keep it — but that needs the field ranked as of each
+ * intermediate round, which means every card up to it. Whoever has that in
+ * hand should do it properly; this function errs high until they do.
  */
 export function fieldEnteringRound(
   rounds: RoundCutFields[],
