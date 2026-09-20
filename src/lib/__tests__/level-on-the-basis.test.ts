@@ -21,7 +21,28 @@ import { compareOnBasis, levelOnBasis, scoreOnBasis } from "@/lib/domain/stroke-
  * basis.
  */
 
-const p = (gross: number, net: number, points = 0) => ({ gross, net, points });
+/**
+ * A FINISHED card, which is what every case below is about: eighteen holes of
+ * a par-72 course, where a level round scores 36 Stableford points. The two
+ * new terms are then the same for both sides of every comparison, so these
+ * assertions mean exactly what they meant before `BasisScore` carried them.
+ */
+const p = (gross: number, net: number, points = 0) => ({
+  gross,
+  net,
+  points,
+  parThru: 72,
+  levelPoints: 36,
+});
+
+/** A card still out on the course: `thru` holes of the same par-72 round. */
+const mid = (gross: number, net: number, thru: number, points = 0) => ({
+  gross,
+  net,
+  points,
+  parThru: 4 * thru,
+  levelPoints: 2 * thru,
+});
 
 describe("a gross competition is decided on gross", () => {
   it("treats two players level on gross as level, whatever their nets", () => {
@@ -78,10 +99,55 @@ describe("a Stableford competition is decided on points", () => {
 });
 
 describe("which number each basis reads", () => {
-  it("reads exactly one of the three", () => {
+  it("reads exactly one of the three, RELATIVE to the holes played", () => {
+    /**
+     * Not the raw total any more. A running total only compares like with
+     * like, so each basis is measured against what the holes played were
+     * worth: par for strokes, a level round's points for Stableford. On a
+     * finished par-72 card that is 72 and 36.
+     */
     const row = p(70, 64, 38);
-    expect(scoreOnBasis(row, "gross")).toBe(70);
-    expect(scoreOnBasis(row, "net")).toBe(64);
-    expect(scoreOnBasis(row, "stableford")).toBe(38);
+    expect(scoreOnBasis(row, "gross"), "two under par").toBe(-2);
+    expect(scoreOnBasis(row, "net"), "eight under, net").toBe(-8);
+    expect(scoreOnBasis(row, "stableford"), "two points better than level").toBe(2);
+  });
+
+  /**
+   * THE MEASURED DEFECT THIS EXISTS FOR, read off the fixture 2026-09-18:
+   * four players all level par, ordered 34, 56, 60, 63 by net — the 34 being
+   * NINE HOLES. The club's live board named as leader whoever had played
+   * least, on the screen in the clubhouse.
+   */
+  it("makes a player through nine comparable with one through eighteen", () => {
+    // Level par through nine of a par-72 course is 36, not the 34 the
+    // deferred register quotes — that measurement was taken on a nine whose
+    // own par was 34. Stated here rather than copied, because a fixture that
+    // is not actually level cannot test whether level reads as level.
+    const half = mid(36, 36, 9);
+    const full = p(72, 72, 36); // level par, round in
+    expect(scoreOnBasis(half, "net"), "level par is level par").toBe(0);
+    expect(scoreOnBasis(full, "net")).toBe(0);
+    expect(compareOnBasis(half, full, "net"), "neither leads the other").toBe(0);
+    expect(levelOnBasis(half, full, "net")).toBe(true);
+  });
+
+  it("still puts the player who is actually going better in front", () => {
+    // The control: making totals comparable must not make everyone equal.
+    const underThroughNine = mid(32, 32, 9); // four under through nine
+    const levelRoundIn = p(72, 72, 36);
+    expect(compareOnBasis(underThroughNine, levelRoundIn, "net")).toBeLessThan(0);
+    // And the other way, so it is not simply favouring short cards.
+    const overThroughNine = mid(40, 40, 9); // four over through nine
+    expect(compareOnBasis(overThroughNine, levelRoundIn, "net")).toBeGreaterThan(0);
+  });
+
+  it("does the same for points, where the bias ran the other way", () => {
+    // A player through nine has FEWER points, so the raw total put them last
+    // rather than first. Level is 2 a hole in ordinary Stableford.
+    const half = mid(0, 0, 9, 18); // level through nine
+    const full = p(0, 0, 36); // level, round in
+    expect(compareOnBasis(half, full, "stableford")).toBe(0);
+    const goingWell = mid(0, 0, 9, 22); // four points up through nine
+    expect(compareOnBasis(goingWell, full, "stableford")).toBeLessThan(0);
   });
 });

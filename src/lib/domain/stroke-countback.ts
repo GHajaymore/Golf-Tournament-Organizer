@@ -167,29 +167,46 @@ export function rankByCountback<T extends CountbackCard>(
 /** What a stroke competition may be decided on. */
 export type RankingBasis = "stableford" | "gross" | "net";
 
-/** The three numbers a stroke row carries; one of them is the competition. */
 /**
- * A RAW TOTAL, WHICH IS ONLY COMPARABLE BETWEEN EQUAL NUMBERS OF HOLES.
+ * A STROKE ROW, MADE COMPARABLE BETWEEN PLAYERS WHO HAVE PLAYED DIFFERENT
+ * NUMBERS OF HOLES.
  *
- * After the last card is in, every player has played the same holes and this
- * is exactly right. DURING a round it is not: a player through nine has a
- * lower total than a player through eighteen for no reason but arithmetic, and
- * the board ranks them first.
+ * A raw total only compares like with like. After the last card is in every
+ * player has played the same holes and a total is exactly right; DURING a
+ * round it is not, because a player through nine has a lower total than a
+ * player through eighteen for no reason but arithmetic — and the board ranked
+ * them first.
  *
- * Measured on the fixture 2026-09-18 — four players all level par, ordered
- * 34, 56, 60, 63 by net, the 34 being nine holes. `StrokeAgg.parThru` is the
- * missing term: par for the holes THAT PLAYER played, which turns a raw total
- * into a comparable one and changes nothing once everyone has finished.
+ * Measured on the fixture 2026-09-18: four players all level par, ordered
+ * 34, 56, 60, 63 by net, the 34 being nine holes. So the club's live board
+ * named as leader whoever had played least, on the screen in the clubhouse.
  *
- * Deliberately not changed here. It moves the cut line and the qualification
- * bubble as well as the board, and whether a club wants its medal reordering
- * mid-round is the club's call. `docs/deferred-register.md` carries the
- * measurement and the argument on both sides.
+ * `parThru` is the missing term for strokes — par for the holes THAT PLAYER
+ * played — and `levelPoints` is its twin for points. Both turn a running total
+ * into a figure that means the same thing at any stage, and both collapse to a
+ * constant once everybody has finished, so a completed round ranks exactly as
+ * it always did.
+ *
+ * LEVEL POINTS COME FROM THE CALLER because the two Stableford variants do not
+ * agree about what level is: ordinary Stableford pays 2 for a net par, and
+ * Modified pays 0 and goes negative for a bogey. `rankingBasis` is
+ * "stableford" for both, so this type cannot tell them apart and must not
+ * guess — a wrong constant here would reorder a Modified board silently, which
+ * is the failure the raw total already was.
+ *
+ * Taken on 2026-09-20 on Ajay's word, deferred until then because it moves the
+ * cut line and the qualification bubble as well as the board. That is the
+ * point rather than a side effect: a cut taken mid-round off raw totals cuts
+ * on how far round people are.
  */
 export interface BasisScore {
   gross: number;
   net: number;
   points: number;
+  /** Par for the holes this player has actually played. */
+  parThru: number;
+  /** What a level round scores over the holes this player has played. */
+  levelPoints: number;
 }
 
 /**
@@ -225,7 +242,11 @@ export interface BasisScore {
  * file describes and refuses.
  */
 export function scoreOnBasis(s: BasisScore, basis: RankingBasis): number {
-  return basis === "stableford" ? s.points : basis === "gross" ? s.gross : s.net;
+  // Relative to what the holes played were worth, never the raw total — see
+  // the note on `BasisScore`. Identical ordering once everyone is round,
+  // because the term subtracted is then the same for all of them.
+  if (basis === "stableford") return s.points - s.levelPoints;
+  return (basis === "gross" ? s.gross : s.net) - s.parThru;
 }
 
 /**
