@@ -174,6 +174,31 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   if (!state) return null;
 
   const activeStage = state.boardStage;
+  /**
+   * WHERE THE ROUND ON THIS BOARD IS ACTUALLY PLAYED.
+   *
+   * The line under the heading is `roundLabel · dates · venue`, so the venue
+   * reads as a fact about the ROUND named beside it — and it was the event's
+   * own course every time. Read off the seeded club on 2026-09-20:
+   *
+   *   Evening nine at Ardmore · 2026-09-17 · Braid Hollow — Championship Course
+   *
+   * Ardmore in the round's name and Braid Hollow as the venue, in one line, on
+   * the board a club puts on a screen in the clubhouse. The same defect the
+   * "Rounds & formats" screen had (#507) on the one surface where a stranger
+   * cannot ask anybody.
+   *
+   * Only asked when the round names a course of its own, so a one-venue
+   * tournament costs nothing and reads exactly as before. Scoped to courses
+   * attached to THIS event, the same guard the scoring paths use: a `courseId`
+   * is an id, and an id from somewhere else must not resolve.
+   */
+  const roundVenue = activeStage?.courseId
+    ? await prisma.course.findFirst({
+        where: { id: activeStage.courseId, events: { some: { eventId } } },
+        select: { name: true, city: true },
+      })
+    : null;
   const kind = boardKind(activeStage?.format);
   const teamRound = kind === "team" && !!activeStage;
   const holeCount = holesPlayed(activeStage?.holes);
@@ -309,7 +334,9 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     name: event.name,
     dates: event.dates,
     teamFormat: activeStage?.format ?? "",
-    venue: [event.course, event.city].filter(Boolean).join(", "),
+    venue: roundVenue
+      ? [roundVenue.name, roundVenue.city].filter(Boolean).join(", ")
+      : [event.course, event.city].filter(Boolean).join(", "),
     rows,
     teamRows,
     skins,
