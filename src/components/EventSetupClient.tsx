@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
+import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -13,6 +14,8 @@ import { TournamentJourney } from "./TournamentJourney";
 
 interface EventForm {
   name: string;
+  /** Outing, charity day, league… — copy only. See domain/play-kind.ts. */
+  playKind: string;
   /** The first and last day played, `yyyy-mm-dd`. The stored truth. */
   startOn: string;
   endOn: string;
@@ -381,6 +384,32 @@ export function EventSetupClient({
             placeholder="Name your tournament"
             style={!f.name.trim() ? { borderColor: "var(--color-accent)" } : undefined}
           />
+        </div>
+        {/* WHAT THIS ONE IS CALLED. A club runs a championship in June, a
+            charity scramble in July and a roll-up on Tuesdays — one word for
+            all three is wrong however carefully it is chosen, so the
+            tournament says which it is and the screens use that word.
+            Copy only: nothing scores differently. */}
+        <div className="field">
+          <label htmlFor="play-kind">What kind is this?</label>
+          <select
+            id="play-kind"
+            className="input"
+            value={f.playKind}
+            onChange={(e) => set("playKind", e.target.value)}
+            style={{ minHeight: 46 }}
+          >
+            {PLAY_KINDS.map((k) => (
+              <option key={k.key} value={k.key}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0", lineHeight: 1.5 }}>
+            Members see this word: &ldquo;this {playNoun(f.playKind)}&rdquo;, and the results card
+            reads &ldquo;{resultHeading(f.playKind)}&rdquo;. It changes nothing about how the golf is
+            scored.
+          </p>
         </div>
         <div className="pair-grid">
           <div className="field">
@@ -772,7 +801,8 @@ export function EventSetupClient({
             onClick={() => {
               startTransition(() =>
                 saveEvent({
-                  name: f.name, dates: f.dates, datesTentative: f.datesTentative, format: f.format, course: f.course, courseId: f.courseId, city: f.city,
+                  name: f.name, playKind: f.playKind, dates: f.dates, datesTentative: f.datesTentative,
+                  format: f.format, course: f.course, courseId: f.courseId, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
                   courseMode: f.courseMode, sideStyle: f.sideStyle,
                 }),

@@ -13,6 +13,7 @@ import {
   type SeasonWindow,
 } from "@/lib/domain/club-season";
 import { todayIso } from "@/lib/deadline";
+import { playLabel } from "@/lib/domain/play-kind";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB RUNS — found, understood and entered from
@@ -208,7 +209,23 @@ export function ClubEventsList({
                       {e.seriesName}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--font-heading)", fontSize: 18, lineHeight: 1.25 }}>{e.name}</span>
+                  <span style={{ fontFamily: "var(--font-heading)", fontSize: 18, lineHeight: 1.25 }}>
+                    {e.name}
+                    {/* WHAT KIND OF DAY IT IS, where the club has said. A
+                        charity scramble and a club championship read very
+                        differently to a member deciding what to enter, and
+                        the name alone does not always say which. Omitted for
+                        a plain tournament, which is the default and would be
+                        a chip on every card saying nothing. */}
+                    {e.playKind && e.playKind !== "tournament" && (
+                      <span
+                        className="text-muted"
+                        style={{ fontSize: 11.5, fontWeight: 600, marginLeft: 8, whiteSpace: "nowrap" }}
+                      >
+                        {playLabel(e.playKind)}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-muted" style={{ fontSize: 13 }}>
                     {[e.dates, e.venue].filter(Boolean).join(" · ") || "Dates to be confirmed"}
                     {/* SAID, NOT IMPLIED. A member plans around this line, and
