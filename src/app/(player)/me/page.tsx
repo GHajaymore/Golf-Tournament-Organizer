@@ -17,6 +17,7 @@ import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
 import { weekBasis, valueOnBasis } from "@/lib/domain/week-basis";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
+import { yourCardNote } from "@/lib/domain/your-card";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
@@ -406,11 +407,26 @@ export default async function PlayTodayPage() {
               )}
             </section>
           ))}
+          {/**
+           * AND WHETHER IT IS IN, which this promised without ever checking.
+           *
+           * The sentence ended "it appears on the board as soon as it's in" on
+           * every round of this shape — including, four inches under a panel
+           * reading "Round complete · 35 gross, 26 net · 5th of 8 sides", the
+           * one where it plainly already had. A sentence that is true before
+           * the round and false after it is one nobody can act on, which is
+           * the same fault `/me/card` was fixed for on 2026-09-20; this is its
+           * sibling on Today, found the same evening by walking the seeded
+           * club's away round as a player.
+           *
+           * It also named BOTH shapes at once — "a match is recorded against
+           * your opponent, and a team round on your side's card" — on a round
+           * that is only ever one of them. `mySide` says which.
+           */}
           <section className="card elev-sm" style={{ marginTop: 12 }}>
             <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
             <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-              This round is scored by your organizer — a match is recorded against your opponent, and a
-              team round on your side&rsquo;s card. It appears on the board as soon as it&rsquo;s in.
+              {yourCardNote({ side: mySide, holes })}
             </p>
           </section>
         </>
