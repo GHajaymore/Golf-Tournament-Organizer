@@ -291,7 +291,10 @@ export default async function DashboardPage() {
       : "The round"
     : state.playRounds.length > 1 && currentStage
       ? roundLabelWith(state.playRounds, currentStage.id, currentStage.type)
-      : currentStage?.type ?? "—";
+      : // "—" is what a tournament with no rounds read, over an empty progress
+        // bar and "0/0 scorecards certified". A dash is a missing VALUE; this
+        // is a state, and the line under it now says what to do about it.
+        (currentStage?.type ?? "No rounds yet");
   const currentRoundDesc = matchEvent
     ? // A round robin of two IS the match, and telling two friends that
       // "every player meets everyone in their flight" describes the schema
@@ -885,6 +888,21 @@ export default async function DashboardPage() {
               sub={casualMatch ? "hole by hole" : "on the card"}
               icon="ph ph-check-circle"
             />
+          ) : !state.boardStage ? (
+            /* A TOURNAMENT WITH NO ROUND HAS NOTHING TO BE A FRACTION OF.
+               "Cards in 0/0 · 0% submitted" is the shape of an answer to a
+               question nobody has asked yet, on the screen a club sees for its
+               first ten minutes — which CLAUDE.md names as the state the demo
+               fixture never covers and `verify-lifecycle` exists for.
+
+               It says what is missing instead, in the words the setup
+               checklist on this same screen already uses. */
+            <StatCard
+              label="Rounds"
+              value="None yet"
+              sub="add one to start scoring"
+              icon="ph ph-stack"
+            />
           ) : state.boardProgress.unit === "cards" ? (
             <StatCard
               label="Cards in"
@@ -1040,6 +1058,18 @@ export default async function DashboardPage() {
                   <div className="text-muted" style={{ fontSize: 12 }}>{currentRoundDesc}</div>
                 </div>
               </div>
+              {/* NO ROUND, NO BAR. An empty progress bar under a round named
+                  "—", over the words "0/0 scorecards certified", is three
+                  pieces of furniture describing a question this tournament has
+                  not reached. What an organizer needs here is the next step,
+                  which the setup checklist at the top of this same screen is
+                  already telling them. */}
+              {!state.boardStage ? (
+                <p className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.6 }}>
+                  Add a round and the field&rsquo;s progress shows here.
+                </p>
+              ) : (
+                <>
               {/* The bar and the caption are one fact, and `boardProgress`
                   already holds it — counted for the round this card NAMES,
                   which is the whole of what went wrong here. */}
@@ -1080,6 +1110,8 @@ export default async function DashboardPage() {
                 <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--color-danger)" }}>
                   {state.boardProgress.disputed} disputed
                 </div>
+              )}
+                </>
               )}
             </div>
 
