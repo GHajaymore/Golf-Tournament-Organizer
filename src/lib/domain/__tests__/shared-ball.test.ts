@@ -121,6 +121,33 @@ describe("the screens and writes that offer a per-player pot", () => {
     );
   });
 
+  it("closes every door on the group-games screen, not just the one", () => {
+    /**
+     * THE PANEL WAS RIGHT AND THE SCREEN AROUND IT WAS NOT. On 2026-09-20 the
+     * seeded club's foursomes showed, in one screenful:
+     *
+     *   "No pots on this round — Foursomes is played with one ball per side,
+     *    so there are no individual scores to decide a pot on."
+     *   "…publish one and every group gets its own pot here."
+     *   [ Start a side bet ]
+     *
+     * The second is an instruction with no outcome, and the third is a form
+     * whose own action refuses that round with the sentence printed above it.
+     * The refusal panel's comment already stated the rule it was the only part
+     * of the screen keeping: a control that takes an answer and then rejects
+     * it is worse than one that explains itself.
+     *
+     * Pinned as CONDITIONS rather than as the symbol appearing, for the reason
+     * the block above this one gives: presence is not reachability.
+     */
+    const src = asks("src/app/(app)/group-games/page.tsx");
+    expect(src, "the answer is no longer resolved once").toMatch(
+      /const noPerPlayerPot = week \? perPlayerPotRefusal\(week\.format\) : null/,
+    );
+    expect(src, "the side-bet control is no longer gated").toMatch(/week && !noPerPlayerPot/);
+    expect(src, "the tee-sheet promise is no longer gated").toMatch(/!casual && !noPerPlayerPot/);
+  });
+
   it("is asked by the casual round, which writes its own pot", () => {
     /**
      * `actions/match-setup.ts` creates `skinsPot` and `sideGame` straight
