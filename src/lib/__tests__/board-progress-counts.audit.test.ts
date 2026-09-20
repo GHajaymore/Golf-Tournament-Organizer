@@ -476,3 +476,145 @@ describe("the round's progress, on a knockout", () => {
     expect(p.disputed).toBe(0);
   });
 });
+
+/**
+ * AND THE ROUND WHOSE TYPE SAYS ONE THING AND WHOSE RESULTS SAY ANOTHER.
+ *
+ * A Nassau is eighteen holes of stroke-play scoring — its stage type is
+ * "Stroke Play Round" — and it is three bets between two players, so what it
+ * writes is `Match` rows. `roundIsStroke` reads the TYPE, so the counter asked
+ * for scorecards and found none, for ever, over a night every pair had
+ * finished.
+ *
+ * Measured on the seeded club's Festival of Formats on 2026-09-20: its Nassau
+ * round holds 0 `Scorecard` rows against 8 `Match` rows.
+ *
+ * TWO MATCHES, ONE OVER AND ONE MID-ROUND, so "counts fixtures" (2), "counts
+ * finished fixtures" (1) and "counts cards" (0) are three different numbers.
+ */
+const NASSAU_TAG = "zz-board-progress-nassau";
+let nassauEventId = "";
+
+async function cleanupNassau() {
+  await prisma.event.deleteMany({ where: { name: { startsWith: NASSAU_TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: NASSAU_TAG } } });
+}
+
+describe("the round's progress, on a Nassau night", () => {
+  beforeAll(async () => {
+    await cleanupNassau();
+    const org = await prisma.organization.create({
+      data: { name: `${NASSAU_TAG} club`, kind: "club" },
+      select: { id: true },
+    });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: org.id,
+        name: `${NASSAU_TAG} nassau`,
+        status: "live",
+        shape: "series",
+        format: "stroke",
+        formationRule: "balanced",
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        shareToken: randomBytes(12).toString("hex"),
+        registrationToken: randomBytes(8).toString("hex"),
+        customPars: JSON.stringify(new Array(18).fill(4)),
+        customYards: JSON.stringify(new Array(18).fill(400)),
+        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+      select: { id: true },
+    });
+    nassauEventId = event.id;
+
+    const stage = await prisma.stage.create({
+      data: {
+        eventId: nassauEventId,
+        position: 0,
+        description: "Nassau night",
+        // The type a Nassau really has, which is the whole trap.
+        type: "Stroke Play Round",
+        format: "Nassau",
+        holes: 18,
+        scoringBasis: "net",
+      },
+      select: { id: true },
+    });
+
+    const group = await prisma.group.create({
+      data: { eventId: nassauEventId, name: `${NASSAU_TAG} A`, position: 0 },
+      select: { id: true },
+    });
+    const ids: string[] = [];
+    for (const [i, name] of ["Ann", "Bea", "Cal", "Dev"].entries()) {
+      const p = await prisma.player.create({
+        data: {
+          eventId: nassauEventId,
+          groupId: group.id,
+          name: `${NASSAU_TAG} ${name}`,
+          email: `${NASSAU_TAG}-${name}@example.invalid`.toLowerCase(),
+          handicap: 10 + i,
+          seed: i + 1,
+          status: "confirmed",
+        },
+        select: { id: true },
+      });
+      ids.push(p.id);
+    }
+
+    // One pair round in full, one on the 9th: a counter that reads "any hole
+    // written down" says two, and a counter that reads cards says nothing.
+    await prisma.match.create({
+      data: {
+        eventId: nassauEventId,
+        stageId: stage.id,
+        groupId: group.id,
+        round: 1,
+        playerAId: ids[0],
+        playerBId: ids[1],
+        holes: JSON.stringify(new Array(18).fill("A")),
+      },
+    });
+    await prisma.match.create({
+      data: {
+        eventId: nassauEventId,
+        stageId: stage.id,
+        groupId: group.id,
+        round: 1,
+        playerAId: ids[2],
+        playerBId: ids[3],
+        holes: JSON.stringify([...new Array(9).fill("B"), ...new Array(9).fill(null)]),
+      },
+    });
+  });
+
+  afterAll(cleanupNassau);
+
+  const nassauProgress = async () => {
+    const state = await loadEventState(nassauEventId);
+    expect(state, "the Nassau event did not load").not.toBeNull();
+    return state!.boardProgress;
+  };
+
+  it("counts the pairs, not the cards it has none of", async () => {
+    const p = await nassauProgress();
+    expect(p.total, "two pairs are out").toBe(2);
+    expect(p.started, "both have holes on them").toBe(2);
+  });
+
+  it("counts only the pair whose round is over as returned", async () => {
+    // Zero before this, over a night that was half finished.
+    const p = await nassauProgress();
+    expect(p.certified).toBe(1);
+    expect(p.pct).toBe(50);
+  });
+
+  it("names what it is counting, so the screens do not say cards", async () => {
+    /**
+     * `snapshotStanding` prints the unit into its note — "1 of 2 matches in" —
+     * and the dashboard's tile label comes from the same word. A Nassau night
+     * that said "cards" would be describing a table it never writes to.
+     */
+    const p = await nassauProgress();
+    expect(p.unit).toBe("matches");
+  });
+});
