@@ -91,6 +91,8 @@ export interface ClubEventRow {
   when: "upcoming" | "now" | "finished";
   /** "Closes in 9 days" / "Entries open tomorrow", or "". */
   windowNote: string;
+  /** Where THIS member stands — "You're on the waiting list…" — or "". */
+  yourStatus: string;
   /** 0..1 through the entry window, or null without two real dates. */
   progress: number | null;
   /** "18 of 32 places left", "Full — waiting list open", or "". */
@@ -206,7 +208,23 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     ...matchEvents.map((m) => m.eventId),
   ]);
 
-  return events.map((event) => {
+  /**
+   * AN EMPTY DRAFT IS NOT ON THE CLUB'S FIXTURE LIST (2026-09-19).
+   *
+   * A tournament the club has not published, with nothing on it, told a member
+   * nothing they could act on — and the card read "Closed", which says "this
+   * was open and you missed it" about something that has never opened. Seen on
+   * the seeded club's "Winter Series — Not Yet Planned": a name and nothing
+   * else.
+   *
+   * A DRAFT WITH RESULTS STAYS, which the audit suite caught this rule getting
+   * wrong. Clubs do play tournaments they never launched — `canView` already
+   * says "there is something on it" — and hiding one that people are scoring
+   * would be far worse than showing an empty one.
+   */
+  return events
+    .filter((event) => event.status !== "draft" || hasResults.has(event.id))
+    .map((event) => {
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,
@@ -231,9 +249,21 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       band,
       bandLabel: BAND_LABEL[band],
       when: whenOf(band),
-      windowNote: waiting
-        ? "You’re on the waiting list — the organizer will confirm your place."
-        : entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
+      /**
+       * WHERE THIS MEMBER STANDS, separately from the entry window.
+       *
+       * It used to ride on `windowNote`, which the card renders only for the
+       * "open" and "soon" bands — so a member on the WAITING LIST, which
+       * happens when a tournament is full and therefore closed, was told
+       * nothing about themselves at all. Read off the seeded club's Am-Am on
+       * 2026-09-19: "All 12 places taken; further entries join the waitlist",
+       * and not a word about the fact that they were on it.
+       *
+       * Their own status is the one line on the card that is about them, so it
+       * is its own field and the screen shows it whatever the band.
+       */
+      yourStatus: waiting ? "You’re on the waiting list — the organizer will confirm your place." : "",
+      windowNote: entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
       progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
       placesNote:
         band === "open" || band === "soon"

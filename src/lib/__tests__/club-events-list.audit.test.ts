@@ -181,12 +181,22 @@ const rows = async () => {
 };
 
 describe("what a member is told about each of their club's tournaments", () => {
-  it("lists every one of them", async () => {
-    // The control. Every assertion below is satisfied by an empty list.
+  it("lists every one a member could act on", async () => {
+    /**
+     * The control. Every assertion below is satisfied by an empty list.
+     *
+     * `draftEmpty` is the deliberate exception since 2026-09-19 — an
+     * unpublished tournament with nothing on it is not on the club's fixture
+     * list, and the case at the bottom of this file says why. Named here
+     * rather than filtered silently, so the control still fails if the list
+     * loses anything else.
+     */
     const byId = await rows();
     for (const [label, eventId] of Object.entries(id)) {
+      if (label === "draftEmpty") continue;
       expect(byId.has(eventId), `${label} is missing from the member's list`).toBe(true);
     }
+    expect(byId.size, "and nothing else has vanished").toBe(Object.keys(id).length - 1);
   });
 
   it("offers a way in to the one that is open", async () => {
@@ -209,7 +219,18 @@ describe("what a member is told about each of their club's tournaments", () => {
     const r = (await rows()).get(id.waiting)!;
     expect(r.entered, "a waiting-list row is not a place in the field").toBe(false);
     expect(r.canEnter, "and they have already asked").toBe(false);
-    expect(r.windowNote).toMatch(/waiting list/i);
+    /**
+     * ON `yourStatus`, NOT ON `windowNote` (2026-09-19). It rode on the entry
+     * window until then, and the card renders that block only for the "open"
+     * and "soon" bands — so on a FULL tournament, which is exactly when
+     * somebody is waitlisted, the member was told nothing about themselves.
+     * Their own standing is its own field now, and the card shows it on every
+     * band.
+     */
+    expect(r.yourStatus).toMatch(/waiting list/i);
+    expect(r.windowNote, "the entry window is about the tournament, not about them").not.toMatch(
+      /waiting list/i,
+    );
   });
 
   it("offers the full one as a WAITLIST rather than shutting it", async () => {
@@ -253,14 +274,26 @@ describe("a tournament being played in DRAFT", () => {
     expect(r.viewLabel).toBe("Leaderboard");
   });
 
-  it("but an EMPTY draft offers nothing to look at", async () => {
+  it("and an EMPTY draft is not on the member's list at all", async () => {
     /**
-     * The other direction, and what keeps the rule from being "always show it".
-     * Sending a member to an empty table teaches them the link is broken
-     * rather than that the tournament has not started.
+     * REVERSED ON 2026-09-19, so read this before putting it back.
+     *
+     * This used to assert that an empty draft is LISTED with `canView: false`
+     * — shown, but with nothing to open, on the reasoning that sending a
+     * member to an empty table teaches them the link is broken.
+     *
+     * Walking the seeded club showed what that reasoning missed: the card
+     * renders the band as "Closed", which says "this was open and you missed
+     * it" about a tournament that has never opened. "Winter Series — Not Yet
+     * Planned" was a name, no dates, no field, and a word that was not true.
+     * A tournament the club has not published is not on its fixture list.
+     *
+     * The rule is narrow ON PURPOSE, and the case above is why: a draft WITH
+     * RESULTS stays, because clubs do play tournaments they never launch, and
+     * hiding one that people are scoring would be far worse than showing an
+     * empty one. This suite caught exactly that when the filter was first
+     * written as "no drafts".
      */
-    const r = (await rows()).get(id.draftEmpty)!;
-    expect(r.eventStatus).toBe("draft");
-    expect(r.canView, "nothing has been played, so there is nothing to open").toBe(false);
+    expect((await rows()).has(id.draftEmpty), "an unpublished, unplayed draft").toBe(false);
   });
 });
