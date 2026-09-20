@@ -110,7 +110,7 @@ export function EventSetupClient({
    */
   hasBracket?: boolean;
   /** Progress through setting up, for the journey card. Null for a match. */
-  setup?: { doneCount: number; total: number; complete: boolean } | null;
+  setup?: { doneCount: number; total: number; complete: boolean; doneHrefs: readonly string[] } | null;
   /**
    * The tournament's status, passed through to the journey card.
    *

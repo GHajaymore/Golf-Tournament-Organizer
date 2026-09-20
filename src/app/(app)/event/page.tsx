@@ -241,7 +241,18 @@ export default async function EventPage({
         key={e.id}
         isMatch={matchEvent}
         hasBracket={hasKnockoutStage(state.stages)}
-        setup={flow ? { doneCount: flow.doneCount, total: flow.steps.length, complete: flow.complete } : null}
+        setup={
+          flow
+            ? {
+                doneCount: flow.doneCount,
+                total: flow.steps.length,
+                complete: flow.complete,
+                // WHICH are done, so the journey card can mark them. The
+                // count alone left five identical chips under "3 of 5 done".
+                doneHrefs: flow.steps.filter((s) => s.done).map((s) => s.href),
+              }
+            : null
+        }
         // The status, not two conclusions drawn from it. This passed
         // `launched` and `finished`, each computed here and each forwarded
         // untouched through EventSetupClient — a page stating a lifecycle rule

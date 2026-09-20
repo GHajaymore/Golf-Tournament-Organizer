@@ -377,7 +377,12 @@ describe("the journey card counts phases, not steps", () => {
     const { TournamentJourney } = await import("@/components/TournamentJourney");
     return render(
       <TournamentJourney
-        setup={{ doneCount: 5, total: 5, complete: true }}
+        setup={{
+          doneCount: 5,
+          total: 5,
+          complete: true,
+          doneHrefs: ["/event", "/stages", "/registration", "/grouping", "/prizes"],
+        }}
         status="draft"
         scored={false}
         hasBracket
