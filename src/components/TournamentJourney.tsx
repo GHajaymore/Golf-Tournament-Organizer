@@ -29,8 +29,25 @@ import { tournamentPhase } from "@/lib/domain/lifecycle-state";
 export type JourneyPhase = "setup" | "launch" | "play" | "results";
 
 export interface TournamentJourneyProps {
-  /** How far setting up has got. Null for an event with no setup flow. */
-  setup: { doneCount: number; total: number; complete: boolean } | null;
+  /**
+   * How far setting up has got. Null for an event with no setup flow.
+   *
+   * `doneHrefs` is WHICH of them are finished, and it exists because the count
+   * alone is a number nobody can act on. This card said "3 of 5 done" over
+   * five chips that looked identical, so an organizer reading it knew two
+   * parts were outstanding and had to open each of the five to find out which
+   * — on the card whose whole job is telling them where they are.
+   *
+   * The flow already knew: `SetupStep.done` is on every step. It simply was
+   * not passed, which is the same shape as most of what this file's neighbours
+   * record — the right answer one field away from the screen that needed it.
+   */
+  setup: {
+    doneCount: number;
+    total: number;
+    complete: boolean;
+    doneHrefs: readonly string[];
+  } | null;
   /**
    * THE TOURNAMENT'S STATUS, not conclusions drawn from it.
    *
@@ -246,24 +263,62 @@ export function TournamentJourney({
                     list. */}
                 {phase.screens.length > 0 && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5 }}>
-                    {phase.screens.map((href) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        style={{
-                          fontSize: 11.5,
-                          textDecoration: "none",
-                          padding: "3px 8px",
-                          borderRadius: 999,
-                          background: "color-mix(in srgb, var(--color-text) 6%, transparent)",
-                          boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
-                          color: state === "todo" ? "var(--color-text-muted)" : "var(--color-text)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {screenName(href)}
-                      </Link>
-                    ))}
+                    {phase.screens.map((href) => {
+                      /**
+                       * WHICH ONES ARE DONE, not just how many.
+                       *
+                       * Only the setup phase can answer this — it is the one
+                       * with a flow behind it, and the same reason the "N of 5
+                       * done" line above appears on that phase alone. A tick
+                       * on a Play chip would be a claim nothing computes.
+                       *
+                       * `check-circle` filled, in the secondary accent, is the
+                       * mark `SetupFlowRail` already uses for a finished step
+                       * on this same screen. A third visual language for
+                       * "done" is how two panels come to disagree about what a
+                       * tick means.
+                       */
+                      /**
+                       * `?.` on the ARRAY as well as on `setup`, though the
+                       * type requires it. This is a whole-screen panel, and a
+                       * caller that spreads `any` props — `render.test.tsx`
+                       * does, which is how a missing `doneHrefs` got past tsc
+                       * and threw here — should get an unmarked chip rather
+                       * than take `/event` down with it. Marking nothing is
+                       * the safe failure; throwing is not.
+                       */
+                      const done = phase.key === "setup" && !!setup?.doneHrefs?.includes(href);
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          style={{
+                            fontSize: 11.5,
+                            textDecoration: "none",
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            background: done
+                              ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)"
+                              : "color-mix(in srgb, var(--color-text) 6%, transparent)",
+                            boxShadow: done
+                              ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 30%, transparent)"
+                              : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
+                            color: done
+                              ? "var(--color-accent-2-300)"
+                              : state === "todo"
+                                ? "var(--color-text-muted)"
+                                : "var(--color-text)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {done && <Icon name="check-circle" weight="fill" />}
+                          {screenName(href)}
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>

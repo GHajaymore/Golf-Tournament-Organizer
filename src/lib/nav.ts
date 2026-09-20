@@ -172,9 +172,22 @@ const MATCH_ITEM_LABEL: Readonly<Record<string, string>> = {
  * casual round has no set-up phase to lock, nothing to manage but the card,
  * and no results to publish to anyone who was not standing there.
  */
+/**
+ * The round section's heading when nothing has told us WHICH round.
+ *
+ * Exported because two other readers need to recognise that section without
+ * matching a string of their own — a second spelling of this label is how the
+ * sidebar and a test come to disagree about which section is the round's.
+ */
+export const ROUND_SECTION = "The round in play";
+
 const MATCH_SECTION_LABEL: Readonly<Record<string, string>> = {
-  Manage: "Playing",
-  Results: "Afterwards",
+  // Two friends playing each other have one round and no field to tell, so
+  // "The round in play" would be naming the only thing there is. The old
+  // wording for this section is kept exactly.
+  [ROUND_SECTION]: "Playing",
+  "Tell the field": "Messages",
+  Afterwards: "Afterwards",
 };
 
 /**
@@ -239,17 +252,36 @@ export interface NavSection {
   items: NavItem[];
 }
 
-// Navigation follows the real event lifecycle an organizer works through:
-// Overview (monitor) → Club (the standing roster and identity, which outlive
-// any one event) → Set up (define the event, locks once live) → Manage (run
-// the live competition) → Results (publish & export).
+/**
+ * THE SIDEBAR IS READ TOP TO BOTTOM, IN THE ORDER THE WORK HAPPENS.
+ *
+ * Club (which tournament) → Set up (what it is) → the round (running it) →
+ * telling the field → afterwards. Ajay, 2026-09-20: "line up everything
+ * sequentially", and the section a screen sits in should answer WHAT IT
+ * CHANGES before the label is read at all.
+ *
+ * THE FAULT THIS FIXES is that the old grouping named the organizer's PHASE
+ * — Overview, Set up, Manage, Results — while the items inside mixed three
+ * different scopes. "Live leaderboard" (one round, right now) sat under
+ * Overview; "Score entry" for the SAME round sat under Manage; "Bracket",
+ * also one round, sat beside it; and nothing anywhere on the screen said
+ * WHICH ROUND any of the three was showing. A tournament whose rounds can
+ * each be a different format — which is the whole point of the round owning
+ * its format — cannot have an unqualified "Leaderboard" in its sidebar.
+ *
+ * So the round's own screens are one section, and that section is NAMED
+ * AFTER THE ROUND when the caller knows which one it is (`roundName`). The
+ * rest stays scoped to the tournament or the club, and each section's label
+ * says which.
+ *
+ * Overview keeps only what is about neither a round nor the setup: the
+ * dashboard, the rules, and the way into the play shell for staff who play.
+ */
 export const NAV: NavSection[] = [
   {
     label: "Overview",
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four", tier: "at-desk" },
-      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
-      { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check", tier: "on-course" },
       { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open", tier: "on-course" },
       // The way into the play shell, for staff who are also in the field.
       // Conditional on actually being entered — an organizer who does not play
@@ -312,40 +344,77 @@ export const NAV: NavSection[] = [
     ],
   },
   {
-    // Running the live competition — always available once play begins.
-    label: "Manage",
+    /**
+     * THE ROUND IN PLAY — five screens that all describe ONE round, and until
+     * now were spread across two sections that never named it.
+     *
+     * `ROUND_SECTION` is the fallback label. `navForRole` replaces it with the
+     * round's own name when the caller knows it, so the heading reads "Round 2
+     * of 4 · Stableford" and "Leaderboard" beneath it stops being an
+     * incomplete sentence.
+     *
+     * The order is the order the work happens: draw the groups, take the
+     * scores, read the board, then the two screens that only some tournaments
+     * have.
+     */
+    label: ROUND_SECTION,
     items: [
       { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", tier: "on-course" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
+      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },
+      { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check", tier: "on-course" },
+    ],
+  },
+  {
+    /**
+     * TELLING THE FIELD, which is neither setting up nor scoring.
+     *
+     * Both lived under "Manage" beside Score entry and the Tee sheet, which
+     * made a five-item section out of two unrelated jobs — and left the round
+     * group unable to be named after a round, because two of its entries were
+     * not about one.
+     */
+    label: "Tell the field",
+    items: [
       { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", tier: "on-course" },
       { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots", tier: "on-course" },
     ],
   },
   /**
-   * MONEY, on its own.
+   * MONEY USED TO BE A SECTION OF ITS OWN, and the argument for that is worth
+   * keeping because it is half right and the half that survives decided the
+   * order below.
    *
-   * It sat under Results, beside the export — which is where a tournament's
-   * money went when it was one screen of prize payouts. It is not that any
-   * more: there is the club's pot, each fourball's own game, side bets, the
-   * shared costs of a trip, the float and the settle-up. That is an
-   * accounting section, and a treasurer coming to do the books should not
-   * have to look for it under the same heading as a CSV.
+   * It said: money is no longer one screen of prize payouts — there is the
+   * club's pot, each fourball's own game, side bets, the shared costs of a
+   * trip, the float and the settle-up — so a treasurer coming to do the books
+   * should not have to look for it under the same heading as a CSV.
    *
-   * Deliberately AFTER Results rather than before: the golf comes first, and
-   * the money is what follows a round rather than what a club opens the app
-   * for. The order is the claim — the golf is the product, the accounting is
-   * the part that stops being a chore.
+   * What that misses is that a treasurer and an organizer arrive at both at
+   * the same moment: when the cards are in. Two headings one line apart, one
+   * of them holding a single entry, asked a reader to decide in advance
+   * whether a payout counts as a result — and got the answer wrong either way.
+   *
+   * The surviving half is the ORDER, which is unchanged and is still the
+   * claim: the golf first, the accounting after. The golf is the product; the
+   * money is the part that stops being a chore.
    */
   {
-    label: "Results",
+    /**
+     * AFTERWARDS — one section, not two.
+     *
+     * "Results" held a single entry and "Money" held two, one under the other,
+     * and the split asked a reader to know in advance whether a payout is a
+     * result. Both are what a club does once the cards are in, so they are one
+     * step of the sequence and read as one.
+     *
+     * The ORDER inside still makes the claim the old comment made: the golf
+     * first, the accounting after.
+     */
+    label: "Afterwards",
     items: [
       { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export", tier: "at-desk" },
-    ],
-  },
-  {
-    label: "Money",
-    items: [
       // Coins rather than a trophy: the trophy belongs to Season standings, and
       // this section is the money. What is being opened here is a payout.
       { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins", tier: "at-desk" },
@@ -425,6 +494,40 @@ export function navForRole(
      * the right one and must keep applying.
      */
     orgAdminWithoutEvent?: boolean;
+    /**
+     * WHICH ROUND the round section's five screens are about — "Round 2 of 4 ·
+     * Stableford", or whatever the caller can honestly say.
+     *
+     * Optional, and absent is a real answer rather than a missing one: a
+     * tournament with no rounds has no round in play, and the fallback heading
+     * says exactly that without claiming a number. Never assembled here — this
+     * file is a constant map of the console and has no event to read.
+     *
+     * NOT YET FED BY THE LAYOUT, and the reason is a rule rather than a
+     * to-do. "Which round is in play" already has one answer —
+     * `currentPlayedRoundIndex`, via `loadEventState`, which is what every
+     * board on every screen reads. The layout does not load that state: 13 of
+     * the 26 console pages call `loadEventState` themselves and it is not
+     * memoized, so calling it here would double the work on half the console
+     * and add it outright to the other half.
+     *
+     * The tempting shortcut is a cheaper rule just for this heading — the
+     * latest stage whose `playedOn` has passed, say. That is a SECOND READER
+     * of a question that already has one, and it would disagree with the
+     * boards on exactly the tournaments where the answer is interesting: a
+     * round dated today that nobody has teed off in, a round played early.
+     * This codebase has nine recorded instances of that shape and every one
+     * of them was found by a person noticing two screens saying different
+     * things.
+     *
+     * So the heading falls back until the real answer is in scope, which
+     * means sharing one `loadEventState` per request between the layout and
+     * the page rather than computing a rival. Until then this parameter is
+     * the seam, and it is asserted in `nav-sections-are-scoped.test.ts` in
+     * both directions so wiring it later is a one-line change to a tested
+     * behaviour rather than a new one.
+     */
+    roundName?: string;
   } = {},
 ): NavSection[] {
   const TOURNAMENT_ONLY = TOURNAMENT_ONLY_SCREENS;
@@ -563,8 +666,24 @@ export function navForRole(
           items: s.items.map((i) => ({ ...i, label: itemLabel(i, true, opts.outfit) })),
         };
 
+  /**
+   * The round section wears the round's own name, when the caller knows it.
+   *
+   * Applied AFTER `forMatch`, and the order is load-bearing rather than
+   * incidental. `forMatch` renames this section to "Playing" for a casual
+   * round, because two friends have one round between them and numbering it
+   * would be exactly the filing-cabinet wording that rename exists to undo.
+   * Matching on `ROUND_SECTION` here therefore fails once `forMatch` has run,
+   * which is the whole mechanism: a match keeps "Playing", a tournament gets
+   * its round. Run the other way round the rename would find a label that is
+   * no longer `ROUND_SECTION` and a casual round would be told it is on
+   * Round 1 of 1.
+   */
+  const nameRound = (s: NavSection): NavSection =>
+    s.label === ROUND_SECTION && opts.roundName ? { ...s, label: opts.roundName } : s;
+
   const sections = NAV.map((s) =>
-    forMatch(relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) })),
+    nameRound(forMatch(relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) }))),
   ).filter((s) => s.items.length > 0);
 
   /**
