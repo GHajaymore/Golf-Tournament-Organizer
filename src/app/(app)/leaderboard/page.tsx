@@ -12,6 +12,7 @@ import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { weekBasis } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { boardKind } from "@/lib/formats";
@@ -72,7 +73,7 @@ export default async function LeaderboardPage() {
     return (
       <TeamLeaderboard
         format={activeStage.format}
-        stableford={activeStage.scoringBasis === "stableford"}
+        basis={weekBasis(activeStage.scoringBasis)}
         rows={standings}
       />
     );

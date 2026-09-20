@@ -292,9 +292,13 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * otherwise net — so the places run in the order the rows are already in.
    */
   const sides: WeekSide[] = (() => {
+    // `valueOnBasis`, so a gross team round places on gross. Written as
+    // "points or net" until 2026-09-20, which is the same two-branch reading
+    // `teamStandings` sorted by and the board numbered with — three copies of
+    // one rule, all three missing the same third case.
     const places = placesByValue(
       sideRows,
-      (s) => (weekBasis(stage.scoringBasis) === "stableford" ? s.points : s.net),
+      (s) => valueOnBasis(weekBasis(stage.scoringBasis), s),
       (s) => s.played > 0,
     );
     return sideRows.map((s, i) => ({ ...s, position: places[i] ?? null }));

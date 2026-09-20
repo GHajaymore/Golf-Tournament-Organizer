@@ -1399,6 +1399,155 @@ export async function seed() {
       format: "stroke",
     });
 
+    /* ============================ 10. every other format the app plays ==== */
+
+    /**
+     * THE FESTIVAL, AND WHY IT IS NOT A REAL CLUB FIXTURE.
+     *
+     * Everything else here is a tournament a club would actually run. This one
+     * is a sweep: one round for every format in `src/lib/formats.ts` that the
+     * nine fixtures above never reach — eleven of the sixteen, including every
+     * four-person side and both ways a side can carry a ball.
+     *
+     * It exists because of what walking the five already-covered formats found
+     * on 2026-09-20. A side files `TeamScorecard` and not `Scorecard`, and four
+     * separate screens reported that absence as "nothing has been played" — on
+     * the two team formats the club happened to play. Nothing was different
+     * about those two: the other seven team formats were simply never looked
+     * at, by any screen, ever.
+     *
+     * Sampling formats finds defects at a constant rate; covering the list
+     * closes the class. See the CLAUDE.md note "SWEEP THE CLASS, NOT THE
+     * INSTANCE" — this is the seeder's half of it.
+     */
+    const festival = await makeEvent("festival", "Festival of Formats — a round of everything", {
+      status: "completed",
+      shape: "series",
+      format: "stroke",
+      dates: dayOffset(-20),
+      course: `${MARK}-Braid Hollow — Championship Course`,
+      courseId: home.id,
+      defaultTeeId: homeTee("White").id,
+      customPars: JSON.stringify(PARS_18),
+      customYards: JSON.stringify(YARDS_18),
+      customStrokeIndex: JSON.stringify(SI_18),
+      leaderboardVisibility: "public",
+      moneyMode: "off",
+      capacity: 16,
+      launchedAt: new Date(Date.now() - 21 * 864e5),
+    });
+    await prisma.eventCourse.create({ data: { eventId: festival.id, courseId: home.id } });
+    const festField = await enter(festival, Array.from({ length: 16 }, (_, i) => i));
+
+    /**
+     * The tour, and the three things a round needs to be built correctly.
+     *
+     * `side` is how many play together, `ball` is whether they file one card
+     * or one each, and `basis` is what the round is decided on. All three come
+     * from the format catalogue, and `seeder-plays-every-format.test.ts` checks
+     * this table against it — a table copied by hand out of a file that
+     * changes is a table that will quietly stop matching, and then this whole
+     * sweep is seeding rounds that cannot be scored.
+     *
+     * Sizes are the catalogue's own `sideSize`: fours for the scrambles and
+     * for Best Ball and Shamble, which have never been seeded at their maximum
+     * and are where a count-best rule would go wrong if it were wrong.
+     */
+    const TOUR = [
+      { format: "Modified Stableford", side: 1, ball: "individual", basis: "stableford" },
+      { format: "Skins", side: 1, ball: "individual", basis: "net" },
+      { format: "Nassau", side: 1, ball: "individual", basis: "net" },
+      { format: "Best Ball", side: 4, ball: "individual", basis: "net" },
+      { format: "Shamble", side: 4, ball: "individual", basis: "net" },
+      { format: "Alternate Shot", side: 2, ball: "single", basis: "net" },
+      { format: "Chapman / Pinehurst", side: 2, ball: "single", basis: "net" },
+      { format: "Greensomes", side: 2, ball: "single", basis: "net" },
+      { format: "Scramble", side: 4, ball: "single", basis: "gross" },
+      { format: "Texas Scramble", side: 4, ball: "single", basis: "net" },
+      // Scored by the committee. No cards on purpose: the app refuses to rank
+      // this format, and a fixture with cards on it would be testing a screen
+      // against data the real thing never has.
+      { format: "Other (scored by hand)", side: 1, ball: "individual", basis: "net", byHand: true },
+    ];
+
+    const festRand = rng(131);
+    for (const [i, t] of TOUR.entries()) {
+      const round = await prisma.stage.create({
+        data: {
+          eventId: festival.id,
+          position: i,
+          description: t.format,
+          type: "Stroke Play Round",
+          format: t.format,
+          holes: 18,
+          courseId: home.id,
+          teeId: homeTee("White").id,
+          scoringBasis: t.basis,
+          playedOn: dayOffset(-20 + i),
+          teeSheet: teeSheetFor(festField),
+          teeSheetPublished: true,
+        },
+      });
+      if (t.byHand) continue;
+
+      if (t.side === 1) {
+        for (const p of festField) {
+          await prisma.scorecard.create({
+            data: {
+              eventId: festival.id,
+              stageId: round.id,
+              playerId: p.id,
+              strokes: JSON.stringify(cardFor(PARS_18, festRand, p.handicap)),
+            },
+          });
+        }
+        continue;
+      }
+
+      for (let at = 0; at < festField.length; at += t.side) {
+        const onSide = festField.slice(at, at + t.side);
+        const side = await prisma.team.create({
+          data: {
+            eventId: festival.id,
+            stageId: round.id,
+            name: onSide.map((p) => p.name.split(" ")[0]).join(" & "),
+            seed: at / t.side + 1,
+          },
+        });
+        await prisma.teamMember.createMany({
+          data: onSide.map((p, position) => ({ teamId: side.id, playerId: p.id, position })),
+        });
+        if (t.ball === "single") {
+          // One ball between them: the card is the SIDE's and `playerId` stays
+          // empty. Played off roughly the best handicap on the side, which is
+          // what a scramble or an alternate shot scores like.
+          await prisma.teamScorecard.create({
+            data: {
+              eventId: festival.id,
+              stageId: round.id,
+              teamId: side.id,
+              playerId: "",
+              strokes: JSON.stringify(
+                cardFor(PARS_18, festRand, Math.min(...onSide.map((p) => p.handicap))),
+              ),
+            },
+          });
+        } else {
+          for (const p of onSide) {
+            await prisma.teamScorecard.create({
+              data: {
+                eventId: festival.id,
+                stageId: round.id,
+                teamId: side.id,
+                playerId: p.id,
+                strokes: JSON.stringify(cardFor(PARS_18, festRand, p.handicap)),
+              },
+            });
+          }
+        }
+      }
+    }
+
     /* ------------------------------------------------------- club messages */
 
     /**
