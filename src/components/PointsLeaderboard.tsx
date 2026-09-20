@@ -9,7 +9,39 @@ import { placesByValue } from "@/lib/domain/flight-places";
  * scores to a client bundle to render a static table would be pure cost.
  */
 
+/** What a skins round is decided on, said once. */
+export const SKINS_NOTE = (net: boolean) =>
+  `Skins · ${net ? "net, off stroke index" : "gross"} · a hole must be won outright.`;
+
+/** What a Nassau is, said once. */
+export const NASSAU_NOTE =
+  "Nassau · three bets on one card: front nine, back nine, and the full eighteen.";
+
 export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boolean }) {
+  return (
+    <>
+      <div style={{ marginBottom: 20 }}>
+        <div className="page-kicker">Overview</div>
+        <h1 className="page-title">Live leaderboard</h1>
+        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+          {SKINS_NOTE(net)}
+        </p>
+      </div>
+      <SkinsStandingsTable board={board} />
+    </>
+  );
+}
+
+/**
+ * The skins table WITHOUT a page heading.
+ *
+ * Split out on 2026-09-20 for the same reason `TeamStandingsTable` was the day
+ * before: the league week sheet has its own `<h1>` and needs to show the same
+ * board. Before it did, a skins night on that sheet was ranked as an ordinary
+ * net medal — "1st on 57 net" — while `positionsExist` in `formats.ts` says in
+ * its own words that "a skins round pays holes, not places".
+ */
+export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
   const { outcome, nameById } = board;
   const played = outcome.holes.length;
   // Two players on the same number of skins are level — the sort's fallback is
@@ -19,14 +51,6 @@ export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boole
 
   return (
     <>
-      <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Overview</div>
-        <h1 className="page-title">Live leaderboard</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Skins · {net ? "net, off stroke index" : "gross"} · a hole must be won outright.
-        </p>
-      </div>
-
       <div className="card elev-sm" style={{ marginBottom: 16 }}>
         {outcome.standings.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
@@ -110,10 +134,18 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
         <div className="page-kicker">Overview</div>
         <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Nassau · three bets on one card: front nine, back nine, and the full eighteen.
+          {NASSAU_NOTE}
         </p>
       </div>
+      <NassauMatches rows={rows} />
+    </>
+  );
+}
 
+/** The Nassau matches WITHOUT a page heading — see `SkinsStandingsTable`. */
+export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
+  return (
+    <>
       {rows.length === 0 ? (
         <div className="card elev-sm">
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>No matches in this round yet.</p>

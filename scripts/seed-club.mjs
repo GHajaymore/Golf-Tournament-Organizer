@@ -1456,7 +1456,11 @@ export async function seed() {
     const TOUR = [
       { format: "Modified Stableford", side: 1, ball: "individual", basis: "stableford" },
       { format: "Skins", side: 1, ball: "individual", basis: "net" },
-      { format: "Nassau", side: 1, ball: "individual", basis: "net" },
+      // A Nassau is three BETS ON A MATCH — front, back and the eighteen — so
+      // it is recorded as matches and `nassauBoard` reads nothing else. Seeded
+      // with stroke cards first, which left the board honestly reporting "no
+      // matches in this round yet" over sixteen returned cards.
+      { format: "Nassau", side: 1, ball: "individual", basis: "net", matches: true },
       { format: "Best Ball", side: 4, ball: "individual", basis: "net" },
       { format: "Shamble", side: 4, ball: "individual", basis: "net" },
       { format: "Alternate Shot", side: 2, ball: "single", basis: "net" },
@@ -1489,6 +1493,49 @@ export async function seed() {
         },
       });
       if (t.byHand) continue;
+
+      /**
+       * A ROUND RECORDED AS MATCHES, not as cards.
+       *
+       * The full eighteen on every one of them: `legalMatch` stops a match the
+       * moment it cannot be turned round, which is right for match play and
+       * wrong here — a Nassau's third bet is the whole eighteen, and a card
+       * that stops on the 15th leaves it undecidable for ever.
+       */
+      if (t.matches) {
+        // A match belongs to a group — the draw it came out of. One flight
+        // here, because the point of this round is the Nassau board and not
+        // the draw.
+        const flight = await prisma.group.create({
+          data: { eventId: festival.id, name: `${MARK} nassau draw`, position: 0 },
+        });
+        for (let at = 0; at + 1 < festField.length; at += 2) {
+          const a = festField[at];
+          const b = festField[at + 1];
+          await prisma.match.create({
+            data: {
+              eventId: festival.id,
+              stageId: round.id,
+              groupId: flight.id,
+              courseId: home.id,
+              round: at / 2 + 1,
+              playerAId: a.id,
+              playerBId: b.id,
+              holes: JSON.stringify(
+                Array.from({ length: 18 }, () => {
+                  const r = festRand();
+                  return r < 0.4 ? "A" : r < 0.8 ? "B" : "H";
+                }),
+              ),
+              scoreStatus: "confirmed",
+              scoredAt: new Date(Date.now() - 18 * 864e5),
+              enteredBy: a.name,
+              enteredById: a.id,
+            },
+          });
+        }
+        continue;
+      }
 
       if (t.side === 1) {
         for (const p of festField) {

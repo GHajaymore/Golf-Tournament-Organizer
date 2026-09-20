@@ -17,7 +17,8 @@ import {
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { isManualFormat, needsTeams, stablefordTableFor } from "../formats";
+import { isManualFormat, needsTeams, boardKind, stablefordTableFor } from "../formats";
+import { skinsBoard, nassauBoard, type SkinsBoard, type NassauMatchRow } from "./points-standings";
 import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
@@ -94,6 +95,17 @@ export interface WeekView {
    * and were ranked nowhere at all here.
    */
   sides: WeekSide[];
+  /**
+   * The night's own board, for a round the gross-and-net table cannot show.
+   *
+   * Null on every ordinary night. A skins round pays holes and a Nassau is
+   * three bets — neither has a place to print — so this sheet showed the wrong
+   * kind of answer for both until it carried theirs.
+   */
+  nightBoard:
+    | { kind: "skins"; net: boolean; board: SkinsBoard }
+    | { kind: "nassau"; rows: NassauMatchRow[] }
+    | null;
   /**
    * What the night is decided on — see `week-basis.ts`.
    *
@@ -354,11 +366,28 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * week STRIP uses below, so a night cannot be played in the header and
    * undotted in the strip.
    */
-  const played = team
-    ? teamCards.some((c) => c.stageId === stage.id)
-    : roundIsStroke(stage.type, stage.format)
-      ? cards.some((c) => c.stageId === stage.id)
-      : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
+  /**
+   * AND ASKED IN ONE PLACE, because there were two and they drifted.
+   *
+   * The sheet's own `empty` and the week strip's dot are the same question,
+   * and this file's history is three corrections applied to one of them and
+   * then to the other: the match branch, the per-week type, the team table.
+   * The fourth arrived the same way — a Nassau is recorded as MATCHES on a
+   * stroke-type stage, so both readings looked for scorecards, found none and
+   * called a night of eight settled matches unplayed.
+   *
+   * Four kinds of night, one function, both callers.
+   */
+  const wasPlayed = (s: { id: string; type: string; format: string }): boolean => {
+    if (needsTeams(s.format)) return teamCards.some((c) => c.stageId === s.id);
+    // A Nassau's three bets live on the match, whatever the stage type says.
+    if (boardKind(s.format) === "nassau") {
+      return state.matches.some((m) => m.stageId === s.id && matchSettled(m));
+    }
+    if (roundIsStroke(s.type, s.format)) return cards.some((c) => c.stageId === s.id);
+    return state.matches.some((m) => m.stageId === s.id && matchSettled(m));
+  };
+  const played = wasPlayed(stage);
 
   const basis = weekBasis(stage.scoringBasis);
   const scored = state.confirmed
@@ -390,7 +419,38 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     .filter((r) => r.thru > 0)
     .sort((x, y) => compareOnBasis(basis, x, y));
 
-  const results = positionWithTies(scored, (a, b) => levelOnBasis(basis, a, b));
+  /**
+   * A NIGHT THIS TABLE CANNOT SHOW IS NOT RANKED IN IT.
+   *
+   * `positionsExist` in `formats.ts` says it plainly — "a skins round pays
+   * holes, not places; a Nassau is three bets, not a position" — and the
+   * leaderboard has rendered those two on their own boards since they were
+   * added. This sheet ranked them on NET STROKES anyway, so a skins league
+   * night read "1st · 57 net" here and "3 skins" on the board, for different
+   * players. Seen on the seeded festival's skins round, 2026-09-20.
+   *
+   * `scored` above is left alone: those cards are real, and the attendance
+   * line counting who has handed one in is right whatever decides the night.
+   */
+  const nightKind = boardKind(stage.format);
+  const ranksPlayers = nightKind === "standard" || nightKind === "modified-stableford";
+  const results = ranksPlayers ? positionWithTies(scored, (a, b) => levelOnBasis(basis, a, b)) : [];
+
+  /**
+   * And the board that DOES decide it, read from the same service the
+   * organizer's leaderboard reads — not a second opinion about who won.
+   */
+  let nightBoard: WeekView["nightBoard"] = null;
+  if (nightKind === "skins") {
+    const net = stage.scoringBasis !== "gross";
+    nightBoard = {
+      kind: "skins",
+      net,
+      board: await skinsBoard(eventId, stage.id, stage.holes, net, stageCard.holeDifficulty),
+    };
+  } else if (nightKind === "nassau") {
+    nightBoard = { kind: "nassau", rows: await nassauBoard(eventId, stage.id) };
+  }
 
   /**
    * Who was expected, and how many have handed a card in.
@@ -509,13 +569,9 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       // is scored: one value for every week in it. A league with a medal week
       // among its match nights wore the "no scores yet" dot on that week for
       // ever, because it went looking for matches on it.
-      // And the third kind here too, for the same reason: a foursomes week
-      // wore the "no scores yet" dot with every side round in eighteen.
-      played: needsTeams(s.format)
-        ? teamCards.some((c) => c.stageId === s.id)
-        : roundIsStroke(s.type, s.format)
-          ? cards.some((c) => c.stageId === s.id)
-          : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
+      // The same function the sheet's own `empty` uses, so the dot and the
+      // page cannot disagree about whether a night happened.
+      played: wasPlayed(s),
     })),
     stageId: stage.id,
     label: `Week ${idx + 1}`,
@@ -523,6 +579,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     format: stage.format,
     holes: stage.holes,
     results,
+    nightBoard,
     sides,
     basis,
     standings,
