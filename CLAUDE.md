@@ -67,6 +67,23 @@ no-store `fetch`. And note the failure is not symmetrical — a stale read can a
 you have just DELETED, which is the direction that ends with "already fixed" written on something
 that is not.
 
+**CAPTURE THE COUNTS, NOT THE TAIL — a gate script can report a red run as
+green.** On 2026-09-20 a local gate piped each suite through `tail -3` and
+never captured its exit code. A failing unit test still prints a `Duration`
+line, so the tail looked normal and the script exited 0; the failure was found
+only by re-running `vitest` with the summary visible. One test was red for
+three commits' worth of work.
+
+Grep for `Tests ` and record the status of the command rather than the pipe:
+
+```bash
+npx vitest run 2>&1 | grep -E "Test Files|Tests " >> "$O"; echo "unit exit=${PIPESTATUS[0]}" >> "$O"
+```
+
+The same trap as `| tail` swallowing an exit code two paragraphs down, and the
+same lesson as the sweeps section: **a check whose failure looks like its
+success is not a check.**
+
 **`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
 server once and then runs FIVE scripts against it, of which `npm run smoke` is the first:
 
@@ -638,6 +655,31 @@ undeployed until the next merge, so do not read "merged" as "live" without check
 
 ```bash
 gh run view <run-id> --json jobs -q '.jobs[] | select(.name=="Deploy to production") | .conclusion'
+```
+
+**AND A GREEN PR IS NOT A GREEN COMMIT.** `gh pr checks <n>` answers "is this
+PR green". On 2026-09-20 an auto-merge read it seconds after a second commit
+was pushed to the branch, counted the PREVIOUS head's sixteen green checks,
+merged, and `main` took the first commit only. The PR closed, the work looked
+shipped, and nothing in the output said otherwise — it was found because a file
+on the new `main` was missing a function it should have had.
+
+Tie the verdict to a SHA at both ends:
+
+```bash
+head=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+gh api "repos/$REPO/commits/$head/check-runs" -q '.check_runs[] | .status + ":" + (.conclusion // "pending")'
+gh pr merge "$PR" --squash --match-head-commit "$head"
+```
+
+Two more things that cost time here. `--delete-branch` from a worktree fails
+with `'main' is already used by worktree` on a merge that SUCCEEDED, so a
+script reading the exit code announces a refusal over a merged PR — take the
+verdict from `gh pr view --json state` instead. And afterwards, confirm the
+work is actually on `main` rather than trusting the word MERGED:
+
+```bash
+git show origin/main:src/path/file.ts | grep -c theSymbolYouAdded
 ```
 
 Related: `main` is exempt from `cancel-in-progress`. Two merges a minute apart used to leave
