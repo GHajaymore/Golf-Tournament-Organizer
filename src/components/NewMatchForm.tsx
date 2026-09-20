@@ -13,6 +13,7 @@ import {
   STAKE_NOTE_MAX,
 } from "@/lib/domain/quick-match";
 import { entryModesFor } from "@/lib/domain/match-entry";
+import { sharedBallRound } from "@/lib/domain/shared-ball";
 import { Icon } from "./Icon";
 
 /**
@@ -221,7 +222,16 @@ export function NewMatchForm({
    * Filtering it out here rather than showing it and refusing later means the
    * screen never offers a wager the round cannot hold.
    */
-  const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen?.headToHead);
+  const moneyGames = QUICK_MONEY_GAMES.filter(
+    (g) =>
+      (!g.matchOnly || chosen?.headToHead) &&
+      // And a pot that settles off what one PLAYER did cannot run on a round
+      // with one ball per side: the card belongs to the pair. Same rule
+      // `planMatch` refuses on, so the screen and the validator agree — a
+      // foursomes keeps "the match" and a Nassau, which read who won the
+      // hole, and that is how a foursomes is played for money anyway.
+      !(g.needsCards && chosen && sharedBallRound(chosen.name)),
+  );
 
 
   /**

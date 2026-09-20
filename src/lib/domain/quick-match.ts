@@ -1,4 +1,5 @@
 import { holesPlayed } from "./handicap";
+import { perPlayerPotRefusal } from "./shared-ball";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -819,6 +820,29 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
      */
     if (note && stake > 0) {
       return { error: "Playing for money or playing for something else — not both. Pick one." };
+    }
+
+    /**
+     * A PER-PLAYER POT ON A ROUND WITH ONE BALL PER SIDE.
+     *
+     * #495 refused this on the tournament side, at `saveSkinsPot` and
+     * `saveSideGame`. The quick round does not go through either: it writes
+     * `skinsPot` and `sideGame` straight through Prisma in
+     * `actions/match-setup.ts`, so the guard never saw it and a casual
+     * foursomes with skins on it took a stake per head for a game that can
+     * never settle. Found on 2026-09-20, on the free tier, which is the one
+     * place a stranger meets this app for the first time.
+     *
+     * `needsCards` is the right question and not a proxy for one: its own
+     * doc says these games "read `Scorecard` rows", and a shared ball files
+     * no `Scorecard` at all — the card belongs to the side, with a blank
+     * `playerId`, in `TeamScorecard`. A Nassau and "the match" read who won
+     * the hole, so both remain available on a foursomes, which is exactly
+     * how a foursomes is actually played for money.
+     */
+    if (game.needsCards) {
+      const refusal = perPlayerPotRefusal(chosen.name);
+      if (refusal) return { error: refusal };
     }
     if (note) {
       if (game.matchOnly && !headToHead) return { error: matchOnlyRefusal(game) };

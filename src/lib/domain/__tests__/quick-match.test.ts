@@ -829,3 +829,62 @@ describe("which quick rounds cannot be scored without the course card", () => {
     expect(at("Match Play", "net")).toBe(true);
   });
 });
+
+/**
+ * A POT ON A ROUND WITH ONE BALL PER SIDE.
+ *
+ * #495 refused this on the tournament side, at `saveSkinsPot` and
+ * `saveSideGame`. The QUICK round reaches neither: `actions/match-setup.ts`
+ * writes `skinsPot` and `sideGame` straight through Prisma, so the guard never
+ * saw it and a casual foursomes with skins on it took a stake per head for a
+ * game that can never settle.
+ *
+ * Found on 2026-09-20 on the free tier — the one place a stranger meets this
+ * app for the first time — by opening the setup screen, picking Foursomes and
+ * seeing "Skins" and "Birdie pot" offered as live buttons.
+ */
+describe("a quick round played with one ball per side", () => {
+  const foursomes = (game: string) =>
+    planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }],
+      format: "Foursomes",
+      money: { game, stakeCents: 500 },
+    });
+
+  it("refuses a skins pot, naming the format", () => {
+    const r = foursomes("skins");
+    expect(r.ok, "a foursomes took a skins stake it can never settle").toBe(false);
+    expect(r.ok === false && r.error).toContain("Foursomes");
+    expect(r.ok === false && r.error).toContain("one ball per side");
+  });
+
+  it("refuses a birdie pot for the same reason", () => {
+    // A birdie is one under par BY A PLAYER. Two of them sharing a ball made
+    // one four; neither of them made it.
+    expect(foursomes("birdies").ok).toBe(false);
+  });
+
+  it("still takes the bets a foursomes is actually played for", () => {
+    /**
+     * The half that keeps the rule narrow enough to be right. "The match" and
+     * a Nassau read who won the HOLE — `resolveMatch`, not a card — so both
+     * run on a shared ball, and they are how a foursomes is played for money
+     * in the first place. A refusal that took those too would be the app
+     * refusing the ordinary case.
+     */
+    expect(foursomes("match").ok, "a foursomes cannot play the match").toBe(true);
+    expect(foursomes("nassau").ok, "a foursomes cannot play a Nassau").toBe(true);
+  });
+
+  it("leaves a four-ball alone, which files a card per player", () => {
+    // The contrast that proves the rule is about the BALL and not about teams:
+    // a four-ball is a pairs round whose players each return their own card,
+    // so a skins pot on one settles exactly as an individual round's does.
+    const fourBall = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }],
+      format: "Four-Ball",
+      money: { game: "skins", stakeCents: 500 },
+    });
+    expect(fourBall.ok, "a four-ball was refused a pot it can settle").toBe(true);
+  });
+});
