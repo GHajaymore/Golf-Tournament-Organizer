@@ -433,19 +433,43 @@ export function snapshotStanding(input: {
    * under a table of dashes reads as a broken export rather than an empty one.
    */
   const title = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} so far`;
+  /**
+   * A KNOCKOUT TIE DOES NOT MOVE THE TABLE UNDER IT, which every other round
+   * on this screen does.
+   *
+   * The standings a bracket event shows are the GROUP phase's — match points,
+   * played, won, halved — and a bracket result is a `BracketWinner` row, not a
+   * `Match`. So it can never change a figure in that table: the qualifying is
+   * over, and what is still being decided is who wins the thing.
+   *
+   * "5 of 6 ties in — these standings will change" was therefore two true
+   * halves and a false join. The count is right and the consequence belongs to
+   * a different table, which is the same shape as a note describing one panel
+   * while sitting under another.
+   */
+  const ties = input.unit === "ties";
   if (input.total <= 0 || input.done <= 0) {
-    return { title, note: "Nothing returned for this round yet — these standings will change." };
+    return {
+      title,
+      note: ties
+        ? "No tie has been decided yet — this table is the qualifying, not the bracket."
+        : "Nothing returned for this round yet — these standings will change.",
+    };
   }
   if (input.done >= input.total) {
     // Every card in and the tournament still open: honest, and a different
     // sentence, because "7 of 33" and "33 of 33" are not the same warning.
     return {
       title,
-      note: "This round is all in, but the tournament has not been closed yet.",
+      note: ties
+        ? "Every tie drawn has been decided, but the tournament has not been closed yet."
+        : "This round is all in, but the tournament has not been closed yet.",
     };
   }
   return {
     title,
-    note: `${input.done} of ${input.total} ${input.unit} in — these standings will change.`,
+    note: ties
+      ? `${input.done} of ${input.total} ties decided — the bracket is still being played.`
+      : `${input.done} of ${input.total} ${input.unit} in — these standings will change.`,
   };
 }

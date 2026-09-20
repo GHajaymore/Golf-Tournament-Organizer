@@ -121,6 +121,59 @@ describe("the player's position says whether it can move", () => {
     expect(snapshotStanding({ status: "completed", done: 7, total: 33, unit: "cards" }).note).toBe("");
     expect(snapshotStanding({ status: "live", done: 7, total: 33, unit: "cards" }).note).toContain("7 of 33");
   });
+
+  describe("on a knockout, where the table below is the qualifying", () => {
+    /**
+     * A BRACKET RESULT CANNOT MOVE THE TABLE IT SITS UNDER. The standings a
+     * knockout event shows are the GROUP phase's — played, won, halved, match
+     * points — and a tie is a `BracketWinner` row rather than a `Match`, so
+     * deciding one changes no figure in it. The qualifying is over; what is
+     * being decided is who wins.
+     *
+     * "5 of 6 ties in — these standings will change" was two true halves and a
+     * false join, which is the same shape as a note describing one panel while
+     * sitting under another.
+     */
+    it("counts the ties without promising the table will move", () => {
+      const note = snapshotStanding({ status: "live", done: 5, total: 6, unit: "ties" }).note;
+      expect(note).toContain("5 of 6 ties decided");
+      expect(note, "the bracket was said to change the qualifying table").not.toContain(
+        "these standings will change",
+      );
+      expect(note).toContain("bracket");
+    });
+
+    it("says what an undecided bracket means, rather than reporting an absence", () => {
+      // "Nothing returned for this round yet" reads as a missing card on a
+      // round that has none to return.
+      const note = snapshotStanding({ status: "live", done: 0, total: 4, unit: "ties" }).note;
+      expect(note).toContain("No tie has been decided yet");
+      expect(note).not.toContain("Nothing returned");
+    });
+
+    it("does not call a bracket all in while the final is unplayed", () => {
+      // Every tie DRAWN, which is the honest claim: `knockoutProgress` counts
+      // only ties that have two players in them, so "all of them" does not
+      // mean the knockout is over.
+      const note = snapshotStanding({ status: "live", done: 4, total: 4, unit: "ties" }).note;
+      expect(note).toContain("Every tie drawn has been decided");
+      expect(note).not.toContain("This round is all in");
+    });
+
+    it("leaves every other unit exactly as it was", () => {
+      // The control: this is a branch for one unit, and a change that reworded
+      // the others would pass the three cases above.
+      expect(snapshotStanding({ status: "live", done: 7, total: 33, unit: "cards" }).note).toBe(
+        "7 of 33 cards in — these standings will change.",
+      );
+      expect(snapshotStanding({ status: "live", done: 0, total: 8, unit: "sides" }).note).toContain(
+        "Nothing returned for this round yet",
+      );
+      expect(snapshotStanding({ status: "live", done: 8, total: 8, unit: "sides" }).note).toContain(
+        "This round is all in",
+      );
+    });
+  });
 });
 
 describe("what the money header is over", () => {
