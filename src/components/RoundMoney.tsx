@@ -29,15 +29,45 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
 
   const played = view.rounds.filter((r) => r.final);
   /**
+   * A SHARED-BALL ROUND IS NOT OUTSTANDING. It is finished and unpayable.
+   *
+   * Foursomes, greensomes and a scramble have no individual scores, so a
+   * per-player pot is refused on them at the door — and their card is filed
+   * against the SIDE, which `roundStrokes` correctly declines to key on a
+   * player. The money view therefore sees a round with no cards, for ever, and
+   * "not final" was being read as "still being played".
+   *
+   * That is what printed "a round's pots are worked out once every hole is in"
+   * over a finished tournament on the seeded club, 2026-09-20: the screen was
+   * waiting on two foursomes rounds it can never pay from. Waiting is the
+   * wrong word for a round whose amount cannot change, which is the test
+   * `money-layout.ts` opens with.
+   *
+   * Named below rather than silently dropped — a round that disappears from
+   * "still being played" without a reason is the same absence-reported-as-fact
+   * this screen keeps being fixed for.
+   */
+  const sharedBall = view.rounds.filter((r) => r.sharedBall);
+  /**
+   * ONE LIST, READ BY BOTH — the header's scope and the "Still being played"
+   * line at the foot of this card.
+   *
+   * They were two copies of `view.rounds.some((r) => !r.final)`, and a source
+   * test pinned the duplication precisely so the two could not drift. The rule
+   * has grown a second clause, so the list is built once instead: a copy that
+   * has to be updated twice is the thing that test was protecting against.
+   */
+  const stillPlaying = view.rounds.filter((r) => !r.final && !r.sharedBall);
+  const outstanding = stillPlaying.length > 0;
+  /**
    * What the headline total is actually over.
    *
-   * "the whole tournament" is only true once nothing is outstanding. Derived
-   * from the same test the "Still being played" line uses at the foot of this
-   * card, so the two cannot come to disagree about whether a round is still
-   * out — and so a tournament that finishes gets the fuller sentence back
-   * without anybody remembering to change it.
+   * "the whole tournament" is only true once nothing is outstanding. Read off
+   * the same list the "Still being played" line uses at the foot of this card,
+   * so the two cannot come to disagree about whether a round is still out —
+   * and so a tournament that finishes gets the fuller sentence back without
+   * anybody remembering to change it.
    */
-  const outstanding = view.rounds.some((r) => !r.final);
   const scope = outstanding ? " on the rounds that have finished" : " over the whole tournament";
 
   return (
@@ -97,10 +127,46 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
           group&rsquo;s shared costs are below.
         </p>
       ) : !view.anyFinal ? (
+        /**
+         * "NOT YET" AND "NOT AT ALL" ARE DIFFERENT ANSWERS, and this said the
+         * first to both.
+         *
+         * `anyFinal` is false in three unrelated states: a tournament with no
+         * pot in it at all, a round still out, and every round finished with
+         * nothing having changed hands. The sentence explained a WAIT, so on
+         * the first and third it described a settlement that was never coming
+         * — a club on shared costs, or a day of team rounds where a per-player
+         * pot is refused outright, was told to keep waiting for holes that
+         * were already in.
+         *
+         * Read off the seeded club on 2026-09-20: three complete team rounds,
+         * every hole in, the organizer's own Prizes screen correctly saying
+         * "No pots on this round — Foursomes is played with one ball per side",
+         * and the player's money screen still saying pots "are worked out once
+         * every hole is in".
+         *
+         * Told apart by the same test the rest of this card uses — a round is
+         * outstanding when it is not final — so the two cannot drift.
+         */
         <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-          Nothing settled yet. A round&rsquo;s pots are worked out once every hole is in — a skins pot can
-          carry to the last green, so a running total would only be a different number that looked like the
-          answer.
+          {!view.anyGame ? (
+            <>
+              No side games on this tournament, so there is nothing to divide. Skins, pots and contests are set
+              up per round, and none has been.
+            </>
+          ) : outstanding || view.rounds.length === 0 ? (
+            <>
+              Nothing settled yet. A round&rsquo;s pots are worked out once every hole is in — a skins pot can
+              carry to the last green, so a running total would only be a different number that looked like the
+              answer.
+            </>
+          ) : (
+            <>
+              Every round is in, and no pot changed hands.
+              {sharedBall.length > 0 &&
+                " Rounds played with one ball per side have no individual scores, so no pot can run on them."}
+            </>
+          )}
         </p>
       ) : (
         <>
@@ -221,11 +287,10 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
           {/* Rounds still out there, so the total is not mistaken for the end
               of it. Named rather than counted: "Round 3 is still out" is a
               fact somebody can check against the leaderboard. */}
-          {view.rounds.some((r) => !r.final) && (
+          {outstanding && (
             <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0", lineHeight: 1.6 }}>
               Still being played:{" "}
-              {view.rounds
-                .filter((r) => !r.final)
+              {stillPlaying
                 /**
                  * MEASURED IN WHATEVER THIS ROUND IS ACTUALLY PLAYED IN.
                  *

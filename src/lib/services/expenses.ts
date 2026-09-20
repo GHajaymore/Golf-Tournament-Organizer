@@ -15,6 +15,7 @@ import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
+import { sharedBallRound } from "../domain/shared-ball";
 import { roundLabel } from "../domain/round-label";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
 import { potAudience } from "../domain/pot-audience";
@@ -1420,6 +1421,24 @@ export interface RoundMoneyRow {
    */
   matchesTotal: number;
   matchesOver: number;
+  /**
+   * A ROUND THAT CAN NEVER SETTLE A PER-PLAYER POT, which is not the same as
+   * one that has not settled yet.
+   *
+   * Foursomes, greensomes, a scramble: the side plays one ball, so there is no
+   * such thing as what a player went round in and `perPlayerPotRefusal` turns
+   * a pot on such a round down at the door. The money view could not see that
+   * — `roundStrokes` refuses the side's blank-`playerId` card, correctly, since
+   * a strokes list keyed on "" is junk for scoring — so the round showed zero
+   * holes returned for ever and the screen counted it as STILL BEING PLAYED.
+   *
+   * That is what put "a round's pots are worked out once every hole is in"
+   * over a finished tournament: the app was waiting on a round it can never
+   * pay from. Deliberately NOT fixed by making the round final — a legacy pot
+   * on such a round would then settle with no individual scores behind it,
+   * which is everybody down a stake and nobody paid.
+   */
+  sharedBall: boolean;
   /** The signed-in player's net for this round, in cents. */
   yourCents: number;
   /** Everyone's, biggest winner first — the round's own payout sheet. */
@@ -1434,6 +1453,24 @@ export interface RoundMoneyView {
   outingStanding: Array<{ playerId: string; name: string; netCents: number }>;
   /** True when at least one round has finished and has money in it. */
   anyFinal: boolean;
+  /**
+   * Whether this tournament has any money game AT ALL — a skins pot, a side
+   * game or a contest.
+   *
+   * `anyFinal` is false in two unrelated states and the screen could not tell
+   * them apart: a round still being played, and a tournament that never had a
+   * pot in it. It said "a round's pots are worked out once every hole is in"
+   * to both, so a club on shared costs — or a day of team rounds, where a
+   * per-player pot is refused outright — was promised a settlement that was
+   * never coming. Read off the seeded club on 2026-09-20 over three complete
+   * rounds, while the organizer's own Prizes screen correctly said "No pots on
+   * this round".
+   *
+   * The same reader the money TAB already uses to decide whether to exist, so
+   * the tab and the panel inside it cannot come to disagree about whether
+   * there is a pot.
+   */
+  anyGame: boolean;
   /**
    * What the signed-in player has riding on rounds that are still in play.
    *
@@ -1657,6 +1694,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       holeCount,
       matchesTotal,
       matchesOver,
+      sharedBall: sharedBallRound(stage.format),
       yourCents: me ? nets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
       standing: nets
         .filter((n) => n.netCents !== 0)
@@ -1674,6 +1712,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       .map(([playerId, netCents]) => ({ playerId, name: nameOf.get(playerId) ?? "Unknown", netCents }))
       .sort((a, b) => b.netCents - a.netCents),
     anyFinal: rounds.some((r) => r.final && r.standing.length > 0),
+    anyGame: await hasMoneyGames(eventId),
     stake: { games: stakeGames, cents: stakeCents },
   };
 }
