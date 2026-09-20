@@ -203,6 +203,43 @@ describe("an absent stroke index is not a scrambled one", () => {
     expect(problems.join(" ")).not.toMatch(/exactly once/i);
   });
 
+  it("keeps the card for a caller that can cope with no index", () => {
+    /**
+     * THE RULE CHANGED ON 2026-09-19, and this is the case it changed for.
+     *
+     * Measured that day: 1,442 of 2,469 catalogue courses had been fetched and
+     * REFUSED, and "no stroke index at all" was one of the largest reasons —
+     * on cards whose pars were perfectly good. Refusing the whole card threw
+     * away the par of every hole, which is what Stableford and every ± on a
+     * leaderboard are computed from, because one other column was empty. That
+     * is the shape CLAUDE.md warns about: "a guard that refuses a real golf
+     * course is worse than no guard", and the yardage version of the same
+     * mistake destroyed 33 good cards once already.
+     *
+     * So the IMPORTER — which stores what it was given and allocates nothing —
+     * passes `allowMissingIndex` and keeps the card. Anything about to
+     * allocate a handicap stroke does not, and the test above still holds.
+     */
+    const problems = cardProblems({ pars: PARS18, strokeIndex: new Array(18).fill(0) }, 18, true);
+    expect(problems).toEqual([]);
+  });
+
+  it("does NOT keep a scrambled index for that caller either", () => {
+    /**
+     * The line the exception stops at. A missing index is a card that needs
+     * one typing in; a scrambled index is a card somebody mis-transcribed, and
+     * storing it puts handicap shots on the wrong holes with nothing saying
+     * so. Absent is honest, wrong is invisible.
+     */
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    si[17] = 1;
+    expect(cardProblems({ pars: PARS18, strokeIndex: si }, 18, true).join(" ")).toMatch(/exactly once/i);
+    // And bad pars are still bad, whoever is asking.
+    const badPars = [...PARS18];
+    badPars[3] = 9;
+    expect(cardProblems({ pars: badPars, strokeIndex: si }, 18, true).length).toBeGreaterThan(0);
+  });
+
   it("still says SCRAMBLED when the index is present and wrong", () => {
     // The distinction is only worth having if the other message survives.
     const si = Array.from({ length: 18 }, (_, i) => i + 1);

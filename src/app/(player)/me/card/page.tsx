@@ -247,7 +247,7 @@ export default async function PlayCardPage() {
         fall, and until now nothing said whether anybody at the club had ever
         checked them. No "fix" link: a player cannot correct the club's card,
         but they can ask, and they should not be the last to know. */}
-    <CardTrustNote card={venue} />
+    <CardTrustNote card={venue} strokeIndex={known ? card.strokeIndex.slice(0, holes) : null} />
     {/* Rules left the tab bar for Events (2026-09-19); the card is where a
         local rule or the handicap allowance comes up, so it is linked here. */}
     <p style={{ margin: "14px 0 0" }}>

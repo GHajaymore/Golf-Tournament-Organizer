@@ -27,6 +27,42 @@
 /** How old a checked card may be before it is worth checking again. */
 export const RECHECK_AFTER_DAYS = 365;
 
+/**
+ * A CARD WITH PARS AND NO STROKE INDEX, WHICH IS NOW A STATE THAT EXISTS.
+ *
+ * Until 2026-09-19 the directory importer refused such a card outright and
+ * stored nothing — throwing away every hole's par because one other column
+ * was empty. It keeps them now, which is right, and creates a card that can
+ * score GROSS and cannot allocate a single handicap stroke.
+ *
+ * That has to be said out loud wherever the card is used, because the failure
+ * is the invisible one: `holeStrokesReceived` takes a stroke index per hole,
+ * and a missing one reads as 18 — so every shot lands on the hole the app
+ * thinks is hardest, silently, and a net leaderboard is wrong all day.
+ */
+/**
+ * A stored card column as numbers — `"[7,3,11,…]"`, or "" where there is none.
+ *
+ * Kept beside the rule that reads it, because every caller of that rule has a
+ * stored string and a hand-rolled parse in each one is a hand-rolled bug in
+ * each one: `JSON.parse` throws on "" and on anything a directory ever sent
+ * that was not an array.
+ */
+export function parseIndex(stored: string | null | undefined): number[] {
+  if (!stored) return [];
+  try {
+    const v: unknown = JSON.parse(stored);
+    return Array.isArray(v) ? v.map((n) => (typeof n === "number" && Number.isFinite(n) ? n : 0)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function needsStrokeIndex(strokeIndex: readonly number[] | null | undefined): boolean {
+  if (!strokeIndex || strokeIndex.length === 0) return true;
+  return strokeIndex.every((v) => !v);
+}
+
 export interface CardTrust {
   /** "manual" (typed by the club) or "imported". */
   source: string;
@@ -64,10 +100,26 @@ export function cardTrustNote(
   card: CardTrust | null | undefined,
   today: Date = new Date(),
   formatDate: (d: Date) => string = (d) => d.toISOString().slice(0, 10),
+  /** The card's stroke index, where the caller has it. See `needsStrokeIndex`. */
+  strokeIndex?: readonly number[] | null,
 ): TrustNote | null {
   // No card at all is a different problem, and the screens that have one say
   // so themselves ("no card on file"). Nothing to add here.
   if (!card) return null;
+
+  /**
+   * FIRST, because it is the one that makes a number wrong rather than
+   * doubtful. An unchecked card MIGHT be incorrect; a card with no stroke
+   * index WILL allocate every shot to the same hole, on every net round, until
+   * somebody types the index in.
+   */
+  if (strokeIndex !== undefined && needsStrokeIndex(strokeIndex)) {
+    return {
+      level: "unchecked",
+      warn: true,
+      text: `This course card has no stroke index, so handicap strokes cannot be allocated — net scores will be wrong until somebody enters it off the club's own scorecard. Gross scoring is unaffected.`,
+    };
+  }
 
   const verified = asDate(card.verifiedAt);
   if (!verified) {

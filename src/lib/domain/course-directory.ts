@@ -227,7 +227,22 @@ export function cardFrom(holes: unknown): DirectoryCard {
     return values.length ? Math.max(...values) : 0;
   });
 
-  const problems = cardProblems({ pars, strokeIndex }, holeCount);
+  /**
+   * A MISSING STROKE INDEX NO LONGER COSTS THE WHOLE CARD (2026-09-19).
+   *
+   * The importer stores what the directory gave; it allocates nothing. A card
+   * whose pars are sound and whose index is absent is worth keeping — par is
+   * what Stableford and every ± on a leaderboard are computed from — and the
+   * club can type the index off its own scorecard in two minutes. Refusing it
+   * threw both away, and the catalogue was 1,442 refusals deep the day this
+   * was measured.
+   *
+   * What still refuses: a SCRAMBLED index (a permutation that is not one),
+   * because that is a card somebody mis-transcribed, and pars that are not
+   * golf. Storing an index that is wrong is far worse than storing none — the
+   * shots land on the wrong holes and nothing says so.
+   */
+  const problems = cardProblems({ pars, strokeIndex }, holeCount, true);
   if (problems.length > 0) return { usable: false, reason: problems[0] };
 
   /**
