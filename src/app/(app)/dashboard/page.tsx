@@ -21,7 +21,8 @@ import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-s
 import { currentRoundCut } from "@/lib/domain/cut";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
-import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
+import { knockoutProgress } from "@/lib/domain/bracket";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
@@ -273,6 +274,23 @@ export default async function DashboardPage() {
    * shows and hides — which is the question `shape` genuinely answers.
    */
   const casualMatch = matchEvent && !state.boardIsStroke;
+
+  /**
+   * WHETHER THE ROUND ON THE BOARD IS THE KNOCKOUT, and how much of it is done.
+   *
+   * A bracket stage files no `Match` rows — its results are `BracketWinner`
+   * rows keyed by slot — so `boardProgress` counts fixtures and finds none.
+   * The tile read "Matches complete 0/0 · 0% of round robin" over a knockout
+   * with five ties decided, directly above the Bracket status card describing
+   * that same bracket correctly. Two panels of one screen, one of them
+   * counting a table the round never writes to: the shape this file's own
+   * notes keep describing.
+   *
+   * Both brackets, because the screen shows both and a club playing a plate is
+   * playing those ties too.
+   */
+  const boardIsKnockout = !!state.boardStage && isKnockoutRound(state.boardStage.type);
+  const knockout = knockoutProgress(state.brackets.winners, state.brackets.consolation);
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
@@ -903,11 +921,31 @@ export default async function DashboardPage() {
               sub={`${state.boardProgress.pct}% returned`}
               icon="ph ph-users-three"
             />
+          ) : boardIsKnockout ? (
+            /* A KNOCKOUT KEEPS ITS RESULTS SOMEWHERE ELSE, so counting
+               fixtures answers zero for one however far through it is. This
+               said "Matches complete 0/0 · 0% of round robin" over a bracket
+               with five ties decided and its final drawn — two inches above the
+               Bracket status card, which had the same bracket right. Read off
+               the seeded club's Summer Knockout on 2026-09-20.
+
+               Ties that CAN be played: see `knockoutProgress` for why a
+               semi-final does not read "2 of 7" because the final exists. */
+            <StatCard
+              label="Ties decided"
+              value={`${knockout.decided}/${knockout.total}`}
+              sub={knockout.total > 0 ? `${Math.round((knockout.decided / knockout.total) * 100)}% of the draw` : "nothing drawn yet"}
+              icon="ph ph-tree-structure"
+            />
           ) : (
             <StatCard
               label="Matches complete"
               value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
-              sub={`${state.boardProgress.pct}% of round robin`}
+              /* NOT "of round robin". This tile shows for every round scored as
+                 fixtures, and a Single Match Stage is not a round robin — the
+                 phrase was true of the only shape that existed when it was
+                 written. */
+              sub={`${state.boardProgress.pct}% of this round`}
               icon="ph ph-check-circle"
             />
           )}
