@@ -14,7 +14,7 @@ import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
 import { teamStandings } from "@/lib/services/teams";
 import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
-import { weekBasis, valueOnBasis } from "@/lib/domain/week-basis";
+import { weekBasis, valueOnBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote } from "@/lib/domain/your-card";
@@ -183,14 +183,14 @@ export default async function PlayTodayPage() {
     mySide && roundStage
       ? placesByValue(
           sidesThisRound,
-          (s) => valueOnBasis(weekBasis(roundStage.scoringBasis), s),
+          (s) => valueOnBasis(weekBasis(roundStage.scoringBasis, roundStage.format), s),
           (s) => s.played > 0,
         )[myIdx]
       : null;
 
   const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
   const shownNames = boardNames(shown.map((s) => s.row.name));
-  const isStableford = boardStage?.scoringBasis === "stableford";
+  const isStableford = isStablefordRound(boardStage?.scoringBasis, boardStage?.format);
   const leaders: LeaderTile[] = shown.map(({ row, gap }, i) => ({
     id: row.id,
     pos: positionLabel(row, boardRows),
@@ -395,7 +395,7 @@ export default async function PlayTodayPage() {
               {mySide.played > 0 ? (
                 <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
                   {mySide.played >= holes ? "Round complete" : `Thru ${mySide.played}`} ·{" "}
-                  {roundStage?.scoringBasis === "stableford"
+                  {isStablefordRound(roundStage?.scoringBasis, roundStage?.format)
                     ? `${mySide.points} points`
                     : `${mySide.gross} gross, ${mySide.net} net`}
                   {myPlace

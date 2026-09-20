@@ -9,7 +9,7 @@ import { brandForEvent } from "@/lib/services/organization";
 import { boardKind } from "@/lib/formats";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
-import { weekBasis } from "@/lib/domain/week-basis";
+import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { teamStandings } from "@/lib/services/teams";
@@ -101,7 +101,7 @@ export default async function ReportsPage() {
       activeStage.allowanceWeights,
       activeStage.countBest,
     );
-    const stableford = activeStage.scoringBasis === "stableford";
+    const stableford = isStablefordRound(activeStage.scoringBasis, activeStage.format);
     // The same rule, with the noun a team round needs — "Final standings" is
     // wrong about a side the same way "Final" is wrong about the day.
     snapshotTitle = snapshotStanding({
@@ -111,7 +111,7 @@ export default async function ReportsPage() {
       unit: state.boardProgress.unit,
       noun: "team standings",
     }).title;
-    board = <TeamLeaderboard format={activeStage.format} basis={weekBasis(activeStage.scoringBasis)} rows={teams} />;
+    board = <TeamLeaderboard format={activeStage.format} basis={weekBasis(activeStage.scoringBasis, activeStage.format)} rows={teams} />;
     extraCsv = [
       {
         label: "Team standings",
@@ -272,7 +272,7 @@ export default async function ReportsPage() {
       <ReportsClient
         rows={rows}
         isStroke={isStroke}
-        isStableford={activeStage?.scoringBasis === "stableford"}
+        isStableford={isStablefordRound(activeStage?.scoringBasis, activeStage?.format)}
         eventName={event.name}
         brand={brand}
         scored={kind !== "manual"}

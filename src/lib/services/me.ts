@@ -13,6 +13,7 @@ import { roundLabel } from "@/lib/domain/round-label";
 import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
 import type { HoleResult } from "@/lib/domain/types";
 import { holesPlayed } from "../domain/handicap";
+import { isStablefordRound } from "../domain/week-basis";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -394,12 +395,12 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           // disagree about what number a player is ranked on.
           scoreText: rankedScore(standing, {
             isStroke: state.boardIsStroke,
-            isStableford: stage.scoringBasis === "stableford",
+            isStableford: isStablefordRound(stage.scoringBasis, stage.format),
           }).text,
           record: state.boardIsStroke ? "" : standing.record,
           scoreLabel: rankedScore(standing, {
             isStroke: state.boardIsStroke,
-            isStableford: stage.scoringBasis === "stableford",
+            isStableford: isStablefordRound(stage.scoringBasis, stage.format),
           }).label,
           // The board's own progress, through the rule `/reports` reads. See
           // the note on the field.

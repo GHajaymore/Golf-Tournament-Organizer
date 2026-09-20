@@ -2036,6 +2036,56 @@ describe("a round's card is narrowed in exactly one place", () => {
     ).toEqual([]);
   });
 
+  /**
+   * WHETHER A ROUND IS STABLEFORD IS ASKED OF BOTH SETTINGS, OR NEITHER.
+   *
+   * The FORMAT gives the unit and the BASIS gives the allocation: a Stableford
+   * competition is decided on points, and gross/net only says whether handicap
+   * strokes are applied while computing them. Seventeen readers asked
+   * `scoringBasis === "stableford"` on its own, so every one of them answered
+   * FALSE for the seeded club's Thursday league — eight weeks of
+   * `format: "Stableford"` with `scoringBasis: "net"` — and a Stableford
+   * competition got stroke columns, stroke sentences, a "Scoring: Net" line on
+   * the player's Rules tab, and a board ranked on net strokes.
+   *
+   * They were survivable only while the RANKING was wrong the same way. Once
+   * `weekBasis` reads the format, a board ordered on points under a column
+   * headed Net is worse than what we started with, so the whole family had to
+   * move together. `isStablefordRound` is the one reader now.
+   */
+  const BASIS_ONLY = /scoringBasis === "stableford"/;
+
+  const STABLEFORD_ALLOWED: Record<string, string> = {
+    // `week-basis.ts` is the one place allowed to ask and needs no exemption:
+    // it reads the basis through a local, so the shape above never appears in
+    // it. Listing it anyway was the allowlist's first finding about itself.
+    "src/lib/format-chain.ts":
+      "switches on the ENGINE first, so a Stableford format never reaches the basis line",
+    "src/lib/domain/start-from.ts":
+      "orders the TEMPLATE picker, and templates express Stableford on the basis — the older convention",
+  };
+
+  it("nobody decides a round is Stableford from the basis alone", () => {
+    const offending = sourceFiles(SRC)
+      .filter((f) => BASIS_ONLY.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"))
+      .filter((rel) => !(rel in STABLEFORD_ALLOWED));
+    expect(
+      offending,
+      `these ask the basis and not the format, so a Stableford round scored on net reads as ` +
+        `strokes — use isStablefordRound:\n  ${offending.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every Stableford exemption is still a real file that still does it", () => {
+    // The same discipline the slice allowlist above gets: an exemption nobody
+    // re-reads becomes a place to hide things.
+    for (const rel of Object.keys(STABLEFORD_ALLOWED)) {
+      const body = stripComments(readFileSync(join(process.cwd(), rel), "utf8"));
+      expect(BASIS_ONLY.test(body), `${rel} is exempted but no longer does it`).toBe(true);
+    }
+  });
+
   it("and the sweep can still see that shape when it is there", () => {
     // The control. A sweep that finds nothing may be broken, and this one now
     // reports nothing for ever if it is — so give it the string it exists to

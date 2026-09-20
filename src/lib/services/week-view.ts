@@ -310,7 +310,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     // one rule, all three missing the same third case.
     const places = placesByValue(
       sideRows,
-      (s) => valueOnBasis(weekBasis(stage.scoringBasis), s),
+      (s) => valueOnBasis(weekBasis(stage.scoringBasis, stage.format), s),
       (s) => s.played > 0,
     );
     return sideRows.map((s, i) => ({ ...s, position: places[i] ?? null }));
@@ -389,7 +389,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   };
   const played = wasPlayed(stage);
 
-  const basis = weekBasis(stage.scoringBasis);
+  const basis = weekBasis(stage.scoringBasis, stage.format);
   const scored = state.confirmed
     .map((p) => {
       const a = agg.get(p.id) ?? emptyAgg();

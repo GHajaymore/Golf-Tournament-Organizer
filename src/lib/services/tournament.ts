@@ -53,6 +53,7 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 import { holesPlayed } from "../domain/handicap";
+import { isStablefordRound } from "../domain/week-basis";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -2322,7 +2323,7 @@ export function computeHighlights(state: EventState): Highlight[] {
     // card that stopped short is not in one.
     const scored = state.strokeStandings.filter((s) => s.ranked);
     if (!scored.length) return out;
-    const stableford = state.activeStage?.scoringBasis === "stableford";
+    const stableford = isStablefordRound(state.activeStage?.scoringBasis, state.activeStage?.format);
     const lead = scored[0];
     if (stableford) {
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads on ${lead.points} Stableford pts.` });

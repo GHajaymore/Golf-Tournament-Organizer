@@ -16,6 +16,7 @@ import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
@@ -1023,7 +1024,7 @@ export default async function DashboardPage() {
                      three describe the round these ROWS came from, and asking
                      `activeStage` headed one round's scores with another
                      round's basis. */
-                  isStableford={state.boardStage?.scoringBasis === "stableford"}
+                  isStableford={isStablefordRound(state.boardStage?.scoringBasis, state.boardStage?.format)}
                   rows={rows}
                   compact
                   /* Compact has room for ONE of the two stroke scores, and it
