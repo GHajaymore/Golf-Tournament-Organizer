@@ -2,7 +2,7 @@ import Link from "next/link";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { needsTeams } from "@/lib/formats";
+import { isManualFormat, needsTeams } from "@/lib/formats";
 import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -298,6 +298,23 @@ export default async function PlayCardPage() {
         checked them. No "fix" link: a player cannot correct the club's card,
         but they can ask, and they should not be the last to know. */}
     <CardTrustNote card={venue} strokeIndex={known ? card.strokeIndex.slice(0, holes) : null} />
+    {/* AND WHETHER ANYTHING SCORES THIS CARD (2026-09-20).
+        A round whose format is `manual` has no engine — `standingRows` returns
+        `[]` on its first line for one — so a player can fill eighteen holes
+        here, certify them, and find no board and no position anywhere.
+        The organizer is told: `/leaderboard` and `/reports` both render the
+        notice saying the committee works the result out. The player was told
+        nothing at all, which is the same silence a waitlisted entrant's card
+        used to be filled in.
+        The card STAYS — a club running a hand-scored format may well still
+        want the scores, and refusing them would be deciding that for them.
+        What changes is that it no longer implies a result is coming. */}
+    {isManualFormat(stage?.format ?? "") && (
+      <p className="text-muted" style={{ margin: "12px 0 0", fontSize: 13, lineHeight: 1.6 }}>
+        This round is scored by hand, so nothing here works out a position — your card is kept for
+        your own record, and the committee decides the result.
+      </p>
+    )}
     {/* Rules left the tab bar for Events (2026-09-19); the card is where a
         local rule or the handicap allowance comes up, so it is linked here. */}
     <p style={{ margin: "14px 0 0" }}>
