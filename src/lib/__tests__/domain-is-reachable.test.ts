@@ -264,6 +264,37 @@ describe("the domain is reachable", () => {
     expect(APP_FILES.some((f) => f.src.includes(`${invented}(`))).toBe(false);
   });
 
+  it("reads a REAL call site that a comment sits on top of", () => {
+    /**
+     * THE CONTROL DRAWN FROM THE CORPUS, which is the one the two above are
+     * not.
+     *
+     * Both of those are constructed: a count over synthetic names and a
+     * fabricated string. They passed — and went on passing — while the matcher
+     * was swallowing five thousand characters of a real file, because neither
+     * of them has a doc comment above it and so neither could ever exercise
+     * the path that broke. The sweep was correct about its controls and wrong
+     * about the tree.
+     *
+     * `fieldEnteringRound` is the function that exposed it: called from
+     * `services/tournament.ts` with a long comment immediately above the call,
+     * which is the shape the old regex could not see past. Asserting that THIS
+     * name reads as called is a measurement of the instrument against the code
+     * it is pointed at, rather than against an example written to suit it.
+     *
+     * If it is ever genuinely removed, this fails and wants replacing with
+     * another call site that has prose over it — not deleting.
+     */
+    const live = "fieldEnteringRound";
+    const callers = APP_FILES.filter(
+      (f) => !f.path.endsWith(join("domain", "cut.ts")) && uses(f.src, live) > 0,
+    );
+    expect(
+      callers.map((f) => f.path.slice(SRC.length + 1)),
+      "the sweep cannot see a call site it is looking straight at",
+    ).not.toEqual([]);
+  });
+
   it("adds nothing new that no screen renders", () => {
     /**
      * `totalsByCategory` is why this exists: written so the ledger could
