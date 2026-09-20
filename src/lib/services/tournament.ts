@@ -333,6 +333,14 @@ export interface StrokeStanding {
   parKnown: boolean;
   points: number;
   thru: number;
+  /**
+   * Par for the holes actually played, and what a LEVEL round scores over
+   * them — the two terms that make a running total comparable between players
+   * who are different distances round. See `BasisScore`; the board used to
+   * rank on the raw totals and so led with whoever had played fewest holes.
+   */
+  parThru: number;
+  levelPoints: number;
   /** Holes the cards counted here cover, so a screen can say "14 of 18". */
   holesOwed: number;
   /**
@@ -1672,6 +1680,20 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         parKnown: a.parThru > 0,
         points: a.points,
         thru: a.thru,
+        parThru: a.parThru,
+        /**
+         * What a LEVEL round scores over the holes this player has played.
+         *
+         * Ordinary Stableford pays 2 for a net par, so level is 2 a hole.
+         * MODIFIED Stableford pays 0 for a par and goes negative below it, so
+         * level is 0 — and `rankingBasis` is "stableford" for both, which is
+         * why this is computed here, where `strokeUnit` still distinguishes
+         * them, rather than guessed at inside `scoreOnBasis`.
+         *
+         * Zero for a strokes competition, where the points column is not the
+         * one being ranked and subtracting from it would mean nothing.
+         */
+        levelPoints: stableford ? (strokeUnit === "modified Stableford points" ? 0 : 2) * a.thru : 0,
         holesOwed: a.holesOwed,
         ranked: isRanked(a),
         rank: 0,
