@@ -1261,6 +1261,27 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    sheet and the leaderboard printed identical gross and net for the away
    round, which read as confirmation and was two readers wrong the same way.
 
+   **A STABLEFORD POINT IS NOT A STABLEFORD TOTAL, and the sentence above is
+   only right about the first.** A stroke is worth exactly +1 point wherever
+   it falls, so moving every stroke on a card from the hardest holes to the
+   easiest leaves the TOTAL untouched. Measured rather than reasoned: an
+   eighteen-hole card, bogeys on the first four and pars after, scores 33
+   either way. The total moves only where the points FLOOR at zero — put a 9
+   on that hole and the stroke is wasted on it, and the same card scores 33
+   against 34. So a Stableford total is nearly as blind as net, and for a
+   different reason; the per-hole point, a skin, a match hole or to-par are
+   the assertions that actually see allocation.
+
+   **HOW MUCH OF THE SUITE CAN SEE IT, measured 2026-09-20** by flipping
+   `holeStrokesReceived` to allocate onto the EASIEST holes — the same NUMBER
+   of strokes, so every gross and net total is byte-identical. **18 of 8,151
+   unit tests and 13 of 1,258 audit tests go red**, across the allocator,
+   `cardForStage`, the entry screen's dots, the nine-hole wrap, team cards, a
+   rendered screen, and — in the audit suite — net skins, the money, a match's
+   own venue, the net import and a league that rotates venues. That is the
+   coverage this section asks for, and it is worth re-running the same
+   mutation after any change to stroke.ts rather than assuming it still holds.
+
    **AND CONSOLIDATION TAKES THE COMPARISON AWAY, which is the price of the
    fix this file otherwise recommends everywhere.** Eight callers resolving a
    card three different ways can be caught by diffing two screens; eight
