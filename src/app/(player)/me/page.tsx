@@ -30,7 +30,7 @@ import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark } from "@
 import { roundCardFor } from "@/lib/services/round-card";
 import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
 import { clubEventsFor } from "@/lib/services/club-events";
-import { isWatching } from "@/lib/domain/tournament-switcher";
+import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
 
 /**
  * Today — the player's home.
@@ -81,6 +81,17 @@ export default async function PlayTodayPage() {
   const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
   const isStaff = session.role === "admin" || session.role === "assistant";
   const watching = !me.playerId && isWatching(myRow, isStaff);
+  /**
+   * ON THE WAITING LIST — a third state, and until 2026-09-20 there were two.
+   *
+   * `me.playerId` is null for a waitlisted entry by design: `myPlayerIds` asks
+   * for `confirmed`, and a card must never reach somebody without a place. So
+   * this screen put them through the same door as a stranger and told them
+   * "You aren't entered in this tournament" — while the events list, reading
+   * the row directly beneath, said "You’re on the waiting list". Measured on
+   * the seeded club's Am-Am.
+   */
+  const waiting = !me.playerId && isWaiting(myRow, isStaff);
 
   const round = me.round;
   const card = round?.card ?? null;
@@ -223,7 +234,22 @@ export default async function PlayTodayPage() {
        */}
       <AnnouncementList items={announcements.filter((a) => a.pinned)} />
 
-      {!me.playerId && !watching && (
+      {waiting && (
+        <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="card-title">You&rsquo;re on the waiting list</span>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+            Your name is down and the organizer will confirm your place if one opens up. There&rsquo;s
+            no card until then — the board, the groups and the notices are all open to read.
+          </p>
+          {myRow?.placesNote && (
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              {myRow.placesNote}
+            </span>
+          )}
+        </section>
+      )}
+
+      {!me.playerId && !watching && !waiting && (
         <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           You aren&rsquo;t entered in this tournament, so there&rsquo;s no card here. The board is still
           open on the next tab.

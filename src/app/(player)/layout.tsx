@@ -201,7 +201,11 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         {children}
       </main>
 
-      <PlayTabs showMoney={moneyOn && !switcher.current?.watching} />
+      {/* A member with no place in the field has no stake in its pots, and
+          that is true of somebody WAITING for one as much as of a spectator.
+          Both named, because `watching` stopped covering the waiting list when
+          the two were separated — see `isWaiting`. */}
+      <PlayTabs showMoney={moneyOn && !switcher.current?.watching && !switcher.current?.waiting} />
     </div>
     </CurrencyProvider>
   );

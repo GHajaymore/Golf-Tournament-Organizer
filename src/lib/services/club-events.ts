@@ -69,8 +69,15 @@ export interface ClubEventRow {
   entryDates: string;
   /** Whether this member could put their name down right now. */
   canEnter: boolean;
-  /** Whether they already have. */
+  /** Whether they already have. Confirmed only — see `enteredIn` below. */
   entered: boolean;
+  /**
+   * Whether they have applied and are waiting on the organizer.
+   *
+   * Carried on the row rather than inferred from `yourStatus` being non-empty,
+   * because a sentence is copy and this is a state three screens branch on.
+   */
+  waiting: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
@@ -288,6 +295,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status),
       canEnter,
       entered,
+      waiting,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
       /**
        * Worth opening if there is something on it, or if the club has said it
