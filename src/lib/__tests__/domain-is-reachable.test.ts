@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { stripComments } from "./source";
 import { join } from "node:path";
 
 /**
@@ -42,10 +43,30 @@ function filesUnder(dir: string, out: string[] = []): string[] {
 
 const isTest = (p: string) => p.includes("__tests__") || /\.(test|spec)\.tsx?$/.test(p);
 
-/** Every non-test file in `src`, with its source, read once. */
+/**
+ * Every non-test file in `src`, with its source, read once — AND WITHOUT ITS
+ * COMMENTS, which is not tidiness.
+ *
+ * `uses()` below deletes import statements before looking for callers, with
+ * `import[\s\S]*?from "…"`. That is non-greedy from the word `import` to the
+ * next `from "…"` — and the word appears in PROSE all over this codebase.
+ * Measured on `services/tournament.ts` on 2026-09-20: one sentence in a
+ * comment ("the rule existed, in a file one import away") extended the match
+ * across 5,012 characters and swallowed a real call site, so the sweep
+ * reported `fieldEnteringRound` — called on the line below the comment — as
+ * reachable from nothing.
+ *
+ * That is this file's own lesson pointed at itself: a sweep whose failure
+ * looks like a finding. It cost one red run and would have cost a deletion if
+ * anybody had believed it, which is the expensive direction.
+ *
+ * Comments are stripped here, once, so no regex below can be widened by
+ * English. `stripComments` is the same reader `source-guard.test.ts` insists
+ * on for exactly this class of mistake.
+ */
 const APP_FILES = filesUnder(SRC)
   .filter((p) => !isTest(p))
-  .map((p) => ({ path: p, src: readFileSync(p, "utf8") }));
+  .map((p) => ({ path: p, src: stripComments(readFileSync(p, "utf8")) }));
 
 /** Exported function names per domain file. */
 function exportedFunctions(src: string): string[] {
@@ -73,7 +94,15 @@ function uses(source: string, name: string): number {
   // "passed by name" shape below, so a file that imports a dead function and
   // never calls it would keep it looking alive — which is the barrel-file
   // problem one line removed.
-  const src = source.replace(/import[\s\S]*?from\s+["'][^"']+["'];?/g, "");
+  /**
+   * ANCHORED AT THE START OF A LINE, because `import` is also an English word.
+   *
+   * Unanchored, this ran from any occurrence of the letters to the next
+   * `from "…"` anywhere after it. Comments are stripped before this now, which
+   * is the main defence; the anchor is the second, so a string literal
+   * containing the word cannot reopen the hole.
+   */
+  const src = source.replace(/^\s*import[\s\S]*?from\s+["'][^"']+["'];?/gm, "");
   let n = 0;
   // `name(`, `name<`, `<Name`, `{name}`, `name,` in an argument list.
   for (const _ of src.matchAll(new RegExp(`(?<![A-Za-z0-9_$.])${name}\\s*[(<]`, "g"))) n += 1;
@@ -101,6 +130,20 @@ interface Dead {
  * WHAT WAS ALREADY DEAD WHEN THIS SWEEP WAS WRITTEN (2026-09-19). Debt, not
  * permission — see the assertion below.
  *
+ * SEVEN ENTRIES LEFT ON 2026-09-20 AND NONE OF THEM WAS EVER DEAD:
+ * `ImportSummary`, `contactGaps`, `cardFrom`, `fieldRosterSummary`,
+ * `rosterSelection`, `fetchDirectoryCourse` and `libraryOrganizationFor` are
+ * all called by a screen or an action. They were listed because the matcher
+ * could not see their call sites — the import-stripping regex above was
+ * widened by the word "import" appearing in a comment, and took whole blocks
+ * of real code with it.
+ *
+ * Which is the lesson this file already teaches, pointed at itself: the sweep
+ * reported live code as dead for a day, and the only reason it was caught is
+ * that it did it to a function somebody had just written. Worth knowing when
+ * reading what is left — the list is shorter than it was and it is now the
+ * measurement rather than the instrument's shadow.
+ *
  * The four worth looking at first, because they are features rather than
  * leftovers:
  *
@@ -120,15 +163,12 @@ interface Dead {
  */
 const KNOWN_DEAD: string[] = [
   "components/PageHeader.tsx:PageHeader",
-  "components/RosterClient.tsx:ImportSummary",
   "lib/domain/attendance.ts:isAttendanceMode",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
   "lib/domain/bracket.ts:splitBrackets",
   "lib/domain/carry.ts:carriedInto",
   "lib/domain/club-season.ts:inPlayingWindow",
-  "lib/domain/contact-gaps.ts:contactGaps",
-  "lib/domain/course-directory.ts:cardFrom",
   "lib/domain/cut.ts:describeCut",
   "lib/domain/expenses.ts:evenShares",
   "lib/domain/grouping.ts:groupAvgHandicap",
@@ -144,8 +184,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/messaging.ts:canStartThreadIn",
   "lib/domain/money-rules-version.ts:moneyRulesFingerprint",
   "lib/domain/quick-match.ts:matchNeedsCard",
-  "lib/domain/roster-link.ts:fieldRosterSummary",
-  "lib/domain/roster-selection.ts:rosterSelection",
   "lib/domain/round-expiry.ts:isExpired",
   "lib/domain/score-import.ts:isNetShape",
   "lib/domain/score-payload.ts:cleanMargin",
@@ -161,7 +199,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/venue.ts:libraryProvider",
   "lib/services/attestation.ts:parseAttested",
   "lib/services/availability.ts:splitBySchedule",
-  "lib/services/course-directory.ts:fetchDirectoryCourse",
   "lib/services/courses.ts:eventCourses",
   "lib/services/courses.ts:isMultiCourse",
   "lib/services/handicaps.ts:courseHandicapForPlayer",
@@ -169,7 +206,6 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:applyRepair",
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
-  "lib/services/organization.ts:libraryOrganizationFor",
   "lib/services/roster.ts:memberHistory",
   "lib/services/tournament.ts:expectedRrTotal",
   "lib/services/tournament.ts:matchProgress",
