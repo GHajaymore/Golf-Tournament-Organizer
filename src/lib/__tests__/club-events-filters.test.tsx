@@ -34,6 +34,7 @@ function row(i: number): ClubEventRow {
     bandLabel: "Open",
     when: "upcoming",
     windowNote: "",
+    yourStatus: "",
     progress: null,
     placesNote: "",
   };
@@ -44,6 +45,46 @@ const html = (n: number) =>
   renderToStaticMarkup(
     <ClubEventsList events={Array.from({ length: n }, (_, i) => row(i))} openAction={open} />,
   );
+
+describe("where this member stands", () => {
+  /**
+   * A MEMBER ON THE WAITING LIST IS TOLD SO, ON ANY BAND.
+   *
+   * The service has computed that sentence since #480. The card rendered it
+   * inside the entry-window block, which shows only for "open" and "soon" — so
+   * on a FULL tournament, which is exactly when somebody is waitlisted, it was
+   * dropped. Read off the seeded club's Am-Am on 2026-09-19: "All 12 places
+   * taken; further entries join the waitlist", and not a word about the fact
+   * that this member was on it.
+   */
+  const waiting = "You’re on the waiting list — the organizer will confirm your place.";
+
+  it("says so on a closed, full tournament", () => {
+    const out = renderToStaticMarkup(
+      <ClubEventsList
+        events={[{ ...row(0), band: "closed", canEnter: false, yourStatus: waiting }]}
+        openAction={open}
+      />,
+    );
+    expect(out).toContain("waiting list");
+  });
+
+  it("says so while entries are still open, too", () => {
+    const out = renderToStaticMarkup(
+      <ClubEventsList events={[{ ...row(0), band: "open", yourStatus: waiting }]} openAction={open} />,
+    );
+    expect(out).toContain("waiting list");
+  });
+
+  it("says nothing about a member who is simply not entered", () => {
+    // The line is about THEM. A card with no personal status must not grow a
+    // blank one.
+    const out = renderToStaticMarkup(
+      <ClubEventsList events={[{ ...row(0), band: "closed", yourStatus: "" }]} openAction={open} />,
+    );
+    expect(out).not.toContain("waiting list");
+  });
+});
 
 describe("dates a club has not fixed", () => {
   /**

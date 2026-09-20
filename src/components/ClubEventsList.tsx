@@ -250,6 +250,17 @@ export function ClubEventsList({
                   </span>
                 </div>
 
+                {/* WHERE THIS MEMBER STANDS, on every band. It used to ride
+                    inside the entry-window block below, which renders only for
+                    "open" and "soon" — so somebody on the WAITING LIST, which
+                    happens when a tournament is full and therefore closed, was
+                    told nothing about themselves. */}
+                {e.yourStatus && (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: BAND_STYLE[e.band].color }}>
+                    {e.yourStatus}
+                  </span>
+                )}
+
                 {/* The entry window — dates, how far through it today is, and
                     what that means — for the two bands it is about. */}
                 {(e.band === "open" || e.band === "soon") && (e.entryDates || e.placesNote) && (
