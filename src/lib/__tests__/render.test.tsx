@@ -6822,6 +6822,23 @@ describe("the live board says how old it is", () => {
     expect(() => render(<LiveRefresh renderedAt="" />)).not.toThrow();
     expect(() => render(<LiveRefresh renderedAt="not a date" />)).not.toThrow();
   });
+
+  it("does not call a finished board live", () => {
+    /**
+     * The badge above this line reads "Final" off `allIn`, and the line itself
+     * read "Live · updated just now" — two panels of one screen disagreeing
+     * about whether anything can still change. Read off the seeded festival's
+     * completed event on 2026-09-20.
+     *
+     * No age either: the age of a board that cannot move is not a fact a
+     * reader needs, and printing one invites them to wonder whether something
+     * newer exists.
+     */
+    const html = render(<LiveRefresh renderedAt={new Date().toISOString()} final />);
+    expect(html).toMatch(/no longer change/i);
+    expect(html, "a finished board still calls itself live").not.toMatch(/Live ·/);
+    expect(html).not.toMatch(/just now|min ago|updates on its own/i);
+  });
 });
 
 /**

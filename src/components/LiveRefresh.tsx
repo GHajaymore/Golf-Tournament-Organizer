@@ -32,8 +32,24 @@ import { freshness, POLL_MS } from "@/lib/domain/freshness";
 export function LiveRefresh({
   renderedAt,
   compact = false,
+  final = false,
 }: {
   renderedAt: string;
+  /**
+   * Every card is in, so nothing can move — the same value that puts "Final"
+   * on the badge above this line.
+   *
+   * It read "Live · updated just now" under a badge reading "Final", which is
+   * the two-places-one-question fault this file's own header was written
+   * about, arriving from the other direction: the label was honest about the
+   * FETCH and silent about whether there was anything left to fetch. Seen on
+   * the seeded festival 2026-09-20.
+   *
+   * It also stops the polling. A finished tournament's share link left open
+   * refreshed itself every POLL_MS for ever, on a spectator's phone, for
+   * scores that cannot change.
+   */
+  final?: boolean;
   /**
    * Sits inline in a page header rather than centred under a board.
    *
@@ -53,12 +69,17 @@ export function LiveRefresh({
   // time is the classic hydration mismatch: the server renders "just now" and
   // the client, a moment later, renders something else.
   useEffect(() => {
+    // A final board's label carries no time, so there is nothing for a clock
+    // to change — and a per-second re-render of a finished leaderboard is the
+    // same waste as the polling below, one order of magnitude worse.
+    if (final) return;
     setNow(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
-  }, []);
+  }, [final]);
 
   useEffect(() => {
+    if (final) return;
     /**
      * Only while somebody is looking.
      *
@@ -89,7 +110,7 @@ export function LiveRefresh({
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("online", wake);
     };
-  }, [router]);
+  }, [router, final]);
 
   const age = now === null ? 0 : now - new Date(renderedAt).getTime();
   const { label, stale } = freshness(age);
@@ -129,7 +150,18 @@ export function LiveRefresh({
           background: stale || offline ? "var(--color-neutral-400)" : "var(--color-accent-2-300)",
         }}
       />
-      {now === null ? (
+      {final ? (
+        // No time at all. The age of a board that cannot change is not a fact
+        // a reader needs, and printing one invites them to wonder whether
+        // something newer exists.
+        //
+        // And it says nothing about CARDS. The first draft read "every card is
+        // in", which is what `allIn` mostly means — but `declaredFinal` also
+        // sets it from the committee closing the tournament, and a round
+        // scored by hand has no cards to be in. What is true either way is
+        // that the number on the screen is the last one there will be.
+        <span>Final · these scores no longer change</span>
+      ) : now === null ? (
         // Before the clock is read, say the durable thing rather than a time
         // that would immediately change.
         <span>Read-only · updates on its own</span>
