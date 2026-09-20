@@ -44,8 +44,6 @@ const UNREACHED: Record<string, string> = {
   // below failed the moment it did, and the entry came off. An allowlist that
   // keeps an entry after somebody wires the function turns this file into
   // folklore.
-  "roster.ts:memberHistory":
-    "What one member has played, 'the answer the old per-event lists couldn't give'. Nothing shows it, so the club's handicap history is in the database and on no screen.",
   // `integrations.ts:handicapReadable` was the second entry to leave, the day
   // after it arrived: the roster screen asks it now, which is the screen its
   // own comment always said should. Two of the nine are gone within a day of
