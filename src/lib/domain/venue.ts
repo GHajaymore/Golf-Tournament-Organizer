@@ -356,7 +356,17 @@ export function teeProblems(tee: { name: string; courseRating: number; slopeRati
  * permutation of 1..n — a duplicated or missing number means some hole gets
  * two shots and another none.
  */
-export function cardProblems(card: { pars: number[]; strokeIndex: number[] }, holes: 9 | 18): string[] {
+export function cardProblems(
+  card: { pars: number[]; strokeIndex: number[] },
+  holes: 9 | 18,
+  /**
+   * Whether a card with NO stroke index at all is usable to this caller.
+   *
+   * False everywhere by default, because the default caller is one that is
+   * about to allocate handicap strokes. See the branch that reads it.
+   */
+  allowMissingIndex = false,
+): string[] {
   const problems: string[] = [];
   const pars = card.pars.slice(0, holes);
   const si = card.strokeIndex.slice(0, holes);
@@ -366,6 +376,25 @@ export function cardProblems(card: { pars: number[]; strokeIndex: number[] }, ho
   }
   if (si.length !== holes) {
     problems.push(`Stroke index is needed for all ${holes} holes.`);
+  } else if (si.every((v) => !v) && allowMissingIndex) {
+    /**
+     * KEPT, NOT THROWN AWAY (2026-09-19).
+     *
+     * Measured on the catalogue that day: 1,442 of 2,469 courses had been
+     * fetched and REFUSED, and "no stroke index at all" was one of the largest
+     * reasons. The pars on those cards were fine. Refusing the whole card for
+     * a missing index throws away the par of every hole — the thing Stableford
+     * and every ± on a leaderboard are computed from — because one other
+     * column was empty, which is the shape CLAUDE.md warns about at length: "a
+     * guard that refuses a real golf course is worse than no guard".
+     *
+     * So a caller that can COPE with a missing index (the directory importer,
+     * which stores what it got) passes `allowMissingIndex` and gets the card.
+     * A caller that cannot — anything about to allocate handicap strokes —
+     * does not, and still gets the refusal, because allocating shots off an
+     * index that does not exist is the invisible error this file exists to
+     * prevent.
+     */
   } else if (si.every((v) => !v)) {
     /**
      * ABSENT is not SCRAMBLED, and saying so matters.

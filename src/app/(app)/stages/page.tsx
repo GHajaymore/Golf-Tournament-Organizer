@@ -19,7 +19,7 @@ import type { ThirdPlaceView } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { CardTrustNote } from "@/components/CardTrustNote";
-import { cardTrustNote } from "@/lib/domain/card-trust";
+import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -215,7 +215,11 @@ export default async function StagesPage() {
     // Provenance with the name: this is the screen that decides which card a
     // round is scored against, so it is the screen that should say whether
     // anybody has ever checked that card. See domain/card-trust.ts.
-    select: { id: true, name: true, source: true, verifiedAt: true, verifiedBy: true },
+    // `strokeIndex` with the rest: since 2026-09-19 the directory importer
+    // keeps a card whose index is missing rather than throwing the pars away,
+    // so "this course has no stroke index" is a state a club can be in — and
+    // it is the one that makes every net score wrong rather than doubtful.
+    select: { id: true, name: true, source: true, verifiedAt: true, verifiedBy: true, strokeIndex: true },
     orderBy: { name: "asc" },
   });
 
@@ -303,11 +307,12 @@ export default async function StagesPage() {
           the life of the course. One line per course that needs a look, with
           the way to do it; nothing is refused. */}
       {venues
-        .filter((v) => cardTrustNote(v)?.warn)
-        .map((v) => (
-          <div key={v.id} className="card elev-sm" style={{ marginBottom: 10 }}>
-            <span className="card-title" style={{ fontSize: 14 }}>{v.name}</span>
-            <CardTrustNote card={v} fix={`/event?course=${v.id}`} />
+        .map((v) => ({ venue: v, si: parseIndex(v.strokeIndex) }))
+        .filter(({ venue, si }) => cardTrustNote(venue, new Date(), undefined, si)?.warn)
+        .map(({ venue, si }) => (
+          <div key={venue.id} className="card elev-sm" style={{ marginBottom: 10 }}>
+            <span className="card-title" style={{ fontSize: 14 }}>{venue.name}</span>
+            <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} />
           </div>
         ))}
       <StagesClient

@@ -82,6 +82,47 @@ describe("what to say about a course card", () => {
     expect(note?.level).toBe("unchecked");
   });
 
+  it("warns first about a card with no stroke index at all", () => {
+    /**
+     * A STATE THAT NOW EXISTS. Until 2026-09-19 the directory importer refused
+     * a card whose stroke index was missing and stored nothing — throwing away
+     * every hole's par with it. It keeps them now, so a card that can score
+     * gross and cannot allocate a single handicap stroke is a real card in the
+     * database.
+     *
+     * The danger is the invisible one: `holeStrokesReceived` reads an index
+     * per hole and a missing one falls back to 18, so every shot lands on the
+     * same hole and a net leaderboard is quietly wrong all day. That outranks
+     * "nobody has checked this", which is only a doubt.
+     */
+    const checked = { source: "imported", verifiedAt: day("2026-09-01"), verifiedBy: "R. Ganizer" };
+    const note = cardTrustNote(checked, TODAY, undefined, []);
+    expect(note?.warn).toBe(true);
+    expect(note?.text).toContain("no stroke index");
+    expect(note?.text).toContain("net scores will be wrong");
+    // And it says what still works, so the club is not told the card is useless.
+    expect(note?.text).toContain("Gross scoring is unaffected");
+  });
+
+  it("reads an all-zero index as no index, which is how a directory sends one", () => {
+    const checked = { source: "imported", verifiedAt: day("2026-09-01"), verifiedBy: "" };
+    expect(cardTrustNote(checked, TODAY, undefined, new Array(18).fill(0))?.text).toContain(
+      "no stroke index",
+    );
+    // A real index says nothing about itself and lets the ordinary note through.
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    expect(cardTrustNote(checked, TODAY, undefined, si)?.level).toBe("checked");
+  });
+
+  it("says nothing about the index when the caller does not know it", () => {
+    // `undefined` is "I did not look", which must not read as "there is none".
+    const note = cardTrustNote(
+      { source: "manual", verifiedAt: day("2026-09-01"), verifiedBy: "" },
+      TODAY,
+    );
+    expect(note?.level).toBe("checked");
+  });
+
   it("says nothing when there is no card at all", () => {
     // A round with no course card has a different problem, and the screens
     // that have one already say so. Two messages would be noise.

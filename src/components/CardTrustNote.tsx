@@ -17,13 +17,22 @@ export function CardTrustNote({
   card,
   fix,
   formatDate,
+  strokeIndex,
 }: {
   card: CardTrust | null | undefined;
   /** Where the card can be checked, for a reader who may. */
   fix?: string;
   formatDate?: (d: Date) => string;
+  /**
+   * The card's stroke index, where the caller has it.
+   *
+   * Omitted means "I did not look", which must not read as "there is none" —
+   * so a caller that cannot see the index gets the ordinary note and no false
+   * alarm about handicap strokes.
+   */
+  strokeIndex?: readonly number[] | null;
 }) {
-  const note = cardTrustNote(card, new Date(), formatDate);
+  const note = cardTrustNote(card, new Date(), formatDate, strokeIndex);
   if (!note) return null;
 
   return (
