@@ -25,8 +25,23 @@ export interface SideProgress {
   played: number;
 }
 
-export function yourCardNote(input: { side: SideProgress | null; holes: number }): string {
+export function yourCardNote(input: { side: SideProgress | null; holes: number; round?: boolean }): string {
   const { side, holes } = input;
+  /**
+   * NO ROUND AT ALL is a third shape, and there were two.
+   *
+   * A tournament whose organizer has not added a round yet has no side and no
+   * opponent, so this fell through to the match sentence and told a confirmed
+   * entrant of a brand-new tournament that "your score is recorded against
+   * your opponent" — of a round that does not exist, on the screen they open
+   * first. Measured on the seeded club's Captain's Day, 2026-09-20.
+   *
+   * Empty rather than a fourth sentence: there is nothing true to say about a
+   * card for a round nobody has created, and the screen says what IS true — no
+   * rounds yet — in its own words. `round` is optional so every existing
+   * caller keeps today's answer.
+   */
+  if (input.round === false) return "";
   const whose = side
     ? "This round is played in sides, so the card belongs to your side rather than to you."
     : "This round is scored by your organizer — your score is recorded against your opponent rather than as your own card.";
