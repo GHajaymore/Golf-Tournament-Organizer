@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { getSession } from "@/lib/auth";
 import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
+import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { potAudience } from "@/lib/domain/pot-audience";
@@ -150,8 +151,27 @@ export async function saveSideGame(
 
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
 
-  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true, format: true },
+  });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  /**
+   * NOT ON A ROUND WHERE THE SIDE PLAYS ONE BALL — the same rule the skins pot
+   * keeps, and for the same reason.
+   *
+   * Every derived game here is decided per PLAYER: whose birdie, whose low
+   * net, who won the hole alone. A foursomes has one card per side and no
+   * individual score, so `roundStrokes` returns nothing for it — deliberately,
+   * because "inventing an individual score would pay a skin to a player who
+   * never hit the shot". The stake would be taken and could never be settled.
+   *
+   * A Nassau is decided between SIDES and would survive the question, but it
+   * is refused with the rest rather than carved out: a side-by-side bet on a
+   * foursomes is a match, which this app already scores as one.
+   */
+  const refusal = perPlayerPotRefusal(stage.format);
+  if (refusal) return { ok: false, error: refusal };
 
   const cents = Math.round(Number(buyInCents));
   if (!Number.isFinite(cents) || cents < 0 || cents > MAX_EXPENSE_CENTS) {
