@@ -195,21 +195,33 @@ export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
   );
 }
 
+/** What a Modified Stableford is worth, said once. */
+export const MOD_STABLEFORD_NOTE =
+  "Modified Stableford · highest points wins. Eagle 5, birdie 2, par 0, bogey −1, worse −3.";
+
 export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow[] }) {
-  // Level on points is level. The sort falls back to gross and then to
-  // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
-  // and 2nd alphabetically.
-  const places = placesByValue(rows, (r) => r.points, (r) => r.played > 0);
   return (
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
         <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Modified Stableford · highest points wins. Eagle 5, birdie 2, par 0, bogey −1, worse −3.
+          {MOD_STABLEFORD_NOTE}
         </p>
       </div>
+      <ModifiedStablefordTable rows={rows} />
+    </>
+  );
+}
 
+/** The points table WITHOUT a page heading — see `SkinsStandingsTable`. */
+export function ModifiedStablefordTable({ rows }: { rows: ModStablefordRow[] }) {
+  // Level on points is level. The sort falls back to gross and then to
+  // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
+  // and 2nd alphabetically.
+  const places = placesByValue(rows, (r) => r.points, (r) => r.played > 0);
+  return (
+    <>
       <div className="card elev-sm">
         {rows.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>No cards returned yet.</p>

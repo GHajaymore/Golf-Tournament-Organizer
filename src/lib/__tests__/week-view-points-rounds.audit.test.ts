@@ -2,6 +2,8 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { weekViewFor } from "@/lib/services/week-view";
+import { loadEventState } from "@/lib/services/tournament";
+import { resultLinesFor } from "@/lib/services/tournament-result";
 
 /**
  * A SKINS NIGHT PAYS HOLES AND A NASSAU IS THREE BETS.
@@ -156,6 +158,40 @@ afterAll(async () => {
   } finally {
     await prisma.$disconnect();
   }
+});
+
+describe("the day's result, round by round", () => {
+  it("names the skins winner, not the lowest card", async () => {
+    /**
+     * `resultLinesFor` had the same two blind spots as the week sheet, on the
+     * screen a PLAYER reads: a skins round fell through to the stroke branch
+     * and was reported as the lowest NET card — naming somebody who had won no
+     * skins at all — and a Nassau, which files no cards, came out as "Not
+     * settled yet" over decided matches.
+     *
+     * Read off the seeded festival 2026-09-20: round 2 said "Greta · 57 net"
+     * while the skins board said Bernadette, six skins. Same evening, two
+     * screens, two winners.
+     */
+    const state = await loadEventState(eventId);
+    const lines = await resultLinesFor(state!);
+    const skins = lines.find((l) => l.label.includes("1"));
+    expect(skins, "no line for the skins round").toBeTruthy();
+    expect(skins!.result).toContain("skin");
+    // Ann won the only hole decided outright, and the fixture has exactly one.
+    expect(skins!.result).toContain("Ann");
+    expect(skins!.result, "reported as a stroke score").not.toContain("net");
+  });
+
+  it("settles the Nassau in bets", async () => {
+    const state = await loadEventState(eventId);
+    const lines = await resultLinesFor(state!);
+    const nassau = lines.find((l) => l.label.includes("2"));
+    expect(nassau, "no line for the Nassau round").toBeTruthy();
+    expect(nassau!.result, "a decided Nassau read as unplayed").not.toContain("Not settled");
+    // One bet each on the nines and the eighteen halved: level at one apiece.
+    expect(nassau!.result).toContain("bet");
+  });
 });
 
 describe("a skins league night", () => {

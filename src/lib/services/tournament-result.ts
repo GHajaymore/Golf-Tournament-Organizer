@@ -4,7 +4,8 @@ import type { EventState } from "./tournament";
 import { parseStrokeCards, playingStages } from "./tournament";
 import { tournamentResult, type OutingLine, type RoundOutcome } from "../domain/tournament-result";
 import { roundLabel } from "../domain/round-label";
-import { isManualFormat, needsTeams } from "../formats";
+import { isManualFormat, needsTeams, boardKind } from "../formats";
+import { skinsBoard, nassauBoard } from "./points-standings";
 import { roundUnit } from "../domain/round-unit";
 import { isHeadToHead } from "../stage-types";
 import { resolveMatch } from "../domain/match";
@@ -97,6 +98,42 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
     );
   }
 
+  /**
+   * THE TWO ROUNDS WHOSE RESULT IS NOT A SCORE.
+   *
+   * A skins round pays holes and a Nassau is three bets — `positionsExist`
+   * says so — and both fell through to the stroke branch below. A skins night
+   * was therefore reported as the lowest NET card, naming a player who had won
+   * no skins at all, and a Nassau (which files no cards) came out as "Not
+   * settled yet" over eight decided matches.
+   *
+   * Read off the seeded festival on 2026-09-20: round 2 said "Greta · 57 net"
+   * while the skins board said Bernadette, six skins.
+   *
+   * Prefetched here for the same reason the team rows above are: the outcome
+   * map is synchronous, and a reader that cannot await cannot ask.
+   */
+  const skinsByStage = new Map<string, Awaited<ReturnType<typeof skinsBoard>>>();
+  const nassauByStage = new Map<string, Awaited<ReturnType<typeof nassauBoard>>>();
+  for (const stage of stages) {
+    const kind = boardKind(stage.format);
+    const card = cardByStage.get(stage.id) ?? { pars: [], holeDifficulty: [] };
+    if (kind === "skins") {
+      skinsByStage.set(
+        stage.id,
+        await skinsBoard(
+          state.event.id,
+          stage.id,
+          holesPlayed(stage.holes),
+          stage.scoringBasis !== "gross",
+          card.holeDifficulty,
+        ),
+      );
+    } else if (kind === "nassau") {
+      nassauByStage.set(stage.id, await nassauBoard(state.event.id, stage.id));
+    }
+  }
+
   const outcomes: RoundOutcome[] = stages.map((stage) => {
     const label = roundLabel(state.stages, stage.id) || stage.description || stage.type;
 
@@ -153,6 +190,62 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
         .filter(([, n]) => n === most)
         .map(([id]) => ({ name: nameOf.get(id) ?? "—", score: String(most) }));
       return { kind: "stroke", label, winners, unit: most === 1 ? "win" : "wins" };
+    }
+
+    /**
+     * A SKINS ROUND IS WON BY WHOEVER TOOK THE MOST HOLES, and a hole must be
+     * won outright. Reported in skins, so nobody reads the number as a score.
+     */
+    const skins = skinsByStage.get(stage.id);
+    if (skins) {
+      const won = skins.outcome.standings.filter((s) => s.skins > 0);
+      if (won.length === 0) {
+        return {
+          kind: "pending",
+          label,
+          note: skins.outcome.holes.length > 0 ? "Every hole carried" : "",
+        };
+      }
+      const most = Math.max(...won.map((s) => s.skins));
+      return {
+        kind: "stroke",
+        label,
+        winners: won
+          .filter((s) => s.skins === most)
+          .map((s) => ({ name: skins.nameById[s.playerId] ?? "—", score: String(most) })),
+        unit: most === 1 ? "skin" : "skins",
+      };
+    }
+
+    /**
+     * A NASSAU IS THREE BETS PER MATCH, so the round's line is who took the
+     * most of them. Counted per decided segment rather than per match: a
+     * player who loses the eighteen and wins both nines is up on the day, and
+     * saying they lost would be the wrong way round.
+     */
+    const nassau = nassauByStage.get(stage.id);
+    if (nassau) {
+      const bets = new Map<string, number>();
+      for (const row of nassau) {
+        for (const seg of row.outcome.segments) {
+          const w = seg.result?.complete ? seg.result.winner : null;
+          if (w !== "A" && w !== "B") continue;
+          const name = w === "A" ? row.aName : row.bName;
+          bets.set(name, (bets.get(name) ?? 0) + 1);
+        }
+      }
+      if (bets.size === 0) {
+        return { kind: "pending", label, note: nassau.length > 0 ? "Every bet halved" : "" };
+      }
+      const most = Math.max(...bets.values());
+      return {
+        kind: "stroke",
+        label,
+        winners: [...bets.entries()]
+          .filter(([, n]) => n === most)
+          .map(([name]) => ({ name, score: String(most) })),
+        unit: most === 1 ? "bet" : "bets",
+      };
     }
 
     /**
