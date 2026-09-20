@@ -3,7 +3,7 @@ import { rankedScore } from "@/lib/domain/ranked-score";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
-import { generatesPairings } from "@/lib/stage-types";
+import { roundIsStroke } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
@@ -445,9 +445,28 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
        * for them, so the failure is toward showing less rather than promising
        * more.
        */
+      /**
+       * AND THE SAME TEST `/me/card` APPLIES, which `generatesPairings` is not.
+       *
+       * That asks whether a stage type DRAWS pairings, which is true only of a
+       * Round Robin — so a BRACKET STAGE answered false and Today offered
+       * "Start my card" on a knockout, while `/me/card` said "Round 2 is match
+       * play, so your score is recorded against your opponent rather than as
+       * your own card". The contract this field exists to keep, broken in the
+       * same way a second time and by the same field. Read off the seeded
+       * club's Summer Knockout as a player on 2026-09-20.
+       *
+       * It was wrong in the other direction too: a legacy medal — a Round
+       * Robin set to Stroke Play, which this app still has — is a card the
+       * player DOES own, `/me/card` shows it, and Today refused to offer it
+       * because of the stage type alone.
+       *
+       * `roundIsStroke(type, format)` is the rule `/me/card` gates on and it
+       * gets both directions right, which is why it is the one to share.
+       */
       ownCard:
         !needsTeams(stage.format) &&
-        !generatesPairings(stage.type) &&
+        roundIsStroke(stage.type, stage.format) &&
         canEnterScores(settingsOf(state.event), "player"),
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,

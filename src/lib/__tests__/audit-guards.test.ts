@@ -2141,6 +2141,69 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * AND THE SAME TEST FOR WHETHER THE ROUND IS SCORED ON A CARD AT ALL.
+   *
+   * The gate above closed the committee-scored case and left the SHAPE of the
+   * round decided by two different rules. `ownCard` asked
+   * `generatesPairings(stage.type)` — true only of a Round Robin — so a
+   * BRACKET STAGE answered "this is your card" and Today rendered "Start my
+   * card" over a knockout, while `/me/card` said "Round 2 is match play, so
+   * your score is recorded against your opponent". Read off the seeded club as
+   * a player on 2026-09-20.
+   *
+   * Wrong in the other direction too: a legacy medal — a Round Robin set to
+   * Stroke Play — is a card the player owns and `/me/card` shows, and Today
+   * refused to offer it on the stage type alone.
+   *
+   * `roundIsStroke(type, format)` is what `/me/card` branches on and it gets
+   * both directions right, so pinning BOTH readers to it is what keeps the
+   * contract this field exists for: Today never offers a card My card refuses.
+   */
+  it("ownCard decides the round's shape the way /me/card does", () => {
+    const me = stripComments(readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"));
+    expect(me, "ownCard reads a different rule from /me/card").toMatch(
+      /ownCard:[\s\S]{0,300}roundIsStroke\(/,
+    );
+    expect(me, "the stage type alone is back").not.toMatch(/generatesPairings\(/);
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
+    );
+    expect(card).toMatch(/roundIsStroke\(/);
+
+    /**
+     * AND NOWHERE IN THE PLAYER APP AT ALL, which is the assertion that would
+     * have caught this a day earlier.
+     *
+     * `generatesPairings` is a real question — "does this stage type draw a set
+     * of pairings" — and `/entry`, `/grouping` and the stage editor ask it
+     * correctly. It is the wrong question for "is this card mine", and the
+     * player app has no other use for it, so its ABSENCE there is the rule.
+     *
+     * An absence assertion is the safe direction (see `readSource`): the
+     * comment in `me/card/page.tsx` that names the trap would SATISFY a
+     * presence check and trips this one loudly, which is why both are read
+     * through the comment stripper.
+     */
+    const sweep = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) return e.name === "__tests__" ? [] : sweep(p);
+        return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
+      });
+    const playerFiles = sweep(join(process.cwd(), "src", "app", "(player)"));
+    for (const file of playerFiles) {
+      expect(
+        stripComments(readFileSync(file, "utf8")),
+        `${file} decides a player's round from the stage type alone`,
+      ).not.toMatch(/generatesPairings\(/);
+    }
+    // The control: the sweep is looking at real files, and at the one that
+    // matters. A sweep that finds nothing may simply be broken.
+    expect(playerFiles.length).toBeGreaterThan(5);
+    expect(playerFiles.some((f) => f.endsWith(join("me", "card", "page.tsx")))).toBe(true);
+  });
+
+  /**
    * The tee sheet is judged against the field it was DRAWN from.
    *
    * `teeSheetDrift` compares a published sheet with a set of ids, and the
