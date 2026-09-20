@@ -146,6 +146,73 @@ export interface RoundCutFields {
   cutScope: string;
 }
 
+/**
+ * HOW MANY PLAYERS ARE ENTITLED TO PLAY THIS ROUND, after every cut before it.
+ *
+ * A cut is stored on the round it FEEDS — `rounds[n].cutEnabled` means the
+ * field entering round n is the top of round n-1's standings — so the field
+ * shrinks as the tournament goes on and the event's entry list stops being the
+ * right denominator the moment a club takes one.
+ *
+ * Read off the seeded club's Club Championship on 2026-09-20, a COMPLETED
+ * 36-hole championship cut to 16: twenty-eight entered, sixteen played the
+ * second round, sixteen returned a card, and the dashboard said
+ *
+ *     CARDS IN  16/28  ·  57% submitted
+ *
+ * over a tournament where every player still in it had handed their card in.
+ * Twelve cards were not missing; those twelve had been cut the day before.
+ * The same shape as counting a team round's sides in players.
+ *
+ * FLIGHTS ARE TRACKED WHERE THEY CAN BE, because "top 2 per flight" is a
+ * different number from "top 2" and the difference compounds over two cuts.
+ * After an OVERALL cut the flight split is no longer derivable FROM SIZES —
+ * the survivors can come from anywhere — so a later per-flight cut is sized
+ * against the whole remaining field instead.
+ *
+ * WHICH WAY THAT ERRS IS THE PART TO KNOW: too BIG. A club would see "16 of 24
+ * · 67% submitted" over a round where all sixteen are in — cards reading as
+ * outstanding that do not exist, which is a smaller instance of the very
+ * defect this function was written for. It takes two cuts of different scopes
+ * in one tournament to appear at all, and it is still far closer than the
+ * entry list, so it is named here rather than hidden.
+ *
+ * The exact answer is available and costs more than a denominator is worth:
+ * flight membership travels with the PLAYERS, so chaining `survivors` round by
+ * round would keep it — but that needs the field ranked as of each
+ * intermediate round, which means every card up to it. Whoever has that in
+ * hand should do it properly; this function errs high until they do.
+ */
+export function fieldEnteringRound(
+  rounds: RoundCutFields[],
+  index: number,
+  field: { total: number; flights?: number[] },
+): number {
+  let total = Math.max(0, field.total);
+  let flights = (field.flights ?? []).filter((n) => n > 0);
+
+  for (let r = 1; r <= index && r < rounds.length; r += 1) {
+    const round = rounds[r];
+    if (!round?.cutEnabled) continue;
+    const rule: CutRule = {
+      scope: round.cutScope === "perFlight" ? "perFlight" : "overall",
+      mode: round.cutMode === "percent" ? "percent" : "count",
+      count: round.cutCount,
+      percent: round.cutPercent,
+    };
+    if (rule.scope === "perFlight" && flights.length > 0) {
+      flights = flights.map((n) => survivorCount(rule, n));
+      total = flights.reduce((a, b) => a + b, 0);
+    } else {
+      total = survivorCount(rule, total);
+      // An overall cut takes whoever is at the top, so the flight split it
+      // leaves behind is not derivable from the sizes.
+      flights = [];
+    }
+  }
+  return total;
+}
+
 export interface RoundCutLine {
   /** 1-based number of the round whose field is being cut down. */
   fromRound: number;
