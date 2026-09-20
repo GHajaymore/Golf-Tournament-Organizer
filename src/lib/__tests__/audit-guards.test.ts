@@ -2169,6 +2169,38 @@ describe("a round's card is narrowed in exactly one place", () => {
       readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
     );
     expect(card).toMatch(/roundIsStroke\(/);
+
+    /**
+     * AND NOWHERE IN THE PLAYER APP AT ALL, which is the assertion that would
+     * have caught this a day earlier.
+     *
+     * `generatesPairings` is a real question — "does this stage type draw a set
+     * of pairings" — and `/entry`, `/grouping` and the stage editor ask it
+     * correctly. It is the wrong question for "is this card mine", and the
+     * player app has no other use for it, so its ABSENCE there is the rule.
+     *
+     * An absence assertion is the safe direction (see `readSource`): the
+     * comment in `me/card/page.tsx` that names the trap would SATISFY a
+     * presence check and trips this one loudly, which is why both are read
+     * through the comment stripper.
+     */
+    const sweep = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) return e.name === "__tests__" ? [] : sweep(p);
+        return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
+      });
+    const playerFiles = sweep(join(process.cwd(), "src", "app", "(player)"));
+    for (const file of playerFiles) {
+      expect(
+        stripComments(readFileSync(file, "utf8")),
+        `${file} decides a player's round from the stage type alone`,
+      ).not.toMatch(/generatesPairings\(/);
+    }
+    // The control: the sweep is looking at real files, and at the one that
+    // matters. A sweep that finds nothing may simply be broken.
+    expect(playerFiles.length).toBeGreaterThan(5);
+    expect(playerFiles.some((f) => f.endsWith(join("me", "card", "page.tsx")))).toBe(true);
   });
 
   /**
