@@ -1272,6 +1272,41 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    that can still fail is one asserting to-par against the played course's
    actual par, because every screen will now agree on whatever it says.
 
+8. **ASK WHICH TABLE THIS ROUND FILES ITS RESULT IN, BEFORE BELIEVING ANY
+   COUNT.** There are FOUR, and on 2026-09-20 six separate readers were asking
+   a true question of one that is empty for the round in front of them:
+
+       Scorecard       a stroke round, one row per player
+       TeamScorecard   anything `needsTeams` — one row per SIDE for a shared
+                       ball, one per player for a four-ball
+       Match           match play, AND a Nassau, whose stage type is "Stroke
+                       Play Round" so a reader keyed on the type looks for
+                       cards that never existed
+       BracketWinner   a knockout. A bracket stage files no Scorecard and no
+                       Match at all; its results are rows keyed by slot
+
+   The symptom is always an absence reported as a fact — "Nothing returned for
+   this round yet" over eight complete sides, "Matches complete 0/0 · 0% of
+   round robin" over a knockout five ties through six, "this tournament hasn't
+   been launched yet" said to people standing on the course. Measured, not
+   argued: the seeded club's invitational holds 0 Scorecard rows against 16, 8
+   and 8 TeamScorecard rows; its knockout holds 0 Match rows against 5
+   BracketWinner rows.
+
+   **And the denominator is the same question one level along.** `total` was
+   the event's entry list, which is the wrong field for a team round (sides,
+   not players) and for a CUT round (the survivors, not everyone who entered).
+   A completed championship cut to 16 of 28 read "Cards in 16/28 · 57%
+   submitted" with every card in.
+
+   Two things follow. Fix it where the data is built — `boardProgress` carries
+   the unit now (`cards | matches | sides | ties`) so a screen cannot re-derive
+   it from the event's format, which is how one absence came to have four
+   readers. And when a screen shows nothing, check the table before the code:
+   `grep` for every read of `prisma.scorecard` that decides EXISTENCE or
+   PROGRESS rather than score found all four readers in twenty minutes, where
+   walking screens had found one in an evening.
+
 The multi-agent exploratory audit that produced all this is a RELEASE GATE or
 post-feature pass, not a per-change step — it costs over a million tokens. Use
 it to find unknown classes of bug; use the sweep above to stop known ones
