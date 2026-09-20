@@ -1116,6 +1116,39 @@ to paste in. It **refuses any database whose host is not localhost** — checked
 on the host, because a password can contain the word — since a seed pointed at
 production cannot be undone from here.
 
+**KNOW WHICH SESSION THE BROWSER IS HOLDING BEFORE YOU BELIEVE A SCREEN IS
+WRONG ABOUT YOU.** On 2026-09-20 about fifteen tool calls went into a defect
+that did not exist: `/me/money` read "You aren't in this tournament's field, so
+you have no stake in its pots" while the expense table directly beneath it
+listed the signed-in name with a £25.63 share, and the database said that
+person was `confirmed` in that event. Three independent checks agreed the
+screen was lying.
+
+The tab was holding the ORGANIZER's `ng_session`, not the player's. The
+organizer is genuinely not in that field, the shared costs are deliberately
+visible to everyone, and every word on the screen was true about a person I had
+not checked I was. The tell was on screen the whole time — an "Organizer" badge
+in a shell I believed I was reading as a player.
+
+Three things make this easy to walk into, and all three are worth knowing:
+
+- a cookie set an hour ago is still in the jar, through navigation and a
+  dev-server restart, and it may belong to somebody other than the person you
+  think you are testing as. (A reseed is the other half of the same trap from
+  the opposite side: the VALUE survives while the row it names does not, so
+  every cookie minted before the reseed now resolves to nobody.)
+- `ng_active_event` is **HttpOnly** — `document.cookie` can neither read nor
+  set it, so switching tournaments from the console is impossible and has to
+  go through the app's own switcher (`/me/events`, or Manage on `/tournaments`);
+- a stale `session=` cookie from an earlier fixture silently outranks the
+  `ng_session` you just set.
+
+So read `document.cookie` and confirm the user before concluding anything about
+identity, entry status or permissions. It is the same class as the 307 trap
+above — a check that runs cleanly while answering a different question from the
+one asked — and it fails in the more expensive direction, because it invents a
+bug rather than hiding one.
+
 Two things make it worth the four minutes: read the numbers on a screen
 AGAINST EACH OTHER rather than against your expectation, and follow anything
 that disagrees to the two functions producing it. The staff number took about
