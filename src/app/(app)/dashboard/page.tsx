@@ -1037,7 +1037,15 @@ export default async function DashboardPage() {
                   emptyNote={
                     teamRound
                       ? "This round is played in sides, so the standings are by side — they're on Reports & export."
-                      : "Nothing to rank here yet — the board fills in as scores come back."
+                      : /* A HAND-SCORED ROUND'S BOARD NEVER FILLS IN. "The
+                           board fills in as scores come back" is a promise
+                           about cards that this format does not have — the
+                           committee works the result out and posts it. The
+                           same sentence was on this card while the tile beside
+                           it already said "Scored by hand". */
+                        state.boardProgress.unit === "manual"
+                        ? "This round is scored by hand, so there is no board — post the result as an announcement and the field sees it."
+                        : "Nothing to rank here yet — the board fills in as scores come back."
                   }
                 />
               </>
