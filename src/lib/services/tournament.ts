@@ -35,6 +35,7 @@ import {
   buildBracket,
   drawBrackets,
   firstRoundLosers,
+  knockoutProgress,
   isBracketMode,
   parseBracketDraw,
   roundRobinMatchCount,
@@ -485,8 +486,13 @@ export interface EventState {
      * What a club counts on a team day is sides, and the word has to travel
      * with the number or a screen re-derives it from the event's format —
      * which is the mistake `boardProgress` exists to have made once.
+     *
+     * "ties" is the fourth, and it is a KNOCKOUT. A bracket stage files
+     * neither a card nor a fixture — its results are `BracketWinner` rows — so
+     * counting either answers 0 of 0 for a draw most of the way through. What
+     * a club counts there is ties decided out of ties that can be played.
      */
-    unit: "cards" | "matches" | "sides";
+    unit: "cards" | "matches" | "sides" | "ties";
   };
   /**
    * The first round the field has not started, in play order — or null once
@@ -1355,7 +1361,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const bp = boardStage
     ? roundProgress(boardStage)
     : { started: 0, certified: 0, approved: 0, disputed: 0, total: 0 };
-  const boardProgress = {
+  const boardProgressOfCards = {
     started: bp.started,
     certified: bp.certified,
     approved: bp.approved,
@@ -1372,7 +1378,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       ? "sides"
       : boardStage && !boardIsStroke
         ? "matches"
-        : "cards") as "cards" | "matches" | "sides",
+        : "cards") as "cards" | "matches" | "sides" | "ties",
   };
 
   /**
@@ -1918,6 +1924,44 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     winners: mainBracket,
     consolation: buildBracket("consolation", secondField, winnersMap),
   };
+
+  /**
+   * AND THE ONE ROUND WHOSE PROGRESS IS NOT IN EITHER TABLE ABOVE.
+   *
+   * A bracket stage files no `Scorecard` rows and no `Match` rows — a
+   * knockout's results are `BracketWinner` rows keyed by slot — so the counter
+   * built further up answers 0 of 0 for one however far through the draw a
+   * club is. The dashboard printed "Matches complete 0/0 · 0% of round robin"
+   * over a knockout with five ties decided and its final drawn.
+   *
+   * HERE RATHER THAN IN THE SCREEN, and that is the whole point of this
+   * commit. #512 fixed the dashboard tile by counting the bracket in the page,
+   * which left `/reports` printing the same 0/0 and `snapshotStanding` saying
+   * "Nothing returned for this round yet" over a bracket most of the way
+   * through. A rule living in one screen is a rule the next screen does not
+   * inherit — which is exactly how `roundProgress` came to have four readers
+   * of one absence.
+   *
+   * It sits at the bottom of the function because it needs `brackets`, which
+   * cannot be built until the standings that seed it exist. Nothing between
+   * that point and here reads `boardProgress`, so the cost of the late
+   * assembly is one rename.
+   */
+  const bracketBoard = boardStage && isKnockoutRound(boardStage.type);
+  const ties = bracketBoard ? knockoutProgress(brackets.winners, brackets.consolation) : null;
+  const boardProgress = ties
+    ? {
+        // A tie is either decided or not: there are no holes here to be part
+        // way through, and no committee step to be waiting on.
+        started: ties.decided,
+        certified: ties.decided,
+        approved: ties.decided,
+        disputed: 0,
+        total: ties.total,
+        pct: ties.total > 0 ? Math.round((ties.decided / ties.total) * 100) : 0,
+        unit: "ties" as const,
+      }
+    : boardProgressOfCards;
 
   return {
     event,

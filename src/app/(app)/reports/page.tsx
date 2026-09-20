@@ -239,7 +239,14 @@ export default async function ReportsPage() {
                 // nobody was asking about.
                 state.boardProgress.unit === "sides"
                 ? "Sides in"
-                : "Matches complete"
+                : // And a KNOCKOUT is counted in ties. This printed "Matches
+                  // complete 0/0" over the seeded club's bracket with five
+                  // ties decided — the same number the dashboard was printing
+                  // until the rule moved into `boardProgress`, which is why
+                  // this screen now gets it without knowing what a bracket is.
+                  state.boardProgress.unit === "ties"
+                  ? "Ties decided"
+                  : "Matches complete"
           }
           value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
           icon="ph ph-check-circle"
