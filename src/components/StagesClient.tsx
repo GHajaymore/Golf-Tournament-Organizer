@@ -146,12 +146,35 @@ export interface QualValues {
 /** Rotating per-round accent so a page of several round cards reads as distinct at a glance. */
 const ROUND_PALETTE = ["var(--color-accent)", "var(--color-accent-2)", "var(--color-accent-400)", "var(--color-accent-2-400)"];
 
-const BASIS_OPTIONS: Array<{ key: string; label: string }> = [
+/**
+ * WHAT THE BASIS CAN SAY, and `stableford` is deliberately not offered.
+ *
+ * The basis is an ALLOCATION — whether handicap strokes are applied — and the
+ * FORMAT is the unit. That is Ajay's ruling of 2026-09-20, and `weekBasis`
+ * implements it by reading the format first. A round wanting points sets its
+ * format to Stableford or Modified Stableford, both of which are selectable, and
+ * then says gross or net here.
+ *
+ * `legacy` keeps the LABEL without offering the option. Rounds written before the
+ * ruling hold `scoringBasis: "stableford"` — a unit in the allocation field — and
+ * they still read correctly: `weekBasis` resolves that value to points on
+ * purpose, "kept, so nothing already stored changes meaning", and the summary
+ * line a few hundred lines below looks a label up here. Dropping the entry
+ * outright would print the raw string at an organizer instead.
+ *
+ * So this closes the thing `decisions-2026-09-20` asked for in its own words —
+ * "the app should also stop being able to express the contradiction" — from the
+ * writing side only. Nothing stored changes, and nothing stored stops working.
+ */
+const BASIS_OPTIONS: Array<{ key: string; label: string; legacy?: true }> = [
   { key: "gross", label: "Gross" },
   { key: "net", label: "Net" },
   { key: "both", label: "Both" },
-  { key: "stableford", label: "Stableford" },
+  { key: "stableford", label: "Stableford", legacy: true },
 ];
+
+/** The ones an organizer may choose today. See `BASIS_OPTIONS`. */
+const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
 
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
@@ -1476,7 +1499,10 @@ function StageCard({
                 </FieldInfo>
               </label>
               <div className="seg" style={{ width: "100%" }}>
-                {BASIS_OPTIONS.map((o) => (
+                {/* The choosable three. A round still HOLDING the legacy
+                    `stableford` basis shows none of these checked, and the
+                    summary line above still names it — see `BASIS_OPTIONS`. */}
+                {BASIS_CHOICES.map((o) => (
                   <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                     <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending} onChange={() => commitBasis(o.key)} />
                     {o.label}
