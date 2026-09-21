@@ -1,3 +1,27 @@
+/**
+ * THIS FILE'S DATABASE, DECLARED HERE BECAUSE NOTHING ELSE CAN DECLARE IT.
+ *
+ * The audit config and `smoke-all.mjs` load `.env` at their own entry points,
+ * and the verify-* scripts are typed by a person who can pass
+ * `node --env-file=.env`. Neither remedy reaches this file: it is never run,
+ * only IMPORTED — by `global-setup.ts`, `global-teardown.ts` and five spec
+ * files — so it is inside Playwright's process by the time anyone could have
+ * passed a flag, and Playwright's own entry point is not ours to change.
+ *
+ * Without it, `npx playwright test` in a shell that does not already carry the
+ * variable cannot seed at all:
+ *
+ *     error: Environment variable not found: PRISMA_DATABASE_URL.
+ *
+ * which takes the WHOLE suite down in global setup, before a single assertion
+ * runs. It has never been seen because CI exports the variables at the job
+ * level and a developer who has run anything else in the same shell already
+ * has them — the same reason the eight audit files went unnoticed for so long.
+ *
+ * `dotenv` no-ops when `.env` is absent and never overrides a variable already
+ * set, so CI is untouched.
+ */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
 import { runMark } from "../scripts/run-mark.mjs";
