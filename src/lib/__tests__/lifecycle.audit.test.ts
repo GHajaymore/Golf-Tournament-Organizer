@@ -556,10 +556,59 @@ describe("the tee editor's data path works end to end", () => {
     });
     await prisma.eventCourse.create({ data: { eventId: event.id, courseId } });
 
-    expect(await unratedWarning(event.id, "gross")).toBeNull();
-    const net = await unratedWarning(event.id, "net");
+    const rounds = (...bases: string[]) => bases.map((scoringBasis) => ({ scoringBasis }));
+
+    expect(await unratedWarning(event.id, rounds("gross"))).toBeNull();
+    const net = await unratedWarning(event.id, rounds("net"));
     expect(net).toContain("Yellow");
     expect(net).not.toContain("Blue");
+
+    /**
+     * THE TWO CASES THE CALLER USED TO GET WRONG, now unaskable: it reduced a
+     * tournament to `stages.find((s) => s.type === "Round Robin")
+     * ?.scoringBasis ?? "gross"`.
+     *
+     * A MIXED tournament — a gross round robin beside a net medal — answered
+     * "gross" for a banner that belongs to the whole screen. And a net MEDAL,
+     * having no Round Robin at all, took the fallback, which is the commonest
+     * tournament there is.
+     */
+    expect(
+      await unratedWarning(event.id, rounds("gross", "net")),
+      "a gross round beside a net one silenced the warning",
+    ).toContain("Yellow");
+    expect(
+      await unratedWarning(event.id, rounds("net", "gross")),
+      "order decided whether a net round was noticed",
+    ).toContain("Yellow");
+
+    /**
+     * ALL FOUR BASES THE ACTION ACCEPTS, and `stableford` is why the test is
+     * `!== "gross"` rather than `isNetBasis`.
+     *
+     * `setScoringBasis` accepts `["gross", "net", "both", "stableford"]` and the
+     * development database holds 2 stableford rounds. Stableford points are
+     * computed off a handicap, so such a round needs rated tees exactly as a net
+     * one does — and `isNetBasis`, which is `"net" || "both"`, would have gone
+     * silent on it. A draft of this change used `isNetBasis` and would have
+     * shipped that regression.
+     *
+     * The schema comment on `Stage.scoringBasis` says `gross | net | both` and
+     * is stale; the action is the authority.
+     */
+    expect(await unratedWarning(event.id, rounds("both"))).toContain("Yellow");
+    expect(
+      await unratedWarning(event.id, rounds("stableford")),
+      "a Stableford round is scored off a handicap and was not warned",
+    ).toContain("Yellow");
+    // And an unrecognised value warns rather than going quiet, which is the
+    // direction to be wrong in for a warning: a fifth basis added later is
+    // covered before anybody remembers this function exists.
+    expect(await unratedWarning(event.id, rounds("something-new"))).toContain("Yellow");
+
+    // And the controls: no rounds at all, and every round gross, stay silent.
+    expect(await unratedWarning(event.id, rounds())).toBeNull();
+    expect(await unratedWarning(event.id, rounds("gross", "gross"))).toBeNull();
 
     await prisma.event.delete({ where: { id: event.id } });
   });
@@ -575,7 +624,7 @@ describe("the tee editor's data path works end to end", () => {
     });
     await prisma.tee.updateMany({ where: { courseId, slopeRating: 0 }, data: { slopeRating: 113, courseRating: 70 } });
     await prisma.eventCourse.create({ data: { eventId: event.id, courseId } });
-    expect(await unratedWarning(event.id, "net")).toBeNull();
+    expect(await unratedWarning(event.id, [{ scoringBasis: "net" }])).toBeNull();
     await prisma.event.delete({ where: { id: event.id } });
   });
 
