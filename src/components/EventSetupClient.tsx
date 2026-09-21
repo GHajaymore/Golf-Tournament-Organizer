@@ -3,7 +3,6 @@ import { useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
 import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
-import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
@@ -36,8 +35,6 @@ interface EventForm {
   capacity: number;
   playerCountMode: string;
   manualPlayerCount: number;
-  /** Routing only — see src/lib/side-style.ts. Never read while scoring. */
-  sideStyle: string;
 }
 
 interface CourseOption {
@@ -517,63 +514,32 @@ export function EventSetupClient({
           </div>
         </div>
 
-        {/* The question nothing used to ask. Answering it decides which format
-            new rounds start on and puts Teams & pairs in the sidebar — it locks
-            nothing, and every round can still be set to anything. */}
-        <div className="field">
-          <label>
-            How do people play?
-            <FieldInfo label="how people play">
-              <p>
-                A starting point, not a rule. It picks what a new round opens on and brings up the
-                Teams &amp; pairs screen — every round can still be set to anything you like.
-              </p>
-              <p>
-                Team golf lives on the round, not the tournament, because it genuinely changes: a
-                member-guest plays four-ball on Saturday and foursomes on Sunday.
-              </p>
-            </FieldInfo>
-          </label>
-          <div style={{ display: "grid", gap: 6 }}>
-            {SIDE_STYLE_OPTIONS.map((o) => (
-              <label
-                key={o.key}
-                className="seg-opt"
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 9,
-                  padding: "9px 11px",
-                  borderRadius: 9,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  border: "1px solid var(--color-divider)",
-                  background:
-                    f.sideStyle === o.key
-                      ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
-                      : "transparent",
-                  borderColor:
-                    f.sideStyle === o.key
-                      ? "color-mix(in srgb, var(--color-accent) 45%, transparent)"
-                      : "var(--color-divider)",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="sideStyle"
-                  checked={f.sideStyle === o.key}
-                  onChange={() => set("sideStyle", o.key)}
-                  style={{ marginTop: 3, flex: "none" }}
-                />
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, display: "block" }}>{o.label}</span>
-                  <span className="text-muted" style={{ fontSize: 12, lineHeight: 1.55 }}>{o.blurb}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+        {/* "How do people play?" — individually, in pairs, in teams — USED TO
+            STAND HERE, and it is gone rather than moved.
 
+            It was the second of the two questions that made this screen read
+            as though it decided how the golf is played, which is the confusion
+            this change is about: an organizer answered it, reasonably believed
+            they had said what the tournament plays, and never went to Rounds &
+            formats, where it actually lives.
+
+            Its own help text conceded the point — "a starting point, not a
+            rule", and "team golf lives on the round, not the tournament,
+            because it genuinely changes: a member-guest plays four-ball on
+            Saturday and foursomes on Sunday". A setting that describes itself
+            that way is a default wearing a decision, and the two things it fed
+            are both better read from the rounds:
+
+              a new round's format     now repeats the PREVIOUS round's, which
+                                       is what a club does. Both add-a-round
+                                       screens require a format anyway, so this
+                                       was already only a backstop.
+              Teams & pairs in the nav now appears when a round HAS a team
+                                       format — the fact it was standing in for.
+
+            `Event.sideStyle` is left in the schema and no longer written.
+            Dropping a column is a migration; this change is about what the
+            screen asks. */}
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Venue</span>
         <div className="field">
           <CoursePicker
@@ -804,7 +770,7 @@ export function EventSetupClient({
                   name: f.name, playKind: f.playKind, dates: f.dates, datesTentative: f.datesTentative,
                   format: f.format, course: f.course, courseId: f.courseId, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
-                  courseMode: f.courseMode, sideStyle: f.sideStyle,
+                  courseMode: f.courseMode,
                 }),
               );
               setSavedSnapshot(f);

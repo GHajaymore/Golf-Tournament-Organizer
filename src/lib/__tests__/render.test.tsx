@@ -5770,7 +5770,7 @@ describe("tournament details", () => {
           name: "zz-Club Championship", playKind: "tournament", startOn: "", endOn: "", dates: "", datesTentative: false,
           format: "match", course: "Bushwood",
           courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", regOpens: "", capacity: 32,
-          playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",
+          playerCountMode: "registration", manualPlayerCount: 0,
           ...over,
         }} />,
     );
@@ -5816,7 +5816,7 @@ describe("tournament details", () => {
     const html = await setup({ playerCountMode: "manual", manualPlayerCount: 24 });
     for (const control of [
       "Tournament identity", "Tournament name", "Tournament dates",
-      "The kind of golf", "Scoring", "Match play", "Stroke play", "How do people play?",
+      "The kind of golf", "Scoring", "Match play", "Stroke play",
       "Venue", "Golf course", "City", "Address",
       "Registration", "Registration deadline", "Field capacity",
       "Where the field size comes from", "Player count", "From registrations",
@@ -5867,13 +5867,39 @@ describe("tournament details", () => {
     expect(untaught).toContain('href="/bracket"');
   });
 
-  it("does not file the scoring questions under Tournament identity", async () => {
-    // A name and a date say WHICH tournament this is. Match-versus-stroke and
-    // singles-versus-sides say what kind of golf it is, and both used to sit
-    // under "Tournament identity" where nobody would look for them.
+  it("does not file the scoring question under Tournament identity", async () => {
+    // A name and a date say WHICH tournament this is. Match-versus-stroke says
+    // what kind of golf it is, and it used to sit under "Tournament identity"
+    // where nobody would look for it.
     const html = await setup();
     expect(html.indexOf("Tournament identity")).toBeLessThan(html.indexOf("The kind of golf"));
-    expect(html.indexOf("The kind of golf")).toBeLessThan(html.indexOf("How do people play?"));
+  });
+
+  it("no longer asks the round's question on the tournament's screen", async () => {
+    /**
+     * "How do people play?" — individually, in pairs, in teams — is GONE, and
+     * this asserts its absence rather than merely stopping asserting its
+     * presence. Ajay reported the confusion from this screen: two questions
+     * here read as though they decided how the golf is played, while every
+     * round decides its own on Rounds & formats.
+     *
+     * It was a default wearing a decision. Its own help text said so — "a
+     * starting point, not a rule" — and the two things it fed are now read
+     * from the rounds: a new round repeats the previous round's format, and
+     * Teams & pairs appears when a round HAS a team format.
+     *
+     * An absence assertion is the safe direction here: a comment mentioning
+     * the phrase cannot satisfy it, only re-adding the control can break it.
+     */
+    const html = await setup();
+    expect(html).not.toContain("How do people play?");
+    for (const gone of ["In pairs or teams", "Individually", "It varies by round"]) {
+      expect(html, `side-style option still rendered: ${gone}`).not.toContain(gone);
+    }
+    // The CONTROL: the question that legitimately stays is still asked, so
+    // this cannot pass by the card failing to render at all.
+    expect(html).toContain("Scoring");
+    expect(html).toContain("The kind of golf");
   });
 
   it("does not name a section after a screen that already has that name", async () => {

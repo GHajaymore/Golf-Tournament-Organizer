@@ -266,7 +266,7 @@ export default async function EventPage({
           format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
-          courseMode: e.courseMode, sideStyle: e.sideStyle, courseId: e.courseId ?? "",
+          courseMode: e.courseMode, courseId: e.courseId ?? "",
         }}
         playersCount={state.confirmed.length}
         // The id travels now. It was dropped here, which is the whole reason
