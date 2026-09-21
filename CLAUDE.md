@@ -790,11 +790,54 @@ impossible. Extend these rather than working around them.
   `src/lib/__tests__/source.ts`, which strips comments. Swept per file, so a new test file is
   covered the day it is added. See below for why.
 
+**WHEN A CORRECT CHANGE MAKES AN EXISTING GUARD FAIL, READ THE GUARD BEFORE UPDATING IT.** A guard
+that goes red on a change you have already proven right was asserting something false, and the
+reflex — "update the test to match" — launders the old assertion into the new one. Three of these
+in one day, 2026-09-21, none found by auditing tests and all three by changing code and reading
+which cells went red:
+
+```
+audit-guards      required  roundTeeId(tees, event?.defaultTeeId)  in the net import
+                  under a comment saying "required to use the ROUND's tees" — which is
+                  what that expression was FIXING, not what it does. It is the
+                  TOURNAMENT's set, so the guard held the door open in the name of
+                  closing it
+handicap-wiring   satisfied by a bare  courseHandicapMap(  in the team recompute, so it
+                  could not tell the conversion being PRESENT from it being RIGHT
+handicap-wiring   required  if (basis === "gross") return null;  in unratedWarning — and
+                  that line was CORRECT. What it froze was the `basis: string` parameter,
+                  which forced the caller to reduce a tournament's rounds to one answer
+```
+
+The third is the general case: **a source assertion freezes an interface, and an interface can be
+the defect.** So pin the GUARANTEE, not the expression — the function a caller must go through and
+the rungs it walks, never a spelling that could be either answer.
+
+**AND ENUMERATE A STRING COLUMN'S REAL VALUES BEFORE NARROWING A TEST ON ONE.** Fixing the third
+guard above, `!== "gross"` was replaced with the tidier `isNetBasis`, which is
+`"net" || "both"`. `setScoringBasis` accepts FOUR values and the development database holds 2
+`stableford` rounds, which are scored off a handicap — so the tidier spelling would have silenced
+the warning for them: the same defect one value along, introduced while fixing it. `groupBy` on the
+column is the check, not the schema comment, which said `gross | net | both` and was stale. Where an
+unknown value should take the SAFE branch, prefer the negative test.
+
 **Prove a new test can fail: revert the fix, watch it go red, put it back.** Six fixtures in one
 pass could not fail — a card-venue test on gross match play (the card is never read), an
 authorization test using a money mode that does not exist (every refusal passed on "Unknown money
 setting"), a skins test with one player (nobody wins a skin either way). Each looked exactly like
 a passing test of the fix, and each was counted as coverage.
+
+**AND A MUTATION CAN STAY GREEN BECAUSE THE THEORY OF THE DEFECT WAS WRONG, which wears the same
+clothes as a passing test.** A net-skins assertion said "Bob holds the pot and Ann does not"; the
+mutation that priced the pot off the wrong club left it GREEN. Nothing was broken about the
+instrument — Bob was on the higher index, so with identical gross cards he wins net skins off
+EITHER club. What the venue changes is WHERE his extra strokes fall, because the gap between the two
+moves with the slope: away he is alone on stroke index 8..15, off the host on 1..10. Re-pinned on
+two holes, the mutation then failed with the received value `[1..10]` exactly.
+
+So write the mutation before believing the assertion, and **when it stays green, suspect the theory
+before the harness.** "What does this defect actually change?" is a different question from "is this
+defect present", and a money test that answers only the second can be fully wired and prove nothing.
 
 Mutate the WHOLE before-state, not half of it. Reverting one of two changed lines left the
 headline case still passing: the rows were ordered wrongly but keyed the same, so they shared a
