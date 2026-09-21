@@ -250,6 +250,14 @@ export default async function EventPage({
                 // WHICH are done, so the journey card can mark them. The
                 // count alone left five identical chips under "3 of 5 done".
                 doneHrefs: flow.steps.filter((s) => s.done).map((s) => s.href),
+                // WHICH ONE IS NEXT. Ticks alone said what was finished and
+                // left every remaining chip identical, so the card answered
+                // "how far am I" and not "what do I do now" — which is the
+                // question somebody opens a setup screen with. `flow.current`
+                // is the first unfinished step and is what the rail on this
+                // same screen already calls "Now"; taking it from there rather
+                // than recomputing is what stops the two disagreeing.
+                currentHref: flow.current?.href ?? "",
               }
             : null
         }

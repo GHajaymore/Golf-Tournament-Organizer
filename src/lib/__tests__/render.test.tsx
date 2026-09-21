@@ -392,6 +392,70 @@ describe("the journey card counts phases, not steps", () => {
     );
   };
 
+  /**
+   * THE CARD ANSWERS "WHAT NOW", NOT ONLY "HOW FAR AM I".
+   *
+   * Ticks alone left every unfinished chip identical, so an organizer could
+   * read that two parts were outstanding and still not know which to open.
+   * Ajay, 2026-09-21: make the sequential flow more visible.
+   *
+   * The marker comes from `flow.current` — the same value the rail on this
+   * screen already calls "Now" — so the two panels cannot name different
+   * steps. These tests pin that it marks exactly ONE, and the right one.
+   */
+  describe("which step to do next", () => {
+    const partial = {
+      setup: {
+        doneCount: 2,
+        total: 5,
+        complete: false,
+        doneHrefs: ["/event", "/stages"],
+        currentHref: "/registration",
+      },
+    };
+
+    it("marks exactly one chip as the next step", async () => {
+      const html = await journey(partial);
+      expect(html.match(/>NOW</g)?.length ?? 0, "more than one step claimed to be next").toBe(1);
+    });
+
+    it("marks the step the flow calls current, not the first undone it guesses", async () => {
+      /**
+       * The distinction matters: a card that recomputed "first chip without a
+       * tick" would be a second reader of a settled question, and would
+       * disagree with the rail the moment the flow's own ordering changed.
+       * Handed a `currentHref` that is NOT the first undone, it must still
+       * follow the flow.
+       */
+      const html = await journey({
+        setup: { ...partial.setup, currentHref: "/grouping" },
+      });
+      const nowAt = html.indexOf("NOW");
+      expect(nowAt, "nothing marked").toBeGreaterThan(-1);
+      expect(html.slice(0, nowAt), "the marker landed on an earlier chip").toContain("Registration");
+    });
+
+    it("marks nothing once setup is complete", async () => {
+      // `flow.current` is null there, which arrives as "". A card still
+      // pointing at a step would be telling somebody to do a finished thing.
+      const html = await journey();
+      expect(html).not.toContain(">NOW<");
+    });
+
+    it("never marks a finished step as the next one", async () => {
+      /**
+       * THE CONTROL. Every assertion above is satisfied by a card that marks
+       * whatever it is handed; this refuses a contradiction — a step cannot be
+       * both ticked and outstanding, and if the two ever disagree the tick
+       * wins, because a done step is a fact and "next" is a suggestion.
+       */
+      const html = await journey({
+        setup: { ...partial.setup, currentHref: "/event" },
+      });
+      expect(html, "a completed step was labelled NOW").not.toContain(">NOW<");
+    });
+  });
+
   it("says phase, not step", async () => {
     const html = await journey();
     expect(html).toContain("You are on phase");
