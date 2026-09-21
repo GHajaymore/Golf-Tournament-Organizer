@@ -231,7 +231,33 @@ export function teeForPlay(
    * the configured event tee has always had, applied to every rung rather
    * than only the last.
    */
-  const live = (id: string | null | undefined) => (id && tees.some((t) => t.id === id) ? id : null);
+  const live = (id: string | null | undefined) => {
+    if (!id) return null;
+    const tee = tees.find((t) => t.id === id);
+    if (!tee) return null;
+    /**
+     * AND ON THE COURSE BEING PLAYED, which is the half the paragraph above
+     * promised in these words — "a tee that ... belongs to a venue this round
+     * is no longer at must not silently price the card" — and did not do. `live`
+     * checked EXISTENCE across every one of the tournament's venues, so a club
+     * that had opened the tee setting once and picked its own whites priced
+     * every away round off them: the rung was real, so the fallback that scopes
+     * to `courseId` was never reached.
+     *
+     * Measured on the two-venue fixture in
+     * `round-handicaps-follow-the-round-venue.audit.test.ts`: 18 where 7 is
+     * right, on BOTH readers, which is why fixing the round-handicap screen
+     * alone made it agree with a board that was also wrong.
+     *
+     * A null `courseId` means no round is in hand — the event-level screens,
+     * pricing a roster rather than a card — and then there is no venue to be on
+     * the wrong side of, so every rung is allowed through exactly as before.
+     * The same escape, and the same wording, `courseHandicapMap` gives a caller
+     * whose ratings carry no provenance.
+     */
+    if (!courseId) return id;
+    return tee.courseId === courseId ? id : null;
+  };
   const chosen = live(chain.matchTeeId) ?? live(chain.stageTeeId) ?? live(chain.eventDefaultTeeId);
   if (chosen) return chosen;
   /**

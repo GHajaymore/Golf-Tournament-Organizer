@@ -104,6 +104,43 @@ describe("which tees a round is played from", () => {
     ).toBe("b-blue");
   });
 
+  it("steps past a rung that is on ANOTHER of this tournament's courses", () => {
+    /**
+     * THE HALF THE EXISTENCE CHECK ABOVE COULD NOT SEE, and the commonest state
+     * a club is in: `Event.defaultTeeId` set to their own whites, one round away.
+     *
+     * `live` asked only whether the id resolved to a tee, and it does — a real
+     * tee, with a real slope and rating, at the wrong club. So the rung was
+     * honoured and the fallback that scopes to `courseId` was never reached: an
+     * away round was priced off the home club's ratings on every reader. It
+     * needed no stale data and no deletion, which is why the test above did not
+     * find it.
+     *
+     * Measured end to end in `round-handicaps-follow-the-round-venue.audit.test.ts`
+     * on a 144-slope host and a 105-slope away course: 18 where 7 is right.
+     */
+    expect(teeForPlay(TEES, { eventDefaultTeeId: "a-black" }, "course-b")).toBe("b-blue");
+    expect(teeForPlay(TEES, { stageTeeId: "a-white", eventDefaultTeeId: "a-black" }, "course-b")).toBe(
+      "b-blue",
+    );
+    // A match naming a set at another venue is the same error one rung along.
+    expect(teeForPlay(TEES, { matchTeeId: "a-black", stageTeeId: "b-red" }, "course-b")).toBe("b-red");
+  });
+
+  it("still honours every rung that IS on the course being played", () => {
+    /**
+     * THE CONTROL, and it is what stops the rule above becoming "ignore what
+     * anybody configured". Mixed tees within one venue are the case that makes
+     * the whole conversion necessary, so a set at the course being played must
+     * still beat the fallback — otherwise a club running Championship off the
+     * blues and Seniors off the whites is quietly flattened onto one set.
+     */
+    expect(teeForPlay(TEES, { eventDefaultTeeId: "a-white" }, "course-a")).toBe("a-white");
+    expect(teeForPlay(TEES, { stageTeeId: "b-red", eventDefaultTeeId: "a-black" }, "course-b")).toBe(
+      "b-red",
+    );
+  });
+
   it("prefers a rated set over an unrated one when nobody chose", () => {
     /**
      * Through `defaultTeeFor`, which is the domain's answer to this and was
