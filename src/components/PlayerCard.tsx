@@ -10,9 +10,11 @@ import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
+import { MicNote } from "./MicNote";
+import { startDictation } from "@/lib/dictation";
+import { parseStrokesTranscript } from "@/lib/domain/stroke";
 import { ConfirmButton } from "./ConfirmButton";
 import { GroupScoring, type GroupPartner } from "./GroupScoring";
-import { parseTypedCard } from "@/lib/domain/score-entry-input";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
@@ -146,8 +148,9 @@ export function PlayerCard({
   const [view, setView] = useState<"hole" | "card">("hole");
   /** Keeping score for yourself, or for the whole group on this phone. */
   const [who, setWho] = useState<"me" | "group">("me");
-  const [typed, setTyped] = useState("");
-  const [typedNote, setTypedNote] = useState("");
+  /** The full card's microphone, and what it heard. See the button below. */
+  const [listening, setListening] = useState(false);
+  const [listenHint, setListenHint] = useState("");
   const [error, setError] = useState("");
   /** What the server holds, when it refused our write for disagreeing. */
   const [conflict, setConflict] = useState<{ strokes: (number | null)[]; revision: string } | null>(null);
@@ -418,18 +421,75 @@ export function PlayerCard({
    * a dash is left as it was, never cleared, so typing the back nine onto a
    * card with the front nine in does not wipe the front nine.
    */
-  const applyTyped = () => {
-    const read = parseTypedCard(typed, holes);
-    if (!read.ok) {
-      setTypedNote(read.problem);
+  /**
+   * THE FULL CARD'S MICROPHONE, filling from the first hole still empty.
+   *
+   * Deliberately the same shape as `StrokePlayEntry`'s — `parseStrokesTranscript`
+   * against this round's pars, starting at the first gap — because it is the
+   * same act on the organizer's copy of this screen, and two parsers for one
+   * sentence is how the two end up disagreeing about what "five, four, dash"
+   * means.
+   *
+   * Writing through `setHole` rather than `setStrokes` is what keeps it honest:
+   * that is the function the keyboard and the tap targets already use, so a
+   * spoken score takes the same validation, the same pending-card write and the
+   * same conflict handling as a typed one. Nothing about saving is new here.
+   */
+  const toggleListen = () => {
+    if (listening) {
+      setListening(false);
       return;
     }
-    dirty.current = true;
-    setNote("");
-    setStrokes((prev) => prev.map((s, i) => read.strokes[i] ?? s));
-    setTyped("");
-    setTypedNote(`${read.filled} ${read.filled === 1 ? "hole" : "holes"} filled in. Check them against your card below.`);
+    setListenHint("");
+    const started = startDictation({
+      onTranscript: (transcript) => {
+        const firstGap = strokes.findIndex((s) => s == null);
+        const startIndex = firstGap === -1 ? 0 : firstGap;
+        /**
+         * `pars` AS GIVEN, not `pars.slice(0, holes)`.
+         *
+         * `/me/card` already narrows it — `pars={known ? card.pars.slice(0, holes) : []}` —
+         * so slicing again here was a no-op that also tripped
+         * `audit-guards`'s "no file takes the first N holes as a card". The
+         * guard was right to fire: the exemption list is for files that receive
+         * an already-narrowed card, and the honest fix is to stop re-narrowing
+         * rather than to join the list.
+         */
+        const parsed = parseStrokesTranscript(transcript, pars, startIndex);
+        if (parsed.length) {
+          parsed.forEach((v, i) => setHole(startIndex + i + 1, v));
+          setListenHint(
+            `Heard “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"} from ${startIndex + 1}. Check them.`,
+          );
+        } else {
+          setListenHint(`Heard “${transcript}” — no scores in that, try again.`);
+        }
+        setListening(false);
+      },
+      onError: () => {
+        setListenHint("Didn’t catch that — try again, or type them.");
+        setListening(false);
+      },
+      onEnd: () => setListening(false),
+    });
+    if (!started) {
+      setListenHint("This browser can’t do voice entry — type the scores instead.");
+      return;
+    }
+    setListening(true);
   };
+
+  /**
+   * `applyTyped` AND ITS TEXT BOX ARE GONE, with `parseTypedCard` left in the
+   * domain for the console, which still offers one.
+   *
+   * It read a whole card out of one line — "4 5 3 4 …" — and existed because
+   * the card's own score boxes did not advance, so typing a round meant tapping
+   * eighteen of them. `ScorecardTable` advances now, which makes the card
+   * itself the place to type and left this as a second way to enter the same
+   * scores in a different notation, on the same screen, immediately above the
+   * boxes it filled.
+   */
 
   /**
    * SAYING THE CARD IS WRONG.
@@ -588,6 +648,24 @@ export function PlayerCard({
         <>
           {/* Where I stand. Above the hole and never moving, because it is the
               question that follows every single tap. */}
+          {/*
+            HOLE BY HOLE ONLY, because the full card already ends with these.
+
+            `ScorecardTable` closes with Holes in / Gross / To par / Net, so on
+            the full card the same four figures appeared twice on one screen —
+            reported by Ajay from the player app on 2026-09-21.
+
+            This strip is the one that goes, and the table's is the one that
+            stays, because the table's says MORE: "9 of 9" rather than "Thru 9",
+            and a net that shows its working ("39 gross less 2 of a 17 playing
+            handicap"). Keeping this one and dropping that would have removed
+            the explanation to remove the duplication.
+
+            It earns its place hole by hole, where there is no totals row on
+            screen and the running figures are the whole point of not leaving
+            for the board.
+          */}
+          {view === "hole" && (
           <section
             className="card elev-sm"
             style={{
@@ -617,6 +695,7 @@ export function PlayerCard({
               />
             )}
           </section>
+          )}
 
           {/* Two ways to fill the same card, because they are two different
               moments. Hole by hole is the round: one number, big targets, on
@@ -698,41 +777,48 @@ export function PlayerCard({
             />
           ) : (
             <>
-            <details style={{ marginBottom: 12 }}>
-              <summary style={{ fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                <Icon name="note-pencil" style={{ marginRight: 6 }} /> Type the whole card
-              </summary>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 6 }}>
-                <label htmlFor="typed-card" style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>
-                  Your {holes} scores in order, with spaces — “4 5 3 4 …”. A dash skips a hole.
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    id="typed-card"
-                    className="input"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    value={typed}
-                    onChange={(e) => {
-                      setTyped(e.target.value);
-                      setTypedNote("");
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") applyTyped();
-                    }}
-                    style={{ flex: 1, minWidth: 0, minHeight: 44, fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em" }}
-                  />
-                  <button type="button" className="btn btn-primary" onClick={applyTyped} style={{ minHeight: 44 }}>
-                    Fill in
-                  </button>
-                </div>
-                {typedNote && (
-                  <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>
-                    {typedNote}
-                  </p>
-                )}
-              </div>
-            </details>
+            {/*
+              ONE ROW: say the card, or just type in it.
+
+              What was here was a collapsed "Type the whole card" holding a text
+              box in its own notation — a SECOND place to enter the same scores
+              that are editable in the card immediately below it. It only
+              existed because the card's own boxes did not advance, so typing a
+              round meant tapping eighteen of them.
+
+              `ScorecardTable` advances now, so the card IS the typing. That
+              leaves exactly one thing worth offering beside it — saying it —
+              and the screen is a toggle, a card, and one button instead of a
+              toggle, a second toggle, a collapsible, a text box, a button and a
+              paragraph.
+            */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                className={listening ? "btn btn-primary" : "btn btn-secondary"}
+                onClick={toggleListen}
+                aria-pressed={listening}
+                style={{ minHeight: 44 }}
+              >
+                <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+                {listening ? "Listening…" : "Say the card"}
+              </button>
+              <span className="text-muted" style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}>
+                {listenHint ||
+                  `Read your ${holes} scores down the card — “four, five, three, six …”. Or type straight into it.`}
+              </span>
+            </div>
+            {/* What the mic does, under the mic — one line, in one component
+                shared by all four of them. */}
+            <MicNote style={{ marginBottom: 10 }} />
             <ScorecardTable
               holes={holes}
               pars={pars}

@@ -4,6 +4,7 @@ import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { Icon } from "./Icon";
+import { MicNote } from "./MicNote";
 import { startDictation } from "@/lib/dictation";
 import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
@@ -98,6 +99,7 @@ export function HoleByHoleCard({
   onSet,
   meId,
   startHole = 1,
+  showVoice = true,
 }: {
   players: CardPlayer[];
   cards: Record<string, (number | null)[]>;
@@ -114,6 +116,20 @@ export function HoleByHoleCard({
   meId?: string;
   /** Where the holder's group teed off, from the published sheet. 1 when unknown. */
   startHole?: number;
+  /**
+   * Whether to offer the microphone at all.
+   *
+   * The player's card lets them choose spoken or typed entry and that choice
+   * holds across both views — Ajay's model of 2026-09-21 — so this is how the
+   * hole-by-hole view honours "typed". Defaults TRUE so the organizer's caller,
+   * which offers no such choice, behaves exactly as it did.
+   *
+   * It hides the mic and nothing else: the pad and the steppers always render.
+   * They are how a misheard "four" for "five" gets fixed, which the mic's own
+   * read-back line exists to prompt — removing them with the mic on would leave
+   * a player who was misheard no way to correct it.
+   */
+  showVoice?: boolean;
 }) {
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
@@ -299,8 +315,9 @@ export function HoleByHoleCard({
             full-width bar, so the pad stays above the fold on a phone. The
             name says what it does for a screen reader; the ring says it is
             listening. */}
-        {meId && (
-          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
+        {meId && showVoice && (
+          <>
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
             <button
               type="button"
               className="btn btn-secondary"
@@ -332,7 +349,10 @@ export function HoleByHoleCard({
                     ? "Or say it: “four”, “par”, “bogey”."
                     : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
             </span>
-          </div>
+            </div>
+            {/* What the mic does, in the one place it is offered on this card. */}
+            <MicNote style={{ marginTop: 6, marginBottom: 2 }} />
+          </>
         )}
 
         {solo ? (

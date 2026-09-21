@@ -249,7 +249,9 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
      */
     const waiting = !entered && waitingIn.has(event.id);
     const canEnter = !entered && !waiting && status.acceptingEntries && event.registrationOpen;
-    const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered });
+    // `waiting` was computed above and used only to decide `canEnter`; not
+    // passing it here is what made a waiting-list place read as "Closed".
+    const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
     const today = todayIso();
 
     return {

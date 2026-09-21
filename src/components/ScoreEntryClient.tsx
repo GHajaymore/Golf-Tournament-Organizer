@@ -45,6 +45,7 @@ import {
 import { setMatchCourse } from "@/app/actions/courses";
 import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
 import { Icon } from "./Icon";
+import { MicNote } from "./MicNote";
 import { ConfirmButton } from "./ConfirmButton";
 import { startDictation, type Dictation } from "@/lib/dictation";
 
@@ -1424,6 +1425,9 @@ export function ScoreEntryClient({
                       {listening === "holes" ? "Listening…" : "Voice entry"}
                     </button>
                     <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : `Say each hole's winner in order, e.g. “${aLabel}, half, ${bLabel}”.`}</span>
+                    {/* What the mic does. Both mics on this screen are covered
+                        by this one, which sits with the first of them. */}
+                    <MicNote style={{ flexBasis: "100%", marginTop: 4 }} />
                   </>
                 ) : (
                   <span className="text-muted" style={{ fontSize: 12 }}>
