@@ -44,6 +44,16 @@ const SI = Array.from({ length: 18 }, (_, i) => i + 1);
 const HOST = { courseRating: 74.9, slopeRating: 144, par: 72 };
 /** The away club, a far gentler course. */
 const AWAY = { courseRating: 68.2, slopeRating: 105, par: 72 };
+/**
+ * A SECOND SET AT THE AWAY CLUB, so that naming a TEE is distinguishable from
+ * naming only a COURSE.
+ *
+ * Without it the away club has one set, `defaultTeeFor` falls back to it, and
+ * the match test below would pass off `Match.courseId` alone — proving nothing
+ * about `Match.teeId`, the column it exists to show has a reader. Rated between
+ * the other two, so a wrong answer is a different number from either of them.
+ */
+const AWAY_MEDAL = { courseRating: 71.5, slopeRating: 126, par: 72 };
 
 const INDEX = 12;
 
@@ -113,6 +123,10 @@ beforeAll(async () => {
   await Promise.all([
     prisma.tee.create({ data: { courseId: host.id, name: `${TAG} host white`, ...HOST, position: 0 } }),
     prisma.tee.create({ data: { courseId: away.id, name: `${TAG} away white`, ...AWAY, position: 0 } }),
+    // Position 1 and a later name, so `defaultTeeFor` still picks the white set
+    // for a round that names only the course. Only a match naming THIS id
+    // reaches it.
+    prisma.tee.create({ data: { courseId: away.id, name: `${TAG} away medal`, ...AWAY_MEDAL, position: 1 } }),
   ]);
 
   const [d1, d2] = await Promise.all([
@@ -238,7 +252,19 @@ describe("a round is priced off the tees of the course it is played on", () => {
      * cannot be a round-level effect leaking in.
      */
     const away = await prisma.course.findFirst({ where: { name: `${TAG} away` }, select: { id: true } });
-    const awayTee = await prisma.tee.findFirst({ where: { courseId: away!.id }, select: { id: true } });
+    /**
+     * THE MEDAL SET, NOT THE WHITE ONE — and the choice is the whole proof.
+     *
+     * The away club has two sets and `defaultTeeFor` picks the white. So an
+     * assertion against the white set's number would be satisfied by
+     * `Match.courseId` alone, and would go on passing with `Match.teeId` unread
+     * by anything. Naming the set the fallback does NOT pick is the only version
+     * of this test that can fail if the column loses its reader again.
+     */
+    const awayTee = await prisma.tee.findFirst({
+      where: { courseId: away!.id, name: `${TAG} away medal` },
+      select: { id: true },
+    });
     const group = await prisma.group.create({
       data: { eventId, name: `${TAG} flight`, position: 0 },
     });
@@ -258,9 +284,35 @@ describe("a round is priced off the tees of the course it is played on", () => {
       // Untouched, it is its round's answer — the host club.
       expect(before!.matchHandicapFor(playerId, match.id)).toBe(playing(HOST));
 
-      await prisma.match.update({ where: { id: match.id }, data: { teeId: awayTee!.id } });
+      /**
+       * COURSE AND TEE TOGETHER, because that is the only row the app can
+       * write. This set `teeId` alone, which encoded a match claiming the host
+       * club's course and the away club's tees — and `nameMatchVenue`, the one
+       * writer of `Match.teeId` in the app, cannot produce it: it scopes the tee
+       * to the course it is recording (`{ id: input.teeId, courseId }`, refused
+       * with "Those tees aren't on that course") and writes `courseId` on the
+       * same update every time.
+       *
+       * It mattered once `teeForPlay` started stepping past a rung that is not
+       * at the course being played — the rule its own paragraph always promised.
+       * With no `Match.courseId` the course resolves to the ROUND's, the host
+       * club, and the away tees are then correctly refused. The fixture was
+       * asserting behaviour on a match that cannot happen, which is the trap
+       * CLAUDE.md names in those words.
+       */
+      await prisma.match.update({
+        where: { id: match.id },
+        data: { courseId: away!.id, teeId: awayTee!.id },
+      });
       const after = await loadEventState(eventId);
-      expect(after!.matchHandicapFor(playerId, match.id)).toBe(playing(AWAY));
+      expect(
+        after!.matchHandicapFor(playerId, match.id),
+        "the match's own set was not read — this is the away club's DEFAULT set's number",
+      ).toBe(playing(AWAY_MEDAL));
+      // And it is a different number from the one the course alone would give,
+      // which is what makes the assertion above about `teeId` rather than
+      // `courseId`.
+      expect(playing(AWAY_MEDAL)).not.toBe(playing(AWAY));
 
       // And the ROUND is unmoved by one pairing saying where it went.
       expect(after!.strokeHandicapFor(playerId, dayOneId)).toBe(playing(HOST));
