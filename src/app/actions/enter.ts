@@ -83,13 +83,49 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   if (!event) return { ok: false, error: NOT_OPEN };
 
   /**
-   * ALREADY IN — of any kind. Confirmed, waitlisted or pending all mean the
-   * same thing to this action: their name is down, and pressing Enter twice
-   * must not put it down twice. `status` is returned so the screen can say
-   * which, rather than reporting a failure at somebody who is already entered.
+   * ALREADY IN. Confirmed, waitlisted and pending all mean the same thing to
+   * this action: their name is down, and pressing Enter twice must not put it
+   * down twice. `status` is returned so the screen can say which, rather than
+   * reporting a failure at somebody who is already entered.
+   *
+   * A WITHDRAWN ROW IS NOT ONE OF THEM, and this used to match one.
+   *
+   * The sentence above named three statuses and the query named none, so it
+   * matched the fourth as well. A member who withdrew was refused with "Your
+   * name is already down for this one." Their name was not down; they took it
+   * off.
+   *
+   * It is the shape this codebase keeps producing: two readers of one
+   * question, disagreeing, with the wrong one being the ACTION.
+   * `club-events.ts` decides what the Events screen offers and gets it right —
+   * `enteredIn` is confirmed only, `waitingIn` is waitlisted or pending, so a
+   * withdrawn member correctly falls into neither and is shown the Enter
+   * button. Then the button refused them. A door offered and then shut, with a
+   * false sentence for a reason.
+   *
+   * RE-ENTRY IS AN EXPECTED FLOW, not an edge case. `roster-link.ts` says so
+   * in as many words — "withdrawn in the morning, re-entered in the afternoon"
+   * — and handles a member holding several rows across a tournament's life by
+   * taking the strongest live claim.
+   *
+   * So the withdrawn row STAYS and a new one is created beside it. That is
+   * deliberate rather than untidy: `removeSignup` keeps a withdrawn player
+   * precisely because a confirmed `ContestEntry` — a stake the organizer has
+   * already taken — outlives their place in the field, and re-confirming the
+   * old row in place would tie that money to the new entry. `Player` has no
+   * unique constraint on (eventId, email), and `memberEntryFor` is built for
+   * exactly this.
+   *
+   * Found by asking which states the fixture can EXPRESS: `withdrawn` is in
+   * the schema and has zero rows in the development database, so no walk of
+   * the player's states had ever reached it.
    */
   const already = await prisma.player.findFirst({
-    where: { eventId, email: { equals: session.email, mode: "insensitive" } },
+    where: {
+      eventId,
+      email: { equals: session.email, mode: "insensitive" },
+      status: { in: ["confirmed", "waitlisted", "pending"] },
+    },
     select: { status: true },
   });
   if (already) {
