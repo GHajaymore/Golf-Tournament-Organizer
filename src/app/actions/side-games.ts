@@ -354,7 +354,9 @@ export async function requestSideGameEntry(
 
   const game = await prisma.sideGame.findFirst({
     where: { id: sideGameId, eventId: session.eventId },
-    select: { id: true, kind: true, entryMode: true },
+    // `stageId` and `groupKey` come with it because the audience check below
+    // needs both — the round's tee sheet, and which group the game is for.
+    select: { id: true, kind: true, entryMode: true, stageId: true, groupKey: true },
   });
   if (!game) return { ok: false, error: "That side game isn't in this tournament." };
   if (MATCH_BETS.has(game.kind)) {
@@ -377,6 +379,43 @@ export async function requestSideGameEntry(
     select: { id: true, name: true },
   });
   if (!me) return { ok: false, error: "You aren't in this tournament's field." };
+
+  /**
+   * BEING IN THE FIELD IS NOT BEING IN THE GROUP, and this door did not ask.
+   *
+   * The checks above prove the game is in the caller's tournament and that the
+   * caller is in its field. Neither proves the game was OFFERED to them — and
+   * a `groupKey` game belongs to one fourball, not to the event.
+   *
+   * `requestSkinsEntry` has asked this since it was written, in these words:
+   * "Without this a player could put their name down on any fourball's
+   * private game and appear on their collect list." It is pinned by
+   * `skins-join.audit.test.ts`. Side games are the same shape through a
+   * different door and had neither the check nor the test.
+   *
+   * What it cost: a confirmed entry is also STANDING. `requirePotAccess`
+   * admits anyone holding a confirmed row on the group's games, so an
+   * uninvited entry that somebody waved through also handed them the right to
+   * re-price, rename and delete that fourball's bets.
+   *
+   * `setSideGameEntrants` twenty lines above already resolves the audience
+   * exactly this way — the organizer's door was guarded and the player's was
+   * not, which is the wrong way round for the one a stranger can call.
+   */
+  const stage = await prisma.stage.findUnique({
+    where: { id: game.stageId },
+    select: { teeSheet: true },
+  });
+  const field = await prisma.player.findMany({
+    where: { eventId: session.eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const audience = potAudience(game.groupKey, stage?.teeSheet ?? "", field.map((p) => p.id));
+  if (!audience.includes(me.id)) {
+    // The same sentence the skins door gives, so two refusals of one rule do
+    // not read as two different rules.
+    return { ok: false, error: "That game belongs to another group." };
+  }
 
   const existing = await prisma.sideGameEntry.findUnique({
     where: { sideGameId_playerId: { sideGameId, playerId: me.id } },

@@ -38,7 +38,7 @@ export async function enteredCardCount(eventId: string, stageId?: string): Promi
   const round = stageId ? { stageId } : {};
   const throughMatch = stageId ? { match: { stageId } } : {};
 
-  const [stroke, team, match, matchHoles] = await Promise.all([
+  const [stroke, team, match, matchHoles, bracketWins] = await Promise.all([
     prisma.scorecard.findMany({
       where: { eventId, ...round },
       select: { strokes: true },
@@ -65,11 +65,37 @@ export async function enteredCardCount(eventId: string, stageId?: string): Promi
       where: stageId ? { stageId } : { eventId },
       select: { holes: true },
     }),
+    /**
+     * A KNOCKOUT FILES NEITHER A CARD NOR A FIXTURE, which made this count
+     * zero for a whole class of tournament while its docstring above claimed
+     * to union "every place a score can live".
+     *
+     * A Bracket Stage stores its results as `BracketWinner` rows. So a
+     * straight knockout — one bracket, no qualifying round — returned 0 here
+     * with five ties decided, and `scoredMatchCount` is what gates the
+     * "this will destroy results" confirmation on resizing the field, moving
+     * a player between flights, and changing the formation rule. All three
+     * acted without asking.
+     *
+     * The same fourth-table omission CLAUDE.md records for progress counters,
+     * arriving at a destructive guard instead of at a heading.
+     *
+     * ONLY AT EVENT LEVEL, because `BracketWinner` has no `stageId` — it is
+     * keyed on `(eventId, key)`. That is exactly the form the three
+     * destructive callers use (`scoredMatchCount(eventId)`), so the hole is
+     * closed where it was open; a per-stage caller asks a question this table
+     * cannot answer and is left as it was.
+     */
+    stageId
+      ? Promise.resolve([] as { winnerId: string }[])
+      : prisma.bracketWinner.findMany({ where: { eventId }, select: { winnerId: true } }),
   ]);
 
   const cards = [...stroke, ...team, ...match].filter((r) => hasAStroke(r.strokes)).length;
   const results = matchHoles.filter((m) => hasAResult(m.holes)).length;
-  return cards + results;
+  // A decided tie is a result. An empty winner is a slot nobody has filled.
+  const decided = bracketWins.filter((w) => w.winnerId.trim() !== "").length;
+  return cards + results + decided;
 }
 
 /**
