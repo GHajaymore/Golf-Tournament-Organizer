@@ -359,7 +359,16 @@ export function EventSetupClient({
    */
   const over = overCapacity(f.capacity, playersCount);
   const summary = [
-    { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
+    /**
+     * "Overall result", not "Format" — the name the control on this same
+     * screen now uses.
+     *
+     * This row read "Format", which is the word that was taken OFF that
+     * control precisely because every round also has one. So the card asked
+     * the question under one name and then summarised the answer under the
+     * old one, a few inches apart.
+     */
+    { k: "Overall result", v: f.format === "stroke" ? "Stroke play" : "Match play" },
     { k: "Course", v: f.courseMode === "open" ? "Players choose" : f.course || "—" },
     { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
     {

@@ -261,7 +261,17 @@ export function LifecycleBar({
                 {[
                   ["Dates", summary.dates || "—"],
                   ["Course", summary.course || "—"],
-                  ["Format", summary.format === "stroke" ? "Stroke play" : "Match play"],
+                  /**
+                   * "Overall result", not "Format", and this is the row where
+                   * the old word did the most damage: it sat two lines above
+                   * "Rounds", so a tournament with eleven of them read
+                   * "Format: Stroke play / Rounds: 11" — one coarse word
+                   * contradicting the count directly beneath it.
+                   *
+                   * Same name as the control on Tournament details that sets
+                   * it, so there is one name for one thing.
+                   */
+                  ["Overall result", summary.format === "stroke" ? "Stroke play" : "Match play"],
                   ["Registered players", String(summary.players)],
                   ["Flights", String(summary.flights)],
                   ["Rounds", String(summary.rounds)],
