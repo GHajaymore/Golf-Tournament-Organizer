@@ -6,10 +6,10 @@ import { playSkins, type SkinsOutcome } from "../domain/skins";
 import { playNassau, type NassauOutcome } from "../domain/nassau";
 import { modifiedStablefordForHole, holeStrokesReceived } from "../domain/stroke";
 import type { HoleResult } from "../domain/types";
-import { courseHandicapMap } from "../domain/handicap";
+import { holesPlayed } from "../domain/handicap";
 import { strokeHandicapResolver } from "./tournament";
 import { roundHandicapRows } from "./round-handicap";
-import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 
 /**
  * Standings for the formats that read an ordinary card a different way.
@@ -77,10 +77,10 @@ async function playingHandicapFor(
     roundHandicapRows(eventId, stageId),
   ]);
 
-  const teeSetup = await teeSetupFor(eventId, tees);
-  const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { defaultTeeId: true, courseId: true, teePolicy: true },
+  });
   // Under the `flight` policy this is what a player actually plays off, and
   // these boards were reading the round's default set for the whole field.
   const flightTee = await flightTeeByPlayer(eventId);
@@ -89,16 +89,33 @@ async function playingHandicapFor(
     handicap: p.handicap,
     handicapType: p.handicapType,
     teeId: p.teeId,
-    flightTeeId: flightTee.get(p.id) ?? null,
   }));
-  const courseHcp18 = courseHandicapMap(idx, teeRatings, teeSetup.defaultTeeId, 18, teeSetup.policy);
-  const courseHcp9 = courseHandicapMap(idx, teeRatings, teeSetup.defaultTeeId, 9, teeSetup.policy);
+  const forRound = (holes: number) =>
+    roundCourseHandicaps({ tees, players: idx, flightTeeOf: flightTee, stage, event, holes });
+  const courseHcp18 = forRound(18);
+  const courseHcp9 = forRound(9);
 
   // With no rated tees on file the maps hold the raw indexes, which is exactly
   // how this behaved before ratings existed — the fix must not make a club
   // that has never entered a slope worse off.
   const resolve = strokeHandicapResolver({
     stageById: new Map(stage ? [[stage.id, stage]] : []),
+    /**
+     * THIS ROUND'S OWN MAP, through the argument the resolver was given for
+     * exactly this and that this caller was not passing.
+     *
+     * `courseHcp9`/`courseHcp18` are the resolver's EVENT-WIDE fallback — its
+     * own comment says so in those words — and without a per-stage entry every
+     * league night was priced off whichever set the tournament had configured.
+     * The two boards this feeds then disagreed with the stroke board beside
+     * them on a rotating-venue league, which is the one kind of competition
+     * where this arises every week rather than once a season.
+     *
+     * The pair below STAYS: `resolve` is called with a `stageId` that may not
+     * be in `stageById` at all, and then the event-wide answer is the honest
+     * one rather than a guess at which round was meant.
+     */
+    ...(stage ? { courseHcpByStage: new Map([[stage.id, forRound(holesPlayed(stage.holes))]]) } : {}),
     courseHcp9,
     courseHcp18,
     fallback: courseHcp18,

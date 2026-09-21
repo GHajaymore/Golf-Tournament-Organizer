@@ -2,7 +2,7 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
-import { roundTeeId, flightTeeByPlayer } from "@/lib/services/handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -97,7 +97,6 @@ import {
   TIEBREAKER_KEYS,
   isTiebreakerKey,
   isBracketMode,
-  courseHandicapMap,
   playingHandicapFrom,
   holeStrokesReceived,
   allocationHoles,
@@ -2467,30 +2466,35 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     where: { course: { events: { some: { eventId } } } },
     orderBy: [{ position: "asc" }],
   });
-  const netRatings = new Map(
-    netTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
   // Net match play under the `flight` policy: each side plays off their own
   // flight's tees, which this never asked for.
   const netFlightTee = await flightTeeByPlayer(eventId);
-  const netHcp = courseHandicapMap(
-    [playerA, playerB]
+  /**
+   * MATCH, THEN ROUND, THEN EVENT — and the venue scoping with it.
+   *
+   * This asked `roundTeeId(netTees, event?.defaultTeeId)`, which is the EVENT's
+   * configured set and nothing else. Two rungs were missing above it: this
+   * match's own set, which `nameMatchVenue` collects from the scorer, and this
+   * round's. So the venue resolution directly above — which walks match → round
+   * → event, and whose comment describes the exact damage — was reading one
+   * chain while the HANDICAPS were read off another.
+   *
+   * It is the worse half of that pair, because the per-hole winners derived from
+   * these strokes are STORED. The comment this replaces says so itself: "the
+   * match result was decided by a handicap no screen was showing". That was true
+   * of the tee POSITION fallback it fixed and stayed true of the venue.
+   */
+  const netHcp = roundCourseHandicaps({
+    tees: netTees,
+    players: [playerA, playerB]
       .filter((x): x is NonNullable<typeof x> => !!x)
-      .map((p) => ({ ...p, flightTeeId: netFlightTee.get(p.id) ?? null })),
-    netRatings,
-    // The round's CONFIGURED set, not whichever tee sorts first by position.
-    // `roundTeeId` exists for exactly this and every other scoring path uses
-    // it: a club whose rows run Blue, White and sets its medal off the Whites
-    // had the board price a 12.4 index at 12 off White and this path price the
-    // same player at 19 off Blue. The per-hole winners are then derived from
-    // the 19 and STORED, so the match result was decided by a handicap no
-    // screen was showing.
-    roundTeeId(netTees, event?.defaultTeeId),
-    holeCount,
-    // A single-tee competition allocates off the round tees, not off
-    // whatever either player has stored.
-    event?.teePolicy ?? "own",
-  );
+      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId })),
+    flightTeeOf: netFlightTee,
+    match,
+    stage,
+    event,
+    holes: holeCount,
+  });
   // What this ROUND says they play off, which is not always what the roster
   // says. This path converts its own handicaps rather than going through the
   // board's resolver, so without these two lines a net match is the one round
@@ -2689,7 +2693,25 @@ async function recomputeTeamMatch(
       // one of those settings and was the one still missing, so this path
       // could not have read the right card even if it had asked for it.
       courseId: true,
+      // And off WHICH SET, which is the same settings list one column along:
+      // the venue decided which card was read and the tees decide what the
+      // side plays off it. Reading the card from the round and the rating from
+      // the tournament is two chains for one act.
+      teeId: true,
     },
+  });
+  /**
+   * AND THE FIXTURE'S OWN VENUE, because a team match can name one.
+   *
+   * `nameMatchVenue` serves team matches deliberately — its player check reads
+   * the TEAM columns for exactly that reason — so a four-ball that played
+   * somewhere else has it on the row. The `match` argument is a narrow object
+   * built by several callers and widening it would put this question to all of
+   * them; one read here asks it once, on a path that already writes.
+   */
+  const matchVenue = await prisma.match.findUnique({
+    where: { id: match.id },
+    select: { teeId: true, courseId: true },
   });
   /**
    * The round's card, for the same reason the net import needs it.
@@ -2722,9 +2744,6 @@ async function recomputeTeamMatch(
     where: { course: { events: { some: { eventId } } } },
     orderBy: [{ position: "asc" }],
   });
-  const teamRatings = new Map(
-    teeRows.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
   const teamRound = await roundHandicapRows(eventId, match.stageId);
 
   const sideCard = async (teamId: string) => {
@@ -2738,14 +2757,17 @@ async function recomputeTeamMatch(
       }),
     ]);
     const teamFlightTee = await flightTeeByPlayer(eventId);
-    const teamHcp = courseHandicapMap(
-      members.map((m) => ({ ...m.player, flightTeeId: teamFlightTee.get(m.playerId) ?? null })),
-      teamRatings,
-      // The round's configured set — same rule as the net match path above.
-      roundTeeId(teeRows, event?.defaultTeeId),
-      holeCount,
-      event?.teePolicy ?? "own",
-    );
+    // Match, then round, then event, venue-scoped — the same chain as the net
+    // match path above, and the same reason: what this writes down is a result.
+    const teamHcp = roundCourseHandicaps({
+      tees: teeRows,
+      players: members.map((m) => m.player),
+      flightTeeOf: teamFlightTee,
+      match: matchVenue,
+      stage,
+      event,
+      holes: holeCount,
+    });
     const playsOff = (p: { id: string; handicap: number }) =>
       roundHandicapOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap);
     const parse = (s: string): (number | null)[] => {
@@ -4162,19 +4184,26 @@ export async function importScores(
     ]);
     if (!event) return { ok: false, written: 0, error: "Tournament not found." };
     const holes = holesPlayed(stage.holes);
-    const teeRatings = new Map(
-      tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-    );
-    // A file of NET scores converts back to gross off these strokes, and the
-    // result is STORED — so reading the wrong tees here bakes the error in.
+    /**
+     * A file of NET scores converts back to gross off these strokes, and the
+     * result is STORED — so reading the wrong tees here bakes the error in.
+     *
+     * The line this replaces said exactly that and then read
+     * `roundTeeId(tees, event?.defaultTeeId)`, which is the TOURNAMENT's set.
+     * Importing a card for a round played at another venue therefore converted
+     * off the home club's slope and wrote the gross down, and nothing
+     * recomputes a stored stroke — CLAUDE.md names this as one of the two
+     * net-to-gross paths where a wrong resolution stops being recoverable.
+     */
     const importFlightTee = await flightTeeByPlayer(eventId);
-    const ch = courseHandicapMap(
-      players.map((p) => ({ ...p, flightTeeId: importFlightTee.get(p.id) ?? null })),
-      teeRatings,
-      roundTeeId(tees, event?.defaultTeeId),
+    const ch = roundCourseHandicaps({
+      tees,
+      players,
+      flightTeeOf: importFlightTee,
+      stage,
+      event,
       holes,
-      event?.teePolicy ?? "own",
-    );
+    });
     const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster

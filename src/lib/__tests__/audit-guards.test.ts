@@ -859,14 +859,28 @@ describe("net imports are converted where the real handicap lives", () => {
   it("resolves the Playing Handicap server-side, not from the client", () => {
     // The authoritative number depends on the round's allowance, the player's
     // tees and the holes played — none of which the browser knows.
-    // Allowed to wrap, and required to use the ROUND's tees rather than
-    // whichever set sorts first — an import converted off the wrong tee bakes
-    // the wrong gross into stored strokes, which is the one place an error
-    // stops being recomputable.
-    expect(fn).toMatch(/courseHandicapMap\(\s*players\.map\([^;]*?\),\s*teeRatings,\s*roundTeeId\(tees, event\?\.defaultTeeId\),/);
+    /**
+     * THROUGH `roundCourseHandicaps`, and the change from what this pinned
+     * before is the whole point rather than a rename.
+     *
+     * It required `roundTeeId(tees, event?.defaultTeeId)` — and the comment above
+     * it said "required to use the ROUND's tees rather than whichever set sorts
+     * first", which is what that expression was FIXING and not what it does. It
+     * is the TOURNAMENT's configured set: better than a position fallback, still
+     * not the round's. So a net card imported for a round played at another venue
+     * converted off the home club's slope and the gross was written down, and
+     * this guard held the door open for it in the name of closing it.
+     *
+     * A guard is only worth its assertion if the assertion is the guarantee. The
+     * resolver walks match → round → event and scopes each rung to the course
+     * being played; `a-card-is-priced-by-its-own-round.test.ts` sweeps for
+     * anybody who stops using it.
+     */
+    expect(fn).toMatch(/roundCourseHandicaps\(\{/);
+    expect(fn).toMatch(/stage,\s*event,/);
     // This path writes STORED strokes, so it converts off the flight's tees
     // too — an error here is the one kind that cannot be recomputed away.
-    expect(fn).toMatch(/flightTeeId: importFlightTee\.get\(p\.id\)/);
+    expect(fn).toMatch(/flightTeeOf: importFlightTee/);
     expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
   });
 

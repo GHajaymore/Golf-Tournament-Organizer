@@ -122,10 +122,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // Both tee questions come from the round's own setup: WHICH set, and who
     // decided it. A side handicap built from either default would ignore the
     // tournament's choice.
-    expect(teams).toMatch(
-      /courseHandicapMap\(\s*allMembers\.map\([^;]*?\),\s*teeRatings,\s*defaultTeeId,\s*holes,\s*teeSetup\.policy,/,
-    );
-    expect(teams).toMatch(/const teeSetup = await teeSetupFor\(eventId, tees\)/);
+    // Through `roundCourseHandicaps`, which is the tee conversion AND the
+    // round's own set in one call — this used to pin the spelling of an inline
+    // `courseHandicapMap(..., teeSetup.defaultTeeId, ...)`, which was the
+    // event-wide answer and is the defect the sweep below exists for.
+    expect(teams).toMatch(/roundCourseHandicaps\(\{/);
     expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
   });
 
@@ -136,7 +137,13 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // shown one side handicap and scored by another. One conversion, read the
     // same way in both places, and the round's own numbers on top of it.
     const recompute = actions.slice(actions.indexOf("async function recomputeTeamMatch"));
-    expect(recompute).toMatch(/courseHandicapMap\(/);
+    // `roundCourseHandicaps`, which is the tee conversion plus the round's own
+    // set plus the fixture's. This pinned a bare `courseHandicapMap(` and so
+    // could not tell the conversion being present from it being right: the call
+    // it was satisfied by read the TOURNAMENT's tees, and a team match that
+    // named its own venue was scored off another club's slope.
+    expect(recompute).toMatch(/roundCourseHandicaps\(\{/);
+    expect(recompute).toMatch(/match: matchVenue/);
     expect(recompute).toMatch(/roundHandicapOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\)/);
     expect(recompute).toMatch(/members\.map\(\(m\) => playsOff\(m\.player\)\)/);
     expect(recompute).toMatch(/courseHandicap: playsOff\(m\.player\)/);
