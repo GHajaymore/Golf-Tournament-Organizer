@@ -178,6 +178,62 @@ describe("a member entering their own club's tournament", () => {
     expect(await prisma.player.count({ where: { eventId: open } })).toBe(1);
   });
 
+  it("lets a member who WITHDREW enter again", async () => {
+    /**
+     * A WITHDRAWN ROW IS NOT AN ENTRY, and the guard matched one.
+     *
+     * Its own comment named three statuses — confirmed, waitlisted, pending —
+     * and the query named none, so it matched the fourth too. A member who
+     * withdrew was refused with "Your name is already down for this one."
+     * Their name was not down; they took it off.
+     *
+     * The Events screen had it right and the ACTION had it wrong, which is the
+     * worse way round: `club-events.ts` counts `enteredIn` as confirmed only
+     * and `waitingIn` as waitlisted-or-pending, so a withdrawn member is
+     * correctly offered the Enter button — and then the button refused them.
+     *
+     * Never seen because `withdrawn` had ZERO rows in the development
+     * database. A state the fixture cannot express is a state nobody walks.
+     */
+    const before = await entryIn(open);
+    expect(before, "this test needs the earlier entry to exist").toBeTruthy();
+    await prisma.player.update({ where: { id: before!.id }, data: { status: "withdrawn" } });
+
+    const res = await enterThisTournament(open);
+    expect(res, "a withdrawn member was refused their own re-entry").toMatchObject({
+      ok: true,
+      status: "confirmed",
+    });
+
+    /**
+     * THE WITHDRAWN ROW SURVIVES, beside the new one rather than instead of it.
+     * `removeSignup` keeps it precisely because a confirmed `ContestEntry` — a
+     * stake the organizer has already taken — outlives their place in the
+     * field, and re-confirming it in place would tie that money to the new
+     * entry. `roster-link.ts` is built for a member holding several rows.
+     */
+    const rows = await prisma.player.findMany({
+      where: { eventId: open, email: { equals: session.email, mode: "insensitive" } },
+      select: { status: true },
+    });
+    expect(rows.map((r) => r.status).sort()).toEqual(["confirmed", "withdrawn"]);
+
+    // Put the fixture back: the tests after this one expect one confirmed row.
+    await prisma.player.deleteMany({ where: { eventId: open, status: "withdrawn" } });
+  });
+
+  it("still refuses a second tap from somebody genuinely entered", async () => {
+    /**
+     * THE CONTROL on the change above. Narrowing the guard is satisfied
+     * perfectly by removing it, which would enter everybody twice — so the
+     * refusal it exists for has to keep working in the same run.
+     */
+    const res = await enterThisTournament(open);
+    expect(res.ok, "the duplicate guard was removed rather than narrowed").toBe(false);
+    expect(res.status).toBe("confirmed");
+    expect(await prisma.player.count({ where: { eventId: open } })).toBe(1);
+  });
+
   it("goes on the waiting list when the field is full", async () => {
     // `decideIntake`'s rule, not a second copy of it.
     const res = await enterThisTournament(full);
