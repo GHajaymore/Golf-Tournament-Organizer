@@ -1,8 +1,8 @@
 import "server-only";
-import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { courseHandicapMap, holesPlayed } from "../domain/handicap";
+import { holesPlayed } from "../domain/handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareOnBasis } from "../domain/week-basis";
@@ -52,16 +52,30 @@ export async function teamsForStage(
   // Side handicaps are built from Course Handicaps, not roster Indexes — a
   // foursomes pair off the blues receives different strokes to the same pair
   // off the reds, which is the whole reason tees are rated.
-  const tees = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId } } } },
-    orderBy: [{ position: "asc" }],
-  });
-  const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
-  // The tournament choice, not whichever set sorts first.
-  const teeSetup = await teeSetupFor(eventId, tees);
-  const defaultTeeId = teeSetup.defaultTeeId;
+  const [tees, stage, event] = await Promise.all([
+    prisma.tee.findMany({
+      where: { course: { events: { some: { eventId } } } },
+      orderBy: [{ position: "asc" }],
+    }),
+    /**
+     * THE ROUND, because a side handicap is read out on the tee and has to
+     * match the card the round is scored on.
+     *
+     * This resolved the set through `teeSetupFor` — one `Event.defaultTeeId`
+     * for the whole tournament — so the seeded club's evening nine at Ardmore
+     * had its pairings priced off Braid Hollow's championship whites, 129/70.8
+     * against 96/58.6. A shared ball makes it worse rather than better: one
+     * side handicap is the only number the pair receives all round.
+     */
+    prisma.stage.findUnique({
+      where: { id: stageId },
+      select: { holes: true, teeId: true, courseId: true },
+    }),
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { defaultTeeId: true, courseId: true, teePolicy: true },
+    }),
+  ]);
 
   const rows = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },
@@ -83,13 +97,21 @@ export async function teamsForStage(
   // A side's handicap is read out on the tee, so it has to be the one the
   // player's own flight plays off.
   const flightTee = await flightTeeByPlayer(eventId);
-  const courseHcp = courseHandicapMap(
-    allMembers.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
-    teeRatings,
-    defaultTeeId,
+  const courseHcp = roundCourseHandicaps({
+    tees,
+    players: allMembers,
+    flightTeeOf: flightTee,
+    stage,
+    event,
+    /**
+     * THE CALLER'S hole count, not the stage's, and that is deliberate. Every
+     * caller of `teamsForStage` passes one, and some of them know about the
+     * nine-hole wrap in a way this function does not. Changing which of the two
+     * wins is a separate question from which TEES are read, and this commit
+     * answers only the second.
+     */
     holes,
-    teeSetup.policy,
-  );
+  });
   // What this round says its players play off, on top of the tee conversion.
   // The side handicap shown here is the one an organizer reads out on the tee,
   // so it has to answer the same way the round is scored.

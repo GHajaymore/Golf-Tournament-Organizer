@@ -2,11 +2,11 @@ import "server-only";
 import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
-import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
-import { courseHandicapMap, holesPlayed } from "../domain/handicap";
+import { holesPlayed } from "../domain/handicap";
 import {
   skinsPot,
   settle,
@@ -113,7 +113,10 @@ export async function skinsPotFor(
       where: { id: stageId },
       // `courseId`, because a league rotates venues. Without it the pot was
       // always scored against the EVENT's card — see the resolution below.
-      select: { id: true, eventId: true, holes: true, teeSheet: true, courseId: true, nine: true },
+      // `teeId` for the same reason one level along: the card came from the
+      // round and the RATING it is priced against came from the tournament, so
+      // net skins on an away round paid on the home club's slope.
+      select: { id: true, eventId: true, holes: true, teeSheet: true, courseId: true, teeId: true, nine: true },
     }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
@@ -292,42 +295,48 @@ export async function skinsPotFor(
    * the team scoring and the regrouper already share — it converts the Index
    * AND the tee to the holes being played, once each.
    */
-  const teeSetup = await teeSetupFor(eventId, tees);
-  const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
   // Net skins are paid on these strokes, so a flight playing off a different
   // set has to be priced off that set.
   const flightTee = await flightTeeByPlayer(eventId);
-  const courseHcp = courseHandicapMap(
-    inPot.map((p) => ({
+  /**
+   * THE ROUND'S OWN TEES, WHICH IS MONEY.
+   *
+   * This resolved the set through `teeSetupFor` — one `Event.defaultTeeId` for
+   * the whole tournament — and built its ratings without `courseId`, so on an
+   * away round net skins were paid on the HOME club's slope and course rating
+   * while the board that names the winners priced the same cards off the away
+   * club's. Skins are won outright and one differing stroke flips a hole and
+   * carries onward, so that is not a rounding difference in a total, it is a
+   * different player holding the pot.
+   *
+   * `roundCourseHandicaps` walks round then event then the first set on the
+   * course being played, exactly as `loadEventState` does, and carries each
+   * tee's `courseId` so a stored `Player.teeId` from another venue is stepped
+   * past rather than honoured.
+   *
+   * THE HOLE COUNT IS THE ROUND'S, NOT THE POT'S, and that is a separate fix
+   * this must not undo. It passed the pot's, so a front-nine pot on an
+   * eighteen-hole round computed a nine-hole Course Handicap here — while the
+   * FROZEN round handicap, which overrides it a few lines below, is an
+   * eighteen-hole number (see `freezeRoundHandicaps`, which converts on
+   * `stage.holes`). Two different bases feeding one comparison, and whichever
+   * won decided how much money moved. Both are the round's basis now, and the
+   * conversion to the pot's holes happens once, below, where it can be reasoned
+   * about — so `roundHoles` is passed explicitly rather than left to the stage.
+   */
+  const courseHcp = roundCourseHandicaps({
+    tees,
+    players: inPot.map((p) => ({
       id: p.id,
       handicap: p.handicap,
       handicapType: p.handicapType,
       teeId: p.teeId,
-      flightTeeId: flightTee.get(p.id) ?? null,
     })),
-    teeRatings,
-    teeSetup.defaultTeeId,
-    /**
-     * The ROUND's hole count, not the pot's.
-     *
-     * This passed the pot's, so a front-nine pot on an eighteen-hole round
-     * computed a nine-hole Course Handicap here — while the FROZEN round
-     * handicap, which overrides it a few lines below, is an eighteen-hole
-     * number (see `freezeRoundHandicaps`, which converts on `stage.holes`).
-     * Two different bases feeding one comparison, and whichever won decided
-     * how much money moved.
-     *
-     * Both are now the round's basis, and the conversion to the pot's holes
-     * happens once, below, where it can be reasoned about.
-     */
-    roundHoles,
-    // Net skins are priced off the same tees the round is scored from. A
-    // single-tee competition that allocated skins strokes off a player's
-    // stored preference would pay money on a handicap nobody played to.
-    teeSetup.policy,
-  );
+    flightTeeOf: flightTee,
+    stage,
+    event,
+    holes: roundHoles,
+  });
 
   /**
    * What this ROUND says each player plays off.

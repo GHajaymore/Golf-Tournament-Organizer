@@ -190,6 +190,23 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   // The flight a player is being moved BETWEEN decides their tees under the
   // `flight` policy, so the balance this screen shows has to use them.
   const flightTee = await flightTeeByPlayer(eventId);
+  /**
+   * EVENT-LEVEL ON PURPOSE, AND THIS IS THE ONE EXEMPTION.
+   *
+   * Every other caller that once resolved a tee event-wide now goes through
+   * `roundCourseHandicaps`, which walks match → round → event and scopes each
+   * rung to the course being played. This one does not, and must not: it
+   * balances FLIGHTS over a CHAIN of qualifying rounds, which has no single card
+   * to be resolved per round, and `activeHoles` above reads the first playing
+   * round for the same reason. Flighting, seeding and the draw are deliberately
+   * roster-level questions — `loadEventState` says the same of `hcpOf` in its
+   * own words. Only where a CARD is priced does the round's answer win.
+   *
+   * `week-view.ts` documents the identical exemption for its match tiebreaks.
+   * CLAUDE.md names both. If a third appears, it wants writing down there rather
+   * than assuming; the guard in `handicap-wiring.test.ts` lists these two and
+   * will fail on a new one.
+   */
   const courseHcp = courseHandicapMap(
     confirmed.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
     teeRatings,

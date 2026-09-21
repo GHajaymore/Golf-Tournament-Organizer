@@ -1,8 +1,8 @@
 import "server-only";
 import { playedOnBy } from "./courses";
-import { teeForPlay, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { courseHandicapMap, holesPlayed, type IndexHolder } from "../domain/handicap";
+import { type IndexHolder } from "../domain/handicap";
 import {
   acceptsHandicapChange,
   handicapToFreeze,
@@ -37,17 +37,16 @@ import {
  */
 
 /**
- * THE COURSE HANDICAP EVERY PLAYER IS ON FOR ONE ROUND — its tees, its course,
- * its hole count.
+ * WHAT THE TWO FUNCTIONS BELOW NEED IN ORDER TO PRICE ONE ROUND — loaded here,
+ * converted by `roundCourseHandicaps` in `handicaps.ts`.
  *
- * Both functions below had this inline and both had it EVENT-WIDE: the tee came
- * from `teeSetupFor`, which is a single `Event.defaultTeeId` for the whole
- * tournament, and the ratings map was built without `courseId`, which
- * `courseHandicapMap` reads as "this caller cannot be judged, keep behaving as
- * it did" and so lets every rung through. `loadEventState` resolves both
- * properly, per round, through `teeForPlay` — so on a tournament played over two
- * clubs the board and these two disagreed by eleven strokes, the board being
- * right.
+ * Both had the whole thing inline and both had it EVENT-WIDE: the tee came from
+ * `teeSetupFor`, a single `Event.defaultTeeId` for the tournament, and the
+ * ratings map was built without `courseId`, which `courseHandicapMap` reads as
+ * "this caller cannot be judged, keep behaving as it did" and so lets every rung
+ * through. `loadEventState` resolved both properly, per round, so on a
+ * tournament played over two clubs the board and these two disagreed by eleven
+ * strokes, the board being right.
  *
  * WHICH WOULD BE A SCREEN DEFECT IF ONE OF THEM DID NOT WRITE. The freeze puts
  * its answer in `RoundHandicap.frozen`, permanently, at the round's first card,
@@ -56,16 +55,17 @@ import {
  * life of the tournament. Measured on the two-venue fixture: 17 playing strokes
  * where 7 is right.
  *
- * So it is one function rather than two corrected copies, for the reason
- * CLAUDE.md gives for `standingRows` returning `[]` at its own first line: a
- * third path written later is correct without knowing the rule exists.
+ * The QUERIES stay here rather than moving with the rule, because the freeze
+ * must be able to decide not to make them: it runs on every card write, and a
+ * round whose players are all frozen has to stop at two indexed reads.
  *
- * It is deliberately NOT `loadEventState`, which resolves the same thing. The
- * freeze runs inside a card write, where loading the whole tournament to price
- * one round would be the expensive way to ask a cheap question — and the two are
- * pinned to each other by `round-handicaps-follow-the-round-venue.audit.test.ts`
- * rather than merged, because two readers that agree by construction agree
- * whether they are right or wrong.
+ * Deliberately NOT `loadEventState`, which resolves the same thing for the
+ * boards — that runs inside a card write too, and loading a whole tournament to
+ * price one round is the expensive way to ask a cheap question. The two are
+ * pinned to each other by
+ * `round-handicaps-follow-the-round-venue.audit.test.ts` rather than merged,
+ * because two readers that agree by construction agree whether or not they are
+ * right.
  */
 async function roundCourseHandicaps(
   eventId: string,
@@ -99,40 +99,27 @@ async function roundCourseHandicaps(
     flightTeeByPlayer(eventId),
   ]);
 
-  const teeRatings = new Map(
-    tees.map((t) => [
-      t.id,
-      {
-        courseRating: t.courseRating,
-        slopeRating: t.slopeRating,
-        par: t.par,
-        /**
-         * CARRIED, which is half the fix. Without it `courseHandicapMap` cannot
-         * tell which sets are at the course being played, so a stored
-         * `Player.teeId` from another venue resolves to a real rating from the
-         * wrong club — while everybody with no stored tee beside them is priced
-         * correctly, which is what makes it invisible.
-         */
-        courseId: t.courseId,
-      },
-    ]),
-  );
-
-  // Round, then event, then the first set ON THIS ROUND'S COURSE — the same
-  // chain the board walks, and the same function.
-  const roundTee = teeForPlay(
+  /**
+   * THE ARITHMETIC ITSELF IS `roundCourseHandicaps` IN `handicaps.ts`.
+   *
+   * This function was that arithmetic when it was written, for two callers. The
+   * sweep that followed found six more, three of which WRITE what they compute,
+   * so the rule moved to where `teeForPlay` lives and this became its loader:
+   * the queries stay here, where the freeze can decide not to make them until
+   * there is something to freeze, and the conversion is shared.
+   *
+   * Two copies of it would have been the defect this whole class is — one rule,
+   * transcribed, drifting. `a-card-is-priced-by-its-own-round.test.ts` is what
+   * noticed: it flagged this file for building a ratings map by hand, which was
+   * correct even though the map was right.
+   */
+  return roundHandicaps({
     tees,
-    { stageTeeId: stage.teeId, eventDefaultTeeId: event?.defaultTeeId },
-    stage.courseId ?? event?.courseId ?? null,
-  );
-
-  return courseHandicapMap(
-    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
-    teeRatings,
-    roundTee,
-    holesPlayed(stage.holes),
-    event?.teePolicy ?? "own",
-  );
+    players,
+    flightTeeOf: flightTee,
+    stage,
+    event,
+  });
 }
 
 /**

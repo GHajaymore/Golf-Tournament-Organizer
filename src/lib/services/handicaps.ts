@@ -1,7 +1,18 @@
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
-import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating, teeIdFor } from "../domain/handicap";
+import {
+  courseHandicap,
+  nineHoleTee,
+  isRated,
+  explainHandicap,
+  indexForHoles,
+  type TeeRating,
+  teeIdFor,
+  courseHandicapMap,
+  holesPlayed,
+  type IndexHolder,
+} from "../domain/handicap";
 import { parseHoleArray } from "../courses";
 import { matchTee } from "../domain/tee-match";
 import { defaultTeeFor, type TeeLike } from "../domain/venue";
@@ -280,6 +291,104 @@ export function teeForPlay(
 }
 
 /**
+ * THE RATINGS MAP `courseHandicapMap` NEEDS, CARRYING THE PROVENANCE IT NEEDS TO
+ * JUDGE A RUNG.
+ *
+ * Six call sites built this by hand and every one of them omitted `courseId`,
+ * which `courseHandicapMap` reads — in its own words — as "a caller that supplies
+ * ratings without a courseId cannot be judged, and must keep behaving exactly as
+ * it did". So a stored `Player.teeId` from another venue resolved to a real
+ * rating from the wrong club, while everybody with no stored tee beside them was
+ * priced correctly, which is what made it invisible.
+ *
+ * One function, so a seventh caller cannot omit it by not knowing.
+ */
+export function teeRatingsOf(
+  tees: readonly TeeLike[],
+): Map<string, TeeRating & { courseId: string }> {
+  return new Map(
+    tees.map((t) => [
+      t.id,
+      { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par, courseId: t.courseId },
+    ]),
+  );
+}
+
+/**
+ * EVERY PLAYER'S COURSE HANDICAP FOR ONE ROUND — its tees, its course, its hole
+ * count.
+ *
+ * Pure: the caller has already loaded the tees, the field and the flights, which
+ * every one of them was doing anyway. It is here rather than in
+ * `services/tournament.ts` because `tournament.ts` imports `teams.ts`, so the
+ * dependency can only run this way — and because `teeForPlay`, the chain this
+ * exists to make people walk, is three functions up in this same file.
+ *
+ * WHAT IT REPLACES, at six call sites: `teeSetupFor` — one `Event.defaultTeeId`
+ * for the whole tournament — plus a ratings map with no `courseId`. Every one of
+ * those six had the ROUND in hand; three take a `stageId` as a parameter. So the
+ * defect was never a missing argument, it was a reader with the answer available
+ * asking a cheaper question, and the fix is to make the correct question the
+ * cheap one.
+ *
+ * Measured on the development database before the change: 5 of 34 seeded rounds
+ * had these two answers picking a DIFFERENT SET OF TEES — the invitational's
+ * evening nine at Ardmore priced off Braid Hollow's championship whites
+ * (129/70.8 against 96/58.6), and four rounds of the demo event getting no tee
+ * at all and so no conversion, where the board converts off a 133 slope.
+ *
+ * NOT MERGED WITH `loadEventState`, which resolves the same thing for the
+ * boards. The two are pinned to each other by test instead, because two readers
+ * that agree by construction agree whether or not they are right — see
+ * CLAUDE.md on what consolidation takes away.
+ */
+export function roundCourseHandicaps(args: {
+  /** This club's tees, whole rows — `teeForPlay`'s fallback sorts on name and rating. */
+  tees: TeeLike[];
+  /** The field, without `flightTeeId`: this resolves that from `flightTeeOf`. */
+  players: readonly Omit<IndexHolder, "flightTeeId">[];
+  /** `flightTeeByPlayer(eventId)`, so the `flight` policy has something to read. */
+  flightTeeOf: Map<string, string | null>;
+  /** The round. Null is honest — a stage that no longer exists prices off the event. */
+  stage: { holes?: number | null; teeId?: string | null; courseId?: string | null } | null;
+  event: { defaultTeeId?: string | null; courseId?: string | null; teePolicy?: string | null } | null;
+  /**
+   * THE FIXTURE, for the paths that price one match rather than a whole round.
+   *
+   * In a league with no fixed venue a pair says where they played at scoring
+   * time and, since `Match.teeId` exists, off which tees — and that is a fact
+   * about one pairing, not about the round the other nine matches are also in.
+   * Omitted, a match resolves through its round exactly as before, so the common
+   * case costs nothing. `loadEventState` keeps a separate per-match map for the
+   * same reason; this is the same chain, walked once.
+   */
+  match?: { teeId?: string | null; courseId?: string | null } | null;
+  /**
+   * The hole count, when the caller has already decided it.
+   *
+   * `teamsForStage` is handed one by ITS caller and must keep using it — a side
+   * handicap read out on the tee has to match the card the round is scored on,
+   * and that caller knows about the nine-hole wrap. Omitted, the round's own
+   * `holes` decides, which is what every other caller wants.
+   */
+  holes?: number;
+}): Map<string, number> {
+  const { tees, players, flightTeeOf, stage, event, match } = args;
+  const roundTee = teeForPlay(
+    tees,
+    { matchTeeId: match?.teeId, stageTeeId: stage?.teeId, eventDefaultTeeId: event?.defaultTeeId },
+    match?.courseId ?? stage?.courseId ?? event?.courseId ?? null,
+  );
+  return courseHandicapMap(
+    players.map((p) => ({ ...p, flightTeeId: flightTeeOf.get(p.id) ?? null })),
+    teeRatingsOf(tees),
+    roundTee,
+    args.holes ?? holesPlayed(stage?.holes ?? 18),
+    event?.teePolicy ?? "own",
+  );
+}
+
+/**
  * Which tee each player is on, by name, for putting on a card.
  *
  * Every card — the printed one a group carries out, and the one on screen at
@@ -342,25 +451,21 @@ export async function teeMatcherFor(eventId: string): Promise<(text: string | nu
 }
 
 /**
- * Both tee questions at once, for paths that hold no event object.
+ * `teeSetupFor` WAS HERE AND IS DELETED ON PURPOSE.
  *
- * WHICH tees the round is played from and WHO decides them are read together
- * because they are answered together — a path that fetched one and defaulted
- * the other would score half the rule.
+ * It read both tee questions at once — which set, and who decides — for paths
+ * holding no event object, and the docstring's argument for pairing them was
+ * sound. What it could not do was answer them for a ROUND: `defaultTeeId` came
+ * out of `roundTeeId`, which is the tournament's own choice with no round and no
+ * course in hand. Three callers used it and all three were pricing cards, so all
+ * three priced an away round off the home club's slope.
+ *
+ * `roundCourseHandicaps` above answers both questions and the round's as well,
+ * so keeping this would leave the wrong one one autocomplete away — which is how
+ * six call sites came to ask it. `handicap-wiring.test.ts` and
+ * `a-card-is-priced-by-its-own-round.test.ts` now hold the rule; this note holds
+ * the reason, so that reintroducing it has to be a decision rather than a guess.
  */
-export async function teeSetupFor(
-  eventId: string,
-  tees: Array<{ id: string }>,
-): Promise<{ policy: string; defaultTeeId: string | null }> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { teePolicy: true, defaultTeeId: true },
-  });
-  return {
-    policy: event?.teePolicy ?? "own",
-    defaultTeeId: roundTeeId(tees, event?.defaultTeeId),
-  };
-}
 
 /** One player's course handicap, for the paths that only need a single number. */
 export async function courseHandicapForPlayer(
