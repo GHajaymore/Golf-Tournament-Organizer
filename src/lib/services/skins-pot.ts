@@ -6,7 +6,8 @@ import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
-import { holesPlayed } from "../domain/handicap";
+import { holesPlayed, playingHandicapFrom } from "../domain/handicap";
+import { effectiveAllowance } from "./teams";
 import {
   skinsPot,
   settle,
@@ -116,7 +117,20 @@ export async function skinsPotFor(
       // `teeId` for the same reason one level along: the card came from the
       // round and the RATING it is priced against came from the tournament, so
       // net skins on an away round paid on the home club's slope.
-      select: { id: true, eventId: true, holes: true, teeSheet: true, courseId: true, teeId: true, nine: true },
+      // `format` and `handicapAllowance` because the strokes this pot pays on
+      // are the ones on the player's CARD, which is the Course Handicap after
+      // the round's allowance — see the note at the `playSkins` call below.
+      select: {
+        id: true,
+        eventId: true,
+        holes: true,
+        teeSheet: true,
+        courseId: true,
+        teeId: true,
+        nine: true,
+        format: true,
+        handicapAllowance: true,
+      },
     }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
@@ -389,6 +403,45 @@ export async function skinsPotFor(
     );
   };
 
+  /**
+   * THE ROUND'S ALLOWANCE, BECAUSE NET SKINS ARE PAID ON THE STROKES ON THE
+   * CARD. Ajay's ruling, 2026-09-21: "just go with the standard way golf clubs
+   * do."
+   *
+   * WHS runs Handicap Index -> Course Handicap -> (allowance) -> PLAYING
+   * handicap, and the Playing Handicap is the number written on the scorecard —
+   * the one figure a player plays off for that round. A club running a medal
+   * with a skins pot alongside it does not compute a second handicap for the
+   * skins; the strokes are the strokes on the card.
+   *
+   * This applied none, so the pot paid on the Course Handicap while the public
+   * board — `skinsBoard`, through `strokeHandicapResolver`, whose last line is
+   * `playingHandicapFrom` — showed the Playing Handicap. Measured on a
+   * two-venue fixture with players on 12 and 20 at slope 105: Course 7 and 15,
+   * Playing 7 and 14, so the gap shrank from 8 to 7 and hole 15 changed hands.
+   * Skins are won OUTRIGHT and carry onward, so that is not a total shaded by a
+   * stroke — it is a different player holding the pot from the one the club's
+   * own board named. CLAUDE.md records this exact pair diverging once before.
+   *
+   * THE ORDER IS THE SAME ORDER `strokeHandicapResolver` USES, and it matters:
+   *
+   *   1  Course Handicap, off this round's tees and hole count
+   *   2  `roundHandicapOf` — the committee's override or the frozen value,
+   *      which `resolveRoundHandicap` deliberately resolves at COURSE handicap
+   *      level so that the allowance still applies on top of it
+   *   3  the allowance, giving the Playing Handicap
+   *   4  `strokesForPot`, narrowing to the holes this pot actually covers
+   *
+   * Putting 3 before 4 is what makes a front-nine pot pay on the strokes the
+   * player receives over those nine holes rather than on a re-derived number.
+   *
+   * NOT MERGED with the board's resolver, per `pin-two-readers-dont-merge-them`:
+   * two readers that agree by construction agree whether or not they are right.
+   * They are pinned to AGREE by
+   * `every-reader-prices-the-away-round.audit.test.ts`, whose divergence test
+   * became that agreement assertion when this landed.
+   */
+  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
@@ -396,7 +449,10 @@ export async function skinsPotFor(
       // Falls back to the Index only when the course has no tees on file at
       // all, which is the old behaviour and the best available guess.
       courseHandicap: strokesForPot(
-        roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+        playingHandicapFrom(
+          roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+          allowance,
+        ),
       ),
     })),
     holeCount,
