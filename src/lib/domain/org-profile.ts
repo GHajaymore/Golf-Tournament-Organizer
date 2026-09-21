@@ -118,13 +118,31 @@ export interface OrgProfile {
    * negative number, and an organizer marks a pot entrant unpaid. The app does
    * track who has paid at a club. Removed rather than reworded, because the
    * honest split of it is "a constant that is true everywhere" plus this flag.
+   *
+   * AND A THIRD IS GONE, `seasonPlay`, removed 2026-09-20 on Ajay's call.
+   *
+   * It was documented as "competitions that run week after week, so season
+   * standings and a carried-over order of merit mean something", and it was
+   * true of a club and a society and false of a personal outing. Nothing in
+   * the application ever read it. Season standings are gated by the PLAN
+   * (`seasonStandings`) and the league screens key off flights and four-ball
+   * rounds, so no code ever consulted the KIND.
+   *
+   * It was found on 2026-09-17 by somebody trying to advertise it in a picker
+   * and going to check what it did, and `no-dead-profile-flags.test.ts` was
+   * written the next day around it as the live example of its own rule. It was
+   * left in place then rather than deleted, on the reasoning that removing it
+   * would erase the only record that the distinction had been intended —
+   * which is what this paragraph is for. The intention is recorded; the flag
+   * that pretended to enforce it is not.
+   *
+   * The cost of leaving it was the one that guard names: a profile flag reads
+   * as a rule the app enforces, so the next person reasons from it and ships
+   * behaviour that was never there. If a season ever needs to depend on the
+   * kind of outfit rather than on the plan, add it back as something a reader
+   * actually consults.
    */
   ledger: boolean;
-  /**
-   * Competitions that run week after week, so season standings and a
-   * carried-over order of merit mean something.
-   */
-  seasonPlay: boolean;
   /**
    * Whether the organization is a venue in its own right — it has a course,
    * so its own card is the default rather than one picked per event.
@@ -158,15 +176,13 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     blurb: "A club, course or resort running competitions for its members and guests.",
     sharedRoster: true,
     ledger: false,
-    seasonPlay: true,
     ownsCourse: true,
   },
   community: {
     ...COMMUNITY_DEFAULT_WORDS,
     sharedRoster: true,
-    ledger: true,
     // One person fronted the minibus and is owed by nine others, no shop to ask.
-    seasonPlay: true,
+    ledger: true,
     ownsCourse: false,
   },
   personal: {
@@ -177,7 +193,6 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     blurb: "One organizer running an outing, with their own list of players.",
     sharedRoster: false,
     ledger: true,
-    seasonPlay: false,
     ownsCourse: false,
   },
 };

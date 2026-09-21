@@ -75,6 +75,11 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // The club roster spans every event, but assistants fill fields from it, so
   // it follows registration's access rather than organization's.
   roster: ["admin", "assistant"],
+  // The same door as the roster it reads, for the same reason: it is the club's
+  // member data, and assistants fill fields from it. NOT players — a member's
+  // entry and handicap history across every tournament is the club's record of
+  // them, not something the field may browse about each other.
+  member: ["admin", "assistant"],
   // A season spans every tournament the club runs, so it sits with the roster
   // rather than inside any one event.
   series: ["admin", "assistant"],

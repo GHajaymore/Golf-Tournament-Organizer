@@ -112,9 +112,10 @@ export interface Plan {
      * and `no-dead-feature-keys.test.ts` refused four of them on the spot:
      * declared on every plan, read by nothing, indistinguishable from a working
      * gate when read from this file or from a pricing page generated off it.
-     * That is the `seasonPlay` lesson — a flag in `org-profile.ts` that gates
-     * nothing to this day and was found only because somebody tried to
-     * advertise it. The remaining four (the public board, flights, the roster,
+     * That is the `seasonPlay` lesson — a flag in `org-profile.ts` that gated
+     * nothing for as long as it existed and was found only because somebody
+     * tried to advertise it. It was deleted on 2026-09-20; the record of what
+     * it meant is kept in the prose on `ledger` there. The remaining four (the public board, flights, the roster,
      * the course library) come back one at a time, each with the sink that
      * refuses and the test that proves it.
      */

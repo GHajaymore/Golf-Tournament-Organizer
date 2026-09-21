@@ -412,11 +412,11 @@ describe("what one member has played", () => {
   });
 
   it("returns both entries", async () => {
-    expect((await memberHistory(memberId)).length).toBe(2);
+    expect((await memberHistory(orgId, memberId)).length).toBe(2);
   });
 
   it("says which entries nobody had claimed an index for", async () => {
-    const history = await memberHistory(memberId);
+    const history = await memberHistory(orgId, memberId);
     const unclaimed = history.filter((h) => h.handicapSource === "none");
     const claimed = history.filter((h) => h.handicapSource === "manual");
 
@@ -427,6 +427,75 @@ describe("what one member has played", () => {
     // cannot tell "nobody said" from "scratch golfer".
     expect(unclaimed[0].handicap).toBe(0);
     expect(claimed[0].handicap).toBeCloseTo(12.4, 5);
+  });
+
+  it("leaves a casual round out, the way the roster's own count does", async () => {
+    /**
+     * A CASUAL ROUND IS NOT ONE OF THE CLUB'S TOURNAMENTS, and this screen and
+     * the roster have to agree about that or the club is told two things.
+     *
+     * `loadRoster` has excluded them from `entryCount` since it was written —
+     * "a member's history was inflated by every Sunday fourball they had been
+     * picked into" — and `memberHistory` did not, because nothing rendered it.
+     * Given a screen on 2026-09-20, the two would have disagreed on their very
+     * first club: Members saying two tournaments, the history listing three
+     * rows.
+     *
+     * `shape: "match"` is how a casual round is stored. A player row on one
+     * carries `memberId` whenever the player was picked off the roster, so the
+     * join finds it — the filter is the only thing that does not.
+     */
+    const casual = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} tuesday fourball`,
+        shape: "match",
+        dates: "",
+        course: "",
+        city: "",
+        address: "",
+        regDeadline: "",
+        // `randomBytes`, the way every other event in this file mints one. A
+        // pid is stable for the life of a process and recycled afterwards, so
+        // a run that crashed between creating this row and cleaning it up
+        // would collide on the unique constraint rather than fail on the thing
+        // under test.
+        shareToken: randomBytes(12).toString("hex"),
+      },
+    });
+    await prisma.player.create({
+      data: {
+        eventId: casual.id,
+        memberId,
+        name: `${TAG} member`,
+        email: `${TAG}.member@example.invalid`.toLowerCase(),
+        handicap: 12.4,
+        handicapType: "18",
+        handicapSource: "manual",
+        seed: 1,
+        status: "confirmed",
+      },
+    });
+
+    const history = await memberHistory(orgId, memberId);
+    // Still the two tournaments, not three. The control is the row itself:
+    // it exists, it is joined to this member, and it is not here.
+    expect(history.length, "a casual round was counted as a club tournament").toBe(2);
+    expect(history.map((h) => h.eventName)).not.toContain(`${TAG} tuesday fourball`);
+  });
+
+  it("does not report another club's entries", async () => {
+    /**
+     * The second control, for the scope added with the screen. A `Member`
+     * belongs to one organization, so the join was implicitly narrow — and
+     * "implicitly" is how a guarantee stops being true. Asked explicitly now,
+     * so a wrong `organizationId` returns nothing rather than somebody's
+     * record.
+     */
+    const otherOrg = await prisma.organization.create({
+      data: { name: `${TAG} other club`, kind: "club" },
+    });
+    expect(await memberHistory(otherOrg.id, memberId)).toEqual([]);
   });
 
   it("does not report another member's entries", async () => {
@@ -441,6 +510,6 @@ describe("what one member has played", () => {
         handicapSource: "manual",
       },
     });
-    expect(await memberHistory(other.id)).toEqual([]);
+    expect(await memberHistory(orgId, other.id)).toEqual([]);
   });
 });

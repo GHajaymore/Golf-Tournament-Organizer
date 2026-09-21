@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-import { loadEventState, matchProgress, standingRows } from "@/lib/services/tournament";
+import { loadEventState, matchSettled, standingRows } from "@/lib/services/tournament";
 import { roundMoneyFor } from "@/lib/services/expenses";
 
 /**
@@ -195,10 +195,16 @@ describe("a match-play round with a card that stopped short", () => {
     // ── The MATCH question ────────────────────────────────────────────────
     // Every match is decided, including the one that ended on the 14th. This
     // is the reading `matchSettled` gives, and it is what closes the round.
-    const progress = matchProgress(state);
-    expect(progress.total).toBe(6);
-    expect(progress.done, "a 5&4 match is a decided match").toBe(6);
-    expect(progress.pct).toBe(100);
+    //
+    // Asked of `matchSettled` directly. This went through `matchProgress`
+    // until that was deleted on 2026-09-20 for having no reader in the app —
+    // and the rule under test was always the domain one rather than the
+    // wrapper's percentage, so reading it here is what the assertion meant all
+    // along. A dead function is a poor instrument: nothing else exercises it,
+    // so it can drift from the rule it reports on and this test would follow.
+    const settled = state.rrMatches.filter((m) => matchSettled(m));
+    expect(state.rrMatches).toHaveLength(6);
+    expect(settled, "a 5&4 match is a decided match").toHaveLength(6);
 
     // The money follows. `roundMoneyIsFinal` settles a round when every hole
     // that will be played is returned OR every match is settled — and a match
@@ -266,8 +272,8 @@ describe("a match-play round with a card that stopped short", () => {
     const state = await loadEventState(event.id);
     expect(state).not.toBeNull();
     if (!state) return;
-    expect(matchProgress(state).done).toBe(5);
-    expect(matchProgress(state).total).toBe(6);
+    expect(state.rrMatches.filter((m) => matchSettled(m)), "one match is still out").toHaveLength(5);
+    expect(state.rrMatches).toHaveLength(6);
 
     const money = await roundMoneyFor(event.id, "");
     const roundMoney = money.rounds.find((r) => r.stageId === round.id);

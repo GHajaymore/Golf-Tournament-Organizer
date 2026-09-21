@@ -322,10 +322,38 @@ export interface MemberHistoryEntry {
   handicapSource: string;
 }
 
-/** What one member has played — the answer the old per-event lists couldn't give. */
-export async function memberHistory(memberId: string): Promise<MemberHistoryEntry[]> {
+/**
+ * What one member has played — the answer the old per-event lists couldn't give.
+ *
+ * TOURNAMENTS ONLY, which this did not say until it got a screen on
+ * 2026-09-20. `loadRoster` directly above counts a member's entries with
+ * `shape: { not: "match" }` and says why in its own words: a casual round "has
+ * no field, no flights and no committee, and it deletes itself in a day", and
+ * counting them "inflated a member's history by every Sunday fourball they had
+ * been picked into".
+ *
+ * This asked for every `Player` row. While nothing rendered it that was
+ * invisible; the moment it does, the roster says a member has played three
+ * events and their history lists eleven rows — two screens, one question, two
+ * answers, and the roster is the one with the reasoning written down.
+ *
+ * `memberHandicapRecord` draws the same line for a sharper reason, and its
+ * comment is the one to read: "a handicap is built from rounds played under
+ * the Rules of Golf in a competition the committee ran. That is what a
+ * tournament is here and what a quick round explicitly is not."
+ *
+ * SCOPED TO THE CLUB TOO. A `Member` belongs to one organization, so the join
+ * was implicitly narrow — but implicitly is how it stops being true, and
+ * `memberHandicapRecord` passes `organizationId` for exactly this reason. The
+ * caller has it, so asking for it costs nothing and makes the guarantee
+ * explicit rather than inherited from a relationship somewhere else.
+ */
+export async function memberHistory(
+  organizationId: string,
+  memberId: string,
+): Promise<MemberHistoryEntry[]> {
   const entries = await prisma.player.findMany({
-    where: { memberId },
+    where: { memberId, event: { organizationId, shape: { not: "match" } } },
     include: { event: { select: { name: true, dates: true, createdAt: true } } },
     orderBy: { event: { createdAt: "desc" } },
   });

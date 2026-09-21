@@ -172,7 +172,7 @@ describe("the country changes words, and nothing else", () => {
    * behavioural flag with it, and a flag flipped by a country would be
    * invisible until somebody's ledger vanished.
    */
-  const BEHAVIOUR = ["sharedRoster", "ledger", "seasonPlay", "ownsCourse"] as const;
+  const BEHAVIOUR = ["sharedRoster", "ledger", "ownsCourse"] as const;
 
   it("no country flips any behavioural flag, on any kind", () => {
     for (const kind of ORG_KINDS) {

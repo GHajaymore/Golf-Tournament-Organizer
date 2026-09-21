@@ -153,8 +153,6 @@ interface Dead {
  *       on no screen.
  *   skins-pot.ts:seasonPosition                a player's money across a
  *       weekly league, same story.
- *   roster.ts:memberHistory                    a member's record at the club,
- *       which the deferred register lists as an open decision.
  *   handicap-record.ts:handicapRecordFrom      a scoring record built for
  *       handicapping and never shown.
  *
@@ -162,7 +160,6 @@ interface Dead {
  * boundary stopped needing, formatters replaced by the `Formatting` versions.
  */
 const KNOWN_DEAD: string[] = [
-  "components/PageHeader.tsx:PageHeader",
   "lib/domain/attendance.ts:isAttendanceMode",
   "lib/domain/attest.ts:enterableBy",
   "lib/domain/bracket.ts:pickQualifiers",
@@ -206,9 +203,7 @@ const KNOWN_DEAD: string[] = [
   "lib/services/identity-repair.ts:applyRepair",
   "lib/services/identity-repair.ts:loadRepair",
   "lib/services/league-nomination.ts:clubsIn",
-  "lib/services/roster.ts:memberHistory",
   "lib/services/tournament.ts:expectedRrTotal",
-  "lib/services/tournament.ts:matchProgress",
 ];
 
 const dead: Dead[] = [];

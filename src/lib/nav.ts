@@ -79,6 +79,18 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
   // The organization's.
   "organization",
   "roster",
+  /**
+   * The roster asked about one person, so it is out for the same reason the
+   * roster is — and it is the third key this test has caught on the way in.
+   *
+   * A casual round belongs to a PERSON rather than to any club, so a member's
+   * record at a club is not merely apparatus a fourball does not need: on a
+   * quick round there is often no club whose member anybody is. The sidebar
+   * grew an eighth item and the "Club" heading came back, which is precisely
+   * the symptom `tournaments` produced below and precisely why this set exists
+   * rather than a habit of remembering.
+   */
+  "member",
   "series",
   /**
    * The list of the club's TOURNAMENTS, which a casual round is not one of.
@@ -305,6 +317,16 @@ export const NAV: NavSection[] = [
        */
       { key: "tournaments", label: "Tournaments", href: "/tournaments", icon: "ph ph-cards", tier: "at-desk" },
       { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book", tier: "at-desk" },
+      /**
+       * DIRECTLY UNDER MEMBERS, because it is the same list asked a different
+       * question: Members reads across ("who is in the club"), this reads down
+       * one person ("what have they played, and off what handicap").
+       *
+       * It opens on a chooser rather than needing a member picked first, so
+       * the sidebar entry leads somewhere that makes sense on its own — a nav
+       * item that lands on an empty screen is a nav item nobody presses twice.
+       */
+      { key: "member", label: "Member history", href: "/member", icon: "ph ph-clock-counter-clockwise", tier: "at-desk" },
       { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy", tier: "at-desk" },
       { key: "organization", label: "Club settings", href: "/organization", icon: "ph ph-buildings", tier: "at-desk" },
     ],

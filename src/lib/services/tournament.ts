@@ -131,8 +131,17 @@ function toDomainPlayer(p: DbPlayer, courseHandicap?: number): Player {
 /**
  * Whether anyone has written a score on this match yet.
  *
- * The same test `matchProgress` calls "complete", so "the round being played"
- * and "N/M matches complete" can never disagree about which round that is.
+ * LOOSE ON PURPOSE, and the looseness is the whole point of keeping it
+ * separate from the strict readings: one hole satisfies it. That is the right
+ * question for "which round is this tournament on", where any evidence of play
+ * moves the answer, and far too loose for anything that RELEASES something —
+ * `roundMoneyIsFinal` and `storedMatchIsOver` both refuse it for that reason,
+ * and `money-layout.ts` records the trap in its own words.
+ *
+ * It was also the test `matchProgress` called "complete" until that was
+ * deleted on 2026-09-20 — see the note where it used to live, further down
+ * this file. `matchSettled` is the surviving half and the rule itself;
+ * `match-cards.audit.test.ts` asks it directly.
  */
 /**
  * The holes on a card, as an array, with a bad row reading as an empty one.
@@ -2165,13 +2174,33 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
   };
 }
 
-/** Dashboard stat helpers. */
-export function matchProgress(state: EventState): { done: number; total: number; pct: number } {
-  const done = state.rrMatches.filter((m) => matchSettled(m)).length;
-  const total = state.rrMatches.length;
-  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
-  return { done, total, pct };
-}
+/**
+ * `matchProgress` WAS HERE, and is gone as of 2026-09-20 on Ajay's call.
+ *
+ * It counted the settled matches on the ACTIVE stage and returned done/total
+ * and a percentage, as a "dashboard stat helper". Nothing in the application
+ * read it by then. Its readers left one at a time as each was found to be
+ * asking the wrong question, and the reasons are worth keeping because they
+ * are the same reason three times:
+ *
+ *   - the lifecycle warning read it and counted only the active stage, so a
+ *     pure stroke tournament — which has no matches at all — was never warned
+ *     however many cards were in. It reads `state.resultsIn` now, which counts
+ *     both sources over the whole tournament;
+ *   - the dashboard tile read it and showed "0/0 · 0% of round robin" over a
+ *     knockout, whose results are `BracketWinner` rows rather than `Match`
+ *     rows, and over a team round, whose cards are `TeamScorecard`. It reads
+ *     `boardProgress` now, which knows what a round files its result in;
+ *   - `/reports` never read it and printed its own thing.
+ *
+ * The rule it reported on is alive and is `matchSettled`, directly above the
+ * bottom of this file's match section. What died is the wrapper — and a
+ * wrapper with no reader is worse than absent, because it reads as the
+ * app's answer to "how far through is this round" when nothing consults it.
+ *
+ * `match-cards.audit.test.ts` was its last caller and now asks `matchSettled`
+ * itself, which is the rule it was always testing.
+ */
 
 /**
  * Build format-aware standings rows for the leaderboard/dashboard tables.

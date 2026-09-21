@@ -44,8 +44,6 @@ const UNREACHED: Record<string, string> = {
   // below failed the moment it did, and the entry came off. An allowlist that
   // keeps an entry after somebody wires the function turns this file into
   // folklore.
-  "roster.ts:memberHistory":
-    "What one member has played, 'the answer the old per-event lists couldn't give'. Nothing shows it, so the club's handicap history is in the database and on no screen.",
   // `integrations.ts:handicapReadable` was the second entry to leave, the day
   // after it arrived: the roster screen asks it now, which is the screen its
   // own comment always said should. Two of the nine are gone within a day of
@@ -64,8 +62,6 @@ const UNREACHED: Record<string, string> = {
     "Flights that have fielded a side. The league screens ask `flightsIn` instead, which is the right question before the first nomination — see its comment.",
   "tournament.ts:expectedRrTotal":
     "How many matches a full round robin should have. The draw checks its own arithmetic now.",
-  "tournament.ts:matchProgress":
-    "Matches done out of total. FOUND 2026-09-18, the day tests stopped counting as callers — it had been masked by its own test since its readers were removed. Every other mention of it in the codebase is a comment explaining why something deliberately does NOT use it: the dashboard dropped its one reader, `lifecycle-state` reads `state.resultsIn` instead because this counts only the ACTIVE round, and `tournament.ts` names it twice more as the thing not being read. So it is not waiting for a screen — it lost an argument, and the comments are the record of it. Delete it and those four explanations point at nothing; keep it and a dead function sits in the file. Ajay's call, deliberately not taken here.",
 };
 
 /** Every `.ts` under services. */
