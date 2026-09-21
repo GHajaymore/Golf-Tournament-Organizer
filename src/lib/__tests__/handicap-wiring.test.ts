@@ -67,8 +67,28 @@ describe("tee validation guards the whole field's strokes", () => {
 describe("the app tells an organizer when net scoring is approximate", () => {
   const src = read("src/lib/services/handicaps.ts");
 
-  it("says nothing for a gross round, which needs no handicap", () => {
-    expect(src).toMatch(/if \(basis === "gross"\) return null;/);
+  it("decides from the ROUNDS, so no caller can reduce them wrongly", () => {
+    /**
+     * THIS PINNED `if (basis === "gross") return null;` — the exact expression,
+     * under a title that is still right about the behaviour.
+     *
+     * The expression was fine. What it required was a `basis: string` parameter,
+     * which forced the one caller to reduce a tournament's rounds to a single
+     * answer, and `/stages` reduced them to
+     * `stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross"`.
+     * A net MEDAL has no Round Robin, so the fallback won and the banner never
+     * appeared — on the commonest kind of tournament there is.
+     *
+     * So the guard pinned the shape that made the defect possible. The VALUE is
+     * asserted where it can be, against real tees, in `lifecycle.audit.test.ts`
+     * — including the mixed case and all four bases the action accepts. This now
+     * pins only the thing source can see: that the reduction happens inside the
+     * function rather than at a call site.
+     */
+    expect(src).toMatch(/rounds: readonly \{ scoringBasis: string \}\[\]/);
+    expect(src).toMatch(/rounds\.some\(\(r\) => r\.scoringBasis !== "gross"\)/);
+    // And no caller hands it a single basis again.
+    expect(src).not.toMatch(/unratedWarning\(\s*eventId: string,\s*basis: string/);
   });
 
   it("names the unrated tees rather than warning vaguely", () => {

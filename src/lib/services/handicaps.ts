@@ -599,8 +599,56 @@ export async function teesForEvent(eventId: string): Promise<TeeView[]> {
  * its ratings expects them used, and one that hasn't should know its net
  * results are running on raw indexes.
  */
-export async function unratedWarning(eventId: string, basis: string): Promise<string | null> {
-  if (basis === "gross") return null; // gross play needs no handicap at all
+export async function unratedWarning(
+  eventId: string,
+  /**
+   * EVERY ROUND, NOT A BASIS — and taking a single basis string is what the
+   * defect was.
+   *
+   * This took `basis: string`, so its one caller had to reduce a tournament's
+   * rounds to one answer, and reduced them to
+   * `stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross"`.
+   * Two ways that goes silent, and the fallback is the common one:
+   *
+   *   a net MEDAL           no Round Robin exists at all, so the fallback
+   *                         "gross" wins and the banner never appears — and a
+   *                         medal is the commonest tournament there is
+   *   a MIXED tournament    a gross round robin beside a net medal answers
+   *                         "gross" for the whole screen
+   *
+   * The banner is screen-level — one card at the top of the rounds screen
+   * saying "Handicaps are approximate" — so the question it answers is "does
+   * ANY round here score net", which no single round can answer. Asking the
+   * rounds directly means a caller cannot reduce them wrongly, the shape
+   * CLAUDE.md asks for: a rule enforced where the data is, not remembered at
+   * each call site.
+   *
+   * THE TEST STAYS `!== "gross"`, AND A DRAFT OF THIS CHANGED IT TO
+   * `isNetBasis`, WHICH WOULD HAVE BEEN A REGRESSION.
+   *
+   * `isNetBasis` is `basis === "net" || basis === "both"`. `setScoringBasis`
+   * accepts FOUR values — `["gross", "net", "both", "stableford"]` — and the
+   * development database holds 2 stableford rounds beside 22 net and 10 gross.
+   * Stableford points are computed off a handicap, so a Stableford round needs
+   * rated tees exactly as a net one does, and `isNetBasis` would have gone
+   * silent on it. (The schema comment says `gross | net | both` and is stale;
+   * the action is the authority.)
+   *
+   * So: warn unless EVERY round is gross. That keeps the old behaviour for a
+   * fifth value added later, which is the direction to be wrong in here — see
+   * the note on filtering below.
+   *
+
+   * NOT FILTERED TO PLAYING ROUNDS, deliberately. A cut carries a basis it
+   * never scores, so including it can warn a club that did not strictly need
+   * it — and that is the right direction to fail in. This is a WARNING, not a
+   * refusal: an unnecessary one is a sentence to read, and a missing one is net
+   * scores computed off raw indexes with nothing on screen to say so.
+   */
+  rounds: readonly { scoringBasis: string }[],
+): Promise<string | null> {
+  // Gross play needs no handicap at all, so nothing here matters to it.
+  if (!rounds.some((r) => r.scoringBasis !== "gross")) return null;
   const tees = await teesForEvent(eventId);
   if (tees.length === 0) {
     return "No tees have been set up for this course, so net scores use each player's raw handicap index. Add a set of tees with its Course Rating and Slope to score properly.";

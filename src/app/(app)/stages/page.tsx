@@ -327,7 +327,12 @@ export default async function StagesPage() {
         homeVenue={state.event.course?.trim() || ""}
         activeStageId={state.activeStage?.id ?? null}
         roundsWithResults={[...state.roundsWithResults]}
-        handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}
+        // EVERY round, because the banner is one card for the whole screen.
+        // This asked the first Round Robin round and fell back to "gross", so a
+        // net MEDAL — which has no Round Robin at all — was never told its
+        // handicaps were approximate, and neither was a mixed tournament whose
+        // round robin happened to be gross. `unratedWarning` decides now.
+        handicapWarning={await unratedWarning(session.eventId, state.stages)}
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {
             roundCount: state.stages.length,
