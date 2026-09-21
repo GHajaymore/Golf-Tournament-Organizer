@@ -1,6 +1,6 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
-import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
+import { roundLabel, roundLabelWith, roundNumber } from "@/lib/domain/round-label";
 import { reviewQueueDetail } from "@/lib/domain/review-queue";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
@@ -521,7 +521,18 @@ export default async function DashboardPage() {
   const activeRoundIdx = state.activeStage
     ? state.playRounds.findIndex((s) => s.id === state.activeStage!.id)
     : -1;
-  const roundCut = hasKnockout ? null : currentRoundCut(state.playRounds, activeRoundIdx);
+  /**
+   * How far the FIELD has actually got, which is a different question from
+   * which round the cut chain is on — see the note on `RoundCutLine.note`.
+   * `boardStage` is the board's own answer, so the card and the leaderboard
+   * beside it cannot disagree about what has been returned.
+   */
+  const playedThroughRound = state.boardStage
+    ? roundNumber(state.playRounds, state.boardStage.id)
+    : 0;
+  const roundCut = hasKnockout
+    ? null
+    : currentRoundCut(state.playRounds, activeRoundIdx, playedThroughRound);
 
   // ── Published tee sheet ─────────────────────────────────────────────────
   // The player's answer to the only question that matters on the morning:
@@ -1218,7 +1229,7 @@ export default async function DashboardPage() {
                 // `roundCut.advance` is stored lower-case ("top 8 advance"), so
                 // the capital comes from CSS rather than from the data.
                 figure={<span style={{ textTransform: "capitalize" }}>{roundCut.advance}</span>}
-                note={`Survivors of Round ${roundCut.fromRound} play Round ${roundCut.toRound}.`}
+                note={roundCut.note}
               />
             )}
           </div>

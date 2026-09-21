@@ -222,6 +222,22 @@ export interface RoundCutLine {
   advance: string;
   /** The whole line, e.g. "Round 1 → Round 2 · top 8 advance". */
   label: string;
+  /**
+   * The sentence under it, TENSED against how far the field has actually got.
+   *
+   * It read "Survivors of Round 1 play Round 2." in every state, which is true
+   * and unreadable next to a board showing Round 3: two true sentences on one
+   * screen with nothing saying they answer different questions. The cut card
+   * describes the CHAIN — which round feeds which — and the board describes
+   * what has been RETURNED, and on a league where the field has gone past the
+   * chain those are different rounds.
+   *
+   * Nothing underneath was wrong. `currentRoundCut` and the engine that
+   * actually moves people index off the same round deliberately, so changing
+   * which round this describes would make the label name a cut nobody is
+   * applying. The fix is the sentence.
+   */
+  note: string;
 }
 
 /**
@@ -258,6 +274,12 @@ export function currentRoundCutRule(
 export function currentRoundCut(
   rounds: RoundCutFields[],
   activeIndex: number,
+  /**
+   * The round the BOARD is showing, 1-based, or 0 when nothing has been
+   * returned yet. Optional so a caller that does not know stays correct: it
+   * gets the neutral wording rather than a guessed tense.
+   */
+  playedThrough = 0,
 ): RoundCutLine | null {
   const rule = currentRoundCutRule(rounds, activeIndex);
   if (!rule) return null;
@@ -267,7 +289,35 @@ export function currentRoundCut(
   const advance = `top ${amount}${perFlight ? " per flight" : ""} advance`;
   const fromRound = activeIndex + 1;
   const toRound = activeIndex + 2;
-  return { fromRound, toRound, advance, label: `Round ${fromRound} → Round ${toRound} · ${advance}` };
+
+  /**
+   * THREE STATES, AND THE CARD SHOULD READ DIFFERENTLY IN EACH.
+   *
+   * Written as the club would say it out loud, and always naming BOTH rounds,
+   * because the number beside it is the whole reason somebody looked.
+   *
+   *   nothing returned yet   the cut is a plan
+   *   the cut round is live  it is happening now
+   *   the field is past it   it has happened, and the board is elsewhere
+   *
+   * The last is the case this exists for: on a league standing at Round 3, a
+   * card reading "Survivors of Round 1 play Round 2" is a true sentence that
+   * reads like a live instruction.
+   */
+  const note =
+    playedThrough > fromRound
+      ? `Round ${fromRound} is complete — the ${advance.replace(/ advance$/, "")} went through to Round ${toRound}.`
+      : playedThrough === fromRound
+        ? `Round ${fromRound} is being played — the ${advance.replace(/ advance$/, "")} go through to Round ${toRound}.`
+        : `After Round ${fromRound}, the ${advance.replace(/ advance$/, "")} go through to Round ${toRound}.`;
+
+  return {
+    fromRound,
+    toRound,
+    advance,
+    label: `Round ${fromRound} → Round ${toRound} · ${advance}`,
+    note,
+  };
 }
 
 /** One line describing what the rule will do, for the setup screen. */

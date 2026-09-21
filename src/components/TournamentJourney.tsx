@@ -47,6 +47,19 @@ export interface TournamentJourneyProps {
     total: number;
     complete: boolean;
     doneHrefs: readonly string[];
+    /**
+     * The one step to do NEXT — `flow.current.href`, the first unfinished one.
+     *
+     * Ticks alone answered "how far am I" and left every remaining chip
+     * identical, so the card never answered "what now", which is the question
+     * somebody opens this screen with.
+     *
+     * Deliberately the SAME source and the SAME word the rail on this screen
+     * uses ("Now"), because a second way of saying which step is current is
+     * how two panels come to disagree about it. Optional, and an empty string
+     * marks nothing — setup being complete is exactly that case.
+     */
+    currentHref?: string;
   } | null;
   /**
    * THE TOURNAMENT'S STATUS, not conclusions drawn from it.
@@ -288,6 +301,14 @@ export function TournamentJourney({
                        * the safe failure; throwing is not.
                        */
                       const done = phase.key === "setup" && !!setup?.doneHrefs?.includes(href);
+                      /**
+                       * The one to do next, marked the way the rail marks it.
+                       * `?.` for the same reason as `doneHrefs` above: a caller
+                       * spreading `any` should get an unmarked chip, never a
+                       * thrown page.
+                       */
+                      const isNext =
+                        phase.key === "setup" && !done && !!setup?.currentHref && setup.currentHref === href;
                       return (
                         <Link
                           key={href}
@@ -302,20 +323,37 @@ export function TournamentJourney({
                             gap: 4,
                             background: done
                               ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)"
-                              : "color-mix(in srgb, var(--color-text) 6%, transparent)",
+                              : isNext
+                                ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
+                                : "color-mix(in srgb, var(--color-text) 6%, transparent)",
                             boxShadow: done
                               ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 30%, transparent)"
-                              : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
+                              : isNext
+                                ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent)"
+                                : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
                             color: done
                               ? "var(--color-accent-2-300)"
-                              : state === "todo"
-                                ? "var(--color-text-muted)"
-                                : "var(--color-text)",
+                              : isNext
+                                ? "var(--color-accent-200)"
+                                : state === "todo"
+                                  ? "var(--color-text-muted)"
+                                  : "var(--color-text)",
+                            fontWeight: isNext ? 600 : undefined,
                             whiteSpace: "nowrap",
                           }}
+                          aria-current={isNext ? "step" : undefined}
                         >
                           {done && <Icon name="check-circle" weight="fill" />}
+                          {isNext && <Icon name="arrow-right" />}
                           {screenName(href)}
+                          {/* The word, not only the colour. The rail beside
+                              this says "Now" for the same step, and a chip
+                              distinguished by hue alone says nothing to
+                              somebody who cannot see the difference — these
+                              are the two brand colours, orange and green. */}
+                          {isNext && (
+                            <span style={{ fontSize: 10, opacity: 0.85, letterSpacing: "0.04em" }}>NOW</span>
+                          )}
                         </Link>
                       );
                     })}
