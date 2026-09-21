@@ -5816,7 +5816,7 @@ describe("tournament details", () => {
     const html = await setup({ playerCountMode: "manual", manualPlayerCount: 24 });
     for (const control of [
       "Tournament identity", "Tournament name", "Tournament dates",
-      "The kind of golf", "Scoring", "Match play", "Stroke play",
+      "How the tournament is decided", "Overall result", "Match play", "Stroke play",
       "Venue", "Golf course", "City", "Address",
       "Registration", "Registration deadline", "Field capacity",
       "Where the field size comes from", "Player count", "From registrations",
@@ -5872,7 +5872,7 @@ describe("tournament details", () => {
     // what kind of golf it is, and it used to sit under "Tournament identity"
     // where nobody would look for it.
     const html = await setup();
-    expect(html.indexOf("Tournament identity")).toBeLessThan(html.indexOf("The kind of golf"));
+    expect(html.indexOf("Tournament identity")).toBeLessThan(html.indexOf("How the tournament is decided"));
   });
 
   it("no longer asks the round's question on the tournament's screen", async () => {
@@ -5898,8 +5898,33 @@ describe("tournament details", () => {
     }
     // The CONTROL: the question that legitimately stays is still asked, so
     // this cannot pass by the card failing to render at all.
-    expect(html).toContain("Scoring");
-    expect(html).toContain("The kind of golf");
+    expect(html).toContain("Overall result");
+    expect(html).toContain("How the tournament is decided");
+  });
+
+  it("names the one scoring question for what it decides, not for the golf", async () => {
+    /**
+     * THE THIRD RENAME OF THIS CONTROL, and the first that says what it DOES.
+     *
+     * It went Format → Scoring because every round also has a format. It is
+     * now "Overall result", because every round also has a SCORING BASIS, and
+     * the thing that is genuinely event-level is the table ACROSS the rounds —
+     * `standingsIncludeThisWeek` reads it to decide whether a league's season
+     * table is a stroke aggregate or a match-points chain.
+     *
+     * The old words are asserted absent, because leaving them would leave two
+     * names for one control on the screen an organizer reads first. "Scoring"
+     * is checked as a whole word: "Overall result" does not contain it, but a
+     * future help sentence legitimately might.
+     */
+    const html = await setup();
+    expect(html).not.toContain("The kind of golf");
+    expect(html, "the old label survives somewhere").not.toMatch(/>\s*Scoring\s*</);
+    expect(html).toContain("How the tournament is decided");
+    expect(html).toContain("Overall result");
+    // The radios it governs are untouched — this was a rename, not a redesign.
+    expect(html).toContain("Match play");
+    expect(html).toContain("Stroke play");
   });
 
   it("does not name a section after a screen that already has that name", async () => {

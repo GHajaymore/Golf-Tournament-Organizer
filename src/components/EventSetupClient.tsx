@@ -485,25 +485,42 @@ export function EventSetupClient({
             "Tournament identity", and the file already carries the scar of that
             confusion: the comment below records "Scoring" being renamed from
             "Format" for the same reason. */}
-        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>The kind of golf</span>
+        {/* "THE KIND OF GOLF" is what this heading used to say, and it was the
+            other half of the confusion Ajay reported: it names what the ROUNDS
+            decide. The label under it said "Scoring", which is no better — a
+            round has a scoring basis too.
+
+            This is the third rename of the same control and the first that
+            says what it DOES rather than what it is about. It went Format →
+            Scoring because every round also has a format; it is now "How the
+            overall result is decided", because every round also has scoring
+            and the thing that is genuinely event-level is the TABLE ACROSS
+            them: `standingsIncludeThisWeek` reads it to decide whether a
+            league's season table is a stroke aggregate or a match-points
+            chain, and no single round can answer that.
+
+            A match league with one medal night is still a match league. That
+            sentence is the whole justification for this control existing, so
+            it is on the screen rather than only in this comment. */}
+        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>How the tournament is decided</span>
         <div>
           <div className="field">
-            {/* "Scoring", not "Format". It used to say Format, and every round
-                ALSO has a format — Four-Ball, Foursomes, Scramble. An organizer
-                who answered this one reasonably believed they had answered the
-                format question and never went looking for the other, which is
-                where team golf actually lives. */}
             <label>
-              Scoring
-              <FieldInfo label="scoring">
+              Overall result
+              <FieldInfo label="overall result">
                 <p>
-                  How a result is decided: <b>match play</b> counts holes won, <b>stroke play</b>
-                  {" "}counts strokes.
+                  How the <b>standings across every round</b> are counted: <b>match play</b> totals
+                  {" "}match points, <b>stroke play</b> totals strokes.
                 </p>
                 <p>
-                  Separate from what each round <i>plays</i> — four-ball, foursomes, a scramble.
-                  That is set per round on Rounds &amp; formats, because it can differ from one
-                  round to the next.
+                  This is the only scoring question the tournament answers. What each round{" "}
+                  <i>plays</i> — four-ball, foursomes, a scramble, Stableford — is set per round on
+                  Rounds &amp; formats, and can differ from one round to the next.
+                </p>
+                <p>
+                  A match-play league that runs one medal night is still a match-play league: the
+                  medal night simply earns no match points. Set this to what decides the{" "}
+                  <i>season</i>, not to what happens to be played next.
                 </p>
               </FieldInfo>
             </label>
