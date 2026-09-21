@@ -1,8 +1,8 @@
 import "server-only";
 import { playedOnBy } from "./courses";
-import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
+import { teeForPlay, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { courseHandicapMap, holesPlayed } from "../domain/handicap";
+import { courseHandicapMap, holesPlayed, type IndexHolder } from "../domain/handicap";
 import {
   acceptsHandicapChange,
   handicapToFreeze,
@@ -37,6 +37,105 @@ import {
  */
 
 /**
+ * THE COURSE HANDICAP EVERY PLAYER IS ON FOR ONE ROUND — its tees, its course,
+ * its hole count.
+ *
+ * Both functions below had this inline and both had it EVENT-WIDE: the tee came
+ * from `teeSetupFor`, which is a single `Event.defaultTeeId` for the whole
+ * tournament, and the ratings map was built without `courseId`, which
+ * `courseHandicapMap` reads as "this caller cannot be judged, keep behaving as
+ * it did" and so lets every rung through. `loadEventState` resolves both
+ * properly, per round, through `teeForPlay` — so on a tournament played over two
+ * clubs the board and these two disagreed by eleven strokes, the board being
+ * right.
+ *
+ * WHICH WOULD BE A SCREEN DEFECT IF ONE OF THEM DID NOT WRITE. The freeze puts
+ * its answer in `RoundHandicap.frozen`, permanently, at the round's first card,
+ * and `resolveRoundHandicap` prefers `frozen` over everything — so the wrong
+ * number did not merely display, it OVERRULED the board's correct one for the
+ * life of the tournament. Measured on the two-venue fixture: 17 playing strokes
+ * where 7 is right.
+ *
+ * So it is one function rather than two corrected copies, for the reason
+ * CLAUDE.md gives for `standingRows` returning `[]` at its own first line: a
+ * third path written later is correct without knowing the rule exists.
+ *
+ * It is deliberately NOT `loadEventState`, which resolves the same thing. The
+ * freeze runs inside a card write, where loading the whole tournament to price
+ * one round would be the expensive way to ask a cheap question — and the two are
+ * pinned to each other by `round-handicaps-follow-the-round-venue.audit.test.ts`
+ * rather than merged, because two readers that agree by construction agree
+ * whether they are right or wrong.
+ */
+async function roundCourseHandicaps(
+  eventId: string,
+  stage: { holes: number; teeId: string | null; courseId: string | null },
+  /**
+   * WITHOUT `flightTeeId` — this function supplies it. `IndexHolder` requires it
+   * on purpose (eight callers once omitted it and every flight was priced off
+   * the default set), so taking the whole type here would ask each caller for
+   * the one field the whole point of this function is to resolve for them.
+   */
+  players: Omit<IndexHolder, "flightTeeId">[],
+): Promise<Map<string, number>> {
+  const [event, tees, flightTee] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { teePolicy: true, defaultTeeId: true, courseId: true },
+    }),
+    prisma.tee.findMany({
+      // This club's tees only: an unscoped read lets a player's `teeId` resolve
+      // to another organization's rating and quietly changes the number being
+      // written into history.
+      where: { course: playedOnBy(eventId) },
+      orderBy: [{ position: "asc" }],
+    }),
+    /**
+     * The tees each player's FLIGHT plays from, under the `flight` policy.
+     * Without it the freeze wrote the DEFAULT set's number into history
+     * permanently, and the round's own screen showed a different handicap from
+     * the card the player was handed.
+     */
+    flightTeeByPlayer(eventId),
+  ]);
+
+  const teeRatings = new Map(
+    tees.map((t) => [
+      t.id,
+      {
+        courseRating: t.courseRating,
+        slopeRating: t.slopeRating,
+        par: t.par,
+        /**
+         * CARRIED, which is half the fix. Without it `courseHandicapMap` cannot
+         * tell which sets are at the course being played, so a stored
+         * `Player.teeId` from another venue resolves to a real rating from the
+         * wrong club — while everybody with no stored tee beside them is priced
+         * correctly, which is what makes it invisible.
+         */
+        courseId: t.courseId,
+      },
+    ]),
+  );
+
+  // Round, then event, then the first set ON THIS ROUND'S COURSE — the same
+  // chain the board walks, and the same function.
+  const roundTee = teeForPlay(
+    tees,
+    { stageTeeId: stage.teeId, eventDefaultTeeId: event?.defaultTeeId },
+    stage.courseId ?? event?.courseId ?? null,
+  );
+
+  return courseHandicapMap(
+    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
+    teeRatings,
+    roundTee,
+    holesPlayed(stage.holes),
+    event?.teePolicy ?? "own",
+  );
+}
+
+/**
  * Write `frozen` for every player in a round that does not already have one.
  *
  * Idempotent and safe to call on every card write: a round whose players are
@@ -50,7 +149,9 @@ import {
 export async function freezeRoundHandicaps(eventId: string, stageId: string): Promise<number> {
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
-    select: { holes: true },
+    // `teeId` and `courseId` because the number being written into history is a
+    // conversion off THIS ROUND'S tees — see `roundCourseHandicaps`.
+    select: { holes: true, teeId: true, courseId: true },
   });
   if (!stage) return 0;
 
@@ -69,31 +170,9 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
   const pending = players.filter((p) => (byPlayer.get(p.id)?.frozen ?? null) === null);
   if (pending.length === 0) return 0;
 
-  // Only read the tees once there is something to freeze. Steady state — every
-  // later card in the round — stops at the line above.
-  const tees = await prisma.tee.findMany({
-    // This club's tees only, the same scoping `handicapsForRound` needs: an
-    // unscoped read lets a player's teeId resolve to another organization's
-    // rating and quietly changes the number being written into history.
-    where: { course: playedOnBy(eventId) },
-    orderBy: [{ position: "asc" }],
-  });
-  const holes = holesPlayed(stage.holes);
-  const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
-  const teeSetup = await teeSetupFor(eventId, tees);
-  // The flight's tees, under the `flight` policy. Without it the freeze wrote
-  // the DEFAULT set's number into history permanently, and this screen showed
-  // a different handicap from the card the player was handed.
-  const flightTee = await flightTeeByPlayer(eventId);
-  const courseHcp = courseHandicapMap(
-    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
-    teeRatings,
-    teeSetup.defaultTeeId,
-    holes,
-    teeSetup.policy,
-  );
+  // Only resolve the tees once there is something to freeze. Steady state —
+  // every later card in the round — stops at the line above.
+  const courseHcp = await roundCourseHandicaps(eventId, stage, players);
 
   const frozenAt = new Date();
   const valueFor = (p: (typeof pending)[number]) =>
@@ -215,7 +294,12 @@ export interface RoundHandicapView {
  * handicaps in on the previous screen.
  */
 export async function roundHandicapsFor(eventId: string, stageId: string): Promise<RoundHandicapView[]> {
-  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { holes: true } });
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    // As the freeze does, and for the same reason: the number shown here is the
+    // number the round's cards are priced off, converted for THIS round's tees.
+    select: { holes: true, teeId: true, courseId: true },
+  });
   if (!stage) return [];
 
   // Scored, whether or not anything is frozen. A round played before the freeze
@@ -223,7 +307,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   // be offering to re-score them.
   const returned = await roundHasReturnedCard(eventId, stageId);
 
-  const [rows, players, tees] = await Promise.all([
+  const [rows, players] = await Promise.all([
     prisma.roundHandicap.findMany({
       where: { eventId, stageId },
       select: { playerId: true, override: true, frozen: true },
@@ -233,28 +317,9 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
       orderBy: { seed: "asc" },
     }),
-    prisma.tee.findMany({
-      where: { course: playedOnBy(eventId) },
-      orderBy: [{ position: "asc" }],
-    }),
   ]);
 
-  const holes = holesPlayed(stage.holes);
-  const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
-  const teeSetup = await teeSetupFor(eventId, tees);
-  // The flight's tees, under the `flight` policy. Without it the freeze wrote
-  // the DEFAULT set's number into history permanently, and this screen showed
-  // a different handicap from the card the player was handed.
-  const flightTee = await flightTeeByPlayer(eventId);
-  const courseHcp = courseHandicapMap(
-    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
-    teeRatings,
-    teeSetup.defaultTeeId,
-    holes,
-    teeSetup.policy,
-  );
+  const courseHcp = await roundCourseHandicaps(eventId, stage, players);
   const byPlayer = new Map(rows.map((r) => [r.playerId, r]));
 
   return players.map((p) => {
