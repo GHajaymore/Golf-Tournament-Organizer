@@ -18,8 +18,43 @@ export const BAND_LABEL: Record<EventBand, string> = {
   soon: "Opens soon",
   live: "On now",
   finished: "Finished",
-  closed: "Closed",
+  closed: "Entries closed",
 };
+
+/**
+ * WHAT TO CALL THE BAND, and "Closed" on its own was four situations wearing
+ * one word.
+ *
+ * `closed` is the catch-all: full with no waiting list, past the deadline, shut
+ * by the organizer, or never opened to self entry. A member reading "Closed"
+ * cannot tell whether to come back later, ask for a place, or give up — and the
+ * distinction was never missing from the data. `registrationStatus` has told us
+ * which of them it is all along, in seven states, and the band discarded six of
+ * them.
+ *
+ * Ajay, 2026-09-21: "not all tournaments have a waiting list so we may have to
+ * use the status label differently — like Registration closed, On the waiting
+ * list."
+ *
+ * So the BAND still decides colour and order — those are about how much the
+ * card matters to this member — and the label says WHY the door is shut. TWO
+ * words for it, not four, because a member only ever needs to know which of two
+ * things to do:
+ *
+ *     Full             the field is full and nobody is taking names.
+ *                      Worth asking about — a place or a waiting list can
+ *                      appear, and "closed" is the word that tells somebody not
+ *                      to ask.
+ *     Entries closed   everything else: past the deadline, stopped by the club,
+ *                      or never opened to self entry. Nothing to do but wait
+ *                      for the next one, and splitting that into three
+ *                      shades of the same answer is detail without a decision
+ *                      attached.
+ */
+export function bandLabelFor(band: EventBand, regState: string): string {
+  if (band !== "closed") return BAND_LABEL[band];
+  return regState === "full" ? "Full" : "Entries closed";
+}
 
 /**
  * Which band, in priority order.

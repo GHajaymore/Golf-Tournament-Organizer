@@ -10,7 +10,7 @@ import {
   entryWindowNote,
   entryProgress,
   placesNote,
-  BAND_LABEL,
+  bandLabelFor,
   type EventBand,
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
@@ -256,7 +256,8 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
 
     return {
       band,
-      bandLabel: BAND_LABEL[band],
+      // The reason, not just "closed" — see `bandLabelFor`.
+      bandLabel: bandLabelFor(band, status.state),
       when: whenOf(band),
       /**
        * WHERE THIS MEMBER STANDS, separately from the entry window.
