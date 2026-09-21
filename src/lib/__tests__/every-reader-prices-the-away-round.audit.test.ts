@@ -284,18 +284,21 @@ describe("every reader prices the away round off the away club", () => {
      * mutating found it.
      *
      * What the venue actually changes is WHERE his extra strokes fall, because
-     * the GAP between the two of them moves with the slope:
+     * the GAP between the two of them moves with the slope. Stroke Play's 95%
+     * is applied to both, because net skins are paid on the strokes on the CARD
+     * — Ajay's ruling of 2026-09-21, see the agreement test below:
      *
-     *     away, slope 105   Ann 7, Bob 15   gap 8   → Bob alone on SI 8..15
-     *     host, slope 144   Ann 18, Bob 28  gap 10  → Bob alone on SI 1..10
+     *     away, slope 105   Ann 7 → 7,   Bob 15 → 14  → Bob alone on SI 8..14
+     *     host, slope 144   Ann 18 → 17, Bob 28 → 27  → Bob alone on SI 1..9
+     *                                                   and 18, Ann's 17
+     *                                                   leaving her nothing on 18
      *
-     * The stroke index here is 1..18 in hole order, so those are holes 8-15
-     * against holes 1-10. Two holes settle it in both directions — hole 15 is
-     * his off the away club and not off the host's, hole 1 the reverse — which
-     * keeps the assertion clear of carry arithmetic without weakening it.
+     * The stroke index here is 1..18 in hole order. The two sets share NO hole,
+     * so any one of them settles it; holes 14 and 1 are asserted because they
+     * settle it in both directions and keep this clear of carry arithmetic.
      */
     expect(bobsHoles.length, "nobody won a net skin, so this asserts nothing").toBeGreaterThan(0);
-    expect(bobsHoles, "hole 15 is only Bob's when the pot is priced off the AWAY club").toContain(15);
+    expect(bobsHoles, "hole 14 is only Bob's when the pot is priced off the AWAY club").toContain(14);
     expect(bobsHoles, "hole 1 is Bob's only when the pot is priced off the HOST club").not.toContain(
       1,
     );
@@ -333,37 +336,36 @@ describe("every reader prices the away round off the away club", () => {
     expect(holes, "hole 1 is Bob's only off the host club's slope").not.toContain(1);
   });
 
-  it("but the board and the MONEY do not agree, and that is not this commit's doing", async () => {
+  it("and the board and the MONEY name the same holes", async () => {
     /**
-     * A STATED DIVERGENCE, NOT AN ASSERTION THAT IT IS FINE — and it is the pair
-     * CLAUDE.md records as having diverged before: "the public board and the
-     * money the club actually paid named different skin winners for the same
-     * round".
+     * THE PAIR CLAUDE.md RECORDS AS HAVING DIVERGED ONCE, now pinned to agree.
+     *
+     * They diverged again, on a different axis, and this test spent a day
+     * asserting the divergence rather than either answer:
      *
      *     the money   `skinsPotFor`   COURSE handicap  → Bob alone on 8..15
      *     the board   `skinsBoard`    PLAYING handicap → Bob alone on 8..14
      *
-     * `skinsPotFor` hands `roundHandicapOf(...)` straight to `playSkins`;
+     * `skinsPotFor` handed `roundHandicapOf(...)` straight to `playSkins`;
      * `skinsBoard` goes through `strokeHandicapResolver`, whose last line applies
-     * `effectiveAllowance` — 95% for Stroke Play. Bob's 15 becomes 14 and Ann's 7
-     * stays 7, so the gap shrinks from 8 to 7 and hole 15 changes hands.
+     * `effectiveAllowance` — 95% for Stroke Play. Bob's 15 became 14 and Ann's 7
+     * stayed 7, so the gap shrank from 8 to 7 and hole 15 changed hands. Skins
+     * are won outright and carry onward, so that is a different player holding
+     * the pot from the one the club's own board named.
      *
-     * PRE-EXISTING, and the argument needs no arithmetic: one file applies the
-     * allowance and the other contains no reference to it. Nothing in this commit
-     * touches either, which changed only which TEE each reader resolves.
+     * DECIDED 2026-09-21 by Ajay: "just go with the standard way golf clubs do."
+     * WHS runs Index -> Course Handicap -> allowance -> PLAYING handicap, and the
+     * Playing Handicap is the number written on the card — the one figure a
+     * player plays off for the round. A club running a medal with a skins pot
+     * alongside does not compute a second handicap for the skins. So the pot
+     * applies the allowance now, and the two readers answer the same question the
+     * same way.
      *
-     * NOT FIXED HERE ON PURPOSE. Which is right is a question about golf and
-     * about what this product promises, and it decides who receives cash — a
-     * handicap allowance is defined for the stroke-play COMPETITION and a skins
-     * pot is a side game, so both readings are defensible. Guessing would move
-     * money on the strength of a guess.
-     *
-     * So this test PINS THE DIVERGENCE rather than asserting either answer: it
-     * fails the day somebody changes one reader without the other, which is what
-     * a decision landing looks like, and it fails loudly enough to be found.
-     * When the answer arrives, enforce it at the SINK — the allowance belongs
-     * with the handicap that reaches `playSkins`, not at each call site — and
-     * turn this into the agreement assertion the fixture is already built for.
+     * ASSERTED, NOT MERGED. The two still compute independently — consolidating
+     * them would make them agree whether or not they are right, which is
+     * `pin-two-readers-dont-merge-them`. So this pins the AGREEMENT, and the
+     * values either side of it are pinned to the WHS arithmetic by the tests
+     * above, which is what stops two wrong readers nodding at each other.
      */
     const view = await skinsPotFor(eventId, awayRoundId, true, "full", "");
     const board = await skinsBoard(eventId, awayRoundId, 18, true, SI);
@@ -378,15 +380,18 @@ describe("every reader prices the away round off the away club", () => {
     expect(money.length, "neither reader named a winner, so this asserts nothing").toBeGreaterThan(
       0,
     );
-    expect(
-      money,
-      "the money now agrees with the board — if that was deliberate, replace this test with the agreement assertion it describes",
-    ).not.toEqual(shown);
-    // And the difference is exactly the allowance, on the one hole the rounding
-    // moves. Pinned so that a LARGER divergence appearing later is a new defect
-    // rather than this known one.
-    expect(money.filter((h) => !shown.includes(h))).toEqual([15]);
-    expect(shown.filter((h) => !money.includes(h))).toEqual([]);
+    expect(money, "the settle-up and the public board name different skin winners").toEqual(shown);
+    /**
+     * AND THE AGREED ANSWER IS THE PLAYING HANDICAP'S, not the Course
+     * Handicap's — which is the half that makes this more than "the two match".
+     *
+     * Bob plays off 15 before the allowance and 14 after, so on the card he is
+     * alone on stroke index 8..14 and hole 15 is halved. Asserting hole 15 is
+     * NOT his is what would catch both readers moving back to the full Course
+     * Handicap together.
+     */
+    expect(money, "hole 15 is only Bob's off the full Course Handicap").not.toContain(15);
+    expect(money, "hole 14 is his once the allowance is applied").toContain(14);
   });
 
   it("and the board and the round's screen agree on every round", async () => {
