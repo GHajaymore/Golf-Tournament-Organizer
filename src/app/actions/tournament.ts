@@ -53,7 +53,7 @@ import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
-import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
+import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
@@ -941,7 +941,6 @@ export async function saveEvent(data: {
   capacity: number;
   playerCountMode: string;
   courseMode: string;
-  sideStyle: string;
 }) {
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
@@ -1022,10 +1021,10 @@ export async function saveEvent(data: {
       // silently converting "open" into "capacity 1" the moment anyone hit Save.
       capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
-      // Narrowed to the known set rather than trusted: this comes off a public
-      // server action, and an unrecognised value would sit in the database
-      // deciding which format new rounds start on.
-      sideStyle: cleanSideStyle(data.sideStyle),
+      // `sideStyle` is no longer written. Tournament details stopped asking
+      // "how do people play?" — see the note where that field stood — and the
+      // two things it decided are now read from the rounds themselves. The
+      // column stays as it is; nothing reads it.
     },
   });
 
@@ -1919,15 +1918,30 @@ export async function addStage(
   const howMany = Math.min(MAX_ROUNDS_AT_ONCE, Math.max(1, Math.round(Number(opts.count) || 1)));
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
-  // What the organizer said at setup about how people play. A starting point
-  // they can see and change on the round card — not a decision taken behind
-  // them, which is why defaultFormatFor returns the most ordinary format for
-  // the shape rather than anything clever.
+  /**
+   * WHAT THE LAST ROUND PLAYED, which is what a club does.
+   *
+   * This asked the EVENT's "how do people play" setting — a question
+   * Tournament details no longer puts, because it was one of the two that made
+   * that screen read as though it decided the format when every round decides
+   * its own. A club adding week 8 of a Stableford league wants Stableford, and
+   * the tournament-level answer could not say that: it held "individual", from
+   * which the most ordinary format was inferred.
+   *
+   * So the seed is the previous round's format. A league repeats itself, a
+   * championship repeats itself, and the one case where it is wrong — a
+   * deliberately mixed tournament — is the case where the organizer is already
+   * choosing per round, which both add-a-round screens require them to do.
+   */
   const ev = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { sideStyle: true, format: true },
+    select: { format: true },
   });
-  const style = cleanSideStyle(ev?.sideStyle);
+  const previous = await prisma.stage.findFirst({
+    where: { eventId },
+    orderBy: { position: "desc" },
+    select: { format: true },
+  });
   const scoring = ev?.format === "stroke" ? "stroke" : "match";
   const common = {
       eventId,
@@ -1955,15 +1969,16 @@ export async function addStage(
        *
        * `isHeadToHead` is the question that was meant, declared per type in
        * stage-types.ts. A round with opponents keeps the scoring the event
-       * chose; one without takes what "how do people play" implies — which is
-       * how a society day opens on Scramble rather than on a medal somebody
-       * would have had to notice and change.
+       * chose; one without repeats the last round, or opens on the most
+       * ordinary individual format when this is the first.
        */
       format: isHeadToHead(stageType)
         ? scoring === "stroke"
           ? "Stroke Play"
           : "Match Play"
-        : defaultFormatFor(style, "stroke"),
+        : previous?.format && isPlayable(previous.format)
+          ? previous.format
+          : defaultFormatFor("individual", "stroke"),
   };
 
   // A format chosen in the create step applies to every round in the run —

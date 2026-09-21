@@ -25,7 +25,6 @@ import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
-import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
@@ -447,9 +446,7 @@ export default async function DashboardPage() {
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
       hasKnockout,
-      isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,
-      wantsTeams: wantsTeams(cleanSideStyle(state.event.sideStyle)),
-      // Same list the sidebar is filtered by, so the quick actions cannot
+      isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,      // Same list the sidebar is filtered by, so the quick actions cannot
       // offer a match a door to Flights that the sidebar has just closed.
       isMatch: matchEvent,
     })

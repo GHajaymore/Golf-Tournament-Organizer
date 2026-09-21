@@ -28,7 +28,6 @@ import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { KNOCKOUT_STAGE_TYPES, WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
-import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
 import { isOrgKind, orgProfile } from "@/lib/domain/org-profile";
@@ -158,7 +157,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
     isLeague: playingRounds > 1,
-    wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
     isPlayerToo: ownEntries > 0,
     isMatch: isMatch(event?.shape),
     /**

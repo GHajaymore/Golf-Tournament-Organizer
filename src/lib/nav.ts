@@ -446,8 +446,6 @@ export function navForRole(
     hasTeamRound?: boolean;
     hasKnockout?: boolean;
     isLeague?: boolean;
-    /** The organizer said at setup that people play in pairs or teams. */
-    wantsTeams?: boolean;
     /**
      * This staff member is also in the field.
      *
@@ -579,12 +577,25 @@ export function navForRole(
     // Teams only matter to a tournament that has a team round in it. Most
     // don't, and a permanent link to an empty screen is just clutter — the
     // link appears the moment a round is set to a team format.
-    // ...or once the organizer has said at setup that people play as a side.
-    //
-    // Gating on hasTeamRound alone created a dead end: the Teams screen's own
-    // empty state is what explains how to set a round to a team format, and it
-    // was unreachable until you had already done the thing it explains.
-    if (key === "teams" && !opts.hasTeamRound && !opts.wantsTeams) return false;
+    /**
+     * Teams & pairs appears when a ROUND has a team format, and on nothing
+     * else.
+     *
+     * It used to accept `wantsTeams` as well — the event's "how do people
+     * play?" setting — because gating on `hasTeamRound` alone created a dead
+     * end: the Teams screen's own empty state explains how to set a round to a
+     * team format, and it was unreachable until you had already done it.
+     *
+     * That reasoning was right about the dead end and wrong about the door.
+     * The place you set a round to Foursomes is ROUNDS & FORMATS, which is in
+     * the sidebar from the moment a tournament exists and is step two of the
+     * guided flow. Teams & pairs was never the explanation; it was a second
+     * screen describing the first one's control.
+     *
+     * So the setting is gone from Tournament details (see the note where it
+     * stood) and this is the fact it was standing in for.
+     */
+    if (key === "teams" && !opts.hasTeamRound) return false;
     // Qualification has no entry of its own any more: it is the audit of a
     // draw, and it now sits under that draw on /bracket. The two were gated on
     // the same condition and showed the same players, one as "who goes
