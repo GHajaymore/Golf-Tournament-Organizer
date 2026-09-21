@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NAV, navForRole, ROUND_SECTION } from "../nav";
+import { readSource } from "./source";
 
 /**
  * EVERY SECTION OF THE SIDEBAR ANSWERS "WHAT DOES THIS CHANGE", AND THE
@@ -88,6 +89,49 @@ describe("a screen sits in the section that says what it changes", () => {
   it("gives every section a distinct heading", () => {
     const labels = NAV.map((s) => s.label);
     expect(new Set(labels).size, labels.join(" · ")).toBe(labels.length);
+  });
+
+  /**
+   * HOME NEEDS NO HEADING, AND NOTHING ELSE MAY GO WITHOUT ONE.
+   *
+   * The first section was called "Overview" and held the dashboard, the rules
+   * and the way into the play shell. Once every other heading named what its
+   * screens CHANGE, that was the only one left naming a PHASE — and two of its
+   * three entries were not about the tournament at all.
+   *
+   * So the dashboard stands alone with an empty label, which `Sidebar` renders
+   * as no heading rather than as an empty one. "Overview" above a single link
+   * reading "Dashboard" was two names for the same thing.
+   */
+  it("gives the dashboard no heading, and nothing else an empty one", () => {
+    expect(NAV[0].items.map((i) => i.key), "home is not the dashboard alone").toEqual(["dashboard"]);
+    expect(NAV[0].label, "home should carry no heading").toBe("");
+    const others = NAV.slice(1).filter((s) => !s.label);
+    expect(others.map((s) => s.items.map((i) => i.key).join("+")), "a section with no heading").toEqual([]);
+  });
+
+  it("puts the personal entries last, not first", () => {
+    /**
+     * "My round" and "Rules reference" sat at the TOP, above the club and the
+     * setup — the two entries least to do with running a tournament, in the
+     * place a reader starts. They are a way into the player app and a
+     * reference, so they come after the work rather than before it.
+     */
+    const last = NAV[NAV.length - 1];
+    expect(last.label).toBe("For you");
+    expect(last.items.map((i) => i.key)).toEqual(["me", "rules"]);
+  });
+
+  it("renders no empty heading element for the headingless section", () => {
+    /**
+     * THE CONTROL on the change above. An empty label that still renders its
+     * div leaves 15px of blank space above the first link and reads as a
+     * heading that failed to load — which is worse than the word it replaced.
+     * Asserted on the SOURCE of the component that draws it, because that is
+     * where the decision lives.
+     */
+    const src = readSource("src/components/Sidebar.tsx");
+    expect(src, "Sidebar draws the heading unconditionally").toMatch(/sec\.label\s*&&/);
   });
 });
 

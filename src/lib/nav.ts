@@ -291,14 +291,23 @@ export interface NavSection {
  */
 export const NAV: NavSection[] = [
   {
-    label: "Overview",
+    /**
+     * THE DASHBOARD IS HOME, AND HOME NEEDS NO HEADING.
+     *
+     * This section was called "Overview" and held three things: the dashboard,
+     * the rules, and the way into the play shell. After every other heading
+     * was changed to name what its screens CHANGE, this was the only one left
+     * describing a phase — and two of its three entries were not about the
+     * tournament at all.
+     *
+     * An EMPTY label renders no heading (see `Sidebar`), which is what a
+     * single home link wants: a one-item section under a word is a heading
+     * apologising for itself, and "Overview" over "Dashboard" was two names
+     * for the same thing.
+     */
+    label: "",
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four", tier: "at-desk" },
-      { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open", tier: "on-course" },
-      // The way into the play shell, for staff who are also in the field.
-      // Conditional on actually being entered — an organizer who does not play
-      // would only reach a screen telling them so.
-      { key: "me", label: "My round", href: "/me", icon: "ph ph-golf", tier: "on-course" },
     ],
   },
   {
@@ -448,6 +457,33 @@ export const NAV: NavSection[] = [
       // ph-users-three, which is "Teams & pairs" in Set up. The two screens are
       // already easy to confuse by name; wearing one glyph made it worse.
       { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-hand-coins", tier: "on-course" },
+    ],
+  },
+  {
+    /**
+     * LAST, BECAUSE IT IS NOT PART OF RUNNING THE TOURNAMENT.
+     *
+     * Both of these sat under "Overview" at the top, above the club and the
+     * setup, which put the two entries least to do with running a tournament
+     * in the place a reader starts.
+     *
+     * They belong together and they belong at the end: "My round" is the way
+     * into the PLAYER app for staff who are also in the field — most club
+     * tournaments are run by somebody playing in them — and the rules are a
+     * reference, opened when a question comes up rather than as a step.
+     *
+     * They stay in the sidebar rather than moving to a help menu and an
+     * account menu, which was the other option considered. Removing a door
+     * without replacing it is stranding, and this file's neighbours record
+     * two occasions where exactly that had to be undone.
+     */
+    label: "For you",
+    items: [
+      // The way into the play shell, for staff who are also in the field.
+      // Conditional on actually being entered — an organizer who does not play
+      // would only reach a screen telling them so.
+      { key: "me", label: "My round", href: "/me", icon: "ph ph-golf", tier: "on-course" },
+      { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open", tier: "on-course" },
     ],
   },
 ];

@@ -106,18 +106,28 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
         }}
       >
         {sections.map((sec) => (
-          <div key={sec.label}>
-            <div
-              style={{
-                fontSize: 10,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: "var(--color-neutral-500)",
-                margin: "12px 8px 3px",
-              }}
-            >
-              {sec.label}
-            </div>
+          <div key={sec.label || sec.items[0]?.key}>
+            {/* An EMPTY label renders NO heading, which is what the dashboard
+                wants: it is home, and a one-item section under a word is a
+                heading apologising for itself. Rendering the div anyway would
+                leave 15px of blank space above the first link and read as a
+                heading that failed to load.
+
+                Keyed on the first item when there is no label, because the
+                label was the key and an empty string is not a unique one. */}
+            {sec.label && (
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.13em",
+                  textTransform: "uppercase",
+                  color: "var(--color-neutral-500)",
+                  margin: "12px 8px 3px",
+                }}
+              >
+                {sec.label}
+              </div>
+            )}
             {sec.items.map((it) => {
               const active = pathname === it.href;
               return (
