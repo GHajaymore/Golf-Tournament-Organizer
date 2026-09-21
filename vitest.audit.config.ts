@@ -21,5 +21,8 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     fileParallelism: false,
+    // Loads .env before any test module is imported, so no audit file has to
+    // remember to do it. See the doc block in that file.
+    setupFiles: ["./vitest.audit.setup.ts"],
   },
 });
