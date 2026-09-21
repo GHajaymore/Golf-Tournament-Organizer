@@ -127,9 +127,37 @@ export interface ResolvedMatchEntry {
  * "both" means the leaderboard shows gross and net side by side, but a *match*
  * has to be one or the other — you cannot be 2 up gross and 1 down net and
  * have won. Net is the answer, because that is what the players played.
+ *
+ * ONLY "gross" MEANS GROSS, AND THAT IS `weekBasis`'S RULE RATHER THAN A NEW
+ * ONE. This was `basis === "net" || basis === "both"`, so the two readers of
+ * "how is this round allocated" defaulted in OPPOSITE directions on anything
+ * else:
+ *
+ *     weekBasis     trims, lowercases, and returns "net" for anything
+ *                   unrecognised — "it is what every round got before this
+ *                   existed", in its own words
+ *     isNetBasis    returned FALSE, so a match was played GROSS
+ *
+ * Two values reach that gap. `scoringBasis` can be `"stableford"` — a UNIT left
+ * in the allocation field, which `setScoringBasis` still accepts and rows
+ * written before the 2026-09-20 ruling still hold; it says nothing about
+ * allocation, so falling to gross invents an answer. And a stored value with
+ * different case or surrounding space — `" Net "` from a direct write or an
+ * import — read as gross here while every board read it as net. `lookupFormat`
+ * is case and whitespace insensitive for exactly that reason, recorded in its
+ * own test: "names arrive from stored rows and CSV imports, not only the
+ * picker."
+ *
+ * Neither is live today — measured 2026-09-21, the development database holds
+ * only `gross`, `net` and `stableford`, and the one match-shaped round on
+ * `stableford` has no matches on it — so this aligns the two readers before the
+ * gap is reached rather than after.
+ *
+ * The blast radius is exactly those values: `"net"`, `"both"` and `"gross"` all
+ * answer as they did.
  */
 export function isNetBasis(basis: string): boolean {
-  return basis === "net" || basis === "both";
+  return (basis ?? "").trim().toLowerCase() !== "gross";
 }
 
 export function resolveMatchEntry(

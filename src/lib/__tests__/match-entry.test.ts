@@ -8,6 +8,9 @@ import {
   type MatchScoringContext,
 } from "../domain/match-entry";
 import type { HoleResult } from "../domain/types";
+// The other reader of "how is this round allocated", asserted against directly
+// so the two cannot drift apart again.
+import { weekBasis } from "../domain/week-basis";
 
 /**
  * One resolver for every way a match gets written down.
@@ -93,6 +96,35 @@ describe("gross cards", () => {
     expect(isNetBasis("both")).toBe(true);
     expect(isNetBasis("net")).toBe(true);
     expect(isNetBasis("gross")).toBe(false);
+  });
+
+  it("answers the same way weekBasis does for everything else", () => {
+    /**
+     * ONE DEFAULT FOR ONE QUESTION. Both functions answer "how is this round
+     * allocated", and they used to disagree on every value that is not one of
+     * the three above: `weekBasis` trims, lowercases and falls to NET — "it is
+     * what every round got before this existed" — while this returned false, so
+     * a match was played GROSS.
+     *
+     * Asserted against `weekBasis` itself rather than against a list, so the two
+     * cannot drift apart again: if either changes its default, this fails. The
+     * format argument is held constant and non-Stableford, because the format
+     * decides the UNIT and this question is only about the allocation.
+     */
+    for (const basis of ["stableford", "", "  ", " Net ", "NET", "Gross", "nonsense"]) {
+      const board = weekBasis(basis, "Stroke Play") !== "gross";
+      expect(isNetBasis(basis), `isNetBasis and weekBasis disagree on ${JSON.stringify(basis)}`).toBe(
+        board,
+      );
+    }
+  });
+
+  it("still says gross for gross, however it is written", () => {
+    // The control: the fix must not turn every round net. Case and surrounding
+    // space are normalised the way `weekBasis` and `lookupFormat` normalise.
+    for (const basis of ["gross", "GROSS", " gross ", "Gross"]) {
+      expect(isNetBasis(basis), basis).toBe(false);
+    }
   });
 });
 
