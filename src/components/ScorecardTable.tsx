@@ -148,7 +148,43 @@ export function ScoreCell({
         inputMode="numeric"
         aria-label={label}
         value={value ?? ""}
-        onChange={(e) => onSet(parseStroke(e.target.value))}
+        data-score-cell
+        onChange={(e) => {
+          const read = parseStroke(e.target.value);
+          onSet(read);
+          /**
+           * ONE SCORE, THEN THE NEXT HOLE — which is what makes this card
+           * fillable in one pass and why the separate "type the whole card"
+           * box is gone.
+           *
+           * Without it, typing a card meant tapping eighteen boxes on a phone,
+           * and that is what the typed box existed to avoid: a second place to
+           * enter the same scores, in a different notation, on the same screen.
+           * Ajay, 2026-09-21: "this is not making any sense … make it simple."
+           * The simple version is that the card behaves like a card.
+           *
+           * Only on a COMPLETE score, so it cannot run away mid-number. A hole
+           * can take two figures — a 10, 11 or 12 — so advancing on the first
+           * keystroke would make those unenterable; `parseStroke` returning a
+           * value below 10 with one character typed is the safe moment, and
+           * anything longer is left to the player to move on from.
+           *
+           * `data-score-cell` rather than a ref array: the cells are rendered
+           * by a nested component per hole, and a query against the card's own
+           * inputs is one line where threading refs through is a prop on every
+           * row. It reads the live DOM in an event handler, never during
+           * render.
+           */
+          if (read == null || read >= 10 || e.target.value.length !== 1) return;
+          const card = e.target.closest("table");
+          if (!card) return;
+          const cells = Array.from(
+            card.querySelectorAll<HTMLInputElement>("input[data-score-cell]"),
+          );
+          const next = cells[cells.indexOf(e.target) + 1];
+          next?.focus();
+          next?.select();
+        }}
       />
       {dots}
     </td>

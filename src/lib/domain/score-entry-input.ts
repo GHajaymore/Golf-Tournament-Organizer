@@ -9,61 +9,22 @@ import { transcriptTokens, readScoreToken } from "./stroke";
  * Neither saves anything. Each returns the numbers it read and the caller
  * puts them on the card the same way a tap would — through the card's own
  * offline queue — so there is exactly one path by which a score is written.
- */
-
-export type TypedCard =
-  | { ok: true; strokes: (number | null)[]; filled: number }
-  | { ok: false; problem: string };
-
-/** Characters a player uses to mean "I have no score for this hole". */
-const BLANKS = new Set(["-", "x", ".", "_", "?"]);
-
-/**
- * A whole card typed in one go — "4 5 3 4 4 5 3 4 4", "4,5,3,…", or, for a
- * card where every hole is a single digit, "453445344".
  *
- * `-`, `x` or `.` leaves a hole blank, so a player who missed the 7th can
- * still type the rest in order. Fewer numbers than holes fills from the 1st
- * and leaves the rest untouched (null); MORE is refused, because the only way
- * that happens is a typo, and silently dropping the extra shifts nothing but
- * guessing which one is extra shifts everything after it.
+ * `parseTypedCard` WAS HERE AND IS DELETED, because nothing reached it any
+ * more and `domain-is-reachable` said so in its own words: "written and
+ * reachable from nothing — finish it, call it, or delete it."
  *
- * A run of digits is split one per hole ONLY when it is exactly the right
- * length. "4510" could be 4,5,10 or 4,5,1,0; a card is not the place to
- * guess, so anything else is refused with a sentence saying why.
+ * It read a whole card out of one line — "4 5 3 4 …" — for a text box on the
+ * player's full card. That box existed because `ScorecardTable`'s score cells
+ * did not advance, so typing a round meant tapping eighteen of them. They
+ * advance now, which makes the card itself the place to type and left this
+ * parsing a notation nobody was offered.
+ *
+ * Its one durable idea is kept where the live rule is, in `expandDigitRuns`:
+ * a run of figures is split per hole, and an AMBIGUOUS run is refused rather
+ * than repaired, because "a card is not the place to guess" and a wrong guess
+ * shifts every score after it.
  */
-export function parseTypedCard(text: string, holes: number): TypedCard {
-  const trimmed = text.trim();
-  if (!trimmed) return { ok: false, problem: "Type a score for each hole, separated by spaces." };
-
-  let parts = trimmed.split(/[\s,;/|]+/).filter(Boolean);
-  if (parts.length === 1 && /^\d+$/.test(parts[0])) {
-    if (parts[0].length !== holes) {
-      return {
-        ok: false,
-        problem: `That is ${parts[0].length} digits for ${holes} holes. Put a space between the scores.`,
-      };
-    }
-    parts = parts[0].split("");
-  }
-
-  if (parts.length > holes) {
-    return { ok: false, problem: `That is ${parts.length} scores for ${holes} holes. Check for an extra one.` };
-  }
-
-  const strokes: (number | null)[] = Array.from({ length: holes }, () => null);
-  for (let i = 0; i < parts.length; i += 1) {
-    const p = parts[i].toLowerCase();
-    if (BLANKS.has(p)) continue;
-    if (!/^\d+$/.test(p)) return { ok: false, problem: `“${parts[i]}” on hole ${i + 1} is not a score.` };
-    const n = parseInt(p, 10);
-    if (n < 1 || n > MAX_STROKES_PER_HOLE) {
-      return { ok: false, problem: `${n} on hole ${i + 1} is not a possible score.` };
-    }
-    strokes[i] = n;
-  }
-  return { ok: true, strokes, filled: strokes.filter((s) => s != null).length };
-}
 
 export interface SpokenPlayer {
   id: string;

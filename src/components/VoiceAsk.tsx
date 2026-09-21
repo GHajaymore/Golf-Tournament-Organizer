@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { parseVoiceQuery, answerVoiceQuery, type VoiceContext } from "@/lib/domain/voice-query";
 import { Icon } from "./Icon";
+import { MicNote } from "./MicNote";
 import { startDictation, type Dictation } from "@/lib/dictation";
 
 /**
@@ -69,6 +70,9 @@ export function VoiceAsk({ context }: { context: VoiceContext }) {
           “What’s my handicap for round 2?” · “Who am I playing?” · “Where do I stand?”
         </span>
       </div>
+      {/* This mic READS the round back rather than writing to it, but the
+          question a person has about a microphone is the same either way. */}
+      <MicNote style={{ marginTop: 6 }} />
       {/* Spoken input is misheard often enough that the answer alone is not
           enough — showing the transcript is how someone knows whether to
           trust it or simply say it again. */}

@@ -18,6 +18,7 @@ import { isCardLocked } from "@/lib/domain/card-approval";
 import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
 import { saveScorecard } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { MicNote } from "./MicNote";
 import { startDictation, type Dictation } from "@/lib/dictation";
 
 interface StrokePlayer {
@@ -456,6 +457,9 @@ export function StrokePlayEntry({
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
       </div>
+      {/* What the mic does, beside the mic. One component for all four so they
+          cannot drift into four different promises — see `MicNote`. */}
+      <MicNote style={{ marginTop: 6 }} />
 
       {/* Beside the mic because it answers the same question — how do I get
           this card in without typing it. Both fill the grid below and neither

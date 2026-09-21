@@ -217,7 +217,7 @@ const NUMBER_WORDS: Record<string, number> = {
  * recognized token. Unrecognized filler words ("and", "then") are skipped.
  */
 export function parseStrokesTranscript(transcript: string, pars: number[], startIndex: number): number[] {
-  const tokens = transcriptTokens(transcript);
+  const tokens = expandDigitRuns(transcriptTokens(transcript));
   const results: number[] = [];
   let hole = startIndex;
   let j = 0;
@@ -227,6 +227,62 @@ export function parseStrokesTranscript(transcript: string, pars: number[], start
     j += 1;
   }
   return results;
+}
+
+/**
+ * "4536" IS FOUR HOLES, NOT A SCORE OF FOUR THOUSAND.
+ *
+ * Speech recognition returns digits the way they were said. Read a card at
+ * speed — "four five three six" — and the recogniser hands back the single
+ * token `4536`, which `readScoreToken` matched with `/^\d+$/` and turned into
+ * ONE hole scored 4536. A player reading their card straight off got one
+ * absurd number and seventeen empty holes.
+ *
+ * Reported from the player app on 2026-09-21: dictation has to advance a hole
+ * per figure the way typing "4 5 3 6" already does.
+ *
+ * TEN, ELEVEN AND TWELVE SURVIVE WHOLE, which is the only interesting part.
+ * They are real scores on a hole — `NUMBER_WORDS` goes up to twelve for that
+ * reason — so splitting them would turn a 10 into a 1 and a 0, and 0 is not a
+ * score at all. Everything longer, or any other pair, is a run of single-figure
+ * holes.
+ *
+ * A 13 or worse is then read as two holes, and that is a deliberate trade
+ * rather than an oversight: a run of ordinary scores is what a player says on
+ * every card, a 13 is what they say once a season, and dictation is REVIEWED
+ * before it is saved — the card shows what it heard and the note says to check
+ * it. The typed box remains for anything this reads wrongly.
+ *
+ * Only the whole-card reader uses this. The one-hole, whole-group dictation in
+ * `score-entry-input.ts` shares `readScoreToken` but not this: there a pair of
+ * figures is two PLAYERS on one hole, and splitting would be right for the
+ * wrong reason.
+ */
+export function expandDigitRuns(tokens: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const t of tokens) {
+    if (/^\d{2,}$/.test(t) && !["10", "11", "12"].includes(t)) {
+      /**
+       * A RUN CONTAINING A ZERO IS DROPPED WHOLE, not silently repaired.
+       *
+       * 0 is not a score, so "405" is not four, nothing, five — it is a run
+       * this cannot read. A first version pushed the 4 and the 5 and skipped
+       * the 0, which guesses, and a wrong guess here does not lose one hole:
+       * every score after it moves up one.
+       *
+       * That rule is `parseTypedCard`'s, in its own words — "'4510' could be
+       * 4,5,10 or 4,5,1,0; a card is not the place to guess" — and it is the
+       * house rule rather than a new one. Dropping the run leaves those holes
+       * empty, the read-back line shows what was heard, and the player says it
+       * again or types it.
+       */
+      if (t.includes("0")) continue;
+      for (const d of t) out.push(d);
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
 }
 
 /** A spoken transcript as the lower-case words the readers below walk. */

@@ -10,7 +10,7 @@ import {
   entryWindowNote,
   entryProgress,
   placesNote,
-  BAND_LABEL,
+  bandLabelFor,
   type EventBand,
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
@@ -249,12 +249,15 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
      */
     const waiting = !entered && waitingIn.has(event.id);
     const canEnter = !entered && !waiting && status.acceptingEntries && event.registrationOpen;
-    const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered });
+    // `waiting` was computed above and used only to decide `canEnter`; not
+    // passing it here is what made a waiting-list place read as "Closed".
+    const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
     const today = todayIso();
 
     return {
       band,
-      bandLabel: BAND_LABEL[band],
+      // The reason, not just "closed" — see `bandLabelFor`.
+      bandLabel: bandLabelFor(band, status.state),
       when: whenOf(band),
       /**
        * WHERE THIS MEMBER STANDS, separately from the entry window.

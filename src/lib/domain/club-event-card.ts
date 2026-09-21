@@ -9,25 +9,73 @@ import { parseDeadlineIso } from "../deadline";
  */
 
 /** The coloured band across the top of the card. */
-export type EventBand = "entered" | "open" | "soon" | "live" | "finished" | "closed";
+export type EventBand = "entered" | "waiting" | "open" | "soon" | "live" | "finished" | "closed";
 
 export const BAND_LABEL: Record<EventBand, string> = {
   entered: "You’re in",
+  waiting: "On the waiting list",
   open: "Open for entries",
   soon: "Opens soon",
   live: "On now",
   finished: "Finished",
-  closed: "Closed",
+  closed: "Entries closed",
 };
+
+/**
+ * WHAT TO CALL THE BAND, and "Closed" on its own was four situations wearing
+ * one word.
+ *
+ * `closed` is the catch-all: full with no waiting list, past the deadline, shut
+ * by the organizer, or never opened to self entry. A member reading "Closed"
+ * cannot tell whether to come back later, ask for a place, or give up — and the
+ * distinction was never missing from the data. `registrationStatus` has told us
+ * which of them it is all along, in seven states, and the band discarded six of
+ * them.
+ *
+ * Ajay, 2026-09-21: "not all tournaments have a waiting list so we may have to
+ * use the status label differently — like Registration closed, On the waiting
+ * list."
+ *
+ * So the BAND still decides colour and order — those are about how much the
+ * card matters to this member — and the label says WHY the door is shut. TWO
+ * words for it, not four, because a member only ever needs to know which of two
+ * things to do:
+ *
+ *     Full             the field is full and nobody is taking names.
+ *                      Worth asking about — a place or a waiting list can
+ *                      appear, and "closed" is the word that tells somebody not
+ *                      to ask.
+ *     Entries closed   everything else: past the deadline, stopped by the club,
+ *                      or never opened to self entry. Nothing to do but wait
+ *                      for the next one, and splitting that into three
+ *                      shades of the same answer is detail without a decision
+ *                      attached.
+ */
+export function bandLabelFor(band: EventBand, regState: string): string {
+  if (band !== "closed") return BAND_LABEL[band];
+  return regState === "full" ? "Full" : "Entries closed";
+}
 
 /**
  * Which band, in priority order.
  *
  * FINISHED beats everything: a result is what a member opens a finished
- * tournament for, whether or not they played in it. Then ENTERED, because the
- * member's own place is the fact they care about most. Then ON NOW, OPEN, OPENS
- * SOON, and CLOSED for everything else — full with no waiting list, past the
- * deadline, shut by the organizer, or never opened to self entry.
+ * tournament for, whether or not they played in it. Then ENTERED, then WAITING,
+ * because the member's own place is the fact they care about most. Then ON NOW,
+ * OPEN, OPENS SOON, and CLOSED for everything else — full with no waiting list,
+ * past the deadline, shut by the organizer, or never opened to self entry.
+ *
+ * WAITING IS ITS OWN BAND, and it was not. `club-events.ts` worked out that the
+ * member was on the waiting list, used it to decide they could not enter again,
+ * and then never passed it here — so they fell through every branch to CLOSED,
+ * the catch-all that means "nothing here for you". The card underneath said
+ * "You're on the waiting list — the organizer will confirm your place" while
+ * the band above it said the opposite. Reported by Ajay from the player app on
+ * 2026-09-21, off his own entry in the Am-Am scramble.
+ *
+ * It is the collapse #524 fixed one screen along, where `!entered` swept the
+ * APPLICANT in with the STRANGER: a waiting-list place is not an entry, and it
+ * is emphatically not nothing.
  */
 export function eventBand(i: {
   eventStatus: string;
@@ -35,9 +83,12 @@ export function eventBand(i: {
   regState: string;
   canEnter: boolean;
   entered: boolean;
+  /** On the list, waiting for the organizer. Not entered, and not nothing. */
+  waiting?: boolean;
 }): EventBand {
   if (i.eventStatus === "completed") return "finished";
   if (i.entered) return "entered";
+  if (i.waiting) return "waiting";
   if (i.eventStatus === "live") return "live";
   if (i.canEnter) return "open";
   if (i.regState === "not-open-yet") return "soon";
@@ -51,7 +102,9 @@ export function eventBand(i: {
  * newest-created only, which put a finished tournament at the top of the list
  * and the member's own entry at the bottom — found by looking at it.
  */
-export const BAND_ORDER: readonly EventBand[] = ["entered", "live", "open", "soon", "closed", "finished"];
+// `waiting` sits with `entered`, because both are the member's own standing and
+// that is what this list is sorted to put first.
+export const BAND_ORDER: readonly EventBand[] = ["entered", "waiting", "live", "open", "soon", "closed", "finished"];
 
 export function byBand<T extends { band: EventBand }>(rows: readonly T[]): T[] {
   return rows

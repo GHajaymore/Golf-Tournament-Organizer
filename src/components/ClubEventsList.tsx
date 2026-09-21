@@ -47,6 +47,16 @@ type StatusFilter ="all" | "open" | "entered" | "soon" | "now" | "finished";
  */
 const BAND_STYLE: Record<EventBand, { background: string; color: string }> = {
   entered: { background: "var(--color-accent)", color: "var(--color-on-accent)" },
+  /**
+   * The member's own standing, like `entered`, but not yet a place — so it is
+   * drawn as a tint of the accent rather than the filled accent. Loud enough to
+   * read as "this one is about you", quieter than a confirmed entry, and
+   * nothing like the grey `closed` it used to be shown as.
+   */
+  waiting: {
+    background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
+    color: "var(--color-accent-300)",
+  },
   open: { background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent-300)" },
   soon: { background: "color-mix(in srgb, var(--color-warning) 14%, transparent)", color: "var(--color-warning)" },
   live: { background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)", color: "var(--color-accent-2-300)" },
