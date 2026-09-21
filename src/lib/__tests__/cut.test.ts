@@ -326,6 +326,76 @@ describe("the cut line for the current round", () => {
     expect(currentRoundCut(rounds, 1)!.label).toBe("Round 2 → Round 3 · top 6 advance");
   });
 
+  /**
+   * THE SENTENCE UNDER THE CARD IS TENSED AGAINST WHAT THE FIELD HAS RETURNED.
+   *
+   * It read "Survivors of Round 1 play Round 2." in every state — true, and
+   * unreadable beside a board showing Round 3. Two true sentences on one
+   * screen with nothing saying they answer different questions: the cut card
+   * describes the CHAIN, the board describes what has been RETURNED, and on a
+   * league that has gone past the chain those are different rounds.
+   *
+   * Nothing underneath was wrong, which is why this is a wording fix and not a
+   * rewiring: `currentRoundCut` and the engine that actually moves people
+   * index off the same round, deliberately.
+   */
+  describe("the note says WHEN, not just what", () => {
+    const withCut = [round(), round({ cutEnabled: true, cutCount: 8 })];
+
+    it("reads as a plan before the cut round has been played", () => {
+      expect(currentRoundCut(withCut, 0, 0)!.note).toBe(
+        "After Round 1, the top 8 go through to Round 2.",
+      );
+    });
+
+    it("reads as live while the cut round is the one on the board", () => {
+      expect(currentRoundCut(withCut, 0, 1)!.note).toBe(
+        "Round 1 is being played — the top 8 go through to Round 2.",
+      );
+    });
+
+    it("reads as past once the field has gone beyond it", () => {
+      /**
+       * THE CASE THIS EXISTS FOR. A league standing at Round 3 showed a card
+       * reading "Survivors of Round 1 play Round 2" — a live instruction about
+       * a round finished two weeks ago.
+       */
+      expect(currentRoundCut(withCut, 0, 3)!.note).toBe(
+        "Round 1 is complete — the top 8 went through to Round 2.",
+      );
+    });
+
+    it("keeps the per-flight scope in the sentence, not just the badge", () => {
+      const perFlight = [round(), round({ cutEnabled: true, cutCount: 4, cutScope: "perFlight" })];
+      expect(currentRoundCut(perFlight, 0, 3)!.note).toBe(
+        "Round 1 is complete — the top 4 per flight went through to Round 2.",
+      );
+    });
+
+    it("gives the neutral wording to a caller that does not know", () => {
+      // The parameter defaults, so a caller with no board in scope gets the
+      // plan rather than a guessed tense.
+      expect(currentRoundCut(withCut, 0)!.note).toBe(
+        "After Round 1, the top 8 go through to Round 2.",
+      );
+    });
+
+    it("never says a round is complete while it is still being played", () => {
+      /**
+       * THE CONTROL. Every assertion above is satisfied by a function that
+       * returns one fixed string; this is the pair that cannot both pass
+       * unless the tense actually moves with the board.
+       */
+      const live = currentRoundCut(withCut, 0, 1)!.note;
+      const done = currentRoundCut(withCut, 0, 2)!.note;
+      expect(live).not.toBe(done);
+      expect(live).toContain("is being played");
+      expect(done).toContain("is complete");
+      expect(live, "the old untensed sentence is back").not.toContain("Survivors of");
+      expect(done, "the old untensed sentence is back").not.toContain("Survivors of");
+    });
+  });
+
   it("shows nothing when the next round has no cut", () => {
     expect(currentRoundCut([round(), round()], 0)).toBeNull();
   });
