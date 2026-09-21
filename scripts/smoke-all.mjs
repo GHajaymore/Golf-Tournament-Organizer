@@ -31,6 +31,61 @@
  *
  * It never touches `.next`, so a dev server can keep running beside it.
  */
+/**
+ * THE SIX SCRIPTS' DATABASE, DECLARED HERE INSTEAD OF BY WHOEVER RAN THEM.
+ *
+ * Five of the six construct a PrismaClient and none of those five say where
+ * its URL comes from. Whether they GET one therefore varies by tree, and both
+ * outcomes were measured on the same night on this machine:
+ *
+ *     this worktree, clean shell    script two dies on the variable
+ *     the main checkout, clean
+ *       shell, same command         all six pass
+ *
+ * So the defect is not "the scripts cannot reach a database" — demonstrably
+ * they can, in at least one tree. It is that nothing in them declares how, and
+ * a dependency nobody declares is one that holds until the tree changes. The
+ * remaining suspect for the difference is @prisma/client loading `.env` itself
+ * on initialization, which would make the working case rely on a library side
+ * effect rather than on anything this repo says — the same undeclared
+ * dependency one layer down, and no better.
+ *
+ * CI exports the variables at the job level either way, which is why neither
+ * case has ever been visible there.
+ *
+ * What it looked like HERE: `smoke-routes` passes, prints its route count,
+ * and the NEXT script dies before testing anything —
+ *
+ *     verify-round-controls.mjs
+ *     PrismaClientInitializationError
+ *     error: Environment variable not found: PRISMA_DATABASE_URL.
+ *
+ * which reads as a broken script rather than as a missing variable, because
+ * the script before it had just succeeded.
+ *
+ * The asymmetry is the clue and it is worth keeping. `smoke-routes` carries
+ * its own hand-rolled `.env` parser, added by somebody who hit this once and
+ * fixed the file they were holding. Its parse lives and dies with its own
+ * process, so it rescues that script and nothing after it.
+ *
+ * Three readings that are WRONG, each eliminated by measurement rather than
+ * argument, because all three are more plausible than the answer:
+ *
+ *   - static vs dynamic import of @prisma/client. `smoke-routes` imports it
+ *     dynamically inside main(); the others statically at the top. Probed in
+ *     a clean shell: BOTH fail. Prisma does not auto-load `.env` either.
+ *   - env leaking between scripts because they run in order. Each spawn is
+ *     its own process; nothing survives the exit.
+ *   - `smoke-all` passing something down. It spawns with SMOKE_BASE_URL and
+ *     AUTH_SECRET and nothing else.
+ *
+ * Loaded once, here, before anything is spawned, so the children inherit a
+ * declared environment. dotenv no-ops when `.env` is absent and never
+ * overrides a variable already set, so CI behaves exactly as it did. Running
+ * one script on its own still wants `node --env-file=.env scripts/<name>`,
+ * the way CLAUDE.md already documents it.
+ */
+import "dotenv/config";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
