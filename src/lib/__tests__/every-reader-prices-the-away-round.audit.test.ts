@@ -5,6 +5,7 @@ import { loadEventState } from "../services/tournament";
 import { roundHandicapsFor } from "../services/round-handicap";
 import { teamsForStage } from "../services/teams";
 import { skinsPotFor } from "../services/skins-pot";
+import { skinsBoard } from "../services/points-standings";
 import { playingHandicapFrom } from "../domain/handicap";
 
 /**
@@ -302,6 +303,90 @@ describe("every reader prices the away round off the away club", () => {
     // with identical cards. Stated so the two assertions above are not read as
     // being about her.
     expect(view!.holes.filter((h) => h.playerId === player.ann)).toEqual([]);
+  });
+
+  it("the public skins board does too, which is a different reader again", async () => {
+    /**
+     * `skinsBoard` prices through `points-standings.ts`, which fetched the whole
+     * stage row and still passed no per-stage map to `strokeHandicapResolver` —
+     * so every league night was priced off whichever set the tournament had
+     * configured. It is the third fixed reader and the only one the sweep
+     * covered without a value behind it.
+     *
+     * Asserted on the holes Bob is alone on, which distinguishes the two venues
+     * unambiguously:
+     *
+     *     away, slope 105   Ann 7, Bob 15 → playing 7 and 14 → alone on 8..14
+     *     host, slope 144   Ann 18, Bob 28 → playing 17 and 27 → alone on 1..9
+     *                       and 18, because Ann's 17 leaves her nothing on SI 18
+     *
+     * Those two sets share no hole at all, so this cannot pass off the wrong
+     * club however the rounding falls.
+     */
+    const board = await skinsBoard(eventId, awayRoundId, 18, true, SI);
+    const holes = board.outcome.holes
+      .filter((h) => h.playerId === player.bob)
+      .map((h) => h.hole)
+      .sort((a, b) => a - b);
+    expect(holes.length, "the board names no winner, so this asserts nothing").toBeGreaterThan(0);
+    expect(holes, "the board priced this round off the HOST club").toContain(14);
+    expect(holes, "hole 1 is Bob's only off the host club's slope").not.toContain(1);
+  });
+
+  it("but the board and the MONEY do not agree, and that is not this commit's doing", async () => {
+    /**
+     * A STATED DIVERGENCE, NOT AN ASSERTION THAT IT IS FINE — and it is the pair
+     * CLAUDE.md records as having diverged before: "the public board and the
+     * money the club actually paid named different skin winners for the same
+     * round".
+     *
+     *     the money   `skinsPotFor`   COURSE handicap  → Bob alone on 8..15
+     *     the board   `skinsBoard`    PLAYING handicap → Bob alone on 8..14
+     *
+     * `skinsPotFor` hands `roundHandicapOf(...)` straight to `playSkins`;
+     * `skinsBoard` goes through `strokeHandicapResolver`, whose last line applies
+     * `effectiveAllowance` — 95% for Stroke Play. Bob's 15 becomes 14 and Ann's 7
+     * stays 7, so the gap shrinks from 8 to 7 and hole 15 changes hands.
+     *
+     * PRE-EXISTING, and the argument needs no arithmetic: one file applies the
+     * allowance and the other contains no reference to it. Nothing in this commit
+     * touches either, which changed only which TEE each reader resolves.
+     *
+     * NOT FIXED HERE ON PURPOSE. Which is right is a question about golf and
+     * about what this product promises, and it decides who receives cash — a
+     * handicap allowance is defined for the stroke-play COMPETITION and a skins
+     * pot is a side game, so both readings are defensible. Guessing would move
+     * money on the strength of a guess.
+     *
+     * So this test PINS THE DIVERGENCE rather than asserting either answer: it
+     * fails the day somebody changes one reader without the other, which is what
+     * a decision landing looks like, and it fails loudly enough to be found.
+     * When the answer arrives, enforce it at the SINK — the allowance belongs
+     * with the handicap that reaches `playSkins`, not at each call site — and
+     * turn this into the agreement assertion the fixture is already built for.
+     */
+    const view = await skinsPotFor(eventId, awayRoundId, true, "full", "");
+    const board = await skinsBoard(eventId, awayRoundId, 18, true, SI);
+    const bobs = (holes: Array<{ hole: number; playerId: string | null }>) =>
+      holes
+        .filter((h) => h.playerId === player.bob)
+        .map((h) => h.hole)
+        .sort((a, b) => a - b);
+
+    const money = bobs(view!.holes);
+    const shown = bobs(board.outcome.holes);
+    expect(money.length, "neither reader named a winner, so this asserts nothing").toBeGreaterThan(
+      0,
+    );
+    expect(
+      money,
+      "the money now agrees with the board — if that was deliberate, replace this test with the agreement assertion it describes",
+    ).not.toEqual(shown);
+    // And the difference is exactly the allowance, on the one hole the rounding
+    // moves. Pinned so that a LARGER divergence appearing later is a new defect
+    // rather than this known one.
+    expect(money.filter((h) => !shown.includes(h))).toEqual([15]);
+    expect(shown.filter((h) => !money.includes(h))).toEqual([]);
   });
 
   it("and the board and the round's screen agree on every round", async () => {
