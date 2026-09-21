@@ -5,6 +5,7 @@ import { registrationStatus } from "../registration";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { planForOrganization } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
+import { isPlayingRound } from "../stage-types";
 
 /**
  * What the public /register/[token] page is allowed to know.
@@ -29,7 +30,15 @@ export interface PublicRegistrationView {
   dates: string;
   /** "Course, City", whichever parts exist. */
   venue: string;
-  /** "Match play" | "Stroke play", for the summary line. */
+  /**
+   * What will actually be played: "Stableford", "3 rounds · Four-Ball,
+   * Foursomes", or "Format to be confirmed" — built from the ROUNDS by
+   * `roundsLabelOf`, never from the event's coarse match/stroke flag.
+   *
+   * The name is kept because the form's prop is called this; what it holds
+   * changed, and the sentence that used to be here ("Match play | Stroke
+   * play") was the defect stated as documentation.
+   */
   formatLabel: string;
   regDeadline: string;
   /** True when the field is full: a new entry would join the waitlist. */
@@ -47,8 +56,49 @@ export function venueOf(course: string, city: string): string {
   return [course, city].map((s) => s.trim()).filter(Boolean).join(", ");
 }
 
-function formatLabelOf(format: string): string {
-  return format === "stroke" ? "Stroke play" : "Match play";
+/**
+ * WHAT A MEMBER WILL ACTUALLY PLAY, for the public entry form.
+ *
+ * This read `event.format` — one coarse value for a whole tournament, "Stroke
+ * play" or "Match play" — and told four of the seeded club's seven tournaments
+ * with rounds something their own rounds contradict. Two of them contradict
+ * their own NAME, which is how visible it is:
+ *
+ *   Thursday Evening League          said "Stroke play"   is 7 x Stableford
+ *   Twilight Nine - Midweek Stableford  said "Stroke play"   is Stableford
+ *   Four-Ball & Foursomes Invitational  said "Stroke play"   is Four-Ball + 2 x Foursomes
+ *   Festival of Formats              said "Stroke play"   is 11 different formats
+ *
+ * This is the screen somebody reads BEFORE deciding to enter, and a member who
+ * signs up for "stroke play" and arrives to play foursomes with a partner has
+ * been told the wrong thing by the club. A tournament does not have a format;
+ * its rounds do — so the label is built from them.
+ *
+ * NO ROUNDS IS A REAL ANSWER AND GETS A REAL SENTENCE. The club opens entries
+ * before deciding the format all the time — the seeded club has a tournament
+ * literally called "Format To Follow" — and "Stroke play" there was the app
+ * inventing a commitment nobody had made. "Format to be confirmed" is what is
+ * true, and it is also what the organizer would say if asked.
+ *
+ * Distinct formats in PLAY ORDER, because that is the order they are played
+ * in and a member reads the first one as the first round. Capped at three with
+ * a count after it: eleven formats is a paragraph, not a label.
+ */
+export function roundsLabelOf(rounds: readonly { type: string; format: string }[]): string {
+  const played = rounds.filter((r) => isPlayingRound(r.type));
+  if (played.length === 0) return "Format to be confirmed";
+
+  const names: string[] = [];
+  for (const r of played) {
+    const name = (r.format || r.type).trim();
+    if (name && !names.includes(name)) names.push(name);
+  }
+  if (names.length === 0) return "Format to be confirmed";
+  if (played.length === 1) return names[0];
+
+  const shown = names.slice(0, 3).join(", ");
+  const rest = names.length - 3;
+  return `${played.length} rounds · ${shown}${rest > 0 ? ` and ${rest} more` : ""}`;
 }
 
 /**
@@ -68,7 +118,13 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
   // partial index (unique where <> '') the schema can't express as @unique, so
   // it isn't a where-unique input. The empty-token guard above is what keeps
   // this from matching an arbitrary un-opened event.
-  const event = await prisma.event.findFirst({ where: { registrationToken: token } });
+  const event = await prisma.event.findFirst({
+    where: { registrationToken: token },
+    // The rounds come with the event because the entry form names what will be
+    // played — see `roundsLabelOf`. Ordered by position so the formats are
+    // listed in the order they are played.
+    include: { stages: { select: { type: true, format: true }, orderBy: { position: "asc" } } },
+  });
   if (!event || !event.registrationOpen) return null;
 
   const confirmedCount = await prisma.player.count({
@@ -96,7 +152,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     eventName: event.name,
     dates: event.dates,
     venue: venueOf(event.course, event.city),
-    formatLabel: formatLabelOf(event.format),
+    formatLabel: roundsLabelOf(event.stages),
     regDeadline: event.regDeadline,
     waitlistOnly: status.waitlisting,
     spotsLeft: unlimited ? null : Math.max(0, event.capacity - confirmedCount),
