@@ -112,25 +112,50 @@ describe("the catalog", () => {
     expect(isPlayable("Skins")).toBe(true);
     expect(isPlayable("Nassau")).toBe(true);
     expect(isPlayable("Modified Stableford")).toBe(true);
-    // The exception, and deliberately so: Stableford is reachable as a scoring
-    // basis on a Stroke Play round, which is how the engine models it. Two
-    // doors to one room, one of them locked, would be worse than one door.
-    expect(isPlayable("Stableford")).toBe(false);
-    expect(isPlayable("Some Future Format")).toBe(false);
+    /**
+     * AND STABLEFORD, WHICH WAS THE ONE EXCEPTION AND IS NOT ANY MORE.
+     *
+     * This asserted `false`, on the reasoning that Stableford was reachable as a
+     * scoring BASIS and that offering it as a format too would be "two doors to
+     * one room, one of them locked". That held while `scoringBasis` carried the
+     * unit. Ajay's ruling of 2026-09-20 moved the unit to the FORMAT — the round
+     * is decided on points, and gross/net only says whether handicap strokes are
+     * applied — so the format is now the door that opens.
+     */
+    expect(isPlayable("Stableford")).toBe(true);
     expect(isPlayable("Some Future Format")).toBe(false);
   });
 
-  it("keeps playable a strict subset of scored, bar the manual hatch", () => {
+  it("offers exactly what it can score, plus the manual hatch", () => {
     for (const name of PLAYABLE_FORMAT_NAMES) {
       if (isManualFormat(name)) continue;
       expect(SCORED_FORMAT_NAMES, `${name} must also be scored`).toContain(name);
     }
-    // Some formats have an engine but no way to run them yet, so the scored
-    // list stays ahead of the playable one. Counted without the manual hatch,
-    // which is playable while deliberately unscored and would otherwise mask
-    // the day those two lists converge.
+
+    /**
+     * THIS ASSERTED `toBeLessThan`, AND IT WAS A TRIPWIRE THAT FIRED AS
+     * DESIGNED — so it is re-armed rather than relaxed.
+     *
+     * Its own comment said the strict inequality was counted without the manual
+     * hatch because that hatch "would otherwise mask the day those two lists
+     * converge". They converged when Stableford became playable: it was the last
+     * scored-but-unplayable format, 1 of 16, and every other entry was already
+     * selectable.
+     *
+     * So the invariant is stated positively now, which is strictly stronger than
+     * the inequality it replaces: playable IS scored, plus the one hatch that is
+     * playable while deliberately unscored. That fails if a future format is
+     * added scored-but-unplayable — the case the old assertion watched — AND if
+     * one is added playable-but-unscored without going through
+     * `isManualFormat`, which the old one could not see at all.
+     */
     const playableScored = PLAYABLE_FORMAT_NAMES.filter((n) => !isManualFormat(n));
-    expect(playableScored.length).toBeLessThan(SCORED_FORMAT_NAMES.length);
+    expect([...playableScored].sort(), "playable and scored have drifted apart").toEqual(
+      [...SCORED_FORMAT_NAMES].sort(),
+    );
+    // And the hatch is exactly one thing, so "plus the hatch" cannot quietly
+    // become "plus anything somebody marked manual".
+    expect(PLAYABLE_FORMAT_NAMES.filter((n) => isManualFormat(n))).toHaveLength(1);
   });
 
   it("stops a manual round reaching a scoring engine", () => {
@@ -186,13 +211,33 @@ describe("the catalog", () => {
     expect(week).toMatch(/manual \? \[\] : parseStrokeCards/);
   });
 
-  it("points Stableford at the scoring basis rather than the format", () => {
-    // Stableford is already runnable as a basis on a Stroke Play round, which
-    // is how the engine models it. Offering it as a format too would be two
-    // doors to the same room, one of which doesn't open.
+  it("makes Stableford a format, because the format carries the unit", () => {
+    /**
+     * THE REVERSE OF WHAT THIS ASSERTED, and the reversal is the point.
+     *
+     * It required `playable: false` and a `pendingReason` naming the basis, on
+     * the reasoning that Stableford was "runnable as a basis on a Stroke Play
+     * round, which is how the engine models it". Ajay's ruling of 2026-09-20
+     * moved the unit off the basis: the FORMAT says points, and gross/net only
+     * says whether handicap strokes are applied while computing them.
+     * `weekBasis` reads the format first, which is that ruling in code.
+     *
+     * So a round wanting points now sets its FORMAT, and the basis says how the
+     * points are allocated. Both Stableford formats are selectable and neither
+     * carries a pending reason.
+     */
     const s = findFormat("Stableford");
-    expect(s.playable).toBe(false);
-    expect(s.pendingReason).toMatch(/stroke play/i);
+    expect(s.playable).toBe(true);
+    expect(s.pendingReason, "a playable format must not still explain itself away").toBeUndefined();
+    expect(s.engine).toBe("stableford");
+    // Its sibling, which was never gated and is the precedent this follows.
+    expect(findFormat("Modified Stableford").playable).toBe(true);
+    // And nothing is left explaining itself away, which is what made Stableford
+    // the odd one out in the first place.
+    expect(
+      GOLF_FORMATS.filter((f) => f.pendingReason).map((f) => f.name),
+      "a format carries a pending reason again — is it genuinely unrunnable?",
+    ).toEqual([]);
   });
 
   it("names every team format as needing teams", () => {

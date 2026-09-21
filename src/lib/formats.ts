@@ -158,12 +158,27 @@ export interface GolfFormat {
 }
 
 /**
- * Stableford is already playable — as a scoring *basis* on a Stroke Play
- * round, which is how the engine models it and how the leaderboard reads it.
- * Offering it as a format too would give an organizer two doors to the same
- * room, one of which doesn't open.
+ * `STABLEFORD_VIA_BASIS` WAS HERE, AND IT WAS THE PRE-RULING MODEL.
+ *
+ * It read: "Stableford is already playable — as a scoring *basis* on a Stroke
+ * Play round … Offering it as a format too would give an organizer two doors to
+ * the same room, one of which doesn't open." That was a coherent position while
+ * `scoringBasis` carried the UNIT.
+ *
+ * Ajay's ruling of 2026-09-20 moved the unit to the FORMAT: *the round is
+ * decided on points, and gross/net only says whether handicap strokes are
+ * applied when computing them* — format gives the unit, basis gives the
+ * allocation. `weekBasis` implements it and reads the format FIRST. So the
+ * argument survived the thing it was about: the format door is now the one that
+ * opens, and the basis is the vestigial one.
+ *
+ * Stableford was the ONLY `playable: false` entry in this table, 1 of 16, which
+ * is what a stale one-off looks like rather than a deliberate "not yet" list.
+ * And it was never unproven: `FORMAT_NAMES` includes every entry here, so
+ * `matrix.test.ts` has been sweeping Stableford on every stage type at every
+ * field size all along, and the seeded club's Thursday league has seven weeks of
+ * `format: "Stableford"` that score, rank on points and render.
  */
-const STABLEFORD_VIA_BASIS = "set Stroke Play and choose Stableford scoring";
 
 export const GOLF_FORMATS: GolfFormat[] = [
   /* ── Individual ────────────────────────────────────────────────────── */
@@ -204,8 +219,9 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "stableford",
     allowance: 95,
     scored: true,
-    playable: false,
-    pendingReason: STABLEFORD_VIA_BASIS,
+    // Selectable, like `Modified Stableford` beside it and for the same reasons:
+    // the engine exists, the boards read it, and the matrix has always swept it.
+    playable: true,
   },
   {
     name: "Modified Stableford",
