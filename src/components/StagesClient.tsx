@@ -16,7 +16,7 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/formats";
+import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
@@ -1751,11 +1751,30 @@ function StageCard({
                     </FieldInfo>
                   </SectionLabel>
                   <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
+                    {/*
+                     * THE SENTENCE HAS TO KNOW WHAT THE ROUND IS. It had two
+                     * branches for three cases: Match Play, and "everything
+                     * else is Stroke Play". A FOUR-BALL round robin — the
+                     * interclub league shape — is neither, and was told "This
+                     * round is scored as Stroke Play, so ties break by lowest
+                     * net, then lowest gross", which is not true of a match
+                     * between two sides.
+                     *
+                     * `entryModeFor` is the predicate rather than a third
+                     * string comparison: it answers "team", "match" or
+                     * "stroke" off the format's own side size and engine, so a
+                     * format added later is described correctly without this
+                     * screen learning its name. Ajay, 2026-09-22: "make sure
+                     * we adjust the content based on the tournaments and its
+                     * format."
+                     */}
                     {format === "Match Play"
                       ? "How the table is ordered when players are level on points. Shared by every round-robin round scored as Match Play."
-                      : `This round is scored as Stroke Play, so ties break by ${
-                          basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"
-                        }, then by the steps below.`}
+                      : entryModeFor(format) === "team"
+                        ? `This round is played between sides, so each pairing is settled as a match and the table is ordered by the steps below when sides finish level.`
+                        : `This round is scored as Stroke Play, so ties break by ${
+                            basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"
+                          }, then by the steps below.`}
                   </p>
                   <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
                 </div>

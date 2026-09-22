@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { rankedScore, unitIsNet, type RankedRow } from "@/lib/domain/ranked-score";
+import {
+  rankedScore,
+  toParOnBasis,
+  unitIsNet,
+  type RankedRow,
+} from "@/lib/domain/ranked-score";
+import { toParText } from "@/lib/domain";
+import { readSource } from "./source";
 
 /**
  * THE NUMBER ON A BOARD HAS TO EXPLAIN THE ORDER OF THE BOARD.
@@ -51,10 +58,50 @@ const medalRow = (p: (typeof MEDAL)[number]) =>
 
 const num = (s: string) => (s === "E" ? 0 : Number(s.replace("+", "")));
 
+/**
+ * THE RULE MOVED, AND THESE ASSERTIONS MOVED WITH IT — unchanged.
+ *
+ * They were written against `rankedScore`, which subtracted the handicap
+ * strokes at render. That fixed the PUBLIC board and left the CONSOLE board
+ * broken, because the console draws the same rows through `toParCell` — twenty
+ * lines away in the same file — which printed `toPar` raw. The April Medal
+ * therefore read -18 in public and +10 in the console on the same afternoon.
+ *
+ * So the subtraction now happens where the ROW is built, in `toParOnBasis`,
+ * called by `standingRows` for players and `teamStandings` for sides. Every
+ * renderer prints what it is handed.
+ *
+ * The fixture and all three guarantees below are exactly as they were: the
+ * same four real rows, gross to-par in, net to-par expected. Only the function
+ * under test changed, which is the point — an assertion about what a board
+ * shows should survive a change in which layer decides it.
+ */
 describe("a net board shows a net figure", () => {
+  const shownFor = (p: (typeof MEDAL)[number]) => toParText(toParOnBasis(medalRow(p), true));
+
   it("prints net to par, not gross to par", () => {
-    const shown = MEDAL.map((p) => rankedScore(medalRow(p), { isStroke: true, isNet: true }).text);
-    expect(shown).toEqual(["-18", "-10", "-8", "-6"]);
+    expect(MEDAL.map(shownFor)).toEqual(["-18", "-10", "-8", "-6"]);
+  });
+
+  it("leaves a gross board alone", () => {
+    // The control. Without it every assertion here passes on a function that
+    // subtracts unconditionally, which would break every scratch competition.
+    expect(MEDAL.map((p) => toParText(toParOnBasis(medalRow(p), false))))
+      .toEqual(["+10", "+9", "-1", "+20"]);
+  });
+
+  it("is what BOTH engines call, so the two boards cannot drift apart", () => {
+    // The defect was one renderer applying the rule and the next not. Pinned
+    // as the guarantee: the individual engine and the team engine go through
+    // the same function, so a side and a player level on net print alike.
+    const players = readSource("src/lib/services/tournament.ts");
+    const sides = readSource("src/lib/services/teams.ts");
+    expect(players).toMatch(/toParOnBasis\(/);
+    expect(sides).toMatch(/toParOnBasis\(/);
+    // And no renderer does the arithmetic itself any more.
+    expect(readSource("src/lib/domain/ranked-score.ts")).not.toMatch(
+      /toParText\(row\.toPar - /,
+    );
   });
 
   /**
@@ -63,7 +110,7 @@ describe("a net board shows a net figure", () => {
    * they ran +10, +9, -1, +20 — each correct, together unreadable.
    */
   it("prints figures that ascend down a board sorted by net", () => {
-    const shown = MEDAL.map((p) => num(rankedScore(medalRow(p), { isStroke: true, isNet: true }).text));
+    const shown = MEDAL.map((p) => num(shownFor(p)));
     for (let i = 1; i < shown.length; i += 1) {
       expect(shown[i], `row ${i + 1} (${MEDAL[i].name}) must not be better than row ${i}`).toBeGreaterThanOrEqual(shown[i - 1]);
     }
@@ -73,8 +120,7 @@ describe("a net board shows a net figure", () => {
     // The independent reading: net to par IS net minus par. Asserting the
     // formula against the RULE rather than against itself.
     for (const p of MEDAL) {
-      const shown = num(rankedScore(medalRow(p), { isStroke: true, isNet: true }).text);
-      expect(shown, p.name).toBe(p.net - PAR);
+      expect(num(shownFor(p)), p.name).toBe(p.net - PAR);
     }
   });
 });

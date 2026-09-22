@@ -78,19 +78,33 @@ export async function playRefusalFor(eventId: string): Promise<string | null> {
   if (!PRE_LAUNCH_STATUSES.includes(event.status)) return null;
 
   /**
-   * "Any result" over the WHOLE tournament, all THREE sources.
+   * "Any result" over the WHOLE tournament, all FOUR sources.
    *
-   * A pure stroke tournament has no matches, a pure match one has no cards and
-   * a team day has neither, so asking any one of them alone answers this
-   * wrongly for a third of the product — the same fault `resultsIn` was
-   * written to fix for the dashboard banner, and the reason that function
-   * counts more than one.
+   * A pure stroke tournament has no matches, a pure match one has no cards, a
+   * team day has neither and a KNOCKOUT has none of the three — so asking any
+   * subset of them answers this wrongly for some shape of the product. The
+   * same fault `resultsIn` was written to fix for the dashboard banner, and
+   * the reason that function counts more than one.
+   *
+   * THE FOURTH WAS MISSING AND THE COMMENT SAID THREE. A Bracket Stage files
+   * no Scorecard, no TeamScorecard and no Match — its results are
+   * `BracketWinner` rows keyed by slot, which CLAUDE.md sets out and the
+   * seeded club measures: its knockout holds 0 Match rows against 5
+   * BracketWinner rows. And `setBracketWinner` is gated on STAFF ROLE, not on
+   * the event being launched, so a knockout can hold results while its status
+   * is still `ready`.
+   *
+   * `playRefusal` then returns "This tournament hasn't been launched yet, so
+   * play hasn't started" — to people who are five ties into it. That sentence
+   * is the exact symptom CLAUDE.md names for this class, and this function's
+   * whole job is to recognise a tournament that is under way and get out of
+   * its path.
    *
    * `matchSettled` is not used: it wants a whole match object and this only
    * needs to know whether anybody has been out on the course. One hole
    * answers that, which is the same line the lifecycle warning draws.
    */
-  const [card, teamCard, match] = await Promise.all([
+  const [card, teamCard, match, bracket] = await Promise.all([
     prisma.scorecard.findFirst({ where: { eventId }, select: { id: true } }),
     /**
      * THE THIRD TABLE, and the one a team round is the only writer of.
@@ -106,8 +120,15 @@ export async function playRefusalFor(eventId: string): Promise<string | null> {
       where: { eventId, NOT: { holes: { equals: "" } } },
       select: { holes: true },
     }),
+    /**
+     * THE FOURTH TABLE, and the one a knockout is the only writer of. A slot
+     * with a winner in it is somebody having played a tie, whatever the
+     * event's status still says.
+     */
+    prisma.bracketWinner.findFirst({ where: { eventId }, select: { id: true } }),
   ]);
-  const played = !!card || !!teamCard || !!(match && /[1-9AaBbHh]/.test(match.holes));
+  const played =
+    !!card || !!teamCard || !!(match && /[1-9AaBbHh]/.test(match.holes)) || !!bracket;
   return playRefusal({ status: event.status, anyResult: played });
 }
 
