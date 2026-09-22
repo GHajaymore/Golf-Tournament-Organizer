@@ -642,10 +642,74 @@ export interface ThemePair {
  * a custom hex.
  */
 export const THEME_PAIRS: ThemePair[] = [
+  /* ── Sun-ready: the ones that hold up on a phone outdoors ───────────────
+   *
+   * Measured 2026-09-21, and the measurement is the reason this group exists.
+   * On the DARK ground — which is what `auto` resolves to, and `auto` is the
+   * default — only 30 of the 144 accent/secondary combinations clear
+   * SUNLIGHT_RATIO, and they come from just six colours: Verdigris, Bunker,
+   * Ivy, Signal, Optic and Fairway. Every blue, red, purple and pink is dim
+   * out there. On the LIGHT ground all 144 clear it.
+   *
+   * Before this group, ALL SIX of the curated pairs failed on dark. So the one
+   * feature aimed at an organizer who did not want to do design work was
+   * recommending six schemes that are hard to read on the course, with nothing
+   * on the cards saying so — the app's own default, Verdigris + Optic, was not
+   * even offered as a pair. That is what Ajay asked about: "warn organizer if
+   * they select any theme and it is not recommended for the mobile to use it
+   * in the sun while playing golf."
+   *
+   * These are not a restriction and the rest of the list is not deprecated: a
+   * club on Light mode can take any pair below and be perfectly legible. What
+   * changed is that the picker now says which is which, per card, before the
+   * click rather than after it.
+   */
+  {
+    key: "tournament",
+    name: "Tournament",
+    blurb: "The app's own colours — built to be read in full sun.",
+    accentKey: "verdigris",
+    secondaryKey: "optic",
+  },
+  {
+    key: "woodland",
+    name: "Woodland",
+    blurb: "Deep clubhouse green over sand.",
+    accentKey: "ivy",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "floodlit",
+    name: "Floodlit",
+    blurb: "Playing green and optic yellow. Loud, and legible at arm's length.",
+    accentKey: "signal",
+    secondaryKey: "optic",
+  },
+  {
+    key: "desert",
+    name: "Desert",
+    blurb: "Sand gold over oxidised bronze.",
+    accentKey: "bunker",
+    secondaryKey: "verdigris",
+  },
+  {
+    key: "openweek",
+    name: "Open Week",
+    blurb: "Optic yellow on clubhouse green — impossible to miss.",
+    accentKey: "optic",
+    secondaryKey: "ivy",
+  },
+
+  /* ── The traditional schemes ────────────────────────────────────────────
+   *
+   * Every one of these is a genuine club look and none is going anywhere. All
+   * of them are dim on the dark ground and all of them are fine on the light
+   * one, which the card now says.
+   */
   {
     key: "classic",
     name: "Classic",
-    blurb: "Warm orange on clubhouse green. The app's own colours.",
+    blurb: "Warm orange on clubhouse green. The app's original.",
     accentKey: "sunset",
     secondaryKey: "fairway",
   },
@@ -683,6 +747,28 @@ export const THEME_PAIRS: ThemePair[] = [
     blurb: "Sand gold against coastal blue.",
     accentKey: "bunker",
     secondaryKey: "links",
+  },
+
+  /* ── Bold ────────────────────────────────────────────────────────────────
+   *
+   * For a society day, a corporate outing or a club that simply does not want
+   * to look like a club. Both are dim on the dark ground — saturated colour at
+   * the far end of the wheel is exactly what sunlight takes apart — and both
+   * are fine on Light, which is the remedy the picker offers.
+   */
+  {
+    key: "azalea-week",
+    name: "Azalea Week",
+    blurb: "Hot pink and sand, for the one week a course is unapologetically pink.",
+    accentKey: "azalea",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "midnight",
+    name: "Midnight",
+    blurb: "Cool violet with a green that lights up. Nothing like a members' medal.",
+    accentKey: "violet",
+    secondaryKey: "signal",
   },
 ];
 
@@ -965,6 +1051,41 @@ export function playerColorScheme(theme: ClubTheme): string {
  * picks its colours indoors deserves to know how they'll behave outdoors.
  */
 export const SUNLIGHT_RATIO = 7;
+
+/**
+ * How something reads on a phone, outdoors, in one word.
+ *
+ * ONE VOCABULARY, because three places say it and they must not come to
+ * disagree: the badge on a colour swatch, the badge on a ready-made scheme,
+ * and the warning panel under the preview. Before this the panel was the only
+ * one of the three that existed, and it sat BELOW the swatches — so an
+ * organizer chose from twelve colours and six schemes with nothing marked, and
+ * found out afterwards, if they scrolled.
+ *
+ * Two grades rather than three. A club is deciding whether their members can
+ * read a score on the 14th on a bright day; "fair" is not an answer anyone can
+ * act on, and the bar itself (SUNLIGHT_RATIO) is already the line.
+ */
+export type SunGrade = "good" | "dim";
+
+export const SUN_GRADE_LABEL: Record<SunGrade, string> = {
+  good: "Good in sun",
+  dim: "Dim in sun",
+};
+
+/** The grade of one colour, on the ground it will actually be drawn on. */
+export function sunGrade(check: SunlightCheck): SunGrade {
+  return check.ok ? "good" : "dim";
+}
+
+/**
+ * The grade of a whole scheme — both colours, on the ground its appearance
+ * resolves to. `auto` is graded as dark, exactly as `sunlightVerdict` does,
+ * because that is where a phone with no stated preference lands.
+ */
+export function themeSunGrade(theme: ClubTheme): SunGrade {
+  return sunlightVerdict(theme).ok ? "good" : "dim";
+}
 
 export interface SunlightCheck {
   ok: boolean;

@@ -14,6 +14,10 @@ import {
   resolveSecondary,
   customPreset,
   sunlightVerdict,
+  sunlightCheck,
+  sunGrade,
+  themeSunGrade,
+  SUN_GRADE_LABEL,
   pairVerdict,
   hueDistance,
   themeHue,
@@ -22,8 +26,55 @@ import {
   type Appearance,
   type ClubTheme,
   type Ground,
+  type SunGrade,
 } from "@/lib/themes";
 import { Icon } from "./Icon";
+
+/**
+ * How a colour or a scheme reads outdoors, said ON the thing being chosen.
+ *
+ * The whole point is that it is visible BEFORE the click. The warning panel
+ * further down this file has always been honest and has always been in the
+ * wrong place — below the swatches, so an organizer picked from twelve colours
+ * and six schemes with nothing marked and found out afterwards, if they
+ * scrolled. Measured 2026-09-21: on the dark ground only 30 of 144
+ * combinations clear the bar, and every one of the six ready-made schemes
+ * failed it.
+ *
+ * Not colour alone, and not an icon alone — the words are there too. This is
+ * the one screen in the app whose entire subject is colour, so a badge that
+ * needed colour vision to read would be a poor joke.
+ */
+function SunBadge({ grade, style }: { grade: SunGrade; style?: React.CSSProperties }) {
+  const good = grade === "good";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 10.5,
+        lineHeight: 1.2,
+        padding: "2px 6px",
+        borderRadius: 999,
+        whiteSpace: "nowrap",
+        color: good ? "var(--color-accent-2)" : "var(--color-warning)",
+        background: good
+          ? "color-mix(in srgb, var(--color-accent-2) 14%, transparent)"
+          : "color-mix(in srgb, var(--color-warning) 16%, transparent)",
+        border: `1px solid ${
+          good
+            ? "color-mix(in srgb, var(--color-accent-2) 45%, transparent)"
+            : "color-mix(in srgb, var(--color-warning) 50%, transparent)"
+        }`,
+        ...style,
+      }}
+    >
+      <Icon name={good ? "ph ph-sun" : "ph ph-cloud-sun"} style={{ fontSize: 11 }} aria-hidden />
+      {SUN_GRADE_LABEL[grade]}
+    </span>
+  );
+}
 
 /**
  * The appearance icons, as a literal map rather than a composed name.
@@ -151,7 +202,14 @@ export function ThemePicker({
             <span key={step} style={{ width: 18, height: 18, borderRadius: 4, background: s[step] }} />
           ))}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</span>
+          {/* Graded on the ground the club is CHOOSING, not the one they are
+              looking at — the same rule `ground` above follows. Switching
+              appearance to Light re-grades every swatch on the screen, which
+              is the most useful thing this badge does. */}
+          <SunBadge grade={sunGrade(sunlightCheck(preset, ground))} />
+        </div>
         {/* The comment at the call site said this swatch "says why instead of
             just dimming" — and it did not: the reason went into a `title`,
             which never appears on a touch device and is not announced. On the
@@ -258,8 +316,36 @@ export function ThemePicker({
           with its own crest colours. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Colour scheme</span>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-          {THEME_PAIRS.map((pair) => {
+        {/**
+         * SPLIT BY WHAT SURVIVES OUTDOORS, and only where that is a real
+         * distinction.
+         *
+         * On the LIGHT ground every scheme clears the bar (144 of 144,
+         * measured), so splitting there would invent two groups with nothing
+         * between them and put a heading over the empty one. On dark it is 30
+         * of 144, and the six traditional schemes are all in the other 114 —
+         * so the split is the whole point, and the group that works leads.
+         *
+         * Nothing is hidden or refused. A club that wants Claret can have
+         * Claret; it is told what that costs on the 14th tee, and told the
+         * remedy is Light rather than a different colour.
+         */}
+        {(() => {
+          const graded = THEME_PAIRS.map((pair) => ({
+            pair,
+            grade: themeSunGrade({
+              ...draft,
+              accentKey: pair.accentKey,
+              accentHex: "",
+              secondaryKey: pair.secondaryKey,
+              secondaryHex: "",
+            }),
+          }));
+          const good = graded.filter((g) => g.grade === "good");
+          const dim = graded.filter((g) => g.grade === "dim");
+          const split = good.length > 0 && dim.length > 0;
+
+          const Card = ({ pair, grade }: { pair: (typeof graded)[number]["pair"]; grade: SunGrade }) => {
             const accent = ACCENT_PRESETS.find((p) => p.key === pair.accentKey)!;
             const secondary = SECONDARY_PRESETS.find((p) => p.key === pair.secondaryKey)!;
             const on = draft.accentKey === pair.accentKey && draft.secondaryKey === pair.secondaryKey;
@@ -268,6 +354,7 @@ export function ThemePicker({
                 key={pair.key}
                 type="button"
                 className="card"
+                disabled={pending || readOnly}
                 onClick={() =>
                   set({
                     accentKey: pair.accentKey,
@@ -277,7 +364,7 @@ export function ThemePicker({
                   })
                 }
                 style={{
-                  cursor: "pointer",
+                  cursor: readOnly ? "default" : "pointer",
                   textAlign: "left",
                   gap: 6,
                   padding: "10px 12px",
@@ -287,7 +374,7 @@ export function ThemePicker({
                 }}
                 aria-pressed={on}
               >
-                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <span
                     aria-hidden="true"
                     style={{
@@ -303,12 +390,41 @@ export function ThemePicker({
                     }}
                   />
                   <span style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}>{pair.name}</span>
+                  <SunBadge grade={grade} />
                 </span>
                 <span className="text-muted" style={{ fontSize: 11 }}>{pair.blurb}</span>
               </button>
             );
-          })}
-        </div>
+          };
+
+          const grid = (items: typeof graded) => (
+            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+              {items.map((g) => (
+                <Card key={g.pair.key} pair={g.pair} grade={g.grade} />
+              ))}
+            </div>
+          );
+
+          if (!split) return grid(graded);
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                  Easiest to read on a phone in direct sun, on the appearance you have chosen.
+                </p>
+                {grid(good)}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                  These look their best indoors. On a bright day your members may struggle to read a
+                  score — switching Appearance to Light fixes every one of them.
+                </p>
+                {grid(dim)}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
