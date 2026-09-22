@@ -65,7 +65,27 @@ export function TeeSheetPrint({
 
   return (
     <>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
+      <div
+        /**
+         * NAMED, so something can link to it.
+         *
+         * Reports offers "Scorecards — open printable scorecards for the
+         * field" and sent an organizer to `/foursomes`, which is headed "Tee
+         * sheet" and opens on "Re-draw this sheet". The print button was on
+         * the page and below the fold, under the pairing editor. Ajay,
+         * 2026-09-22: "when I click on the print scorecards on the reports
+         * menu, it takes me to teesheet and not the actual scorecards".
+         *
+         * The redirect itself is right and stays — one print control, not two
+         * producing different groupings; see `app/(app)/scorecard/page.tsx`.
+         * What was missing is a way to land ON it.
+         *
+         * `scrollMarginTop` because the console header is sticky and an anchor
+         * without it parks the target underneath.
+         */
+        id="print-scorecards"
+        style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12, scrollMarginTop: 80 }}
+      >
         <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
           <Icon name="cards" /> Print scorecards
           {all ? " (all groups)" : ` (${selected.size} selected)`}

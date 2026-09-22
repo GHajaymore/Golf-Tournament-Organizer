@@ -1216,15 +1216,37 @@ describe("rounds and format", () => {
       expect(await reports({ hasTeeSheet: false })).toContain("Scorecards");
     });
 
+    /**
+     * THESE PIN THE PROPERTY, NOT THE SENTENCE, and they used to pin the
+     * sentence — `toContain("Open printable scorecards for the field")`.
+     *
+     * That wording was itself a defect. It sent an organizer to `/scorecard`,
+     * which redirects to a screen headed "Tee sheet" opening on "Re-draw this
+     * sheet", with the print button below the fold. Ajay, 2026-09-22: "it
+     * takes me to teesheet and not the actual scorecards". The copy now says
+     * where the cards are and the link lands on them.
+     *
+     * So a guard spelling out the old sentence would have had to be "updated
+     * to match" — which is how a corrected screen gets reverted by its own
+     * test. What these actually protect is the DIFFERENCE: a tournament with a
+     * sheet must not be told to go and draw one, and must read differently
+     * from one without. Both survive any rewording; neither survives the two
+     * cases collapsing.
+     */
     it("promises them once a sheet exists", async () => {
-      // The assertion that stops this becoming "always say draw a sheet".
-      expect(await reports({ hasTeeSheet: true })).toContain(
-        "Open printable scorecards for the field",
-      );
+      const html = await reports({ hasTeeSheet: true });
+      expect(html).toContain("Scorecards");
+      expect(html).not.toContain("Draw and save a tee sheet first");
     });
 
     it("and a caller that has not been taught is unchanged", async () => {
-      expect(await reports()).toContain("Open printable scorecards for the field");
+      expect(await reports()).toBe(await reports({ hasTeeSheet: true }));
+    });
+
+    it("says something different depending on whether a sheet exists", async () => {
+      // The control. Both assertions above pass if the entry says one bland
+      // thing in both states, which is the failure they exist to prevent.
+      expect(await reports({ hasTeeSheet: true })).not.toBe(await reports({ hasTeeSheet: false }));
     });
 
     it("and the page actually answers the question", () => {
