@@ -295,8 +295,8 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
 
-**One recurring CI failure is a Chromium crash, not a test.** `organizer.spec.ts:54` — "the
-leaderboard shows the whole field" — periodically fails on the desktop project with:
+**One recurring CI failure is a Chromium crash, not a test.** Somewhere in `organizer.spec.ts`,
+on the desktop project, with:
 
 ```
 [pid=####][err] Received signal 11 SEGV_MAPERR 0000000001b0
@@ -309,6 +309,17 @@ failure on that spec looks completely different, with an expected and a received
 confirm by re-running the SAME commit, which has gone green every time so far. What is not
 acceptable is merging past a red e2e without opening the log, which is how a real regression gets
 filed as this.
+
+**IT IS NOT ONE TEST.** This entry named `organizer.spec.ts:54`, "the leaderboard shows the whole
+field", for a fortnight, because that is where every observed crash had landed. On 2026-09-21 it
+struck `organizer.spec.ts:34` — "an organizer lands in the console, not the player app" — with
+the byte-identical signature, on the desktop project, on a pull request that changes only this
+document.
+
+So do not read a crash on a DIFFERENT line of that spec as a different problem, and do not go
+looking at whatever the named test asserts. The signature is the diagnosis: signal 11,
+`SEGV_MAPERR 0000000001b0`, desktop only, and no expected-versus-received anywhere in the output.
+The line number is as much noise as the component name is in the `Client Manifest` fault below.
 
 **What is known about it, measured rather than assumed** (2026-09-08):
 
@@ -421,6 +432,56 @@ already says — the component name is noise, the tell is `Client Manifest` in t
 same commit passing elsewhere. That day the `pull_request` run of the identical SHA was green on
 all three viewports while the `push` run was red, which is as clean a control as this fault ever
 offers.
+
+**AND ON 2026-09-21 IT WENT RED ON A COMMIT THAT ADDS ONE TEST FILE AND NOTHING ELSE**, naming
+`RegistrationClient` — the eighth component to appear in this error and one the commit does not
+import, reference or reach. `/registration has 0 h1s: []`, the usual costume.
+
+That is a stronger control than the comment-only PR above, and it is worth having both: a
+comment-only change still TOUCHES a source file, so somebody can always wonder about a stray
+character. A commit whose entire diff is one new file under `src/lib/__tests__` cannot alter what
+`next build` emits for a page it never mentions. The three other proofs held as usual — `phone`
+and `small-phone` passed the same SHA with their own builds, the PR run was green on all three
+viewports twice over, and a re-run of the identical commit with no change went fully green and
+deployed.
+
+So the count of named components is now NINE and still climbing, which is the point the list is
+making rather than a gap in it. **Do not chase the component.** Re-run the failed job
+(`gh run rerun <id> --failed`) and read `Client Manifest` as the whole diagnosis.
+
+The ninth arrived an hour later, on the pull request ADDING THE PARAGRAPH ABOVE — a change to
+this file and nothing else — as `SeriesClient`, on `Build and smoke`. A documentation commit
+cannot break a bundler, and that run's sibling jobs built the same SHA fine.
+
+**AND THE FREQUENCY IS NOW THE FINDING.** This section has always described an occasional fault.
+On the evening of 2026-09-21 the two build-time faults struck FIVE times across four pull
+requests:
+
+```
+next/font        #550 End-to-end (desktop)      #551 Build and smoke
+                 #554 End-to-end (small-phone)
+Client Manifest  #553 End-to-end (desktop)   → RegistrationClient
+                 #554 Build and smoke        → SeriesClient
+Chromium SEGV    #554 End-to-end (desktop)   → organizer.spec.ts:34
+```
+
+Three of those four commits could not have caused anything — one added a single test file, one
+edited only this document. Every one cleared on a re-run of the identical commit.
+
+**#554 IS THE ONE TO REMEMBER: it collected all THREE faults, across two pushes, while changing
+nothing but this file.** If a documentation commit can go red three different ways in twenty
+minutes, then a red e2e on a branch that touches real code says nothing on its own either. Open
+the log, name which of the three it is, and re-run.
+
+That crosses the threshold this file sets for itself two paragraphs up: *"if that log line starts
+appearing often … it is time to chase the cause properly."* It has not been chased yet. What the
+evening establishes is the SHAPE to hand whoever does — both faults are in the build, both are
+intermittent per-job rather than per-commit, both clear on a re-run, and they can hit the same
+commit in different jobs at once. Whether one evening of a busy runner fleet explains both, or
+whether `build-checked` needs to cover `next/font` the way it covers manifests, is open.
+
+Until then the operational answer is unchanged and is cheap: read which of the two it is, re-run
+the failed job, and do not edit application code on the strength of either.
 
 **And that pair is worth knowing about on its own: `ci.yml` runs on BOTH `push` and
 `pull_request`, so one commit has TWO workflow runs and two sets of identically-named checks.**
