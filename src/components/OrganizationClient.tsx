@@ -239,7 +239,12 @@ export function OrganizationClient(props: Props) {
             staff access. An intro naming one of five cards reads as a
             description of the page. */}
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Everything here applies to every tournament this organization runs — the branding on the console
+          {/* `outfit.noun`, not "organization". The heading two lines up has
+              said "Club settings" since the profile landed, and this sentence
+              went on calling the same thing an organization directly beneath
+              it — on a page whose own Type card says "Golf club". Spotted by
+              Ajay, 2026-09-21. */}
+          Everything here applies to every tournament this {outfit.noun} runs — the branding on the console
           header and printed scorecards, the look, how money works by default, and who has access.
         </p>
       </div>
@@ -260,7 +265,7 @@ export function OrganizationClient(props: Props) {
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Tournaments</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{props.eventCount}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>owned by this organization</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>owned by this {outfit.noun}</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Staff</span>

@@ -12,11 +12,16 @@
  * Pure, and given `today` rather than reading a clock — a month grid that
  * depends on when the test runs is a month grid that fails in December.
  *
- * Dates are handled as the y-m-d they are. Every date here is built through
- * `Date.UTC` and read back with the UTC getters, so no local offset is ever
- * applied to a day that has none: on a server in UTC a US club's Tuesday
- * round is otherwise perfectly capable of landing on the Monday square.
+ * THE GRID ITSELF LIVES IN `month-grid.ts`, shared with the club-wide calendar
+ * that carries a member's commitments across every tournament. This file is
+ * what sits ON a square for one league; that file is which squares there are.
+ * The UTC handling that keeps a US club's Tuesday round off the Monday square
+ * moved with it, and its reasoning is written down there.
  */
+
+import { monthGrids, partsOf, WEEKDAY_INITIALS } from "./month-grid";
+
+export { WEEKDAY_INITIALS };
 
 export interface CalendarRound {
   stageId: string;
@@ -70,123 +75,52 @@ export interface AvailabilityCalendar {
   undated: CalendarRound[];
 }
 
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/** Sunday first, the way a US club prints its calendar. */
-export const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
-
-const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** The parts of an ISO day, or null when it isn't one. */
-function partsOf(iso: string): { y: number; m: number; d: number } | null {
-  const match = ISO.exec((iso ?? "").trim());
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const month = Number(m);
-  const day = Number(d);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return { y: Number(y), m: month, d: day };
-}
-
-const isoOf = (utc: Date): string =>
-  `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    utc.getUTCDate(),
-  ).padStart(2, "0")}`;
-
 /**
  * The season as months, from the first dated round to the last.
  *
- * Only months that actually hold a round: a league running May to August has
- * four months worth showing, and padding the year out to twelve would bury
- * them. Months in between are kept even when empty, because a gap in a season
- * is information — that is the fortnight off.
+ * Which months appear, and why only those, is `monthGrids`. This adds the one
+ * round each square carries.
  */
 export function buildAvailabilityCalendar(
   rounds: CalendarRound[],
   todayIso: string,
 ): AvailabilityCalendar {
-  const dated: Array<{ round: CalendarRound; y: number; m: number; d: number }> = [];
+  const dated: CalendarRound[] = [];
   const undated: CalendarRound[] = [];
 
   for (const round of rounds) {
-    const parts = partsOf(round.playedOn);
-    if (parts) dated.push({ round, ...parts });
+    if (partsOf(round.playedOn)) dated.push(round);
     else undated.push(round);
   }
 
   if (dated.length === 0) return { months: [], undated };
 
   const byIso = new Map<string, CalendarRound>();
-  for (const { round } of dated) {
+  for (const round of dated) {
     // First one wins, so a duplicate date can't blank the round already there.
     if (!byIso.has(round.playedOn.trim())) byIso.set(round.playedOn.trim(), round);
   }
 
-  const stamps = dated.map((r) => Date.UTC(r.y, r.m - 1, r.d));
-  const first = new Date(Math.min(...stamps));
-  const last = new Date(Math.max(...stamps));
-
-  const months: CalendarMonth[] = [];
-  const cursor = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1));
-  const end = Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), 1);
-
-  while (cursor.getTime() <= end) {
-    const year = cursor.getUTCFullYear();
-    const month = cursor.getUTCMonth();
-    const firstOfMonth = new Date(Date.UTC(year, month, 1));
-    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-    // Back up to the Sunday on or before the 1st, then run whole weeks until
-    // the month is covered. The grid is rectangular by construction rather
-    // than by the renderer padding it.
-    const start = new Date(firstOfMonth);
-    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
-
-    const weeks: CalendarDay[][] = [];
-    const day = new Date(start);
+  const months: CalendarMonth[] = monthGrids(
+    dated.map((r) => r.playedOn),
+    todayIso,
+  ).map((m) => {
     let roundCount = 0;
     let inCount = 0;
-
-    while (true) {
-      const week: CalendarDay[] = [];
-      for (let i = 0; i < 7; i += 1) {
-        const iso = isoOf(day);
-        const inMonth = day.getUTCMonth() === month && day.getUTCFullYear() === year;
-        const round = byIso.get(iso) ?? null;
-        if (round && inMonth) {
+    const weeks: CalendarDay[][] = m.weeks.map((week) =>
+      week.map((day) => {
+        const round = byIso.get(day.iso) ?? null;
+        if (round && day.inMonth) {
           roundCount += 1;
           if (round.status === "in") inCount += 1;
         }
-        week.push({
-          iso,
-          day: day.getUTCDate(),
-          inMonth,
-          isToday: iso === todayIso,
-          isPast: iso < todayIso,
-          // A round belongs to the month it is played in, so the padding days
-          // show it greyed rather than offering a second copy to tap.
-          round,
-        });
-        day.setUTCDate(day.getUTCDate() + 1);
-      }
-      weeks.push(week);
-      const done = day.getUTCMonth() !== month || day.getUTCFullYear() !== year;
-      if (done && weeks.length * 7 >= daysInMonth) break;
-      if (weeks.length >= 6) break;
-    }
-
-    months.push({
-      key: `${year}-${String(month + 1).padStart(2, "0")}`,
-      label: `${MONTHS[month]} ${year}`,
-      weeks,
-      roundCount,
-      inCount,
-    });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
+        // A round belongs to the month it is played in, so the padding days
+        // show it greyed rather than offering a second copy to tap.
+        return { ...day, round };
+      }),
+    );
+    return { key: m.key, label: m.label, weeks, roundCount, inCount };
+  });
 
   return { months, undated };
 }
@@ -202,9 +136,26 @@ export type DayTone = "in" | "in-default" | "out" | "out-default" | "locked" | "
  */
 export function toneOf(day: CalendarDay): DayTone {
   if (!day.round) return "none";
-  if (day.round.locked) return "locked";
-  if (day.round.status === "in") return day.round.explicit ? "in" : "in-default";
-  return day.round.explicit ? "out" : "out-default";
+  return toneFor(day.round);
+}
+
+/**
+ * The same reading, of an answer rather than of a square.
+ *
+ * Separate because the club-wide calendar has a LIST per square and so has no
+ * single tone to ask `toneOf` for — it tones each commitment on the day. Two
+ * copies of these four lines would be two copies of the distinction the whole
+ * feature turns on, and the one most likely to be "simplified" to two states
+ * by somebody who has not read why it is four.
+ */
+export function toneFor(round: {
+  status: "in" | "out";
+  explicit: boolean;
+  locked: boolean;
+}): DayTone {
+  if (round.locked) return "locked";
+  if (round.status === "in") return round.explicit ? "in" : "in-default";
+  return round.explicit ? "out" : "out-default";
 }
 
 /** What that tone means, for the legend and for a screen reader. */

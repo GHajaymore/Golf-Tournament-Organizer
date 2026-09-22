@@ -14,6 +14,12 @@ import {
   resolveSecondary,
   customPreset,
   sunlightVerdict,
+  sunlightCheck,
+  sunGrade,
+  themeSunGrade,
+  gradingGround,
+  SUN_GRADE_LABEL,
+  RECOMMENDED_SCHEME,
   pairVerdict,
   hueDistance,
   themeHue,
@@ -22,8 +28,84 @@ import {
   type Appearance,
   type ClubTheme,
   type Ground,
+  type SunGrade,
 } from "@/lib/themes";
 import { Icon } from "./Icon";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
+
+/**
+ * How a colour or a scheme reads outdoors, said ON the thing being chosen.
+ *
+ * The whole point is that it is visible BEFORE the click. The warning panel
+ * further down this file has always been honest and has always been in the
+ * wrong place — below the swatches, so an organizer picked from twelve colours
+ * and six schemes with nothing marked and found out afterwards, if they
+ * scrolled. Measured 2026-09-21: on the dark ground only 30 of 144
+ * combinations clear the bar, and every one of the six ready-made schemes
+ * failed it.
+ *
+ * Not colour alone, and not an icon alone — the words are there too. This is
+ * the one screen in the app whose entire subject is colour, so a badge that
+ * needed colour vision to read would be a poor joke.
+ */
+function SunBadge({
+  grade,
+  ground,
+  style,
+}: {
+  grade: SunGrade;
+  /**
+   * The ground this badge is DRAWN ON, when that is not the page's own.
+   *
+   * A colour swatch is deliberately painted on the ground the club is
+   * CHOOSING, so an organizer on a dark console picking Light sees the colours
+   * as they will actually appear. The badge sits inside that swatch and so has
+   * to be coloured the same way — and it was not: it used `--color-accent-2`
+   * and `--color-warning`, which resolve against whatever the PAGE is on.
+   * Picking Light from a dark console therefore put a bright optic-yellow
+   * "Good in sun" on a cream card, which is close to unreadable. Reported by
+   * Ajay, 2026-09-21, and the joke of it is that this is the badge whose entire
+   * subject is legibility.
+   *
+   * `ground.text` and `ground.warning` are the right values because both are
+   * measured against their own ground — the warning amber is 7.35:1 on dark
+   * and 6.28:1 on light — so neither can be illegible whichever one is passed.
+   *
+   * Omitted for the ready-made scheme cards, which are ordinary page cards on
+   * the page's surface and correctly take the page's tokens.
+   */
+  ground?: Ground;
+  style?: React.CSSProperties;
+}) {
+  const good = grade === "good";
+  // Attention goes to DIM, which is the actionable state; "good" is a quiet
+  // confirmation and does not need a colour of its own to shout with.
+  const fg = ground ? (good ? ground.text : ground.warning) : good ? "var(--color-accent-2)" : "var(--color-warning)";
+  // Works for both a literal hex and a `var(--…)`, so one expression covers
+  // the swatch case and the page case.
+  const tint = (pct: number) => `color-mix(in srgb, ${fg} ${pct}%, transparent)`;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 10.5,
+        lineHeight: 1.2,
+        padding: "2px 6px",
+        borderRadius: 999,
+        whiteSpace: "nowrap",
+        color: fg,
+        background: tint(good ? 10 : 16),
+        border: `1px solid ${tint(good ? 34 : 50)}`,
+        ...style,
+      }}
+    >
+      <Icon name={good ? "ph ph-sun" : "ph ph-cloud-sun"} style={{ fontSize: 11 }} aria-hidden />
+      {SUN_GRADE_LABEL[grade]}
+    </span>
+  );
+}
 
 /**
  * The appearance icons, as a literal map rather than a composed name.
@@ -69,6 +151,7 @@ export function ThemePicker({
   theme: ClubTheme;
   readOnly: boolean;
 }) {
+  const noun = useOrgProfile().noun;
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -110,6 +193,17 @@ export function ThemePicker({
   // one they're currently looking at — otherwise picking "light" would show
   // every colour as it appears in dark mode.
   const ground = groundFor(draft.appearance === "dark" ? "dark" : "light");
+  /**
+   * AND THE GROUND THEY ARE JUDGED ON, WHICH IS A DIFFERENT QUESTION.
+   *
+   * `ground` above resolves `auto` to LIGHT, which is right for painting a
+   * preview and wrong for grading: `auto` renders DARK on any device that has
+   * not asked otherwise, so that is where sunlight has to be judged. Grading
+   * off `ground` had the Claret swatch reading "Good in sun" while the
+   * Championship scheme — which is claret — read "Dim in sun", on one screen,
+   * with the club on Follow-the-device.
+   */
+  const gradeGround = gradingGround(draft.appearance);
   const sun = sunlightVerdict(draft);
   const pair = pairVerdict(draft);
   const accentHue = themeHue(draft.accentKey, draft.accentHex);
@@ -119,12 +213,25 @@ export function ThemePicker({
     selected,
     onPick,
     disabledReason,
+    recommended,
   }: {
     preset: ThemePreset;
     selected: boolean;
     onPick: () => void;
     /** Set when this swatch can't do its job against the current accent. */
     disabledReason?: string;
+    /**
+     * The half of the recommended scheme this list is choosing.
+     *
+     * Ajay, 2026-09-21: "how about recommendations in main colors?" The badge
+     * was only on the ready-made schemes, so an organizer who scrolled past
+     * them to pick a colour by hand — which is most of the point of these two
+     * lists — lost the recommendation entirely. It is the same scheme either
+     * way: the accent list marks its accent and the second list marks its
+     * secondary, so picking both marked swatches lands exactly on the
+     * recommended pair.
+     */
+    recommended?: boolean;
   }) => {
     const s = themeScale(preset, ground);
     return (
@@ -151,7 +258,38 @@ export function ThemePicker({
             <span key={step} style={{ width: 18, height: 18, borderRadius: 4, background: s[step] }} />
           ))}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</span>
+          {/* Graded on the ground the club is CHOOSING, not the one they are
+              looking at — the same rule `ground` above follows. Switching
+              appearance to Light re-grades every swatch on the screen, which
+              is the most useful thing this badge does. */}
+          {/* GRADED on `gradeGround`, PAINTED on `ground`. They differ for
+              `auto`, and conflating them is what made this swatch disagree
+              with the scheme card above it about the same colour. */}
+          <SunBadge grade={sunGrade(sunlightCheck(preset, gradeGround))} ground={ground} />
+          {recommended && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                fontSize: 10,
+                lineHeight: 1.2,
+                padding: "2px 6px",
+                borderRadius: 999,
+                whiteSpace: "nowrap",
+                // This swatch is painted on the CHOSEN ground, so the badge
+                // takes its colours from there too — see SunBadge's note.
+                color: ground.bg,
+                background: ground.text,
+              }}
+            >
+              <Icon name="ph-bold ph-star" style={{ fontSize: 10 }} aria-hidden />
+              Recommended
+            </span>
+          )}
+        </div>
         {/* The comment at the call site said this swatch "says why instead of
             just dimming" — and it did not: the reason went into a `title`,
             which never appears on a touch device and is not announced. On the
@@ -216,7 +354,11 @@ export function ThemePicker({
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Colour &amp; appearance</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Applies to every tournament this organization runs, on every device anyone opens it on.
+          {/* The outfit's own word. `useOrgProfile` rather than a new prop,
+              which is how `OrganizationAccess` already does it — the kind
+              alone cannot know what an outfit calls itself, so a US league
+              would otherwise read "society" here. */}
+          Applies to every tournament this {noun} runs, on every device anyone opens it on.
         </p>
       </div>
 
@@ -258,8 +400,36 @@ export function ThemePicker({
           with its own crest colours. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Colour scheme</span>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-          {THEME_PAIRS.map((pair) => {
+        {/**
+         * SPLIT BY WHAT SURVIVES OUTDOORS, and only where that is a real
+         * distinction.
+         *
+         * On the LIGHT ground every scheme clears the bar (144 of 144,
+         * measured), so splitting there would invent two groups with nothing
+         * between them and put a heading over the empty one. On dark it is 30
+         * of 144, and the six traditional schemes are all in the other 114 —
+         * so the split is the whole point, and the group that works leads.
+         *
+         * Nothing is hidden or refused. A club that wants Claret can have
+         * Claret; it is told what that costs on the 14th tee, and told the
+         * remedy is Light rather than a different colour.
+         */}
+        {(() => {
+          const graded = THEME_PAIRS.map((pair) => ({
+            pair,
+            grade: themeSunGrade({
+              ...draft,
+              accentKey: pair.accentKey,
+              accentHex: "",
+              secondaryKey: pair.secondaryKey,
+              secondaryHex: "",
+            }),
+          }));
+          const good = graded.filter((g) => g.grade === "good");
+          const dim = graded.filter((g) => g.grade === "dim");
+          const split = good.length > 0 && dim.length > 0;
+
+          const Card = ({ pair, grade }: { pair: (typeof graded)[number]["pair"]; grade: SunGrade }) => {
             const accent = ACCENT_PRESETS.find((p) => p.key === pair.accentKey)!;
             const secondary = SECONDARY_PRESETS.find((p) => p.key === pair.secondaryKey)!;
             const on = draft.accentKey === pair.accentKey && draft.secondaryKey === pair.secondaryKey;
@@ -268,6 +438,7 @@ export function ThemePicker({
                 key={pair.key}
                 type="button"
                 className="card"
+                disabled={pending || readOnly}
                 onClick={() =>
                   set({
                     accentKey: pair.accentKey,
@@ -277,7 +448,7 @@ export function ThemePicker({
                   })
                 }
                 style={{
-                  cursor: "pointer",
+                  cursor: readOnly ? "default" : "pointer",
                   textAlign: "left",
                   gap: 6,
                   padding: "10px 12px",
@@ -287,7 +458,7 @@ export function ThemePicker({
                 }}
                 aria-pressed={on}
               >
-                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <span
                     aria-hidden="true"
                     style={{
@@ -303,12 +474,72 @@ export function ThemePicker({
                     }}
                   />
                   <span style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}>{pair.name}</span>
+                  <SunBadge grade={grade} />
+                  {/* The joint best across BOTH grounds, which is the number
+                      that matters while `auto` exists — the same club theme
+                      renders dark on one member's phone and light on
+                      another's. Derived, not asserted: a test pins that this
+                      key really is the best and names the winner if it stops
+                      being. */}
+                  {pair.key === RECOMMENDED_SCHEME && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10.5,
+                        lineHeight: 1.2,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                        color: "var(--color-on-accent)",
+                        background: "var(--color-accent)",
+                      }}
+                    >
+                      <Icon name="ph-bold ph-star" style={{ fontSize: 11 }} aria-hidden />
+                      Recommended
+                    </span>
+                  )}
                 </span>
                 <span className="text-muted" style={{ fontSize: 11 }}>{pair.blurb}</span>
+                {pair.key === RECOMMENDED_SCHEME && (
+                  <span className="text-muted" style={{ fontSize: 11 }}>
+                    Tested on a phone in sun and on a screen indoors, and it clears both comfortably —
+                    so it holds up whichever appearance your members&rsquo; devices choose.
+                  </span>
+                )}
               </button>
             );
-          })}
-        </div>
+          };
+
+          const grid = (items: typeof graded) => (
+            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+              {items.map((g) => (
+                <Card key={g.pair.key} pair={g.pair} grade={g.grade} />
+              ))}
+            </div>
+          );
+
+          if (!split) return grid(graded);
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                  Easiest to read on a phone in direct sun, on the appearance you have chosen.
+                </p>
+                {grid(good)}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                  These look their best indoors. On a bright day your members may struggle to read a
+                  score — switching Appearance to Light fixes every one of them.
+                </p>
+                {grid(dim)}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -320,6 +551,7 @@ export function ThemePicker({
               preset={p}
               selected={draft.accentKey === p.key}
               onPick={() => set({ accentKey: p.key, accentHex: "" })}
+              recommended={p.key === DEFAULT_CLUB_THEME.accentKey}
             />
           ))}
         </div>
@@ -360,6 +592,7 @@ export function ThemePicker({
                 selected={draft.secondaryKey === p.key}
                 onPick={() => set({ secondaryKey: p.key, secondaryHex: "" })}
                 disabledReason={clash}
+                recommended={p.key === DEFAULT_CLUB_THEME.secondaryKey}
               />
             );
           })}

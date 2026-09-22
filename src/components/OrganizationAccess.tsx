@@ -61,11 +61,33 @@ export function OrganizationAccess({
   report,
   canEdit,
   asks,
+  seats,
 }: {
   report: AccessReport;
   canEdit: boolean;
   /** People waiting to be let in. Empty for almost every club, almost always. */
   asks: PendingAsk[];
+  /**
+   * How many people hold a STAFF SEAT — the number the plan allowance counts,
+   * and the number the stat card at the top of this page prints.
+   *
+   * PASSED IN, not derived here, and that is the point. This table and that
+   * card both used the word "staff" for two different sets, and on real rows
+   * they disagreed in BOTH directions (measured 2026-09-21): the seeded club
+   * read 1 against 2, because the roster holds a `member` who has no organizer
+   * rights at all; the demo club read 3 against 1, because two people hold
+   * admin on individual events and have no organization row. Neither set
+   * contains the other, so the comment on that card claiming it was the
+   * broader one was wrong.
+   *
+   * `staffSeatCount` is the single definition — organizer or assistant rights
+   * anywhere in the outfit, deduplicated by email — and it is the one with
+   * money attached, since it is what refuses the next person added. Computing
+   * a second opinion from `report` here is exactly how the two came to
+   * disagree, so this takes the authoritative number rather than recomputing
+   * one that would agree only by luck.
+   */
+  seats: number;
 }) {
   /** "club" / "society" / "outing" — the thing a role can be inherited FROM. */
   // The RESOLVED profile from the console context, not `orgProfile(orgKind)`:
@@ -175,7 +197,28 @@ export function OrganizationAccess({
       {/* ── Staff ─────────────────────────────────────────────────────── */}
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
         <div className="card elev-sm">
-          <span className="card-title" style={{ fontSize: 15 }}>Organization staff ({staff.length})</span>
+          {/* The outfit's own word, capitalised for a heading — "Organization
+              staff" over a page headed "Club settings" is the same mismatch
+              Ajay pointed at in the intro sentence, one card down.
+
+              And ROSTER rather than "staff", because this table lists everyone
+              holding a role at the outfit and two of the four roles — Member
+              and Guest — confer no organizer rights whatever. Calling that
+              count "staff" is what put a 2 here under a stat card reading 1,
+              on the same screen, with no way to tell which was wrong. */}
+          <span className="card-title" style={{ fontSize: 15 }}>
+            {from.charAt(0).toUpperCase() + from.slice(1)} roster ({staff.length})
+          </span>
+          {/* The reconciliation, said rather than left for the reader to
+              notice. The two numbers are both correct and count different
+              things; what was missing was any sentence admitting it. */}
+          <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+            {seats === 1
+              ? `1 person holds a staff seat`
+              : `${seats} people hold a staff seat`}{" "}
+            — organizer or assistant rights somewhere, which is what your plan counts. Members and
+            guests are on this list without holding one.
+          </p>
           <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
             {/* The Commissioner line must keep saying BILLING. The word
                 describes control, not money — unlike "Owner", which said it by
@@ -184,7 +227,7 @@ export function OrganizationAccess({
                 disappears with it. Their powers are otherwise identical:
                 `canAdministerOrg` is `owner || admin`. */}
             <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
-            <b>Admin</b> — organizer on every tournament this organization runs, without being added to
+            <b>Admin</b> — organizer on every tournament this {from} runs, without being added to
             each one. <b>Member</b> — staff pool; access only where explicitly given on an event.{" "}
             {/* The one role that grants LESS. A charity day and a league
                 substitute are the same person to the app: in for one event,
@@ -399,8 +442,13 @@ export function OrganizationAccess({
 
         {eventOnly.length > 0 && (
           <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-            {eventOnly.length} of these hold access through individual tournaments only, and are not
-            organization staff — mostly players.
+            {/* NOT "are not staff". The demo club has two people here holding
+                ADMIN on individual events — they consume a staff seat and do
+                not appear in the roster above, which is the other direction of
+                the same confusion. What is true of all of them is that they
+                have no role at the {from} itself. */}
+            {eventOnly.length} more have access through individual tournaments only, without a role
+            at the {from} — mostly players.
           </p>
         )}
       </div>

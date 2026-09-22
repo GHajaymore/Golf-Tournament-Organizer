@@ -642,10 +642,74 @@ export interface ThemePair {
  * a custom hex.
  */
 export const THEME_PAIRS: ThemePair[] = [
+  /* ── Sun-ready: the ones that hold up on a phone outdoors ───────────────
+   *
+   * Measured 2026-09-21, and the measurement is the reason this group exists.
+   * On the DARK ground — which is what `auto` resolves to, and `auto` is the
+   * default — only 30 of the 144 accent/secondary combinations clear
+   * SUNLIGHT_RATIO, and they come from just six colours: Verdigris, Bunker,
+   * Ivy, Signal, Optic and Fairway. Every blue, red, purple and pink is dim
+   * out there. On the LIGHT ground all 144 clear it.
+   *
+   * Before this group, ALL SIX of the curated pairs failed on dark. So the one
+   * feature aimed at an organizer who did not want to do design work was
+   * recommending six schemes that are hard to read on the course, with nothing
+   * on the cards saying so — the app's own default, Verdigris + Optic, was not
+   * even offered as a pair. That is what Ajay asked about: "warn organizer if
+   * they select any theme and it is not recommended for the mobile to use it
+   * in the sun while playing golf."
+   *
+   * These are not a restriction and the rest of the list is not deprecated: a
+   * club on Light mode can take any pair below and be perfectly legible. What
+   * changed is that the picker now says which is which, per card, before the
+   * click rather than after it.
+   */
+  {
+    key: "tournament",
+    name: "Tournament",
+    blurb: "The app's own colours — built to be read in full sun.",
+    accentKey: "verdigris",
+    secondaryKey: "optic",
+  },
+  {
+    key: "woodland",
+    name: "Woodland",
+    blurb: "Deep clubhouse green over sand.",
+    accentKey: "ivy",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "floodlit",
+    name: "Floodlit",
+    blurb: "Playing green and optic yellow. Loud, and legible at arm's length.",
+    accentKey: "signal",
+    secondaryKey: "optic",
+  },
+  {
+    key: "desert",
+    name: "Desert",
+    blurb: "Sand gold over oxidised bronze.",
+    accentKey: "bunker",
+    secondaryKey: "verdigris",
+  },
+  {
+    key: "openweek",
+    name: "Open Week",
+    blurb: "Optic yellow on clubhouse green — impossible to miss.",
+    accentKey: "optic",
+    secondaryKey: "ivy",
+  },
+
+  /* ── The traditional schemes ────────────────────────────────────────────
+   *
+   * Every one of these is a genuine club look and none is going anywhere. All
+   * of them are dim on the dark ground and all of them are fine on the light
+   * one, which the card now says.
+   */
   {
     key: "classic",
     name: "Classic",
-    blurb: "Warm orange on clubhouse green. The app's own colours.",
+    blurb: "Warm orange on clubhouse green. The app's original.",
     accentKey: "sunset",
     secondaryKey: "fairway",
   },
@@ -683,6 +747,28 @@ export const THEME_PAIRS: ThemePair[] = [
     blurb: "Sand gold against coastal blue.",
     accentKey: "bunker",
     secondaryKey: "links",
+  },
+
+  /* ── Bold ────────────────────────────────────────────────────────────────
+   *
+   * For a society day, a corporate outing or a club that simply does not want
+   * to look like a club. Both are dim on the dark ground — saturated colour at
+   * the far end of the wheel is exactly what sunlight takes apart — and both
+   * are fine on Light, which is the remedy the picker offers.
+   */
+  {
+    key: "azalea-week",
+    name: "Azalea Week",
+    blurb: "Hot pink and sand, for the one week a course is unapologetically pink.",
+    accentKey: "azalea",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "midnight",
+    name: "Midnight",
+    blurb: "Cool violet with a green that lights up. Nothing like a members' medal.",
+    accentKey: "violet",
+    secondaryKey: "signal",
   },
 ];
 
@@ -966,6 +1052,126 @@ export function playerColorScheme(theme: ClubTheme): string {
  */
 export const SUNLIGHT_RATIO = 7;
 
+/**
+ * How something reads on a phone, outdoors, in one word.
+ *
+ * ONE VOCABULARY, because three places say it and they must not come to
+ * disagree: the badge on a colour swatch, the badge on a ready-made scheme,
+ * and the warning panel under the preview. Before this the panel was the only
+ * one of the three that existed, and it sat BELOW the swatches — so an
+ * organizer chose from twelve colours and six schemes with nothing marked, and
+ * found out afterwards, if they scrolled.
+ *
+ * Two grades rather than three. A club is deciding whether their members can
+ * read a score on the 14th on a bright day; "fair" is not an answer anyone can
+ * act on, and the bar itself (SUNLIGHT_RATIO) is already the line.
+ */
+export type SunGrade = "good" | "dim";
+
+export const SUN_GRADE_LABEL: Record<SunGrade, string> = {
+  good: "Good in sun",
+  dim: "Dim in sun",
+};
+
+/** The grade of one colour, on the ground it will actually be drawn on. */
+export function sunGrade(check: SunlightCheck): SunGrade {
+  return check.ok ? "good" : "dim";
+}
+
+/**
+ * THE GROUND A THEME IS JUDGED ON — which is not the ground a preview PAINTS on.
+ *
+ * `light` is the only value that renders the light ground unconditionally.
+ * Both `dark` and `auto` put a phone with no stated preference on the dark one,
+ * so both are judged there.
+ *
+ * Exported because the picker needs the same answer and got a different one.
+ * `ThemePicker` computes its swatch ground as "dark if dark, else light",
+ * which is correct for PAINTING — a club choosing Light should see light
+ * swatches — and wrong for GRADING, because it puts `auto` on the light
+ * ground. Reusing it to grade produced two answers about one colour on one
+ * screen (2026-09-21): with the seeded club on Follow-the-device, the Claret
+ * swatch read "Good in sun" while the Championship scheme, which IS claret,
+ * read "Dim in sun". And it was wrong in the generous direction — telling a
+ * club their claret is fine outdoors when most of their members will see it
+ * at 4.50:1.
+ *
+ * So the rule lives here and both callers take it. Two readers of one
+ * question, and the one that varied was the one asking a different question.
+ */
+export function gradingGround(appearance: Appearance): Ground {
+  return appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
+}
+
+/**
+ * THE ONE TO PICK IF YOU ARE NOT GOING TO THINK ABOUT IT.
+ *
+ * Ajay, 2026-09-21: "the preferred theme should be really good and tested for
+ * both desktop and mobile", and then "I am okay if you recommend preferred
+ * theme separately for desktop and mobile."
+ *
+ * Measured, the answer to the second is that THERE IS NO SPLIT WORTH MAKING —
+ * the same scheme wins both surfaces, and the difference between them is not
+ * which theme is best but how much the surface can AFFORD. A clubhouse screen
+ * indoors is forgiving and every scheme in the list is fine on it; a phone at
+ * arm's length in sun is not, and on the dark ground only six of the twelve
+ * colours clear the bar at all. So a "best on desktop" that differed from
+ * "best on mobile" would be recommending a worse phone theme for no gain.
+ *
+ * WHICH ONE, and the measurement that does NOT settle it on its own.
+ *
+ * The obvious rule is "the highest contrast", and it was tried first. Two
+ * things came out of measuring it, both worth keeping:
+ *
+ *   - ON THE LIGHT GROUND EVERY SCHEME IS THE SAME, 4.50 to 4.53. Not a
+ *     coincidence — construction: the ramp solves lightness to sit at the
+ *     readable minimum, so light mode cannot discriminate between schemes, and
+ *     a "worst across both grounds" score is the light number with noise on
+ *     it. Ranking by it put nine schemes ahead of this one by 0.01.
+ *   - ON THE DARK GROUND THE SPREAD IS REAL, 3.91 to 13.80, and the winner is
+ *     NOT this scheme. Floodlit (Signal + Optic) scores 12.07 against
+ *     Tournament's 10.09.
+ *
+ * Floodlit is not recommended anyway, and the reason is written at
+ * DEFAULT_THEME above: `--color-accent-2` is the SEMANTIC colour — it rings a
+ * birdie, marks the live dot, colours money owed to you — so a green brand
+ * accent competes with the green that already means "good". Floodlit leads
+ * with Signal, a bright green. Contrast is necessary and it is not sufficient,
+ * and a recommendation driven by contrast alone would ship a theme whose
+ * accent argues with its own meaning.
+ *
+ * So the rule is: clear the outdoor bar on dark with real headroom, pass on
+ * light, keep the accent clear of the semantic green, and be what a club that
+ * never opens this screen already has. `the-recommended-theme-is-earned`
+ * asserts each of those rather than a ranking, and records the Floodlit
+ * comparison so the next person does not re-derive it and "fix" the badge.
+ */
+export const RECOMMENDED_SCHEME = "tournament";
+
+/**
+ * A scheme's weakest contrast on the DARK ground.
+ *
+ * Dark only, and the note above is why: the light ground is flat by
+ * construction, so including it measures nothing and hides the axis that does
+ * vary. Higher is better. A raw ratio for comparing schemes against each
+ * other, not a pass mark — the bars differ by ground (7:1 dark, 4.5:1 light).
+ */
+export function darkGroundMargin(accent: ThemePreset, secondary: ThemePreset): number {
+  return Math.min(
+    sunlightCheck(accent, DARK_GROUND).worstRatio,
+    sunlightCheck(secondary, DARK_GROUND).worstRatio,
+  );
+}
+
+/**
+ * The grade of a whole scheme — both colours, on the ground its appearance
+ * resolves to. `auto` is graded as dark, exactly as `sunlightVerdict` does,
+ * because that is where a phone with no stated preference lands.
+ */
+export function themeSunGrade(theme: ClubTheme): SunGrade {
+  return sunlightVerdict(theme).ok ? "good" : "dim";
+}
+
 export interface SunlightCheck {
   ok: boolean;
   /** The weakest of the shades players actually read. */
@@ -1064,10 +1270,7 @@ export function sunlightVerdict(theme: ClubTheme): {
   /** Set when switching appearance would fix it on its own. */
   suggestion: string | null;
 } {
-  // `light` is the only value that renders the light ground unconditionally.
-  // Both `dark` and `auto` put a phone with no stated preference on the dark
-  // one, so both are judged there.
-  const ground = theme.appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
+  const ground = gradingGround(theme.appearance);
   const accent = sunlightCheck(resolveTheme(theme.accentKey, theme.accentHex), ground);
   const secondary = sunlightCheck(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
   const worst = accent.worstRatio <= secondary.worstRatio ? accent : secondary;
