@@ -84,3 +84,90 @@ So every step must land with its value pinned **against the Rules of Golf**,
 not against another reader: to-par against the played course's actual par, a
 Stableford point, a skin, a match hole. Agreement between readers is not
 evidence; it survives an error they all share.
+
+---
+
+# Where else the same thing is happening
+
+Ajay, 2026-09-22: *"check if there is any more opportunities like this to have
+one engine across"*, and the reason it matters: *"my goal is to make this app
+simple but effective and impressive and best of all."*
+
+That is the right frame for ranking these. The prize is not tidier code — it is
+that a club never sees two screens disagree, because that is the moment they
+stop trusting the app. So these are ordered by **how visible the failure is to
+a member**, not by how many call sites there are.
+
+Counts are measured (2026-09-22, `src` excluding tests); the risk column is
+judgment.
+
+## 1. "Has this round produced anything, and how far along is it"
+
+**83 direct reads of the result tables across 29 files.**
+
+```
+prisma.scorecard.*  prisma.teamScorecard.*  prisma.match.*  prisma.bracketWinner.*
+```
+
+There are FOUR tables a round can file its result in, and which one depends on
+the format and the stage type — CLAUDE.md sets this out, along with the symptom:
+*"Nothing returned for this round yet"* printed over eight complete sides,
+*"Matches complete 0/0"* over a knockout five ties through, and *"this
+tournament hasn't been launched yet"* said to people standing on the course.
+
+`boardProgress` already carries the unit (`cards | matches | sides | ties |
+manual`), which is the right shape. What is missing is that **everything else
+still reads the tables directly** and re-decides which one to ask.
+
+**Highest visible risk.** An absence reported as a fact is the most damaging
+thing this app can print, because it is not a wrong number — it tells a member
+that something they did never happened.
+
+*Shape:* `roundProgress(stageId)` and `roundHasResults(stageId)` as the only
+readers of existence and progress. A guard with inverted polarity, as above.
+
+## 2. The handicap and card chain
+
+**63 calls across 22 files**, spread over several parallel chains:
+
+```
+courseHandicapMap   roundCourseHandicaps   roundHandicapOf   strokeHandicapFor
+resolveCourse       courseForRound         cardForStage
+```
+
+This is the one `strokesFor` above subsumes, and the failure it produces is the
+**invisible** kind: a round played away from the event's course, scored against
+the home card, so every side's to-par is out by the same amount and the ranking
+is untouched. Eight plausible numbers in the right order. Measured once already
+— four strokes a side on the seeded club's away nine.
+
+**Second highest risk precisely because nobody complains.** A wrong order starts
+an argument; a uniformly wrong number starts nothing.
+
+## 3. Format capability asked as a string
+
+Small and cheap. `formats.ts` already owns the predicates — `needsTeams`,
+`sharesOneCard`, `boardKind`, `entryModeFor`, `isManualFormat` — but a handful
+of callers still ask the question as a literal:
+
+```
+components/StagesClient.tsx     format === "Match Play"   (x4)
+lib/domain/score-import.ts      format === "Match Play"
+lib/services/teams.ts           /scramble/i.test(f.name)
+```
+
+`domain/match-entry.ts` records having already fixed one of these, and why: a
+string test *"made the catalog and the screen disagree"*. The pattern is the
+same every time — a new format is added, the predicate learns about it, the
+string comparison does not.
+
+**Low risk, low cost.** A guard forbidding `format === "` outside `formats.ts`
+would close the class permanently in an afternoon.
+
+## What NOT to do
+
+Do not collapse these because collapsing is satisfying. Each one is worth doing
+only with its value pinned to the Rules first, and #2 in particular removes the
+cross-check that found it. The order above is also the order of value: #1 stops
+the app lying about whether something happened, #3 is a tidy-up, and #2 is the
+big one in the middle that needs the most care.
