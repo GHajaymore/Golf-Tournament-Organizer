@@ -2,9 +2,9 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import {
-  aggregateTeamCard,
   singleBallTeamCard,
-  teamMatchHoles,
+  matchHolesOffTheLow,
+  playingHandicapFrom,
   resolveMatch,
   playSkins,
   playNassau,
@@ -236,17 +236,15 @@ describe("schema constraints hold against real writes", () => {
 });
 
 describe("scoring the round", () => {
-  const cardFor = (i: number, stroke: number) =>
-    aggregateTeamCard(
-      sides[i].map((m) => ({
-        playerId: m.id,
-        strokes: Array(18).fill(stroke),
-        courseHandicap: m.handicap,
-      })),
-      PARS,
-      SI,
-      90,
-    );
+  // One side as the balls of a match. `playingHandicapFrom(h, 90)` is the same
+  // figure `aggregateTeamCard(..., 90)` used to apply per player — the round's
+  // four-ball allowance — so the only thing that changed here is that the
+  // match is now decided off the lowest handicap in it.
+  const ballsFor = (i: number, stroke: number) =>
+    sides[i].map((m) => ({
+      strokes: Array(18).fill(stroke) as (number | null)[],
+      playingHandicap: playingHandicapFrom(m.handicap, 90),
+    }));
 
   it("resolves a four-ball as a match the singles engine understands", () => {
     // A side that wins every hole does NOT win eighteen of them. It is ten up
@@ -256,7 +254,7 @@ describe("scoring the round", () => {
     // final state; the fix that stopped crediting holes won after the closeout
     // (holes-won-ratio and fewest-holes-lost rank on them) left the
     // expectation behind, encoding a match that cannot happen.
-    const res = resolveMatch(teamMatchHoles(cardFor(0, 4), cardFor(1, 5)));
+    const res = resolveMatch(matchHolesOffTheLow(ballsFor(0, 4), ballsFor(1, 5), SI, 18, 1));
     expect(res.holesWonA).toBe(10);
     expect(res.played).toBe(10);
     expect(res.remaining).toBe(8);

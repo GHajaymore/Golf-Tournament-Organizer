@@ -239,11 +239,24 @@ export function ReportsClient({
      */
     {
       label: "Scorecards",
+      /**
+       * SAYS WHERE IT LANDS, and lands on the control rather than the page.
+       *
+       * "Open printable scorecards for the field" sent an organizer to
+       * `/foursomes` — headed "Tee sheet", opening on "Re-draw this sheet" —
+       * with the print button below the fold under the pairing editor. Ajay,
+       * 2026-09-22: "it takes me to teesheet and not the actual scorecards".
+       *
+       * The consolidation behind that redirect is right and is not being
+       * undone: two print buttons producing different groupings is how an
+       * organizer prints the wrong thing on a Sunday morning. So the fix is
+       * the anchor and the sentence, not a second printer.
+       */
       desc: hasTeeSheet
-        ? "Open printable scorecards for the field."
+        ? "One card per group, on the tee sheet."
         : "Draw and save a tee sheet first — cards print one per group.",
       icon: "ph ph-cards",
-      action: () => router.push("/scorecard"),
+      action: () => router.push(hasTeeSheet ? "/foursomes#print-scorecards" : "/foursomes"),
       kind: "open",
     },
   ];

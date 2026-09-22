@@ -4,7 +4,7 @@ import {
   allocatedStrokes,
   sideHandicap,
   singleBallTeamCard,
-  teamMatchHoles,
+  matchHolesOffTheLow,
   SCRAMBLE_WEIGHTS_4,
   type TeamMemberCard,
 } from "../team";
@@ -213,19 +213,14 @@ describe("team match play", () => {
   it("produces hole results the singles engine can resolve", () => {
     // The point of returning A/B/H is that four-ball match play reuses
     // resolveMatch rather than growing a second implementation.
-    const sideA = aggregateTeamCard(
-      [member("a1", [3, 4, 4, 4, 4, 4, 4, 4, 4], 0)],
-      PARS_9,
+    // Both off scratch, so no strokes change hands and the hole results are
+    // the raw gross comparison — which is what this test is about.
+    const holes = matchHolesOffTheLow(
+      [{ strokes: [3, 4, 4, 4, 4, 4, 4, 4, 4], playingHandicap: 0 }],
+      [{ strokes: [4, 5, 4, 4, 4, 4, 4, 4, 4], playingHandicap: 0 }],
       SI_9,
-      100,
+      9,
     );
-    const sideB = aggregateTeamCard(
-      [member("b1", [4, 5, 4, 4, 4, 4, 4, 4, 4], 0)],
-      PARS_9,
-      SI_9,
-      100,
-    );
-    const holes = teamMatchHoles(sideA, sideB);
     expect(holes[0]).toBe("A");
     expect(holes[1]).toBe("A");
     expect(holes[2]).toBe("H");
@@ -244,8 +239,13 @@ describe("team match play", () => {
   });
 
   it("leaves a hole unplayed when either side has no score", () => {
-    const sideA = aggregateTeamCard([member("a1", [4], 0)], [4], [1], 100);
-    const sideB = aggregateTeamCard([member("b1", [null], 0)], [4], [1], 100);
-    expect(teamMatchHoles(sideA, sideB)[0]).toBeNull();
+    expect(
+      matchHolesOffTheLow(
+        [{ strokes: [4], playingHandicap: 0 }],
+        [{ strokes: [null], playingHandicap: 0 }],
+        [1],
+        1,
+      )[0],
+    ).toBeNull();
   });
 });

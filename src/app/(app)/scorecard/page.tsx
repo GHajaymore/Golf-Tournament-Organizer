@@ -11,7 +11,18 @@ import { redirect } from "next/navigation";
  * morning, so there is now one.
  *
  * The route stays so an old bookmark lands somewhere useful.
+ *
+ * ON THE PRINT CONTROL, not merely on the page. This redirected to the top of
+ * `/foursomes`, which is headed "Tee sheet" and opens on "Re-draw this sheet"
+ * — so somebody who asked for scorecards got a pairing editor and had to
+ * scroll past it to find the button. Ajay, 2026-09-22, about the same link on
+ * Reports: "it takes me to teesheet and not the actual scorecards".
+ *
+ * The anchor is `TeeSheetPrint`'s own, and it renders nothing at all until a
+ * sheet is saved — in which case the hash matches no element and the browser
+ * simply leaves you at the top of the Tee sheet, which is exactly where
+ * somebody with no draw yet needs to be.
  */
 export default function ScorecardPage() {
-  redirect("/foursomes");
+  redirect("/foursomes#print-scorecards");
 }

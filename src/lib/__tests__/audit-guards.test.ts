@@ -1922,8 +1922,6 @@ describe("a round's card is narrowed in exactly one place", () => {
       "cardProblems VALIDATES a stored card is complete — it is not choosing a round's holes",
     "src/components/StrokePlayEntry.tsx":
       "receives an already-narrowed card as a prop from the entry screen, which uses cardForStage",
-    "src/components/TeeSheetPrint.tsx":
-      "sums an already-narrowed par list for a printed header",
   };
 
   const offenders = sourceFiles(SRC)
@@ -2880,5 +2878,82 @@ describe("the audit log has one writer, and locking has one guard", () => {
     const shared = readSource(join("src", "lib", "services", "action-shared.ts"));
     expect(shared).toMatch(/actor = opts\.actor \|\| \(await getSession\(\)\)\?\.name \|\| "system"/);
     expect(shared).toMatch(/data: \{ eventId, matchId: opts\.matchId \?\? null, actor, action, detail \}/);
+  });
+});
+
+describe("one engine decides how many strokes a hole gives", () => {
+  /**
+   * ONE PRIMITIVE, AND A LIST THAT MAY ONLY SHRINK.
+   *
+   * Ajay, after correcting the same class of defect four times in an evening:
+   * "we should have one score engin vs multiple." He is describing the
+   * mechanism behind every one of them. `holeStrokesReceived` is the primitive
+   * that turns a handicap and a stroke index into shots on a hole, and calling
+   * it means deciding two things for yourself — WHICH handicap (index, course,
+   * round override, allowance, match differential) and WHICH stroke index (the
+   * event's, or the round's own nine re-ranked). Two screens that each decide
+   * are two screens that will eventually decide differently, which is exactly
+   * what happened to the board and the card, the paper and the phone, and the
+   * engine and both.
+   *
+   * So: it belongs to the domain, and the callers outside it are listed here.
+   * The list is debt, written down. Nothing may be added to it — a new screen
+   * asks an existing resolver, or the resolver grows a case.
+   *
+   * Same polarity as `a round's card is narrowed in exactly one place`, and
+   * for the same reason: a hand list of files to CHECK is opt-in and misses
+   * the one nobody remembered; a hand list of files EXEMPTED cannot.
+   */
+  const SRC = join(process.cwd(), "src");
+  const DOMAIN = join(SRC, "lib", "domain");
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "__tests__") continue;
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  }
+
+  /** Outside the domain and still calling the primitive, each a known debt. */
+  const ALLOWED: Record<string, string> = {
+    "src/app/actions/tournament.ts": "score import converts a gross card to net at the boundary",
+    "src/app/(player)/me/card/page.tsx": "the player's own card, already narrowed upstream",
+    "src/app/play/page.tsx": "a casual round has no tournament to resolve against",
+    "src/app/(app)/entry/page.tsx": "the individual entry path; the TEAM path goes through matchStrokesPerHole",
+    "src/lib/services/expenses.ts": "money reads the full allowance deliberately, never a match differential",
+    "src/lib/services/points-standings.ts": "league points, off the round's own resolver",
+    "src/lib/services/skins-pot.ts": "skins read the full allowance deliberately",
+  };
+
+  const callers = walk(SRC)
+    .filter((f) => !f.startsWith(DOMAIN))
+    .filter((f) => /holeStrokesReceived\s*\(/.test(stripComments(readFileSync(f, "utf8"))))
+    .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+  it("finds callers at all, so the sweep cannot pass by looking at nothing", () => {
+    // The control every filesystem guard needs — see the narrowing guard.
+    expect(walk(SRC).length).toBeGreaterThan(200);
+    expect(callers.length).toBeGreaterThan(0);
+  });
+
+  it("nothing new reaches past the domain to allocate strokes itself", () => {
+    const unlisted = callers.filter((f) => !(f in ALLOWED));
+    expect(
+      unlisted,
+      `these decide stroke allocation for themselves — ask a resolver instead, ` +
+        `or add the case to one:\n  ${unlisted.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every exemption is still a real file that still does it", () => {
+    // An allowlist nobody re-reads becomes a place to hide things, and this
+    // one is meant to shrink: an entry that no longer matches is a caller that
+    // has been fixed, and the exemption should go with it.
+    for (const rel of Object.keys(ALLOWED)) {
+      expect(callers, `${rel} is exempted but no longer does it`).toContain(rel);
+    }
   });
 });

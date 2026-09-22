@@ -1,7 +1,12 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
-import { teeNamesForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
+import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
+import { effectiveAllowance, effectiveCountBest, teamsForStage } from "@/lib/services/teams";
+import { needsTeams, sharesOneCard } from "@/lib/formats";
+import { isHeadToHead } from "@/lib/stage-types";
+import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
+import { playingHandicapFrom } from "@/lib/domain/handicap";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -223,6 +228,180 @@ export default async function FoursomesPage({
       stage?.courseId ?? state.event.courseId ?? null,
     ),
   );
+  /**
+   * THE SHOTS EACH PLAYER GETS, AND WHERE — for the card they carry out.
+   *
+   * The printed card had blank boxes and a handicap index beside the name, so
+   * a player in a net competition could not see which holes they receive a
+   * stroke on. The entry screen has shown those dots for a long time; paper
+   * had nothing. Ajay, 2026-09-22: "so you have that build into online score
+   * entry. now we just need to have it on printed paper."
+   *
+   * THROUGH THE SAME CHAIN THE ROUND IS SCORED ON, every step of it:
+   * `roundCourseHandicaps` for the course handicap off the tee actually being
+   * played, `effectiveAllowance` for the round's allowance including the
+   * per-format rules and the zero default, and `allocatedStrokes` to apply the
+   * allowance ONCE and then spread it by stroke index. That last order is not
+   * an implementation detail — `team.ts` records that applying the allowance
+   * per hole rounds each hole separately and drifts by several strokes over a
+   * round.
+   *
+   * A second reading here would eventually print dots the round does not
+   * score, which is worse than printing none: a player marks a net score on
+   * the strength of a dot that was not there.
+   */
+  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+  const courseHandicaps = roundCourseHandicaps({
+    tees: eventTees,
+    players: state.confirmed,
+    flightTeeOf: await flightTeeByPlayer(session.eventId),
+    stage,
+    event: state.event,
+  });
+  /**
+   * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
+   * round's nine and RE-RANKS its stroke index — so this was
+   * `course.strokeIndex.slice(0, holes)` and both wrong and unnecessary: an
+   * eighteen-hole index sliced to nine is 1,3,5,…,17, which is the exact fault
+   * `a round's card is narrowed in exactly one place` exists to stop. It
+   * caught it.
+   */
+  const cardStrokeIndex = course.strokeIndex;
+
+  /**
+   * WHO IS PARTNERED WITH WHOM, AND WHOSE BALL IS BEING SCORED.
+   *
+   * The printed card drew one row of boxes per player whatever the round was,
+   * so a team round came out looking exactly like a medal. Two things were
+   * wrong with that and only one of them is cosmetic:
+   *
+   *   - a four-ball card that does not name the sides cannot be used. The
+   *     default side is TWO (`sideSize: 2`), so a group of four is normally
+   *     two sides, and nothing on the paper said which two balls made one;
+   *   - a SHARED-ball round got four rows for one ball. `sharesOneCard` says
+   *     in its own words that "the side shares a single scorecard rather than
+   *     one card each", and the card that prints ignored it — so a foursomes
+   *     or a scramble printed three rows nobody may write in, beside handicaps
+   *     that are not the ones the side plays off.
+   *
+   * Read from `teamsForStage`, which is the same reader the team boards use,
+   * and the side's strokes are allocated with `allocatedStrokes(hcp, 100, …)`
+   * because `TeamView.playingHandicap` already carries the round's allowance
+   * — that is byte-for-byte what `singleBallTeamCard` does when it scores the
+   * round, so the paper cannot disagree with the board.
+   */
+  /**
+   * SINGLES MATCH PLAY IS THE SAME CARD PROBLEM, and it was the gap the sweep
+   * found. `needsTeams` is false for Match Play, so a singles match printed a
+   * MEDAL card: the index in brackets, dots off the full handicap, and no line
+   * for the match — while `matchStrokesGiven` has always scored it off the
+   * lower of the two. The paper disagreed with the engine.
+   *
+   * So the card's terms are not "is this a team round" but "what is this round
+   * doing", and a singles match carries them with `teams: false`.
+   */
+  const roundIsMatch = !!stage && isHeadToHead(stage.type);
+  const teamRound =
+    stage && (needsTeams(stage.format) || roundIsMatch)
+      ? {
+          format: stage.format,
+          allowance,
+          teams: needsTeams(stage.format),
+          sharedBall: needsTeams(stage.format) && sharesOneCard(stage.format),
+          countBest: effectiveCountBest(stage.format, stage.countBest),
+          matchPlay: roundIsMatch,
+        }
+      : null;
+  const teams =
+    teamRound?.teams && stage
+      ? await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes)
+      : [];
+  const sideOf = new Map<string, string>();
+  for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.name);
+  /**
+   * A MATCH IS PLAYED OFF THE LOWEST HANDICAP IN IT, so the card has to know
+   * which match a side is in before it can print a single dot.
+   *
+   * `matchHolesOffTheLow` scores it that way; a card still printing full
+   * allowances would hand a player dots the round does not honour, which is
+   * worse than printing none — they mark a net score on the strength of one.
+   *
+   * THE PAIRING, NOT THE TEE TIME. The low is taken from the two sides of the
+   * MATCH, read off the `Match` rows, rather than from whoever shares a group.
+   * Those are usually the same four people and occasionally are not, and a
+   * card that guessed would be wrong in exactly the case nobody checks.
+   */
+  const matchPlay = !!stage && !!teamRound?.matchPlay;
+  const matches = matchPlay
+    ? await prisma.match.findMany({
+        where: { stageId: stage!.id },
+        select: { id: true, teamAId: true, teamBId: true, playerAId: true, playerBId: true },
+      })
+    : [];
+  const playingOf = new Map<string, number>();
+  for (const t of teams) {
+    for (const m of t.members) {
+      playingOf.set(m.playerId, playingHandicapFrom(courseHandicaps.get(m.playerId) ?? 0, allowance));
+    }
+  }
+  /** The lowest figure in a side's match — its own scale, so a shared ball is
+   *  measured against the other SIDE and a four-ball against every player. */
+  const lowOf = new Map<string, number>();
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  for (const m of matches) {
+    const a = teamById.get(m.teamAId);
+    const b = teamById.get(m.teamBId);
+    if (!a || !b) continue;
+    const figures = teamRound!.sharedBall
+      ? [a.playingHandicap, b.playingHandicap]
+      : [...a.members, ...b.members].map((x) => playingOf.get(x.playerId) ?? 0);
+    const low = Math.min(...figures.map((n) => Math.round(n)));
+    lowOf.set(a.id, low);
+    lowOf.set(b.id, low);
+  }
+  const lowForPlayer = new Map<string, number>();
+  for (const t of teams) {
+    const low = lowOf.get(t.id);
+    if (low === undefined) continue;
+    for (const m of t.members) lowForPlayer.set(m.playerId, low);
+  }
+
+  /**
+   * SINGLES: the same rule with a field of two. The lower of the pair plays
+   * off scratch and the other receives the difference, which is exactly what
+   * `matchStrokesGiven` allocates when the result is worked out — so the card
+   * reads the Match rows rather than guessing from who shares a tee time.
+   *
+   * `blockOf` also becomes the grouping: a four-ball of singles is TWO
+   * matches, and printing four names in draw order hides which two are
+   * playing each other.
+   */
+  const blockOf = new Map<string, string>();
+  if (matchPlay && teamRound && !teamRound.teams) {
+    for (const m of matches) {
+      if (!m.playerAId || !m.playerBId) continue;
+      const a = playingHandicapFrom(courseHandicaps.get(m.playerAId) ?? 0, allowance);
+      const b = playingHandicapFrom(courseHandicaps.get(m.playerBId) ?? 0, allowance);
+      const low = Math.min(Math.round(a), Math.round(b));
+      lowForPlayer.set(m.playerAId, low);
+      lowForPlayer.set(m.playerBId, low);
+      blockOf.set(m.playerAId, m.id);
+      blockOf.set(m.playerBId, m.id);
+    }
+  }
+
+  const sides = teams.map((t) => {
+    const low = lowOf.get(t.id);
+    return {
+      name: t.name,
+      playingHandicap: t.playingHandicap,
+      /** Strokes this side receives in its match, where there is one. */
+      matchStrokes: low === undefined ? null : matchStrokesCount(t.playingHandicap, low),
+      // One definition, shared with the engine and the entry screen.
+      shots: matchStrokesPerHole(t.playingHandicap, low ?? 0, cardStrokeIndex),
+    };
+  });
+
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,
     startHole: g.startHole,
@@ -231,7 +410,52 @@ export default async function FoursomesPage({
     players: g.playerIds
       .map((id) => nameOf.get(id))
       .filter((pl): pl is NonNullable<typeof pl> => !!pl)
-      .map((pl) => ({ name: pl.name, handicap: pl.handicap, handicapType: pl.handicapType, handicapSource: pl.handicapSource, tee: teeNames.get(pl.id) ?? "" })),
+      .map((pl) => {
+        const ch = courseHandicaps.get(pl.id) ?? 0;
+        return {
+          name: pl.name,
+          handicap: pl.handicap,
+          handicapType: pl.handicapType,
+          handicapSource: pl.handicapSource,
+          tee: teeNames.get(pl.id) ?? "",
+          /** Which side they are on, so the card can group them. Empty on an
+           *  individual round, and on a team round for anyone not yet drawn
+           *  into a side — who then prints as themselves rather than being
+           *  quietly filed under somebody else's partnership. */
+          sideName: sideOf.get(pl.id) ?? blockOf.get(pl.id) ?? "",
+          /**
+           * The number that goes in the Hcp box — what they actually play off.
+           * It stays the FULL figure on a match card too, because it is what
+           * the skins and the side bets read; the match's own strokes go in
+           * their own column beside it. Ajay's rule: the low-handicap
+           * differential is "just for golf. Not for any skins or other
+           * bet/money game."
+           */
+          playingHandicap: playingHandicapFrom(ch, allowance),
+          /** Strokes received in this match, where the round is one. */
+          matchStrokes: (() => {
+            const low = lowForPlayer.get(pl.id);
+            if (low === undefined) return null;
+            return matchStrokesCount(playingHandicapFrom(ch, allowance), low);
+          })(),
+          /**
+           * One entry per hole: how many shots, so two reads as two dots.
+           *
+           * `matchStrokesPerHole` is the one definition the engine and the
+           * entry screen also use, so the paper, the phone and the result
+           * cannot disagree — which is the thing Ajay asked for in as many
+           * words: "both online and paper cards should match and consistent."
+           * On a medal round there is no low, and this stays the allowance
+           * allocation it always was.
+           */
+          shots: (() => {
+            const low = lowForPlayer.get(pl.id);
+            return low === undefined
+              ? allocatedStrokes(ch, allowance, cardStrokeIndex)
+              : matchStrokesPerHole(playingHandicapFrom(ch, allowance), low, cardStrokeIndex);
+          })(),
+        };
+      }),
   }));
 
   return (
@@ -315,11 +539,24 @@ export default async function FoursomesPage({
         clubName={brand?.name ?? ""}
         clubLogoUrl={brand?.logoUrl ?? ""}
         courseName={course.name || state.event.course}
-        dates={state.event.dates}
+        /**
+         * THE ROUND'S DAY, not the tournament's.
+         *
+         * This passed `state.event.dates`, so every card in an eleven-round
+         * festival was stamped with the day round one went off — and the round
+         * tabs three inches up this same page print the right date from
+         * `playedOn`, which is the reading that makes it the "event answer to a
+         * round question" shape rather than a missing field. A card is carried
+         * on the day and filed afterwards; the wrong date on it is wrong in the
+         * one place it will be read later.
+         */
+        dates={stage?.playedOn ? shortDate(stage.playedOn) : state.event.dates}
         roundLabel={roundLabel(rounds, stage?.id ?? "")}
         pars={course.pars}
         strokeIndex={course.strokeIndex}
         holes={holes}
+        teamRound={teamRound}
+        sides={sides}
       />
     </>
   );

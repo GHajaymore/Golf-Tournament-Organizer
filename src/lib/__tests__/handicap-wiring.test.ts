@@ -166,8 +166,62 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(recompute).toMatch(/match: matchVenue/);
     expect(recompute).toMatch(/roundHandicapOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\)/);
     expect(recompute).toMatch(/members\.map\(\(m\) => playsOff\(m\.player\)\)/);
-    expect(recompute).toMatch(/courseHandicap: playsOff\(m\.player\)/);
+    /**
+     * THE GUARANTEE, NOT THE SHAPE. This pinned `courseHandicap:
+     * playsOff(m.player)` — the field of a `TeamMemberCard`, because the match
+     * used to be decided by building a `TeamCard` per side. Four-ball match
+     * play now goes off the lowest handicap in the match, so a side reaches
+     * the engine as BALLS and the field is `playingHandicap`. The old spelling
+     * described a data structure; what must never change is where the NUMBER
+     * comes from, which is `playsOff` either way.
+     *
+     * Both negatives kept, and they are the safe direction: any future shape
+     * that reaches for the roster index fails here whatever it calls the field.
+     */
+    expect(recompute).toMatch(/playingHandicap: playingHandicapFrom\(playsOff\(m\.player\)/);
     expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
+    expect(recompute).not.toMatch(/playingHandicap: m\.player\.handicap/);
+  });
+
+  /**
+   * THREE READERS OF ONE QUESTION, AND THEY MUST AGREE.
+   *
+   * "How many shots does this player get in this match" is answered by the
+   * engine (`matchHolesOffTheLow`), by the printed card, and by the score
+   * entry screen. For a long time the engine said one thing and the other two
+   * said another: every player their full allowance, which is the net-MEDAL
+   * answer. Ajay asked the question that found the last one — "is this also
+   * reflecting in the online score entry?" — and it was not.
+   *
+   * Pinned as the GUARANTEE rather than a spelling: each reader subtracts the
+   * lowest figure in the match before allocating. The negative is the half
+   * that matters, because the wrong version is the tidier one to write.
+   */
+  it("the entry screen allocates a team match off the lowest handicap in it", () => {
+    const entry = readSource("src/app/(app)/entry/page.tsx");
+    // It knows a match from a medal at all.
+    expect(entry).toMatch(/isHeadToHead\(activeStage\.type\)/);
+    // And every card it builds goes through the ONE definition of what a
+    // player receives in a match — the same function the engine and the
+    // printed card call, which is what makes "both online and paper cards
+    // should match" true by construction rather than by coincidence. Two call
+    // sites: the shared ball and the four-ball.
+    expect(entry).toMatch(/shots: matchStrokesPerHole\(t\.playingHandicap, low,/);
+    expect(entry).toMatch(/shots: matchStrokesPerHole\(playingOfMember\(m\.handicap\), low,/);
+    // The shape it used to have, which reads perfectly well and is wrong.
+    expect(entry).not.toMatch(/shots: allocatedStrokes\(m\.handicap, teamAllowance,/);
+  });
+
+  it("the printed card and the entry screen share one definition of the shots", () => {
+    // Not "they agree" — they agree by construction now. What this refuses is
+    // a future caller re-deriving the subtraction inline, which is exactly how
+    // the three readers drifted apart in the first place.
+    const card = readSource("src/app/(app)/foursomes/page.tsx");
+    const entry = readSource("src/app/(app)/entry/page.tsx");
+    for (const src of [card, entry]) {
+      expect(src).toMatch(/matchStrokesPerHole\(/);
+      expect(src).not.toMatch(/allocatedStrokes\(\s*Math\.max\(0,/);
+    }
   });
 
   it("allocates net match play off the round's Course Handicap", () => {

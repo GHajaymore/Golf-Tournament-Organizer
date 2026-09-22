@@ -19,12 +19,12 @@ import {
   cardForStage,
 } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
-import { needsTeams, entryModeFor } from "@/lib/formats";
-import { generatesPairings } from "@/lib/stage-types";
+import { needsTeams, entryModeFor, findFormat } from "@/lib/formats";
+import { generatesPairings, isHeadToHead } from "@/lib/stage-types";
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
-import { aggregateTeamCard, singleBallTeamCard, allocatedStrokes } from "@/lib/domain/team";
+import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
@@ -188,6 +188,42 @@ export default async function EntryPage() {
     const teamCard = teamResolved ? cardForStage(teamResolved, activeStage) : null;
     const teamPars = teamCard?.pars ?? [];
     const teamStrokeIndex = teamCard?.strokeIndex ?? [];
+
+    /**
+     * A TEAM MATCH IS PLAYED OFF THE LOWEST HANDICAP IN IT, and this screen
+     * was the last reader that did not know.
+     *
+     * `matchHolesOffTheLow` decides the holes that way and the printed card
+     * now prints it that way; this one still drew a dot for every stroke of
+     * the full allowance. So on a four-ball match a scorer was shown dots the
+     * result would not honour — worse than no dots, because a net score gets
+     * marked on the strength of one.
+     *
+     * Singles were never wrong: `ScoreEntryClient` allocates through
+     * `matchStrokesGiven`, which is this same rule for a field of two.
+     *
+     * A medal four-ball is untouched — `lowInMatch` returns 0, every player
+     * keeps their full allowance, and the dots are exactly what they were.
+     */
+    const teamMatchPlay = isHeadToHead(activeStage.type);
+    const teamAllowancePct = effectiveAllowance(activeStage.format, activeStage.handicapAllowance);
+    const sideOnlyFormat = findFormat(activeStage.format).ball === "single";
+    const playingOfMember = (courseHandicap: number) =>
+      Math.round((courseHandicap * teamAllowancePct) / 100);
+    const lowInMatch = (matchId: string): number => {
+      if (!teamMatchPlay) return 0;
+      const m = stageMatches.find((x) => x.id === matchId);
+      if (!m) return 0;
+      const a = teamById.get(m.teamAId);
+      const b = teamById.get(m.teamBId);
+      if (!a || !b) return 0;
+      // A shared ball is measured against the other SIDE; a four-ball against
+      // every player in it. Same split `matchHolesOffTheLow` makes.
+      const figures = sideOnlyFormat
+        ? [a.playingHandicap, b.playingHandicap]
+        : [...a.members, ...b.members].map((x) => playingOfMember(x.handicap));
+      return Math.min(...figures.map((n) => Math.round(n)));
+    };
     const rows: TeamEntryRow[] = [];
     const pushRow = (teamId: string, matchId: string, opponentName?: string) => {
       const t = teamById.get(teamId);
@@ -212,20 +248,23 @@ export default async function EntryPage() {
        * uses it raw — so the allowance is 100 rather than applied twice.
        */
       const teamAllowance = effectiveAllowance(activeStage.format, activeStage.handicapAllowance);
+      // Zero on a medal round, so `- low` is the identity there and nothing
+      // about a four-ball medal changes.
+      const low = lowInMatch(matchId);
       const cardRows =
         sideOnly
           ? [{
               playerId: "",
               playerName: "",
               handicap: 0,
-              shots: allocatedStrokes(t.playingHandicap, 100, teamStrokeIndex),
+              shots: matchStrokesPerHole(t.playingHandicap, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, ""),
             }]
           : t.members.map((m) => ({
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
-              shots: allocatedStrokes(m.handicap, teamAllowance, teamStrokeIndex),
+              shots: matchStrokesPerHole(playingOfMember(m.handicap), low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
             }));
       const card =
