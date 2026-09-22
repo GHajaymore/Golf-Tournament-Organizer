@@ -1079,6 +1079,31 @@ export function sunGrade(check: SunlightCheck): SunGrade {
 }
 
 /**
+ * THE GROUND A THEME IS JUDGED ON — which is not the ground a preview PAINTS on.
+ *
+ * `light` is the only value that renders the light ground unconditionally.
+ * Both `dark` and `auto` put a phone with no stated preference on the dark one,
+ * so both are judged there.
+ *
+ * Exported because the picker needs the same answer and got a different one.
+ * `ThemePicker` computes its swatch ground as "dark if dark, else light",
+ * which is correct for PAINTING — a club choosing Light should see light
+ * swatches — and wrong for GRADING, because it puts `auto` on the light
+ * ground. Reusing it to grade produced two answers about one colour on one
+ * screen (2026-09-21): with the seeded club on Follow-the-device, the Claret
+ * swatch read "Good in sun" while the Championship scheme, which IS claret,
+ * read "Dim in sun". And it was wrong in the generous direction — telling a
+ * club their claret is fine outdoors when most of their members will see it
+ * at 4.50:1.
+ *
+ * So the rule lives here and both callers take it. Two readers of one
+ * question, and the one that varied was the one asking a different question.
+ */
+export function gradingGround(appearance: Appearance): Ground {
+  return appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
+}
+
+/**
  * THE ONE TO PICK IF YOU ARE NOT GOING TO THINK ABOUT IT.
  *
  * Ajay, 2026-09-21: "the preferred theme should be really good and tested for
@@ -1245,10 +1270,7 @@ export function sunlightVerdict(theme: ClubTheme): {
   /** Set when switching appearance would fix it on its own. */
   suggestion: string | null;
 } {
-  // `light` is the only value that renders the light ground unconditionally.
-  // Both `dark` and `auto` put a phone with no stated preference on the dark
-  // one, so both are judged there.
-  const ground = theme.appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
+  const ground = gradingGround(theme.appearance);
   const accent = sunlightCheck(resolveTheme(theme.accentKey, theme.accentHex), ground);
   const secondary = sunlightCheck(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
   const worst = accent.worstRatio <= secondary.worstRatio ? accent : secondary;

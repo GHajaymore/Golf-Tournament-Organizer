@@ -17,6 +17,7 @@ import {
   sunlightCheck,
   sunGrade,
   themeSunGrade,
+  gradingGround,
   SUN_GRADE_LABEL,
   RECOMMENDED_SCHEME,
   pairVerdict,
@@ -47,8 +48,42 @@ import { useOrgProfile } from "@/components/OrgProfileProvider";
  * the one screen in the app whose entire subject is colour, so a badge that
  * needed colour vision to read would be a poor joke.
  */
-function SunBadge({ grade, style }: { grade: SunGrade; style?: React.CSSProperties }) {
+function SunBadge({
+  grade,
+  ground,
+  style,
+}: {
+  grade: SunGrade;
+  /**
+   * The ground this badge is DRAWN ON, when that is not the page's own.
+   *
+   * A colour swatch is deliberately painted on the ground the club is
+   * CHOOSING, so an organizer on a dark console picking Light sees the colours
+   * as they will actually appear. The badge sits inside that swatch and so has
+   * to be coloured the same way — and it was not: it used `--color-accent-2`
+   * and `--color-warning`, which resolve against whatever the PAGE is on.
+   * Picking Light from a dark console therefore put a bright optic-yellow
+   * "Good in sun" on a cream card, which is close to unreadable. Reported by
+   * Ajay, 2026-09-21, and the joke of it is that this is the badge whose entire
+   * subject is legibility.
+   *
+   * `ground.text` and `ground.warning` are the right values because both are
+   * measured against their own ground — the warning amber is 7.35:1 on dark
+   * and 6.28:1 on light — so neither can be illegible whichever one is passed.
+   *
+   * Omitted for the ready-made scheme cards, which are ordinary page cards on
+   * the page's surface and correctly take the page's tokens.
+   */
+  ground?: Ground;
+  style?: React.CSSProperties;
+}) {
   const good = grade === "good";
+  // Attention goes to DIM, which is the actionable state; "good" is a quiet
+  // confirmation and does not need a colour of its own to shout with.
+  const fg = ground ? (good ? ground.text : ground.warning) : good ? "var(--color-accent-2)" : "var(--color-warning)";
+  // Works for both a literal hex and a `var(--…)`, so one expression covers
+  // the swatch case and the page case.
+  const tint = (pct: number) => `color-mix(in srgb, ${fg} ${pct}%, transparent)`;
   return (
     <span
       style={{
@@ -60,15 +95,9 @@ function SunBadge({ grade, style }: { grade: SunGrade; style?: React.CSSProperti
         padding: "2px 6px",
         borderRadius: 999,
         whiteSpace: "nowrap",
-        color: good ? "var(--color-accent-2)" : "var(--color-warning)",
-        background: good
-          ? "color-mix(in srgb, var(--color-accent-2) 14%, transparent)"
-          : "color-mix(in srgb, var(--color-warning) 16%, transparent)",
-        border: `1px solid ${
-          good
-            ? "color-mix(in srgb, var(--color-accent-2) 45%, transparent)"
-            : "color-mix(in srgb, var(--color-warning) 50%, transparent)"
-        }`,
+        color: fg,
+        background: tint(good ? 10 : 16),
+        border: `1px solid ${tint(good ? 34 : 50)}`,
         ...style,
       }}
     >
@@ -164,6 +193,17 @@ export function ThemePicker({
   // one they're currently looking at — otherwise picking "light" would show
   // every colour as it appears in dark mode.
   const ground = groundFor(draft.appearance === "dark" ? "dark" : "light");
+  /**
+   * AND THE GROUND THEY ARE JUDGED ON, WHICH IS A DIFFERENT QUESTION.
+   *
+   * `ground` above resolves `auto` to LIGHT, which is right for painting a
+   * preview and wrong for grading: `auto` renders DARK on any device that has
+   * not asked otherwise, so that is where sunlight has to be judged. Grading
+   * off `ground` had the Claret swatch reading "Good in sun" while the
+   * Championship scheme — which is claret — read "Dim in sun", on one screen,
+   * with the club on Follow-the-device.
+   */
+  const gradeGround = gradingGround(draft.appearance);
   const sun = sunlightVerdict(draft);
   const pair = pairVerdict(draft);
   const accentHue = themeHue(draft.accentKey, draft.accentHex);
@@ -173,12 +213,25 @@ export function ThemePicker({
     selected,
     onPick,
     disabledReason,
+    recommended,
   }: {
     preset: ThemePreset;
     selected: boolean;
     onPick: () => void;
     /** Set when this swatch can't do its job against the current accent. */
     disabledReason?: string;
+    /**
+     * The half of the recommended scheme this list is choosing.
+     *
+     * Ajay, 2026-09-21: "how about recommendations in main colors?" The badge
+     * was only on the ready-made schemes, so an organizer who scrolled past
+     * them to pick a colour by hand — which is most of the point of these two
+     * lists — lost the recommendation entirely. It is the same scheme either
+     * way: the accent list marks its accent and the second list marks its
+     * secondary, so picking both marked swatches lands exactly on the
+     * recommended pair.
+     */
+    recommended?: boolean;
   }) => {
     const s = themeScale(preset, ground);
     return (
@@ -211,7 +264,31 @@ export function ThemePicker({
               looking at — the same rule `ground` above follows. Switching
               appearance to Light re-grades every swatch on the screen, which
               is the most useful thing this badge does. */}
-          <SunBadge grade={sunGrade(sunlightCheck(preset, ground))} />
+          {/* GRADED on `gradeGround`, PAINTED on `ground`. They differ for
+              `auto`, and conflating them is what made this swatch disagree
+              with the scheme card above it about the same colour. */}
+          <SunBadge grade={sunGrade(sunlightCheck(preset, gradeGround))} ground={ground} />
+          {recommended && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                fontSize: 10,
+                lineHeight: 1.2,
+                padding: "2px 6px",
+                borderRadius: 999,
+                whiteSpace: "nowrap",
+                // This swatch is painted on the CHOSEN ground, so the badge
+                // takes its colours from there too — see SunBadge's note.
+                color: ground.bg,
+                background: ground.text,
+              }}
+            >
+              <Icon name="ph-bold ph-star" style={{ fontSize: 10 }} aria-hidden />
+              Recommended
+            </span>
+          )}
         </div>
         {/* The comment at the call site said this swatch "says why instead of
             just dimming" — and it did not: the reason went into a `title`,
@@ -474,6 +551,7 @@ export function ThemePicker({
               preset={p}
               selected={draft.accentKey === p.key}
               onPick={() => set({ accentKey: p.key, accentHex: "" })}
+              recommended={p.key === DEFAULT_CLUB_THEME.accentKey}
             />
           ))}
         </div>
@@ -514,6 +592,7 @@ export function ThemePicker({
                 selected={draft.secondaryKey === p.key}
                 onPick={() => set({ secondaryKey: p.key, secondaryHex: "" })}
                 disabledReason={clash}
+                recommended={p.key === DEFAULT_CLUB_THEME.secondaryKey}
               />
             );
           })}

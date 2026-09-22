@@ -117,6 +117,64 @@ describe("sunlight is graded before the click, not after it", () => {
     );
   });
 
+  /**
+   * THE SWATCH AND THE SCHEME MUST AGREE ABOUT ONE COLOUR.
+   *
+   * Found by looking, not by testing — 8,293 unit tests were green while the
+   * screen said both things at once. Every test above passes `light` or `dark`
+   * explicitly, and the defect lived entirely in `auto`: the picker paints its
+   * swatches on a ground resolved as "dark only if dark, else light", which
+   * puts `auto` on LIGHT, and it was grading with that same value while
+   * `sunlightVerdict` grades `auto` as DARK. So with the seeded club on
+   * Follow-the-device the Claret swatch read "Good in sun" and the
+   * Championship scheme — which IS claret — read "Dim in sun".
+   *
+   * Wrong in the generous direction, which is the worse one: it told a club
+   * their claret was fine outdoors when most of their members would see it at
+   * 4.50:1.
+   *
+   * ALL THREE APPEARANCES, because two of them were already right and the
+   * untested one was the defect. That is the whole lesson.
+   */
+  it.each(["dark", "light", "auto"] as const)(
+    "grades a colour the same on its swatch and in a scheme (%s)",
+    (appearance) => {
+      const html = markup(appearance);
+      // Championship is claret + bunker, so the Claret swatch and the
+      // Championship card are two readers of the same question.
+      const scheme = cardOf(html, "Championship");
+      const swatch = cardOf(html, "Claret");
+      expect(scheme, "Championship card not found").not.toBe("");
+      expect(swatch, "Claret swatch not found").not.toBe("");
+
+      const gradeIn = (slice: string) =>
+        slice.includes(SUN_GRADE_LABEL.dim) ? "dim" : slice.includes(SUN_GRADE_LABEL.good) ? "good" : "none";
+
+      expect(gradeIn(swatch)).not.toBe("none");
+      expect(
+        gradeIn(swatch),
+        `on ${appearance} the Claret swatch and the Championship scheme disagree about claret`,
+      ).toBe(gradeIn(scheme));
+    },
+  );
+
+  it("judges auto as dark, because that is where a phone with no preference lands", () => {
+    // The direction matters. Grading auto as light is the forgiving answer and
+    // the wrong one — it passes colours that most members will read on dark.
+    //
+    // GRADES, not markup. `auto` and `dark` are judged alike and PAINTED
+    // differently on purpose: the swatches for `auto` are drawn on the light
+    // ground so a club can see the colours, which is a preview decision and
+    // not a verdict. Comparing the whole markup conflates the two all over
+    // again, one level up.
+    const counts = (a: Parameters<typeof markup>[0]) => {
+      const html = markup(a);
+      return { good: count(html, SUN_GRADE_LABEL.good), dim: count(html, SUN_GRADE_LABEL.dim) };
+    };
+    expect(counts("auto")).toEqual(counts("dark"));
+    expect(counts("auto")).not.toEqual(counts("light"));
+  });
+
   it("names Light as the remedy where the schemes are dim", () => {
     // The badge states the problem; something on the screen has to state the
     // fix, or an organizer is told their choice is poor and left there.
