@@ -146,10 +146,10 @@ export function AttendanceReport({ report }: { report: Report }) {
                       otherwise. Sixteen confirmed and eight silent is a
                       different Wednesday from twenty-four confirmed, which is
                       the whole reason `inByDefault` exists. */}
+                  {/* 10px, not smaller. `brand-consistency` refuses text below
+                      that and is right to: this is a number a secretary reads
+                      off a printed sheet. */}
                   {r.inByDefault > 0 && (
-                    {/* 10px, not smaller. `brand-consistency` refuses text
-                        below that and is right to: this is a number a
-                        secretary reads off a printed sheet. */}
                     <div style={{ fontSize: 10, opacity: 0.75 }}>{r.inByDefault} by default</div>
                   )}
                 </td>
