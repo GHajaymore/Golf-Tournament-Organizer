@@ -24,12 +24,7 @@ import { generatesPairings, isHeadToHead } from "@/lib/stage-types";
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
-import {
-  aggregateTeamCard,
-  singleBallTeamCard,
-  allocatedStrokes,
-  matchStrokesPerHole,
-} from "@/lib/domain/team";
+import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
