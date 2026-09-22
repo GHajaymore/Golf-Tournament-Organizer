@@ -85,6 +85,11 @@ export default async function ReportsPage() {
     done: state.boardProgress.certified,
     total: state.boardProgress.total,
     unit: state.boardProgress.unit,
+    /* A tournament with NO round has the same two zeroes as a round nobody
+       has returned a card for, and they are not the same thing. This screen
+       said "Nothing returned for this round yet" on a tournament whose Rounds
+       screen was still asking for a first one. */
+    hasRound: !!activeStage,
   });
 
   let board: React.ReactNode = null;

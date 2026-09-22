@@ -419,6 +419,29 @@ export function snapshotStanding(input: {
   unit: string;
   /** A team round is not "standings", and was already titled separately. */
   noun?: string;
+  /**
+   * WHETHER THERE IS A ROUND AT ALL.
+   *
+   * Distinct from `total: 0`, which this function already handles and which
+   * means "a round exists and nothing has come back from it". A tournament
+   * with NO round has the same two zeroes and a different situation, and read
+   * the same sentence: "Nothing returned for this round yet — these standings
+   * will change", about a round nobody has created.
+   *
+   * Found on the seeded club's "Winter Series — Not Yet Planned", 2026-09-22:
+   * no rounds, nobody entered, and `/stages` two clicks away saying "What is
+   * being played? Add at least one round." The screens disagreed about
+   * whether a round existed.
+   *
+   * It is the state every club is in for its first ten minutes, which is the
+   * reason `verify-lifecycle.mjs` exists — and an absence reported as a DELAY
+   * is the shape CLAUDE.md keeps recording: the sentence promises something is
+   * coming when nothing has been set up to come.
+   *
+   * Optional and defaulting to true, so the two callers that can only run with
+   * a round on screen are unchanged and need not prove it.
+   */
+  hasRound?: boolean;
 }): SnapshotStanding {
   const noun = input.noun ?? "standings";
   if (input.status === "completed") {
@@ -460,6 +483,16 @@ export function snapshotStanding(input: {
    */
   if (input.unit === "manual") {
     return { title, note: "This round is scored by hand — the committee records the result." };
+  }
+  /**
+   * NO ROUND IS NOT AN EMPTY ROUND, and it is checked BEFORE the zero branch
+   * because both states carry the same two zeroes. See `hasRound`.
+   */
+  if (input.hasRound === false) {
+    return {
+      title,
+      note: "No round has been added yet — there will be nothing to report until there is something to play.",
+    };
   }
   if (input.total <= 0 || input.done <= 0) {
     return {
