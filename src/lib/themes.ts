@@ -1079,6 +1079,66 @@ export function sunGrade(check: SunlightCheck): SunGrade {
 }
 
 /**
+ * THE ONE TO PICK IF YOU ARE NOT GOING TO THINK ABOUT IT.
+ *
+ * Ajay, 2026-09-21: "the preferred theme should be really good and tested for
+ * both desktop and mobile", and then "I am okay if you recommend preferred
+ * theme separately for desktop and mobile."
+ *
+ * Measured, the answer to the second is that THERE IS NO SPLIT WORTH MAKING —
+ * the same scheme wins both surfaces, and the difference between them is not
+ * which theme is best but how much the surface can AFFORD. A clubhouse screen
+ * indoors is forgiving and every scheme in the list is fine on it; a phone at
+ * arm's length in sun is not, and on the dark ground only six of the twelve
+ * colours clear the bar at all. So a "best on desktop" that differed from
+ * "best on mobile" would be recommending a worse phone theme for no gain.
+ *
+ * WHICH ONE, and the measurement that does NOT settle it on its own.
+ *
+ * The obvious rule is "the highest contrast", and it was tried first. Two
+ * things came out of measuring it, both worth keeping:
+ *
+ *   - ON THE LIGHT GROUND EVERY SCHEME IS THE SAME, 4.50 to 4.53. Not a
+ *     coincidence — construction: the ramp solves lightness to sit at the
+ *     readable minimum, so light mode cannot discriminate between schemes, and
+ *     a "worst across both grounds" score is the light number with noise on
+ *     it. Ranking by it put nine schemes ahead of this one by 0.01.
+ *   - ON THE DARK GROUND THE SPREAD IS REAL, 3.91 to 13.80, and the winner is
+ *     NOT this scheme. Floodlit (Signal + Optic) scores 12.07 against
+ *     Tournament's 10.09.
+ *
+ * Floodlit is not recommended anyway, and the reason is written at
+ * DEFAULT_THEME above: `--color-accent-2` is the SEMANTIC colour — it rings a
+ * birdie, marks the live dot, colours money owed to you — so a green brand
+ * accent competes with the green that already means "good". Floodlit leads
+ * with Signal, a bright green. Contrast is necessary and it is not sufficient,
+ * and a recommendation driven by contrast alone would ship a theme whose
+ * accent argues with its own meaning.
+ *
+ * So the rule is: clear the outdoor bar on dark with real headroom, pass on
+ * light, keep the accent clear of the semantic green, and be what a club that
+ * never opens this screen already has. `the-recommended-theme-is-earned`
+ * asserts each of those rather than a ranking, and records the Floodlit
+ * comparison so the next person does not re-derive it and "fix" the badge.
+ */
+export const RECOMMENDED_SCHEME = "tournament";
+
+/**
+ * A scheme's weakest contrast on the DARK ground.
+ *
+ * Dark only, and the note above is why: the light ground is flat by
+ * construction, so including it measures nothing and hides the axis that does
+ * vary. Higher is better. A raw ratio for comparing schemes against each
+ * other, not a pass mark — the bars differ by ground (7:1 dark, 4.5:1 light).
+ */
+export function darkGroundMargin(accent: ThemePreset, secondary: ThemePreset): number {
+  return Math.min(
+    sunlightCheck(accent, DARK_GROUND).worstRatio,
+    sunlightCheck(secondary, DARK_GROUND).worstRatio,
+  );
+}
+
+/**
  * The grade of a whole scheme — both colours, on the ground its appearance
  * resolves to. `auto` is graded as dark, exactly as `sunlightVerdict` does,
  * because that is where a phone with no stated preference lands.

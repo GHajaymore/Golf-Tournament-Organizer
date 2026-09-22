@@ -18,6 +18,7 @@ import {
   sunGrade,
   themeSunGrade,
   SUN_GRADE_LABEL,
+  RECOMMENDED_SCHEME,
   pairVerdict,
   hueDistance,
   themeHue,
@@ -397,8 +398,39 @@ export function ThemePicker({
                   />
                   <span style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}>{pair.name}</span>
                   <SunBadge grade={grade} />
+                  {/* The joint best across BOTH grounds, which is the number
+                      that matters while `auto` exists — the same club theme
+                      renders dark on one member's phone and light on
+                      another's. Derived, not asserted: a test pins that this
+                      key really is the best and names the winner if it stops
+                      being. */}
+                  {pair.key === RECOMMENDED_SCHEME && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10.5,
+                        lineHeight: 1.2,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                        color: "var(--color-on-accent)",
+                        background: "var(--color-accent)",
+                      }}
+                    >
+                      <Icon name="ph-bold ph-star" style={{ fontSize: 11 }} aria-hidden />
+                      Recommended
+                    </span>
+                  )}
                 </span>
                 <span className="text-muted" style={{ fontSize: 11 }}>{pair.blurb}</span>
+                {pair.key === RECOMMENDED_SCHEME && (
+                  <span className="text-muted" style={{ fontSize: 11 }}>
+                    Tested on a phone in sun and on a screen indoors, and it clears both comfortably —
+                    so it holds up whichever appearance your members&rsquo; devices choose.
+                  </span>
+                )}
               </button>
             );
           };
