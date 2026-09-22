@@ -26,7 +26,7 @@ import { standingRows } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { boardKind } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { rankedScore } from "@/lib/domain/ranked-score";
+import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark } from "@/lib/domain/scoreboard";
 import { roundCardFor } from "@/lib/services/round-card";
 import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
@@ -197,7 +197,14 @@ export default async function PlayTodayPage() {
     pos: positionLabel(row, boardRows),
     name: shownNames[i],
     thru: thruTile(row, holesPlayed(boardStage?.holes)),
-    total: rankedScore(row, { isStroke: state.boardIsStroke, isStableford }).text,
+    /* The same figure the Board tab shows, off the same unit — these two
+       screens printing different numbers for one round is the fault
+       `rankedScore` was extracted to stop. */
+    total: rankedScore(row, {
+      isStroke: state.boardIsStroke,
+      isStableford,
+      isNet: unitIsNet(state.boardIsStroke ? state.strokeUnitLabel : ""),
+    }).text,
     under: state.boardIsStroke && !isStableford && row.started && row.toPar < 0,
     you: row.id === me.playerId,
     gap,

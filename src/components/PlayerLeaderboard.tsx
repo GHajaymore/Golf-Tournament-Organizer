@@ -1,4 +1,4 @@
-import { rankedScore } from "@/lib/domain/ranked-score";
+import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { cutLineIndex } from "@/lib/domain/cut";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
@@ -136,7 +136,10 @@ export function PlayerLeaderboard({
    * club named as redundant. The top five are on the first screen anyway.
    */
   const you = youIndex >= 5 ? rows[youIndex] : undefined;
-  const yourScore = you ? rankedScore(you, { isStroke, isStableford }).text : "";
+  /* The figure follows the caption: a board that says it is ranked by net
+     strokes prints a net to-par. See `unitIsNet`. */
+  const isNet = unitIsNet(unit);
+  const yourScore = you ? rankedScore(you, { isStroke, isStableford, isNet }).text : "";
 
   return (
     <>
@@ -217,7 +220,7 @@ export function PlayerLeaderboard({
         // The one number the row is built around, through the one reader —
         // the two copies of this branch in this file are what let a
         // match-play board render a dash for everybody but you.
-        const score = rankedScore(r, { isStroke, isStableford }).text;
+        const score = rankedScore(r, { isStroke, isStableford, isNet }).text;
 
         return (
           <li key={r.id} data-flip-key={r.id}>

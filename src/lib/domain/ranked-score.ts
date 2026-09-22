@@ -58,6 +58,37 @@ export interface RankedRow {
    * `thru` is nought for everybody in one however many matches they have won.
    */
   started: boolean;
+  /**
+   * Gross and net strokes, which a NET board needs to show the right to-par.
+   *
+   * `toPar` is `gross - parThru` and is therefore always a GROSS figure. On a
+   * net competition the board is ranked on net, so printing `toPar` shows a
+   * number that does not explain the order — see the note on `rankedScore`.
+   * Net to par is `toPar - (gross - net)`: the handicap strokes received,
+   * taken off the gross figure. No new data and no second opinion about par.
+   *
+   * Optional because a match row has neither and never reaches that branch.
+   */
+  gross?: number;
+  net?: number;
+}
+
+/**
+ * Whether the unit a board PRINTS is a net one.
+ *
+ * Read off the caption rather than off `scoringBasis`, deliberately, and it is
+ * the point of the fix. The defect was a board headed "Ranked by net strokes"
+ * showing a gross figure; taking the same string that heads the board and
+ * letting it choose the figure underneath means the two agree BY CONSTRUCTION
+ * rather than because two readers happened to be given the same input.
+ *
+ * `standingsUnit` produces these labels — "net strokes", "gross strokes",
+ * "Stableford points" — so this is one step from the basis and never a second
+ * opinion about it. An empty unit reads as gross, which is what every board
+ * printed before this existed.
+ */
+export function unitIsNet(unit: string | undefined): boolean {
+  return /\bnet\b/i.test(unit ?? "");
 }
 
 export interface RankedScore {
@@ -92,7 +123,7 @@ export function toParCell(
 
 export function rankedScore(
   row: RankedRow,
-  opts: { isStroke: boolean; isStableford?: boolean },
+  opts: { isStroke: boolean; isStableford?: boolean; isNet?: boolean },
 ): RankedScore {
   if (!row.started) return { text: "–", label: "Not started" };
 
@@ -115,8 +146,39 @@ export function rankedScore(
   // a wrong one — and LEVEL PAR IS A REAL ANSWER, so the question is whether
   // par is known, never whether the number is falsy.
   if (!opts.isStableford && row.parKnown === false) return { text: "–", label };
-  return {
-    text: opts.isStableford ? String(row.points) : toParText(row.toPar),
-    label,
-  };
+  if (opts.isStableford) return { text: String(row.points), label };
+
+  /**
+   * A NET BOARD SHOWS A NET TO-PAR, because `toPar` is a gross figure.
+   *
+   * Measured on the seeded club's April Medal, 2026-09-22, on the PUBLIC share
+   * link a club sends its members. The board is headed "Ranked by net strokes"
+   * and was sorted correctly on net — and the one number on each row was the
+   * GROSS to-par, so the order could not be read off the board:
+   *
+   *     1 Marnie     81 gross   53 net   shown +10
+   *     2 Hattie     80         61       shown  +9
+   *     3 Nkechi     70         63       shown  -1
+   *     4 Priyanka   91         65       shown +20
+   *
+   * A member sees the leader at +10, third place at -1 and fourth at +20. Both
+   * numbers were right about their own question and nothing reconciled them —
+   * the class this whole file exists for, and the same fault its own docstring
+   * records for match play: "a board headed 'Ranked by match points', sorted by
+   * match points, with no match points on it."
+   *
+   * `toPar - (gross - net)` is net minus the same par, so the four rows above
+   * become -18, -10, -8, -6: ascending, and the order is now legible. It uses
+   * only fields the row already carries, so this cannot disagree with the
+   * ranking about which par applies.
+   *
+   * GUARDED on both figures being present. A caller that has not supplied them
+   * keeps the gross reading rather than silently subtracting `undefined`, which
+   * would print NaN on the one screen a club shares publicly.
+   */
+  const handicapStrokes =
+    opts.isNet && typeof row.gross === "number" && typeof row.net === "number"
+      ? row.gross - row.net
+      : 0;
+  return { text: toParText(row.toPar - handicapStrokes), label };
 }
