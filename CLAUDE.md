@@ -295,8 +295,8 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
 
-**One recurring CI failure is a Chromium crash, not a test.** `organizer.spec.ts:54` — "the
-leaderboard shows the whole field" — periodically fails on the desktop project with:
+**One recurring CI failure is a Chromium crash, not a test.** Somewhere in `organizer.spec.ts`,
+on the desktop project, with:
 
 ```
 [pid=####][err] Received signal 11 SEGV_MAPERR 0000000001b0
@@ -309,6 +309,17 @@ failure on that spec looks completely different, with an expected and a received
 confirm by re-running the SAME commit, which has gone green every time so far. What is not
 acceptable is merging past a red e2e without opening the log, which is how a real regression gets
 filed as this.
+
+**IT IS NOT ONE TEST.** This entry named `organizer.spec.ts:54`, "the leaderboard shows the whole
+field", for a fortnight, because that is where every observed crash had landed. On 2026-09-21 it
+struck `organizer.spec.ts:34` — "an organizer lands in the console, not the player app" — with
+the byte-identical signature, on the desktop project, on a pull request that changes only this
+document.
+
+So do not read a crash on a DIFFERENT line of that spec as a different problem, and do not go
+looking at whatever the named test asserts. The signature is the diagnosis: signal 11,
+`SEGV_MAPERR 0000000001b0`, desktop only, and no expected-versus-received anywhere in the output.
+The line number is as much noise as the component name is in the `Client Manifest` fault below.
 
 **What is known about it, measured rather than assumed** (2026-09-08):
 
@@ -451,10 +462,16 @@ next/font        #550 End-to-end (desktop)      #551 Build and smoke
                  #554 End-to-end (small-phone)
 Client Manifest  #553 End-to-end (desktop)   → RegistrationClient
                  #554 Build and smoke        → SeriesClient
+Chromium SEGV    #554 End-to-end (desktop)   → organizer.spec.ts:34
 ```
 
 Three of those four commits could not have caused anything — one added a single test file, one
 edited only this document. Every one cleared on a re-run of the identical commit.
+
+**#554 IS THE ONE TO REMEMBER: it collected all THREE faults, across two pushes, while changing
+nothing but this file.** If a documentation commit can go red three different ways in twenty
+minutes, then a red e2e on a branch that touches real code says nothing on its own either. Open
+the log, name which of the three it is, and re-run.
 
 That crosses the threshold this file sets for itself two paragraphs up: *"if that log line starts
 appearing often … it is time to chase the cause properly."* It has not been chased yet. What the
