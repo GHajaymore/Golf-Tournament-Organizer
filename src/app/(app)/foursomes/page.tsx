@@ -4,7 +4,8 @@ import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { effectiveAllowance, effectiveCountBest, teamsForStage } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
-import { allocatedStrokes } from "@/lib/domain/team";
+import { isHeadToHead } from "@/lib/stage-types";
+import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
 import { playingHandicapFrom } from "@/lib/domain/handicap";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
@@ -289,26 +290,117 @@ export default async function FoursomesPage({
    * — that is byte-for-byte what `singleBallTeamCard` does when it scores the
    * round, so the paper cannot disagree with the board.
    */
+  /**
+   * SINGLES MATCH PLAY IS THE SAME CARD PROBLEM, and it was the gap the sweep
+   * found. `needsTeams` is false for Match Play, so a singles match printed a
+   * MEDAL card: the index in brackets, dots off the full handicap, and no line
+   * for the match — while `matchStrokesGiven` has always scored it off the
+   * lower of the two. The paper disagreed with the engine.
+   *
+   * So the card's terms are not "is this a team round" but "what is this round
+   * doing", and a singles match carries them with `teams: false`.
+   */
+  const roundIsMatch = !!stage && isHeadToHead(stage.type);
   const teamRound =
-    stage && needsTeams(stage.format)
+    stage && (needsTeams(stage.format) || roundIsMatch)
       ? {
           format: stage.format,
           allowance,
-          sharedBall: sharesOneCard(stage.format),
+          teams: needsTeams(stage.format),
+          sharedBall: needsTeams(stage.format) && sharesOneCard(stage.format),
           countBest: effectiveCountBest(stage.format, stage.countBest),
+          matchPlay: roundIsMatch,
         }
       : null;
   const teams =
-    teamRound && stage
+    teamRound?.teams && stage
       ? await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes)
       : [];
   const sideOf = new Map<string, string>();
   for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.name);
-  const sides = teams.map((t) => ({
-    name: t.name,
-    playingHandicap: t.playingHandicap,
-    shots: allocatedStrokes(t.playingHandicap, 100, cardStrokeIndex),
-  }));
+  /**
+   * A MATCH IS PLAYED OFF THE LOWEST HANDICAP IN IT, so the card has to know
+   * which match a side is in before it can print a single dot.
+   *
+   * `matchHolesOffTheLow` scores it that way; a card still printing full
+   * allowances would hand a player dots the round does not honour, which is
+   * worse than printing none — they mark a net score on the strength of one.
+   *
+   * THE PAIRING, NOT THE TEE TIME. The low is taken from the two sides of the
+   * MATCH, read off the `Match` rows, rather than from whoever shares a group.
+   * Those are usually the same four people and occasionally are not, and a
+   * card that guessed would be wrong in exactly the case nobody checks.
+   */
+  const matchPlay = !!stage && !!teamRound?.matchPlay;
+  const matches = matchPlay
+    ? await prisma.match.findMany({
+        where: { stageId: stage!.id },
+        select: { id: true, teamAId: true, teamBId: true, playerAId: true, playerBId: true },
+      })
+    : [];
+  const playingOf = new Map<string, number>();
+  for (const t of teams) {
+    for (const m of t.members) {
+      playingOf.set(m.playerId, playingHandicapFrom(courseHandicaps.get(m.playerId) ?? 0, allowance));
+    }
+  }
+  /** The lowest figure in a side's match — its own scale, so a shared ball is
+   *  measured against the other SIDE and a four-ball against every player. */
+  const lowOf = new Map<string, number>();
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  for (const m of matches) {
+    const a = teamById.get(m.teamAId);
+    const b = teamById.get(m.teamBId);
+    if (!a || !b) continue;
+    const figures = teamRound!.sharedBall
+      ? [a.playingHandicap, b.playingHandicap]
+      : [...a.members, ...b.members].map((x) => playingOf.get(x.playerId) ?? 0);
+    const low = Math.min(...figures.map((n) => Math.round(n)));
+    lowOf.set(a.id, low);
+    lowOf.set(b.id, low);
+  }
+  const lowForPlayer = new Map<string, number>();
+  for (const t of teams) {
+    const low = lowOf.get(t.id);
+    if (low === undefined) continue;
+    for (const m of t.members) lowForPlayer.set(m.playerId, low);
+  }
+
+  /**
+   * SINGLES: the same rule with a field of two. The lower of the pair plays
+   * off scratch and the other receives the difference, which is exactly what
+   * `matchStrokesGiven` allocates when the result is worked out — so the card
+   * reads the Match rows rather than guessing from who shares a tee time.
+   *
+   * `blockOf` also becomes the grouping: a four-ball of singles is TWO
+   * matches, and printing four names in draw order hides which two are
+   * playing each other.
+   */
+  const blockOf = new Map<string, string>();
+  if (matchPlay && teamRound && !teamRound.teams) {
+    for (const m of matches) {
+      if (!m.playerAId || !m.playerBId) continue;
+      const a = playingHandicapFrom(courseHandicaps.get(m.playerAId) ?? 0, allowance);
+      const b = playingHandicapFrom(courseHandicaps.get(m.playerBId) ?? 0, allowance);
+      const low = Math.min(Math.round(a), Math.round(b));
+      lowForPlayer.set(m.playerAId, low);
+      lowForPlayer.set(m.playerBId, low);
+      blockOf.set(m.playerAId, m.id);
+      blockOf.set(m.playerBId, m.id);
+    }
+  }
+
+  const sides = teams.map((t) => {
+    const low = lowOf.get(t.id);
+    return {
+      name: t.name,
+      playingHandicap: t.playingHandicap,
+      /** Strokes this side receives in its match, where there is one. */
+      matchStrokes: low === undefined ? null : matchStrokesCount(t.playingHandicap, low),
+      // One definition, shared with the engine and the entry screen.
+      shots: matchStrokesPerHole(t.playingHandicap, low ?? 0, cardStrokeIndex),
+    };
+  });
 
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,
@@ -330,11 +422,38 @@ export default async function FoursomesPage({
            *  individual round, and on a team round for anyone not yet drawn
            *  into a side — who then prints as themselves rather than being
            *  quietly filed under somebody else's partnership. */
-          sideName: sideOf.get(pl.id) ?? "",
-          /** The number that goes in the Hcp box — what they actually play off. */
+          sideName: sideOf.get(pl.id) ?? blockOf.get(pl.id) ?? "",
+          /**
+           * The number that goes in the Hcp box — what they actually play off.
+           * It stays the FULL figure on a match card too, because it is what
+           * the skins and the side bets read; the match's own strokes go in
+           * their own column beside it. Ajay's rule: the low-handicap
+           * differential is "just for golf. Not for any skins or other
+           * bet/money game."
+           */
           playingHandicap: playingHandicapFrom(ch, allowance),
-          /** One entry per hole: how many shots, so two reads as two dots. */
-          shots: allocatedStrokes(ch, allowance, cardStrokeIndex),
+          /** Strokes received in this match, where the round is one. */
+          matchStrokes: (() => {
+            const low = lowForPlayer.get(pl.id);
+            if (low === undefined) return null;
+            return matchStrokesCount(playingHandicapFrom(ch, allowance), low);
+          })(),
+          /**
+           * One entry per hole: how many shots, so two reads as two dots.
+           *
+           * `matchStrokesPerHole` is the one definition the engine and the
+           * entry screen also use, so the paper, the phone and the result
+           * cannot disagree — which is the thing Ajay asked for in as many
+           * words: "both online and paper cards should match and consistent."
+           * On a medal round there is no low, and this stays the allowance
+           * allocation it always was.
+           */
+          shots: (() => {
+            const low = lowForPlayer.get(pl.id);
+            return low === undefined
+              ? allocatedStrokes(ch, allowance, cardStrokeIndex)
+              : matchStrokesPerHole(playingHandicapFrom(ch, allowance), low, cardStrokeIndex);
+          })(),
         };
       }),
   }));

@@ -235,6 +235,38 @@ export function singleBallTeamCard(
   return { holes, grossTotal, netTotal, pointsTotal, played, toPar: grossTotal - parPlayed };
 }
 
+/**
+ * THE SHOTS ONE PLAYER OR SIDE RECEIVES IN A MATCH, and the only definition
+ * of it.
+ *
+ * Three things answer "how many shots does this get here": the engine that
+ * decides the holes, the printed scorecard, and the score entry screen. They
+ * were written separately and they disagreed — the engine off the low, the
+ * other two off the full allowance — and each was found only because Ajay
+ * asked the next question, the last being "is this also reflecting in the
+ * online score entry?" followed by "both online and paper cards should match
+ * and consistent."
+ *
+ * So there is one implementation and all three call it. `low` is the lowest
+ * playing handicap in the match; pass 0 on a medal round and this is the
+ * identity — the full allowance, exactly as before.
+ *
+ * `playingHandicap` and `low` are PLAYING figures, allowance already applied,
+ * which is why the allocation runs at 100: applying an allowance twice is the
+ * drift `allocatedStrokes` documents.
+ */
+export function matchStrokesCount(playingHandicap: number, low: number): number {
+  return Math.max(0, Math.round(playingHandicap) - Math.round(low));
+}
+
+export function matchStrokesPerHole(
+  playingHandicap: number,
+  low: number,
+  strokeIndex: number[],
+): number[] {
+  return allocatedStrokes(matchStrokesCount(playingHandicap, low), 100, strokeIndex);
+}
+
 /** One ball in a match: what it returned, and what it plays off. */
 export interface MatchBall {
   strokes: (number | null)[];
@@ -290,7 +322,7 @@ export function matchHolesOffTheLow(
   // `- low` is never negative by construction. Allocated at 100% because the
   // allowance is already inside `playingHandicap` — applying it twice is the
   // drift `allocatedStrokes` documents.
-  const shots = all.map((_, i) => allocatedStrokes(playing[i] - low, 100, strokeIndex));
+  const shots = all.map((_, i) => matchStrokesPerHole(playing[i], low, strokeIndex));
   const shotsOf = new Map(all.map((b, i) => [b, shots[i]]));
 
   const sideScore = (side: MatchBall[], h: number): number | null => {

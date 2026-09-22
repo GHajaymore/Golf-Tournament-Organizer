@@ -37,6 +37,12 @@ export interface PrintGroup {
      */
     playingHandicap?: number;
     /**
+     * Strokes received in THIS match, where the round is one: their playing
+     * handicap less the lowest in the match. Null on a medal round, and on a
+     * match-play round for anybody not drawn into a match yet.
+     */
+    matchStrokes?: number | null;
+    /**
      * Shots received per hole, in hole order, from the round's own allocation.
      *
      * Computed on the server through the same chain the round is scored on so
@@ -55,6 +61,8 @@ export interface PrintSide {
   /** The side's own number, allowance already applied — what a shared ball
    *  plays off, and what `singleBallTeamCard` scores it against. */
   playingHandicap: number;
+  /** Strokes received in this match, where the round is one. */
+  matchStrokes?: number | null;
   /** The side's shots per hole, in hole order. */
   shots: number[];
 }
@@ -64,10 +72,16 @@ export interface PrintTeamRound {
   format: string;
   /** The allowance in force, as a percentage. */
   allowance: number;
+  /** Sides of more than one. False for singles match play, which shares every
+   *  other rule on this card and has no better ball. */
+  teams: boolean;
   /** One ball between the side (foursomes, a scramble) rather than one each. */
   sharedBall: boolean;
   /** How many partners' scores count on a hole, where they each play a ball. */
   countBest: number;
+  /** The round pits side against side, so it is decided hole by hole and the
+   *  strokes come off the lowest handicap in the match. */
+  matchPlay: boolean;
 }
 
 /**
@@ -189,11 +203,33 @@ export function TeeSheetPrint({
    *  a percentage there would be stating something untrue. */
   const termsLine = !teamRound
     ? ""
-    : teamRound.sharedBall
-      ? `${teamRound.format} — one ball between the side`
-      : `${teamRound.format} — best ${teamRound.countBest} score${
-          teamRound.countBest === 1 ? "" : "s"
-        } on each hole · ${teamRound.allowance}% handicap`;
+    : [
+        teamRound.matchPlay && !/match/i.test(teamRound.format)
+          ? `${teamRound.format} match play`
+          : teamRound.format,
+        !teamRound.teams
+          ? ""
+          : teamRound.sharedBall
+            ? "one ball between the side"
+            : `best ${teamRound.countBest} score${teamRound.countBest === 1 ? "" : "s"} on each hole`,
+        // No percentage on a shared ball: a scramble's side handicap is a
+        // descending share of each member's, not one figure, so naming a
+        // percentage there would state something untrue.
+        teamRound.sharedBall ? "" : `${teamRound.allowance}% handicap`,
+        // Singles: "the lower" reads oddly of four people and correctly of two.
+        teamRound.matchPlay && !teamRound.teams ? "shots off the lower handicap" : "",
+        // WHERE THE DOTS COME FROM, said out loud. On a match card they are
+        // the difference off the lowest handicap in the match, which is why
+        // a player's dots do not match the Hcp box beside their name.
+        teamRound.matchPlay && teamRound.teams
+          ? "shots off the lowest handicap in the match"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+  /** A match card carries the strokes given as well as what each plays off. */
+  const showsMatchStrokes = !!teamRound?.matchPlay;
 
   return (
     <>
@@ -282,6 +318,12 @@ export function TeeSheetPrint({
         /* The side's own line, shaded so the eye finds it under its players. */
         .foursome-card .sideRow td { background: #f4f4f4; }
         .foursome-card .sideRow td:first-child { font-size: 10.5px; }
+        /* The one box a committee reads afterwards, so it is a box and not a
+           column heading: left-aligned, roomy, and obviously for writing in. */
+        .foursome-card .result {
+          text-align: left; font-size: 8.5px; font-weight: 400;
+          opacity: 0.75; background: #fff; vertical-align: top;
+        }
         /* A signature is a line to write on, not a box to score in — and it
            goes UNDER the grid, as it does on a real card. It was briefly a row
            inside the table, where the colSpan arithmetic squeezed "Player's
@@ -321,7 +363,42 @@ export function TeeSheetPrint({
       `}</style>
 
       <div id="foursome-cards">
-        {printable.map((g) => (
+        {printable.map((g) => {
+          const blocks = blocksOf(g);
+          /**
+           * WHOSE VIEW THE MATCH ROW IS, because "2 up" on its own is the very
+           * thing that makes a card hard to read. Ajay: "ITs hard to know who
+           * won." The first side on the card owns the row and is named on it,
+           * so every entry in it means one thing.
+           */
+          const matchSide = blocks.find((b) => b.side)?.side?.name ?? "";
+          /**
+           * THE CONTEST, NAMED. Ajay, looking at the first version: "its hard
+           * to read which team is the winner and how many points vs what I
+           * shared with you." The card he shared heads the grid with
+           * "Josh Wheeler / Joe Bunnell vs. Jim Lythgoe / Mike Doyle" — one
+           * line that says what this piece of paper is about. Ours said
+           * "Match 1", which is a slot in a draw and not a fixture.
+           */
+          /*
+           * ONLY WHERE THE CARD IS ONE FIXTURE. A team card's two sides are
+           * one match, so heading it "<A> vs <B>" is true. A SINGLES card can
+           * hold two matches — four players who are two pairs of opponents —
+           * and joining every block with "vs" said that Ada and Dee were a
+           * side playing Bo and Cal, which is not a thing that is happening.
+           * Found by rendering all nineteen formats and reading them, not by
+           * looking at the one I had just changed.
+           *
+           * Singles put the fixture on each block's own Match line instead.
+           */
+          const contest =
+            teamRound?.matchPlay && teamRound.teams
+              ? blocks
+                  .map((b) => b.side?.name ?? b.players.map((p) => p.name).join(" & "))
+                  .filter(Boolean)
+                  .join("  vs  ")
+              : "";
+          return (
           <div key={g.name} className="foursome-card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -352,6 +429,22 @@ export function TeeSheetPrint({
             {/* WHAT IS BEING PLAYED. A card that does not say changes how the
                 hole is played and says nothing about it — best-ball-one-of-four
                 and best-two-of-four are different games on the same paper. */}
+            {contest && (
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  marginTop: -2,
+                  marginBottom: 4,
+                  borderTop: "1px solid #333",
+                  borderBottom: "1px solid #333",
+                  padding: "4px 0",
+                }}
+              >
+                {contest}
+              </div>
+            )}
             {termsLine && (
               <div style={{ fontSize: 11, marginTop: -6, marginBottom: 10, fontWeight: 600 }}>
                 {termsLine}
@@ -406,7 +499,7 @@ export function TeeSheetPrint({
                 </tr>
               </thead>
               <tbody>
-                {blocksOf(g).map((b, bi) => {
+                {blocks.map((b, bi) => {
                   /**
                    * ONE BALL, ONE ROW. `sharesOneCard` says the side shares a
                    * single scorecard rather than one card each, and this
@@ -422,6 +515,15 @@ export function TeeSheetPrint({
                       <tr key={`s${bi}`} className="sideRow" style={{ height: 34 }}>
                         <td>
                           <strong>{side.name}</strong>
+                          {/* A shared ball has no player row to carry a
+                              bracket, so the side's received strokes go here —
+                              otherwise the card shows a side handicap of 12
+                              and five dots with nothing joining them up. */}
+                          {showsMatchStrokes && side.matchStrokes != null && (
+                            <div style={{ fontSize: 8.5, opacity: 0.75 }}>
+                              receives {side.matchStrokes}
+                            </div>
+                          )}
                           {members !== side.name && (
                             <div style={{ fontSize: 8.5, opacity: 0.75 }}>{members}</div>
                           )}
@@ -445,7 +547,25 @@ export function TeeSheetPrint({
                       {b.players.map((p) => (
                         <tr key={p.name} style={{ height: 30 }}>
                           <td>
-                            {p.name} <span style={{ fontSize: 9 }}>({indexLabel(p)})</span>
+                            {/*
+                             * ON A MATCH CARD THE BRACKET IS THE SHOTS THEY GET,
+                             * not the index they carry between clubs.
+                             *
+                             * Ajay sent the league card his club already reads —
+                             * "Josh Wheeler (1) … Mike Doyle (5)" — and said
+                             * "I need in similar format. make it simple". That
+                             * number is the difference off the lowest handicap
+                             * in the match, and it is the one a player checks on
+                             * the first tee. It is also the number the dots on
+                             * this row were drawn from, so the two agree.
+                             *
+                             * A medal card keeps the index, because there no
+                             * shots are "given" to anybody.
+                             */}
+                            {p.name}{" "}
+                            <span style={{ fontSize: 9 }}>
+                              ({showsMatchStrokes ? (p.matchStrokes ?? 0) : indexLabel(p)})
+                            </span>
                             {p.tee ? (
                               <span style={{ fontSize: 8.5, marginLeft: 4, opacity: 0.75 }}>{p.tee}</span>
                             ) : null}
@@ -476,12 +596,47 @@ export function TeeSheetPrint({
                           card carries a better-ball line, and this one did not.
                           Blank boxes: it is arithmetic done on the course, not
                           something the sheet can know in advance. */}
+                      {/* SINGLES: a block IS a match, so its line goes here.
+                          A team round's two sides are one match between them,
+                          so that card carries a single Match row at its foot
+                          instead — see below. */}
+                      {showsMatchStrokes && !teamRound?.teams && (
+                        <tr className="sideRow" style={{ height: 30 }}>
+                          <td>
+                            <strong>Match</strong>
+                            {/* THE FIXTURE, on the line that carries it. This
+                                named only the first player, which tells a
+                                reader whose view the "2 up" is from and not
+                                who it is against — and on a card holding two
+                                separate matches that is the whole question. */}
+                            <div style={{ fontSize: 8.5, opacity: 0.75 }}>
+                              {b.players.map((p) => p.name).join(" vs ")}
+                            </div>
+                            <div style={{ fontSize: 8, opacity: 0.6 }}>
+                              {b.players[0]?.name ?? ""} — up / down / AS
+                            </div>
+                          </td>
+                          {cols.map((c) =>
+                            c.kind === "hole" ? (
+                              <td key={`bm${c.i}`} className="box" />
+                            ) : (
+                              <td key={c.label} className="tot" />
+                            ),
+                          )}
+                          <td className="tot result" colSpan={2}>
+                            Result
+                          </td>
+                        </tr>
+                      )}
                       {b.side && (
                         <tr className="sideRow" style={{ height: 30 }}>
                           <td>
-                            <strong>{b.side.name}</strong>
+                            {/* "Net Score", as the card Ajay's club already
+                                reads calls it — the side's better ball, on the
+                                line directly under the players it came from. */}
+                            <strong>Net Score</strong>
                             <div style={{ fontSize: 8.5, opacity: 0.75 }}>
-                              Best {teamRound?.countBest ?? 1} counts
+                              {b.side.name} · best {teamRound?.countBest ?? 1}
                             </div>
                           </td>
                           {cols.map((c) =>
@@ -498,6 +653,37 @@ export function TeeSheetPrint({
                     </Fragment>
                   );
                 })}
+                {/* THE MATCH, which is the only score that matters on a match
+                    card and had nowhere to go.
+                    A match is not a total — it is a state carried from hole to
+                    hole, and a player writes "2 up" or "AS" in it as they walk
+                    off each green. So it is a row of boxes with no OUT, no IN
+                    and no total: adding a match up is not a thing anybody
+                    does, and a box inviting it would be inviting a mistake. */}
+                {showsMatchStrokes && teamRound?.teams && (
+                  <tr className="sideRow" style={{ height: 30 }}>
+                    <td>
+                      <strong>Match</strong>
+                      <div style={{ fontSize: 8.5, opacity: 0.75 }}>
+                        {matchSide ? `${matchSide} — up / down / AS` : "up / down / AS"}
+                      </div>
+                    </td>
+                    {cols.map((c) =>
+                      c.kind === "hole" ? (
+                        <td key={`m${c.i}`} className="box" />
+                      ) : (
+                        <td key={c.label} className="tot" />
+                      ),
+                    )}
+                    {/* WHERE THE ANSWER GOES. The Match line carries the state
+                        hole by hole; this is the one box a committee reads
+                        afterwards — "1 up", "3&2", "halved" — and the card had
+                        nowhere to write it. */}
+                    <td className="tot result" colSpan={2}>
+                      Result
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
             </div>
@@ -510,7 +696,8 @@ export function TeeSheetPrint({
               <span>Player&rsquo;s signature</span>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

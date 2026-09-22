@@ -3103,6 +3103,159 @@ describe("printed foursome cards", () => {
     expect(html).not.toContain("<img");
     expect(html).toContain("Cinci Desi Golf");
   });
+
+  /**
+   * A MATCH CARD IS A DIFFERENT CARD, and it used to be the medal one.
+   *
+   * Ajay sent the league card his club already reads and said "ITs hard to
+   * know who won ... I need in similar format. make it simple." What that card
+   * has and this one did not: the strokes a player RECEIVES in brackets by
+   * their name, a Net Score line per side, and a Match line to carry the state
+   * hole by hole.
+   *
+   * Every assertion below is paired with the medal case, because "contains
+   * Match" would pass on a card that printed it for everybody.
+   */
+  const pair = (sideName: string, xs: Array<[string, number, number]>) =>
+    xs.map(([name, playingHandicap, matchStrokes]) => ({
+      name,
+      handicap: playingHandicap,
+      playingHandicap,
+      matchStrokes,
+      sideName,
+      shots: new Array(18).fill(0),
+    }));
+  const fourBall = {
+    ...base,
+    groups: [
+      {
+        name: "Match 1",
+        startHole: 1,
+        time: "8:00 AM",
+        players: [
+          ...pair("Ada & Bo", [["Ada Fernsby", 5, 0], ["Bo Kettleworth", 21, 16]]),
+          ...pair("Cal & Dee", [["Cal Ravensworth", 12, 7], ["Dee Penhaligon", 27, 22]]),
+        ],
+      },
+    ],
+    sides: [
+      { name: "Ada & Bo", playingHandicap: 5, matchStrokes: 0, shots: new Array(18).fill(0) },
+      { name: "Cal & Dee", playingHandicap: 12, matchStrokes: 7, shots: new Array(18).fill(0) },
+    ],
+  };
+  const medalTerms = {
+    format: "Four-Ball",
+    allowance: 85,
+    teams: true,
+    sharedBall: false,
+    countBest: 1,
+    matchPlay: false,
+  };
+  const matchTerms = { ...medalTerms, allowance: 90, matchPlay: true };
+
+  it("brackets the strokes a player receives on a match card, and the index on a medal", () => {
+    const match = render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />);
+    const medal = render(<TeeSheetPrint {...fourBall} teamRound={medalTerms} />);
+    // The low player receives nothing and says so; on the medal card the same
+    // player's bracket is their handicap instead.
+    expect(match).toContain("Ada Fernsby");
+    expect(match).toContain("(0)");
+    expect(match).toContain("(16)");
+    // The control: the two cards must not read alike, or neither assertion
+    // above is telling us which one we rendered.
+    expect(medal).not.toContain("(16)");
+    expect(medal).toContain("(21)");
+  });
+
+  it("carries a Match line on a match card and none on a medal", () => {
+    expect(render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />)).toContain("up / down / AS");
+    expect(render(<TeeSheetPrint {...fourBall} teamRound={medalTerms} />)).not.toContain("up / down / AS");
+  });
+
+  it("gives a team card ONE match line and a singles card one per pairing", () => {
+    const count = (html: string) => html.split("up / down / AS").length - 1;
+    // Two sides are one match between them.
+    expect(count(render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />))).toBe(1);
+    // Four singles players are TWO matches, and each needs its own line.
+    const singles = {
+      ...base,
+      groups: [
+        {
+          name: "Tie 1",
+          startHole: 1,
+          time: "9:00 AM",
+          players: [
+            ...pair("m1", [["Ada Fernsby", 6, 0], ["Dee Penhaligon", 30, 24]]),
+            ...pair("m2", [["Bo Kettleworth", 23, 10], ["Cal Ravensworth", 13, 0]]),
+          ],
+        },
+      ],
+      sides: [],
+    };
+    expect(
+      count(
+        render(
+          <TeeSheetPrint
+            {...singles}
+            teamRound={{ ...matchTerms, format: "Match Play", allowance: 100, teams: false }}
+          />,
+        ),
+      ),
+    ).toBe(2);
+  });
+
+  it("names each side's Net Score line, so two pairs on one card stay apart", () => {
+    const html = render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />);
+    expect(html).toContain("Net Score");
+    expect(html).toContain("Ada &amp; Bo");
+    expect(html).toContain("Cal &amp; Dee");
+    // A singles card has no better ball, so no Net Score line at all — the
+    // control that "Net Score" is not simply always printed.
+    const singles = render(
+      <TeeSheetPrint
+        {...base}
+        teamRound={{ ...matchTerms, format: "Match Play", teams: false }}
+        sides={[]}
+      />,
+    );
+    expect(singles).not.toContain("Net Score");
+  });
+
+  it("heads a match card with the fixture, and gives the result somewhere to go", () => {
+    /*
+     * Ajay, on the first version: "its hard to read which team is the winner
+     * and how many points vs what I shared with you." The card he shared heads
+     * the grid with "<pair> vs. <pair>" and carries the outcome; ours said
+     * "Match 1", which is a slot in a draw and not a fixture, and had nowhere
+     * to write what happened.
+     */
+    const match = render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />);
+    expect(match).toContain("Ada &amp; Bo  vs  Cal &amp; Dee");
+    expect(match).toContain("Result");
+    // The control: a medal card is not a fixture and has no result box, so
+    // neither assertion above can be passing on something always printed.
+    const medal = render(<TeeSheetPrint {...fourBall} teamRound={medalTerms} />);
+    expect(medal).not.toContain("vs");
+    expect(medal).not.toContain("Result");
+  });
+
+  it("says where the shots came from, differently for a four and for a pair", () => {
+    const four = render(<TeeSheetPrint {...fourBall} teamRound={matchTerms} />);
+    expect(four).toContain("shots off the lowest handicap in the match");
+    const singles = render(
+      <TeeSheetPrint
+        {...base}
+        teamRound={{ ...matchTerms, format: "Match Play", allowance: 100, teams: false }}
+        sides={[]}
+      />,
+    );
+    // "the lower" of two, not "the lowest" of four.
+    expect(singles).toContain("shots off the lower handicap");
+    expect(singles).not.toContain("lowest handicap in the match");
+    // And a format already called Match Play is not called "Match Play match
+    // play" — the tidying that reads as carelessness on a printed card.
+    expect(singles).not.toContain("Match Play match play");
+  });
 });
 
 describe("the ask-a-question mic", () => {

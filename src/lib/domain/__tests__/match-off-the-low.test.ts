@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { aggregateTeamCard, matchHolesOffTheLow, type MatchBall } from "../team";
+import {
+  aggregateTeamCard,
+  matchHolesOffTheLow,
+  matchStrokesCount,
+  matchStrokesPerHole,
+  type MatchBall,
+} from "../team";
 import { holeStrokesReceived } from "../stroke";
 
 /**
@@ -58,6 +64,49 @@ function oldMethod(a: MatchBall[], b: MatchBall[]) {
     return x < y ? "A" : y < x ? "B" : "H";
   });
 }
+
+/**
+ * The one definition the engine, the printed card and the entry screen all
+ * call. Pinned against the RULES rather than against each other: three readers
+ * sharing a function agree whether it is right or wrong, so agreement is not
+ * the thing worth asserting — the value is.
+ */
+describe("what a player receives in a match", () => {
+  it("gives the lowest handicap in the match nothing", () => {
+    expect(matchStrokesCount(6, 6)).toBe(0);
+    expect(matchStrokesPerHole(6, 6, SI).every((n) => n === 0)).toBe(true);
+  });
+
+  it("gives everybody else the difference, and never a negative", () => {
+    expect(matchStrokesCount(30, 6)).toBe(24);
+    // A figure below the low cannot happen from a real match, and if it did,
+    // owing the field strokes is not a thing golf does.
+    expect(matchStrokesCount(4, 6)).toBe(0);
+  });
+
+  it("puts the difference on the hardest holes, and wraps past eighteen", () => {
+    const five = matchStrokesPerHole(11, 6, SI);
+    expect(five.flatMap((n, i) => (n > 0 ? [SI[i]] : []))).toEqual([1, 2, 3, 4, 5]);
+    const twenty = matchStrokesPerHole(22, 2, SI);
+    expect(twenty.filter((n) => n === 2)).toHaveLength(2);
+    expect(twenty.filter((n) => n === 1)).toHaveLength(16);
+    expect(twenty.reduce((a, b) => a + b, 0)).toBe(20);
+  });
+
+  it("is the identity on a medal round, where there is no low to take off", () => {
+    // `low` is 0 there, so every caller keeps the full allowance it always had
+    // — which is what makes this safe to share with the medal paths.
+    expect(matchStrokesCount(17, 0)).toBe(17);
+    expect(matchStrokesPerHole(17, 0, SI).reduce((a, b) => a + b, 0)).toBe(17);
+  });
+
+  it("rounds before it subtracts, so a playing handicap is whole strokes", () => {
+    // 10.6 and 10.4 both play off 11 and 10; the low is taken from the rounded
+    // figures, not from the raw ones, or two players off the same number could
+    // give each other a stroke.
+    expect(matchStrokesCount(10.6, 10.4)).toBe(1);
+  });
+});
 
 describe("four-ball match play, strokes off the low handicap", () => {
   /**
