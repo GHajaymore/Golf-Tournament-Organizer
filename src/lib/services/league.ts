@@ -2,8 +2,9 @@ import "server-only";
 import { prisma } from "../db";
 import { COURSE_REF, cardForStage, courseForRound } from "./course-resolution";
 import { resolveCourse } from "../courses";
-import { aggregateTeamCard, teamMatchHoles, type TeamMemberCard } from "../domain/team";
-import { effectiveCountBest } from "./teams";
+import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
+import { playingHandicapFrom } from "../domain/handicap";
+import { effectiveAllowance, effectiveCountBest } from "./teams";
 import {
   meetingPoints,
   meetingsIn,
@@ -156,24 +157,35 @@ export async function leagueMeetings(
   const handicapOf = new Map(players.map((p) => [p.id, p.handicap]));
 
   /**
-   * One side's four-ball card, built the same way the entry screen and the
-   * team board build it. A side with no scores yet yields a card of nulls
-   * rather than nothing, so an unplayed pairing reads as unplayed instead of
-   * as a walkover.
+   * One side as the balls of a match, for `matchHolesOffTheLow`.
+   *
+   * This replaces a `cardFor` that built each side with `aggregateTeamCard`
+   * and handed the two to `teamMatchHoles` — full allowance each, net better
+   * ball against net better ball. That is the net MEDAL method and this is a
+   * MATCH; the difference lands on the hardest holes, which the domain
+   * function sets out with the measurement.
+   *
+   * Same rows and the same handicap source as before, deliberately: the only
+   * thing that changed here is the method. A side with no scores yet yields
+   * balls of nulls rather than nothing, so an unplayed pairing still reads as
+   * unplayed instead of as a walkover.
    */
-  const cardFor = (teamId: string) => {
-    const own = cards.filter((c) => c.teamId === teamId);
-    const members: TeamMemberCard[] = own.map((c) => {
-      let strokes: (number | null)[] = [];
-      try {
-        strokes = JSON.parse(c.strokes) as (number | null)[];
-      } catch {
-        strokes = [];
-      }
-      return { playerId: c.playerId, strokes, courseHandicap: handicapOf.get(c.playerId) ?? 0 };
-    });
-    return aggregateTeamCard(members, card.pars, card.strokeIndex, stage.handicapAllowance, countBest);
-  };
+  const allowancePct = effectiveAllowance(stage.format, stage.handicapAllowance);
+  const ballsFor = (teamId: string): MatchBall[] =>
+    cards
+      .filter((c) => c.teamId === teamId)
+      .map((c) => {
+        let strokes: (number | null)[] = [];
+        try {
+          strokes = JSON.parse(c.strokes) as (number | null)[];
+        } catch {
+          strokes = [];
+        }
+        return {
+          strokes,
+          playingHandicap: playingHandicapFrom(handicapOf.get(c.playerId) ?? 0, allowancePct),
+        };
+      });
 
   const sideById = new Map(sides.map((s) => [s.id, s]));
 
@@ -193,7 +205,17 @@ export async function leagueMeetings(
       clubBName: b.club.name,
       parentA: a.club.id,
       parentB: b.club.id,
-      holes: teamMatchHoles(cardFor(a.id), cardFor(b.id)),
+      // Off the lowest handicap in the four, not each side's full-allowance
+      // net — see `matchHolesOffTheLow`. This decides the match and the league
+      // points, and nothing else: the week sheet's own figures come from
+      // `week-view.ts`, which still reads `aggregateTeamCard`.
+      holes: matchHolesOffTheLow(
+        ballsFor(a.id),
+        ballsFor(b.id),
+        card.strokeIndex,
+        card.pars.length,
+        countBest,
+      ),
     });
   }
 

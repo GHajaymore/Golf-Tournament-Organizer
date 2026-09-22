@@ -166,8 +166,21 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(recompute).toMatch(/match: matchVenue/);
     expect(recompute).toMatch(/roundHandicapOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\)/);
     expect(recompute).toMatch(/members\.map\(\(m\) => playsOff\(m\.player\)\)/);
-    expect(recompute).toMatch(/courseHandicap: playsOff\(m\.player\)/);
+    /**
+     * THE GUARANTEE, NOT THE SHAPE. This pinned `courseHandicap:
+     * playsOff(m.player)` — the field of a `TeamMemberCard`, because the match
+     * used to be decided by building a `TeamCard` per side. Four-ball match
+     * play now goes off the lowest handicap in the match, so a side reaches
+     * the engine as BALLS and the field is `playingHandicap`. The old spelling
+     * described a data structure; what must never change is where the NUMBER
+     * comes from, which is `playsOff` either way.
+     *
+     * Both negatives kept, and they are the safe direction: any future shape
+     * that reaches for the roster index fails here whatever it calls the field.
+     */
+    expect(recompute).toMatch(/playingHandicap: playingHandicapFrom\(playsOff\(m\.player\)/);
     expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
+    expect(recompute).not.toMatch(/playingHandicap: m\.player\.handicap/);
   });
 
   it("allocates net match play off the round's Course Handicap", () => {

@@ -159,6 +159,14 @@ describe("colour comes from the theme, not from the component", () => {
     "src/app/styleguide/page.tsx",
     // Test fixtures, not shipped UI.
     "src/lib/__tests__/render.test.tsx",
+    // THE PRINTED SCORECARD IS PAPER, not a screen, and that is the whole
+    // reason it holds literals. It is drawn white with black ink and grey
+    // shading on the totals because the question it answers is "what will come
+    // out of the printer" — a card wearing the club's accent would answer a
+    // different one, and would also hand a club's own printer a colour it may
+    // render badly or not at all. Tokens here would follow the theme, which is
+    // exactly what must not happen.
+    "src/components/TeeSheetPrint.tsx",
   ];
 
   it("has no hard-coded hex colours outside the places that own one", () => {

@@ -235,19 +235,81 @@ export function singleBallTeamCard(
   return { holes, grossTotal, netTotal, pointsTotal, played, toPar: grossTotal - parPlayed };
 }
 
+/** One ball in a match: what it returned, and what it plays off. */
+export interface MatchBall {
+  strokes: (number | null)[];
+  /** The PLAYING handicap — the round's allowance already applied. A shared
+   *  ball passes the side's figure; a four-ball passes one per player. */
+  playingHandicap: number;
+}
+
 /**
- * Hole-by-hole match result between two sides, from their team cards.
+ * PER-HOLE WINNERS OF A TEAM MATCH, STROKES TAKEN OFF THE LOWEST HANDICAP IN
+ * THE MATCH.
  *
- * Returns the same "A" | "B" | "H" | null shape the singles match engine uses,
- * so four-ball match play reuses resolveMatch unchanged rather than growing a
- * parallel implementation.
+ * This is the four-ball match-play method and it is not what `teamMatchHoles`
+ * does. That compares two sides' NET better balls, each player having received
+ * their full allowance — which is right for a net better-ball MEDAL and wrong
+ * for a MATCH, and both went through it. Ajay, 2026-09-22, describing a
+ * twelve-team interclub league: "in team match play, HCs are determined based
+ * on the lowest HC player in the foursome ... that is only for that week.
+ * every week its decided based on the lowest handicap player."
+ *
+ * The two differ because allocation is not linear: `alloc(9) − alloc(4)` puts
+ * strokes on stroke index 5..9, while `alloc(9 − 4)` puts them on 1..5. So the
+ * error is not a constant offset that cancels — it lands on the HARDEST holes,
+ * which is where matches are decided. Measured on a four of 4/9/6/14: the two
+ * methods disagree on twenty player-holes, and under the old one nobody gains
+ * a relative stroke on S.I. 1-4 at all, because the low player receives there
+ * too.
+ *
+ * IT DECIDES HOLES AND NOTHING ELSE, which is the constraint this was asked
+ * under: "it is just for the match result/points. should not affect anything
+ * else." Net totals, the team board, skins, expenses and the handicap record
+ * all keep reading `aggregateTeamCard`, untouched — this function returns hole
+ * winners and holds no state.
+ *
+ * `countBest` is the side's counting scores, exactly as `aggregateTeamCard`
+ * means it, so a best-two-of-four league scores its matches the same way it
+ * scores its medals.
  */
-export function teamMatchHoles(sideA: TeamCard, sideB: TeamCard): ("A" | "B" | "H" | null)[] {
-  const holes = Math.max(sideA.holes.length, sideB.holes.length);
+export function matchHolesOffTheLow(
+  sideA: MatchBall[],
+  sideB: MatchBall[],
+  strokeIndex: number[],
+  holeCount: number,
+  countBest = 1,
+): ("A" | "B" | "H" | null)[] {
+  const all = [...sideA, ...sideB];
+  if (all.length === 0) return [];
+  // Rounded before the minimum is taken: a playing handicap is a whole number
+  // of strokes, and comparing unrounded figures could make the low man someone
+  // who plays off the same number as another player.
+  const playing = all.map((b) => Math.round(b.playingHandicap));
+  const low = Math.min(...playing);
+  // `- low` is never negative by construction. Allocated at 100% because the
+  // allowance is already inside `playingHandicap` — applying it twice is the
+  // drift `allocatedStrokes` documents.
+  const shots = all.map((_, i) => allocatedStrokes(playing[i] - low, 100, strokeIndex));
+  const shotsOf = new Map(all.map((b, i) => [b, shots[i]]));
+
+  const sideScore = (side: MatchBall[], h: number): number | null => {
+    const nets = side
+      .map((b) => {
+        const gross = b.strokes[h];
+        if (gross == null || !Number.isFinite(gross)) return null;
+        return gross - (shotsOf.get(b)![h] ?? 0);
+      })
+      .filter((n): n is number => n !== null)
+      .sort((x, y) => x - y);
+    if (nets.length === 0) return null;
+    return nets.slice(0, Math.max(1, countBest)).reduce((sum, n) => sum + n, 0);
+  };
+
   const out: ("A" | "B" | "H" | null)[] = [];
-  for (let h = 0; h < holes; h += 1) {
-    const a = sideA.holes[h]?.net ?? null;
-    const b = sideB.holes[h]?.net ?? null;
+  for (let h = 0; h < holeCount; h += 1) {
+    const a = sideScore(sideA, h);
+    const b = sideScore(sideB, h);
     if (a == null || b == null) out.push(null);
     else if (a < b) out.push("A");
     else if (b < a) out.push("B");
@@ -255,3 +317,14 @@ export function teamMatchHoles(sideA: TeamCard, sideB: TeamCard): ("A" | "B" | "
   }
   return out;
 }
+
+/*
+ * `teamMatchHoles` stood here: it compared two sides' net better balls, each
+ * player having received their full allowance, and it was the only way a team
+ * match was decided. That is the net-MEDAL method — right for a better-ball
+ * medal, wrong for a match, and both went through it. `matchHolesOffTheLow`
+ * above replaced it at both call sites and it was left reachable from nothing,
+ * which `domain-is-reachable` correctly refused. The old comparison survives
+ * as the control inside `match-off-the-low.test.ts`, written out there so the
+ * divergence is demonstrated rather than remembered.
+ */

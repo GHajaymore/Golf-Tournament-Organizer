@@ -1922,8 +1922,6 @@ describe("a round's card is narrowed in exactly one place", () => {
       "cardProblems VALIDATES a stored card is complete — it is not choosing a round's holes",
     "src/components/StrokePlayEntry.tsx":
       "receives an already-narrowed card as a prop from the entry screen, which uses cardForStage",
-    "src/components/TeeSheetPrint.tsx":
-      "sums an already-narrowed par list for a printed header",
   };
 
   const offenders = sourceFiles(SRC)

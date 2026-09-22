@@ -109,7 +109,7 @@ import { resolveCourse } from "@/lib/courses";
 import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
-import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
+import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor } from "@/lib/services/action-shared";
@@ -2777,6 +2777,19 @@ async function recomputeTeamMatch(
         return [];
       }
     };
+    /**
+     * THE SIDE AS BALLS, because this is a MATCH.
+     *
+     * This built a `TeamCard` per side with full allowances and compared the
+     * two net better balls. That is the net-medal method; a match is played
+     * off the lowest handicap in it. See `matchHolesOffTheLow`, which carries
+     * the measurement of how far the two diverge and why it lands on the
+     * hardest holes.
+     *
+     * A shared ball is ONE ball at the side's own playing handicap, which is
+     * the same figure `singleBallTeamCard` scores it on — so foursomes match
+     * play comes off the low side rather than the low player, correctly.
+     */
     if (format.ball === "single") {
       const one = cards.find((c) => c.playerId === "");
       const hcp = sidePlayingHandicap(
@@ -2785,23 +2798,22 @@ async function recomputeTeamMatch(
         stage?.handicapAllowance ?? 0,
         stage?.allowanceWeights,
       );
-      return singleBallTeamCard(one ? parse(one.strokes) : [], course.pars, hcp, course.strokeIndex);
+      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp }];
     }
-    return aggregateTeamCard(
-      members.map((m) => ({
-        playerId: m.playerId,
-        strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
-        courseHandicap: playsOff(m.player),
-      })),
-      course.pars,
-      course.strokeIndex,
-      allowance,
-      effectiveCountBest(formatName, stage?.countBest ?? 0),
-    );
+    return members.map((m) => ({
+      strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
+      playingHandicap: playingHandicapFrom(playsOff(m.player), allowance),
+    }));
   };
 
   const [a, b] = await Promise.all([sideCard(match.teamAId), sideCard(match.teamBId)]);
-  const holes = teamMatchHoles(a, b);
+  const holes = matchHolesOffTheLow(
+    a,
+    b,
+    course.strokeIndex,
+    course.pars.length,
+    effectiveCountBest(formatName, stage?.countBest ?? 0),
+  );
   const complete = resolveMatch(holes).complete;
 
   await prisma.match.update({
