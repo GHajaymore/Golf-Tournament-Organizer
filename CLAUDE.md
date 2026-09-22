@@ -422,6 +422,22 @@ same commit passing elsewhere. That day the `pull_request` run of the identical 
 all three viewports while the `push` run was red, which is as clean a control as this fault ever
 offers.
 
+**AND ON 2026-09-21 IT WENT RED ON A COMMIT THAT ADDS ONE TEST FILE AND NOTHING ELSE**, naming
+`RegistrationClient` — the eighth component to appear in this error and one the commit does not
+import, reference or reach. `/registration has 0 h1s: []`, the usual costume.
+
+That is a stronger control than the comment-only PR above, and it is worth having both: a
+comment-only change still TOUCHES a source file, so somebody can always wonder about a stray
+character. A commit whose entire diff is one new file under `src/lib/__tests__` cannot alter what
+`next build` emits for a page it never mentions. The three other proofs held as usual — `phone`
+and `small-phone` passed the same SHA with their own builds, the PR run was green on all three
+viewports twice over, and a re-run of the identical commit with no change went fully green and
+deployed.
+
+So the count of named components is now eight and still climbing, which is the point the list is
+making rather than a gap in it. **Do not chase the component.** Re-run the failed job
+(`gh run rerun <id> --failed`) and read `Client Manifest` as the whole diagnosis.
+
 **And that pair is worth knowing about on its own: `ci.yml` runs on BOTH `push` and
 `pull_request`, so one commit has TWO workflow runs and two sets of identically-named checks.**
 A merge watcher reading `commits/<sha>/check-runs` sees both and will refuse on a failure in
