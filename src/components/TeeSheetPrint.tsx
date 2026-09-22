@@ -115,15 +115,44 @@ export function TeeSheetPrint({
       </div>
 
       <style>{`
-        #foursome-cards { display: none; }
+        /**
+         * THE CARDS ARE ON SCREEN NOW, and that is the fix.
+         *
+         * They were display:none here and visible only on paper, so the app
+         * had nowhere you could LOOK at a scorecard: "Scorecards" on Reports
+         * gave you a button that opens the browser's print dialog, and the
+         * only way to see what would come out was to print it. Ajay,
+         * 2026-09-22, twice: "it takes me to the teesheet and not the actual
+         * scorecards to print for players to use on the course."
+         *
+         * Drawn as paper rather than as app furniture — white, black text, the
+         * same ruled table — because the question being asked is "what will
+         * come out of the printer", and a card restyled for a dark ground
+         * would answer a different one. That is also why these rules sit
+         * OUTSIDE the print block now: one set of styles, so the preview
+         * cannot drift from the page.
+         */
+        .foursome-card {
+          background: #fff;
+          color: #000;
+          padding: 24px;
+          border-radius: 10px;
+          margin-bottom: 12px;
+        }
+        .foursome-card table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .foursome-card th, .foursome-card td { border: 1px solid #333; padding: 4px 3px; text-align: center; }
+        .foursome-card td:first-child, .foursome-card th:first-child { text-align: left; min-width: 110px; }
+
+        /* Wide on a phone, so it scrolls in its own box rather than taking the
+           page sideways — the rule everything wide in this app follows. */
+        #foursome-cards { overflow-x: auto; }
+
         @media print {
           body * { visibility: hidden; }
           #foursome-cards, #foursome-cards * { visibility: visible; }
-          #foursome-cards { display: block; position: absolute; left: 0; top: 0; width: 100%; }
-          .foursome-card { page-break-after: always; padding: 24px; color: #000; }
-          .foursome-card table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          .foursome-card th, .foursome-card td { border: 1px solid #333; padding: 4px 3px; text-align: center; }
-          .foursome-card td:first-child, .foursome-card th:first-child { text-align: left; min-width: 110px; }
+          #foursome-cards { display: block; position: absolute; left: 0; top: 0; width: 100%; overflow: visible; }
+          /* Paper needs no rounding, no gap and one card per sheet. */
+          .foursome-card { page-break-after: always; border-radius: 0; margin-bottom: 0; }
         }
       `}</style>
 
