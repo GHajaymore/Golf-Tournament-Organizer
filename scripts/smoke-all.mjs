@@ -104,6 +104,12 @@ const SCRIPTS = [
   // in every state a MEMBER can be in — confirmed, on the waiting list, not
   // entered — against a tournament with a round and one without.
   "verify-player-states.mjs",
+  // And the one screen with no sign-in in front of it. Every walk above needs
+  // a cookie; `/live/<shareToken>` is what a club actually sends its members,
+  // and nothing checked it beyond a 200. On 2026-09-22 a board headed "Ranked
+  // by net strokes" printed the GROSS to-par, so the leader read +10 and third
+  // place read -1 — correct numbers in an order nobody could follow.
+  "verify-public-boards.mjs",
 ];
 
 /**
@@ -230,7 +236,11 @@ async function main() {
       }
     }
     status = 0;
-    console.log("\nAll five passed against the built server.");
+    // Counted from the list rather than written out. It said "All five" while
+    // running six, and would have said it while running seven — a script that
+    // reports its own scope wrongly is the smallest version of the fault these
+    // scripts exist to catch.
+    console.log(`\nAll ${SCRIPTS.length} passed against the built server.`);
   } finally {
     stop();
     process.exitCode = status;
