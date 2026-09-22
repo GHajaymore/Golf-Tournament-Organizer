@@ -165,6 +165,30 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     value: event.flightValue > 0 ? event.flightValue : undefined,
   };
 
+  /**
+   * EVERY CONFIRMED PLAYER, AND DELIBERATELY NOT JUST THE ONES IN THIS WEEK.
+   *
+   * A flight is a SEASON-LONG DIVISION, drawn on handicap, and `Player.groupId`
+   * is an event-level column to match. `RoundAttendance` is per round. A player
+   * is in Division A whether or not they are playing on Thursday, and redrawing
+   * the divisions around who replied would move people between divisions week
+   * to week — which is not a thing a golf club does, and would make a season
+   * table meaningless.
+   *
+   * Ajay's ruling, 2026-09-21, asked directly: "I am not sure if flights are
+   * based on the weekly opt in/out so use what the standard golf clubs uses.
+   * but yes for foursomes/teesheets."
+   *
+   * THE WEEKLY DRAW IS THE OTHER SCREEN AND ALREADY DOES THIS. `/foursomes`
+   * resolves attendance and filters before it draws —
+   * `field = state.confirmed.filter((p) => inIds.has(p.id))` — so the tee sheet
+   * and the pairings come from who is in, and `teeSheetDrift` flags a PUBLISHED
+   * sheet that has gone out of step with the field since.
+   *
+   * Written down because the absence of `attendance` in this file reads like an
+   * oversight and is the opposite: it was nearly "fixed" on the day this note
+   * was added.
+   */
   const confirmed = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
     orderBy: { seed: "asc" },
