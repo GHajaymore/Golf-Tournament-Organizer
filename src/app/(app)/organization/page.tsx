@@ -287,7 +287,16 @@ export default async function OrganizationPage() {
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
-        <OrganizationAccess report={report} canEdit={canEdit} asks={asks} />
+        {/* The SAME seat number the stat card at the top prints, from the one
+            function that defines a seat. See the prop's note: this table and
+            that card both said "staff" about two different sets and disagreed
+            in both directions on real rows. */}
+        <OrganizationAccess
+          report={report}
+          canEdit={canEdit}
+          asks={asks}
+          seats={standing.staffSeats.current}
+        />
       </SettingsSectionAnchor>
     </>
   );

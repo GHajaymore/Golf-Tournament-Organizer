@@ -6625,7 +6625,7 @@ describe("the organization roles read as Commissioner", () => {
     const { OrganizationAccess } = await import("@/components/OrganizationAccess");
     const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<OrgProfileProvider kind="club"><OrganizationAccess report={report as any} canEdit asks={[]} /></OrgProfileProvider>);
+    return render(<OrgProfileProvider kind="club"><OrganizationAccess report={report as any} canEdit asks={[]} seats={1} /></OrgProfileProvider>);
   };
 
   it("shows Commissioner and never Owner", async () => {
