@@ -700,8 +700,47 @@ So a CANCELLED deploy after a long `Completing…` is NOT evidence production
 missed the commit. Check the Vercel dashboard for that SHA before re-running —
 and if it is Ready and marked Production, there is nothing to do.
 
+**AND A FIFTH KILLS `verify` ITSELF, FROM OUTSIDE THE REPOSITORY — `next/font` cannot reach
+Google Fonts.** It reads as a compile error in your own layout, which is why it is here:
+
+```
+src/app/layout.tsx
+An error occurred in `next/font`.
+TypeError: Cannot read properties of null (reading '1')
+    at .../@next/font/dist/google/loader.js:122:78
+> Build failed because of webpack errors
+```
+
+`next/font/google` FETCHES the font CSS at build time, and the loader reads the response with a
+regex. No network, a 429, or a truncated body and `.match()` returns null — hence the `reading
+'1'`. Nothing in the repository is at fault and nothing in it can fix the run. The deeper frames
+name the font: on 2026-09-21 it was `Oswald` from `layout.tsx`, the scoreboard face.
+
+It struck TWICE within an hour, on two different commits and two DIFFERENT JOBS — `#550` on
+`End-to-end (desktop)`, `#551` on `Build and smoke` — which is the tell. Every job that compiles
+does its own build, so this can land on any of them, and the one it lands on decides which red
+box you see.
+
+Read it as environmental, not as your change, when any of these hold — all three were true both
+times:
+
+- a SIBLING job in the SAME run compiled the same SHA successfully. `Build and smoke` built fine
+  while `End-to-end (desktop)` failed, and the next hour the reverse;
+- the PR run of the identical content was fully green;
+- the stack is entirely inside `node_modules/next`, with no frame in `src` except the `layout.tsx`
+  the font is imported from.
+
+`gh run rerun <id> --failed` on the same commit. Do NOT start editing `layout.tsx`, and do not
+reach for `next/font/local` on the strength of one bad evening — that is a real change to how the
+app is built, traded against an upstream blip. If it becomes frequent, self-hosting the two faces
+is the fix worth costing, and then it is a decision rather than a reflex.
+
+Same family as the `Client Manifest` fault two sections up and read the same way: the file it
+names is noise, and what settles it is whether another build of the same SHA succeeded.
+
 So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
 on a green `verify` is the token, the database, or the allowance, and the message names which.
+A BUILD that fails inside `next/font` is none of them and is not yours either.
 Nothing shipped unverified either way — `deploy` has `needs: verify` — but a commit CAN sit
 undeployed until the next merge, so do not read "merged" as "live" without checking the run:
 
