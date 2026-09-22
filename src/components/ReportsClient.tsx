@@ -28,6 +28,7 @@ export function ReportsClient({
   snapshotTitle = "Standings so far",
   snapshotNote = "",
   extraCsv = [],
+  plainCsv = null,
   board,
   scored = true,
   hasBracket = true,
@@ -57,6 +58,18 @@ export function ReportsClient({
    * present, because those would be an export of the wrong reading.
    */
   extraCsv?: { label: string; desc: string; filename: string; rows: string[][] }[];
+  /**
+   * An export that is NOT a claim about the result, and so is not gated by
+   * `scored`.
+   *
+   * Attendance is the case this exists for. Who turned out is a fact about the
+   * season whatever the round is scored by — a manual format still has members
+   * who came and members who did not — so putting it in `extraCsv` would have
+   * withheld it from exactly the clubs most likely to keep their own
+   * spreadsheet, on the grounds that the app cannot score their format. Same
+   * reasoning as the bracket sheet and the blank scorecards below.
+   */
+  plainCsv?: { label: string; desc: string; filename: string; rows: string[][] } | null;
   /** The board to print, when it isn't the ordinary player standings. */
   board?: React.ReactNode;
   /**
@@ -189,6 +202,17 @@ export function ReportsClient({
           action: () => download(e.filename, e.rows),
           kind: "csv",
         }))
+      : []),
+    // Ungated for the same reason as the bracket below: who turned out is not
+    // a claim about who won.
+    ...(plainCsv
+      ? [{
+          label: plainCsv.label,
+          desc: plainCsv.desc,
+          icon: "ph ph-user-list",
+          action: () => download(plainCsv.filename, plainCsv.rows),
+          kind: "csv" as const,
+        }]
       : []),
     // These stay whatever the format is: a bracket and a blank scorecard are
     // not claims about who won. The bracket still has to EXIST, which is a

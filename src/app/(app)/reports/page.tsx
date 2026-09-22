@@ -16,6 +16,8 @@ import { teamStandings } from "@/lib/services/teams";
 import { toParText } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
+import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
+import { AttendanceReport } from "@/components/AttendanceReport";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -88,6 +90,19 @@ export default async function ReportsPage() {
   let board: React.ReactNode = null;
   let snapshotTitle = standing.title;
   let extraCsv: { label: string; desc: string; filename: string; rows: string[][] }[] = [];
+
+  /**
+   * WHO TURNED OUT — Ajay, 2026-09-21: "build the report of opt in/out."
+   *
+   * Read unconditionally rather than inside one of the format branches below,
+   * because attendance has nothing to do with how a round is scored. A league
+   * that scores by hand still has members who came and members who did not,
+   * and that is the club most likely to want the spreadsheet.
+   *
+   * `attendanceReport` answers "this tournament does not track it" as a state
+   * rather than an empty grid, so there is nothing to branch on here.
+   */
+  const attendance = await attendanceReport(state);
 
   if (kind === "team" && activeStage) {
     const teams = await teamStandings(
@@ -306,7 +321,26 @@ export default async function ReportsPage() {
         snapshotNote={standing.note}
         board={board}
         extraCsv={extraCsv}
+        /* Offered only where there is something to export — a tournament that
+           does not track attendance has no sheet, and a download that comes
+           back with one header row teaches an organizer the button is broken. */
+        plainCsv={
+          attendance.tracked
+            ? {
+                label: "Who turned out",
+                desc: "Every player against every round, in or out, with the season totals.",
+                filename: `${event.name}-attendance.csv`,
+                rows: attendanceCsvRows(attendance),
+              }
+            : null
+        }
       />
+      {/* BELOW the exports, because it is the long one. An organizer opening
+          Reports wants the standings sheet first; the attendance grid is what
+          they scroll to in September. */}
+      <div style={{ marginTop: 16 }}>
+        <AttendanceReport report={attendance} />
+      </div>
     </>
   );
 }
