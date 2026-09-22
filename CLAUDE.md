@@ -427,6 +427,27 @@ the build did not hard-fail: either no inconsistency was detected, or one was an
 rebuild produced a manifest that passed the check while the server still could not resolve the
 module at request time.
 
+**TWO WAYS OF STRENGTHENING THAT CHECK WERE MEASURED ON 2026-09-22 AND BOTH ARE DEAD ENDS.**
+Written down because each takes an hour to reach and both look obvious from the outside.
+
+*"The union check must be blind to a component only ONE page uses — it cannot miss what no
+manifest lists."* False. Probed against a real build: **51 manifests, every one carrying exactly
+the same 83 own-source modules**, and both components that actually failed in CI —
+`SeriesClient` and `RegistrationClient` — appear in all 51. The uniformity CLAUDE.md measured at
+50x81 in September still holds at 51x83. A build that dropped either from one page WOULD be
+caught. The check is not the weak link.
+
+*"Then check the manifests against the SOURCE — every `use client` file should appear."* Also
+false, and it would be worse than useless: **120 files in `src` carry `"use client"` against 83
+modules in the union.** `clientModules` lists only the BOUNDARY entry points — a client component
+imported by another client component is bundled into its parent and never gets its own entry, so
+`ConfirmButton`, `CoursePicker` and 36 others are legitimately absent. A source-based check fires
+38 false positives on a perfectly good build.
+
+So `build-checked` is doing the right thing with the right instrument. What that leaves is the
+other half of the sentence below — the artifact passes and the running server still cannot
+resolve the module — which is where anyone chasing this should start rather than on the check.
+
 So the check narrows this class; it does not close it. Read the failure the way this section
 already says — the component name is noise, the tell is `Client Manifest` in the log plus the
 same commit passing elsewhere. That day the `pull_request` run of the identical SHA was green on
