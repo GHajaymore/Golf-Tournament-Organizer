@@ -175,7 +175,12 @@ export function OrganizationAccess({
       {/* ── Staff ─────────────────────────────────────────────────────── */}
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
         <div className="card elev-sm">
-          <span className="card-title" style={{ fontSize: 15 }}>Organization staff ({staff.length})</span>
+          {/* The outfit's own word, capitalised for a heading — "Organization
+              staff" over a page headed "Club settings" is the same mismatch
+              Ajay pointed at in the intro sentence, one card down. */}
+          <span className="card-title" style={{ fontSize: 15 }}>
+            {from.charAt(0).toUpperCase() + from.slice(1)} staff ({staff.length})
+          </span>
           <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
             {/* The Commissioner line must keep saying BILLING. The word
                 describes control, not money — unlike "Owner", which said it by
@@ -184,7 +189,7 @@ export function OrganizationAccess({
                 disappears with it. Their powers are otherwise identical:
                 `canAdministerOrg` is `owner || admin`. */}
             <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
-            <b>Admin</b> — organizer on every tournament this organization runs, without being added to
+            <b>Admin</b> — organizer on every tournament this {from} runs, without being added to
             each one. <b>Member</b> — staff pool; access only where explicitly given on an event.{" "}
             {/* The one role that grants LESS. A charity day and a league
                 substitute are the same person to the app: in for one event,
@@ -400,7 +405,7 @@ export function OrganizationAccess({
         {eventOnly.length > 0 && (
           <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
             {eventOnly.length} of these hold access through individual tournaments only, and are not
-            organization staff — mostly players.
+            {" "}{from} staff — mostly players.
           </p>
         )}
       </div>

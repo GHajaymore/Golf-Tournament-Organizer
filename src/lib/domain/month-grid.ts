@@ -40,7 +40,7 @@ export function partsOf(iso: string): { y: number; m: number; d: number } | null
   return { y: Number(y), m: month, d: day };
 }
 
-export const isoOf = (utc: Date): string =>
+const isoOf = (utc: Date): string =>
   `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(
     utc.getUTCDate(),
   ).padStart(2, "0")}`;

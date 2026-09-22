@@ -29,6 +29,7 @@ import {
   type SunGrade,
 } from "@/lib/themes";
 import { Icon } from "./Icon";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 
 /**
  * How a colour or a scheme reads outdoors, said ON the thing being chosen.
@@ -120,6 +121,7 @@ export function ThemePicker({
   theme: ClubTheme;
   readOnly: boolean;
 }) {
+  const noun = useOrgProfile().noun;
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -274,7 +276,11 @@ export function ThemePicker({
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Colour &amp; appearance</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Applies to every tournament this organization runs, on every device anyone opens it on.
+          {/* The outfit's own word. `useOrgProfile` rather than a new prop,
+              which is how `OrganizationAccess` already does it — the kind
+              alone cannot know what an outfit calls itself, so a US league
+              would otherwise read "society" here. */}
+          Applies to every tournament this {noun} runs, on every device anyone opens it on.
         </p>
       </div>
 
