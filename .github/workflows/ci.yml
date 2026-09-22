@@ -236,6 +236,15 @@ jobs:
             node scripts/verify-player-states.mjs
             STATUS=$?
           fi
+          # And the one screen with no sign-in in front of it. Everything above
+          # needs a cookie; /live/<shareToken> is what a club sends its members,
+          # and nothing checked it beyond a 200. A board headed "Ranked by net
+          # strokes" printed the GROSS to-par — the leader read +10 and third
+          # place read -1, every figure correct and the column unreadable.
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-public-boards.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
 

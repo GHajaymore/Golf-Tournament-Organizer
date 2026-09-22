@@ -85,7 +85,7 @@ same lesson as the sweeps section: **a check whose failure looks like its
 success is not a check.**
 
 **`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
-server once and then runs SIX scripts against it, of which `npm run smoke` is the first:
+server once and then runs SEVEN scripts against it, of which `npm run smoke` is the first:
 
 ```
 node scripts/smoke-routes.mjs        # what `npm run smoke` runs, and all it runs
@@ -94,6 +94,7 @@ node scripts/verify-drafting.mjs
 node scripts/verify-week-view.mjs
 node scripts/verify-lifecycle.mjs
 node scripts/verify-player-states.mjs
+node scripts/verify-public-boards.mjs
 ```
 
 **`npm run smoke:all` is that whole step, locally, against a BUILT server** — and it is the one
@@ -125,7 +126,7 @@ Two more ways to lose an hour here, both worth knowing before blaming a route:
 - **`| tail` swallows the exit code.** `node script.mjs | tail -4` exits with `tail`'s status, so
   a failed run reads as `exit=0`. Check the script's own status, or do not pipe it.
 
-Four of the other five assert CONTENT — that a control is on the screens that need it and off
+Five of the other six assert CONTENT — that a control is on the screens that need it and off
 the ones that do not, that the locked drafting panel still says what to do instead, that the
 movement column says somebody climbed exactly when they did. They pin user-facing STRINGS
 verbatim, so rewording a sentence turns one of them red while all 39 routes still return 200. On
@@ -178,8 +179,37 @@ unreachable. It now seeds `Spring Meeting — Format To Follow` for exactly that
 reasoning that added the away round. When a walk finds nothing, ask whether the fixture can
 reach the case before concluding the case is fine.
 
+**`verify-public-boards.mjs` IS THE ONLY ONE THAT NEEDS NO COOKIE, and that is why it exists.**
+Every walk above signs in as somebody. `/live/<shareToken>` is the screen a club actually sends
+its members, and nothing checked it beyond a 200 — which it always returned.
+
+Added 2026-09-22, after the seeded club's April Medal board was found headed "Ranked by net
+strokes", sorted correctly on net, and printing the GROSS to-par:
+
+```
+1  Marnie    gross 81  net 53   shown +10
+3  Nkechi          70      63   shown  -1
+4  Priyanka        91      65   shown +20
+```
+
+Every figure correct, the column unreadable. 8,359 unit tests, the route walk and three
+Playwright viewports were green over it, because each asks whether a number is right and none
+asks whether the column can be read DOWN.
+
+So that is what it asserts — **the scores printed on a board run in the order the board is sorted
+in** — with the direction taken from the board's own "Ranked by …" caption, so the check cannot
+disagree with the screen about which statistic it is reading. The fixture is the other half: its
+gross and net orders are deliberately OPPOSITE, because a board where they coincide passes
+whichever figure it prints. Reverting the fix turns it red on both counts, the ordering and the
+control.
+
+It pins no net FIGURE, deliberately. The first draft did — `gross - handicap` — and reported the
+app broken when it printed -3 against an arithmetic -4. The app was right: a playing handicap is
+a course handicap with the round's allowance applied. Freezing that here would put a rule
+belonging to `stroke.ts` inside a script about whether a column reads downward.
+
 So a green `npm run smoke` says every route renders for the demo, and says nothing about the
-other five. Run them too — against the same server, in that order — whenever you change copy,
+other six. Run them too — against the same server, in that order — whenever you change copy,
 move a control, or touch a screen that reads a list which can be empty.
 
 The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real
