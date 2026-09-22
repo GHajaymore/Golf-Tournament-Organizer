@@ -434,9 +434,37 @@ and `small-phone` passed the same SHA with their own builds, the PR run was gree
 viewports twice over, and a re-run of the identical commit with no change went fully green and
 deployed.
 
-So the count of named components is now eight and still climbing, which is the point the list is
+So the count of named components is now NINE and still climbing, which is the point the list is
 making rather than a gap in it. **Do not chase the component.** Re-run the failed job
 (`gh run rerun <id> --failed`) and read `Client Manifest` as the whole diagnosis.
+
+The ninth arrived an hour later, on the pull request ADDING THE PARAGRAPH ABOVE — a change to
+this file and nothing else — as `SeriesClient`, on `Build and smoke`. A documentation commit
+cannot break a bundler, and that run's sibling jobs built the same SHA fine.
+
+**AND THE FREQUENCY IS NOW THE FINDING.** This section has always described an occasional fault.
+On the evening of 2026-09-21 the two build-time faults struck FIVE times across four pull
+requests:
+
+```
+next/font        #550 End-to-end (desktop)      #551 Build and smoke
+                 #554 End-to-end (small-phone)
+Client Manifest  #553 End-to-end (desktop)   → RegistrationClient
+                 #554 Build and smoke        → SeriesClient
+```
+
+Three of those four commits could not have caused anything — one added a single test file, one
+edited only this document. Every one cleared on a re-run of the identical commit.
+
+That crosses the threshold this file sets for itself two paragraphs up: *"if that log line starts
+appearing often … it is time to chase the cause properly."* It has not been chased yet. What the
+evening establishes is the SHAPE to hand whoever does — both faults are in the build, both are
+intermittent per-job rather than per-commit, both clear on a re-run, and they can hit the same
+commit in different jobs at once. Whether one evening of a busy runner fleet explains both, or
+whether `build-checked` needs to cover `next/font` the way it covers manifests, is open.
+
+Until then the operational answer is unchanged and is cheap: read which of the two it is, re-run
+the failed job, and do not edit application code on the strength of either.
 
 **And that pair is worth knowing about on its own: `ci.yml` runs on BOTH `push` and
 `pull_request`, so one commit has TWO workflow runs and two sets of identically-named checks.**
