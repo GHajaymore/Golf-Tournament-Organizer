@@ -96,6 +96,11 @@ export default async function BracketPage() {
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
+        /* The same string the mode picker is given, and the one `drawBrackets`
+           uses to say whether there IS a second bracket and what it is called.
+           Empty in `single` mode, "Consolation" in `split`, "Plate" in
+           `plate`. */
+        secondLabel={secondLabel}
         results={results}
         readOnly={!isStaff}
       />

@@ -94,15 +94,43 @@ function BracketBoard({
 export function BracketClient({
   winners,
   consolation,
+  secondLabel = "",
   results = {},
   readOnly = false,
 }: {
   winners: BracketView;
   consolation: BracketView;
+  /**
+   * What the second bracket is called, or "" when there is not one.
+   *
+   * `drawBrackets` decides both: `single` returns no second field and an empty
+   * label, `split` returns "Consolation", `plate` returns "Plate". This is the
+   * same string the mode picker is handed, so the toggle and the arrangement
+   * cannot come to disagree about whether a second bracket exists.
+   */
+  secondLabel?: string;
   results?: Record<string, string>;
   readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<"winners" | "consolation">("winners");
+  /**
+   * ONLY WHERE THERE IS A SECOND BRACKET — and it is named, not assumed.
+   *
+   * Two faults, both read off the seeded club's knockout on 2026-09-23.
+   *
+   * The toggle rendered ALWAYS. That knockout is `single` mode — the panel
+   * directly above says "One bracket … lose and you're out" — and an organizer
+   * was still offered a Consolation tab, which shows a draw that does not
+   * exist. The same fault the flights toggle had on `LeaderboardBoard`, fixed
+   * there on 2026-09-11 for the same reason: a control that switches to a view
+   * containing nothing is worse than no control.
+   *
+   * And the label was HARDCODED. In `plate` mode the second bracket is a
+   * Plate — `drawBrackets` says so, and a club calls it that — while this tab
+   * said "Consolation". One thing with two names, on the screen that runs it.
+   */
+  const hasSecond = secondLabel !== "";
+  const shown = hasSecond && tab === "consolation" ? consolation : winners;
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -115,18 +143,20 @@ export function BracketClient({
               : "Seeded from qualification. Click a name to advance the winner (results auto-advance the next round)."}
           </p>
         </div>
-        <div className="seg">
-          <label className="seg-opt">
-            <input type="radio" name="brk" checked={tab === "winners"} onChange={() => setTab("winners")} />
-            Winners
-          </label>
-          <label className="seg-opt">
-            <input type="radio" name="brk" checked={tab === "consolation"} onChange={() => setTab("consolation")} />
-            Consolation
-          </label>
-        </div>
+        {hasSecond && (
+          <div className="seg">
+            <label className="seg-opt">
+              <input type="radio" name="brk" checked={tab === "winners"} onChange={() => setTab("winners")} />
+              Winners
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="brk" checked={tab === "consolation"} onChange={() => setTab("consolation")} />
+              {secondLabel}
+            </label>
+          </div>
+        )}
       </div>
-      <BracketBoard view={tab === "winners" ? winners : consolation} results={results} readOnly={readOnly} />
+      <BracketBoard view={shown} results={results} readOnly={readOnly} />
     </>
   );
 }
