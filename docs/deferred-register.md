@@ -434,11 +434,29 @@ expect(state!.isStroke, "a Match Play round is presented as stroke play").toBe(f
 
 
 
-### A tournament that entered email-less players and later switches to email sign-in
-After #296, an organizer using Round Codes can enter a field with no addresses.
-Nothing stops them **later changing `playerAccess` to "email"** — at which point
-those players have no `Account` row, no address, and no way in, and the app says
-nothing about it.
+### A tournament that entered email-less players and later switches to email sign-in — ALREADY FIXED, verified 2026-09-23
+
+**This is not open and the app does not say nothing about it. It REFUSES.**
+`domain/access-lockout.ts` exists for exactly this, and is wired at both ends:
+
+- `settings.ts` calls `lockoutRefusal` **before the update**, so the settings
+  are not written and the codes are not revoked. `strandedCount` is counted
+  from the rows server-side — "counted rather than trusted from the client:
+  this is a `"use server"` export" — and counts only entrants still in the
+  field;
+- `PlaySettings.tsx` renders `lockoutNotice` beside the control, so the
+  organizer is told before the click rather than refused after it.
+
+It is narrow on purpose: it fires only when codes are actually being switched
+off AND somebody would be stranded, so a tournament whose entrants all have
+addresses switches freely.
+
+Its own docstring says it was found "by checking a claim about the code rather
+than trusting a summary of it" — which is how this entry was found to be stale,
+and the fourth such entry in this file. **Check the code before believing any
+entry here.**
+
+The original, for the mechanism, which is still worth reading:
 
 **It is sharper than "they have no way in".** `saveTournamentSettings` reacts to
 the change: `if (!nowUsingCodes && wasUsingCodes) await revokeRoundCodes(eventId)`.
