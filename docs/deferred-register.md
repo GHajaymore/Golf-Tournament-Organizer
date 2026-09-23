@@ -326,23 +326,40 @@ bug. The file explaining a defect becomes the first hit of every sweep for it.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
-### `isStroke` is the EVENT's format — MEASURED 2026-09-23, and it is SIX readers, not ten
+### `isStroke` is the EVENT's format — MEASURED AND CLOSED 2026-09-23
 
 **Measured on Ajay's instruction to open the sites before proposing anything,
 after a call count overstated a different refactor by forty times.** The
 entry below is kept for the mechanism, which is exactly right. Two of its
 claims are not.
 
-**IT IS SIX LIVE READERS.** Everything else a grep for `isStroke` finds is
-either `boardIsStroke` — already per-round — or a COMMENT recording a fault
-that was fixed. Opened, and classified by what each one decides:
+**IT IS SIX LIVE READERS, AND ALL SIX ASK A QUESTION THE EVENT OWNS.**
+Everything else a grep for `isStroke` finds is either `boardIsStroke` — already
+per-round — or a COMMENT recording a fault that was fixed.
 
-    single-match.ts:114     which standings SEED a play-off        real
-    week-view.ts:629        which engine makes a league WEEK's rows real
-    foursomes/page.tsx:88   which standings order the TEE SHEET     real
-    week-view.ts:524        whether this week counts in the table   real, presentational
-    draft-facts.ts:72       what the AI is told the board says      low; a human edits it
-    finish-order.ts:80      the EVENT's final order                 correct as it is
+    single-match.ts:114     which standings SEED a play-off
+    week-view.ts:629        how the SEASON is ranked, for the movement column
+    foursomes/page.tsx:88   which standings order the TEE SHEET draw
+    week-view.ts:524        whether this week counts in the standings table
+    draft-facts.ts:72       what the AI is told the board says
+    finish-order.ts:80      the EVENT's final order
+
+Every one of them is choosing between `strokeStandings` and `overall` — that
+is, asking WHICH AGGREGATE THIS TOURNAMENT IS RANKED ON. That is not a
+property of a round. `event.format` is the event-level answer to an
+event-level question, and reading it here is correct.
+
+**A FIRST PASS CALLED THREE OF THEM "REAL" AND WAS WRONG**, which is worth
+keeping because it is the same mistake this file warns about one section along.
+They were classified from the SHAPE of the call — a ternary on `isStroke`
+choosing a standings list — rather than from what the answer is used for. The
+distinction was already written in `week-view.ts` and I read past it: the fault
+recorded there is "THE WEEK'S OWN TYPE, not the tournament's format", about
+which table to check for ONE WEEK's scores, while `standingsWithMovement` sums
+a SEASON and its own comment says the chain "is an event-level chain".
+
+So opening a site is not enough; what it DECIDES has to be followed to where
+the answer is used. Two greps and a glance produced a confident, wrong list.
 
 **AND THE HEADLINE CONSEQUENCE IS ALREADY FIXED.** This entry's own summary —
 a stroke qualifier into a match-play bracket printing strokes for a round whose
@@ -352,13 +369,19 @@ the console leaderboard, `/live`, the player's screens, the dashboard.
 so the commonest championship format does not reach any of the six.
 
 So this is NOT the product-wide scoring-presentation change the text below
-describes, and should not be commissioned as one. What is left is three
-readers worth fixing — the play-off seeding, the league week's rows and the
-tee-sheet draw — each by asking the ROUND rather than the event, each with a
-test. `finish-order` is genuinely event-owned and `draft-facts` feeds a draft a
-human rewrites.
+describes, and should not be commissioned as one. **There is nothing left to
+fix here.** The defect was the boards, the boards were fixed, and what remains
+reads the event's format to answer a question about the event.
 
-**Not started: Ajay said measure first, then decide.**
+**THE ONE THING THAT WOULD MAKE ANY OF THEM WRONG** is a genuinely MIXED
+tournament — one whose `format` says stroke while the rounds that decide it are
+match play, or the reverse. That is a real shape (a stroke qualifier into a
+knockout) and worth knowing about, but it is a question about what "leading"
+MEANS in such a tournament, not a bug in these six lines. Nobody has reported
+it, and answering it would be a product decision about mixed-format ranking.
+
+**Closed rather than carried. If a club ever reports a wrong order on a mixed
+tournament, this is the entry to reopen, and that paragraph is where to start.**
 
 The original, for the mechanism and the two screens it names:
 
