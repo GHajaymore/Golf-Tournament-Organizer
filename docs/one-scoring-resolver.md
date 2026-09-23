@@ -137,6 +137,31 @@ evidence; it survives an error they all share.
 
 ---
 
+# A CALL COUNT IS NOT A DEFECT COUNT
+
+Read this before acting on the numbers below. All three items were first sized
+by grepping for a function name and counting the hits, and all three were
+overstated — one of them by a factor of forty.
+
+    item               first claim                 after checking each site
+    result tables      83 reads, 29 files          2 wrong, both fixed
+    handicap chain     63 calls, 22 files          already layered; no refactor
+    format strings     6 sites                     1 wrong, 5 correct
+
+A call count answers *how many places TOUCH this*. The question that matters is
+*how many places DECIDE it*, and the two differ by an order of magnitude because
+most callers are asking a question their own context genuinely owns: a league
+week's pairings really are matches, a pair's card really is a `TeamScorecard`,
+`EventState` really does need an event-wide map and a per-round one.
+
+Worse, a grep cannot see a NAME COLLISION. `roundCourseHandicaps` exists twice —
+once as the arithmetic, once as a loader that delegates to it — and reads as a
+duplicated rule until you open both.
+
+**So: size a class by opening the sites, not by counting them.** The cost of not
+doing so here would have been a large refactor of a chain that was already
+right, in a file this document itself warns is the expensive place to be wrong.
+
 # Where else the same thing is happening
 
 Ajay, 2026-09-22: *"check if there is any more opportunities like this to have
@@ -166,15 +191,34 @@ the format and the stage type — CLAUDE.md sets this out, along with the sympto
 tournament hasn't been launched yet"* said to people standing on the course.
 
 `boardProgress` already carries the unit (`cards | matches | sides | ties |
-manual`), which is the right shape. What is missing is that **everything else
-still reads the tables directly** and re-decides which one to ask.
+manual`), which is the right shape.
 
 **Highest visible risk.** An absence reported as a fact is the most damaging
 thing this app can print, because it is not a wrong number — it tells a member
 that something they did never happened.
 
-*Shape:* `roundProgress(stageId)` and `roundHasResults(stageId)` as the only
-readers of existence and progress. A guard with inverted polarity, as above.
+### Worked, 2026-09-22 — and the count was misleading
+
+Two genuine cross-table defects, both fixed:
+
+- `playRefusalFor` read three of the four, so a knockout holding
+  `BracketWinner` rows but never formally launched told players the
+  tournament had not started;
+- `hasPlayingHistory` did not count them either, so a player who had won their
+  way to a semi-final could be hard deleted.
+
+**The other eighty-one reads were checked and are correctly scoped.** A league
+week's pairings ARE matches, so `LeagueSection` counting `prisma.match` is
+right; a pair's card IS a `TeamScorecard`, so `league.ts` checking that table
+before removing a pair is right — and it REFUSES rather than discarding
+silently, which is the pattern `removeTeamMember` lacks. `teams/page.tsx`
+counts matches because the button says "Generate matches"; `stages/page.tsx`
+counts the third-place MATCH.
+
+So the shape once proposed here — `roundProgress(stageId)` and
+`roundHasResults(stageId)` as the only readers — is not wanted. A reader asking
+the table its own round actually files in is not the defect; asking the WRONG
+one is, and that was two places rather than eighty-three.
 
 ## 2. The handicap and card chain — MOSTLY ALREADY DONE
 
@@ -238,6 +282,25 @@ string comparison does not.
 
 **Low risk, low cost.** A guard forbidding `format === "` outside `formats.ts`
 would close the class permanently in an afternoon.
+
+### Checked one by one, 2026-09-22 — one was wrong, the rest are fragile
+
+Only the tie-break copy in `StagesClient` was actually WRONG: a four-ball round
+robin fell to its else branch and was told it was "scored as Stroke Play". That
+is fixed, by `entryModeFor`.
+
+The others are correct today:
+
+- the remaining `StagesClient` tests gate the halved-match tiebreaker control,
+  which only applies where `computeStandings` consults it — singles. Showing it
+  on a team round robin would promise a setting that does nothing;
+- `score-import.ts` offers match-result shapes for Match Play only, and team
+  match-result import does not exist to offer;
+- `teams.ts` falls back to the scramble weights by name only AFTER a format's
+  own declared `weightsBySideSize` has been tried.
+
+So this is a TIDY, not a defect list. Worth doing when something else is open
+in these files; not worth an afternoon of its own.
 
 ## Found by working the list, 2026-09-22
 
