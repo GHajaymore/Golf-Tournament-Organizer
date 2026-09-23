@@ -840,6 +840,22 @@ check that qualifying is still decidable. **Both the match and the stroke
 branches do it the same way**, so this is not two readers disagreeing — it is a
 consistent choice, which is why it is recorded rather than corrected.
 
+**AND THE DASHBOARD SAYS SOMETHING STRONGER ON THE SAME EVENT**, which is the
+part worth deciding first:
+
+    Top 8 overall
+    Cutoff line ≈ 10.5 pts · updates live with scores
+
+That is not a settled fact stated in the present tense, it is a promise about
+FUTURE behaviour, and it is false: the feeder round is over, so the cutoff will
+not move again however many scores come in. The leaderboard's wording is
+arguably defensible; "updates live with scores" on a line that cannot update is
+harder to defend, and it is a second screen carrying the same staleness.
+
+Both were read off the rendered screens rather than inferred — the dashboard
+shows the active round as `Round 2 · Bracket Stage` and carries a club
+announcement about the SECOND semi-final, so qualifying is long finished.
+
 **Not fixed, because the right answer is a judgement rather than a defect.**
 The sentence is TRUE — that player did hold the last spot — and a committee may
 well want to see who scraped in. Three defensible answers: drop the highlight
