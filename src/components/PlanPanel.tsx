@@ -43,6 +43,29 @@ export function PlanPanel({ planKey, standing }: { planKey: string; standing?: O
    */
   const usage = (row: LimitResult, one: string, many: string) => {
     if (row.limit === null) return `${row.current} ${row.current === 1 ? one : many} · no limit`;
+    /**
+     * PAST THE ALLOWANCE, WHICH "X of Y" CANNOT SAY.
+     *
+     * Read off the seeded club on 2026-09-22: **"9 of 1 tournament running"**.
+     * Every figure correct and the sentence unreadable — it parses as a typo
+     * rather than as a club nine over what it pays for, and the noun is
+     * singular because the pluralisation follows the LIMIT, which is the one
+     * number in the phrase that is not being counted.
+     *
+     * This is not an edge case, it is the ordinary path. Limits do not bite
+     * until a payment provider is attached (`enforced`, below), so nothing
+     * stops a club exceeding one — which means every free-plan club that opens
+     * a SECOND tournament reads "2 of 1 tournament running" today.
+     *
+     * Stated as two plain facts instead, and deliberately claiming no
+     * consequence: whether anything is actually refused is `enforced`'s
+     * question and is answered separately below, for the reason in the note
+     * above. "Your plan includes one and you are running nine" is true whether
+     * or not the tenth would be blocked.
+     */
+    if (row.current > row.limit) {
+      return `${row.current} ${row.current === 1 ? one : many} · plan includes ${row.limit}`;
+    }
     return `${row.current} of ${row.limit} ${row.limit === 1 ? one : many}`;
   };
 
