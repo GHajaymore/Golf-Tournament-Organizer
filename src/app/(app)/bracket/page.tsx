@@ -26,7 +26,7 @@ export default async function BracketPage() {
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
 
   const mode: BracketMode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
-  const secondLabel = drawBrackets([], mode).secondLabel;
+  const { mainLabel, secondLabel } = drawBrackets([], mode);
 
   /**
    * The qualification audit, which used to be its own screen.
@@ -100,6 +100,7 @@ export default async function BracketPage() {
            uses to say whether there IS a second bracket and what it is called.
            Empty in `single` mode, "Consolation" in `split`, "Plate" in
            `plate`. */
+        mainLabel={mainLabel}
         secondLabel={secondLabel}
         results={results}
         readOnly={!isStaff}

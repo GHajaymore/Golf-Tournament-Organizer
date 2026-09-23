@@ -123,6 +123,25 @@ export interface BracketDraw {
   main: Player[];
   /** Empty in single mode, and in plate mode until the first round is played. */
   second: Player[];
+  /**
+   * WHAT A CLUB CALLS THESE, WHICH IS NOT THE SAME IN EVERY MODE.
+   *
+   * The second draw was called a "Consolation" whatever the mode, and in
+   * `split` that is the one thing it is not — the note above says so in its
+   * own words: "Not a consolation: nobody drops into the second bracket, they
+   * are drawn into it." A field divided by qualifying rank plays in FLIGHTS,
+   * which is what the mode's own label ("Two flights") has always said, and
+   * what a club would write on the sheet.
+   *
+   * A PLATE is the competition for the players knocked out in the first round.
+   * That is standard at any club that runs one, and it is what `plate` mode
+   * builds, so it keeps the name.
+   *
+   * These are DISPLAY names only. `BracketKind` stays `winners | consolation`
+   * because it spells the stored slot keys — `consolation-0-1` — and renaming
+   * those would orphan every `BracketWinner` row already recorded.
+   */
+  mainLabel: string;
   /** What to call the second bracket, or "" when there isn't one. */
   secondLabel: string;
 }
@@ -141,16 +160,26 @@ export function drawBrackets(
   firstRoundLosers: Player[] = [],
 ): BracketDraw {
   if (mode === "single") {
-    return { main: qualifiers, second: [], secondLabel: "" };
+    // One draw and nothing to distinguish it from, so the label is only ever
+    // read where a screen insists on a heading.
+    return { main: qualifiers, second: [], mainLabel: "Main draw", secondLabel: "" };
   }
   if (mode === "plate") {
-    return { main: qualifiers, second: firstRoundLosers, secondLabel: "Plate" };
+    return {
+      main: qualifiers,
+      second: firstRoundLosers,
+      mainLabel: "Main draw",
+      secondLabel: "Plate",
+    };
   }
   const half = Math.ceil(qualifiers.length / 2);
   return {
     main: qualifiers.slice(0, half),
     second: qualifiers.slice(half),
-    secondLabel: "Consolation",
+    // Flights, because that is what a draw divided by qualifying rank is —
+    // and what this mode is called in the picker above it.
+    mainLabel: "Flight A",
+    secondLabel: "Flight B",
   };
 }
 
