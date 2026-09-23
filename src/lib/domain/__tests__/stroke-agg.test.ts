@@ -142,6 +142,12 @@ describe("what it counts", () => {
       // failed to finish one. `isRanked` reads this as unranked on `thru`
       // alone, which is what keeps a field yet to tee off off the sheet.
       holesOwed: 0,
+      // Empty rather than zeroed per round, and the distinction is the whole
+      // point of the map: `chargedHoles` reads a missing entry as "played none
+      // of that round", and charges a SETTLED round in full anyway. A player
+      // with no card at all is therefore charged the whole competition, which
+      // is what stops a league being won by turning up twice.
+      holesPlayedByStage: new Map(),
       stoppedShort: false,
       strokesReceived: 0,
       points: 0,

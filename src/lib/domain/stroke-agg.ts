@@ -48,6 +48,20 @@ export interface StrokeAgg {
    */
   holesOwed: number;
   /**
+   * Holes this player has played IN EACH ROUND.
+   *
+   * `thru` is the total and cannot answer the question a multi-round board has
+   * to ask: is this player's shortfall a round still in flight, or a round they
+   * did not turn up for? Those are the same number and opposite facts — see
+   * `chargedHoles` in `tournament.ts`, which is the one reader of this.
+   *
+   * A plain count rather than a read of `holesByStage`, deliberately: that map
+   * is EMPTIED when a round holds two cards for one player (the round-robin
+   * sentinel) so the countback refuses to separate on it, and a shortfall
+   * inferred from an emptied entry would read as an absence.
+   */
+  holesPlayedByStage: Map<string, number>;
+  /**
    * A card stopped short: FINISHED, with holes that were never played.
    *
    * The 5&4 case, and the one thing that decides whether this player is ranked
@@ -128,6 +142,7 @@ export const emptyAgg = (): StrokeAgg => ({
   thru: 0,
   parThru: 0,
   holesOwed: 0,
+  holesPlayedByStage: new Map(),
   stoppedShort: false,
   strokesReceived: 0,
   points: 0,
@@ -221,6 +236,9 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
     // whatever array was stored — a nine-hole round played off an eighteen-hole
     // course is nine.
     a.holesOwed += pars.length;
+    // Per ROUND, and accumulated because a round robin files three cards
+    // against one stage.
+    a.holesPlayedByStage.set(card.stageId, (a.holesPlayedByStage.get(card.stageId) ?? 0) + returned);
     // A finished card with gaps is the 5&4 case: those holes were conceded and
     // will never be played. See StrokeAgg.stoppedShort.
     if (card.finished && returned < pars.length) a.stoppedShort = true;
@@ -266,3 +284,32 @@ export const netOf = (a: StrokeAgg): number => a.gross - Math.round(a.strokesRec
  * prevent.
  */
 export const isRanked = (a: StrokeAgg): boolean => a.thru > 0 && !a.stoppedShort;
+
+/**
+ * THE HOLES A POINTS BOARD MEASURES A PLAYER OVER.
+ *
+ * A settled round counts in full whether or not the player turned up for it;
+ * the round still in flight counts only the holes they have played. Those are
+ * the two facts `thru` cannot tell apart, and `levelPoints` — the term
+ * `scoreOnBasis` subtracts on a Stableford board — is built from this.
+ *
+ * With every round settled the answer is the same for everybody, so the board
+ * collapses to the plain points total: a league ranked the way every club
+ * ranks one, and the way the tournament's own week view already did. With a
+ * round in flight it still normalises, so a player thru 9 does not lead on a
+ * smaller total. See the note at the call site in `tournament.ts` for the
+ * league this was measured on.
+ *
+ * `holes` is the round's own hole count, nine or eighteen — the caller resolves
+ * it, because a round played over a nine is nine whatever course it borrowed.
+ */
+export function chargedHoles(
+  a: Pick<StrokeAgg, "holesPlayedByStage">,
+  rounds: { id: string; holes: number }[],
+  activeRoundId: string | null,
+): number {
+  return rounds.reduce(
+    (n, r) => n + (r.id === activeRoundId ? (a.holesPlayedByStage.get(r.id) ?? 0) : r.holes),
+    0,
+  );
+}

@@ -821,3 +821,42 @@ scramble table and a flat 17.5% agree exactly, so an even fixture cannot tell a
 weighted format from a flat one. That is precisely how Chapman shipped a
 pre-WHS flat 50% for months — right on the evenly-matched pairs anybody checks
 it with, wrong on the mismatched ones the allowance exists for.
+
+## A stroke aggregate flatters a player who missed a round, 2026-09-22
+
+Found while fixing the Stableford half of the same fault, and it is the half
+that cannot be fixed the same way.
+
+`strokeStandings` ranks a stroke board on `gross - parThru` or `net - parThru`,
+where `parThru` is par for the holes that player actually played. Over one
+round that is right and is what lets a live board read "thru 12, -1". Over an
+aggregate it means a player who missed a round is measured only over the rounds
+they did play, so one round at +4 out-ranks two rounds at +6:
+
+    played both rounds   gross 150   par 144   shown  +6
+    played both rounds   gross 158   par 144   shown +14
+    missed round two     gross  76   par  72   shown  +4   <- leads
+
+Note what makes this hard to see: the column is **monotonic the whole way
+down**. It reads perfectly, every figure is right about its own question, and
+`board-prints-what-it-ranked-on.test.ts` stays green over it — deliberately,
+and its docstring says so. The defect is not the printed cell, it is who holds
+a position at all.
+
+**Points can express a missed round and strokes cannot.** A missed week costs a
+Stableford player the points it was worth, which is why `chargedHoles` fixes
+that side by charging a settled round in full to everyone. Charging par with no
+strokes against it moves a stroke player the wrong way — a missed round would
+read as 72 under par — so the stroke answer is the standard one: a player who
+has not completed the competition holds no position. That is `isRanked`.
+
+**Blocked on a round not knowing whether it is over.** `Stage` has `holes` and
+`playedOn` and no status. "Not the active round" is sufficient for the level
+term, where every player carries the same charge and a future empty round moves
+the whole board by a constant; it is nowhere near sufficient for unranking
+somebody, where a round that exists and nobody has played would unrank the
+entire field. Fixing this properly wants a real per-round completeness signal —
+a schema change and a lifecycle decision, not a correction.
+
+Until then a two-round stroke event with uneven attendance ranks wrongly, and
+`isRanked`'s own docstring is where a fix belongs.
