@@ -154,10 +154,38 @@ export async function addTeamMember(teamId: string, playerId: string): Promise<T
   await assertUnlocked(eventId, "change teams");
   const [team, player] = await Promise.all([
     prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true, stageId: true } }),
-    prisma.player.findUnique({ where: { id: playerId }, select: { eventId: true } }),
+    prisma.player.findUnique({ where: { id: playerId }, select: { eventId: true, status: true, name: true } }),
   ]);
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
   if (!player || player.eventId !== eventId) return { ok: false, error: "Player is not in this tournament." };
+
+  /**
+   * ONLY SOMEBODY WHO IS ACTUALLY IN THE FIELD.
+   *
+   * The substitute case, and the one a committee reaches for on the morning: a
+   * reserve is promoted when somebody withdraws and can then be assigned. But
+   * this checked only that the player belonged to the EVENT, so a still
+   * WAITLISTED reserve — or a player who had already withdrawn — could be put
+   * into a side and would be scored, counted towards its size and printed on
+   * its card while not being in the field at all.
+   *
+   * `unassignedPlayers` already offers confirmed players and nothing else, so
+   * the screen never presented this; a `"use server"` export is a public HTTP
+   * endpoint and will be called with whatever the caller likes, which is why
+   * the rule belongs on the action rather than on the list.
+   *
+   * The remedy is in the refusal, because the fix is one tap away and is what
+   * the committee meant to do anyway.
+   */
+  if (player.status !== "confirmed") {
+    return {
+      ok: false,
+      error:
+        player.status === "withdrawn"
+          ? `${player.name} has withdrawn. Re-enter them in the field first.`
+          : `${player.name} is not in the field yet. Confirm their place first.`,
+    };
+  }
 
   // Nobody plays for two sides in the same round. The unique index stops the
   // same side twice; this stops the same *round* twice, which is the mistake

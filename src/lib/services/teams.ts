@@ -24,6 +24,22 @@ export interface TeamMemberView {
   name: string;
   handicap: number;
   position: number;
+  /**
+   * WITHDRAWN AFTER THE SIDES WERE DRAWN — the ordinary Sunday morning.
+   *
+   * `removeSignup` keeps a player with playing history as `withdrawn` rather
+   * than deleting them, and deliberately does NOT touch `TeamMember`: pulling
+   * somebody out of a pair would destroy the draw a committee made, and the
+   * committee is who decides whether to substitute or play short.
+   *
+   * But this reader did not carry the status at all, so nothing downstream
+   * could see it. `teeSheetAsPlayed` drops a departed player so "a withdrawn
+   * name never appears in a group", while their SIDE still listed them, still
+   * counted them towards its size, and still priced its handicap off them.
+   * Two readers of "who is playing", disagreeing — on the morning of the
+   * competition, which is when a club can least afford it.
+   */
+  withdrawn: boolean;
 }
 
 export interface TeamView {
@@ -86,7 +102,19 @@ export async function teamsForStage(
     include: {
       members: {
         orderBy: { position: "asc" },
-        include: { player: { select: { id: true, name: true, handicap: true, handicapType: true, teeId: true } } },
+        include: {
+          player: {
+            select: {
+              id: true,
+              name: true,
+              handicap: true,
+              handicapType: true,
+              teeId: true,
+              // Who is actually playing. See `TeamMemberView.withdrawn`.
+              status: true,
+            },
+          },
+        },
       },
     },
     orderBy: [{ seed: "asc" }, { createdAt: "asc" }],
@@ -127,6 +155,7 @@ export async function teamsForStage(
       name: m.player.name,
       handicap: roundHandicapOf(round.get(m.playerId), courseHcp.get(m.playerId) ?? m.player.handicap),
       position: m.position,
+      withdrawn: m.player.status === "withdrawn",
     }));
     return {
       id: t.id,
@@ -215,7 +244,36 @@ export function teamProblems(teams: TeamView[], format: string): TeamProblem[] {
   const { min, max } = sideSizeRange(format);
   const problems: TeamProblem[] = [];
   for (const t of teams) {
-    const n = t.members.length;
+    /**
+     * A WITHDRAWN PLAYER IS NOT A PLAYER, and this counted them.
+     *
+     * The ordinary last-minute change: somebody pulls out on the morning and
+     * the committee substitutes from the reserves or sends the side out short.
+     * `removeSignup` marks them `withdrawn` and leaves the draw alone, which is
+     * right — but this function is the one that exists to tell a committee a
+     * side is not right, and it could not see it. A pair reduced to one read
+     * as a complete pair, so nothing on the Teams screen said anything and the
+     * side went out unnoticed.
+     *
+     * Reported SEPARATELY from being short, because they are different jobs
+     * for the committee: "has 1 of 2 players" is a draw that was never
+     * finished, and this is a draw that was finished and has since changed.
+     */
+    const gone = t.members.filter((m) => m.withdrawn);
+    if (gone.length > 0) {
+      problems.push({
+        teamId: t.id,
+        teamName: t.name,
+        problem:
+          gone.length === 1
+            ? `${gone[0].name} has withdrawn — substitute or play short`
+            : `${gone.map((m) => m.name).join(" and ")} have withdrawn — substitute or play short`,
+      });
+    }
+
+    // Size is judged on who is actually playing: a pair whose partner has
+    // withdrawn IS one short, and saying so is the point of this function.
+    const n = t.members.filter((m) => !m.withdrawn).length;
     if (n < min) {
       problems.push({
         teamId: t.id,
