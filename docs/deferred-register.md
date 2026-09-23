@@ -19,6 +19,23 @@ Last reviewed 2026-09-17.
 These are not bugs. Each has a defensible answer either way and must not be
 decided unilaterally.
 
+**ALL FIVE WERE PUT TO HIM ON 2026-09-23 AND ALL FIVE ARE ANSWERED. Only the
+launch gate has work outstanding.** Each entry now opens with its answer; the
+reasoning is kept beneath because it is why the question was worth asking.
+
+    launch gate          gate NEW tournaments only     to build
+    live board / raw strokes   both halves already shipped   nothing to do
+    shared places        leave it, the club chose      nothing to do
+    free plan phone      keep it as a paid feature     nothing to do
+    charity-day template it is the intent              nothing to do
+
+**A DECIDED QUESTION LEFT IN THIS SECTION IS THE EXPENSIVE KIND OF STALE.**
+This is the list somebody reads to find out what needs a human. Two entries
+here were already answered before anybody asked — one shipped three days
+earlier, one fixed on 2026-09-15 — and both cost an hour of attention before
+the code was checked. Check the code before believing an entry, and mark it
+the way these now are.
+
 ### Launching a tournament gates nothing
 Launch moves `status` and locks setup. It does **not** restrict player access —
 a player can reach the board and their card in a tournament that was never
@@ -132,7 +149,33 @@ asks "can the amount still change" rather than "has the event happened". No
 money moves off this board — only what an organizer and a field see while they
 play.
 
-### Shared places vs the tiebreak chain
+### Shared places vs the tiebreak chain — DECIDED 2026-09-23, NOTHING TO BUILD
+
+**Ajay: leave it. The club chose. Do not re-raise.**
+
+**And the walked symptom below is already fixed, which is the part to read
+before believing this entry.** `rankPlayers` computes
+`configured ? chain : chain.filter(k => k !== "lower-handicap")`, where
+`configured` means the chain differs from `DEFAULT_TIEBREAKERS` in any way. So
+on an untouched chain `lower-handicap` orders the list and cannot SEPARATE
+anybody: the empty gross league prints 1, 1, 1 … and not 1 to 8. That is the
+rule Ajay set on 2026-09-15 — the standard as the default, the custom chain
+honoured exactly where a club wrote one.
+
+What remained was therefore narrower than the entry says: whether a GROSS
+round should override a chain a club deliberately configured to end in
+`lower-handicap`. Answered no. A committee that went to the tiebreak screen and
+kept it gets it, on gross as on net.
+
+**Measured before asking, and the measurement is why the question changed.** A
+first attempt at "drop lower-handicap on gross" was written, and its own
+control cell failed: the NET case returned shared places too, which is what
+exposed that the default chain already refuses to separate on handicap. The
+change would have overridden a decision Ajay had already made, to fix a
+symptom that no longer existed. Reverted unshipped.
+
+The original, for the five-surfaces question, which is still real if sharing
+places on equal points is ever wanted for CONFIGURED chains:
 `rankPlayers` shares a place only when the club's whole tiebreak chain comes
 back level, and the default chain ends in `lower-handicap`, which separates
 almost everybody. Five surfaces were changed on 2026-09-11 (#289, #290 ×3, #291)
@@ -148,7 +191,18 @@ Visible consequence, walked 2026-09-11: a gross match-play league with eight
 players and no scores shows places 1–8 in ascending handicap order. Before a
 ball is struck, the board names a leader.
 
-### The free plan requires a mobile from every entrant
+### The free plan requires a mobile from every entrant — DECIDED 2026-09-23
+
+**Ajay: keep it as a paid feature. Do not re-raise.** Deciding contact
+requirements per tournament stays a reason to upgrade, which is what
+`PHONE_REQUIRED_FREE` already says on the screen. The consequence is accepted
+rather than overlooked: a names-only society cannot run a tournament on free,
+and the fix in #296 buys the paid plan rather than the free one.
+
+The option offered and declined was to mirror #296 exactly — drop the phone
+requirement on free when Round Codes are on, since the code is then how a
+player reaches their card. Recorded because it is the obvious next suggestion
+and has been considered.
 `phoneRequiredFor` returns true for any free-plan organization regardless of the
 per-tournament setting. After #296 made email optional under Round Codes, this
 **independently blocks the same use case on free**: a society with a names-only
@@ -159,7 +213,13 @@ per tournament, "useful when a good part of your membership has no mobile at
 all". So it is a pricing decision, not a bug. Worth knowing that the fix landed
 in #296 buys the paid plan, not the free one.
 
-### The charity-day template pairs "after the round" with a public leaderboard
+### The charity-day template pairs "after the round" with a public leaderboard — DECIDED 2026-09-23, IT IS THE INTENT
+
+**Ajay: leave it. Do not re-raise.** A charity scramble is a shotgun with one
+card a team handed in at the end; hole-by-hole entry across a field that size
+is not realistic, and the public board filling as the cards come in is what a
+club wants on the clubhouse screen afterwards. The pairing was flagged in case
+it was accidental. It is not.
 `scoreEntryWindow: "after"` and `leaderboardVisibility: "public"` together mean
 the clubhouse screen shows nothing until cards are submitted whole. Judged a
 product choice rather than a bug; flagged in case it is not the intent.
