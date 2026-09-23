@@ -1759,6 +1759,35 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
   const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
   const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
 
+  /**
+   * A PLAYER WHO MISSED A CLOSED ROUND HOLDS NO POSITION — on a STROKE board.
+   *
+   * `parThru` is par for the holes a player actually played, so an aggregate
+   * measures them over their own rounds and nobody else's: one round at +4
+   * out-ranked two rounds at +6, which is the defect recorded in
+   * `docs/deferred-register.md` and the reason `Stage.closedAt` now exists.
+   *
+   * POINTS AND STROKES NEED OPPOSITE TREATMENT, which is why this is gated.
+   * A missed week costs a Stableford player the points it was worth and they
+   * stay on the board — `chargedHoles` does that, and unranking them would be
+   * wrong, because a league ranks everybody who turned up at all. Strokes
+   * cannot express the same thing: charging par with no strokes against it
+   * would read as 72 under par, so the honest answer is the standard one — a
+   * player who has not completed the competition is shown without a place,
+   * exactly as a card that stopped short already is (Rule 3.2b).
+   *
+   * CLOSED, NOT MERELY PAST. Ajay's call on 2026-09-23, and it is the safe
+   * one: the round is over when the organizer says so, never inferred. Every
+   * stored round is open until somebody closes one, so this changes nothing
+   * for an existing tournament and cannot unrank a field because a round
+   * exists that nobody has played yet — which is the failure "not the active
+   * round" would have produced here, and why `chargedHoles` above keeps its
+   * own looser test rather than sharing this one.
+   */
+  const closedRoundIds = strokeRounds.filter((s) => s.closedAt).map((s) => s.id);
+  const missedAClosedRound = (a: StrokeAgg): boolean =>
+    !stableford && closedRoundIds.some((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0);
+
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
@@ -1790,7 +1819,7 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
           ? (strokeUnit === "modified Stableford points" ? 0 : 2) * levelHoles(a)
           : 0,
         holesOwed: a.holesOwed,
-        ranked: isRanked(a),
+        ranked: isRanked(a) && !missedAClosedRound(a),
         rank: 0,
       };
     })

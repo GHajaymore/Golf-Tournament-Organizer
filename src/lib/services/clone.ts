@@ -355,6 +355,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   course: "the relation object for courseId, which IS carried",
   teeRef: "the relation object for teeId, which IS carried — a relation is navigated, never written",
   playedOn: "last year's date is never this year's",
+  closedAt:
+    "when the organizer declared last year's round finished. A copy has not been played, let alone closed — and carrying it would start the new tournament with a round the board treats as settled, unranking every player in it for a card nobody has had the chance to return",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
   carryForwardAsked:
