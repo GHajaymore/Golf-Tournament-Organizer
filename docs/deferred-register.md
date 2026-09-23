@@ -326,7 +326,42 @@ bug. The file explaining a defect becomes the first hit of every sweep for it.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
-### `isStroke` is the EVENT's format — the BOARDS are fixed, ten readers are not
+### `isStroke` is the EVENT's format — MEASURED 2026-09-23, and it is SIX readers, not ten
+
+**Measured on Ajay's instruction to open the sites before proposing anything,
+after a call count overstated a different refactor by forty times.** The
+entry below is kept for the mechanism, which is exactly right. Two of its
+claims are not.
+
+**IT IS SIX LIVE READERS.** Everything else a grep for `isStroke` finds is
+either `boardIsStroke` — already per-round — or a COMMENT recording a fault
+that was fixed. Opened, and classified by what each one decides:
+
+    single-match.ts:114     which standings SEED a play-off        real
+    week-view.ts:629        which engine makes a league WEEK's rows real
+    foursomes/page.tsx:88   which standings order the TEE SHEET     real
+    week-view.ts:524        whether this week counts in the table   real, presentational
+    draft-facts.ts:72       what the AI is told the board says      low; a human edits it
+    finish-order.ts:80      the EVENT's final order                 correct as it is
+
+**AND THE HEADLINE CONSEQUENCE IS ALREADY FIXED.** This entry's own summary —
+a stroke qualifier into a match-play bracket printing strokes for a round whose
+result is "3&2" — is about the BOARDS, and every board reads `boardIsStroke`:
+the console leaderboard, `/live`, the player's screens, the dashboard.
+`finishingPositions` reaches its bracket branch before it ever asks `isStroke`,
+so the commonest championship format does not reach any of the six.
+
+So this is NOT the product-wide scoring-presentation change the text below
+describes, and should not be commissioned as one. What is left is three
+readers worth fixing — the play-off seeding, the league week's rows and the
+tee-sheet draw — each by asking the ROUND rather than the event, each with a
+test. `finish-order` is genuinely event-owned and `draft-facts` feeds a draft a
+human rewrites.
+
+**Not started: Ajay said measure first, then decide.**
+
+The original, for the mechanism and the two screens it names:
+
 **Found 2026-09-11 by walking the player app. The four boards are fixed; the
 rest of the sweep is open.** `state.boardIsStroke` now answers "what is the
 ROUND on screen" and `state.isStroke` still answers "what is the EVENT", which
@@ -815,9 +850,30 @@ The fix is a `nextUnplayedRound`, which is a small addition to
 `loadEventState` and wants somebody to decide what it does at the end of a
 tournament (the last round? none?). Not guessed at here.
 
-### Server actions disagree about which ROLE authorizes them
-**Found 2026-09-12 while consolidating twelve near-identical auth preambles.
-Measured and pinned, NOT decided — either answer changes who may do what.**
+### Server actions disagree about which ROLE authorizes them — DECIDED AND SHIPPED (#585)
+
+**Ajay chose `role` on 2026-09-23. Do not re-raise.** All nineteen checks now
+ask the account's real standing, so an organizer previewing as a player is
+never refused their own work. `messaging.ts` had already written the rule the
+rest now follow: "Preview is a display setting; who you are in a conversation
+is not."
+
+`which-role-an-action-asks.test.ts` is gone, which is what it asked for — it
+pinned the split by filename while the question was open and named its own end
+condition, "Whoever settles the question deletes this test". Two hand-kept
+lists were right for stopping drift and wrong for a settled rule: a new action
+is on neither, and the four that had drifted were the four written most
+recently. `one-answer-about-who-you-are.test.ts` sweeps `src/app/actions` from
+disk instead, names the file and the guard when it fails, and carries a control
+so a sweep looking in the wrong place cannot pass quietly.
+
+**ONE DIFFERENCE WAS DELIBERATELY LEFT.** `card-photo.ts` reads a course card
+under `role !== "admin"` — admin only — where its two sibling actions allow
+assistants. That is a question about WHICH STAFF may do a thing, not about
+whether a preview toggle decides it, and sweeping it up in a change about
+something else would have settled it without anybody deciding it.
+
+The original, for the measurement:
 
 A session carries two roles:
 
