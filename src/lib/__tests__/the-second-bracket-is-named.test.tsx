@@ -40,11 +40,12 @@ const text = (html: string) => html.replace(/<!--[^>]*-->/g, "").replace(/<[^>]+
 /** The raw markup, for asking whether the TOGGLE exists rather than whether a
  *  word appears — "Winners" is also a heading inside the draw itself. */
 function rawHtml(mode: BracketMode) {
-  const secondLabel = drawBrackets([], mode).secondLabel;
+  const { mainLabel, secondLabel } = drawBrackets([], mode);
   return renderToStaticMarkup(
     <BracketClient
       winners={buildBracket("winners", field, {})}
       consolation={buildBracket("consolation", [], {})}
+      mainLabel={mainLabel}
       secondLabel={secondLabel}
       readOnly
     />,
@@ -52,14 +53,20 @@ function rawHtml(mode: BracketMode) {
 }
 
 function render(mode: BracketMode) {
-  // The label the page computes and hands down — `drawBrackets([], mode)` is
+  // The labels the page computes and hands down — `drawBrackets([], mode)` is
   // exactly what `bracket/page.tsx` does, so this cannot drift from it.
-  const secondLabel = drawBrackets([], mode).secondLabel;
+  const { mainLabel, secondLabel } = drawBrackets([], mode);
   const winners = buildBracket("winners", field, {});
   const consolation = buildBracket("consolation", [], {});
   return text(
     renderToStaticMarkup(
-      <BracketClient winners={winners} consolation={consolation} secondLabel={secondLabel} readOnly />,
+      <BracketClient
+        winners={winners}
+        consolation={consolation}
+        mainLabel={mainLabel}
+        secondLabel={secondLabel}
+        readOnly
+      />,
     ),
   );
 }
@@ -74,16 +81,25 @@ describe("the second bracket is offered only where there is one", () => {
     expect(body).toMatch(/Player 1/);
   });
 
-  it("split: the second bracket is offered, and called a Consolation", () => {
+  it("split: the two draws are FLIGHTS, because nobody dropped into either", () => {
+    /**
+     * This cell asserted "Winners" and "Consolation" a day earlier, and both
+     * were wrong about a split. Nobody has won anything when a split is drawn
+     * — it is made on qualifying rank before a ball is struck — and the
+     * mode's own note refuses the word consolation for exactly that reason.
+     */
     const body = render("split");
-    expect(body).toMatch(/Winners/);
-    expect(body).toMatch(/Consolation/);
+    expect(body).toMatch(/Flight A/);
+    expect(body).toMatch(/Flight B/);
+    expect(body, "a split has no consolation; nobody dropped into it").not.toMatch(/Consolation/);
     expect(body).not.toMatch(/Plate/);
   });
 
   it("plate: the second bracket is called a PLATE, which is what the engine calls it", () => {
     const body = render("plate");
-    expect(body).toMatch(/Winners/);
+    // The main draw is the MAIN DRAW. "Winners" belongs to a double
+    // elimination, which is not a shape this app runs.
+    expect(body).toMatch(/Main draw/);
     expect(body, "the screen said Consolation where the engine says Plate").toMatch(/Plate/);
     expect(body).not.toMatch(/Consolation/);
   });

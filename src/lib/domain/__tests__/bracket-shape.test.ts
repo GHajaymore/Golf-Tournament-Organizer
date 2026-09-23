@@ -132,7 +132,18 @@ describe("how the knockout is arranged", () => {
     const d = drawBrackets(q, "split");
     expect(d.main.map((p) => p.id)).toEqual(["p1", "p2", "p3", "p4"]);
     expect(d.second.map((p) => p.id)).toEqual(["p5", "p6", "p7", "p8"]);
-    expect(d.secondLabel).toBe("Consolation");
+    /**
+     * FLIGHTS, WHICH IS WHAT THIS CELL IS ALREADY CALLED.
+     *
+     * It pinned "Consolation" under the title "split draws two FLIGHTS by
+     * rank", and the mode's own note says a split is "not a consolation:
+     * nobody drops into the second bracket, they are drawn into it". The
+     * title and the docstring agreed with each other; only the string
+     * disagreed, and a club dividing a field by qualifying rank writes
+     * flights on the sheet.
+     */
+    expect(d.mainLabel).toBe("Flight A");
+    expect(d.secondLabel).toBe("Flight B");
   });
 
   it("plate keeps everyone in the main bracket", () => {
@@ -150,7 +161,26 @@ describe("how the knockout is arranged", () => {
   });
 
   it("defaults to the arrangement existing tournaments already use", () => {
-    expect(drawBrackets(q).secondLabel).toBe("Consolation");
+    /**
+     * THE GUARANTEE IS THE MODE, NOT THE WORD IT PRINTS.
+     *
+     * This asserted `secondLabel === "Consolation"`, which is a display
+     * string standing in for the thing that actually matters: a tournament
+     * saved before `bracketMode` existed must keep drawing the way it always
+     * did. Renaming the label to "Flight B" broke the cell while changing
+     * nothing about the draw — the proxy failing where the guarantee held.
+     *
+     * Pinned against `split` itself, so it now fails only if the DEFAULT
+     * moves, which is the thing that would re-draw somebody's knockout.
+     */
+    const byDefault = drawBrackets(q);
+    const asSplit = drawBrackets(q, "split");
+    expect(byDefault.main.map((p) => p.id)).toEqual(asSplit.main.map((p) => p.id));
+    expect(byDefault.second.map((p) => p.id)).toEqual(asSplit.second.map((p) => p.id));
+    expect(byDefault.secondLabel).toBe(asSplit.secondLabel);
+    // And the control: `single` genuinely differs, so this cannot pass by the
+    // two sides being the same whatever the default is.
+    expect(drawBrackets(q, "single").second).toHaveLength(0);
   });
 });
 

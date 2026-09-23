@@ -94,12 +94,22 @@ function BracketBoard({
 export function BracketClient({
   winners,
   consolation,
+  mainLabel = "Main draw",
   secondLabel = "",
   results = {},
   readOnly = false,
 }: {
   winners: BracketView;
   consolation: BracketView;
+  /**
+   * What the FIRST draw is called, which also depends on the mode.
+   *
+   * It read "Winners" whatever the arrangement. In `split` there are no
+   * winners yet — the two draws are flights, divided by qualifying rank
+   * before anybody tees off — so the tab named a thing that had not happened.
+   * `drawBrackets` names both draws; this prints what it is given.
+   */
+  mainLabel?: string;
   /**
    * What the second bracket is called, or "" when there is not one.
    *
@@ -147,7 +157,7 @@ export function BracketClient({
           <div className="seg">
             <label className="seg-opt">
               <input type="radio" name="brk" checked={tab === "winners"} onChange={() => setTab("winners")} />
-              Winners
+              {mainLabel}
             </label>
             <label className="seg-opt">
               <input type="radio" name="brk" checked={tab === "consolation"} onChange={() => setTab("consolation")} />
