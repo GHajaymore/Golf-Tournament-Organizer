@@ -81,7 +81,44 @@ async function board(token) {
     .split("\n")
     .map((s) => s.trim().replace(/\s+/g, " "))
     .filter(Boolean);
-  return { status: res.status, lines };
+  return { status: res.status, lines, html };
+}
+
+/**
+ * THE SCORES ON A POINTS BOARD, READ BY ROW RATHER THAN BY LINE.
+ *
+ * A flat scan of the text cannot do this one. The note on `printedScores`
+ * says a points board's scores "ARE bare integers", which is true and is not
+ * enough: so is the POSITION in the first column. On a one-round board the
+ * positions happen to be absent or harmless; on a league board the flat
+ * reader returned `1, 108, 2, 102, 3, 80` and reported a correctly-ordered
+ * board as unsorted — a false alarm, which is the failure mode that gets a
+ * check deleted.
+ *
+ * So take the LAST numeric cell of each row, which is the score column on
+ * every board here, and let the row boundaries do the work the caption cannot.
+ */
+function pointsScoresByRow(html) {
+  // The console draws a board as a TABLE and the public one as a LIST, so both
+  // row shapes are accepted rather than one screen being asked to match the
+  // other's markup.
+  const rows = [
+    ...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g),
+    ...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g),
+  ];
+  const out = [];
+  for (const row of rows) {
+    const nums = row[1]
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((t) => /^\d+(\.\d+)?$/.test(t));
+    // The score is the LAST figure on the row on both boards; the position is
+    // the first, which is exactly the token the flat reader could not refuse.
+    if (nums.length) out.push(Number(nums[nums.length - 1]));
+  }
+  return out;
 }
 
 /**
@@ -102,10 +139,16 @@ async function board(token) {
  */
 const CAPTION = /^Ranked by |wins\.$|points \(higher is better\)\.$/i;
 
-function printedScores(lines) {
+function printedScores(lines, html = "") {
   const i = lines.findIndex((l) => CAPTION.test(l));
   if (i < 0) return { caption: null, scores: [] };
   const caption = lines[i];
+  // A points board is read by ROW — see `pointsScoresByRow` for why the flat
+  // scan below cannot tell a score from a finishing position.
+  if (/points/i.test(caption) && html) {
+    const byRow = pointsScoresByRow(html);
+    if (byRow.length >= 2) return { caption, scores: byRow };
+  }
 
   /**
    * WHICH TOKENS ARE SCORES DEPENDS ON THE CAPTION, and getting this wrong is
@@ -368,6 +411,89 @@ async function seedTeamMatchRound(eventId) {
   });
 }
 
+/**
+ * THE SAME QUESTION ASKED ACROSS WEEKS, which no other fixture here can ask.
+ *
+ * Every board above is ONE round, and over one round a points board cannot
+ * expose this: `scoreOnBasis` ranks on `points - levelPoints`, and with
+ * everybody round the same eighteen the term is the same for all of them, so
+ * the order is the points order whether or not the engine is right.
+ *
+ * It takes uneven ATTENDANCE to separate them. Measured on the seeded club's
+ * Thursday Evening League on 2026-09-22, four weeks in: the board was ordered
+ * perfectly on points per hole, printed the season totals, and headed itself
+ * "Greta Lindqvist leads on 135 Stableford pts" over a table in which three
+ * players had more. The league's own week view named somebody else.
+ *
+ * So: three weeks, and a player who misses the middle one and scores BETTER
+ * per hole than anybody who played it.
+ *
+ *   evens    36 + 36 + 36  = 108 over 54 holes   2.00 a hole
+ *   steady   34 + 34 + 34  = 102 over 54 holes   1.89
+ *   sharp    40 +  -- + 40 =  80 over 36 holes   2.22  <- best rate, least use
+ *
+ * Ranked on the total the board reads 108, 102, 80 and runs downward. Ranked
+ * on the rate it reads 80, 108, 102 and `checkOrder` says so in those words.
+ * The middle week is the one missed on purpose, because the LAST round is the
+ * board's active round — the one still in flight, where a shortfall is holes
+ * not played YET and must not be charged.
+ */
+async function seedStablefordLeague(eventId) {
+  const weeks = [];
+  for (let i = 0; i < 3; i += 1) {
+    weeks.push(
+      await prisma.stage.create({
+        data: {
+          eventId,
+          position: i,
+          description: `Week ${i + 1}`,
+          type: "Stroke Play Round",
+          format: "Stableford",
+          scoringBasis: "net",
+          holes: HOLES,
+        },
+        select: { id: true },
+      }),
+    );
+  }
+
+  // Off scratch, so the points are the card and nothing depends on an
+  // allowance: 2 a par, 3 a birdie, 1 a bogey.
+  const card = (birdies, bogeys) =>
+    JSON.stringify(PARS.map((par, h) => (h < birdies ? par - 1 : h < birdies + bogeys ? par + 1 : par)));
+
+  const roster = [
+    { who: "evens", weeks: [0, 1, 2], birdies: 0, bogeys: 0 }, // 36 a week, 108
+    { who: "steady", weeks: [0, 1, 2], birdies: 0, bogeys: 2 }, // 34 a week, 102
+    { who: "sharp", weeks: [0, 2], birdies: 4, bogeys: 0 }, // 40 a week, 80
+  ];
+
+  for (const [seed, p] of roster.entries()) {
+    const player = await prisma.player.create({
+      data: {
+        eventId,
+        name: `${MARK} ${p.who}`,
+        email: `${MARK}-${p.who}@example.invalid`,
+        handicap: 0,
+        seed,
+        status: "confirmed",
+      },
+      select: { id: true },
+    });
+    for (const w of p.weeks) {
+      await prisma.scorecard.create({
+        data: {
+          eventId,
+          stageId: weeks[w].id,
+          playerId: player.id,
+          strokes: card(p.birdies, p.bogeys),
+          status: "certified",
+        },
+      });
+    }
+  }
+}
+
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: MARK } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: MARK } } });
@@ -417,13 +543,16 @@ async function main() {
   const teamMatch = await makeEvent(org.id, "four-ball round robin");
   await seedTeamMatchRound(teamMatch.id);
 
-  for (const [label, ev] of [["net", net], ["gross", gross], ["team net", team]]) {
-    const { status, lines } = await board(ev.shareToken);
+  const league = await makeEvent(org.id, "Stableford league");
+  await seedStablefordLeague(league.id);
+
+  for (const [label, ev] of [["net", net], ["gross", gross], ["team net", team], ["league", league]]) {
+    const { status, lines, html } = await board(ev.shareToken);
     if (status !== 200) {
       fail(`${label} board`, `expected 200, got ${status}`);
       continue;
     }
-    const { caption, scores } = printedScores(lines);
+    const { caption, scores } = printedScores(lines, html);
     if (!caption) {
       fail(`${label} board`, "no \"Ranked by …\" caption — a column of numbers with no unit");
       continue;
@@ -442,6 +571,23 @@ async function main() {
      * captioned "net", this is the 2026-09-22 defect back again and the
      * ordering check above happened to be satisfied by luck.
      */
+    /**
+     * THE LEAGUE'S CONTROL: the SEASON TOTALS, exactly.
+     *
+     * Ordering alone is not enough here, because a board ranked on points per
+     * hole can still print a descending column if the fixture happens to be
+     * kind. These three are known from the cards — 108, 102 and 80 — so
+     * anything else means the board is aggregating something other than the
+     * season, and the leader must be the 108 rather than the 80 that has the
+     * best rate.
+     */
+    if (label === "league") {
+      const want = [108, 102, 80];
+      if (JSON.stringify(scores) !== JSON.stringify(want)) {
+        fail("league board", `expected the season totals ${want.join(", ")}, printed ${scores.join(", ")}`);
+      }
+    }
+
     if (label === "net") {
       const grossFigures = FIELD.map((p) => p.overPar).sort((a, b) => a - b);
       const printed = [...scores].sort((a, b) => a - b);
