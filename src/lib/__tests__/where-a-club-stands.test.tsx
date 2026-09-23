@@ -47,6 +47,34 @@ describe("where a club stands", () => {
     expect(body, "promised a refusal the app would not actually make").not.toMatch(/needs a bigger plan/);
   });
 
+  it("reads as a fact rather than a typo once the club is PAST the allowance", () => {
+    /**
+     * The fixture above stops AT the cap — `limit: 1, current: 1` — so being
+     * over it was a state nothing here could reach, and the panel printed
+     * "9 of 1 tournament running" on the seeded club without anything noticing.
+     *
+     * It is the ordinary path, not an edge: limits do not bite until a payment
+     * provider is attached, so any free-plan club opening a second tournament
+     * is already past one.
+     */
+    const past: OrgLimits = {
+      plan: "free",
+      enforced: false,
+      activeEvents: { allowed: false, limit: 1, current: 9 },
+      staffSeats: { allowed: true, limit: 1, current: 1 },
+    };
+    const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={past} />));
+    expect(body).toMatch(/9 tournaments running · plan includes 1/);
+    // The noun follows what is being COUNTED. "9 of 1 tournament running" put
+    // it on the limit, which is the one number in the phrase that is not.
+    expect(body, "printed the unreadable X-of-Y form over the allowance").not.toMatch(/9 of 1/);
+    // Still no consequence claimed while nothing is enforced — the rule the
+    // rest of this file exists for, and the fix must not quietly break it.
+    expect(body).not.toMatch(/needs a bigger plan/);
+    // The row that is WITHIN its limit keeps the plain form.
+    expect(body).toMatch(/1 of 1 organizer/);
+  });
+
   it("says it plainly once a refusal is real", () => {
     const body = text(renderToStaticMarkup(<PlanPanel planKey="free" standing={standing(true, true)} />));
     expect(body).toMatch(/Another tournament needs a bigger plan/);
