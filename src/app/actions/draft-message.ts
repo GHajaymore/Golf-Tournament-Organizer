@@ -41,7 +41,9 @@ const MAX_EXTRA = 300;
 export async function draftMessage(kind: string, extra: string): Promise<DraftResult> {
   const session = await getSession();
   if (!session?.eventId) return { ok: false, error: "Not signed in" };
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
+  // `role`, not `viewRole` — see the note on `requireStaff` in card-photo.ts.
+  // An organizer previewing as a player is still an organizer.
+  if (session.role !== "admin" && session.role !== "assistant") {
     return { ok: false, error: "Only an organizer or assistant can do that" };
   }
 

@@ -29,7 +29,8 @@ const NAME_MAX = 60;
 async function requireStaff(): Promise<{ eventId: string; name: string }> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
+  // `role`, not `viewRole` — see the note on `requireStaff` in card-photo.ts.
+  if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
   return { eventId: session.eventId, name: session.name || session.email };

@@ -66,7 +66,8 @@ const MAX_DESCRIPTION = 600;
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
+  // `role`, not `viewRole` — see the note on `requireStaff` in card-photo.ts.
+  if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
   // The person, not their Account row on this event — see card-photo.ts, where

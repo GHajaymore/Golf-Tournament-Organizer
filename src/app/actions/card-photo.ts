@@ -62,11 +62,24 @@ export interface CardPhotoResult {
 
 /** Formats a phone actually produces, and that the API accepts. */
 
-/** Organizer or assistant, on the active tournament. */
+/**
+ * Organizer or assistant, on the active tournament.
+ *
+ * `role`, NOT `viewRole` — standardised on 2026-09-23. Four actions asked the
+ * preview role and fifteen asked the real one, so an organizer previewing as a
+ * player was refused by four and allowed by fifteen, with nothing on screen
+ * explaining the difference. `messaging.ts` states the rule this follows:
+ * "Preview is a display setting; who you are in a conversation is not."
+ *
+ * Neither reading was a hole — the person is an admin either way and switches
+ * the toggle back in one click — which is why this was a recorded
+ * inconsistency rather than a bug, and why the fix is the one that removes a
+ * surprise rather than the one that adds a restriction.
+ */
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
+  if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
   // Identified by the PERSON, not by their Account row on this event.
