@@ -453,31 +453,6 @@ export async function seed() {
           address: "",
           regDeadline: "",
           shareToken: `${MARK}-tok-${slug}`,
-          /**
-           * THE BOARD A CLUB SENDS ITS MEMBERS, WHICH THIS SEED COULD NOT REACH.
-           *
-           * `leaderboardVisibility` defaults to "participants", so every one of
-           * the eleven tournaments here returned 404 on `/live/<token>` — and
-           * the summary this script prints at the end ADVERTISES four of those
-           * links. A fixture that hands you a dead link is worse than one that
-           * omits the screen, because the 404 reads as a broken route.
-           *
-           * `/live` is the whole reason `verify-public-boards.mjs` exists —
-           * "the screen a club actually sends its members, and nothing checked
-           * it beyond a 200" — and it was the one surface of this club that
-           * could not be walked at all.
-           *
-           * Keyed on STATUS rather than published everywhere, so the fixture
-           * still expresses both answers: a tournament being run has a board
-           * to share, and one still taking entries has nothing to show yet and
-           * stays at the app's own default. That second case is the control —
-           * publish them all and "the board is private" becomes a state
-           * nothing here can reach, which is the trap this whole file is full
-           * of notes about.
-           *
-           * Before `...extra`, so a call site that wants to say otherwise can.
-           */
-          leaderboardVisibility: ["live", "completed"].includes(extra.status) ? "public" : "participants",
           ...extra,
         },
       });
