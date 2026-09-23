@@ -6,6 +6,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import { RescoreWarning } from "./RescoreWarning";
 import {
   createTeam,
   deleteTeam,
@@ -116,6 +117,37 @@ export function TeamsClient({
         return;
       }
       setConfirmMatches(false);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
+    });
+  };
+
+  /**
+   * Taking somebody out of a side they have already scored for.
+   *
+   * Its own body rather than `run`, for the reason `useAction` states: a
+   * `needsConfirm` is neither success nor refusal, it is the server asking a
+   * question, and `run` would print it as "Couldn't save that." The two draw
+   * actions above are here for exactly the same reason.
+   *
+   * Keyed by player rather than a bare boolean, because a side has several
+   * members and the question has to appear against the one it is about.
+   */
+  const [confirmRemove, setConfirmRemove] = useState<{
+    teamId: string;
+    playerId: string;
+    name: string;
+    cards: number;
+  } | null>(null);
+
+  const removeMember = (teamId: string, playerId: string, name: string, force: boolean) => {
+    setError("");
+    startTransition(async () => {
+      const res = await removeTeamMember(teamId, playerId, force);
+      if (res.needsConfirm) {
+        setConfirmRemove({ teamId, playerId, name, cards: res.cards ?? 1 });
+        return;
+      }
+      setConfirmRemove(null);
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
@@ -369,20 +401,37 @@ export function TeamsClient({
               ) : (
                 <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
                   {t.members.map((m) => (
-                    <li key={m.playerId} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                      <span style={{ flex: 1 }}>{m.name}</span>
-                      <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {indexLabel(m)}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-icon"
-                        title={`Remove ${m.name}`}
-                        disabled={pending}
-                        onClick={() => run(() => removeTeamMember(t.id, m.playerId))}
-                      >
-                        <Icon name="x" />
-                      </button>
+                    <li key={m.playerId} style={{ fontSize: 13 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ flex: 1 }}>{m.name}</span>
+                        <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {indexLabel(m)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-icon"
+                          title={`Remove ${m.name}`}
+                          disabled={pending}
+                          onClick={() => removeMember(t.id, m.playerId, m.name, false)}
+                        >
+                          <Icon name="x" />
+                        </button>
+                      </div>
+                      {/* Against the member it is about, not at the foot of the
+                          side — a side has several people and the question is
+                          about one of them. */}
+                      {confirmRemove?.teamId === t.id && confirmRemove.playerId === m.playerId && (
+                        <RescoreWarning
+                          cards={confirmRemove.cards}
+                          headline={`${confirmRemove.name} has already returned a card for this side.`}
+                          consequence="Their card stays in the database but stops counting, so this side's score changes. Nothing tells the players."
+                          keepLabel="leave the side as it is"
+                          confirmLabel="Remove them anyway"
+                          pending={pending}
+                          onConfirm={() => removeMember(t.id, m.playerId, m.name, true)}
+                          onCancel={() => setConfirmRemove(null)}
+                        />
+                      )}
                     </li>
                   ))}
                 </ul>
