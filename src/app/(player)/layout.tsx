@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
+import { prisma } from "@/lib/db";
+import { playerAppShut } from "@/lib/domain/lifecycle-state";
 import { brandForEvent } from "@/lib/services/organization";
 import { scoreboardCss } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
@@ -64,6 +66,27 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    */
   const isStaff = session.role === "admin" || session.role === "assistant";
   const moneyOn = session.eventId ? await usesExpenses(session.eventId) : false;
+
+  /**
+   * IS THIS TOURNAMENT OPEN TO ITS PLAYERS YET.
+   *
+   * Launching locked setup and nothing else, so a player could reach the board
+   * and their own card in a tournament the club was still building. Answered
+   * here because this shell wraps every player screen — the reasoning the
+   * metadata above is declared on, "so a screen added later inherits it".
+   *
+   * DRAFT ONLY. From `registration` onward there is something true to tell a
+   * player — you are in, you are on the waiting list, you are not entered —
+   * and shutting the app deletes those sentences. `playerAppShut` carries the
+   * rule and the reasoning; staff are never shut out.
+   */
+  const gateEvent = session.eventId
+    ? await prisma.event.findUnique({
+        where: { id: session.eventId },
+        select: { name: true, status: true, accessGated: true },
+      })
+    : null;
+  const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
 
   /**
    * Messages sit in the header, not the tab bar.
@@ -198,7 +221,31 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           padding: "18px calc(16px + env(safe-area-inset-right, 0px)) 92px calc(16px + env(safe-area-inset-left, 0px))",
         }}
       >
-        {children}
+        {shut ? (
+          /* A CLOSED DOOR THAT SAYS SO. Not a 404 and not an empty board: the
+             tournament exists and this player was given a way in, so the only
+             true thing to say is that the club has not finished building it.
+
+             WITH AN H1, because every screen in this app carries one —
+             `e2e/layout.spec.ts` demands it on every route and
+             `verify-lifecycle.mjs` walks the player app at each stage asking
+             for it. The first draft used a styled span and turned 30 checks
+             red, which is the cheapest way this could have been learnt. */
+          <div className="card elev-sm" style={{ gap: 10, textAlign: "center", padding: "28px 20px" }}>
+            <h1 className="page-title" style={{ fontSize: 17, margin: 0 }}>
+              {gateEvent?.name ?? "This tournament"} hasn&rsquo;t opened yet
+            </h1>
+            <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+              Your club is still setting it up. Everything here — your card, the board, the tee
+              sheet — opens as soon as they are ready, and you will not need to do anything.
+            </p>
+            <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
+              Playing in something else today? Use the switcher above.
+            </p>
+          </div>
+        ) : (
+          children
+        )}
       </main>
 
       {/* A member with no place in the field has no stake in its pots, and

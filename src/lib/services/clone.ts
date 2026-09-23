@@ -147,6 +147,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "the relation object for defaultTeeId, which IS carried — same rule as courseRef above. It was listed as clonable on the reasoning that the id and the relation should travel together, which reads sensibly and is a category error: there is nothing to travel. Nothing caught it while the copy was a hand-written field list that wrote neither; deriving the write from this policy made the compiler reject it immediately.",
   createdAt: "set on insert",
   updatedAt: "set on insert",
+  accessGated:
+    "whether launching gates player access. A copy is a NEW tournament and takes the column default, which gates it. Carrying it would let a club mint ungated tournaments for ever by cloning one that predates the gate — the backfill exempted the tournaments that already existed, not their descendants",
   name: "supplied by the organizer",
   teePolicy:
     "a condition of THIS competition, decided for the tees and the field it had — a copy is a new competition and its committee sets it again rather than inheriting a restriction nobody in the room chose",

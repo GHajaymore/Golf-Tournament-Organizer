@@ -92,6 +92,16 @@ export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
 const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 /**
+ * The one status that means the club has not opened this to anybody yet.
+ *
+ * Named rather than written as a literal inside `playerAppShut`, because the
+ * whole point of that function is that it is NOT the inverse of launched —
+ * two of the three statuses above are open to players. A bare "draft" in the
+ * comparison reads like an oversight; this does not.
+ */
+const STILL_BUILDING = "draft";
+
+/**
  * HAS THIS TOURNAMENT BEEN LAUNCHED — asked once, here.
  *
  * The comment above says a second copy is how two readers come to disagree
@@ -138,6 +148,58 @@ export function isFinished(status: string): boolean {
  */
 export function configurationLocked(event: { status: string; configUnlocked: boolean }): boolean {
   return isLaunched(event.status) && !event.configUnlocked;
+}
+
+/**
+ * IS THE PLAYER APP SHUT TO A PLAYER — the other half of what launching means.
+ *
+ * Launching moved `status` and locked setup and did nothing else. `isLaunched`
+ * was read in exactly two places, both about locking SETUP, so a player could
+ * open the board and their own card in a tournament that was never launched.
+ * A share link worked before the club considered the tournament open.
+ *
+ * GATED IS A PROPERTY OF THE TOURNAMENT, NOT OF THE APP, which is Ajay's call
+ * of 2026-09-23. Tournaments are being played in DRAFT today, so a rule that
+ * simply read `!isLaunched(status)` would shut live players out of rounds they
+ * are halfway through. `accessGated` is true for tournaments created after the
+ * gate existed and false for every one that predates it — the migration
+ * backfills it, and the column default does the rest.
+ *
+ * STAFF ARE NOT GATED, and that is not an exception so much as the point: an
+ * organizer has to be able to look at the player app for a tournament they
+ * have not launched, which is exactly when they are checking it.
+ *
+ * Asked of the SHELL rather than of each screen. `(player)/layout.tsx` wraps
+ * every player route and already says "declared on the layout so a screen
+ * added later inherits it" about its own metadata; a gate answered per page is
+ * how `roundProgress` came to have four readers of one absence.
+ *
+ * DRAFT ONLY, AND DELIBERATELY NOT `!isLaunched` — Ajay's call of 2026-09-23,
+ * made after the first attempt used the inverse of launched and turned
+ * `verify-player-states` red.
+ *
+ * Pre-launch is THREE statuses, not one: `draft`, `registration`, `ready`.
+ * Shutting all three shuts a player out during REGISTRATION, which is exactly
+ * when they want the app — to see they are in, or on the waiting list, or not
+ * entered at all. Those three sentences are a rule that script exists to
+ * protect, and the gate was quietly deleting them.
+ *
+ * Draft is the one state that means "the club is still building this and
+ * nobody should be in here". From `registration` onward there is something
+ * true to tell a player, so the app opens and the screens say it.
+ *
+ * So this reads the status directly rather than through `isLaunched`. The
+ * two answer different questions — "may setup still be edited" and "may a
+ * player in" — and the file's own warning about a hand-written inverse is
+ * about restating ONE rule in two places, not about two rules that happen to
+ * share a word.
+ */
+export function playerAppShut(
+  event: { status: string; accessGated: boolean },
+  isStaff: boolean,
+): boolean {
+  if (isStaff) return false;
+  return event.accessGated && event.status === STILL_BUILDING;
 }
 
 /**

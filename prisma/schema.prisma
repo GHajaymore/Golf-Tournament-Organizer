@@ -1229,6 +1229,28 @@ model Event {
   // Lifecycle
   status         String    @default("draft") // draft | registration | ready | live | completed
   configUnlocked Boolean   @default(false) // organizer override to edit after launch
+  /**
+   * Whether LAUNCHING this tournament gates player access to it.
+   *
+   * Launch has always moved `status` and locked setup; it has never restricted
+   * what a player can reach, so a player could open the board and their card
+   * in a tournament that was never launched. `isLaunched` was read in exactly
+   * two places, both about locking SETUP, and in none about access.
+   *
+   * TRUE FOR NEW TOURNAMENTS, FALSE FOR EVERY ONE THAT ALREADY EXISTS, which
+   * is Ajay's call of 2026-09-23 and the whole reason this is a column rather
+   * than a behaviour change. Tournaments are being PLAYED IN DRAFT today — the
+   * seeded Demo Cup is one — and switching the gate on for them would lock
+   * live players out of rounds they are halfway through. The migration
+   * backfills `false` explicitly for that reason; the column default only
+   * applies to rows created afterwards.
+   *
+   * The cost, stated rather than hidden: two permanent classes of tournament,
+   * and every future reader of the gate has to know which it is holding. That
+   * was the trade accepted over a one-time backfill that treats anything with
+   * a result as launched.
+   */
+  accessGated    Boolean   @default(true)
   launchedAt     DateTime?
   /**
    * When this tournament was marked completed.
