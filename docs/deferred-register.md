@@ -326,7 +326,65 @@ bug. The file explaining a defect becomes the first hit of every sweep for it.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
-### `isStroke` is the EVENT's format — the BOARDS are fixed, ten readers are not
+### `isStroke` is the EVENT's format — MEASURED AND CLOSED 2026-09-23
+
+**Measured on Ajay's instruction to open the sites before proposing anything,
+after a call count overstated a different refactor by forty times.** The
+entry below is kept for the mechanism, which is exactly right. Two of its
+claims are not.
+
+**IT IS SIX LIVE READERS, AND ALL SIX ASK A QUESTION THE EVENT OWNS.**
+Everything else a grep for `isStroke` finds is either `boardIsStroke` — already
+per-round — or a COMMENT recording a fault that was fixed.
+
+    single-match.ts:114     which standings SEED a play-off
+    week-view.ts:629        how the SEASON is ranked, for the movement column
+    foursomes/page.tsx:88   which standings order the TEE SHEET draw
+    week-view.ts:524        whether this week counts in the standings table
+    draft-facts.ts:72       what the AI is told the board says
+    finish-order.ts:80      the EVENT's final order
+
+Every one of them is choosing between `strokeStandings` and `overall` — that
+is, asking WHICH AGGREGATE THIS TOURNAMENT IS RANKED ON. That is not a
+property of a round. `event.format` is the event-level answer to an
+event-level question, and reading it here is correct.
+
+**A FIRST PASS CALLED THREE OF THEM "REAL" AND WAS WRONG**, which is worth
+keeping because it is the same mistake this file warns about one section along.
+They were classified from the SHAPE of the call — a ternary on `isStroke`
+choosing a standings list — rather than from what the answer is used for. The
+distinction was already written in `week-view.ts` and I read past it: the fault
+recorded there is "THE WEEK'S OWN TYPE, not the tournament's format", about
+which table to check for ONE WEEK's scores, while `standingsWithMovement` sums
+a SEASON and its own comment says the chain "is an event-level chain".
+
+So opening a site is not enough; what it DECIDES has to be followed to where
+the answer is used. Two greps and a glance produced a confident, wrong list.
+
+**AND THE HEADLINE CONSEQUENCE IS ALREADY FIXED.** This entry's own summary —
+a stroke qualifier into a match-play bracket printing strokes for a round whose
+result is "3&2" — is about the BOARDS, and every board reads `boardIsStroke`:
+the console leaderboard, `/live`, the player's screens, the dashboard.
+`finishingPositions` reaches its bracket branch before it ever asks `isStroke`,
+so the commonest championship format does not reach any of the six.
+
+So this is NOT the product-wide scoring-presentation change the text below
+describes, and should not be commissioned as one. **There is nothing left to
+fix here.** The defect was the boards, the boards were fixed, and what remains
+reads the event's format to answer a question about the event.
+
+**THE ONE THING THAT WOULD MAKE ANY OF THEM WRONG** is a genuinely MIXED
+tournament — one whose `format` says stroke while the rounds that decide it are
+match play, or the reverse. That is a real shape (a stroke qualifier into a
+knockout) and worth knowing about, but it is a question about what "leading"
+MEANS in such a tournament, not a bug in these six lines. Nobody has reported
+it, and answering it would be a product decision about mixed-format ranking.
+
+**Closed rather than carried. If a club ever reports a wrong order on a mixed
+tournament, this is the entry to reopen, and that paragraph is where to start.**
+
+The original, for the mechanism and the two screens it names:
+
 **Found 2026-09-11 by walking the player app. The four boards are fixed; the
 rest of the sweep is open.** `state.boardIsStroke` now answers "what is the
 ROUND on screen" and `state.isStroke` still answers "what is the EVENT", which
@@ -815,9 +873,30 @@ The fix is a `nextUnplayedRound`, which is a small addition to
 `loadEventState` and wants somebody to decide what it does at the end of a
 tournament (the last round? none?). Not guessed at here.
 
-### Server actions disagree about which ROLE authorizes them
-**Found 2026-09-12 while consolidating twelve near-identical auth preambles.
-Measured and pinned, NOT decided — either answer changes who may do what.**
+### Server actions disagree about which ROLE authorizes them — DECIDED AND SHIPPED (#585)
+
+**Ajay chose `role` on 2026-09-23. Do not re-raise.** All nineteen checks now
+ask the account's real standing, so an organizer previewing as a player is
+never refused their own work. `messaging.ts` had already written the rule the
+rest now follow: "Preview is a display setting; who you are in a conversation
+is not."
+
+`which-role-an-action-asks.test.ts` is gone, which is what it asked for — it
+pinned the split by filename while the question was open and named its own end
+condition, "Whoever settles the question deletes this test". Two hand-kept
+lists were right for stopping drift and wrong for a settled rule: a new action
+is on neither, and the four that had drifted were the four written most
+recently. `one-answer-about-who-you-are.test.ts` sweeps `src/app/actions` from
+disk instead, names the file and the guard when it fails, and carries a control
+so a sweep looking in the wrong place cannot pass quietly.
+
+**ONE DIFFERENCE WAS DELIBERATELY LEFT.** `card-photo.ts` reads a course card
+under `role !== "admin"` — admin only — where its two sibling actions allow
+assistants. That is a question about WHICH STAFF may do a thing, not about
+whether a preview toggle decides it, and sweeping it up in a change about
+something else would have settled it without anybody deciding it.
+
+The original, for the measurement:
 
 A session carries two roles:
 
