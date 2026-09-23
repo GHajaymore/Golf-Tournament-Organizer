@@ -207,11 +207,43 @@ export async function addTeamMember(teamId: string, playerId: string): Promise<T
   return { ok: true };
 }
 
-export async function removeTeamMember(teamId: string, playerId: string): Promise<TeamResult> {
+/**
+ * ASK BEFORE TAKING SOMEBODY OUT OF A SIDE THEY HAVE ALREADY SCORED FOR.
+ *
+ * `TeamScorecard` is keyed by team and player, not by membership, so deleting
+ * the `TeamMember` row leaves the card behind — and `aggregateTeamCard` maps
+ * over the MEMBERS, so it is simply no longer read. The side's score changes
+ * and nothing says so. Same shape as the `BracketWinner` case: a destructive
+ * action that discards a result silently.
+ *
+ * WARN RATHER THAN REFUSE, on Ajay's call of 2026-09-23. A committee
+ * re-drawing mid-round usually has a good reason — somebody went home, a pair
+ * was entered wrongly — and blocking it outright makes them undo a card to get
+ * at the membership, which is worse than the thing being prevented. The rule
+ * `league.ts` applies to a pair is a refusal because a pair is the unit there;
+ * a member of a side is not.
+ *
+ * It reuses `needsConfirm` and `cards` rather than inventing a second shape,
+ * so `RescoreWarning` renders it with no new component and an organizer sees
+ * the same question worded the same way as everywhere else it is asked.
+ */
+export async function removeTeamMember(
+  teamId: string,
+  playerId: string,
+  force = false,
+): Promise<TeamResult> {
   const eventId = await requireStaff();
   await assertUnlocked(eventId, "change teams");
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
+
+  if (!force) {
+    // Their own card for THIS side. A card they returned for some other side
+    // is not affected by taking them out of this one.
+    const cards = await prisma.teamScorecard.count({ where: { teamId, playerId } });
+    if (cards > 0) return { ok: false, needsConfirm: true, cards };
+  }
+
   await prisma.teamMember.deleteMany({ where: { teamId, playerId } });
   await refresh();
   return { ok: true };

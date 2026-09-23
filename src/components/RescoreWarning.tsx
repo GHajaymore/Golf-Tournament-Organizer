@@ -30,6 +30,8 @@ export function RescoreWarning({
   cards,
   consequence,
   keepLabel,
+  headline,
+  confirmLabel,
   pending = false,
   onConfirm,
   onCancel,
@@ -41,6 +43,19 @@ export function RescoreWarning({
   consequence: string;
   /** The value the round actually has, so declining names what it keeps. */
   keepLabel: string;
+  /**
+   * The headline, where "this round already has N cards" is not the fact.
+   *
+   * Every use until 2026-09-23 was a SETTING that re-scores a round, and the
+   * sentence was true of all of them. Taking a player out of a side is the
+   * same question — a stored card is about to stop counting — about a
+   * different subject: it is one person's card, not the round's. Overriding
+   * the two strings keeps that use on this component rather than starting the
+   * fourth copy the docstring above exists to prevent.
+   */
+  headline?: string;
+  /** The word on the button that goes ahead. */
+  confirmLabel?: string;
   pending?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -57,14 +72,15 @@ export function RescoreWarning({
       }}
     >
       <b>
-        <Icon name="warning" /> This round already has {cards} card{cards === 1 ? "" : "s"} entered.
+        <Icon name="warning" />{" "}
+        {headline ?? `This round already has ${cards} card${cards === 1 ? "" : "s"} entered.`}
       </b>
       <div className="text-muted" style={{ marginTop: 4 }}>
         {consequence}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-secondary" disabled={pending} onClick={onConfirm}>
-          Change it anyway
+          {confirmLabel ?? "Change it anyway"}
         </button>
         {/* Declining has to put the control back to what is STORED, or it goes
             on showing a value the round does not have. That is the caller's
