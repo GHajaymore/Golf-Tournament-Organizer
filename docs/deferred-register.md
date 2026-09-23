@@ -796,9 +796,37 @@ passing, and only `handicap-allowances.test.ts` caught it. Both gaps sat behind
 a block whose NAME suggested coverage it did not have. When judging whether a
 cell earns its green, read what it asserts rather than what it is called.
 
-## Removing a scored player from a side, 2026-09-22
+## A halved four-ball — DECIDED 2026-09-23, NOTHING TO BUILD
 
-`removeTeamMember` deletes the `TeamMember` row and stops. If that player has
+**Ajay chose STAYS HALVED. Do not re-raise.** A four-ball that finishes level
+is halved and both sides take the half point; a tiebreaker orders the
+standings rather than deciding whether a match was won.
+
+**That is already the behaviour, and it was verified rather than assumed
+before anything was written.** `Event.matchTiebreakers` defaults to `""`, so
+`decidedOutcome` returns "H" and two cells already pin it — "an empty sequence
+leaves the match halved" and "halves it when no sequence is set" in
+`match-tiebreak.test.ts`.
+
+What DOES break a half is an explicit sequence the organizer configured, under
+"1. A match finishes all square" on the Rounds screen. That is an opt-in club
+customization rather than a default, which is why it stands: the standing
+instruction is to honour customizations. If that ever needs revisiting it is a
+separate question about whether the setting should exist, not about what a
+halved match is.
+
+## Removing a scored player from a side, 2026-09-22 — DECIDED AND SHIPPED (#579)
+
+**Ajay chose WARN, THEN PROCEED on 2026-09-23. Do not re-raise.** The action
+now counts that player's `TeamScorecard` rows for the side and comes back
+`needsConfirm` with the number; confirming goes through, and the card is left
+in place rather than deleted, so a committee can put them back. Refusing
+outright was rejected: it makes a committee delete a card to get at the
+membership, which is worse than the thing prevented.
+
+Kept below for the reasoning and for the shape of the defect, which recurs.
+
+`removeTeamMember` deleted the `TeamMember` row and stopped. If that player has
 already returned a card, their `TeamScorecard` survives — it is keyed by team
 and player, not by membership — and is simply no longer read, because
 `aggregateTeamCard` maps over the MEMBERS. So the side's score changes
@@ -822,7 +850,24 @@ weighted format from a flat one. That is precisely how Chapman shipped a
 pre-WHS flat 50% for months — right on the evenly-matched pairs anybody checks
 it with, wrong on the mismatched ones the allowance exists for.
 
-## "Qualification watch" runs after qualifying is over, 2026-09-22
+## "Qualification watch" runs after qualifying is over — DECIDED AND SHIPPED (#578)
+
+**Ajay chose HIDE ONCE SETTLED on 2026-09-23. Do not re-raise.** The watch and
+the "updates live with scores" clause both go once the race cannot move; the
+cutoff FIGURE stays, because it is true in every state. `qualifyingSettled` is
+decided in `loadEventState` — a decided tie in the knockout, or every feeder
+round closed — so the dashboard and both branches of `computeHighlights` read
+one value and cannot drift apart.
+
+One thing worth keeping from building it: the first implementation read the
+decided-tie count off `ties`, which is null unless the BOARD is showing a
+knockout — so "has anybody played out of the draw" depended on which tab an
+organizer had open. A presentation value used as a verdict, caught only
+because the fixture asserts the before-state as well as the after.
+
+Kept below for the measurement.
+
+## The original entry, 2026-09-22
 
 Observed on the seeded club's Summer Knockout, whose bracket is at the
 semi-finals — five ties already decided, an announcement on the dashboard about
@@ -868,7 +913,32 @@ Related: this is the shape `money-layout.ts` reasons about from the other side
 — there the rule is that a figure which can still change must not be reported
 as final, and here a figure that can no longer change is reported as live.
 
-## A stroke aggregate flatters a player who missed a round, 2026-09-22
+## A stroke aggregate flatters a player who missed a round — DECIDED AND SHIPPED (#577)
+
+**Ajay chose UNRANK, WITH THE ORGANIZER CLOSING THE ROUND, on 2026-09-23. Do
+not re-raise.** `Stage.closedAt` is the signal the entry below says was
+missing: a timestamp the organizer sets, never inferred. On a STROKE board a
+player with no card for a closed round holds no position — shown without a
+place, as a card that stopped short already is. A POINTS board is untouched,
+because a missed week already costs the points it was worth via `chargedHoles`;
+unranking there would be the #565 defect wearing the other face.
+
+Two things worth keeping:
+
+- **`chargedHoles` deliberately does NOT read `closedAt`.** It derives settled
+  from "not the round on the board", which works with no organizer action at
+  all. Switching it would mean nothing is charged until a club closes
+  something, which regresses #565 for every existing event. Two notions of
+  settled, each with the looseness its own job can afford.
+- **The migration was renamed by hand.** Prisma named it `20260923162459_…`
+  and migrations replay lexicographically, so that sorts between `19_` and
+  `27_` and would have replayed in the middle of history on the fresh database
+  CI builds every run. It is `81_stage_closed_at`, with the
+  `_prisma_migrations` row renamed to match.
+
+Kept below for the measurement and for why strokes and points differ.
+
+## The original entry, 2026-09-22
 
 Found while fixing the Stableford half of the same fault, and it is the half
 that cannot be fixed the same way.
