@@ -14,8 +14,66 @@ const team = (id: string, sizes: number): TeamView => ({
     name: `P${i}`,
     handicap: 10,
     position: i,
+    // Everyone in this fixture is playing. The withdrawn case has its own
+    // tests, where the point is that a side notices.
+    withdrawn: false,
   })),
   playingHandicap: 0,
+});
+
+/**
+ * THE MORNING OF THE COMPETITION, which is the state this app is for.
+ *
+ * Somebody pulls out and the committee substitutes from the reserves or sends
+ * the side out short. `removeSignup` marks them `withdrawn` and deliberately
+ * leaves the draw alone — pulling them out of a pair would destroy pairings a
+ * committee made — so the side keeps the row and `teamProblems` is what has to
+ * notice.
+ *
+ * It did not. `teamsForStage` never read `status`, so a pair reduced to one
+ * counted as a complete pair and nothing on the Teams screen said a word,
+ * while `teeSheetAsPlayed` was already dropping that same player from their
+ * group so "a withdrawn name never appears". Two readers of who is playing,
+ * disagreeing, on the one morning a club cannot afford it.
+ */
+describe("a side that lost a player overnight", () => {
+  const withdrawnPair = (): TeamView => {
+    const t = team("a", 2);
+    return { ...t, members: [{ ...t.members[0], withdrawn: true }, t.members[1]] };
+  };
+
+  it("says who withdrew, by name, and what the committee can do", () => {
+    const [problem, ...rest] = teamProblems([withdrawnPair()], "Four-Ball");
+    expect(problem.problem).toContain("P0");
+    expect(problem.problem).toContain("withdrawn");
+    // The two jobs are different, so the side is ALSO reported as short: a
+    // draw that was never finished and a draw that has since changed both
+    // need acting on, and one sentence cannot say both.
+    expect(rest.map((p) => p.problem)).toEqual(["has 1 of 2 players"]);
+  });
+
+  it("counts a withdrawn player out of the side's size", () => {
+    // The defect itself. A pair of two where one has gone is ONE, and
+    // `sideSizeRange` is what a committee is being measured against.
+    const complete = teamProblems([team("a", 2)], "Four-Ball");
+    expect(complete).toEqual([]);
+    const short = teamProblems([withdrawnPair()], "Four-Ball");
+    expect(short.some((p) => p.problem === "has 1 of 2 players")).toBe(true);
+  });
+
+  it("says nothing about a side that is all present", () => {
+    // The control. Without it every assertion above passes on a function that
+    // complains about every side, which would bury the real ones.
+    expect(teamProblems([team("a", 2), team("b", 2)], "Four-Ball")).toEqual([]);
+  });
+
+  it("names both when a pair loses both players", () => {
+    const t = team("a", 2);
+    const gone: TeamView = { ...t, members: t.members.map((m) => ({ ...m, withdrawn: true })) };
+    const [problem] = teamProblems([gone], "Four-Ball");
+    expect(problem.problem).toContain("P0 and P1");
+    expect(teamProblems([gone], "Four-Ball").some((p) => p.problem === "has no players")).toBe(true);
+  });
 });
 
 describe("snakeDraw", () => {

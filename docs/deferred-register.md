@@ -796,6 +796,26 @@ passing, and only `handicap-allowances.test.ts` caught it. Both gaps sat behind
 a block whose NAME suggested coverage it did not have. When judging whether a
 cell earns its green, read what it asserts rather than what it is called.
 
+## Removing a scored player from a side, 2026-09-22
+
+`removeTeamMember` deletes the `TeamMember` row and stops. If that player has
+already returned a card, their `TeamScorecard` survives — it is keyed by team
+and player, not by membership — and is simply no longer read, because
+`aggregateTeamCard` maps over the MEMBERS. So the side's score changes
+silently and a returned card is orphaned.
+
+The same shape as the `BracketWinner` case fixed that day: a destructive action
+that discards a result without saying so. `hasPlayingHistory` protects a PLAYER
+from being deleted once they have played; there is no equivalent when they are
+taken out of a SIDE.
+
+**Not fixed, because the right answer is a decision rather than a correction.**
+Refusing outright would block a committee who genuinely needs to re-draw;
+warning is probably right, and "keep the card but stop counting it" is a third
+answer with its own consequences for the money. A club that hits this is doing
+something unusual — removing somebody mid-round who has already scored — so it
+wants a deliberate design rather than a reflex.
+
 **Fixture handicaps must be spread.** Four equal handicaps make a 25/20/15/10
 scramble table and a flat 17.5% agree exactly, so an even fixture cannot tell a
 weighted format from a flat one. That is precisely how Chapman shipped a

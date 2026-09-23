@@ -993,7 +993,8 @@ describe("round handicaps, at every field size and every allowance", () => {
 describe("team draws, at every field size and every team format", () => {
   const TEAM_FORMATS = FORMAT_NAMES.filter((f) => needsTeams(f));
 
-  /** teamProblems only reads `members.length`; the rest is shape it needs. */
+  /** teamProblems reads the members who are PLAYING — the count and each
+   *  one's `withdrawn` flag; the rest is shape it needs. */
   const asTeams = (sides: Player[][]): TeamView[] =>
     sides.map((members, i) => ({
       id: `t${i + 1}`,
@@ -1007,6 +1008,10 @@ describe("team draws, at every field size and every team format", () => {
         name: p.name,
         handicap: p.handicap,
         position,
+        // Everybody drawn here is playing. `teamProblems` now reads this as
+        // well as the count — a side whose partner withdrew on the morning is
+        // one short — and this sweep is about the DRAW, not the day.
+        withdrawn: false,
       })),
     }));
 

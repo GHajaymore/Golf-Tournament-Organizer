@@ -176,23 +176,48 @@ that something they did never happened.
 *Shape:* `roundProgress(stageId)` and `roundHasResults(stageId)` as the only
 readers of existence and progress. A guard with inverted polarity, as above.
 
-## 2. The handicap and card chain
+## 2. The handicap and card chain — MOSTLY ALREADY DONE
 
-**63 calls across 22 files**, spread over several parallel chains:
+**The first count here was wrong and is corrected.** It said "63 calls across
+22 files", which measured how many places TOUCH a handicap, not how many decide
+the rule. Re-measured 2026-09-22, the chain is already layered the way this
+document argues for:
 
 ```
-courseHandicapMap   roundCourseHandicaps   roundHandicapOf   strokeHandicapFor
-resolveCourse       courseForRound         cardForStage
+courseHandicapMap      the arithmetic, in domain/handicap.ts
+roundCourseHandicaps   the round-aware resolver, in services/handicaps.ts
+round-handicap.ts      a LOADER that delegates to it
 ```
 
-This is the one `strokesFor` above subsumes, and the failure it produces is the
-**invisible** kind: a round played away from the event's course, scored against
-the home card, so every side's to-par is out by the same amount and the ranking
-is untouched. Eight plausible numbers in the right order. Measured once already
-— four strokes a side on the seeded club's away nine.
+The loader shares a NAME with the resolver, which is how a duplicate appeared to
+exist — a grep cannot tell the two apart. It is not one. Its own docstring:
 
-**Second highest risk precisely because nobody complains.** A wrong order starts
-an argument; a uniformly wrong number starts nothing.
+> THE ARITHMETIC ITSELF IS `roundCourseHandicaps` IN `handicaps.ts` … the rule
+> moved to where `teeForPlay` lives and this became its loader … Two copies of
+> it would have been the defect this whole class is.
+
+It also explains why it is not merged with `loadEventState`: the freeze runs on
+every card write and must be able to decide not to query at all. The two are
+pinned to each other by an audit test instead — the "pin two readers, don't
+merge them" rule the last section of this document argues for.
+
+What is left of the class is small and already written down:
+
+- `tournament.ts` calls the arithmetic four times, building the event-wide 18-
+  and 9-hole maps and then a per-round and a per-match one. That is
+  `EventState` precomputing, and the comment says why: "the tees are a
+  per-round answer and these two maps are an event-wide one."
+- `regroup.ts` and `week-view.ts` are the two documented exemptions, named in
+  CLAUDE.md, and `handicap-wiring.test.ts` lists them and fails on a third.
+
+**The risk ranking stands; the effort does not.** An away round scored on the
+home card is still the invisible failure worth guarding against, and it is
+already guarded — by `cardForStage`, its narrowing guard, and
+`board-scores-the-round-venue.audit.test.ts`. There is no large refactor here.
+
+The lesson is about the MEASUREMENT rather than the code. A call count answers
+"how many places touch this" and was read as "how many places decide this". The
+two differ by an order of magnitude, and only the second is the class.
 
 ## 3. Format capability asked as a string
 
