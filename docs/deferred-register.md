@@ -822,6 +822,36 @@ weighted format from a flat one. That is precisely how Chapman shipped a
 pre-WHS flat 50% for months — right on the evenly-matched pairs anybody checks
 it with, wrong on the mismatched ones the allowance exists for.
 
+## "Qualification watch" runs after qualifying is over, 2026-09-22
+
+Observed on the seeded club's Summer Knockout, whose bracket is at the
+semi-finals — five ties already decided, an announcement on the dashboard about
+the *second* semi-final. The leaderboard's highlight panel still reads:
+
+    🎯 Qualification watch
+       Nkechi Obioma holds the final qualifying spot on 10.5 pts.
+
+Present tense, about a race that finished before the bracket was drawn. Nobody
+is on a bubble; the qualifiers are in the draw and half of them are out of it
+again.
+
+`computeHighlights` emits this whenever `advancingIds` is non-empty, with no
+check that qualifying is still decidable. **Both the match and the stroke
+branches do it the same way**, so this is not two readers disagreeing — it is a
+consistent choice, which is why it is recorded rather than corrected.
+
+**Not fixed, because the right answer is a judgement rather than a defect.**
+The sentence is TRUE — that player did hold the last spot — and a committee may
+well want to see who scraped in. Three defensible answers: drop the highlight
+once the feeder rounds are settled, keep it and put it in the past tense
+("took the final qualifying spot"), or keep it exactly as it is on the grounds
+that a results panel is allowed to state a settled fact. Only the first changes
+behaviour, and none of them is obviously right.
+
+Related: this is the shape `money-layout.ts` reasons about from the other side
+— there the rule is that a figure which can still change must not be reported
+as final, and here a figure that can no longer change is reported as live.
+
 ## A stroke aggregate flatters a player who missed a round, 2026-09-22
 
 Found while fixing the Stableford half of the same fault, and it is the half
