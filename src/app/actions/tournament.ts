@@ -4916,6 +4916,60 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
 }
 
 /**
+ * DECLARE A ROUND FINISHED, OR RE-OPEN IT.
+ *
+ * The one thing a round could not say about itself. Everything that needed to
+ * know whether a round was OVER had to guess — `roundMoneyIsFinal` from "every
+ * hole returned", `chargedHoles` from "not the round on the board" — and a
+ * stroke aggregate could not tell "has not played those holes yet" from "did
+ * not turn up", so one round at +4 out-ranked two rounds at +6.
+ *
+ * NOT `assertUnlocked`, deliberately. Every other stage setting here is a
+ * structural change and is refused once a tournament is launched; this is the
+ * opposite kind of thing — an organizer closes a round in the moments after
+ * the last card comes in, on a tournament that is by definition under way.
+ * `setBracketWinner` is gated the same way and for the same reason.
+ *
+ * RE-OPENING IS SUPPORTED because a committee correcting a card after the fact
+ * is ordinary. That is why the column is a timestamp rather than a flag: the
+ * useful question afterwards is when it was closed, not merely whether.
+ *
+ * What it changes: on a STROKE board a player with no card for a closed round
+ * holds no position, which is the standard answer for somebody who has not
+ * completed the competition. A points board is untouched — a missed week
+ * already costs a Stableford player the points it was worth. See
+ * `missedAClosedRound` in `services/tournament.ts`.
+ */
+export async function setRoundClosed(
+  stageId: string,
+  closed: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true, description: true, position: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+
+  await prisma.stage.update({
+    where: { id: stage.id },
+    data: { closedAt: closed ? new Date() : null },
+  });
+
+  const which = stage.description || `Round ${stage.position + 1}`;
+  await logAudit(
+    eventId,
+    "round-closed",
+    closed
+      ? `Closed ${which}. Anybody without a card for it no longer holds a place on a stroke board.`
+      : `Re-opened ${which}.`,
+  );
+  await refresh();
+  return { ok: true };
+}
+
+/**
  * Create the third-place match from the beaten semi-finalists.
  *
  * Explicit, like the Single Match Stage's own create and for the same reason:

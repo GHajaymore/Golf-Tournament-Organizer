@@ -27,7 +27,13 @@ import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-date
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
-import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
+import {
+  chainIssues,
+  issuesForRound,
+  carryForwardPrompt,
+  standingsUnit,
+  type CarryPrompt,
+} from "@/lib/format-chain";
 import {
   STAGE_TYPE_INFO,
   // STAGE_TYPES is gone with the round type this screen used to preselect.
@@ -47,6 +53,8 @@ import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
+import { RoundClosedControl } from "@/components/RoundClosedControl";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 export interface ThirdPlaceView {
   on: boolean;
   problem: string;
@@ -79,6 +87,8 @@ export interface StageView {
    * input the format declares. See `GolfFormat.inputs`.
    */
   scoreInput: string;
+  /** The organizer has declared this round over. See `RoundClosedControl`. */
+  closed: boolean;
   carryEnabled: boolean;
   carryPct: number;
   /** Whether the organizer has answered the carry-forward question either way. */
@@ -1408,6 +1418,33 @@ function StageCard({
               rounds={singleMatch.rounds}
               players={singleMatch.players}
               locked={false}
+            />
+          </div>
+        )}
+
+        {/* ONLY WHERE CLOSING DECIDES SOMETHING, which is a round scored off
+            CARDS.
+
+            A bracket files no card at all — its results are BracketWinner rows
+            keyed by slot — and a round measured in match points does not reach
+            a stroke board, so closing either changes nobody's position. The
+            first draft offered this on every non-bracket round and a plain
+            Round Robin grew a panel for a lever that does nothing; the guard
+            in `render.test.tsx` that says a round deciding nothing of its own
+            must stay silent caught it, and was right to.
+
+            Read off the round's own UNIT rather than its type, because a Round
+            Robin set to Stroke Play is head-to-head by type and a medal in
+            fact — `docs/deferred-register.md` is explicit that on this axis
+            you assert the output, not the flag. */}
+        {stage.type !== "Bracket Stage" &&
+          standingsUnit(stage.format, stage.scoringBasis) !== "match points" && (
+          <div>
+            <SectionLabel>Is this round over?</SectionLabel>
+            <RoundClosedControl
+              stageId={stage.id}
+              closed={stage.closed}
+              pointsBoard={isStablefordRound(stage.scoringBasis, stage.format)}
             />
           </div>
         )}

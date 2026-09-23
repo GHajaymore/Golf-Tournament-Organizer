@@ -1567,6 +1567,29 @@ model Stage {
    */
   carryForwardAsked   Boolean  @default(false)
 
+  /**
+   * When the organizer declared this round finished, or null while it is open.
+   *
+   * THE ONE THING A ROUND COULD NOT SAY ABOUT ITSELF. Everything that needs to
+   * know whether a round is OVER has had to guess: `roundMoneyIsFinal` derives
+   * it from "every hole returned", `chargedHoles` from "not the round on the
+   * board", and a stroke aggregate could not tell "has not played those holes
+   * yet" from "did not turn up" at all — so one round at +4 out-ranked two
+   * rounds at +6, measured on the fixture in `docs/deferred-register.md`.
+   *
+   * A TIMESTAMP RATHER THAN A BOOLEAN, like `Event.launchedAt` and
+   * `Event.completedAt`: a committee re-opening a round to correct a card is a
+   * thing that happens, and when it was closed is worth keeping.
+   *
+   * NULL IS THE DEFAULT AND MEANS OPEN, which is what makes this safe to add:
+   * every stored round is open until somebody says otherwise, so nothing that
+   * reads it changes behaviour for an existing tournament. In particular
+   * `chargedHoles` deliberately does NOT read this — it must keep working with
+   * no organizer action at all, or the league fix in #565 regresses the moment
+   * a club has not closed anything.
+   */
+  closedAt            DateTime?
+
   // Field cut entering this round (Round Robin stages after the first): only
   // the top cutCount / cutPercent players from the previous round's standings
   // are scheduled here. Generated separately from the global flight builder

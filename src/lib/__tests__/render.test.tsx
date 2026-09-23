@@ -1055,6 +1055,8 @@ describe("leaderboards for every format", () => {
 describe("rounds and format", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
+    // Open, which is every stored round until an organizer says otherwise.
+    closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
@@ -2085,6 +2087,8 @@ describe("flight board", () => {
 describe("round card — which nine and the deadline", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
+    // Open, which is every stored round until an organizer says otherwise.
+    closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
