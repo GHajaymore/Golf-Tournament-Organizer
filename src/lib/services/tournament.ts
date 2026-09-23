@@ -621,6 +621,14 @@ export interface EventState {
   resultsIn: number;
   overallCutoff: number | null;
   brackets: { winners: BracketView; consolation: BracketView };
+  /**
+   * Whether the qualifying race can still change anything.
+   *
+   * False while a screen may honestly describe a live cut. True once the
+   * knockout has a decided tie, or every feeder round has been closed — see
+   * where it is built for why it takes two answers rather than one.
+   */
+  qualifyingSettled: boolean;
   qualifiers: Player[];
 }
 
@@ -2129,6 +2137,52 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
    */
   const bracketBoard = boardStage && isKnockoutRound(boardStage.type);
   const ties = bracketBoard ? knockoutProgress(brackets.winners, brackets.consolation) : null;
+
+  /**
+   * WHETHER THE QUALIFYING RACE CAN STILL CHANGE ANYTHING.
+   *
+   * Read off the seeded club's Summer Knockout on 2026-09-22, whose bracket
+   * was at the semi-finals — five ties decided, an announcement about the
+   * SECOND semi-final — while two screens still described a live race:
+   *
+   *     dashboard    Cutoff line ≈ 10.5 pts · updates live with scores
+   *     leaderboard  🎯 Nkechi Obioma holds the final qualifying spot
+   *
+   * The first is the worse of the two. "Holds the final qualifying spot" is at
+   * least TRUE about a settled fact stated oddly; "updates live with scores"
+   * is a promise about FUTURE behaviour, and it is false — that cutoff cannot
+   * move however many scores come in.
+   *
+   * TWO WAYS TO BE SETTLED, because one of them has to work on data nobody
+   * has touched:
+   *
+   *   - the knockout has a decided tie. Somebody has played their way out of
+   *     the draw, so the qualifying it was seeded from is history. This is
+   *     what catches every tournament already stored, none of which has ever
+   *     had a round closed;
+   *   - every round that feeds the qualifying is CLOSED. The organizer has
+   *     said so, which is the signal `Stage.closedAt` exists for and the one
+   *     that works before a bracket has been played at all.
+   *
+   * HERE RATHER THAN IN EITHER SCREEN, for the reason the note above this one
+   * gives: two readers of one question is how `roundProgress` came to have
+   * four readers of one absence. The dashboard note and `computeHighlights`
+   * both print what they are handed.
+   */
+  const feederRounds = playRounds.filter((s) => !isKnockoutRound(s.type));
+  /**
+   * ASKED OF THE DRAW ITSELF, NOT OF `ties`.
+   *
+   * `ties` is null unless the BOARD happens to be showing a knockout, because
+   * its job is to count the round on screen. Reading it here made "has anybody
+   * played out of the draw" depend on which tab an organizer was looking at —
+   * a presentation value used as a verdict, which is its own recorded class of
+   * defect. Caught by the cell below asserting the after-state, which is why
+   * that fixture asserts before AND after rather than only the interesting one.
+   */
+  const knockoutStarted = knockoutProgress(brackets.winners, brackets.consolation).decided > 0;
+  const qualifyingSettled =
+    knockoutStarted || (feederRounds.length > 0 && feederRounds.every((s) => s.closedAt !== null));
   /**
    * AND A ROUND THE APP DOES NOT SCORE COUNTS NOTHING, BY DEFINITION.
    *
@@ -2261,6 +2315,7 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
     resultsIn: played,
     overallCutoff,
     brackets,
+    qualifyingSettled,
     qualifiers,
   };
 }
@@ -2568,8 +2623,10 @@ export function computeHighlights(state: EventState): Highlight[] {
             : `${lead.toPar}`;
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
     }
+    // Only while it is a watch — see the match-play branch below, and
+    // `qualifyingSettled` for why the two ways of being settled differ.
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
-    const lastIn = advancing[advancing.length - 1];
+    const lastIn = state.qualifyingSettled ? undefined : advancing[advancing.length - 1];
     if (lastIn) {
       out.push({
         icon: "🎯",
@@ -2687,9 +2744,11 @@ export function computeHighlights(state: EventState): Highlight[] {
     out.push({ icon: "🔥", title: "Hot streak", text: `${best.name} has won ${best.n} matches in a row.` });
   }
 
-  // Qualification bubble.
+  // Qualification bubble — a WATCH, so only while there is something to
+  // watch. Once the knockout is under way nobody is on a bubble: the
+  // qualifiers are in the draw and half of them are out of it again.
   const advancing = state.overall.filter((rp) => state.advancingIds.has(rp.player.id));
-  const lastIn = advancing[advancing.length - 1];
+  const lastIn = state.qualifyingSettled ? undefined : advancing[advancing.length - 1];
   if (lastIn) {
     out.push({ icon: "🎯", title: "Qualification watch", text: `${lastIn.player.name} holds the final qualifying spot on ${fmt(lastIn.stats.totalPoints)} pts.` });
   }

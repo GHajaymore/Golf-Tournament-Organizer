@@ -1214,7 +1214,17 @@ export default async function DashboardPage() {
                     </span>
                   </>
                 }
-                note={`Cutoff line ≈ ${overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores`}
+                /* THE CLAUSE IS A PROMISE, SO IT IS ONLY MADE WHILE IT IS TRUE.
+                   "updates live with scores" was printed whatever the state,
+                   and on a knockout at the semi-finals that cutoff cannot move
+                   however many scores come in — a statement about FUTURE
+                   behaviour, and a false one. The figure itself is true in
+                   every state and stays. `qualifyingSettled` is decided in
+                   `loadEventState` so this and the Qualification watch cannot
+                   disagree about whether the race is live. */
+                note={`Cutoff line ≈ ${overallCutoff === null ? "—" : pts(overallCutoff)} pts${
+                  state.qualifyingSettled ? "" : " · updates live with scores"
+                }`}
               />
             )}
 
