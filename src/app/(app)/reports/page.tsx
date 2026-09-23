@@ -6,13 +6,15 @@ import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
 import { brandForEvent } from "@/lib/services/organization";
-import { boardKind } from "@/lib/formats";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { teamStandings } from "@/lib/services/teams";
+import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
+import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { boardKindForRound } from "@/lib/stage-types";
 import { toParText } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
@@ -60,7 +62,10 @@ export default async function ReportsPage() {
   // which is the expression four boards each wrote for themselves and is
   // exactly how they came to disagree about which round was on screen.
   const activeStage = state.boardStage;
-  const kind = boardKind(activeStage?.format);
+  // The ROUND, not only the format — the same branch the two boards make, so
+  // a sheet a committee files cannot rank a round of matches on stroke totals
+  // while the leaderboard ranks it on the matches.
+  const kind = boardKindForRound(activeStage?.format, activeStage?.type);
   const holes = holesPlayed(activeStage?.holes);
   // The card THIS ROUND is played on, narrowed to the nine actually played and
   // re-ranked — Reports has to agree with the leaderboard about which holes a
@@ -109,7 +114,46 @@ export default async function ReportsPage() {
    */
   const attendance = await attendanceReport(state);
 
-  if (kind === "team" && activeStage) {
+  if (kind === "team-match" && activeStage) {
+    const sides = await teamMatchBoard(
+      session.eventId,
+      activeStage.id,
+      activeStage.format,
+      activeStage.handicapAllowance,
+      holes,
+      activeStage.allowanceWeights,
+    );
+    const system = isLeaguePointsSystem(event.leaguePoints) ? event.leaguePoints : "match";
+    snapshotTitle = snapshotStanding({
+      status: event.status,
+      done: state.boardProgress.certified,
+      total: state.boardProgress.total,
+      unit: state.boardProgress.unit,
+      noun: "team standings",
+    }).title;
+    board = <TeamMatchLeaderboard format={activeStage.format} rows={sides} system={system} />;
+    extraCsv = [
+      {
+        label: "Team match standings",
+        desc: "Every side, ranked on its matches.",
+        filename: `${event.name}-team-match-standings.csv`,
+        rows: [
+          ["Rank", "Team", "Players", "Played", "Won", "Halved", "Lost", "Holes +/-", "Points"],
+          ...sides.map((s) => [
+            s.played > 0 ? String(s.rank) : "—",
+            s.name,
+            s.members.join(" / "),
+            String(s.played),
+            String(s.wins),
+            String(s.halved),
+            String(s.losses),
+            String(s.holesDiff),
+            String(s.points),
+          ]),
+        ],
+      },
+    ];
+  } else if (kind === "team" && activeStage) {
     const teams = await teamStandings(
       session.eventId,
       activeStage.id,

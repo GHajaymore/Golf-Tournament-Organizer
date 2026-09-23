@@ -7,6 +7,9 @@ import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareOnBasis } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
+import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
+import { isLeaguePointsSystem } from "../domain/league-meeting";
+import type { HoleResult } from "../domain/types";
 import {
   sideHandicap,
   committeeWeights,
@@ -390,6 +393,74 @@ export async function teamStandings(
     if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
     return compareOnBasis(order, a, b) || a.name.localeCompare(b.name);
   });
+}
+
+/**
+ * A ROUND ROBIN OF TEAM MATCHES, RANKED ON THE MATCHES.
+ *
+ * The sibling of `teamStandings` and the one a HEAD-TO-HEAD team round wants:
+ * that function ranks sides on their cards, which is right for a better-ball
+ * medal and throws away every result in a round of matches. Measured on a
+ * four-ball round robin — the side that won 10&8 placed second, behind the
+ * side with the lower stroke total.
+ *
+ * All the golf is borrowed. `teamMatchStandings` aggregates, `pairingPoints`
+ * decides what a match is worth, and both were already in the app. What this
+ * adds is the reading of rows and the names.
+ *
+ * THE SYSTEM IS THE CLUB'S WHERE THEY HAVE CHOSEN ONE. Ajay's ruling: "go with
+ * what other golf club do and what is the standard (plus customization)". The
+ * standard is one point a win and a half each for a half — what
+ * `league-meeting.ts` calls the simplest — and a club that has set
+ * `leaguePoints` has already said how it counts match points, so that answer
+ * is honoured rather than a second setting being invented for it.
+ */
+export interface TeamMatchRow extends TeamMatchStanding {
+  name: string;
+  members: string[];
+}
+
+export async function teamMatchBoard(
+  eventId: string,
+  stageId: string,
+  format: string,
+  allowanceOverride = 0,
+  holes = 18,
+  weightsOverride?: number[] | null,
+): Promise<TeamMatchRow[]> {
+  const [teams, matches, event] = await Promise.all([
+    teamsForStage(eventId, stageId, format, allowanceOverride, holes, weightsOverride),
+    prisma.match.findMany({
+      where: { eventId, stageId, NOT: { teamAId: "" } },
+      select: { teamAId: true, teamBId: true, holes: true },
+    }),
+    prisma.event.findUnique({ where: { id: eventId }, select: { leaguePoints: true } }),
+  ]);
+
+  const pairings = matches.map((m) => {
+    let holeResults: HoleResult[] = [];
+    try {
+      holeResults = JSON.parse(m.holes) as HoleResult[];
+    } catch {
+      // An unreadable card is not a finished match, and a throw here would
+      // take the whole board down over one row.
+      holeResults = [];
+    }
+    return { teamAId: m.teamAId, teamBId: m.teamBId, holes: holeResults };
+  });
+
+  const system = isLeaguePointsSystem(event?.leaguePoints) ? event.leaguePoints : "match";
+  const rows = teamMatchStandings(
+    teams.map((t) => t.id),
+    pairings,
+    system,
+  );
+  const byId = new Map(teams.map((t) => [t.id, t]));
+  return rows.map((r) => ({
+    ...r,
+    name: byId.get(r.teamId)?.name ?? "",
+    members: byId.get(r.teamId)?.members.map((m) => m.name) ?? [],
+  }));
 }
 
 /**

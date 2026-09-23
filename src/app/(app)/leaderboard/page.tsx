@@ -15,11 +15,13 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { boardKind } from "@/lib/formats";
 import { isMatch } from "@/lib/tournament-shape";
 import { boardIntro, boardFootnote, boardShowsHighlights, boardShowsCommentary } from "@/lib/domain/board-copy";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
-import { teamStandings } from "@/lib/services/teams";
+import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
+import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
+import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { boardKindForRound } from "@/lib/stage-types";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 function ago(d: Date): string {
@@ -47,10 +49,37 @@ export default async function LeaderboardPage() {
   // `boardKind` holds the order these are checked in — manual first, before
   // teams and before any engine — because Reports and /live have to make the
   // same decision and used not to. See lib/formats.ts.
-  const kind = boardKind(activeStage?.format);
+  /**
+   * THE ROUND, not only the format. `boardKind` asks the format alone, so a
+   * team format on a Round Robin reached the team STROKE board and the match
+   * results were thrown away — see `boardKindForRound`.
+   */
+  const kind = boardKindForRound(activeStage?.format, activeStage?.type);
 
   if (kind === "manual") {
     return <ManualRoundBoard format={activeStage!.format} />;
+  }
+
+  if (kind === "team-match" && activeStage) {
+    const rows = await teamMatchBoard(
+      session.eventId,
+      activeStage.id,
+      activeStage.format,
+      activeStage.handicapAllowance,
+      holesPlayed(activeStage.holes),
+      activeStage.allowanceWeights,
+    );
+    const ev = await prisma.event.findUnique({
+      where: { id: session.eventId },
+      select: { leaguePoints: true },
+    });
+    return (
+      <TeamMatchLeaderboard
+        format={activeStage.format}
+        rows={rows}
+        system={isLeaguePointsSystem(ev?.leaguePoints) ? ev.leaguePoints : "match"}
+      />
+    );
   }
 
   if (kind === "team" && activeStage) {

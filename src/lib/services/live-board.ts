@@ -4,9 +4,11 @@ import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
 import { COURSE_REF } from "./course-resolution";
 import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
+import { teamMatchBoard } from "./teams";
+import { boardKindForRound } from "../stage-types";
+import { isLeaguePointsSystem, type LeaguePointsSystem } from "../domain/league-meeting";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import type { StandingRow } from "@/components/LeaderboardTable";
-import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
 import { weekBasis, isStablefordRound, type WeekBasis } from "../domain/week-basis";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-standings";
@@ -53,6 +55,11 @@ export interface LiveBoardView {
   teamFormat: string;
   rows: ReturnType<typeof standingRows>;
   teamRows: Awaited<ReturnType<typeof teamStandings>>;
+  /** Sides ranked on their MATCHES, for a head-to-head team round. Empty
+   *  otherwise — the board branches on `kind`, not on this being non-empty. */
+  teamMatchRows: Awaited<ReturnType<typeof teamMatchBoard>>;
+  /** How match points are counted here: the club's, or the standard. */
+  pointsSystem: LeaguePointsSystem;
   skins: Awaited<ReturnType<typeof skinsBoard>> | null;
   nassau: Awaited<ReturnType<typeof nassauBoard>> | null;
   modStableford: Awaited<ReturnType<typeof modifiedStablefordBoard>> | null;
@@ -198,7 +205,14 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
         select: { name: true, city: true },
       })
     : null;
-  const kind = boardKind(activeStage?.format);
+  /**
+   * THE ROUND, not only the format — the same reading the console board makes.
+   * A team format on a Round Robin was landing on the team STROKE board here
+   * too, so the share link a club sends its members threw away every match
+   * result in the round. Both boards ask `boardKindForRound` now, so they
+   * cannot answer this differently again.
+   */
+  const kind = boardKindForRound(activeStage?.format, activeStage?.type);
   const teamRound = kind === "team" && !!activeStage;
   const holeCount = holesPlayed(activeStage?.holes);
   /**
@@ -230,6 +244,24 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
         activeStage!.countBest,
       )
     : [];
+
+  /** A round robin of team matches, ranked on the matches. */
+  const teamMatchRows =
+    kind === "team-match" && activeStage
+      ? await teamMatchBoard(
+          eventId,
+          activeStage.id,
+          activeStage.format,
+          activeStage.handicapAllowance,
+          holeCount,
+          activeStage.allowanceWeights,
+        )
+      : [];
+
+  // The club's answer where they have given one, the standard otherwise.
+  const pointsSystem: LeaguePointsSystem = isLeaguePointsSystem(state.event.leaguePoints)
+    ? state.event.leaguePoints
+    : "match";
 
   const skinsNet = activeStage ? activeStage.scoringBasis !== "gross" : true;
   const skins =
@@ -350,6 +382,8 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
       : [event.course, event.city].filter(Boolean).join(", "),
     rows,
     teamRows,
+    teamMatchRows,
+    pointsSystem,
     skins,
     nassau,
     modStableford,

@@ -1,4 +1,4 @@
-import { isStrokeScored } from "./formats";
+import { isStrokeScored, boardKind, type BoardKind } from "./formats";
 
 /**
  * The kinds of round a tournament can be made of.
@@ -347,6 +347,46 @@ export function isHeadToHead(type: string): boolean {
  * which no format string can tell you. The FORMAT is what makes a Round Robin
  * set to Stroke Play a medal, which no type can.
  */
+/**
+ * WHICH BOARD A ROUND BELONGS ON, ASKING THE ROUND AND NOT ONLY THE FORMAT.
+ *
+ * `boardKind` takes a format and nothing else, so it reaches `needsTeams`
+ * before anything can tell it the round is HEAD-TO-HEAD — and a team format on
+ * a Round Robin therefore lands on the team STROKE board. Measured 2026-09-22
+ * on a four-ball round robin built so the two answers differ:
+ *
+ *     Four-Ball · 2 sides · lowest net wins.
+ *     1  lower-total       72   E
+ *     2  wins-the-match    77
+ *
+ * The side that won the match 10&8 is placed SECOND, and the board says
+ * "lowest net wins" of a round decided hole by hole. Singles match play has
+ * always had a match-points board; a team format could never reach one, so the
+ * result of every four-ball match in a round robin was thrown away.
+ *
+ * A SEPARATE FUNCTION rather than an optional argument on `boardKind`. An
+ * argument a caller may omit is the "guard you must remember to call" this
+ * codebase keeps being bitten by, and `boardKind` has eighteen callers. The
+ * narrow questions — is this nassau, is this modified Stableford — genuinely do
+ * not care about the stage type and keep the old one; the screens that choose a
+ * BOARD use this.
+ *
+ * It lives HERE rather than in `formats.ts` because it needs both halves and
+ * `formats.ts` cannot import this file — `stage-types` already imports it, and
+ * a cycle between the two would be a poor trade for tidiness. `roundIsStroke`
+ * directly below is the same shape for the same reason.
+ */
+export function boardKindForRound(
+  format: string | null | undefined,
+  type: string | null | undefined,
+): BoardKind {
+  const kind = boardKind(format);
+  // Only a TEAM round changes its answer. Singles match play already reaches
+  // the match board through `state.overall`, and a manual round must keep
+  // winning over everything — the order `boardKind` documents.
+  return kind === "team" && isHeadToHead(type ?? "") ? "team-match" : kind;
+}
+
 export function roundIsStroke(type: string, format?: string): boolean {
   if (!isHeadToHead(type)) return true;
   // No format given: the type is the whole answer, which is right for a bare

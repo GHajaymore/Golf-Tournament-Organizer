@@ -232,6 +232,27 @@ Three defects, all in class #1 and #3, none found by walking a screen.
 Both reachable because `setBracketWinner` is gated on **staff role, not on
 launch**.
 
+**And a fourth, which was a missing engine rather than a broken one.** A round
+robin of TEAM matches was ranked on stroke totals, so the side that won 10&8
+was printed second behind the side with the lower total. `boardKind` asks the
+FORMAT alone and reaches `needsTeams` before anything can tell it the round is
+head-to-head; singles match play has had a match-points board all along and a
+team format could never reach one.
+
+`boardKindForRound(format, type)` routes it, `teamMatchStandings` aggregates,
+and `pairingPoints` — already written, already used by the interclub league —
+decides what a match is worth. Default one point a win and a half each for a
+half; the club's `leaguePoints` honoured where they have set it. All four
+readers branch together: console board, `/live`, Reports and its CSV.
+
+**A KNOWN GAP LEFT OPEN.** The halved-match tiebreaker (`matchTiebreakers`) is
+applied to SINGLES standings through `computeStandings` and is not consulted
+for a team round robin — `pairingPoints` returns half a point each and stops.
+So a club that has set a countback gets it on a singles round robin and not on
+a four-ball one. That is an inconsistency in honouring a customization, not a
+wrong answer, and it wants a decision about whether a halved four-ball should
+be breakable at all before anything is wired.
+
 **One is class #3 and is NOT fixed, because the mechanism is not settled.**
 `StagesClient` asks `format === "Match Play"` four times inside a
 `stage.type === "Round Robin"` guard. A **Four-Ball round robin** — the

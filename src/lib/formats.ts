@@ -691,7 +691,14 @@ export function needsTeams(formatName: string): boolean {
  * is the leaderboard's: manual is checked FIRST, because a round the app does
  * not score must never reach a scoring path at all.
  */
-export type BoardKind = "manual" | "team" | "skins" | "nassau" | "modified-stableford" | "standard";
+export type BoardKind =
+  | "manual"
+  | "team"
+  | "team-match"
+  | "skins"
+  | "nassau"
+  | "modified-stableford"
+  | "standard";
 
 export function boardKind(formatName: string | null | undefined): BoardKind {
   if (!formatName) return "standard";

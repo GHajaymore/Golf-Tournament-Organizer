@@ -5,6 +5,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { liveBoard } from "@/lib/services/live-board";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { OrgBrand } from "@/components/OrgBrand";
@@ -177,6 +178,15 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
 
         {board.manualFormat ? (
           <PublicManualNotice />
+        ) : board.kind === "team-match" ? (
+          /* A round robin of team matches is decided on the matches, not on
+             the cards — see `boardKindForRound`. The console board makes the
+             same branch, so a member and an organizer read the same order. */
+          <TeamMatchLeaderboard
+            format={board.teamFormat}
+            rows={board.teamMatchRows}
+            system={board.pointsSystem}
+          />
         ) : board.teamRound ? (
           <TeamLeaderboard
             format={board.teamFormat}
