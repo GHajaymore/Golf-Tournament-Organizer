@@ -148,4 +148,55 @@ describe("a round robin of team matches", () => {
     expect(last.teamId).toBe("not-out-yet");
     expect(last.played).toBe(0);
   });
+
+  /**
+   * A SIDE THAT MISSES A MEETING LOSES THE POINTS IT WAS WORTH.
+   *
+   * The test above is about a side that has played NOTHING. This is the case
+   * between: played some weeks, missed others — which in a twelve-club league
+   * happens the first time somebody cannot raise three pairs, and which no
+   * fixture here could reach.
+   *
+   * Written after the individual board was found doing the opposite. Its
+   * engine subtracted what a level round scores over the holes a player had
+   * PLAYED, so three weeks of four were normalised to three and the league
+   * ranked on points per hole: the seeded club's board named a leader on 135
+   * over three players who had more, and the league's own week view named
+   * somebody else. See `chargedHoles` in `stroke-agg.ts`.
+   *
+   * This engine was already right — it adds the points up and that is the
+   * whole of it — and nothing said so, which is how a later tidy-up
+   * "normalises for meetings played" and puts the same defect on the team
+   * side. So the rule is pinned rather than the arithmetic.
+   *
+   * `missed-a-week` is built to be the tempting answer: a perfect record
+   * across two meetings against a side that played four and dropped one. Per
+   * meeting it is the better club. It still finishes second, because a league
+   * table is a total and turning up is part of it.
+   */
+  it("a side that missed a meeting does not out-rank one that played it", () => {
+    const rows = teamMatchStandings(
+      ["played-every-week", "missed-a-week"],
+      [
+        // Four meetings for the ever-present side: three won, one halved = 3.5
+        pairing("played-every-week", "filler", closeout(4, 3)),
+        pairing("played-every-week", "filler", closeout(2, 1)),
+        pairing("played-every-week", "filler", closeout(6, 5)),
+        pairing("played-every-week", "filler", halvedCard()),
+        // Two meetings for the other, both won = 2. A perfect record, and a
+        // better rate per meeting than 3.5 from 4.
+        pairing("missed-a-week", "filler", closeout(5, 4)),
+        pairing("missed-a-week", "filler", closeout(3, 2)),
+      ],
+    );
+
+    const table = rows.filter((r) => r.teamId !== "filler");
+    expect(table.map((r) => r.teamId)).toEqual(["played-every-week", "missed-a-week"]);
+    expect(table[0].points).toBe(3.5);
+    expect(table[1].points).toBe(2);
+    // The attendance is on the row, so a committee can see WHY — a table that
+    // ranks on a total and hides the denominator is the half of this the
+    // individual board got wrong for four weeks.
+    expect(table.map((r) => r.played)).toEqual([4, 2]);
+  });
 });
