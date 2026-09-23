@@ -29,7 +29,35 @@ tournaments currently being *played in draft*, of which the seeded Demo Cup is
 one. Turning the gate on retroactively would lock live players out of rounds
 they are in the middle of.
 
-### A live board ranks on raw strokes, so the leader is whoever has played fewest holes
+### A live board ranks on raw strokes — BOTH HALVES FIXED, NOT WAITING ON ANYBODY
+
+**This sat under "decisions waiting on Ajay" until 2026-09-23 and had not been
+waiting since the 20th.** Both halves it describes are done, and it is left
+here rather than deleted because the measurement is the reason either was
+believed.
+
+- **Ranking on raw totals** — taken on Ajay's word on 2026-09-20. `scoreOnBasis`
+  now returns `(gross | net) - parThru`, and `points - levelPoints` for a
+  points board, so a partial card is measured over the holes it covers. The
+  entry's own suggested fix, in its own words.
+- **Printing a different statistic from the one it ranks on** — fixed
+  2026-09-22 on the seeded club's April Medal, where a board headed "Ranked by
+  net strokes" printed the GROSS to-par. `toParOnBasis` moved the subtraction
+  into `standingRows`, so every reader — console, public board, Reports, the
+  player's own screen — prints what the engine hands it rather than each
+  applying the rule. `board-prints-what-it-ranked-on.test.ts` enumerates all
+  five ranking units, and `verify-public-boards.mjs` walks the rendered boards.
+
+The entry was right that the two wanted to land together, and they did — the
+ordering fix first, the printed figure two days later.
+
+**A STALE ENTRY IN THIS SECTION IS THE EXPENSIVE KIND.** Section 1 is the list
+somebody reads to find out what needs a human. Leaving a decided question in it
+costs an hour of somebody's attention on a question that has an answer, and
+risks it being re-decided differently. Check the code before believing any
+entry here, and mark it the way this one now is.
+
+The original, for the measurement:
 
 **Found by looking at the board, 2026-09-18.** Not by reading the code — every
 one of 7,682 unit tests and 1,192 audit tests passes on it, because after the
