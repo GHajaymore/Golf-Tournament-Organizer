@@ -1318,10 +1318,21 @@ describe("every screen that shows results makes the same branch", () => {
   ];
 
   for (const screen of SCREENS) {
-    it(`${screen} branches on boardKind`, () => {
+    it(`${screen} branches on boardKindForRound`, () => {
       const src = stripComments(readFileSync(join(process.cwd(), "src", screen), "utf8"));
+      /**
+       * `boardKindForRound`, NOT `boardKind`. Asking the format alone is now
+       * the defect rather than the fix: `boardKind` reaches `needsTeams`
+       * before anything can tell it the round is head-to-head, so a four-ball
+       * ROUND ROBIN landed on the team stroke board and the side that won
+       * 10&8 was placed second, behind the side with the lower stroke total.
+       *
+       * The guarantee this guard has always been about is unchanged — a screen
+       * that ranks the field must have asked which board applies. What changed
+       * is that the question now includes the stage type.
+       */
       expect(src, "must not call standingRows without deciding which board applies").toMatch(
-        /boardKind\(/,
+        /boardKindForRound\(/,
       );
       // Every kind that is not the ordinary board has to be handled, or the
       // fallthrough silently ranks a format on the wrong reading again.
@@ -1355,9 +1366,15 @@ describe("every screen that shows results makes the same branch", () => {
     for (const file of walk(APP)) {
       const src = stripComments(readFileSync(file, "utf8"));
       if (!/\bstandingRows\(/.test(src)) continue;
-      if (!/boardKind\(|usesStandardBoard\(/.test(src)) offenders.push(file.slice(APP.length + 1));
+      // `boardKindForRound` is the one a screen should be asking — it takes
+      // the stage type as well — but either counts as having ASKED, which is
+      // what this sweep is about. The named screens above are held to the
+      // round-aware form specifically.
+      if (!/boardKindForRound\(|boardKind\(|usesStandardBoard\(/.test(src)) {
+        offenders.push(file.slice(APP.length + 1));
+      }
     }
-    expect(offenders, "call boardKind before ranking — see lib/formats.ts").toEqual([]);
+    expect(offenders, "call boardKindForRound before ranking — see lib/stage-types.ts").toEqual([]);
   });
 });
 

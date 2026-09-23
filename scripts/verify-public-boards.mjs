@@ -286,6 +286,88 @@ async function seedTeamRound(eventId) {
   }
 }
 
+/**
+ * A ROUND ROBIN OF TEAM MATCHES, WHERE THE WINNER IS NOT THE LOW SCORER.
+ *
+ * `boardKind` asks the FORMAT alone, so a team format on a Round Robin landed
+ * on the team STROKE board and every match result in the round was thrown
+ * away. Measured before the fix, on exactly this shape:
+ *
+ *     Four-Ball · 2 sides · lowest net wins.
+ *     1  lower-total       72   E
+ *     2  wins-the-match    77
+ *
+ * So the fixture splits the two answers deliberately. Side A wins holes 1-10
+ * and is ten up with eight to play — the match is over on the 10th, Rule
+ * 3.2a(3) — and then takes fifteen on the last, which is a lost ball and a
+ * re-tee and happens. A's TOTAL is far worse; A won the match.
+ *
+ * The match result is stored rather than computed, because this script writes
+ * cards straight to the database and `recomputeTeamMatch` is what fills it in
+ * when a scorer saves. What is under test here is the BOARD, not the scorer.
+ */
+async function seedTeamMatchRound(eventId) {
+  const stage = await prisma.stage.create({
+    data: {
+      eventId,
+      position: 0,
+      description: "Round 1",
+      type: "Round Robin",
+      format: "Four-Ball",
+      scoringBasis: "net",
+      holes: HOLES,
+    },
+    select: { id: true },
+  });
+
+  const SIDES = [
+    { who: "won-the-match", card: PARS.map((par, h) => (h < 10 ? par - 1 : h === 17 ? par + 15 : par)) },
+    { who: "lower-total", card: PARS.slice() },
+  ];
+  const teamIds = [];
+  for (const [seed, s] of SIDES.entries()) {
+    const team = await prisma.team.create({
+      data: { eventId, stageId: stage.id, name: `${MARK} ${s.who}`, seed: seed + 1 },
+      select: { id: true },
+    });
+    teamIds.push(team.id);
+    for (const half of [0, 1]) {
+      const player = await prisma.player.create({
+        data: {
+          eventId,
+          name: `${MARK} ${s.who} ${half + 1}`,
+          email: `${MARK}-${s.who}-${half + 1}@example.invalid`,
+          handicap: 0,
+          seed: seed * 2 + half,
+          status: "confirmed",
+        },
+        select: { id: true },
+      });
+      await prisma.teamMember.create({ data: { teamId: team.id, playerId: player.id, position: half } });
+      await prisma.teamScorecard.create({
+        data: { eventId, stageId: stage.id, teamId: team.id, playerId: player.id, strokes: JSON.stringify(s.card) },
+      });
+    }
+  }
+
+  const flight = await prisma.group.create({
+    data: { eventId, name: `${MARK} flight`, position: 0 },
+  });
+  await prisma.match.create({
+    data: {
+      eventId,
+      stageId: stage.id,
+      groupId: flight.id,
+      round: 1,
+      playerAId: "",
+      playerBId: "",
+      teamAId: teamIds[0],
+      teamBId: teamIds[1],
+      holes: JSON.stringify([...new Array(10).fill("A"), ...new Array(8).fill(null)]),
+    },
+  });
+}
+
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: MARK } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: MARK } } });
@@ -331,6 +413,9 @@ async function main() {
 
   const team = await makeEvent(org.id, "net four-ball");
   await seedTeamRound(team.id);
+
+  const teamMatch = await makeEvent(org.id, "four-ball round robin");
+  await seedTeamMatchRound(teamMatch.id);
 
   for (const [label, ev] of [["net", net], ["gross", gross], ["team net", team]]) {
     const { status, lines } = await board(ev.shareToken);
@@ -393,6 +478,47 @@ async function main() {
      * they are not the gross figures wearing a net caption. Both are true
      * whatever the allowance is.
      */
+  }
+
+  /**
+   * THE TEAM MATCH BOARD, checked on its own rather than through the loop
+   * above.
+   *
+   * That loop reads a column of SCORES and asks whether it runs the way the
+   * caption says. This board has no such column — it prints P, W, ½, L, holes
+   * and points — and feeding it to `printedScores` would read the "Holes ±"
+   * figures as scores and assert something nobody claimed. A check that parses
+   * the wrong column is the "passes without the content ever arriving" trap
+   * one file over.
+   *
+   * What it asserts instead is the thing that was wrong: the side that WON is
+   * printed first. Before the fix this board was the team stroke board and the
+   * winner came second, so a regression puts it back there.
+   */
+  {
+    const { status, lines } = await board(teamMatch.shareToken);
+    if (status !== 200) {
+      fail("team match board", `expected 200, got ${status}`);
+    } else {
+      const order = lines.filter((l) => /won-the-match|lower-total/.test(l));
+      const first = order[0] ?? "";
+      if (!/won-the-match/.test(first)) {
+        fail(
+          "team match board",
+          `the side that won the match must be first, got "${first || "nothing"}" — ` +
+            `a round of matches ranked on stroke totals again`,
+        );
+      }
+      // And it says what it is ordered on, in its own words. "lowest net wins"
+      // here would mean the stroke board is back whatever the order happens to
+      // be, which one pairing cannot always reveal.
+      if (!lines.some((l) => /point a win/.test(l))) {
+        fail("team match board", 'no match-points caption — expected "1 point a win, ½ a half"');
+      }
+      if (lines.some((l) => /lowest net wins/.test(l))) {
+        fail("team match board", 'captioned "lowest net wins" on a round decided hole by hole');
+      }
+    }
   }
 
   console.log(failures === 0 ? "Every public board reads down the way it is sorted." : `${failures} problem(s).`);
