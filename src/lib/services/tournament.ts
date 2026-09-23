@@ -13,7 +13,15 @@ import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
 import {
   holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, playingHandicapFrom } from "../domain";
-import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
+import {
+  aggregateStroke,
+  chargedHoles,
+  emptyAgg,
+  isRanked,
+  netOf,
+  type StrokeAgg,
+  type StrokeCard,
+} from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import {
   countbackCompare,
@@ -1700,6 +1708,57 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
   const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>) =>
     countbackCompare(a, b, lastRoundHoles, stableford);
 
+  /**
+   * THE HOLES A PLAYER IS MEASURED OVER — which is NOT the holes they played.
+   *
+   * `scoreOnBasis` ranks a points board on `points - levelPoints`, and
+   * `levelPoints` was `2 * thru`: what a level round scores over the holes this
+   * player has played. That is exactly right for a round IN FLIGHT and exactly
+   * wrong for a round that is over, because the two produce the same number out
+   * of opposite facts — "has not played those holes YET" and "did not turn up".
+   *
+   * Its own docstring says the term "collapses to a constant once everybody has
+   * finished, so a completed round ranks exactly as it always did". True of ONE
+   * round. Across a season it is false, and nothing noticed: a player who plays
+   * three weeks of four is normalised over three weeks, so the board ranks on
+   * points PER HOLE. No club has ever run a league that way.
+   *
+   * MEASURED on the seeded club's Thursday Evening League, 2026-09-22, four
+   * weeks in, on the console board a committee reads:
+   *
+   *     1  Greta      135 pts  thru 54   (+27 vs level)
+   *     2  Kwame      170 pts  thru 72   (+26)
+   *     3  Hattie     133 pts  thru 54   (+25)
+   *     8  Bernadette 149 pts  thru 72    (+5)
+   *
+   * Ordered perfectly on a figure the board does not print, under a caption
+   * saying it ranks on Stableford points, headed "Greta Lindqvist leads on 135
+   * Stableford pts" while three players have more. And the league's own week
+   * view — same league, same night — ranked Kwame first on 170. Two screens,
+   * one question, different leaders.
+   *
+   * So a SETTLED round is charged at its full value to everyone, played or not,
+   * and only the round still in flight is charged at holes played. A missed
+   * week then costs what it costs at every golf club: the points it was worth.
+   * Everybody carries the same settled term, so the order collapses to the
+   * points total — which is what the caption has always claimed and what the
+   * week view has always shown.
+   *
+   * ONLY A POINTS BOARD READS THIS, via `levelPoints`. That is what makes the
+   * per-round hole count safe to take off the stage: a round robin files three
+   * cards against one stage and would be undercounted here, and a round robin
+   * is match play, so `carryUnitsCompatible` has already kept it out of the
+   * rounds a Stableford board counts.
+   *
+   * A player who joined the league late is charged for the weeks before they
+   * arrived, which is deliberate and is how a league table works — you cannot
+   * win it by entering in week six. A club that wants best-N-of-M wants a
+   * different competition, recorded in `docs/deferred-register.md`.
+   */
+  const activeRoundId = strokeUnitStage?.id ?? null;
+  const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
+  const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
+
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
@@ -1727,7 +1786,9 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
          * Zero for a strokes competition, where the points column is not the
          * one being ranked and subtracting from it would mean nothing.
          */
-        levelPoints: stableford ? (strokeUnit === "modified Stableford points" ? 0 : 2) * a.thru : 0,
+        levelPoints: stableford
+          ? (strokeUnit === "modified Stableford points" ? 0 : 2) * levelHoles(a)
+          : 0,
         holesOwed: a.holesOwed,
         ranked: isRanked(a),
         rank: 0,
@@ -2440,7 +2501,24 @@ export function computeHighlights(state: EventState): Highlight[] {
     const stableford = isStablefordRound(state.activeStage?.scoringBasis, state.activeStage?.format);
     const lead = scored[0];
     if (stableford) {
-      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads on ${lead.points} Stableford pts.` });
+      /**
+       * The points AND the holes they came off, because one without the other
+       * is not a claim about a lead.
+       *
+       * "Greta Lindqvist leads on 135 Stableford pts" was printed over a board
+       * on which three players had more than 135 — true about Greta, false
+       * about the word "leads", and the first sentence a committee reads. The
+       * ranking was honest and the sentence quoted a different number from the
+       * one it ranked on; `chargedHoles` has since made the two agree, and
+       * naming the holes keeps the sentence legible while a round is in flight,
+       * when they still legitimately differ.
+       */
+      const thru = lead.thru > 0 ? ` from ${lead.thru} holes` : "";
+      out.push({
+        icon: "🏆",
+        title: "Leader",
+        text: `${lead.player.name} leads on ${lead.points} Stableford pts${thru}.`,
+      });
     } else {
       /**
        * The GROSS when there is no par to be under.
