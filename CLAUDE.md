@@ -227,6 +227,17 @@ nothing checks**, the same reasoning that added `Spring Meeting` for "entered, n
 yet" and the away round for the venue. When a rule holds over one round, ask what it does over
 two, and whether anything you own can build the second.
 
+**And the blast radius of that fix was MEASURED rather than argued**, which is worth copying
+because it takes one read-only query. A change to a ranking term can only move a board where two
+players' charged holes differ, so the question is which stored events meet that: a points board,
+more than one counted round, and uneven attendance. Against the development database, one did —
+the league that was wrong — and the other three points boards are single-round and provably
+untouched. The same query settled the edge this fix was riskiest on: that league holds **seven**
+points rounds of which only **four** are played, so three empty future weeks are charged to
+everybody, and the board is still correct. A term added to every player shifts the whole board
+by a constant and reorders nothing, which is the reason "not the active round" is safe HERE and
+is not safe for unranking somebody — see `docs/deferred-register.md`.
+
 Same shape one layer up: **a check built from a fixture pins whatever value that fixture
 happens to have.** The rule here — the printed scores run in the board's own order — had shipped
 broken three times on three different units (match points, net strokes, Stableford), and each
