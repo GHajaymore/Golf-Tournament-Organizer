@@ -19,15 +19,20 @@ Last reviewed 2026-09-17.
 These are not bugs. Each has a defensible answer either way and must not be
 decided unilaterally.
 
-**ALL FIVE WERE PUT TO HIM ON 2026-09-23 AND ALL FIVE ARE ANSWERED. Only the
-launch gate has work outstanding.** Each entry now opens with its answer; the
+**ALL FIVE WERE PUT TO HIM ON 2026-09-23, ALL FIVE ARE ANSWERED, AND NOTHING
+IN THIS SECTION IS OUTSTANDING.** Each entry now opens with its answer; the
 reasoning is kept beneath because it is why the question was worth asking.
 
-    launch gate          gate NEW tournaments only     to build
+    launch gate          gate NEW tournaments only     SHIPPED #583
     live board / raw strokes   both halves already shipped   nothing to do
     shared places        leave it, the club chose      nothing to do
     free plan phone      keep it as a paid feature     nothing to do
     charity-day template it is the intent              nothing to do
+
+An empty section is the honest state and should be left empty rather than
+padded. When something genuinely needs a human it goes here; until then the
+work that is merely UNDONE lives in sections 2 and 3, which is a different
+claim about it.
 
 **A DECIDED QUESTION LEFT IN THIS SECTION IS THE EXPENSIVE KIND OF STALE.**
 This is the list somebody reads to find out what needs a human. Two entries
@@ -36,7 +41,29 @@ earlier, one fixed on 2026-09-15 — and both cost an hour of attention before
 the code was checked. Check the code before believing an entry, and mark it
 the way these now are.
 
-### Launching a tournament gates nothing
+### Launching a tournament gates nothing — DECIDED AND SHIPPED (#583)
+
+**Ajay chose GATE NEW TOURNAMENTS ONLY on 2026-09-23. Do not re-raise.**
+`Event.accessGated` defaults true and migration `82_event_access_gated`
+backfills false for every tournament that already existed — verified on the
+development database at 14 events, 0 gated. Nothing being played in draft is
+affected, which was the blocker this entry names. The accepted cost is two
+permanent classes of tournament.
+
+**DRAFT ONLY, AND NOT `!isLaunched` — the part to read before changing it.**
+Pre-launch is THREE statuses. The first implementation gated all of them and
+shut players out during REGISTRATION, which is when they most want the app: to
+see they are in, on the waiting list, or not entered. `verify-player-states`
+caught it as the rule it exists to protect — "somebody on the waiting list is
+not told so", with the stranger control beside it. The gate is now `draft`
+alone, and `launch-opens-the-player-app.test.ts` pins it as a DIFFERENCE from
+not-launched rather than an agreement, because "surely this is just
+`!isLaunched`" is the refactor that would reintroduce it.
+
+Staff are never gated: looking at the player app before launching is exactly
+when an organizer opens it.
+
+The original, for the blocker it describes:
 Launch moves `status` and locks setup. It does **not** restrict player access —
 a player can reach the board and their card in a tournament that was never
 launched.
