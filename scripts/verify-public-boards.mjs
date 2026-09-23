@@ -92,8 +92,18 @@ async function board(token) {
  * "E" is level par and is a real answer, so it reads as 0 rather than being
  * skipped.
  */
+/**
+ * TWO BOARDS, TWO SENTENCE SHAPES, one question.
+ *
+ * The individual board says "Ranked by net strokes"; the team board says
+ * "Four-Ball · 2 sides · lowest net wins." (`teamBoardNote`). Both state what
+ * the board is ordered on, which is all this check needs — so it accepts
+ * either rather than requiring one screen to reword for a script.
+ */
+const CAPTION = /^Ranked by |wins\.$|points \(higher is better\)\.$/i;
+
 function printedScores(lines) {
-  const i = lines.findIndex((l) => /^Ranked by /i.test(l));
+  const i = lines.findIndex((l) => CAPTION.test(l));
   if (i < 0) return { caption: null, scores: [] };
   const caption = lines[i];
 
@@ -203,6 +213,79 @@ async function seedRound(eventId, basis) {
   }
 }
 
+/**
+ * THE SAME QUESTION ASKED OF A TEAM BOARD, which is a different engine.
+ *
+ * Individual rows come from `standingRows`; SIDES come from `teamStandings`,
+ * and that one printed `aggregateTeamCard`'s `toPar` — a GROSS figure — on a
+ * board it had just sorted by NET. Two sides level on net printed different
+ * numbers, and the column could not be read downward. Measured on the seeded
+ * club's Invitational foursomes on 2026-09-22, where it was invisible because
+ * gross and net happened to run the same way.
+ *
+ * So this fixture does what the individual one does and reverses them:
+ *
+ *   side "scratch"  two players off 0   gross 72 (level)  worst on net
+ *   side "high"     two players off 18  gross 86 (+14)    best on net
+ *
+ * Four-Ball rather than a shared ball, because it exercises the
+ * `aggregateTeamCard` branch — the one eight screens read.
+ */
+async function seedTeamRound(eventId) {
+  const stage = await prisma.stage.create({
+    data: {
+      eventId,
+      position: 0,
+      description: "Round 1",
+      type: "Stroke Play Round",
+      format: "Four-Ball",
+      scoringBasis: "net",
+      holes: HOLES,
+    },
+    select: { id: true },
+  });
+
+  const SIDES = [
+    { who: "scratch", handicap: 0, overPar: 0 },
+    { who: "high", handicap: 18, overPar: 14 },
+  ];
+
+  for (const [seed, s] of SIDES.entries()) {
+    const team = await prisma.team.create({
+      data: { eventId, stageId: stage.id, name: `${MARK} ${s.who}`, seed: seed + 1 },
+      select: { id: true },
+    });
+    // Two partners on the same figures, so the better ball IS that card and
+    // the side's score needs no reasoning about which partner counted.
+    for (const half of [0, 1]) {
+      const player = await prisma.player.create({
+        data: {
+          eventId,
+          name: `${MARK} ${s.who} ${half + 1}`,
+          email: `${MARK}-${s.who}-${half + 1}@example.invalid`,
+          handicap: s.handicap,
+          seed: seed * 2 + half,
+          status: "confirmed",
+        },
+        select: { id: true },
+      });
+      await prisma.teamMember.create({
+        data: { teamId: team.id, playerId: player.id, position: half },
+      });
+      const strokes = PARS.map((par, h) => (h < s.overPar ? par + 1 : par));
+      await prisma.teamScorecard.create({
+        data: {
+          eventId,
+          stageId: stage.id,
+          teamId: team.id,
+          playerId: player.id,
+          strokes: JSON.stringify(strokes),
+        },
+      });
+    }
+  }
+}
+
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: MARK } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: MARK } } });
@@ -246,7 +329,10 @@ async function main() {
   const gross = await makeEvent(org.id, "gross medal");
   await seedRound(gross.id, "gross");
 
-  for (const [label, ev] of [["net", net], ["gross", gross]]) {
+  const team = await makeEvent(org.id, "net four-ball");
+  await seedTeamRound(team.id);
+
+  for (const [label, ev] of [["net", net], ["gross", gross], ["team net", team]]) {
     const { status, lines } = await board(ev.shareToken);
     if (status !== 200) {
       fail(`${label} board`, `expected 200, got ${status}`);
@@ -276,6 +362,18 @@ async function main() {
       const printed = [...scores].sort((a, b) => a - b);
       if (JSON.stringify(printed) === JSON.stringify(grossFigures)) {
         fail("net board", `printed the GROSS figures (${grossFigures.join(", ")}) under a net caption`);
+      }
+    }
+
+    /**
+     * The same control for the SIDES, whose gross figures are 0 and +14 and
+     * are known exactly from the fixture. `teamStandings` printed these under
+     * a net caption until 2026-09-22.
+     */
+    if (label === "team net") {
+      const printed = [...scores].sort((a, b) => a - b);
+      if (JSON.stringify(printed) === JSON.stringify([0, 14])) {
+        fail("team net board", "printed the GROSS figures (0, +14) under a net caption");
       }
     }
 

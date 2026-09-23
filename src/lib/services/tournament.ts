@@ -8,6 +8,7 @@ import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../fo
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
+import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
 import {
@@ -2235,6 +2236,44 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
 export function standingRows(state: EventState): StandingRow[] {
   if (isManualFormat(state.activeStage?.format ?? "")) return [];
 
+  /**
+   * THE ROW CARRIES THE TO-PAR OF THE FIGURE THE BOARD IS RANKED ON.
+   *
+   * `strokeStandings` returns `gross - par`, and for a long time two readers
+   * of THESE ROWS disagreed about what to do with it. Both boards are built
+   * from this one function — the console's through `LeaderboardTable`, the
+   * public share link's through `PlayerLeaderboard` — and:
+   *
+   *   toParCell    printed `row.toPar` raw          → the GROSS to-par
+   *   rankedScore  subtracted the handicap strokes  → the NET to-par
+   *
+   * Two helpers in one file answering one question differently, so the same
+   * round read two ways. Measured on the seeded club's April Medal,
+   * 2026-09-22, ranked by net strokes:
+   *
+   *                    gross  net    /live   console
+   *     Marnie            81   53      -18      +10
+   *     Hattie            80   61      -10       +9
+   *     Nkechi            70   63       -8       -1
+   *     Priyanka          91   65       -6      +20
+   *
+   * The console column cannot be read downward at all. CLAUDE.md records this
+   * defect being found on the public board and fixed (#557); the fix went into
+   * `rankedScore`, which the console board does not use.
+   *
+   * SO THE RULE MOVES TO THE ROW. `rankedScore` no longer subtracts, every
+   * reader prints what it is given, and a screen written later is right
+   * without knowing the rule exists — the shape CLAUDE.md asks for and the
+   * same one `standingRows` already uses to return `[]` for a manual format.
+   *
+   * `state.strokeUnitLabel` is the string the public board already passes as
+   * its caption, so this is one step from the board's own words rather than a
+   * second opinion about the basis.
+   */
+  const netBoard = unitIsNet(state.strokeUnitLabel);
+  const asRanked = (r: { toPar: number; gross: number; net: number; parKnown?: boolean }) =>
+    toParOnBasis(r, netBoard);
+
   const flightByPlayer = new Map(
     state.groups.flatMap((g, i) =>
       state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, `Flight ${i + 1}`] as const),
@@ -2304,7 +2343,7 @@ export function standingRows(state: EventState): StandingRow[] {
       losses: 0,
       gross: s.gross,
       net: s.net,
-      toPar: s.toPar,
+      toPar: asRanked(s),
       parKnown: s.parKnown,
       points: s.points,
       thru: s.thru,
@@ -2356,7 +2395,7 @@ export function standingRows(state: EventState): StandingRow[] {
       losses: r.stats.losses,
       gross: s?.gross ?? 0,
       net: s?.net ?? 0,
-      toPar: s?.toPar ?? 0,
+      toPar: s ? asRanked(s) : 0,
       // A match-play row with no stroke card has no par either, so the to-par
       // column reads "—" rather than the zero it used to print.
       parKnown: s?.parKnown ?? false,

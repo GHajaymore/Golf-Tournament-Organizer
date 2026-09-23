@@ -636,7 +636,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
  * survives the delete as a plain column anyway.
  */
 async function hasPlayingHistory(eventId: string, playerId: string): Promise<boolean> {
-  const [cards, matches, teamCards, teamMemberships, stakes] = await Promise.all([
+  const [cards, matches, teamCards, teamMemberships, stakes, ties] = await Promise.all([
     prisma.scorecard.count({ where: { eventId, playerId } }),
     prisma.match.count({
       where: { eventId, OR: [{ playerAId: playerId }, { playerBId: playerId }] },
@@ -647,8 +647,28 @@ async function hasPlayingHistory(eventId: string, playerId: string): Promise<boo
     prisma.teamMember.count({ where: { playerId } }),
     // Money already collected. Cascades, so a delete destroys the record of it.
     prisma.skinsEntry.count({ where: { playerId } }),
+    /**
+     * TIES WON IN A KNOCKOUT, which is the fourth result table and was not
+     * counted. A Bracket Stage files no Scorecard, no TeamScorecard and no
+     * Match — its results are `BracketWinner` rows — so a player who had won
+     * their way to a semi-final could read as having no history at all and be
+     * hard DELETED rather than withdrawn.
+     *
+     * `winnerId` is a plain column with no relation, so the row survives the
+     * delete exactly as `ExpenseShare` does, and the bracket is then left
+     * naming an id that resolves to nobody. That is the same "an opponent who
+     * does not exist" shape as #525, arrived at from the other direction.
+     */
+    prisma.bracketWinner.count({ where: { eventId, winnerId: playerId } }),
   ]);
-  return cards > 0 || matches > 0 || teamCards > 0 || teamMemberships > 0 || stakes > 0;
+  return (
+    cards > 0 ||
+    matches > 0 ||
+    teamCards > 0 ||
+    teamMemberships > 0 ||
+    stakes > 0 ||
+    ties > 0
+  );
 }
 
 export async function removeSignup(playerId: string): Promise<"deleted" | "withdrawn" | "missing"> {

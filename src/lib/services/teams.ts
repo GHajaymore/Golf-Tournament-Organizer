@@ -6,6 +6,7 @@ import { holesPlayed } from "../domain/handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareOnBasis } from "../domain/week-basis";
+import { toParOnBasis } from "../domain/ranked-score";
 import {
   sideHandicap,
   committeeWeights,
@@ -329,7 +330,43 @@ export async function teamStandings(
       net: card.netTotal,
       points: card.pointsTotal,
       played: card.played,
-      toPar: card.toPar,
+      /**
+       * THE TO-PAR OF THE FIGURE THIS BOARD IS RANKED ON.
+       *
+       * `aggregateTeamCard` and `singleBallTeamCard` both return
+       * `grossTotal - parPlayed`, so this column was the GROSS to-par on a
+       * board sorted by NET — which means the column cannot be read downward,
+       * and two sides level on net print different numbers. Measured on the
+       * seeded club's Invitational foursomes, 2026-09-22:
+       *
+       *     Nkechi & Rafe    gross 31   net 28   shown -1
+       *     Kwame & Greta          32       28   shown  E
+       *     Toby & Dilip           36       35   shown +4
+       *     Hattie & Gordon        37       35   shown +5
+       *
+       * It is the same defect `ranked-score.ts` records for the individual
+       * board (#557) and fixed there; the team board never went through it.
+       *
+       * FIXED IN THE ENGINE RATHER THAN IN THE TABLE, because `teamStandings`
+       * has EIGHT callers — the console board, `/live`, Reports, the week
+       * sheet, the tournament result and three player screens — and a rule
+       * applied in one of them is a rule the other seven disagree with. It is
+       * also the only place that knows the basis, since it is the thing that
+       * sorted the rows.
+       *
+       * The NEGATIVE test is deliberate: `scoringBasis` accepts more values
+       * than gross/net, and every one of the others is scored off handicap
+       * strokes, so an unknown value takes the net branch. CLAUDE.md records
+       * the afternoon a tidier `isNetBasis` silenced the stableford rounds.
+       */
+      toPar: toParOnBasis(
+        { toPar: card.toPar, gross: card.grossTotal, net: card.netTotal },
+        // The NEGATIVE test is deliberate: `scoringBasis` accepts more values
+        // than gross/net and every other one is scored off handicap strokes,
+        // so an unknown value takes the net branch. CLAUDE.md records the
+        // afternoon a tidier `isNetBasis` silenced the stableford rounds.
+        basis.trim().toLowerCase() !== "gross",
+      ),
     };
   });
 

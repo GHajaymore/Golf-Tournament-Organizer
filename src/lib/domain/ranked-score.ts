@@ -114,6 +114,42 @@ export interface RankedScore {
  * is known, never whether the number is falsy — a rule written the other way
  * swallows the round somebody shot exactly to par.
  */
+/**
+ * THE TO-PAR OF THE FIGURE A BOARD IS RANKED ON. One definition, two engines.
+ *
+ * `strokeStandings` and `aggregateTeamCard` both return `gross - par`, and a
+ * board ranked on NET that prints it cannot be read downward: two rows level
+ * on net show different numbers, and the leader can appear worse than fourth.
+ * Measured on the seeded club's April Medal, 2026-09-22 — +10, +9, -1, +20
+ * down a board sorted 53, 61, 63, 65.
+ *
+ * `net - par` is `toPar - (gross - net)`, using only fields the row already
+ * carries, so this cannot disagree with the ranking about which par applies.
+ *
+ * CALLED BY THE ENGINES, NOT BY THE SCREENS. `standingRows` applies it to the
+ * individual rows and `teamStandings` to the sides, so every reader — the
+ * console board, the public share link, Reports, the week sheet, the player
+ * screens, the dashboard — prints what it is handed. The defect this replaces
+ * was exactly a rule applied by one renderer and not the next: `rankedScore`
+ * subtracted and `toParCell`, in this same file, did not.
+ *
+ * `isNet` is a boolean rather than a basis string because the two engines know
+ * it differently — one from the board's own unit caption, the other from the
+ * round's `scoringBasis` — and neither should have to learn the other's way of
+ * asking.
+ *
+ * PAR UNKNOWN is left alone: `toPar` is then a raw total, and subtracting from
+ * it turns one wrong number into another. Readers already print a dash there.
+ */
+export function toParOnBasis(
+  row: { toPar: number; gross?: number; net?: number; parKnown?: boolean },
+  isNet: boolean,
+): number {
+  if (!isNet || row.parKnown === false) return row.toPar;
+  if (typeof row.gross !== "number" || typeof row.net !== "number") return row.toPar;
+  return row.toPar - (row.gross - row.net);
+}
+
 export function toParCell(
   row: { toPar: number; parKnown?: boolean },
   placeholder = "—",
@@ -172,13 +208,20 @@ export function rankedScore(
    * only fields the row already carries, so this cannot disagree with the
    * ranking about which par applies.
    *
-   * GUARDED on both figures being present. A caller that has not supplied them
-   * keeps the gross reading rather than silently subtracting `undefined`, which
-   * would print NaN on the one screen a club shares publicly.
+   * THE SUBTRACTION HAS MOVED TO `standingRows`, AND THAT IS THE FIX.
+   *
+   * It lived here, and here is one of TWO readers of the same rows: this
+   * function serves the player and public boards, while `toParCell` — twenty
+   * lines up, in this same file — serves the console board and Reports and
+   * printed `row.toPar` raw. So the fix above reached the share link and never
+   * reached the screen an organizer runs the competition from, and the April
+   * Medal read -18 in public and +10 in the console on the same afternoon.
+   *
+   * A rule applied by a RENDERER is a rule the next renderer will not apply.
+   * `standingRows` now hands out the to-par of the figure it ranked on, both
+   * readers print what they are given, and the two cannot drift again. This
+   * function keeps the `isNet` option because its callers describe the board
+   * they are drawing, but it no longer does arithmetic with it.
    */
-  const handicapStrokes =
-    opts.isNet && typeof row.gross === "number" && typeof row.net === "number"
-      ? row.gross - row.net
-      : 0;
-  return { text: toParText(row.toPar - handicapStrokes), label };
+  return { text: toParText(row.toPar), label };
 }

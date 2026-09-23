@@ -1,3 +1,53 @@
+# Engines, not patches
+
+Ajay set the rule out over 2026-09-22, in three parts. It applies to every
+engine in the app, not only scoring:
+
+> "please dont apply patches instead fix the engin and gates"
+>
+> "we still need to honer the customizations"
+>
+> "everything else should be based on the standard golf tournament rules"
+
+**In that order, and the order is the whole rule:**
+
+1. **The engine decides, the screen prints.** A rule applied by a renderer is a
+   rule the next renderer will not apply. Every defect in this document is that
+   sentence: `rankedScore` subtracted the handicap strokes and `toParCell`,
+   twenty lines away in the same file, did not — so the same round read -18 on
+   the share link and +10 in the console.
+2. **The ROUND'S FORMAT and the club's settings are inputs.** Both, and both
+   per ROUND rather than per event — the shape CLAUDE.md keeps finding, where a
+   reader asks the tournament about something one round decides. Consolidation
+   is how either gets quietly flattened, so an engine takes them as ARGUMENTS
+   rather than assuming a default. `toParOnBasis(row, isNet)` is the shape: it
+   does the arithmetic and knows nothing about where `isNet` came from, so the
+   individual board can read it off the board's own unit caption and the team
+   board off the round's `scoringBasis`, and neither has to learn the other's
+   way of asking. `standingsUnit(format, scoringBasis)` and
+   `effectiveAllowance(format, override)` take both for the same reason.
+
+   **The format is not a string to compare against.** `StagesClient` asked
+   `format === "Match Play"` four times, so a FOUR-BALL round robin — the
+   interclub league shape — fell to the else branch and was told "This round is
+   scored as Stroke Play, so ties break by lowest net, then lowest gross",
+   which is not true of a match between two sides. The predicates in
+   `formats.ts` — `needsTeams`, `sharesOneCard`, `entryModeFor`, `boardKind` —
+   exist so a format added later is described correctly without every screen
+   learning its name.
+3. **Everything else is the Rules of Golf.** Not current behaviour, and not
+   whatever the fixture happens to do — the point CLAUDE.md makes about
+   asserting against the Rules with the citation in the comment.
+   `effectiveAllowance(format, override)` is the pattern: the committee's
+   figure if they set one, the format's WHS allowance otherwise.
+
+**The control for (2) is a gross competition**, because that is what a net
+default destroys. Verified on the seeded club's Club Championship — 36 Holes
+Gross — after the to-par change: ranked on gross 139, 143, 144, 148, to-par
+gross-based, and the player with the best NET correctly still fourth.
+
+---
+
 # One scoring engine, not several
 
 Ajay, 2026-09-22, after correcting the same class of defect four times in one
@@ -163,6 +213,49 @@ string comparison does not.
 
 **Low risk, low cost.** A guard forbidding `format === "` outside `formats.ts`
 would close the class permanently in an afternoon.
+
+## Found by working the list, 2026-09-22
+
+Three defects, all in class #1 and #3, none found by walking a screen.
+
+**Two were the fourth table, and both are fixed** (`a-knockout-is-a-result.audit.test.ts`):
+
+- `playRefusalFor` read three of the four, so a knockout holding `BracketWinner`
+  rows but never formally launched told players *"This tournament hasn't been
+  launched yet"* — the exact sentence this class is named for. Its own comment
+  said "all THREE sources" and argued carefully for three, which is what made it
+  read as finished.
+- `hasPlayingHistory` did not count them either, so a player who had won their
+  way to a semi-final could be hard DELETED rather than withdrawn, leaving the
+  bracket naming an id that resolves to nobody.
+
+Both reachable because `setBracketWinner` is gated on **staff role, not on
+launch**.
+
+**One is class #3 and is NOT fixed, because the mechanism is not settled.**
+`StagesClient` asks `format === "Match Play"` four times inside a
+`stage.type === "Round Robin"` guard. A **Four-Ball round robin** — the
+interclub league shape — therefore takes the else branch and is told:
+
+> "This round is scored as Stroke Play, so ties break by lowest net, then
+> lowest gross"
+
+which is false of a four-ball match, and the "a match finishes all square"
+tiebreaker is hidden from it entirely.
+
+What is verified: the copy is wrong and the control is hidden.
+What is NOT: whether the STANDINGS path for a generic team round robin also
+ignores halved matches. `teamStandings` takes no tiebreaker argument at all and
+ranks sides off aggregate cards, while a LEAGUE goes through
+`league-meeting.ts`, which handles halves explicitly ("½ a half"). So the league
+is fine and the generic case is open.
+
+`entryModeFor(format) !== "stroke"` is the predicate the screen wants — it
+returns "team" for Four-Ball and "match" for Match Play, and "stroke" for the
+formats where the question genuinely does not arise. But changing the label
+before understanding what the engine does with a halved team match would be
+fixing the sentence rather than the answer, which is the mistake this file
+warns about two sections down.
 
 ## What NOT to do
 
