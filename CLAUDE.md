@@ -208,6 +208,49 @@ app broken when it printed -3 against an arithmetic -4. The app was right: a pla
 a course handicap with the round's allowance applied. Freezing that here would put a rule
 belonging to `stroke.ts` inside a script about whether a column reads downward.
 
+**AND EVERY FIXTURE IT HAD WAS ONE ROUND, WHICH IS A WHOLE CLASS IT COULD NOT SEE.** Added
+2026-09-22 after the seeded club's Thursday league was found ranked on points PER HOLE: ordered
+perfectly on a figure it does not print, headed "Greta Lindqvist leads on 135 Stableford pts"
+over a table in which three players had more, while the league's own week view named somebody
+else on 170.
+
+Over ONE round a points board physically cannot show this. `scoreOnBasis` ranks on
+`points - levelPoints`, and with everybody round the same eighteen that term is identical for
+all of them, so the order is the points order whether the engine is right or wrong. **The board
+that was wrong for four weeks would have passed this script every time.** It takes uneven
+ATTENDANCE to separate them, so the fixture now runs three weeks with a player who misses the
+middle one and scores best per hole — 108, 102 and 80 — and pins the season totals exactly,
+because an ordering check alone can be satisfied by a kind fixture.
+
+The lesson generalises past this script: **a fixture that cannot reach a state is a state
+nothing checks**, the same reasoning that added `Spring Meeting` for "entered, nothing to play
+yet" and the away round for the venue. When a rule holds over one round, ask what it does over
+two, and whether anything you own can build the second.
+
+**And the blast radius of that fix was MEASURED rather than argued**, which is worth copying
+because it takes one read-only query. A change to a ranking term can only move a board where two
+players' charged holes differ, so the question is which stored events meet that: a points board,
+more than one counted round, and uneven attendance. Against the development database, one did —
+the league that was wrong — and the other three points boards are single-round and provably
+untouched. The same query settled the edge this fix was riskiest on: that league holds **seven**
+points rounds of which only **four** are played, so three empty future weeks are charged to
+everybody, and the board is still correct. A term added to every player shifts the whole board
+by a constant and reorders nothing, which is the reason "not the active round" is safe HERE and
+is not safe for unranking somebody — see `docs/deferred-register.md`.
+
+Same shape one layer up: **a check built from a fixture pins whatever value that fixture
+happens to have.** The rule here — the printed scores run in the board's own order — had shipped
+broken three times on three different units (match points, net strokes, Stableford), and each
+fix pinned the unit in front of it. `src/lib/__tests__/board-prints-what-it-ranked-on.test.ts`
+now ENUMERATES the units instead, over both readers, and says in its own docstring which part of
+the axis it does not close. Prefer that to another fixture when a rule ranges over a set.
+
+One trap in reading a points board from a script: its scores are bare integers and **so is the
+finishing position**. A flat text scan returned `1, 108, 2, 102, 3, 80` and reported a correct
+board as unsorted — a false alarm, which is the direction that gets a check deleted. Read a
+points board by ROW, taking the last figure on each; the console draws one as a `<table>` and
+the public board as a `<li>` list, so accept both rather than making a screen match a script.
+
 So a green `npm run smoke` says every route renders for the demo, and says nothing about the
 other six. Run them too — against the same server, in that order — whenever you change copy,
 move a control, or touch a screen that reads a list which can be empty.
