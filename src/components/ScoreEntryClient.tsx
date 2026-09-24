@@ -1167,7 +1167,27 @@ export function ScoreEntryClient({
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>
+              {/* A DECIDED match reads as finished, not just as a bigger number.
+                  The result takes the app's own "good outcome" colour — the same
+                  accent-2 the boards use for under par and an advancing player —
+                  and a Final chip, so a settled card is legible at a glance from
+                  an in-progress one. An undecided match keeps the neutral accent
+                  and shows no chip. */}
+              {resolution.complete && (
+                <span
+                  className="tag tag-accent-2"
+                  style={{ fontSize: 10, marginBottom: 5, display: "inline-block" }}
+                >
+                  Final
+                </span>
+              )}
+              <div
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 22,
+                  color: resolution.complete ? "var(--color-accent-2-300)" : "var(--color-accent-200)",
+                }}
+              >
                 {statusBig}
               </div>
               <div className="text-muted" style={{ fontSize: 12 }}>
