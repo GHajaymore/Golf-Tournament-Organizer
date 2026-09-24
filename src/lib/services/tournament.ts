@@ -1785,7 +1785,35 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
    * win it by entering in week six. A club that wants best-N-of-M wants a
    * different competition, recorded in `docs/deferred-register.md`.
    */
-  const activeRoundId = strokeUnitStage?.id ?? null;
+  /**
+   * A SEASON RANKS ON THE TOTAL; only a single live round normalises.
+   *
+   * `levelPoints` subtracts a level score so a player thru 9 is not buried on a
+   * smaller Stableford total than one thru 18 — exactly right for a ONE-DAY
+   * board, where everybody ranked is on the same live round. Across a SEASON it
+   * is wrong: the "active round" here is `boardStage`, the most recent PLAYED
+   * week, and charging it at holes-played while every other week is charged full
+   * (see `chargedHoles`) hands a 36-point gift to whoever SKIPPED that one week,
+   * floating them above higher-scoring members. Measured on the seeded Thursday
+   * Evening League, 2026-09-23: Priyanka on 87 (skipped the board week) ranked
+   * 11th, above Rafe on 112 (played it) at 13th, and Dilip 105 tied Lena 69 at
+   * 15th on `points − levelPoints` — a board no club would recognise.
+   *
+   * The week view (`standingsWithMovement`) ranks the season on the RAW total
+   * and is the screen a club sends its members; the two readers must agree. So
+   * with more than one stroke round, take NO round as in flight: every round is
+   * charged full, `levelPoints` is the same constant for everyone, and the order
+   * collapses to the points total — which is what the caption claims and what
+   * the week view shows. A single round keeps the live-board normalisation.
+   *
+   * The switch is STRUCTURAL — how many stroke rounds — never inferred from a
+   * date, in keeping with Ajay's rule below that "over" is an organizer closing
+   * a round, never the calendar. It moves only ordinary multi-round Stableford
+   * boards: gross and net carry `levelPoints = 0`, modified Stableford a zero
+   * multiplier, and a single round is unchanged.
+   */
+  const isSeason = strokeRounds.length > 1;
+  const activeRoundId = isSeason ? null : (strokeUnitStage?.id ?? null);
   const levelRounds = strokeRounds.map((s) => ({ id: s.id, holes: holesPlayed(s.holes) }));
   const levelHoles = (a: StrokeAgg): number => chargedHoles(a, levelRounds, activeRoundId);
 
