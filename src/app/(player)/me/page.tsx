@@ -7,6 +7,9 @@ import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
 import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
+import { todayContestsFor } from "@/lib/services/day-contests";
+import { TodayContests } from "@/components/TodayContests";
+import { formattingForEvent } from "@/lib/services/organization";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -74,6 +77,10 @@ export default async function PlayTodayPage() {
   const me = await meFor(state, session.email);
   const availability = await availabilityFor(state, session.email);
   const announcements = await announcementsFor(session.eventId);
+  // What's up for grabs on the course today — the round's on-course contests,
+  // surfaced where a player can act on them. `boardStage` is the round in focus.
+  const dayContests = await todayContestsFor(session.eventId, state.boardStage?.id ?? null);
+  const fmt = await formattingForEvent(session.eventId);
   /**
    * The events-list row for this tournament — the same one the switcher above
    * reads, memoised for the request — so "watching" and the way in agree with
@@ -250,6 +257,11 @@ export default async function PlayTodayPage() {
        * everything — a frost delay. Unpinned posts sit under the round.
        */}
       <AnnouncementList items={announcements.filter((a) => a.pinned)} />
+
+      {/* What's on the course today — the round's nearest-the-pin and long-drive
+          comps, so a player knows which hole to go for while they play, not
+          after. Sits with the pinned notice, above the round detail. */}
+      <TodayContests contests={dayContests} currency={fmt.currency} />
 
       {/**
        * ENTERED, AND THERE IS NOTHING TO PLAY YET.
