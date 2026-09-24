@@ -71,17 +71,29 @@ const nextConfig = {
 
   /**
    * Two of this app's credentials live in URLs — the leaderboard share token
-   * at /live/<token>, and the password-reset token in ?token= — and every page
-   * pulls stylesheets from unpkg.com, so every page makes a cross-origin
-   * request while one of those is in the address bar. Modern browsers default
-   * to strict-origin-when-cross-origin and send only the origin, but that is a
-   * default, not a guarantee: older engines and embedded webviews send the
-   * full URL, which would hand a live reset token to a CDN's access log.
-   * Stating the policy makes it this app's decision rather than the browser's.
+   * at /live/<token>, and the password-reset token in ?token= — on pages that
+   * still make cross-origin requests (an OpenGraph image, a linked logo). Modern
+   * browsers default to strict-origin-when-cross-origin and send only the
+   * origin, but that is a default, not a guarantee: older engines and embedded
+   * webviews send the full URL, which would hand a live reset token to another
+   * origin's access log. Stating the policy makes it this app's decision rather
+   * than the browser's. (Fonts and icons are self-hosted now — there is no
+   * unpkg.com or fonts.gstatic.com in the critical path; see `layout.tsx`.)
    *
    * nosniff and the frame rule are the cheap companions: the public
    * leaderboard is the one page an attacker can frame for clickjacking, and it
    * is served to people who never signed in to anything.
+   *
+   * Permissions-Policy names the three powerful features this app actually uses
+   * — the camera for a card photo, the microphone for voice score entry
+   * (`dictation.ts`), and geolocation for "courses near us"
+   * (`EventSetupClient`) — and grants each of them to this origin only, while
+   * switching OFF the high-risk ones nothing here touches. `browsing-topics=()`
+   * opts the site out of the Topics API, which is a privacy choice as much as a
+   * security one. There is deliberately no Content-Security-Policy yet: adding
+   * one safely means giving the inline theme `<style>` blocks a nonce, which is
+   * its own change — until then `font-hosts.test.ts`, not a CSP, is what keeps
+   * an external font host out (see `layout.tsx`, which used to claim otherwise).
    */
   async headers() {
     return [
@@ -91,6 +103,10 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()",
+          },
         ],
       },
     ];

@@ -276,4 +276,17 @@ describe("response headers protect the tokens that live in URLs", () => {
     expect(config).toMatch(/"X-Content-Type-Options"/);
     expect(config).toMatch(/"X-Frame-Options"/);
   });
+
+  it("names a permissions policy that allows only the features the app uses", () => {
+    // camera (card photo), microphone (voice entry, `dictation.ts`) and
+    // geolocation (courses near us, `EventSetupClient`) to this origin; the
+    // high-risk features nothing here touches are switched off. Read from the
+    // header value, not a comment, so this pins the policy the browser sees.
+    expect(config).toMatch(/"Permissions-Policy"/);
+    expect(config).toMatch(/camera=\(self\)/);
+    expect(config).toMatch(/microphone=\(self\)/);
+    expect(config).toMatch(/geolocation=\(self\)/);
+    // The dangerous ones are named and empty, not merely omitted.
+    expect(config).toMatch(/payment=\(\)/);
+  });
 });
