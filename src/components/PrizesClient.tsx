@@ -39,7 +39,9 @@ export function PrizesClient({
   players,
 }: {
   prizes: PrizeRow[];
-  players: Array<{ id: string; name: string }>;
+  /** In FINISHING ORDER, with the board's place where the player holds one —
+   *  so the winner picker opens on who actually won, not the alphabet. */
+  players: Array<{ id: string; name: string; place?: number | null }>;
 }) {
   const money = usePrizeMoney();
   const { symbol } = useMoney();
@@ -189,7 +191,12 @@ export function PrizesClient({
                     >
                       <option value="">— Not awarded —</option>
                       {players.map((pl) => (
-                        <option key={pl.id} value={pl.id}>{pl.name}</option>
+                        <option key={pl.id} value={pl.id}>
+                          {/* The finishing place where the player holds one, so
+                              the winner reads first. Unranked players (no card,
+                              a manual round) show as just their name. */}
+                          {pl.place ? `${pl.place}. ${pl.name}` : pl.name}
+                        </option>
                       ))}
                     </select>
                   </td>
