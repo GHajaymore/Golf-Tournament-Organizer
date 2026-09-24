@@ -4,7 +4,7 @@ import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
-import { PLANS, effectivePrice, retentionNotice } from "@/lib/plans";
+import { PLANS, effectivePrice, effectiveAnnualPrice, retentionNotice } from "@/lib/plans";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { landingTokens } from "@/lib/landing-palette";
 import { siteOrigin } from "@/lib/site";
@@ -1323,6 +1323,9 @@ export default async function LoginPage() {
               <div className="amt">
                 {planPrice(effectivePrice(PLANS.club))}
                 <span className="per"> / month</span>
+              </div>
+              <div className="per" style={{ marginTop: 2 }}>
+                or {planPrice(effectiveAnnualPrice(PLANS.club))} a year — two months free
               </div>
               <div className="per">{PLANS.club.blurb}</div>
               <ul>
