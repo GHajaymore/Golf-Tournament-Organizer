@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, effectivePrice, parsePricingOverrides } from "@/lib/plans";
+import {
+  PLANS,
+  effectivePrice,
+  effectiveAnnualPrice,
+  parsePricingOverrides,
+  ANNUAL_MONTHS_CHARGED,
+} from "@/lib/plans";
 
 /**
  * A PRICE IS CONFIGURABLE WITHOUT A CODE EDIT, and cannot be broken by a bad
@@ -78,5 +84,28 @@ describe("subscription prices are configurable and fail safe", () => {
     }
     // And it is back to the default once the env value is gone.
     expect(effectivePrice(PLANS.club)).toBe(PLANS.club.priceMonthly);
+  });
+});
+
+describe("the annual price is the monthly one with two months free", () => {
+  it("charges ten months for a year", () => {
+    expect(ANNUAL_MONTHS_CHARGED).toBe(10);
+    expect(effectiveAnnualPrice(PLANS.club, { plans: {} })).toBe(
+      effectivePrice(PLANS.club, { plans: {} }) * 10,
+    );
+  });
+
+  it("keeps free free", () => {
+    expect(effectiveAnnualPrice(PLANS.free, { plans: {} })).toBe(0);
+  });
+
+  it("CONTROL: an override to the monthly price moves the annual one with it", () => {
+    const overrides = parsePricingOverrides('{"plans":{"club":{"monthly":39}}}');
+    expect(effectivePrice(PLANS.club, overrides)).toBe(39);
+    expect(effectiveAnnualPrice(PLANS.club, overrides)).toBe(390);
+    // Not the un-overridden annual — proves it reads the override, not the default.
+    expect(effectiveAnnualPrice(PLANS.club, overrides)).not.toBe(
+      PLANS.club.priceMonthly * 10,
+    );
   });
 });

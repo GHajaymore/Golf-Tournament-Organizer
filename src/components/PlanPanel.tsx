@@ -1,4 +1,4 @@
-import { PLANS, planFor, effectivePrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult } from "@/lib/plans";
+import { PLANS, planFor, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult } from "@/lib/plans";
 import type { OrgLimits } from "@/lib/services/limits";
 import { Icon } from "./Icon";
 
@@ -165,8 +165,12 @@ export function PlanPanel({ planKey, standing }: { planKey: string; standing?: O
                 <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
                   {/* The configurable price, never `priceMonthly` raw — see
                       `effectivePrice`, so an override reaches this panel, the
-                      landing page and the schema.org offer as one number. */}
-                  {effectivePrice(p) === 0 ? "Free" : `$${effectivePrice(p)}/month`}
+                      landing page and the schema.org offer as one number. The
+                      annual figure is derived (two months free) and follows the
+                      same override. */}
+                  {effectivePrice(p) === 0
+                    ? "Free"
+                    : `$${effectivePrice(p)}/mo · $${effectiveAnnualPrice(p)}/yr`}
                 </span>
                 {mine && (
                   <span className="tag" style={{ fontSize: 10 }}>You are here</span>

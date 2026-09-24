@@ -289,6 +289,29 @@ export function effectivePrice(plan: Plan, overrides: PricingOverrides = pricing
     : plan.priceMonthly;
 }
 
+/**
+ * Months CHARGED for an annual subscription — ten, so two are free.
+ *
+ * The standard SaaS annual discount, and the one the monetization proposal
+ * assumes. DERIVED rather than stored per plan on purpose: the yearly price
+ * follows the monthly one, so an override to `effectivePrice` (env today, the
+ * owner console later) moves the annual figure with it and there is no second
+ * number to keep in step. A tier that ever wanted a different discount would
+ * earn its own field; none does yet.
+ */
+export const ANNUAL_MONTHS_CHARGED = 10;
+
+/**
+ * The ANNUAL price to quote for a plan: the effective monthly price times the
+ * months charged. Free stays free. Same single-reader discipline as
+ * `effectivePrice` — every surface that shows a yearly figure comes through
+ * here, so the "$290/yr" on the pricing page and the one on the settings panel
+ * are the same number.
+ */
+export function effectiveAnnualPrice(plan: Plan, overrides: PricingOverrides = pricingOverrides()): number {
+  return effectivePrice(plan, overrides) * ANNUAL_MONTHS_CHARGED;
+}
+
 export type LimitKey = "activeEvents" | "staffSeats";
 
 export interface LimitResult {
