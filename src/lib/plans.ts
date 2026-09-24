@@ -175,10 +175,92 @@ export const PLANS: Record<PlanKey, Plan> = {
 
 export const DEFAULT_PLAN: PlanKey = "free";
 
+/** The billing currency for subscription prices. This is what the PLATFORM
+ *  charges for the software (US-first), NOT a club's own money currency, which
+ *  is per club and lives in `currencySymbol`. Quoted on the schema.org offer. */
+export const PLAN_CURRENCY = "USD";
+
 /** Resolve a stored plan string, falling back to free for unknown values so a
  *  bad row can never lock someone out of their own tournaments. */
 export function planFor(key: string | null | undefined): Plan {
   return PLANS[(key ?? "") as PlanKey] ?? PLANS[DEFAULT_PLAN];
+}
+
+/**
+ * PRICES ARE CONFIGURABLE WITHOUT A CODE EDIT.
+ *
+ * The `priceMonthly` in `PLANS` is the DEFAULT — the number the app quotes when
+ * nothing overrides it. A price changes more often than anything else about a
+ * tier, and changing one should not mean editing this file and shipping a
+ * build. So an override layer sits in front of it: today an operator sets the
+ * `TOURNEYHQ_PRICING` environment value; when the owner console lands it writes
+ * the SAME shape from stored settings, and `effectivePrice` reads it either way
+ * — `overrides` is a parameter for exactly that reason.
+ *
+ * The shape is one JSON object, e.g. `{"plans":{"club":{"monthly":39}}}`.
+ *
+ * IT REFUSES TO THROW, precisely like `featureOverrides` below. A malformed
+ * value, a string where a number belongs, a negative price, a plan key nothing
+ * knows about — each is ignored and the price falls back to the plan's own
+ * default. A typo in a config value must never make the app quote a wrong price
+ * or fail to render one, because the price is on a page a stranger reads.
+ */
+export interface PricingOverrides {
+  plans: Partial<Record<PlanKey, { monthly?: number }>>;
+}
+
+export function parsePricingOverrides(stored: string | null | undefined): PricingOverrides {
+  const empty: PricingOverrides = { plans: {} };
+  const text = (stored ?? "").trim();
+  if (!text) return empty;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return empty;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return empty;
+  const plans = (parsed as Record<string, unknown>).plans;
+  if (!plans || typeof plans !== "object" || Array.isArray(plans)) return empty;
+
+  const out: PricingOverrides = { plans: {} };
+  for (const [key, value] of Object.entries(plans as Record<string, unknown>)) {
+    // A plan key nothing knows about is ignored rather than stored, exactly as
+    // `featureOverrides` drops an unknown feature key.
+    if (!(key in PLANS)) continue;
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const monthly = (value as Record<string, unknown>).monthly;
+    // A price is a finite, non-negative number. "39", NaN, -1 and true are not.
+    if (typeof monthly === "number" && Number.isFinite(monthly) && monthly >= 0) {
+      out.plans[key as PlanKey] = { monthly };
+    }
+  }
+  return out;
+}
+
+/** Overrides from the environment. The owner console will later supply the same
+ *  shape from stored settings; pass it to `effectivePrice` directly. */
+export function pricingOverrides(): PricingOverrides {
+  return parsePricingOverrides(process.env.TOURNEYHQ_PRICING);
+}
+
+/**
+ * The monthly price to QUOTE for a plan: the override if there is a valid one,
+ * else the plan's own default.
+ *
+ * ONE reader, so the marketing page, the settings panel and the schema.org
+ * offer cannot show three different numbers — the drift this codebase keeps
+ * finding, and the reason `retentionSummary` and `SEASON_LOCKED` are single
+ * sources too. Every screen that shows a price goes through here.
+ */
+export function effectivePrice(plan: Plan, overrides: PricingOverrides = pricingOverrides()): number {
+  const override = overrides.plans[plan.key]?.monthly;
+  // Validated at the sink as well as in the parser: a caller other than
+  // `parsePricingOverrides` (the owner console, later) could hand in NaN,
+  // Infinity or a negative, and a price is a finite, non-negative number.
+  return typeof override === "number" && Number.isFinite(override) && override >= 0
+    ? override
+    : plan.priceMonthly;
 }
 
 export type LimitKey = "activeEvents" | "staffSeats";

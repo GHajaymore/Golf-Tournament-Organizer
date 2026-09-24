@@ -113,10 +113,13 @@ describe("what a club gets for its money is actually said", () => {
   });
 
   it("the price is on a screen, not only in the model", () => {
-    // A club cannot decide on a number it is never shown.
+    // A club cannot decide on a number it is never shown. Screens render the
+    // CONFIGURABLE price through `effectivePrice`, never `priceMonthly` raw, so
+    // an override (env today, the owner console later) reaches the club rather
+    // than only the schema. Assert the resolver is what a screen calls.
     expect(
-      /priceMonthly/.test(appSource),
-      "no screen renders priceMonthly — the app knows what it charges and never says so",
+      /effectivePrice/.test(appSource),
+      "no screen renders the price via effectivePrice — the app knows what it charges and never shows it",
     ).toBe(true);
   });
 });

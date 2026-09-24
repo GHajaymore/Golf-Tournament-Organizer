@@ -4,7 +4,7 @@ import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
-import { PLANS, retentionNotice } from "@/lib/plans";
+import { PLANS, effectivePrice, retentionNotice } from "@/lib/plans";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { landingTokens } from "@/lib/landing-palette";
 import { siteOrigin } from "@/lib/site";
@@ -1289,7 +1289,7 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">What it costs</div>
-            <h2 className="sec-h">Free for one event. {planPrice(PLANS.club.priceMonthly)} a month for a season.</h2>
+            <h2 className="sec-h">Free for one event. {planPrice(effectivePrice(PLANS.club))} a month for a season.</h2>
             <p className="sec-sub">
               No card to start, and nothing is charged through the app — TourneyHQ works out the
               money and keeps the record; what changes hands is arranged between you and us, and
@@ -1321,7 +1321,7 @@ export default async function LoginPage() {
 
             <div className="plan paid">
               <div className="amt">
-                {planPrice(PLANS.club.priceMonthly)}
+                {planPrice(effectivePrice(PLANS.club))}
                 <span className="per"> / month</span>
               </div>
               <div className="per">{PLANS.club.blurb}</div>

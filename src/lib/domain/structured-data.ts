@@ -1,4 +1,4 @@
-import { PLANS } from "@/lib/plans";
+import { PLANS, effectivePrice } from "@/lib/plans";
 
 /**
  * What the site tells a search engine about itself, in schema.org terms.
@@ -66,23 +66,28 @@ export function siteStructuredData({ origin }: StructuredDataOptions): Record<st
         description:
           "Run a golf club's whole competition: flights, handicaps, brackets, live standings, " +
           "season tables and the settle-up at the end.",
-        offers: Object.values(PLANS).map((plan) => ({
-          "@type": "Offer",
-          name: plan.name,
-          price: String(plan.priceMonthly),
-          priceCurrency: CURRENCY,
-          /** Per month, which the price on the page also means. */
-          ...(plan.priceMonthly > 0
-            ? {
-                priceSpecification: {
-                  "@type": "UnitPriceSpecification",
-                  price: String(plan.priceMonthly),
-                  priceCurrency: CURRENCY,
-                  unitCode: "MON",
-                },
-              }
-            : {}),
-        })),
+        offers: Object.values(PLANS).map((plan) => {
+          // The configurable price, not `priceMonthly` raw, so the offer a
+          // crawler indexes and the number on the page are the same one.
+          const price = effectivePrice(plan);
+          return {
+            "@type": "Offer",
+            name: plan.name,
+            price: String(price),
+            priceCurrency: CURRENCY,
+            /** Per month, which the price on the page also means. */
+            ...(price > 0
+              ? {
+                  priceSpecification: {
+                    "@type": "UnitPriceSpecification",
+                    price: String(price),
+                    priceCurrency: CURRENCY,
+                    unitCode: "MON",
+                  },
+                }
+              : {}),
+          };
+        }),
       },
     ],
   };
