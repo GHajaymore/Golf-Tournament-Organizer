@@ -175,8 +175,10 @@ export default async function DashboardPage() {
             player: s.player,
             rank: s.ranked ? s.rank : 0,
             // To-par where there is a par, net where there is not — never the
-            // gross wearing a plus sign. See `parKnown`.
-            figure: s.thru > 0 ? (s.parKnown ? toParText(s.toPar) : `${s.net}`) : "—",
+            // gross wearing a plus sign. `toParShown` follows the board's basis
+            // (net to-par on a net board); reading `toPar` here printed the
+            // gross, so this card disagreed with the leaderboard above it.
+            figure: s.thru > 0 ? (s.parKnown ? toParText(s.toParShown) : `${s.net}`) : "—",
           })),
       }))
     : groupStandings.map((gs) => ({
