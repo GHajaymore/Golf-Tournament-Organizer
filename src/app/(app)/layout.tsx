@@ -8,7 +8,8 @@ import { loadEventState } from "@/lib/services/tournament";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { brandForEvent, themeForEvent, formattingForEvent } from "@/lib/services/organization";
+import { brandForEvent, themeForEvent, styleForEvent, formattingForEvent } from "@/lib/services/organization";
+import { DEFAULT_STYLE } from "@/lib/styles";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 
 /**
@@ -184,6 +185,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // inlining would pin such a club to whichever mode happened to render.
   // themeCss emits only values it generated itself — see SAFE_CSS_VALUE.
   const themeStyleSheet = themeCss(theme, "#club-theme");
+  // The club's STYLE — the second axis beside colour, stamped as data-style.
+  const style = session.eventId ? await styleForEvent(session.eventId) : DEFAULT_STYLE;
   // Beside the theme, for the same reason: one club decision, a dozen readers.
   const fmt = session.eventId
     ? await formattingForEvent(session.eventId)
@@ -206,6 +209,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // and a black calendar popup on a white page is the tell that a light
       // theme was bolted on.
       data-appearance={theme.appearance}
+      data-style={style}
       style={{
         display: "flex",
         minHeight: "100vh",

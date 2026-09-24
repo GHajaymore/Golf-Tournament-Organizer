@@ -502,6 +502,54 @@ textarea.input { min-height: 90px; resize: vertical; }
 .elev-md { box-shadow: var(--shadow-md); }
 .elev-lg { box-shadow: var(--shadow-lg); }
 
+/* — the scoreboard "board" (Option A) —
+   A panel hung under an accent rail: the hung-board look the club chose for the
+   player app, extended to every leaderboard. Opt-in, so nothing that does not
+   ask for it changes; token-driven, so it recolours with the club's theme like
+   everything else. `.board-head` is the routed strip across the top; a leader
+   row wears `.board-leader`, tinted from the club's SECOND colour (the "good
+   score" hue) rather than the accent, so it reads as celebration, not chrome. */
+.board-panel {
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+  border-top: 3px solid var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+.board-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-divider);
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+}
+.board-leader {
+  background: color-mix(in srgb, var(--color-accent-2) 13%, transparent);
+}
+
+/* — club STYLE (a second axis beside colour; see lib/styles.ts) —
+   A style only re-points TYPE and TREATMENT tokens; colour stays the club's.
+   `data-style` sits on the theme root (#club-theme / #player-theme), so its
+   tokens cascade to that whole surface and nothing outside it. The default is
+   `scoreboard`. Both of these use fonts the app already self-hosts, so they add
+   no font loading; Sheet / Modern / Heritage arrive with their own faces. */
+[data-style="scoreboard"] {
+  --font-heading: var(--font-scoreboard, "Oswald"), system-ui, sans-serif;
+  --font-heading-weight: 600;
+}
+/* Condensed caps read as a scoreboard; the board rail is a touch bolder. */
+[data-style="scoreboard"] .card-kicker { letter-spacing: 0.12em; }
+[data-style="scoreboard"] .card-title { letter-spacing: 0.01em; }
+[data-style="scoreboard"] .board-panel { border-top-width: 3px; }
+
+[data-style="program"] {
+  --font-heading: var(--font-display, "Fraunces"), "Iowan Old Style", ui-serif, serif;
+  --font-heading-weight: 600;
+}
+/* An editorial programme is quieter: the board rail thins to a printed rule and
+   the kicker drops its wide tracking. */
+[data-style="program"] .card-kicker { letter-spacing: 0.06em; text-transform: uppercase; }
+[data-style="program"] .board-panel { border-top-width: 2px; }
+
 /* — tags — */
 .tag {
   display: inline-flex; align-items: center; gap: 4px;

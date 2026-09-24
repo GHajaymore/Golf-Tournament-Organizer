@@ -12,6 +12,7 @@ import { refusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
 } from "@/lib/themes";
+import { READY_STYLES } from "@/lib/styles";
 import { checkLogoUrl } from "@/lib/services/logo-check";
 import { organizationAccess } from "@/lib/services/org-access";
 import { isBrandDisplay } from "@/lib/brand";
@@ -353,6 +354,34 @@ export async function saveOrganizationTheme(
       // they last touch their branding".
       themeSetAt: new Date(),
     },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * The club's STYLE — the typefaces and treatment, a second axis beside colour.
+ *
+ * A separate action from the colour save on purpose: they are independent
+ * choices (every style works in every colour), and keeping them apart means the
+ * style picker cannot accidentally rewrite a club's colours, nor the reverse.
+ * Only a value the app will actually render is accepted — `READY_STYLES`, not
+ * the whole catalogue, so a style still being built cannot be stored and then
+ * fall back silently. Organizer-only, like every branding write.
+ */
+export async function saveOrganizationStyle(styleKey: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change the style." };
+  if (!READY_STYLES.some((s) => s.key === styleKey)) {
+    return { ok: false, error: "Unknown style." };
+  }
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    // `themeSetAt` too: choosing a style is putting a stamp on the app, exactly
+    // as choosing a colour is, and the setup checklist asks the same question of
+    // both.
+    data: { themeStyleKey: styleKey, themeSetAt: new Date() },
   });
   revalidatePath("/", "layout");
   return { ok: true };

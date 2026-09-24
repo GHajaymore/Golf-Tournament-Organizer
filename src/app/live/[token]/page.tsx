@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
+import { styleForEvent } from "@/lib/services/organization";
 import { liveBoard } from "@/lib/services/live-board";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
@@ -110,10 +111,14 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
    */
   const board = await liveBoard(event.id);
   if (!board) notFound();
+  // The club's STYLE — the second axis beside colour, stamped as data-style so
+  // the shared board wears the same look as the console and the player app.
+  const style = await styleForEvent(event.id);
 
   return (
     <div
       id="player-theme"
+      data-style={style}
       style={{
         colorScheme: board.colorScheme,
         minHeight: "100vh",

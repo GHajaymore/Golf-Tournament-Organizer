@@ -220,6 +220,15 @@ model Organization {
    */
   themeAppearance   String @default("auto")
   /**
+   * The club's STYLE — its typefaces and treatment, a second axis beside colour.
+   * See `lib/styles.ts`. `scoreboard` is the default look (the hung-board face
+   * the club chose for the player app, now the product default); a club may pick
+   * another. Every style works in every colour. Defaults for new rows only, like
+   * the fields above; existing clubs keep whatever they store, which is nothing,
+   * and `styleKeyOr` reads an absent value as the default.
+   */
+  themeStyleKey     String @default("scoreboard")
+  /**
    * When the club last SAVED its colours — null meaning it never has.
    *
    * The setup checklist needs to know whether a club has put its own stamp on

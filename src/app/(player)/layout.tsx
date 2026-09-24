@@ -2,8 +2,9 @@ import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { playerAppShut } from "@/lib/domain/lifecycle-state";
-import { brandForEvent, themeForEvent } from "@/lib/services/organization";
+import { brandForEvent, themeForEvent, styleForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
+import { DEFAULT_STYLE } from "@/lib/styles";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { formattingForEvent } from "@/lib/services/organization";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -55,6 +56,8 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   // The event's club theme — the same resolution the console and the public
   // board use, so all three surfaces recolour together from one club setting.
   const theme = session.eventId ? await themeForEvent(session.eventId) : DEFAULT_CLUB_THEME;
+  // The club's STYLE — the second axis beside colour, stamped as data-style.
+  const style = session.eventId ? await styleForEvent(session.eventId) : DEFAULT_STYLE;
   /**
    * The fifth tab appears only where the tournament is actually splitting
    * costs — a league that never buys a round together keeps its four.
@@ -125,6 +128,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
     <div
       id="player-theme"
+      data-style={style}
       style={{
         colorScheme: playerColorScheme(theme),
         minHeight: "100vh",

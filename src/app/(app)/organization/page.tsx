@@ -6,6 +6,8 @@ import { OrganizationClient } from "@/components/OrganizationClient";
 import { HandicapSetup } from "@/components/HandicapSetup";
 import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
+import { StylePicker } from "@/components/StylePicker";
+import { styleKeyOr } from "@/lib/styles";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { SeasonPicker } from "@/components/SeasonPicker";
@@ -127,6 +129,7 @@ export default async function OrganizationPage() {
   const sections: SettingsSection[] = [
     { id: "identity", label: "Name & branding" },
     { id: "theme", label: "Colour" },
+    { id: "style", label: "Style" },
     { id: "defaults", label: "House defaults" },
     { id: "handicaps", label: "Handicaps" },
     { id: "money", label: "Money" },
@@ -163,6 +166,19 @@ export default async function OrganizationPage() {
             secondaryHex: org.themeSecondaryHex,
             // Stored as free text, so it is narrowed here rather than cast —
             // a bad row shouldn't crash the settings screen.
+            appearance: isAppearance(org.themeAppearance) ? org.themeAppearance : DEFAULT_APPEARANCE,
+          }}
+          readOnly={!canEdit}
+        />
+      </SettingsSectionAnchor>
+      <SettingsSectionAnchor id="style">
+        <StylePicker
+          styleKey={styleKeyOr(org.themeStyleKey)}
+          theme={{
+            accentKey: org.themeKey,
+            accentHex: org.themeHex,
+            secondaryKey: org.themeSecondaryKey,
+            secondaryHex: org.themeSecondaryHex,
             appearance: isAppearance(org.themeAppearance) ? org.themeAppearance : DEFAULT_APPEARANCE,
           }}
           readOnly={!canEdit}

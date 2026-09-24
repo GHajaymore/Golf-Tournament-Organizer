@@ -6,6 +6,7 @@ import { DEFAULT_PLAN, planFor } from "../plans";
 import {
   DEFAULT_THEME, DEFAULT_APPEARANCE, DEFAULT_CLUB_THEME, isAppearance, type ClubTheme,
 } from "../themes";
+import { styleKeyOr, type StyleKey } from "../styles";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
@@ -954,6 +955,21 @@ export async function themeForEvent(eventId: string): Promise<ClubTheme> {
     secondaryHex: org?.themeSecondaryHex ?? "",
     appearance: isAppearance(appearance) ? appearance : DEFAULT_APPEARANCE,
   };
+}
+
+/**
+ * The club's STYLE for an event — the second axis beside colour (see
+ * `lib/styles.ts`). Resolved separately from `themeForEvent` so the colour
+ * type (`ClubTheme`, which `themeCss` reads) stays about colour only; the shell
+ * stamps this as a `data-style` attribute beside the colour stylesheet. An
+ * unset or unknown value reads as the default via `styleKeyOr`.
+ */
+export async function styleForEvent(eventId: string): Promise<StyleKey> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { themeStyleKey: true } } },
+  });
+  return styleKeyOr(event?.organization?.themeStyleKey);
 }
 
 /**
