@@ -31,18 +31,21 @@ import { siteOrigin } from "@/lib/site";
  * THE REASON GIVEN HERE USED TO BE WRONG, and it is worth correcting rather
  * than deleting, because it is the kind of premise somebody acts on. It said a
  * font "cannot" be loaded from a CDN because the app's CSP blocks external
- * font hosts. The CSP does not, and both counter-examples were live until
- * recently: the Phosphor icon font came from unpkg.com on every page, and
- * `globals.css` pulled Fraunces from fonts.gstatic.com. Both are self-hosted
- * now — by choice, not because anything stopped them. Inter was never blocked
- * either: its `@import` sits inside `design-system.css`, which `globals.css`
- * imports, and Next's CSS chunker drops a nested `@import url()` (the same
- * reordering the `:root:root` note in globals.css exists for). The request was
- * simply never made.
+ * font hosts. THERE IS NO CSP — that policy does not exist in this app (checked
+ * against `next.config.mjs`, which sets Referrer-Policy, nosniff, X-Frame and
+ * Permissions-Policy, and no Content-Security-Policy) — and both
+ * counter-examples were live until recently: the Phosphor icon font came from
+ * unpkg.com on every page, and `globals.css` pulled Fraunces from
+ * fonts.gstatic.com. Both are self-hosted now — by choice, not because anything
+ * stopped them. Inter was never blocked either: its `@import` sits inside
+ * `design-system.css`, which `globals.css` imports, and Next's CSS chunker
+ * drops a nested `@import url()` (the same reordering the `:root:root` note in
+ * globals.css exists for). The request was simply never made.
  *
- * That distinction matters: believing the CSP is a backstop is how an external
- * font gets added again on the assumption something downstream will catch it.
- * Nothing will. `src/lib/__tests__/font-hosts.test.ts` is the actual backstop.
+ * That distinction matters even more once you know there is no CSP: believing
+ * a CSP is the backstop is how an external font gets added again on the
+ * assumption something downstream will catch it. Nothing will —
+ * `src/lib/__tests__/font-hosts.test.ts` is the actual backstop.
  *
  * next/font emits the files from node_modules at build time and serves them
  * same-origin, so there is no CDN in the critical path and no flash of
@@ -65,8 +68,8 @@ import { siteOrigin } from "@/lib/site";
  * score column, on a phone in sun, would be a worse leaderboard.
  *
  * `next/font/google` downloads at BUILD time and serves the files
- * same-origin, so the CSP note above still holds — there is no external font
- * host at runtime.
+ * same-origin, so the note above still holds — there is no external font host
+ * at runtime, with or without a CSP to enforce it.
  */
 const display = Fraunces({
   subsets: ["latin"],
