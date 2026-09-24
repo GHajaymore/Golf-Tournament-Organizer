@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
-import { loadEventState, playingStages } from "@/lib/services/tournament";
+import { loadEventState, playingStages, standingRows } from "@/lib/services/tournament";
 import { skinsPotFor, skinsSeasonFor } from "@/lib/services/skins-pot";
 import { isSkinsScope, type SkinsScope } from "@/lib/domain/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
+import { usesStandardBoard } from "@/lib/formats";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
@@ -43,6 +44,37 @@ export default async function PrizesPage({
   // defaulting to different rounds is the worst place for them to disagree.
   // Only the default; the round picker still wins.
   const week = weeks.find((s) => s.id === params.round) ?? state.boardStage ?? weeks[0] ?? null;
+
+  /**
+   * The field in FINISHING ORDER for the prize winner picker.
+   *
+   * You award a prize by result, so the winner belongs at the top of the list,
+   * not wherever the alphabet puts them. This reuses the board's OWN ranking
+   * (`standingRows`) rather than a second calculation, so the order here agrees
+   * with the leaderboard the club is looking at — and it carries the same
+   * finishing place the board shows.
+   *
+   * Everyone unranked — a card that stopped short, nobody in a manual round
+   * (where `standingRows` returns `[]`) — falls to the bottom in name order, so
+   * the picker still lists the whole field and never loses a name.
+   *
+   * ONLY ON THE ORDINARY BOARD. `standingRows` reads the INDIVIDUAL stroke
+   * standing, which is the wrong order for a team, match, skins or Nassau round
+   * — so `usesStandardBoard` gates it, exactly as `audit-guards` requires of any
+   * screen that ranks the field. Off the standard board the whole field falls
+   * back to name order, which is the right neutral for a prize a side wins.
+   */
+  const prizeRank = usesStandardBoard(state.activeStage?.format)
+    ? new Map(standingRows(state).filter((r) => r.ranked).map((r) => [r.id, r.rank]))
+    : new Map<string, number>();
+  const orderedForPrizes = [...state.confirmed]
+    .map((p) => ({ id: p.id, name: p.name, place: prizeRank.get(p.id) ?? null }))
+    .sort((a, b) => {
+      if (a.place !== null && b.place !== null) return a.place - b.place;
+      if (a.place !== null) return -1;
+      if (b.place !== null) return 1;
+      return a.name.localeCompare(b.name);
+    });
   /**
    * Every game this round runs, not a fixed gross-and-net pair.
    *
@@ -222,9 +254,7 @@ export default async function PrizesPage({
           amount: p.amount,
           winnerId: p.winnerId,
         }))}
-        players={[...state.confirmed]
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((p) => ({ id: p.id, name: p.name }))}
+        players={orderedForPrizes}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this
