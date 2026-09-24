@@ -6,6 +6,7 @@ import { roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicap
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
+import { prizeStructureLines } from "@/lib/domain/prize-structures";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { isNetBasis } from "@/lib/domain/match-entry";
@@ -3880,6 +3881,47 @@ export async function removePrize(prizeId: string) {
     "prize.remove",
     gone ? `Removed ${gone.category}${gone.amount > 0 ? ` — ${gone.amount}` : ""}` : "Removed a prize",
   );
+  await refresh();
+}
+
+/**
+ * Apply a named prize STRUCTURE — several editable lines in one action, so a
+ * committee stops retyping the same list every medal.
+ *
+ * The lines come from `prizeStructureLines`, the one resolver a preview would
+ * read too, so what the button offers and what it adds cannot drift. It adds
+ * rows and nothing else: amounts stay at zero for the club to set, no winner is
+ * named, and no skins/sweep/settle-up maths is touched — hard rule 7 holds
+ * because this is data entry, not money. Audited like every other write to the
+ * purse (`addPrize` and friends above), and a flight structure reads the
+ * event's actual flights so it scales with the draw rather than assuming three.
+ */
+export async function applyPrizeStructure(key: string) {
+  const eventId = await requireStaffEvent();
+  // Real flights only — a carrier is a structural row, not a division a prize
+  // is won in, so `isCarrier: false` exactly as every other flight read does.
+  const flights = await prisma.group.findMany({
+    where: { eventId, isCarrier: false },
+    orderBy: { position: "asc" },
+    select: { name: true },
+  });
+  const lines = prizeStructureLines(key, { flights: flights.map((f) => f.name) });
+  // An unknown key, or a flight structure on a field with no flights, adds
+  // nothing rather than a bad row — the same fail-safe as the resolver.
+  if (lines.length === 0) return;
+
+  const agg = await prisma.prize.aggregate({ where: { eventId }, _max: { position: true } });
+  let position = agg._max.position ?? 0;
+  await prisma.prize.createMany({
+    data: lines.map((line) => ({
+      eventId,
+      category: line.category.trim(),
+      detail: (line.detail ?? "").trim(),
+      amount: 0,
+      position: (position += 1),
+    })),
+  });
+  await logAudit(eventId, "prize.structure", `${key} — added ${lines.length} line${lines.length === 1 ? "" : "s"}`);
   await refresh();
 }
 

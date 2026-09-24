@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
-import { addPrize, updatePrize, setPrizeWinner, removePrize } from "@/app/actions/tournament";
+import { addPrize, updatePrize, setPrizeWinner, removePrize, applyPrizeStructure } from "@/app/actions/tournament";
+import { PRIZE_STRUCTURES } from "@/lib/domain/prize-structures";
 import { useMoney } from "@/components/CurrencyProvider";
 import { money as formatMoney, minorUnitDigits } from "@/lib/domain/money-format";
 import { ConfirmButton } from "./ConfirmButton";
@@ -80,6 +81,31 @@ export function PrizesClient({
 
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add a prize</span>
+
+        {/* Start from a common structure and edit the amounts, rather than
+            retyping the same categories every medal. Each button adds editable
+            lines with the amounts left at zero for the club to set; flight
+            winners reads the field's actual flights. See prize-structures.ts. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <span className="text-muted" style={{ fontSize: 12.5 }}>
+            Start from a structure, then set the amounts:
+          </span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {PRIZE_STRUCTURES.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                className="btn"
+                disabled={pending}
+                title={s.blurb}
+                onClick={() => startTransition(() => applyPrizeStructure(s.key))}
+              >
+                <Icon name="plus" /> {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="field" style={{ flex: 2, minWidth: 200 }}>
             <label>Category</label>
