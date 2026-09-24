@@ -347,7 +347,19 @@ export interface StrokeStanding {
   player: DbPlayer;
   gross: number;
   net: number;
+  /** GROSS to-par (`gross - parThru`) — the raw figure a countback and the
+   *  "no par known" branches read. To PRINT a player's standing, use
+   *  `toParShown`, which follows the board's basis. */
   toPar: number;
+  /**
+   * The to-par to PRINT, on the board's own basis: net to-par on a net board,
+   * gross on a gross board. Computed once, at the sink, so no reader re-derives
+   * it. The boards did — through `toParOnBasis` in `standingRows` — but the
+   * leader highlight and the dashboard flight card read `toPar` directly and so
+   * printed GROSS to-par on a net medal ("leads at +10" over a board of −18).
+   * See `board-prints-what-it-ranked-on`.
+   */
+  toParShown: number;
   /** Whether a par was known for the holes played — see the leaderboard row. */
   parKnown: boolean;
   points: number;
@@ -1675,6 +1687,16 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
    */
   const rankingBasis: RankingBasis = stableford ? "stableford" : grossBasis ? "gross" : "net";
   /**
+   * The board's own caption, named once and stored on the state, so every
+   * reader that asks "net or gross" reads the same word. `unitIsNet` turns it
+   * into the boolean `toParOnBasis` wants — the same step `standingRows` takes
+   * from `state.strokeUnitLabel`, done here too so the leader highlight and the
+   * dashboard flight card cannot reach a different answer.
+   */
+  const strokeUnitLabel =
+    strokeUnit === "strokes" ? `${grossBasis ? "gross" : "net"} strokes` : strokeUnit;
+  const boardIsNet = unitIsNet(strokeUnitLabel);
+  /**
    * The card a countback reads, and how long it is.
    *
    * The LAST stroke round, because "the last nine" means the closing nine of
@@ -1799,15 +1821,23 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
+      const net = netOf(a);
+      // No card behind the round means no par, and `parThru` sums to nought
+      // — which makes to-par read back as the gross score. See `parKnown`
+      // on the leaderboard row for the board that printed "+71" for a 71.
+      const parKnown = a.parThru > 0;
+      const toPar = a.gross - a.parThru;
       return {
         player: p,
         gross: a.gross,
-        net: netOf(a),
-        toPar: a.gross - a.parThru,
-        // No card behind the round means no par, and `parThru` sums to nought
-        // — which makes to-par read back as the gross score. See `parKnown`
-        // on the leaderboard row for the board that printed "+71" for a 71.
-        parKnown: a.parThru > 0,
+        net,
+        toPar,
+        parKnown,
+        // The basis-aware figure every "show me the standing" reader prints —
+        // net to-par on a net board — resolved once here at the sink so the
+        // leader highlight and the flight card cannot print gross over a net
+        // board, which is exactly what they did by reading `toPar` raw.
+        toParShown: toParOnBasis({ toPar, gross: a.gross, net, parKnown }, boardIsNet),
         points: a.points,
         thru: a.thru,
         parThru: a.parThru,
@@ -2278,9 +2308,9 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
     nextUnplayedRound,
     strokeStandings,
     strokeUnit,
-    // Only "strokes" is ambiguous; points name themselves. See strokeUnitLabel.
-    strokeUnitLabel:
-      strokeUnit === "strokes" ? `${grossBasis ? "gross" : "net"} strokes` : strokeUnit,
+    // Only "strokes" is ambiguous; points name themselves. Derived once above,
+    // so `boardIsNet` and this caption cannot disagree.
+    strokeUnitLabel,
     strokeRounds,
     strokeHandicapFor: handicapFor,
     /**
@@ -2605,22 +2635,25 @@ export function computeHighlights(state: EventState): Highlight[] {
       });
     } else {
       /**
-       * The GROSS when there is no par to be under.
+       * On the board's own basis, and GROSS only where there is no par.
        *
-       * `toPar` is `gross - parThru`, so a round with no course card behind it
-       * returns the gross score unchanged — and this sentence then announced
-       * "leads at +71 (net 71)" for a 71, which is not a to-par, in the one
-       * card on the screen a reader takes at face value. The board beside it
-       * had already been taught to print "—"; this had not, so the two
-       * disagreed about the same round. See `parKnown`.
+       * `toParShown` is net to-par on a net board — the figure the board and
+       * `/live` print — so this sentence no longer announces "leads at +10"
+       * over a board reading −18. It reads `toParShown`, never `toPar`, which
+       * is `gross - parThru` and was the gross wearing a plus sign on a net
+       * medal.
+       *
+       * `parKnown` still falls back to the gross total, because a round with no
+       * course card behind it has no par to be under — the board beside it was
+       * taught to print "—" for exactly that. See `parKnown` and `toParShown`.
        */
       const par = !lead.parKnown
         ? `${lead.gross}`
-        : lead.toPar === 0
+        : lead.toParShown === 0
           ? "level par"
-          : lead.toPar > 0
-            ? `+${lead.toPar}`
-            : `${lead.toPar}`;
+          : lead.toParShown > 0
+            ? `+${lead.toParShown}`
+            : `${lead.toParShown}`;
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
     }
     // Only while it is a watch — see the match-play branch below, and
