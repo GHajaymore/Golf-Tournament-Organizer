@@ -941,6 +941,48 @@ which is club configuration rather than a day's scoring. Nothing says so.
 cannot drift further while this is open, and so that whoever settles it has a
 list rather than a search. Delete that test when it is settled.
 
+### The league's Live leaderboard ranks the season differently from This week — FOUND 2026-09-23, NOT FIXED
+
+**A real, member-visible mis-ranking, found by walking the seeded club's
+Thursday Evening League as a player.** Two screens show the season Stableford
+standings and put the field in a DIFFERENT order below the top ten:
+
+    /week  (standingsWithMovement)   … 10 Marnie 128, 11 Rafe 112, 12 Wallace 110,
+                                       13 Dilip 105, 14 Nkechi 104, … 17 Priyanka 87,
+                                       18 Odette 81, 19 Desmond 78, 20 Lena 69
+    /leaderboard AND /me/board        … 10 Marnie 128, 11 Priyanka 87, 12 Odette 81,
+    (standingRows / strokeStandings)   13 Rafe 112, 14 Wallace 110, 15 Dilip 105,
+                                       15 Lena 69, 17 Nkechi 104, …
+
+`/week` is right: a league season is the TOTAL, which is Ajay's call and the
+whole of the #565 fix. `/leaderboard` and `/me/board` float up the players with
+the FEWEST holes — Priyanka and Odette are "thru 36" (two weeks), Rafe is "thru
+54" (three) — which is the #565 per-hole defect, alive in a second code path.
+
+**The two screens use two different season aggregations, and only one got the
+#565 fix.** `/week` reads `standingsWithMovement` (week-view.ts), which ranks on
+the season TOTAL. `/leaderboard` and the player's `/me/board` read
+`standingRows` → `state.strokeStandings`, which ranks on `scoreOnBasis` =
+`points - levelPoints`, `levelPoints = 2 × chargedHoles(...)`. On this league
+that figure is behaving as points-PER-HOLE-PLAYED, not total: reproduced by the
+board's own "Thru" column, where Priyanka (87 / thru 36) out-ranks Rafe (112 /
+thru 54), and by the nonsensical shared rank "15" for Dilip (105) and Lena (69).
+
+**Why it is not fixed here.** `strokeStandings` is the SAME sink the medal ranks
+on, and the medal is correct — so this is not a one-line change, it is deciding
+how `chargedHoles` / `activeRoundId` (`tournament.ts` ~1788) must behave when the
+aggregate spans a whole SEASON rather than one live round. The single-round board
+ranks over holes played on purpose ("thru 12, −1"); the season must rank on the
+total. Telling those two apart at the sink, without regressing the medal or the
+in-flight board, is exactly the kind of scoring change CLAUDE.md's combination
+sweep and mutation discipline exist for, and it should be made with
+`matrix.test.ts` and a value assertion, not at 3am off one reading.
+
+**Reproduction:** seed the club, open the Thursday Evening League. `/week` vs
+`/leaderboard` disagree below row 10; `/me/board` as any member matches the
+wrong one. The fix belongs where `strokeStandings` builds `levelPoints`, and the
+oracle is `standingsWithMovement`, which already gets it right.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
