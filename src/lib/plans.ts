@@ -17,7 +17,7 @@
  * when enforcement does arrive.
  */
 
-export type PlanKey = "free" | "club";
+export type PlanKey = "free" | "society" | "club";
 
 export interface Plan {
   key: PlanKey;
@@ -152,10 +152,36 @@ export const PLANS: Record<PlanKey, Plan> = {
     retentionHours: 48,
     features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
+  society: {
+    key: "society",
+    name: "Society",
+    blurb: "For societies, leagues and outings running a season.",
+    // The growth-engine rung between Free and Club — see the monetization
+    // proposal. Priced here as the default; the number is configurable through
+    // `effectivePrice` without a code edit, which is why $12 is a starting
+    // point rather than a commitment.
+    priceMonthly: 12,
+    limits: {
+      // Unlimited tournaments and a season table are the point: a society runs
+      // many events across a year, which is exactly the recurring customer a
+      // subscription is for.
+      activeEvents: null,
+      // A society runs on a few organizers; ten committee seats and full
+      // branding are what a CLUB pays the extra for. These two lines — seats and
+      // whiteLabel below — are the whole difference between the tiers.
+      staffSeats: 3,
+      playersPerEvent: null,
+    },
+    retentionHours: null,
+    // Season table ON (it costs nothing per use and is the league product).
+    // White-label OFF — that is a Club line. The metered three stay dark here
+    // as everywhere, switched off by cost until revenue covers them.
+    features: { whiteLabel: false, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+  },
   club: {
     key: "club",
     name: "Club",
-    blurb: "For clubs and societies running a season of events.",
+    blurb: "For a club running a full season, with a committee and its own branding.",
     priceMonthly: 29,
     limits: {
       activeEvents: null,
