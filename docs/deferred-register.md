@@ -955,33 +955,53 @@ standings and put the field in a DIFFERENT order below the top ten:
                                        15 Lena 69, 17 Nkechi 104, …
 
 `/week` is right: a league season is the TOTAL, which is Ajay's call and the
-whole of the #565 fix. `/leaderboard` and `/me/board` float up the players with
-the FEWEST holes — Priyanka and Odette are "thru 36" (two weeks), Rafe is "thru
-54" (three) — which is the #565 per-hole defect, alive in a second code path.
+whole of the #565 fix. The two screens use two different season aggregations and
+only one got the #565 treatment: `/week` reads `standingsWithMovement`
+(week-view.ts), which ranks on the season TOTAL; `/leaderboard` and the player's
+`/me/board` read `standingRows` → `state.strokeStandings`, which ranks on
+`scoreOnBasis = points - levelPoints`, `levelPoints = 2 × chargedHoles(...)`.
 
-**The two screens use two different season aggregations, and only one got the
-#565 fix.** `/week` reads `standingsWithMovement` (week-view.ts), which ranks on
-the season TOTAL. `/leaderboard` and the player's `/me/board` read
-`standingRows` → `state.strokeStandings`, which ranks on `scoreOnBasis` =
-`points - levelPoints`, `levelPoints = 2 × chargedHoles(...)`. On this league
-that figure is behaving as points-PER-HOLE-PLAYED, not total: reproduced by the
-board's own "Thru" column, where Priyanka (87 / thru 36) out-ranks Rafe (112 /
-thru 54), and by the nonsensical shared rank "15" for Dilip (105) and Lena (69).
+**MECHANISM — confirmed by arithmetic, not guessed (2026-09-23).** The #565 fix
+IS present in `strokeStandings` (`tournament.ts` ~1788): `chargedHoles` charges
+the ONE active round (`activeRoundId = strokeUnitStage.id = boardStage.id`) at
+holes-PLAYED and every other round at its FULL hole count. That is correct only
+when the active round is genuinely in flight. On this league the fixture's most
+recent week is `boardStage` — week 4, played seven days ago, all its cards in,
+but never `closedAt`. So week 4 is charged at ATTENDANCE while weeks 1–3 and the
+three future weeks are charged full, and a player who SKIPPED week 4 is charged 0
+holes for it instead of 18 — a `levelPoints` gift of 36 that floats them up. It
+is not "points per hole across the season"; it is one week mischarged. The
+arithmetic reproduces the board line-for-line, including the anomalous tie:
+
+    Priyanka 87, skipped w4  →  87 − 216 = −129  → rank 11
+    Odette   81, skipped w4  →  81 − 216 = −135  → rank 12
+    Rafe    112, played  w4  → 112 − 252 = −140  → rank 13
+    Wallace 110, played  w4  → 110 − 252 = −142  → rank 14
+    Dilip   105, played  w4  → 105 − 252 = −147  → rank 15
+    Lena     69, skipped w4  →  69 − 216 = −147  → rank 15  (ties Dilip on −147)
+    Nkechi  104, played  w4  → 104 − 252 = −148  → rank 17
 
 **Why it is not fixed here.** `strokeStandings` is the SAME sink the medal ranks
-on, and the medal is correct — so this is not a one-line change, it is deciding
-how `chargedHoles` / `activeRoundId` (`tournament.ts` ~1788) must behave when the
-aggregate spans a whole SEASON rather than one live round. The single-round board
-ranks over holes played on purpose ("thru 12, −1"); the season must rank on the
-total. Telling those two apart at the sink, without regressing the medal or the
-in-flight board, is exactly the kind of scoring change CLAUDE.md's combination
-sweep and mutation discipline exist for, and it should be made with
-`matrix.test.ts` and a value assertion, not at 3am off one reading.
+on, and the medal is correct — charging the board's active round at attendance is
+exactly what makes a live medal read "thru 12, −1", and it is harmless for a
+single round because everyone present is thru the same holes. The defect needs a
+DECISION about what "in flight" means, which is Ajay's and the app's, not a
+one-liner: the intended signal is almost certainly `Stage.closedAt` (closed →
+charged full, missing it costs the points; open → in flight), but the seed never
+closes a week, so a naive `closedAt` switch would charge ALL four played weeks at
+attendance and make it worse — a date-based "is this round live now" test is the
+other candidate. And the fixture cannot express a genuinely-live round sitting
+BESIDE settled ones (every played week here is in the past, every future week has
+no cards), so there is nothing yet to prove a fix does not regress the live case.
+That is exactly the combination CLAUDE.md's matrix sweep and mutation discipline
+exist for, and it should be made with `matrix.test.ts` + a value assertion and a
+fixture that reaches the live-plus-settled cell — not at 3am off one reading.
 
 **Reproduction:** seed the club, open the Thursday Evening League. `/week` vs
 `/leaderboard` disagree below row 10; `/me/board` as any member matches the
-wrong one. The fix belongs where `strokeStandings` builds `levelPoints`, and the
-oracle is `standingsWithMovement`, which already gets it right.
+wrong one. The fix belongs at the `activeRoundId` discriminator that feeds
+`chargedHoles` (`tournament.ts` ~1788) — the question is which round is "in
+flight" — and the oracle is `standingsWithMovement`, which already gets it right.
 
 ## 4. Environment and ops
 
