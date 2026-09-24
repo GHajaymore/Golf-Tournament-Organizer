@@ -360,13 +360,14 @@ describe("the club theme cannot inject CSS", () => {
   const boardService = readSource("src", "lib", "services", "live-board.ts");
 
   it("holds for the player shell too", () => {
-    // Since 2026-09-19 the player shell renders the fixed scoreboard ground,
-    // not the club's theme — so no club-typed value reaches it at all. It still
-    // goes through the same SAFE_CSS_VALUE filter, asserted on both halves.
-    expect(playerShell).toMatch(/dangerouslySetInnerHTML=\{\{ __html: scoreboardCss\(/);
+    // Since 2026-09-24 the player shell renders the CLUB'S theme like the console
+    // and the public board — colour-changeable from the org console — so a
+    // club-typed value could reach it and MUST go through themeCss, whose
+    // SAFE_CSS_VALUE filter drops anything the module did not itself generate.
+    expect(playerShell).toMatch(/dangerouslySetInnerHTML=\{\{ __html: themeCss\(/);
     const themes = readSource("src", "lib", "themes.ts");
-    const fn = themes.slice(themes.indexOf("export function scoreboardCss"));
-    expect(fn.slice(0, fn.indexOf("\n}"))).toMatch(/declarations\(scoreboardVars\(\)\)/);
+    const fn = themes.slice(themes.indexOf("export function themeCss"));
+    expect(fn.slice(0, fn.indexOf("\n}"))).toMatch(/declarations\(themeVarsFor\(/);
   });
 
   it("and for the public board, whose stylesheet is built one layer away", () => {
