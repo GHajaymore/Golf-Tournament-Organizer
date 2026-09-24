@@ -7,7 +7,6 @@ import {
   DARK_GROUND,
   LIGHT_GROUND,
   DEFAULT_CLUB_THEME,
-  SCOREBOARD_GROUND,
   themeScale,
   themeVarsFor,
   resolveTheme,
@@ -412,25 +411,24 @@ for (const scheme of ["light", "dark"] as const) {
 }
 
 /**
- * THE PLAYER APP IS ONE PALETTE, SO IT IS MEASURED IN THAT PALETTE.
+ * THE PLAYER APP FOLLOWS THE CLUB THEME, LIKE THE CONSOLE — since 2026-09-24.
  *
- * Since 2026-09-19 the play shell renders the fixed scoreboard ground
- * (`scoreboardCss`), not the club's theme — so painting a club palette onto it,
- * as this file did, measured a combination no player can ever see. It went red
- * that way on the first run after the change: the worst light palette
- * injected over the scoreboard left white calendar dates on a pale fill.
- *
- * So the player screens are measured AS RENDERED, under both device settings
- * (the shell must look the same either way), and each test first proves the
- * scoreboard ground is what it is measuring — the same guard the injection
- * had, pointed at the palette that is really there.
+ * It briefly rendered a fixed scoreboard ground (2026-09-19); now one club theme
+ * drives the console, the public board and the player app alike. So the player
+ * screens are measured AS RENDERED, under both device settings, and each test
+ * first proves it is standing on one of the club's own grounds (dark or light)
+ * — not a stray palette and not the old scoreboard — before it grades the text.
+ * Asserting the SET of club grounds rather than one keeps this true whichever
+ * appearance the fixture's club has chosen.
  */
-test.describe("the player app, on the scoreboard ground", () => {
+const CLUB_GROUND_BGS = [DARK_GROUND.bg.toLowerCase(), LIGHT_GROUND.bg.toLowerCase()];
+
+test.describe("the player app, on the club theme", () => {
   test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
 
   for (const scheme of ["light", "dark"] as const) {
     for (const path of PLAYER) {
-      test(`${path} is legible (scoreboard, device ${scheme})`, async ({ page }) => {
+      test(`${path} is legible (device ${scheme})`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: scheme });
         await page.goto(path);
         await page.waitForLoadState("networkidle");
@@ -442,12 +440,12 @@ test.describe("the player app, on the scoreboard ground", () => {
         const bg = await page.evaluate(() =>
           getComputedStyle(document.getElementById("player-theme")!).getPropertyValue("--color-bg").trim(),
         );
-        expect(bg.toLowerCase(), "the player shell is not on the scoreboard ground").toBe(
-          SCOREBOARD_GROUND.bg.toLowerCase(),
+        expect(CLUB_GROUND_BGS, "the player shell is not on a club ground").toContain(
+          bg.toLowerCase(),
         );
 
         const bad = await illegibleText(page);
-        expect(bad, `${path} on the scoreboard (${scheme}): ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
+        expect(bad, `${path} on the player app (${scheme}): ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
       });
     }
   }

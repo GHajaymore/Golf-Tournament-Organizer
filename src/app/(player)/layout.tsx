@@ -2,8 +2,8 @@ import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { playerAppShut } from "@/lib/domain/lifecycle-state";
-import { brandForEvent } from "@/lib/services/organization";
-import { scoreboardCss } from "@/lib/themes";
+import { brandForEvent, themeForEvent } from "@/lib/services/organization";
+import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { formattingForEvent } from "@/lib/services/organization";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -38,17 +38,23 @@ import { switcherFor } from "@/lib/domain/tournament-switcher";
  * scoring engine — the split is in presentation only, which is what keeps the
  * two from disagreeing about who is winning.
  *
- * THE SCOREBOARD, NOT THE CLUB'S THEME — since 2026-09-19. The club chose the
- * hand-hung scoreboard (design D) for Today and then for the whole player app,
- * so every screen in this shell is drawn on `SCOREBOARD_GROUND`: a deep green
- * field, cream lettering, the TourneyHQ orange to press and scoreboard red for
- * under par. The console keeps the club's theme and its ground setting; the
- * note on SCOREBOARD_GROUND in themes.ts says why this one divergence is a
- * product decision rather than a club setting.
+ * THE CLUB'S THEME, LIKE THE CONSOLE — reversed 2026-09-24. The player app
+ * briefly wore a fixed hand-hung scoreboard (design D, 2026-09-19), the same
+ * green field at every club. Ajay's call now is that the player app is
+ * colour-changeable from the org console just like the console and the public
+ * board: one club theme, chosen once in settings, drives all three. So this
+ * shell renders `themeCss` for the event's club — the note above
+ * `playerColorScheme` in themes.ts has always described this "one ground
+ * everywhere" model, and it is true again. A club that wants the scoreboard
+ * look simply picks a dark ground; `auto` still gives a phone in daylight the
+ * light ground on the course, which is what the sunlight argument was about.
  */
 export default async function PlayLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
+  // The event's club theme — the same resolution the console and the public
+  // board use, so all three surfaces recolour together from one club setting.
+  const theme = session.eventId ? await themeForEvent(session.eventId) : DEFAULT_CLUB_THEME;
   /**
    * The fifth tab appears only where the tournament is actually splitting
    * costs — a league that never buys a round together keeps its four.
@@ -120,7 +126,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     <div
       id="player-theme"
       style={{
-        colorScheme: "dark",
+        colorScheme: playerColorScheme(theme),
         minHeight: "100vh",
         background: "var(--color-bg)",
         color: "var(--color-text)",
@@ -129,7 +135,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         flexDirection: "column",
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: scoreboardCss("#player-theme") }} />
+      <style dangerouslySetInnerHTML={{ __html: themeCss(theme, "#player-theme") }} />
 
       {/* Off the printout with the tab bar — see the note on PlayTabs. A
           player printing their card was getting the club lockup, the messages
