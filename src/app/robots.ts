@@ -51,6 +51,11 @@ export default function robots(): MetadataRoute.Robots {
           "/dashboard",
           "/me/",
           "/choose",
+          // The owner console — the whole business on one screen. Gated on the
+          // owner allow-list and 404 to everyone else, but named here too so a
+          // crawler never fetches it and the per-page noindex is not the only
+          // thing standing between it and an index.
+          "/owner",
           "/api/",
         ],
       },
