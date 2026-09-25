@@ -181,15 +181,27 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
   }
 
   const finished = series.events.filter((e) => e.status === "completed");
+
+  // Each event is a full loadEventState (~13 queries); a serial await per event
+  // made the season order-of-merit a waterfall that grew with the season (a
+  // ten-event season was ~140 queries end to end). The events are independent,
+  // so resolve them in parallel and fold in array order — the standings are
+  // sorted afterwards, so order here only needs to be deterministic.
+  const resolved = await Promise.all(
+    finished.map(async (e) => {
+      const f = await finishOrderFor(e.id);
+      if (!f) return null;
+      const entered = await prisma.player.count({ where: { eventId: e.id, status: "confirmed" } });
+      return { f, entered };
+    }),
+  );
+
   const finishes: EventFinish[] = [];
   let unlinked = 0;
-
-  for (const e of finished) {
-    const f = await finishOrderFor(e.id);
-    if (!f) continue;
-    const entered = await prisma.player.count({ where: { eventId: e.id, status: "confirmed" } });
-    unlinked += Math.max(0, entered - f.finishers.length);
-    finishes.push(f);
+  for (const r of resolved) {
+    if (!r) continue;
+    unlinked += Math.max(0, r.entered - r.f.finishers.length);
+    finishes.push(r.f);
   }
 
   const config = configOf(series);
