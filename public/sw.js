@@ -18,6 +18,49 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Web push: show the notification the server sent, and open the app on tap.
+// The payload is JSON — { title, body, url, tag } — built server-side in
+// services/push.ts. A push with no data still shows something rather than the
+// browser's generic "This site was updated in the background".
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_e) {
+    data = {};
+  }
+  const title = data.title || "TourneyHQ";
+  const options = {
+    body: data.body || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    tag: data.tag || undefined,
+    // Renotify so a corrected tee time re-alerts rather than silently
+    // replacing the earlier one under the same tag.
+    renotify: Boolean(data.tag),
+    data: { url: data.url || "/me" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/me";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Focus an existing tab and take it to the target, rather than piling up
+      // new windows every time a player taps a notification.
+      for (const client of clients) {
+        if ("focus" in client) {
+          if ("navigate" in client) client.navigate(url).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
