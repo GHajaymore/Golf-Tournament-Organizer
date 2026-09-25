@@ -810,7 +810,9 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                     })
                   }
                   style={{
-                    minHeight: 40,
+                    // No inline min-height — it silently beats the 44px
+                    // `.touch-target` coarse-pointer rule; a member enters the
+                    // pot from the tee, so the tap target must clear the floor.
                     padding: "0 12px",
                     borderRadius: 999,
                     fontSize: 12.5,
@@ -886,7 +888,9 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                     })
                   }
                   style={{
-                    minHeight: 40,
+                    // No inline min-height — it silently beats the 44px
+                    // `.touch-target` coarse-pointer rule; a member enters the
+                    // pot from the tee, so the tap target must clear the floor.
                     padding: "0 12px",
                     borderRadius: 999,
                     fontSize: 12.5,

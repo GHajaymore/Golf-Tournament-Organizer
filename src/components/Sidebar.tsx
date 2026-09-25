@@ -215,6 +215,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
             type="button"
             className="btn btn-icon"
             title="Sign out"
+            aria-label="Sign out"
             onClick={() => startTransition(() => signOutAction())}
           >
             <Icon name="sign-out" />

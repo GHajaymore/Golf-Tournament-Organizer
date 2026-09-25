@@ -370,7 +370,7 @@ export function TeamsClient({
                   aria-label={`Name of ${t.name}`}
                   defaultValue={t.name}
                   disabled={pending}
-                  style={{ fontSize: 14, flex: 1, minHeight: 36, padding: "4px 8px" }}
+                  style={{ fontSize: 14, flex: 1, minHeight: 44, padding: "4px 8px" }}
                   onBlur={(e) => {
                     const next = e.target.value.trim();
                     if (!next || next === t.name) {
