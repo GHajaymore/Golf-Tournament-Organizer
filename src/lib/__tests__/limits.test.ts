@@ -5,12 +5,18 @@ import { limitCheck, planFor, PLANS } from "../plans";
 const read = (p: string) => readSource(p);
 
 describe("plan limits", () => {
-  it("never limits the size of a field", () => {
-    // The constraint the pricing is built on: charging golfers to enter their
-    // own scores would stop the tool being used, and the players are the
-    // distribution channel.
+  it("caps the field on the entry tiers, and never on the top", () => {
+    // The 2026-09-25 reversal (Ajay): the FIELD size is a tier limit now — a
+    // hobbyist's fourball stays free, a club's championship upgrades — and a
+    // player still never pays, because the cap is the organizer's.
+    expect(planFor("free").limits.playersPerEvent).toBe(10);
+    expect(planFor("society").limits.playersPerEvent).toBe(50);
+    // Eagle is the top tier, so its field is uncapped.
+    expect(planFor("club").limits.playersPerEvent).toBeNull();
+    // Whatever the caps are, they are never negative.
     for (const plan of Object.values(PLANS)) {
-      expect(plan.limits.playersPerEvent, `${plan.key} limits players`).toBeNull();
+      const cap = plan.limits.playersPerEvent;
+      if (cap !== null) expect(cap, `${plan.key} field cap`).toBeGreaterThan(0);
     }
   });
 

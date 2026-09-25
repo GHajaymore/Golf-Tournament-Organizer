@@ -15,7 +15,7 @@
  * through here. Naming a customer ORGANIZATION is the page's job, and even
  * there it is the club, not a person.
  */
-import { planFor, effectivePrice } from "../plans";
+import { planFor, effectivePrice, type PricingOverrides } from "../plans";
 
 export interface PlanCount {
   plan: string;
@@ -71,7 +71,7 @@ export interface OwnerMetrics {
   statuses: StatusCount[];
 }
 
-export function ownerMetrics(input: OwnerMetricsInput): OwnerMetrics {
+export function ownerMetrics(input: OwnerMetricsInput, overrides?: PricingOverrides): OwnerMetrics {
   // PAID tiers come from the subscription rows — a plan whose price is above
   // zero. The free tier is derived from the org count instead of the
   // subscription groupBy, because an org with NO subscription row is a free
@@ -80,7 +80,7 @@ export function ownerMetrics(input: OwnerMetricsInput): OwnerMetrics {
   const paidTiers: TierRow[] = input.orgsByPlan
     .map((r) => {
       const plan = planFor(r.plan);
-      const monthly = effectivePrice(plan);
+      const monthly = effectivePrice(plan, overrides);
       return { plan: plan.key, name: plan.name, count: r.count, monthly, mrr: monthly * r.count };
     })
     .filter((t) => t.monthly > 0);

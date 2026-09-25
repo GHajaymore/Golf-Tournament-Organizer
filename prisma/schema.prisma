@@ -3218,3 +3218,20 @@ model PushSubscription {
 
   @@index([email])
 }
+
+/// Platform-wide settings the OWNER controls — not a club's, the business's.
+///
+/// A tiny key/value store, deliberately generic: the first key is `pricing`
+/// (the tier price overrides `effectivePrice` reads), and future owner controls
+/// (feature flags, announcements banners) reuse the same table rather than each
+/// earning a column. The value is opaque JSON the reader parses and validates —
+/// a bad value must never break a pricing page, which is why every reader falls
+/// back to the plan's own default (see `plans.ts`).
+///
+/// One row per key; there is exactly one platform, so there is no tenant to
+/// scope by. Written only through owner-gated actions.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

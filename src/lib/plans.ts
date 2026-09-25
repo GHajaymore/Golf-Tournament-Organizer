@@ -6,11 +6,16 @@
  * or a price shouldn't mean a migration and a backfill across live tenants.
  * Only the plan key is stored (Subscription.plan).
  *
- * A deliberate constraint runs through these limits: **players are never
- * counted or charged for.** Limits apply to organizers, staff seats and
- * tournaments — never to the size of a field. A tool that made 32 golfers pay
- * to enter their own scores would not get used, and the players are the
- * distribution: they see it in a member-guest, then run their own event.
+ * A deliberate constraint runs through these limits: **a player never PAYS.**
+ * The limits are the ORGANIZER's — seats, tournaments, and (from 2026-09-25,
+ * Ajay's call) the SIZE of the field a tier may run. Capping the free tier's
+ * field at ten is what keeps a hobbyist's fourball free while a club's
+ * member-guest upgrades — the way Golf Genius prices its own bands, and without
+ * a single golfer ever paying to enter their own scores. The paid tiers open
+ * the field back up; the top tier removes the cap entirely. This reverses an
+ * earlier "never cap the field" rule on purpose: the field size is the clearest
+ * value metric a buyer understands, and it does the anti-abuse work that four
+ * separate feature walls did before.
  *
  * Nothing enforces these yet. They exist so the shape is settled before
  * payments are wired up; `limitCheck` below is the intended single entry point
@@ -31,9 +36,9 @@ export interface Plan {
     activeEvents: number | null;
     /** Organization staff seats — organizers and assistants. null = unlimited. */
     staffSeats: number | null;
-    /** Players per tournament. Always unlimited; present so the intent is
-     *  explicit and stays that way if someone adds a tier later. */
-    playersPerEvent: null;
+    /** Max players in one tournament's FIELD, or null for no cap. The free and
+     *  entry tiers cap this; the top tier does not — see the file-level note. */
+    playersPerEvent: number | null;
   };
   /**
    * How long a finished tournament's data is kept, in hours. Null keeps it.
@@ -139,12 +144,14 @@ export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
     name: "Free",
-    blurb: "For an organizer running a single event.",
+    blurb: "For a golfer running a casual round or a one-off, up to ten players.",
     priceMonthly: 0,
     limits: {
       activeEvents: 1,
       staffSeats: 1,
-      playersPerEvent: null,
+      // A fourball, a small skins game — a hobbyist's field. A club's outing
+      // outgrows this in its first event, which is the point.
+      playersPerEvent: 10,
     },
     // Two days to export, then the results are gone. The single biggest reason
     // to upgrade, and the single most important thing to say before anyone
@@ -154,23 +161,24 @@ export const PLANS: Record<PlanKey, Plan> = {
   },
   society: {
     key: "society",
-    name: "Society",
-    blurb: "For societies, leagues and outings running a season.",
+    name: "Season",
+    blurb: "For a league or society running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting
     // point rather than a commitment.
-    priceMonthly: 12,
+    priceMonthly: 49,
     limits: {
       // Unlimited tournaments and a season table are the point: a society runs
       // many events across a year, which is exactly the recurring customer a
       // subscription is for.
       activeEvents: null,
       // A society runs on a few organizers; ten committee seats and full
-      // branding are what a CLUB pays the extra for. These two lines — seats and
-      // whiteLabel below — are the whole difference between the tiers.
+      // branding are what a CLUB (Eagle) pays the extra for.
       staffSeats: 3,
-      playersPerEvent: null,
+      // A society outing / league night. A full club championship field is
+      // bigger, which is where Eagle comes in.
+      playersPerEvent: 50,
     },
     retentionHours: null,
     // Season table ON (it costs nothing per use and is the league product).
@@ -181,11 +189,13 @@ export const PLANS: Record<PlanKey, Plan> = {
   club: {
     key: "club",
     name: "Club",
-    blurb: "For a club running a full season, with a committee and its own branding.",
-    priceMonthly: 29,
+    blurb: "For a golf club — every competition, your own branding, WHS posting, and any size of field.",
+    priceMonthly: 149,
     limits: {
       activeEvents: null,
       staffSeats: 10,
+      // The top tier, so no cap: a club championship, a big open, a corporate
+      // day. Field size is the ladder below this; here it ends.
       playersPerEvent: null,
     },
     retentionHours: null,

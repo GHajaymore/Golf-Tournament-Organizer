@@ -1,4 +1,4 @@
-import { PLANS, effectivePrice } from "@/lib/plans";
+import { PLANS, effectivePrice, type PricingOverrides } from "@/lib/plans";
 
 /**
  * What the site tells a search engine about itself, in schema.org terms.
@@ -26,9 +26,11 @@ const CURRENCY = "USD";
 export interface StructuredDataOptions {
   /** Absolute site origin, e.g. https://tourneyhq.club — no trailing slash. */
   origin: string;
+  /** The owner's price overrides, so the crawler indexes the live price. */
+  overrides?: PricingOverrides;
 }
 
-export function siteStructuredData({ origin }: StructuredDataOptions): Record<string, unknown> {
+export function siteStructuredData({ origin, overrides }: StructuredDataOptions): Record<string, unknown> {
   const org = `${origin}/#organization`;
 
   return {
@@ -69,7 +71,7 @@ export function siteStructuredData({ origin }: StructuredDataOptions): Record<st
         offers: Object.values(PLANS).map((plan) => {
           // The configurable price, not `priceMonthly` raw, so the offer a
           // crawler indexes and the number on the page are the same one.
-          const price = effectivePrice(plan);
+          const price = effectivePrice(plan, overrides);
           return {
             "@type": "Offer",
             name: plan.name,

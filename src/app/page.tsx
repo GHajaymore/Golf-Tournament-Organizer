@@ -5,6 +5,7 @@ import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
 import { PLANS, effectivePrice, effectiveAnnualPrice, retentionNotice } from "@/lib/plans";
+import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { landingTokens } from "@/lib/landing-palette";
 import { siteOrigin } from "@/lib/site";
@@ -659,6 +660,10 @@ export default async function LoginPage() {
   // on the one journey it is named after.
   if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
 
+  // The owner's price overrides, so the price on this page is the one the owner
+  // set on the console — the same number the schema.org offer below quotes.
+  const overrides = await storedPricingOverrides();
+
   /**
    * Whole dollars where the price is whole, so "$29" never reads "$29.00".
    *
@@ -685,7 +690,7 @@ export default async function LoginPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin() })),
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin(), overrides })),
         }}
       />
       <LandingEffects />
@@ -1289,7 +1294,7 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">What it costs</div>
-            <h2 className="sec-h">Free for one event. {planPrice(effectivePrice(PLANS.club))} a month for a season.</h2>
+            <h2 className="sec-h">Free for one event. {planPrice(effectivePrice(PLANS.club, overrides))} a month for a season.</h2>
             <p className="sec-sub">
               No card to start, and nothing is charged through the app — TourneyHQ works out the
               money and keeps the record; what changes hands is arranged between you and us, and
@@ -1321,11 +1326,11 @@ export default async function LoginPage() {
 
             <div className="plan paid">
               <div className="amt">
-                {planPrice(effectivePrice(PLANS.club))}
+                {planPrice(effectivePrice(PLANS.club, overrides))}
                 <span className="per"> / month</span>
               </div>
               <div className="per" style={{ marginTop: 2 }}>
-                or {planPrice(effectiveAnnualPrice(PLANS.club))} a year — two months free
+                or {planPrice(effectiveAnnualPrice(PLANS.club, overrides))} a year — two months free
               </div>
               <div className="per">{PLANS.club.blurb}</div>
               <ul>
