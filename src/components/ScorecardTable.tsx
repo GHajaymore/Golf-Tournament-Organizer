@@ -18,9 +18,11 @@ import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
  * renders read-only by default and takes `onSet` to become editable, which is
  * the only real difference between the two uses.
  *
- * The shots row is the part worth having: dots on the holes where this player
- * gets a stroke, from the server's own allocation. A net figure with no
- * working shown is a number a player has to take on trust — and they will not.
+ * The shots are the part worth having: a dot in the box on the holes where
+ * this player gets a stroke, from the server's own allocation, with the net
+ * for the hole small beneath the gross. A net figure with no working shown is
+ * a number a player has to take on trust — and they will not; here the working
+ * is on the hole it happens, the way a paper card marks it.
  */
 
 /**
@@ -64,6 +66,7 @@ export function ScoreCell({
   value,
   par,
   shots = 0,
+  net = null,
   who = "",
   shotsFor = "",
   onSet,
@@ -73,13 +76,20 @@ export function ScoreCell({
   value: number | null;
   par?: number;
   /**
-   * Strokes this player receives here, drawn in the corner.
-   *
-   * For a card with no Shots row of its own — the match grid, where two
-   * players receive different numbers and a shared row could not say so.
-   * `ScorecardTable` passes nothing and keeps its Shots row.
+   * Strokes this player receives here, drawn as a dot in the corner of the
+   * box. Every grid passes it now — a net card shows the shot where it falls
+   * rather than on a separate row (Ajay, 2026-09-24: "dots inside the score
+   * box"). The match grid always did, because two players receive different
+   * numbers and a shared row could not say so.
    */
   shots?: number;
+  /**
+   * The net score for this hole — gross less the shots received here — shown
+   * small beneath the gross on a read card. Null when there is no net to show:
+   * an empty hole, a level card, or a box being typed into. This is the other
+   * half of "gross AND net per hole".
+   */
+  net?: number | null;
   /** Named when one grid holds more than one player's row. */
   who?: string;
   /** What the shots tooltip calls the player — usually a short label. */
@@ -136,6 +146,27 @@ export function ScoreCell({
         >
           {value ?? "–"}
         </span>
+        {/* The net for this hole, small, under the gross. Only where there is
+            one to show, so a level card or an empty hole is not captioned with
+            a second copy of the same number. "net 3" to a screen reader, so
+            the two figures in one box are told apart. */}
+        {net != null && (
+          <span
+            className="sc-net"
+            aria-label={`net ${net}`}
+            style={{
+              display: "block",
+              textAlign: "center",
+              fontSize: 10,
+              lineHeight: 1,
+              marginTop: 1,
+              color: "var(--color-neutral-400)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {net}
+          </span>
+        )}
         {dots}
       </td>
     );
@@ -300,21 +331,30 @@ export function ScorecardTable({
   /**
    * One hole, from the shared cell — see `ScoreCell` above.
    *
-   * This used to be forty lines here and forty more in the match card, with
-   * the mark, the parse and the screen-reader name written out in both. The
-   * Shots row below is why nothing is passed for `shots`: a single-player
-   * card has room to show the allocation on its own row, which is clearer
-   * than a dot in the corner of a box.
+   * The shot a player receives is drawn as a dot in the box, and the net for
+   * the hole under the gross — Ajay, 2026-09-24: "gross and net per hole,
+   * dots inside the score box". The old separate Shots row is gone: the box
+   * carries the dot, which is where a paper card marks it too. Net is shown
+   * only on a read card (there is nothing to show while a gross is being
+   * typed) and only where a shot makes it differ is unnecessary — a net card
+   * shows it on every played hole so the column reads straight down.
    */
-  const cell = (i: number) => (
-    <ScoreCell
-      key={i}
-      hole={i}
-      value={strokes[i] ?? null}
-      par={pars[i]}
-      onSet={onSet ? (v) => onSet(i, v) : undefined}
-    />
-  );
+  const showNet = hasShots && !onSet;
+  const cell = (i: number) => {
+    const g = strokes[i];
+    const netHole = showNet && typeof g === "number" && g > 0 ? g - (shotsPerHole[i] ?? 0) : null;
+    return (
+      <ScoreCell
+        key={i}
+        hole={i}
+        value={strokes[i] ?? null}
+        par={pars[i]}
+        shots={shotsPerHole[i] ?? 0}
+        net={netHole}
+        onSet={onSet ? (v) => onSet(i, v) : undefined}
+      />
+    );
+  };
 
   return (
     <div>
@@ -450,26 +490,6 @@ export function ScorecardTable({
                 {back.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
                 {isEighteen && <td className="sc-tot" />}
                 <td className="sc-tot" />
-              </tr>
-            )}
-            {/* Where the shots fall. The working behind the net total, on the
-                holes it actually happens. */}
-            {hasShots && (
-              <tr className="sc-ref">
-                <td>Shots</td>
-                {front.map((i) => (
-                  <td key={i} style={{ color: "var(--color-accent-400)", fontWeight: 700 }}>
-                    {shotsPerHole[i] ? "•".repeat(shotsPerHole[i]) : ""}
-                  </td>
-                ))}
-                {isEighteen && <td className="sc-tot">{sum(shotsPerHole, 0, 9)}</td>}
-                {back.map((i) => (
-                  <td key={i} style={{ color: "var(--color-accent-400)", fontWeight: 700 }}>
-                    {shotsPerHole[i] ? "•".repeat(shotsPerHole[i]) : ""}
-                  </td>
-                ))}
-                {isEighteen && <td className="sc-tot">{sum(shotsPerHole, 9, holes)}</td>}
-                <td className="sc-tot">{sum(shotsPerHole, 0, holes)}</td>
               </tr>
             )}
             <tr>

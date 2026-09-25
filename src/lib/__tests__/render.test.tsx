@@ -4645,9 +4645,10 @@ describe("the scorecard shows the whole card", () => {
     expect(html).toContain("18 of 18");
   });
 
-  it("shows the shots received and the net they produce", async () => {
+  it("shows the shots received in the box and the net they produce, per hole and in total", async () => {
     // The part neither old grid had. A 12 handicap gets a stroke on the twelve
-    // hardest holes, and the net has to be checkable from the card.
+    // hardest holes; the dot falls in the box where the shot lands, and the net
+    // sits under the gross so the card can be checked hole by hole.
     const { ScorecardTable } = await import("@/components/ScorecardTable");
     const shots = si.map((n) => (n <= 12 ? 1 : 0));
     const html = render(
@@ -4660,9 +4661,14 @@ describe("the scorecard shows the whole card", () => {
         playingHandicap={12}
       />,
     );
-    expect(html).toContain("Shots");
+    // A dot in the box where a shot falls — no separate Shots row any more.
+    expect(html).toContain("•");
+    expect(html).not.toContain(">Shots<");
+    // Net per hole: hole 1 is a gross 4 with a shot (S.I. 7 ≤ 12), so net 3.
+    expect(html).toContain("net 3");
+    // And the net total still checks out: 77 gross less 12.
     expect(html).toContain("Net");
-    expect(html).toContain("65"); // 77 less 12
+    expect(html).toContain("65");
   });
 
   it("counts par and shots over the holes PLAYED, not the whole course", async () => {
