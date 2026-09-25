@@ -91,6 +91,12 @@ describe("every server action is guarded", () => {
     // both the token and the email before any lookup, and a server-side
     // re-check of the capacity/deadline/open state.
     "register.ts": ["registerForEvent"],
+    // push.ts: the VAPID PUBLIC key is meant to be shipped to any browser — it
+    // is what a client builds a subscription against, and web push does not
+    // work without handing it out. It reads one env var and touches no
+    // database, so there is no row for a guard to protect. `savePushSubscription`
+    // and `removePushSubscription` DO write, and both call `getSession` first.
+    "push.ts": ["getVapidPublicKey"],
   };
 
   const GUARDS = [

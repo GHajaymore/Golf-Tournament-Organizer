@@ -3185,3 +3185,36 @@ model HandicapPost {
   @@index([eventId])
   @@index([status])
 }
+
+/// A browser/device that has opted in to web-push notifications.
+///
+/// Keyed by `endpoint` — the push service's URL for this one device, which is
+/// what a send targets and what the browser re-issues when it renews a
+/// subscription. An upsert on it replaces a stale keypair for the same device
+/// rather than piling up duplicates, and a dead endpoint (410/404 from the push
+/// service) is deleted on the next send.
+///
+/// Tied to the member by EMAIL — the same identity the player screens resolve
+/// by (see `me.ts`, `clubCommitmentsFor`) — so a notice meant for a player can
+/// reach every device they are signed in on. Not a relation to `Player`,
+/// because a member is one person across many tournaments and their devices are
+/// theirs, not any single event's.
+model PushSubscription {
+  id String @id @default(cuid())
+
+  /// The push service endpoint URL. One subscription per device.
+  endpoint String @unique
+
+  /// The subscription's public key (p256dh) and auth secret, from the browser's
+  /// PushSubscription — both required to encrypt a payload to this device.
+  p256dh String
+  auth   String
+
+  /// The signed-in member this device belongs to, lowercased. What a send
+  /// looks up by, and what an owner check scopes a delete to.
+  email String
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { parseTeeSheet, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { roundLabel } from "@/lib/domain/round-label";
+import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -64,7 +66,9 @@ export async function saveTeeSheet(
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
-    select: { id: true },
+    // The old sheet and its published flag are the baseline for the change
+    // diff — read before the update overwrites them.
+    select: { id: true, teeSheet: true, teeSheetPublished: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
 
@@ -88,6 +92,33 @@ export async function saveTeeSheet(
     where: { id: stageId },
     data: { teeSheet: json, teeSheetPublished: publish },
   });
+
+  /**
+   * Publishing is the confirm, so it is the only act that notifies. A draft
+   * save changes nothing a player can see and pings nobody. The diff baseline
+   * is the sheet as it stood BEFORE this write; a first publish (the stage was
+   * not published) tells everyone drawn, a re-publish only whom it moved.
+   */
+  if (publish) {
+    const [event, stages] = await Promise.all([
+      prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
+      prisma.stage.findMany({
+        where: { eventId: session.eventId },
+        select: { id: true, type: true },
+        orderBy: { position: "asc" },
+      }),
+    ]);
+    await notifyTeeTimesPublished({
+      eventId: session.eventId,
+      stageId,
+      previous: parseTeeSheet(stage.teeSheet ?? ""),
+      next: clean,
+      firstPublish: !stage.teeSheetPublished,
+      roundLabel: roundLabel(stages, stageId),
+      eventName: event?.name ?? "",
+    });
+  }
+
   await refresh();
   return { ok: true };
 }
@@ -97,7 +128,7 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
   const session = await requireStaffSession();
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId: session.eventId },
-    select: { teeSheet: true },
+    select: { teeSheet: true, teeSheetPublished: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
   if (published && !stage.teeSheet) {
@@ -107,6 +138,33 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
     where: { id: stageId, eventId: session.eventId },
     data: { teeSheetPublished: published },
   });
+
+  // Publishing an already-drawn sheet from behind the toggle is a first
+  // announcement too — tell everyone drawn. Only on the false->true edge, so
+  // re-affirming a published sheet pings nobody, and unpublishing never does.
+  if (published && !stage.teeSheetPublished) {
+    const sheet = parseTeeSheet(stage.teeSheet ?? "");
+    if (sheet) {
+      const [event, stages] = await Promise.all([
+        prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
+        prisma.stage.findMany({
+          where: { eventId: session.eventId },
+          select: { id: true, type: true },
+          orderBy: { position: "asc" },
+        }),
+      ]);
+      await notifyTeeTimesPublished({
+        eventId: session.eventId,
+        stageId,
+        previous: null,
+        next: sheet,
+        firstPublish: true,
+        roundLabel: roundLabel(stages, stageId),
+        eventName: event?.name ?? "",
+      });
+    }
+  }
+
   await refresh();
   return { ok: true };
 }

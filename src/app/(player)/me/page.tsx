@@ -7,6 +7,7 @@ import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
 import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
+import { PushToggle } from "@/components/PushToggle";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -597,6 +598,13 @@ export default async function PlayTodayPage() {
           </span>
         </section>
       )}
+
+      {/* Opt in to tee-time push alerts. Self-hiding: it renders nothing where
+          push isn't available and shrinks to one line once alerts are on, so it
+          is a prompt rather than a permanent card. */}
+      <div style={{ marginTop: 12 }}>
+        <PushToggle />
+      </div>
 
       {/* The rest of what the club posted, under the player's own round. */}
       {announcements.some((a) => !a.pinned) && (
