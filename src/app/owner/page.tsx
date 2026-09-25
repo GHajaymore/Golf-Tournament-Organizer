@@ -4,6 +4,9 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
+import { PLANS, effectivePrice } from "@/lib/plans";
+import { storedPricingOverrides } from "@/lib/services/platform-pricing";
+import { OwnerPricing } from "@/components/OwnerPricing";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 
@@ -84,14 +87,28 @@ export default async function OwnerConsolePage() {
     }),
   ]);
 
-  const m = ownerMetrics({
-    totalOrgs,
-    orgsByPlan: orgsByPlan.map((r) => ({ plan: r.plan, count: r._count._all })),
-    orgsByKind: orgsByKind.map((r) => ({ kind: r.kind, count: r._count._all })),
-    eventsByStatus: eventsByStatus.map((r) => ({ status: r.status, count: r._count._all })),
-    totalPlayers,
-    orgsWithNoEvents,
-  });
+  // The owner's own price overrides, so the projected MRR here and the price
+  // the editor below shows both reflect what customers are actually quoted.
+  const overrides = await storedPricingOverrides();
+
+  const m = ownerMetrics(
+    {
+      totalOrgs,
+      orgsByPlan: orgsByPlan.map((r) => ({ plan: r.plan, count: r._count._all })),
+      orgsByKind: orgsByKind.map((r) => ({ kind: r.kind, count: r._count._all })),
+      eventsByStatus: eventsByStatus.map((r) => ({ status: r.status, count: r._count._all })),
+      totalPlayers,
+      orgsWithNoEvents,
+    },
+    overrides,
+  );
+
+  const tiers = Object.values(PLANS).map((p) => ({
+    key: p.key,
+    name: p.name,
+    monthly: effectivePrice(p, overrides),
+    free: p.key === "free",
+  }));
 
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
@@ -120,6 +137,9 @@ export default async function OwnerConsolePage() {
         {stat("Tournaments", m.totalEvents.toLocaleString(DEFAULT_LOCALE), `${m.liveEvents} live now`)}
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
+
+      {/* The one control that writes: set the price every screen quotes. */}
+      <OwnerPricing tiers={tiers} />
 
       {/* Tier mix */}
       <div className="card elev-sm" style={{ marginBottom: 16 }}>

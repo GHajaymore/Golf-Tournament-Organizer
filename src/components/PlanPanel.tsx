@@ -1,4 +1,4 @@
-import { PLANS, planFor, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult } from "@/lib/plans";
+import { PLANS, planFor, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
 import type { OrgLimits } from "@/lib/services/limits";
 import { Icon } from "./Icon";
 
@@ -19,7 +19,7 @@ import { Icon } from "./Icon";
  * keeps results 48 hours, and that is the one fact a club has to know BEFORE
  * it runs an event rather than after the results are gone.
  */
-export function PlanPanel({ planKey, standing }: { planKey: string; standing?: OrgLimits }) {
+export function PlanPanel({ planKey, standing, overrides }: { planKey: string; standing?: OrgLimits; overrides?: PricingOverrides }) {
   const current = planFor(planKey);
   const benefits = upgradeBenefits(planKey);
   const retention = retentionNotice(planKey);
@@ -168,9 +168,9 @@ export function PlanPanel({ planKey, standing }: { planKey: string; standing?: O
                       landing page and the schema.org offer as one number. The
                       annual figure is derived (two months free) and follows the
                       same override. */}
-                  {effectivePrice(p) === 0
+                  {effectivePrice(p, overrides) === 0
                     ? "Free"
-                    : `$${effectivePrice(p)}/mo · $${effectiveAnnualPrice(p)}/yr`}
+                    : `$${effectivePrice(p, overrides)}/mo · $${effectiveAnnualPrice(p, overrides)}/yr`}
                 </span>
                 {mine && (
                   <span className="tag" style={{ fontSize: 10 }}>You are here</span>

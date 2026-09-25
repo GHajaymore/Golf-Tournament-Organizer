@@ -18,6 +18,7 @@ import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
 import { PlanPanel } from "@/components/PlanPanel";
+import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
@@ -283,7 +284,7 @@ export default async function OrganizationPage() {
       <SettingsSectionAnchor id="plan">
         {/* The SAME `standing` the Staff card above is drawn from, resolved
             once. Two calls would be two truths the moment one of them moved. */}
-        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={standing} />
+        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={standing} overrides={await storedPricingOverrides()} />
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
