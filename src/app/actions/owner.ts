@@ -2,9 +2,10 @@
 import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
-import { PLANS, LIMIT_KEYS, type PlanKey, type LimitKey } from "@/lib/plans";
+import { PLANS, LIMIT_KEYS, isValidPercentOff, type PlanKey, type LimitKey } from "@/lib/plans";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
+import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
 
 /**
  * Owner-only writes — the platform's own controls, not a club's.
@@ -94,6 +95,68 @@ export async function saveTierLimits(input: {
   await saveLimitOverride({ enforce: input.enforce === true, plans });
   // The gates read this per request, but revalidate so the console itself
   // re-renders with the saved values rather than a stale render.
+  revalidatePath("/owner");
+  return { ok: true };
+}
+
+export interface CreateDiscountResult extends OwnerActionResult {
+  /** The generated code, so the console can show it the moment it is made. */
+  code?: string;
+  percentOff?: number;
+}
+
+/**
+ * Generate a discount code — a percentage off, for the owner to hand out.
+ *
+ * The owner sets the percent and, optionally, a label, a redemption cap and an
+ * expiry; the code is generated and returned so it can be copied straight away.
+ * Validated here and again in the service.
+ */
+export async function createDiscountCode(input: {
+  percentOff: number;
+  label?: string;
+  maxRedemptions?: number | null;
+  expiresAt?: string | null;
+}): Promise<CreateDiscountResult> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+
+  const percentOff = Math.round(Number(input.percentOff));
+  if (!isValidPercentOff(percentOff)) {
+    return { ok: false, error: "A discount is a whole percent from 1 to 100." };
+  }
+
+  const max = input.maxRedemptions == null ? null : Math.round(Number(input.maxRedemptions));
+  if (max != null && (!Number.isFinite(max) || max < 1)) {
+    return { ok: false, error: "A redemption limit is a whole number of one or more, or blank for no limit." };
+  }
+
+  let expiresAt: Date | null = null;
+  if (input.expiresAt) {
+    const d = new Date(input.expiresAt);
+    if (Number.isNaN(d.getTime())) return { ok: false, error: "That expiry date doesn't look right." };
+    expiresAt = d;
+  }
+
+  try {
+    const made = await createDiscount({
+      percentOff,
+      label: input.label ?? "",
+      maxRedemptions: max,
+      expiresAt,
+    });
+    revalidatePath("/owner");
+    return { ok: true, code: made.code, percentOff: made.percentOff };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't create the code." };
+  }
+}
+
+/** Switch a discount code on or off. */
+export async function setDiscountCodeActive(code: string, active: boolean): Promise<OwnerActionResult> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  await setDiscountActive(code, active === true);
   revalidatePath("/owner");
   return { ok: true };
 }

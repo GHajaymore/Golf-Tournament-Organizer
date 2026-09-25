@@ -7,8 +7,10 @@ import { ownerMetrics } from "@/lib/domain/owner-metrics";
 import { PLANS, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
+import { listDiscountCodes } from "@/lib/services/platform-discounts";
 import { OwnerPricing } from "@/components/OwnerPricing";
 import { OwnerLimits } from "@/components/OwnerLimits";
+import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 
@@ -124,6 +126,18 @@ export default async function OwnerConsolePage() {
     ) as Record<(typeof LIMIT_KEYS)[number], number | null>,
   }));
 
+  // Discount codes the owner has generated, with their usage rendered ready for
+  // the client (which stays free of Date objects and locale calls).
+  const discountRows = await listDiscountCodes();
+  const discounts = discountRows.map((c) => ({
+    code: c.code,
+    percentOff: c.percentOff,
+    label: c.label,
+    active: c.active,
+    uses: c.maxRedemptions == null ? String(c.timesRedeemed) : `${c.timesRedeemed} / ${c.maxRedemptions}`,
+    expires: c.expiresAt ? shortDate(c.expiresAt) : "",
+  }));
+
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
       <span className="card-kicker">{label}</span>
@@ -156,6 +170,7 @@ export default async function OwnerConsolePage() {
           every entry gate reads. */}
       <OwnerPricing tiers={tiers} />
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
+      <OwnerDiscounts codes={discounts} />
 
       {/* Tier mix */}
       <div className="card elev-sm" style={{ marginBottom: 16 }}>

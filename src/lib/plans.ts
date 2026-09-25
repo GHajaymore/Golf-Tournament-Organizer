@@ -327,6 +327,36 @@ export function effectiveAnnualPrice(plan: Plan, overrides: PricingOverrides = p
   return effectivePrice(plan, overrides) * ANNUAL_MONTHS_CHARGED;
 }
 
+/**
+ * The canonical form of a discount code: trimmed, upper-cased, spaces removed.
+ *
+ * A code is stored and looked up in this form, so entering it is insensitive to
+ * case and stray spaces — the difference between "run-20" typed on a phone and
+ * "RUN20" on the record.
+ */
+export function normalizeDiscountCode(raw: string | null | undefined): string {
+  return (raw ?? "").trim().toUpperCase().replace(/\s+/g, "");
+}
+
+/** Whether a discount percent is a whole number in the usable 1–100 range. */
+export function isValidPercentOff(percentOff: number): boolean {
+  return Number.isInteger(percentOff) && percentOff >= 1 && percentOff <= 100;
+}
+
+/**
+ * A price with a whole-percent discount applied — rounded to whole currency
+ * units and never below zero.
+ *
+ * Pure, so the arithmetic is testable without a code row, and DEFENSIVE at the
+ * sink like `effectivePrice`: a percent outside 1–100 returns the price
+ * unchanged rather than quoting a wrong or negative number, because a bad
+ * discount must never become a bad price on a screen.
+ */
+export function discountedPrice(price: number, percentOff: number): number {
+  if (!isValidPercentOff(percentOff)) return price;
+  return Math.max(0, Math.round((price * (100 - percentOff)) / 100));
+}
+
 /** The three levers a tier limits. Order is the owner console's field order. */
 export const LIMIT_KEYS = ["activeEvents", "staffSeats", "playersPerEvent"] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
