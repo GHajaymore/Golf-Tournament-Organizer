@@ -58,6 +58,13 @@ export const LOGO_SIZE = {
   /** A hero or an empty state. */
   lg: 28,
   /**
+   * The landing brand lockup — the framed emblem beside the wordmark at the
+   * top of the marketing page, which is the one place the mark is the SUBJECT
+   * rather than a label. `lg` read as tiny there on a phone (2026-09-25), so
+   * the emblem gets its own larger size; the flat app mark never uses it.
+   */
+  brand: 40,
+  /**
    * The share-link card, which is a 1200x630 canvas rendered OUTSIDE the app.
    *
    * App sizes are illegible there — 22px on an image that arrives as a
@@ -134,16 +141,22 @@ export function Logo({
      — "Cannot convert a Symbol value to a string", which fails the build on
      /opengraph-image. An array of keyed children renders identically and
      carries no Symbol. */
-  const mark = [
-    // The cup, FILLED rather than outlined — fault 1 in the notes above.
-    <ellipse key="cup" cx="15.2" cy="23.6" rx="8.4" ry="3.5" fill={cup} />,
-    // The pin, THROUGH the rim rather than hovering beside it, at the weight of
-    // everything else in the drawing.
-    <path key="stick" d="M18.6 6.1 V23.1" stroke={stick} strokeWidth="2.4" strokeLinecap="round" />,
+  // NO HOLE (2026-09-25). The cup read as a flag standing at the EDGE of the
+  // hole rather than in it, so it is gone: the mark is now just the flag on its
+  // pin and the ball resting on the green beside it — which is what survives
+  // being shrunk to a favicon anyway. Pin and flag keep their exact geometry
+  // (the icon generator and `brand-consistency.test.ts` are pinned to it); only
+  // the cup is removed and the ball dropped to the foot of the pin.
+  const markWith = (ballFill: string, stickStroke: string = stick) => [
+    <path key="stick" d="M18.6 6.1 V23.1" stroke={stickStroke} strokeWidth="2.4" strokeLinecap="round" />,
     <path key="flag" d="M18.6 6.3 L25.8 9.3 L18.6 12.3 Z" fill={flag} />,
-    // The ball, dropping in: it breaks the near rim from above.
-    <circle key="ball" cx="11" cy="18.2" r="3.4" fill={ball} />,
+    // The ball, resting on the green at the foot of the pin.
+    <circle key="ball" cx="11.6" cy="20.6" r="3.4" fill={ballFill} />,
   ];
+  // The flat mark keeps the brand green ball and its inked pin, on whatever
+  // ground it sits — the pin follows the ground's text colour so it reads on a
+  // light console and a dark one alike.
+  const mark = markWith(ball);
 
   if (emblem) {
     // The frame carries TourneyHQ's OWN colours, fixed — a fairway-green disc
@@ -152,12 +165,20 @@ export function Logo({
     // brand-consistency hex allow-list.
     return (
       <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" style={style}>
-        <circle cx="16" cy="16" r="15" fill="#0a1f16" stroke="#c6a052" strokeWidth="1.1" />
+        {/* The disc IS the green — a deep fairway green, ringed in brass, so a
+            WHITE ball drops in the way a real one sits on the putting surface
+            (2026-09-25). A shade deeper than the in-app ball green so white reads
+            at ~5:1 rather than washing out at phone size; picked to hold on any
+            ground, since the disc carries its own background. Literal, because
+            this is TourneyHQ's own crest — it follows no club palette. */}
+        <circle cx="16" cy="16" r="15" fill="#26794b" stroke="#c6a052" strokeWidth="1.1" />
         <g transform="translate(16 16) scale(0.72) translate(-16 -16)">
-          {/* The putt trailing in behind the ball — the display flourish that
-              the flat mark deliberately omits so it stays legible when small. */}
-          <path d="M6.6 19.6 Q10 21.4 13.6 20.6" stroke="rgba(233,240,232,.4)" strokeWidth="1.2" strokeDasharray="1.4 2" strokeLinecap="round" />
-          {mark}
+          {/* The putt trailing in behind the ball — the display flourish the
+              flat mark omits so it stays legible small. White, the ball's own
+              line across the green. */}
+          <path d="M6.6 19.6 Q10 21.4 13.6 20.6" stroke="rgba(255,255,255,.55)" strokeWidth="1.2" strokeDasharray="1.4 2" strokeLinecap="round" />
+          {/* Ball AND pin in white on the green; the flag stays TourneyHQ orange. */}
+          {markWith("#ffffff", "#ffffff")}
         </g>
       </svg>
     );
