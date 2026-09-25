@@ -117,10 +117,24 @@ export const PLAYER_RULES: PlayerScreen = {
   icon: "ph ph-book-open",
 };
 
+/**
+ * The member's whole-club calendar — every tournament they are in, on the days
+ * they are played. Deliberately NOT a tab, for the same reason Rules is not:
+ * four tabs is the cap, and this is a screen a member opens to plan, not one
+ * they stand on during a round. Reached from a link on Events, where "what is
+ * my club running, and what am I in" already lives.
+ */
+export const PLAYER_CALENDAR: PlayerScreen = {
+  href: "/me/calendar",
+  label: "Your calendar",
+  icon: "ph ph-calendar-check",
+};
+
 /** Every player screen, tab or not — the lookup `screenName` walks. */
 export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   ...PLAYER_TABS,
   PLAYER_MONEY_TAB,
   PLAYER_MESSAGES,
   PLAYER_RULES,
+  PLAYER_CALENDAR,
 ];

@@ -91,6 +91,33 @@ export default async function ClubEventsPage() {
         <Icon name="arrow-right" />
       </Link>
 
+      {/* THE MEMBER'S OWN HALF of this screen's question. Events is "what is my
+          club running"; the calendar is "what have I got on, and when". A slim
+          link rather than a second full card, so the fixture list below stays
+          the point of the screen. */}
+      <Link
+        href="/me/calendar"
+        style={{
+          marginTop: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          textDecoration: "none",
+          color: "var(--color-text)",
+          fontSize: 13.5,
+        }}
+      >
+        <Icon name="calendar-check" style={{ color: "var(--color-accent-300)", fontSize: 18 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Your calendar
+          <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
+            Every round you&rsquo;re in, on the days they&rsquo;re played
+          </span>
+        </span>
+        <Icon name="arrow-right" className="text-muted" />
+      </Link>
+
       {events.length === 0 ? (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title">Nothing on the calendar</span>

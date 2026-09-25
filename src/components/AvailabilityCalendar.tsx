@@ -29,7 +29,13 @@ import {
  * default is drawn as an outline and a stated answer as a solid.
  */
 
-const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
+/**
+ * The four-state palette, exported so the club-wide calendar reads a commitment
+ * the same colour this one reads a round. `toneFor` is already the shared
+ * meaning; these are the shared LOOK, and two clubs' worth of the same feature
+ * disagreeing on what green means is exactly the drift the domain split avoids.
+ */
+export const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
   in: {
     background: "var(--color-accent-2)",
     borderColor: "var(--color-accent-2)",
@@ -59,9 +65,9 @@ const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
 };
 
 /** Reading order for the key, kept stable however few tones survive. */
-const LEGEND_ORDER: DayTone[] = ["in", "in-default", "out", "out-default", "locked"];
+export const LEGEND_ORDER: DayTone[] = ["in", "in-default", "out", "out-default", "locked"];
 
-const TONE_ICON: Record<DayTone, string> = {
+export const TONE_ICON: Record<DayTone, string> = {
   in: "ph-bold ph-check",
   "in-default": "ph ph-check",
   out: "ph-bold ph-x",

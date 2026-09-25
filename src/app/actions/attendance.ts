@@ -138,6 +138,82 @@ export async function setAttendance(
 }
 
 /**
+ * A player sets their OWN in/out for a round in ANY of their tournaments.
+ *
+ * The club-wide calendar's toggle. `setAttendance` above scopes everything to
+ * the caller's ACTIVE event — correct for the per-league card, wrong here,
+ * where the whole point is answering for a round in a tournament that is NOT
+ * the one open in front of you. So authorization comes from the round, not from
+ * the active-event cookie.
+ *
+ * ONE QUERY PROVES THE CALLER OWNS THIS. A confirmed Player row for this email
+ * whose event contains this stage: a stage id belongs to exactly one event, so
+ * matching it pins the membership to that event and answers "may this person
+ * set this round?" without trusting the session's active event. A forged
+ * stageId the caller has no place in matches no row and is refused — which is
+ * the ownership `audit-idor` checks for structurally, the scope key being the
+ * caller's own email in the same `where`.
+ *
+ * Only where the mode ASKS the player, and only before the deadline — the same
+ * two rules `setAttendance` enforces, re-stated because this is its own public
+ * endpoint and a guard on the other one protects nothing here. Under captains
+ * the club holds the list and a player must not contradict it; past the opt
+ * deadline the answer is the organizer's to change.
+ */
+export async function setOwnAttendance(stageId: string, status: string): Promise<AttendanceResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Not signed in." };
+  if (status !== "in" && status !== "out") return { ok: false, error: "In or out — nothing else." };
+
+  const player = await prisma.player.findFirst({
+    where: {
+      email: { equals: session.email, mode: "insensitive" },
+      status: "confirmed",
+      event: { stages: { some: { id: stageId } } },
+    },
+    select: { id: true, eventId: true },
+  });
+  if (!player) return { ok: false, error: "You aren't in this tournament." };
+
+  const stage = await prisma.stage.findUnique({
+    where: { id: stageId },
+    select: { optDeadline: true },
+  });
+  if (!stage) return { ok: false, error: "That round no longer exists." };
+
+  const event = await prisma.event.findUnique({ where: { id: player.eventId } });
+  if (!event) return { ok: false, error: "Tournament not found." };
+  const mode = settingsOf(event).attendanceMode as AttendanceMode;
+  if (!tracksPerRound(mode)) {
+    return { ok: false, error: "This tournament doesn't use weekly sign-up — everyone plays every round." };
+  }
+  if (!playersAnswer(mode)) {
+    return {
+      ok: false,
+      error: "Your captain sends the side to the club and the club records it — ask your captain to include you.",
+    };
+  }
+  if (!playerMayChange(stage.optDeadline)) {
+    return {
+      ok: false,
+      error: "The sign-up window for this round has closed — ask the organizer to change it.",
+    };
+  }
+
+  await prisma.roundAttendance.upsert({
+    where: { stageId_playerId: { stageId, playerId: player.id } },
+    update: { status, decidedAt: new Date(), decidedBy: session.name },
+    create: { eventId: player.eventId, stageId, playerId: player.id, status, decidedBy: session.name },
+  });
+
+  // The board that changed is the ROUND's event, not the caller's active one —
+  // `refresh()` reads the session for that and would clear the wrong board.
+  revalidatePath("/", "layout");
+  boardChanged(player.eventId);
+  return { ok: true };
+}
+
+/**
  * The last day a player may change their answer for a round.
  *
  * Deliberately not behind the setup lock: a league is live for months, and
