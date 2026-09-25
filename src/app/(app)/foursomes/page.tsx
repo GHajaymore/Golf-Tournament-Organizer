@@ -2,6 +2,8 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
+import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
+import { roundHandicapOf } from "@/lib/domain/round-handicap";
 import { effectiveAllowance, effectiveCountBest, teamsForStage } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
 import { isHeadToHead } from "@/lib/stage-types";
@@ -258,6 +260,20 @@ export default async function FoursomesPage({
     stage,
     event: state.event,
   });
+
+  /**
+   * FROZEN, once the round's handicaps are locked — the number the round is
+   * actually scored on. `courseHandicaps` above is LIVE; the board, the entry
+   * dots and the stored team result all read the frozen figure through
+   * `roundHandicapOf`, so this printed card must too, or after a later index
+   * change it prints dots and a Hcp the round does not honour. A no-op until a
+   * round is frozen: `roundHandicapOf` returns the live figure when there is no
+   * row. This is the four-ball/singles/Hcp gap the sweep found — the single-ball
+   * side already reads `teamsForStage`'s frozen `playingHandicap`.
+   */
+  const roundHcpRows: RoundHandicapRows = stage ? await roundHandicapRows(session.eventId, stage.id) : new Map();
+  const frozenHandicapOf = (id: string): number =>
+    roundHandicapOf(roundHcpRows.get(id), courseHandicaps.get(id) ?? 0);
   /**
    * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
    * round's nine and RE-RANKS its stroke index — so this was
@@ -341,7 +357,7 @@ export default async function FoursomesPage({
   const playingOf = new Map<string, number>();
   for (const t of teams) {
     for (const m of t.members) {
-      playingOf.set(m.playerId, playingHandicapFrom(courseHandicaps.get(m.playerId) ?? 0, allowance));
+      playingOf.set(m.playerId, playingHandicapFrom(frozenHandicapOf(m.playerId), allowance));
     }
   }
   /** The lowest figure in a side's match — its own scale, so a shared ball is
@@ -380,8 +396,8 @@ export default async function FoursomesPage({
   if (matchPlay && teamRound && !teamRound.teams) {
     for (const m of matches) {
       if (!m.playerAId || !m.playerBId) continue;
-      const a = playingHandicapFrom(courseHandicaps.get(m.playerAId) ?? 0, allowance);
-      const b = playingHandicapFrom(courseHandicaps.get(m.playerBId) ?? 0, allowance);
+      const a = playingHandicapFrom(frozenHandicapOf(m.playerAId), allowance);
+      const b = playingHandicapFrom(frozenHandicapOf(m.playerBId), allowance);
       const low = Math.min(Math.round(a), Math.round(b));
       lowForPlayer.set(m.playerAId, low);
       lowForPlayer.set(m.playerBId, low);
@@ -411,7 +427,7 @@ export default async function FoursomesPage({
       .map((id) => nameOf.get(id))
       .filter((pl): pl is NonNullable<typeof pl> => !!pl)
       .map((pl) => {
-        const ch = courseHandicaps.get(pl.id) ?? 0;
+        const ch = frozenHandicapOf(pl.id);
         return {
           name: pl.name,
           handicap: pl.handicap,
