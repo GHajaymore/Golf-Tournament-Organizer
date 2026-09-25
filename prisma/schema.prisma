@@ -3235,3 +3235,24 @@ model PlatformSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+/// An owner-generated discount code — a percentage off, handed to a club.
+///
+/// Generated and managed from the owner console. Redemption at a paid upgrade
+/// is a future step (there is no billing flow yet); until then these are the
+/// codes the owner creates and gives out, with the usage cap and expiry that
+/// bound them. `code` is the primary key, stored uppercased so a lookup is
+/// case-insensitive by construction.
+model DiscountCode {
+  code           String    @id
+  /// Whole percent off, 1–100.
+  percentOff     Int
+  /// The owner's own note for what the code is for.
+  label          String    @default("")
+  active         Boolean   @default(true)
+  /// How many redemptions are allowed, or null for no limit.
+  maxRedemptions Int?
+  timesRedeemed  Int       @default(0)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+}

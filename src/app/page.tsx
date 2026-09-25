@@ -615,10 +615,11 @@ ${landingTokens("light", "    ")}
  * The cup is left unfilled here because it sits on the fairway-green ground
  * rather than on a flat surface.
  */
-function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
+function FlagMark({ size = LOGO_SIZE.md, emblem = false }: { size?: number; emblem?: boolean }) {
   return (
     <Logo
       size={size}
+      emblem={emblem}
       style={
         {
           // Pennant orange, ball green, stick in ink — the programme's
@@ -704,7 +705,7 @@ export default async function LoginPage() {
                 as subordinate to the sentence on the one page whose job is to
                 say who we are. Still a value from LOGO_SIZE, so the one-size
                 rule brand-consistency.test.ts enforces still holds. */}
-            <FlagMark size={LOGO_SIZE.lg} />
+            <FlagMark size={LOGO_SIZE.lg} emblem />
             {/* The same lockup the app uses, re-skinned by variables — the
                 pattern FlagMark above already follows. It used to be written
                 out here by hand in the sans face with an italic "HQ", so the
@@ -1024,6 +1025,25 @@ export default async function LoginPage() {
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.8l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.6 6.7 19.5l1.1-6.1L3.4 9.2l6-.8z" /></svg>
               <h3>However you&rsquo;re organised</h3>
               <p>A club with a members&rsquo; roster, a society playing a different course each month, or four of you on a Saturday. Each gets the parts that apply and is never asked about the rest.</p>
+            </div>
+            {/* Three more — the money, the recognition, and the message that
+                gets the tee time to the tee. The parts an organizer was
+                otherwise doing in a spreadsheet, an envelope of cash and a
+                reply-all thread. Fifteen keeps the three-column grid square. */}
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3" /><path d="M4.5 6v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3V6" /><path d="M4.5 12c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3" /></svg>
+              <h3>The money, to the penny</h3>
+              <p>Skins with carries, Nassau, low gross and net, the birdie pot, the buggies split and the prize fund — each worked out exactly and handed back as a record. TourneyHQ does the sums and never holds a cent.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4h10v3.5a5 5 0 01-10 0z" /><path d="M7 4H4.6a2.4 2.4 0 002.7 3M17 4h2.4a2.4 2.4 0 01-2.7 3" /><path d="M12 12.5V17M8.5 20.5h7M10 17h4" /></svg>
+              <h3>Prizes and the honours board</h3>
+              <p>Prize lists by finishing order, the winners the committee confirms, and the champion up on the honours board — the recognition the members turned up for.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 16.5V11a5.5 5.5 0 0111 0v5.5l1.6 2.2H4.9z" /><path d="M10 21a2 2 0 004 0" /></svg>
+              <h3>Tee times, straight to the phone</h3>
+              <p>Publish the sheet and each player&rsquo;s time is pushed to the phone in their pocket — no email nobody opens, no group chat to scroll for who&rsquo;s off when.</p>
             </div>
           </div>
         </div>

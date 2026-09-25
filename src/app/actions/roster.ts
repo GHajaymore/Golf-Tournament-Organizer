@@ -15,6 +15,7 @@ import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
+import { effectiveCapacity } from "@/lib/services/limits";
 import { phoneRequiredFor } from "@/lib/plans";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { settingsOf } from "@/lib/services/tournament";
@@ -461,7 +462,12 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const agg = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   let seed = (agg._max.seed ?? 0) + 1;
-  const unlimited = event.capacity <= 0;
+  // The organizer's capacity, tightened to the tier's field cap when the owner
+  // has enforcement on (a no-op otherwise). Members over the cap waitlist by the
+  // same rule as any full field, so adding the whole club never silently
+  // exceeds the tier — it queues the overflow instead.
+  const capacity = await effectiveCapacity(organizationId, event.capacity);
+  const unlimited = capacity <= 0;
 
   let added = 0;
   let waitlisted = 0;
@@ -523,7 +529,7 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
       else needPhone.push(m.name);
       continue;
     }
-    const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
+    const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
     else waitlisted += 1;
 

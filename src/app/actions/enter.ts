@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { accessibleEvents } from "@/lib/services/access";
 import { decideIntake, approvalModeOf } from "@/lib/domain/registration-intake";
+import { effectiveCapacity } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 
@@ -137,6 +138,11 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   }
 
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  // The organizer's capacity, tightened to the tier's field cap when the owner
+  // has enforcement on — a no-op otherwise, so entry is unchanged until then. A
+  // member over the cap waitlists through the same rule as any full field,
+  // rather than being refused.
+  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
   const decision = decideIntake({
     registrationOpen: event.registrationOpen,
     approvalMode: approvalModeOf(event.registrationApproval),
@@ -144,7 +150,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       eventStatus: event.status,
       deadline: event.regDeadline,
       opens: event.regOpens,
-      capacity: event.capacity,
+      capacity,
       confirmedCount,
       override: event.registrationOverride,
     },

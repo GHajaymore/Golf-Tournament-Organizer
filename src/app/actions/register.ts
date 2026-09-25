@@ -7,6 +7,7 @@ import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import { planForEvent } from "@/lib/services/entitlements";
+import { effectiveCapacity } from "@/lib/services/limits";
 import { phoneRequiredFor } from "@/lib/plans";
 import {
   cleanRegistration,
@@ -120,7 +121,10 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
       deadline: event.regDeadline,
       // The enforcement point: the form and the lists only DISPLAY the date.
       opens: event.regOpens,
-      capacity: event.capacity,
+      // The organizer's capacity, tightened to the tier's field cap when the
+      // owner has enforcement on (a no-op otherwise). A stranger over the cap
+      // waitlists like any full field — never refused with a billing wall.
+      capacity: await effectiveCapacity(event.organizationId, event.capacity),
       confirmedCount,
       override: event.registrationOverride,
     },
