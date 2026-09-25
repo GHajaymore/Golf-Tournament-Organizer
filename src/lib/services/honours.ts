@@ -149,11 +149,14 @@ export async function championSuggestions(organizationId: string): Promise<Pendi
     ).map((r) => r.eventId),
   );
 
-  const pending: PendingChampion[] = [];
-  for (const event of events) {
-    if (confirmed.has(event.id)) continue;
-    const state = await loadEventState(event.id);
-    pending.push({
+  // Each unconfirmed event is a full loadEventState; awaiting them one at a time
+  // made the honours screen a waterfall. They are independent — resolve in
+  // parallel and keep event order.
+  const unconfirmed = events.filter((event) => !confirmed.has(event.id));
+  const states = await Promise.all(unconfirmed.map((event) => loadEventState(event.id)));
+  const pending: PendingChampion[] = unconfirmed.map((event, i) => {
+    const state = states[i];
+    return {
       eventId: event.id,
       eventName: event.name,
       dates: event.dates,
@@ -161,8 +164,8 @@ export async function championSuggestions(organizationId: string): Promise<Pendi
       suggestion: state
         ? suggestChampion({ completed: true, positions: positionsFrom(state) })
         : { ok: false, reason: "no-results", tied: [] },
-    });
-  }
+    };
+  });
   return pending;
 }
 
