@@ -56,6 +56,15 @@ export function OwnerPricing({
         <span className="text-muted" style={{ fontSize: 11.5 }}>Sets the price every screen quotes.</span>
       </div>
 
+      {/* How to use it — this console is the only place you'll ever set a
+          price, so the instructions live right on it. */}
+      <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, margin: "8px 0 0" }}>
+        Type a monthly price for each paid tier and press <strong>Save prices</strong>. It goes live
+        immediately — on the public pricing page, at sign-up, and in the search-engine listing — with
+        no deploy. The yearly figure is worked out for you (ten months billed, two free). Enter a whole
+        dollar amount for each paid tier; the Free tier always stays free.
+      </p>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
         {tiers.map((t) => {
           const val = Number(prices[t.key]);
