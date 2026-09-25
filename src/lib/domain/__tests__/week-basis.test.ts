@@ -5,6 +5,8 @@ import {
   levelOnBasis,
   valueOnBasis,
   directionOnBasis,
+  compareNight,
+  nightLevel,
   WEEK_BASIS_LABEL,
   WEEK_BASIS_COLUMN,
 } from "../week-basis";
@@ -27,6 +29,54 @@ const FIELD = [
   { name: "higher", gross: 78, net: 65, points: 33 },
   { name: "highest", gross: 79, net: 64, points: 36 },
 ];
+
+/**
+ * A LEVEL NIGHT IS BROKEN BY THE BOARD'S COUNTBACK, NOT BY GROSS.
+ *
+ * `/week` used to break a net tie on gross (`a.net - b.net || a.gross - b.gross`)
+ * while the leaderboard and `/live` break it on the last-nine-net countback — so
+ * two players level on net were ordered one way on the sheet and the other on
+ * the board. `compareNight`/`nightLevel` move the sheet onto that same countback.
+ *
+ * The fixture is chosen so the countback and gross DISAGREE — a fixture where
+ * they agree cannot express the wrong answer. Reverting the tiebreak to gross
+ * flips these assertions.
+ */
+describe("a league night breaks a tie on the leaderboard's countback", () => {
+  // Net 72 each. A: front 35 / back 37, gross 72 (the old gross tiebreak's
+  // winner). B: front 38 / back 34, gross 74 — worse gross, better back nine.
+  const A = {
+    gross: 72,
+    net: 72,
+    points: 0,
+    cbHoles: [4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 5, 4, 4, 4, 4, 4],
+  };
+  const B = {
+    gross: 74,
+    net: 72,
+    points: 0,
+    cbHoles: [4, 4, 5, 4, 5, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 3, 4, 4],
+  };
+
+  it("puts the better back nine first, though its gross is higher", () => {
+    // A's last nine sums to 37 net, B's to 34 — B wins the countback.
+    expect(compareNight("net", 18, A, B)).toBeGreaterThan(0); // A ranks after B
+    expect(compareNight("net", 18, B, A)).toBeLessThan(0);
+    // And that is the OPPOSITE of the old gross tiebreak, which favoured A.
+    expect(A.gross).toBeLessThan(B.gross);
+  });
+
+  it("calls two cards level only when the countback cannot separate them", () => {
+    expect(nightLevel("net", 18, A, { ...A })).toBe(true);
+    expect(nightLevel("net", 18, A, B)).toBe(false);
+  });
+
+  it("leaves a clear win on the night's figure alone", () => {
+    const winner = { ...A, net: 70 };
+    expect(compareNight("net", 18, winner, A)).toBeLessThan(0);
+    expect(nightLevel("net", 18, winner, A)).toBe(false);
+  });
+});
 
 const orderOn = (basis: Parameters<typeof compareOnBasis>[0]) =>
   [...FIELD].sort((a, b) => compareOnBasis(basis, a, b)).map((r) => r.name);
