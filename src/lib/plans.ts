@@ -190,7 +190,10 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "club",
     name: "Club",
     blurb: "For a golf club — every competition, your own branding, WHS posting, and any size of field.",
-    priceMonthly: 149,
+    // Priced at ~50% of Golf Genius's ~$3,500/yr club subscription (Ajay,
+    // 2026-09-25): a peer product at half the incumbent, no $500 setup fee.
+    // $175/mo bills $1,750/yr at the ten-month annual. Owner-adjustable.
+    priceMonthly: 175,
     limits: {
       activeEvents: null,
       staffSeats: 10,
