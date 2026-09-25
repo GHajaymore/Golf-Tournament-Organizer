@@ -1,4 +1,5 @@
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
+import { holdsPosition } from "@/lib/domain/shared-position";
 import { cutLineIndex } from "@/lib/domain/cut";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
@@ -161,7 +162,7 @@ export function PlayerLeaderboard({
             You
           </span>
           <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
-            {you.ranked ? you.rank : "–"}
+            {holdsPosition(you) ? you.rank : "–"}
           </span>
           <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-neutral-400)" }}>
             {isStroke ? cardState(you, holes) : you.record}
@@ -257,7 +258,7 @@ export function PlayerLeaderboard({
                   color: r.ranked ? "var(--color-text)" : "var(--color-neutral-400)",
                 }}
               >
-                {r.ranked ? r.rank : "–"}
+                {holdsPosition(r) ? r.rank : "–"}
               </span>
 
               <span style={{ flex: 1, minWidth: 0 }}>

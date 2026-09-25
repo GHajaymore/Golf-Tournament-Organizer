@@ -60,6 +60,15 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
   const stillPlaying = view.rounds.filter((r) => !r.final && !r.sharedBall);
   const outstanding = stillPlaying.length > 0;
   /**
+   * SETTLED SIDE-BETS ON A ROUND STILL IN PLAY — a Nassau whose front nine is
+   * in. Its finished segments cannot change, so it is shown as a decided
+   * result while the rest of the round is still riding above. Only the Nassau
+   * qualifies (a pool pot can move on the last hole), and only its player's
+   * own figure — this is their screen. Not folded into the outing total; it
+   * flows there normally once the round finishes.
+   */
+  const settledLive = view.playerId ? view.rounds.filter((r) => r.settledSoFarCents !== 0) : [];
+  /**
    * What the headline total is actually over.
    *
    * "the whole tournament" is only true once nothing is outstanding. Read off
@@ -106,6 +115,44 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
           </span>
         </div>
       )}
+
+      {/*
+        Already decided, on a round still being played. A Nassau front nine
+        that is in cannot be undone by a back nine nobody has started, so it is
+        shown as a settled result rather than held with the exposure above.
+        It joins the round's payout and the outing total once the round is
+        final; until then it lives here so a player can see what they have
+        locked in without being shown a half-played pool pot that still can.
+      */}
+      {settledLive.map((r) => (
+        <div
+          key={r.stageId}
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "8px 12px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-divider)",
+            minWidth: 0,
+          }}
+        >
+          <span className="text-muted" style={{ fontSize: 12.5, minWidth: 0, lineHeight: 1.5 }}>
+            {r.label} Nassau &mdash; settled so far
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: 16,
+              whiteSpace: "nowrap",
+              color: tone(r.settledSoFarCents),
+            }}
+          >
+            {money(r.settledSoFarCents)}
+          </span>
+        </div>
+      ))}
 
       {!view.playerId ? (
         /**

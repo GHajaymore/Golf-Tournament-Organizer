@@ -13,14 +13,26 @@ describe("the hand-hung scoreboard", () => {
 
   it("puts a T on a shared position, counted over the whole field", () => {
     const all = [
-      { rank: 1, ranked: true },
-      { rank: 2, ranked: true },
-      { rank: 2, ranked: true },
-      { rank: 0, ranked: false },
+      { rank: 1, ranked: true, started: true },
+      { rank: 2, ranked: true, started: true },
+      { rank: 2, ranked: true, started: true },
+      { rank: 0, ranked: false, started: false },
     ];
     expect(positionLabel(all[0], all)).toBe("1");
     expect(positionLabel(all[1], all)).toBe("T2");
     expect(positionLabel(all[3], all)).toBe("–");
+  });
+
+  it("gives no position to a match player who has not teed off, and does not count them in a tie", () => {
+    // A match row is always `ranked`, so before it started this painted a
+    // position the hero on `/me` refused. Now the board agrees: no result yet,
+    // no place — and the not-started row is not counted toward the tie either.
+    const all = [
+      { rank: 1, ranked: true, started: true },
+      { rank: 1, ranked: true, started: false },
+    ];
+    expect(positionLabel(all[0], all)).toBe("1");
+    expect(positionLabel(all[1], all)).toBe("–");
   });
 
   it("hangs holes played, F when the card is in, and a dash before a shot", () => {
