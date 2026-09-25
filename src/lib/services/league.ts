@@ -5,6 +5,9 @@ import { resolveCourse } from "../courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { playingHandicapFrom } from "../domain/handicap";
 import { effectiveAllowance, effectiveCountBest } from "./teams";
+import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { roundHandicapRows } from "./round-handicap";
+import { roundHandicapOf } from "../domain/round-handicap";
 import {
   meetingPoints,
   meetingsIn,
@@ -152,9 +155,45 @@ export async function leagueMeetings(
   const cards = await prisma.teamScorecard.findMany({ where: { eventId, stageId } });
   const players = await prisma.player.findMany({
     where: { eventId },
-    select: { id: true, handicap: true },
+    select: { id: true, handicap: true, handicapType: true, teeId: true },
+  });
+
+  /**
+   * COURSE HANDICAPS, the way every other reader of this match prices it.
+   *
+   * This mapped playerId → `Player.handicap` — the roster INDEX — and applied
+   * only the allowance: no slope/rating conversion, no per-week venue tee, no
+   * frozen `RoundHandicap`. The stored result (`recomputeTeamMatch`), the
+   * score-entry dots and the printed card all convert to the Course Handicap
+   * first, so on any rated tee — every interclub venue — the league table was
+   * scored off a different figure than the card the members played to, and
+   * because the strokes are taken off the low and per hole the divergence lands
+   * on the hardest holes. The exact 2026-08-12 defect `recomputeTeamMatch`
+   * closed, reintroduced here when the method was swapped and the raw-index
+   * source was kept "deliberately".
+   *
+   * Resolved for THIS WEEK'S venue (`stage.courseId`, which `cardForStage` read
+   * above), through the same chain `recomputeTeamMatch` walks.
+   */
+  const teeRows = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const teamFlightTee = await flightTeeByPlayer(eventId);
+  const teamRound = await roundHandicapRows(eventId, stageId);
+  const courseHcp = roundCourseHandicaps({
+    tees: teeRows,
+    players,
+    flightTeeOf: teamFlightTee,
+    stage,
+    event,
+    holes: card.pars.length,
   });
   const handicapOf = new Map(players.map((p) => [p.id, p.handicap]));
+  /** What a player plays off this week: the frozen round handicap if one was
+   *  taken, else the Course Handicap, and only the raw index as a last resort. */
+  const playsOff = (id: string): number =>
+    roundHandicapOf(teamRound.get(id), courseHcp.get(id) ?? handicapOf.get(id) ?? 0);
 
   /**
    * One side as the balls of a match, for `matchHolesOffTheLow`.
@@ -183,7 +222,7 @@ export async function leagueMeetings(
         }
         return {
           strokes,
-          playingHandicap: playingHandicapFrom(handicapOf.get(c.playerId) ?? 0, allowancePct),
+          playingHandicap: playingHandicapFrom(playsOff(c.playerId), allowancePct),
         };
       });
 
