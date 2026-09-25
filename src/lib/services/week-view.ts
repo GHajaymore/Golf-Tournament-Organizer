@@ -22,10 +22,10 @@ import { skinsBoard, nassauBoard, type SkinsBoard, type NassauMatchRow } from ".
 import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
-  compareOnBasis,
-  levelOnBasis,
   valueOnBasis,
   directionOnBasis,
+  compareNight,
+  nightLevel,
   type WeekBasis,
 } from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
@@ -290,11 +290,12 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * PLACED THE WAY THE TEAM LEADERBOARD PLACES THEM, which is not the way the
    * player table above places players.
    *
-   * `placesByValue` ties on the ranked figure alone; `levelOnBasis`, which the
-   * player rows use, breaks a net tie on gross. Both conventions are live in
-   * this app on purpose (see the shared-places decision, still open), and the
-   * comparison a club actually makes is this table against the leaderboard's
-   * table of THE SAME SIDES ON THE SAME NIGHT.
+   * `placesByValue` ties on the ranked figure alone; the player rows above break
+   * a tie on the leaderboard's own countback (last nine, then six, three, one),
+   * so a level player table matches the board rather than a second opinion. Both
+   * conventions are live in this app on purpose (see the shared-places decision,
+   * still open), and the comparison a club actually makes is this table against
+   * the leaderboard's table of THE SAME SIDES ON THE SAME NIGHT.
    *
    * Written after reading the seeded club's foursomes: three sides on net 60,
    * shown as a three-way tie for first on the leaderboard and as 1st, 2nd and
@@ -390,15 +391,20 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   const played = wasPlayed(stage);
 
   const basis = weekBasis(stage.scoringBasis, stage.format);
+  // A level night is broken by the SAME countback the leaderboard and `/live`
+  // use — see `compareNight`. Each row carries this round's per-hole card on the
+  // night's basis so the tiebreak has something to count back over.
   const scored = state.confirmed
     .map((p) => {
       const a = agg.get(p.id) ?? emptyAgg();
+      const h = a.holesByStage.get(stage.id);
       return {
         playerId: p.id,
         name: p.name,
         gross: a.gross,
         net: netOf(a),
         points: a.points,
+        cbHoles: (basis === "stableford" ? h?.points : basis === "gross" ? h?.gross : h?.net) ?? [],
         thru: a.thru,
         /**
          * The card is IN — not merely started.
@@ -417,7 +423,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     // a league where missing a Tuesday puts you bottom of the sheet is a
     // league nobody comes back to.
     .filter((r) => r.thru > 0)
-    .sort((x, y) => compareOnBasis(basis, x, y));
+    .sort((x, y) => compareNight(basis, stage.holes, x, y));
 
   /**
    * A NIGHT THIS TABLE CANNOT SHOW IS NOT RANKED IN IT.
@@ -434,7 +440,20 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    */
   const nightKind = boardKind(stage.format);
   const ranksPlayers = nightKind === "standard" || nightKind === "modified-stableford";
-  const results = ranksPlayers ? positionWithTies(scored, (a, b) => levelOnBasis(basis, a, b)) : [];
+  const ranked = ranksPlayers
+    ? positionWithTies(scored, (a, b) => nightLevel(basis, stage.holes, a, b))
+    : [];
+  // Exactly `WeekResult` — the countback card (`cbHoles`) is a ranking input, not
+  // something the client needs, so it does not ride along in the payload.
+  const results: WeekResult[] = ranked.map((r) => ({
+    playerId: r.playerId,
+    name: r.name,
+    gross: r.gross,
+    net: r.net,
+    points: r.points,
+    thru: r.thru,
+    position: r.position,
+  }));
 
   /**
    * And the board that DOES decide it, read from the same service the

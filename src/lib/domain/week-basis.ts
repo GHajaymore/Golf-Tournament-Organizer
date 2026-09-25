@@ -1,4 +1,5 @@
 import { lookupFormat } from "@/lib/formats";
+import { countbackCompare } from "./stroke-countback";
 
 /**
  * What a league night is decided on, and what to call it.
@@ -138,6 +139,59 @@ export function compareOnBasis(
   // Gross breaks a net tie, which is the countback a committee reaches for
   // first and what this comparison already did.
   return a.net - b.net || a.gross - b.gross;
+}
+
+/**
+ * A NIGHT'S FIGURES PLUS THE CARD A COUNTBACK READS.
+ *
+ * `cbHoles` is this round's per-hole card on the night's own basis — net for a
+ * net comp, points for Stableford, gross for gross — exactly as `holesByStage`
+ * on the stroke aggregate holds it. Empty when there is no card to count back
+ * over, which the countback reads as "cannot separate".
+ */
+export interface NightRow {
+  gross: number;
+  net: number;
+  points: number;
+  cbHoles: (number | null)[];
+}
+
+/** The figure a night is ranked on. */
+export function nightFigureOf(basis: WeekBasis, r: { gross: number; net: number; points: number }): number {
+  return basis === "stableford" ? r.points : basis === "gross" ? r.gross : r.net;
+}
+
+/**
+ * Rank two rows for a league NIGHT, best first, breaking a tie by countback.
+ *
+ * This is `compareOnBasis` with the LEADERBOARD's tiebreak in place of gross.
+ * Breaking a net tie on gross hands the night to exactly the low handicapper a
+ * countback exists to stop, and disagreed with the board and `/live`, which
+ * break the same tie on the last nine (then six, three, one) of the night's own
+ * figure — see `cbCard` in `tournament.ts`. The primary figure is unchanged;
+ * only the tiebreak moves, onto the shared `countbackCompare`, so the sheet and
+ * the board cannot order two level players differently.
+ */
+export function compareNight(basis: WeekBasis, holeCount: number, a: NightRow, b: NightRow): number {
+  const fa = nightFigureOf(basis, a);
+  const fb = nightFigureOf(basis, b);
+  const primary = basis === "stableford" ? fb - fa : fa - fb;
+  if (primary !== 0) return primary;
+  return countbackCompare(
+    { playerId: "", total: 0, holes: a.cbHoles },
+    { playerId: "", total: 0, holes: b.cbHoles },
+    holeCount,
+    basis === "stableford",
+  );
+}
+
+/**
+ * Whether two rows are genuinely level on the night — the same figure AND a
+ * countback that cannot separate them, the same tie the board shows. Used to
+ * assign shared places, so the places match the order `compareNight` produced.
+ */
+export function nightLevel(basis: WeekBasis, holeCount: number, a: NightRow, b: NightRow): boolean {
+  return nightFigureOf(basis, a) === nightFigureOf(basis, b) && compareNight(basis, holeCount, a, b) === 0;
 }
 
 /** Whether two rows finished level on the night's own figure. */
