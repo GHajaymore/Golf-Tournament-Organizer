@@ -4,9 +4,11 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, effectivePrice } from "@/lib/plans";
+import { PLANS, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
+import { storedLimitOverrides } from "@/lib/services/platform-limits";
 import { OwnerPricing } from "@/components/OwnerPricing";
+import { OwnerLimits } from "@/components/OwnerLimits";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
 
@@ -110,6 +112,18 @@ export default async function OwnerConsolePage() {
     free: p.key === "free",
   }));
 
+  // The tier LIMITS the owner can tune, and whether they're enforced at all —
+  // the effective value per tier (an override if set, else the plan default),
+  // so the editor opens on the numbers actually in force.
+  const limitOverrides = await storedLimitOverrides();
+  const limitTiers = Object.values(PLANS).map((p) => ({
+    key: p.key,
+    name: p.name,
+    limits: Object.fromEntries(
+      LIMIT_KEYS.map((k) => [k, effectiveLimit(p, k, limitOverrides)]),
+    ) as Record<(typeof LIMIT_KEYS)[number], number | null>,
+  }));
+
   const stat = (label: string, value: string, sub?: string) => (
     <div className="card elev-sm" style={{ flex: 1, minWidth: 150, gap: 2 }}>
       <span className="card-kicker">{label}</span>
@@ -138,8 +152,10 @@ export default async function OwnerConsolePage() {
         {stat("Players", m.totalPlayers.toLocaleString(DEFAULT_LOCALE), "across every event")}
       </div>
 
-      {/* The one control that writes: set the price every screen quotes. */}
+      {/* The controls that write: the price every screen quotes, and the caps
+          every entry gate reads. */}
       <OwnerPricing tiers={tiers} />
+      <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
 
       {/* Tier mix */}
       <div className="card elev-sm" style={{ marginBottom: 16 }}>

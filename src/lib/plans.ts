@@ -17,9 +17,11 @@
  * value metric a buyer understands, and it does the anti-abuse work that four
  * separate feature walls did before.
  *
- * Nothing enforces these yet. They exist so the shape is settled before
- * payments are wired up; `limitCheck` below is the intended single entry point
- * when enforcement does arrive.
+ * These ARE enforced, through `limitCheck` below and `services/limits.ts` — but
+ * only when the owner turns enforcement on from the console (`enforce`, default
+ * OFF), so an organization that predates billing is never locked out of a
+ * tournament it already runs. The numbers themselves are owner-configurable too
+ * (`effectiveLimit`), the same way prices are; the values here are defaults.
  */
 
 export type PlanKey = "free" | "society" | "club";
@@ -325,7 +327,125 @@ export function effectiveAnnualPrice(plan: Plan, overrides: PricingOverrides = p
   return effectivePrice(plan, overrides) * ANNUAL_MONTHS_CHARGED;
 }
 
-export type LimitKey = "activeEvents" | "staffSeats";
+/** The three levers a tier limits. Order is the owner console's field order. */
+export const LIMIT_KEYS = ["activeEvents", "staffSeats", "playersPerEvent"] as const;
+export type LimitKey = (typeof LIMIT_KEYS)[number];
+
+/** Plain-words label for each limit, for a refusal message and the console. */
+export const LIMIT_LABEL: Record<LimitKey, string> = {
+  activeEvents: "active tournaments",
+  staffSeats: "staff seats",
+  playersPerEvent: "players in a tournament",
+};
+
+/**
+ * LIMITS ARE CONFIGURABLE WITHOUT A CODE EDIT, exactly like prices above.
+ *
+ * The numbers in `PLANS[...].limits` are DEFAULTS. The field cap, the seat
+ * count and the active-tournament count are the levers an operator tunes as the
+ * business learns what a tier is worth — and, like a price, tuning one must not
+ * mean editing this file and shipping a build. So an override layer sits in
+ * front of them, the same shape and the same refuses-to-throw discipline as
+ * `PricingOverrides`: an env value today (`TOURNEYHQ_LIMITS`), the owner
+ * console writing the same JSON tomorrow, and one reader (`effectiveLimit`).
+ *
+ * It also carries the MASTER SWITCH. `enforce` is false unless an operator sets
+ * it true, because turning refusals on for organizations that predate billing
+ * would lock them out of tournaments they already run — an outage, not a
+ * business model (see services/limits.ts). Enforcement is a decision the owner
+ * makes explicitly, from the console.
+ *
+ * The shape: `{"enforce":true,"plans":{"free":{"playersPerEvent":12}}}`.
+ *
+ * A limit value may be `null`, which means UNLIMITED and is a real choice,
+ * distinct from absent (which falls back to the plan default).
+ */
+export interface LimitOverrides {
+  enforce: boolean;
+  plans: Partial<Record<PlanKey, Partial<Record<LimitKey, number | null>>>>;
+}
+
+export function parseLimitOverrides(stored: string | null | undefined): LimitOverrides {
+  const empty: LimitOverrides = { enforce: false, plans: {} };
+  const text = (stored ?? "").trim();
+  if (!text) return empty;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return empty;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return empty;
+  const obj = parsed as Record<string, unknown>;
+
+  const out: LimitOverrides = { enforce: obj.enforce === true, plans: {} };
+  const plans = obj.plans;
+  if (plans && typeof plans === "object" && !Array.isArray(plans)) {
+    for (const [key, value] of Object.entries(plans as Record<string, unknown>)) {
+      // A plan key nothing knows about is ignored, exactly as pricing does.
+      if (!(key in PLANS)) continue;
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const per: Partial<Record<LimitKey, number | null>> = {};
+      for (const limit of LIMIT_KEYS) {
+        const v = (value as Record<string, unknown>)[limit];
+        // null is UNLIMITED, a real choice. A cap is a non-negative integer;
+        // "12", NaN, -1 and true are not, and are dropped to the default.
+        if (v === null) per[limit] = null;
+        else if (typeof v === "number" && Number.isFinite(v) && v >= 0) per[limit] = Math.floor(v);
+      }
+      if (Object.keys(per).length > 0) out.plans[key as PlanKey] = per;
+    }
+  }
+  return out;
+}
+
+/** Overrides from the environment. The owner console supplies the same shape
+ *  from stored settings; pass it to the readers directly. */
+export function limitOverrides(): LimitOverrides {
+  return parseLimitOverrides(process.env.TOURNEYHQ_LIMITS);
+}
+
+/**
+ * Whether refusals are switched on at all — the owner's master switch, default
+ * OFF. Nothing is ever refused while this is false, whatever the numbers say.
+ */
+export function enforcementEnabled(overrides: LimitOverrides = limitOverrides()): boolean {
+  return overrides.enforce === true;
+}
+
+/**
+ * The limit to APPLY for a plan: the override if the operator set one (a cap or
+ * an explicit unlimited), else the plan's own default. One reader, so the gate
+ * and the owner console can never disagree about the number.
+ */
+export function effectiveLimit(
+  plan: Plan,
+  key: LimitKey,
+  overrides: LimitOverrides = limitOverrides(),
+): number | null {
+  const per = overrides.plans[plan.key];
+  if (per && key in per) {
+    const v = per[key];
+    if (v === null) return null;
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  }
+  return plan.limits[key];
+}
+
+/**
+ * The field capacity to APPLY, given the organizer's own capacity and the
+ * tier's cap. Pure, so the rule is unit-testable without a database — the
+ * services layer supplies the tier cap and this decides the number.
+ *
+ * `0` is the organizer's "unlimited"; `null` is the tier's "unlimited". An
+ * unlimited organizer capacity becomes the tier cap; an unlimited tier leaves
+ * the organizer's number alone; otherwise the tighter of the two wins.
+ */
+export function capacityUnderCap(organizerCapacity: number, tierCap: number | null): number {
+  if (tierCap === null) return organizerCapacity;
+  if (organizerCapacity <= 0) return tierCap;
+  return Math.min(organizerCapacity, tierCap);
+}
 
 export interface LimitResult {
   allowed: boolean;
@@ -338,21 +458,27 @@ export interface LimitResult {
 /**
  * Single entry point for "may this organization add one more?".
  *
- * Not called anywhere yet. When enforcement is switched on, call this rather
- * than comparing counts inline, so every limit reads from one place.
+ * Reads the EFFECTIVE limit, so an owner override moves the gate with it. This
+ * says nothing about whether enforcement is switched ON — that is
+ * `enforcementEnabled`, checked by the caller in services/limits.ts, so a
+ * `false` here always means the count genuinely exceeds a configured cap.
  */
-export function limitCheck(planKey: string, limit: LimitKey, current: number): LimitResult {
+export function limitCheck(
+  planKey: string,
+  limit: LimitKey,
+  current: number,
+  overrides: LimitOverrides = limitOverrides(),
+): LimitResult {
   const plan = planFor(planKey);
-  const max = plan.limits[limit];
+  const max = effectiveLimit(plan, limit, overrides);
   if (max === null) return { allowed: true, limit: null, current };
   if (current < max) return { allowed: true, limit: max, current };
 
-  const what = limit === "activeEvents" ? "active tournaments" : "staff seats";
   return {
     allowed: false,
     limit: max,
     current,
-    reason: `The ${plan.name} plan includes ${max} ${what}. Upgrade to add more.`,
+    reason: `The ${plan.name} plan includes ${max} ${LIMIT_LABEL[limit]}. Upgrade to add more.`,
   };
 }
 
