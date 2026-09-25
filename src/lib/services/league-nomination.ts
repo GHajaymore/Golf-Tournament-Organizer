@@ -1,7 +1,10 @@
 import "server-only";
 import { prisma } from "../db";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { settingsOf } from "./tournament";
+import { loadEventState, playingStages, settingsOf } from "./tournament";
+import { roundLabel } from "../domain/round-label";
+import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { todayIso } from "../deadline";
 
 /**
  * WHO A CAPTAIN HAS TO PICK FROM, AND WHO THEY HAVE ALREADY PICKED.
@@ -154,6 +157,81 @@ export async function nominationsFor(
     })),
     roster,
     expected: event.leaguePairs,
+  };
+}
+
+export interface CaptainTeamSheet {
+  /** The round the captain is picking for now. */
+  round: { stageId: string; label: string; dateLabel: string };
+  /** True when every round is behind us — the captain is viewing the last one. */
+  seasonOver: boolean;
+  /** One team sheet per flight this caller captains — usually exactly one. */
+  clubs: ClubNominations[];
+}
+
+/**
+ * A CAPTAIN'S OWN TEAM SHEET, for the week they are picking now.
+ *
+ * The read side of the captain's screen. Authorization is the same rule
+ * `captainClubs` enforces on the write actions and `availabilityFor` on the
+ * read view: the caller may see only a flight they captain (or deputise for)
+ * AND still belong to — a captain moved out of a flight by a regroup keeps
+ * neither. Returns null when the caller captains nothing here, or the event
+ * doesn't run the weekly question, so the screen shows one honest empty state
+ * rather than branching on three shapes of absence.
+ *
+ * "This week" is the first round not yet in the past — the one a captain is
+ * actually choosing for. When the season is done it falls back to the last
+ * round so the sheet still reads rather than vanishing.
+ */
+export async function captainTeamSheetFor(
+  eventId: string,
+  email: string,
+  now: Date = new Date(),
+): Promise<CaptainTeamSheet | null> {
+  const state = await loadEventState(eventId);
+  if (!state) return null;
+  const mode = settingsOf(state.event).attendanceMode as AttendanceMode;
+  if (!tracksPerRound(mode)) return null;
+
+  const own = await prisma.player.findMany({
+    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
+    select: { id: true, groupId: true },
+  });
+  if (!own.length) return null;
+  const ownIds = own.map((o) => o.id);
+
+  const captained = await prisma.group.findMany({
+    where: { eventId, OR: [{ captainId: { in: ownIds } }, { viceCaptainId: { in: ownIds } }] },
+    select: { id: true },
+  });
+  // Still IN the flight they captain — the membership re-check `availability.ts`
+  // documents at length: `movePlayerToGroup`/`regroup` leave `captainId` behind.
+  const mine = captained.filter((g) => own.some((o) => o.groupId === g.id));
+  if (!mine.length) return null;
+
+  const rounds = playingStages(state.stages);
+  if (!rounds.length) return null;
+  const today = todayIso(now);
+  const next = rounds.find((r) => {
+    const d = cleanIsoDate(r.playedOn);
+    return !d || d >= today;
+  });
+  const round = next ?? rounds[rounds.length - 1];
+  const playedOn = cleanIsoDate(round.playedOn);
+
+  const clubs = (
+    await Promise.all(mine.map((g) => nominationsFor(eventId, round.id, g.id)))
+  ).filter((c): c is ClubNominations => c !== null);
+
+  return {
+    round: {
+      stageId: round.id,
+      label: roundLabel(state.stages, round.id),
+      dateLabel: playedOn ? shortDate(playedOn) : "",
+    },
+    seasonOver: !next,
+    clubs,
   };
 }
 

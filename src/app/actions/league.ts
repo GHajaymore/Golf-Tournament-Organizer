@@ -12,6 +12,8 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { needsTeams } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { leagueMeetings, leaguePlayoffs, leagueSeason } from "@/lib/services/league";
+import { settingsOf } from "@/lib/services/tournament";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 
 /**
  * Organizer or assistant, on the active tournament.
@@ -28,6 +30,62 @@ async function requireStaff(): Promise<string> {
     throw new Error("Organizer access required");
   }
   return session.eventId;
+}
+
+/**
+ * The clubs this caller captains, and STILL belongs to.
+ *
+ * A captain is appointed per flight (`Group.captainId` / `viceCaptainId`) and
+ * is a player like any other — there is no `captain` role. So a captain-facing
+ * action authorizes from the flight, not the active-event cookie: the caller is
+ * whoever `session.email` resolves to, and they may act only on a flight they
+ * captain AND are still a member of. That membership re-check is the same one
+ * `availability.ts` documents at length — `movePlayerToGroup` and `regroup`
+ * both leave `captainId` behind, so a captain moved out of a flight must not
+ * keep authority over it.
+ *
+ * Returns a map of clubId → the event that club is in, so a caller-supplied
+ * club or pair id is checked against a set derived from `session.email` rather
+ * than trusted. `audit-idor` accepts exactly that: a `.has(clubId)` membership
+ * test, or an id in a `where` that also carries the event this map yields.
+ */
+async function captainClubs(): Promise<Map<string, string>> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const rows = await prisma.player.findMany({
+    where: {
+      email: { equals: session.email, mode: "insensitive" },
+      status: "confirmed",
+      OR: [{ captainOf: { some: {} } }, { viceCaptainOf: { some: {} } }],
+    },
+    select: {
+      eventId: true,
+      groupId: true,
+      captainOf: { select: { id: true } },
+      viceCaptainOf: { select: { id: true } },
+    },
+  });
+  const clubs = new Map<string, string>();
+  for (const r of rows) {
+    // Still in the flight they captain — a captain moved out keeps neither the
+    // panel nor the authority.
+    for (const g of [...r.captainOf, ...r.viceCaptainOf]) {
+      if (g.id === r.groupId) clubs.set(g.id, r.eventId);
+    }
+  }
+  return clubs;
+}
+
+/**
+ * Whether a club's event runs the weekly attendance question at all.
+ *
+ * Team selection is a league feature: an ordinary tournament has no rounds to
+ * pick a side for week by week. `everyone` mode is the switch turned off, so a
+ * captain action refuses there even if a stray flight carried a captain.
+ */
+async function eventTracksAttendance(eventId: string): Promise<boolean> {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  return !!event && tracksPerRound(settingsOf(event).attendanceMode as AttendanceMode);
 }
 
 /**
@@ -73,7 +131,47 @@ export async function nominatePair(
   playerIds: string[],
 ): Promise<LeagueResult> {
   const eventId = await requireStaff();
+  return nominatePairInEvent(eventId, stageId, clubId, playerIds);
+}
 
+/**
+ * The same nomination, for a CAPTAIN acting on their own club.
+ *
+ * `captainClubs` maps every flight this caller captains-and-belongs-to to its
+ * event, so `clubId` is checked against a set derived from `session.email`
+ * (never the active-event cookie) and the event is taken from that map. The
+ * validation is then byte-identical to the organizer's — a captain is a
+ * convenience layer over the same public endpoint, not a second set of rules.
+ */
+export async function captainNominatePair(
+  stageId: string,
+  clubId: string,
+  playerIds: string[],
+): Promise<LeagueResult> {
+  const clubs = await captainClubs();
+  const eventId = clubs.get(clubId);
+  if (!eventId) return { ok: false, error: "You don't captain that team." };
+  if (!(await eventTracksAttendance(eventId))) {
+    return { ok: false, error: "Team selection isn't enabled for this tournament." };
+  }
+  return nominatePairInEvent(eventId, stageId, clubId, playerIds);
+}
+
+/**
+ * The nomination itself, once the caller's authority over `eventId` is settled.
+ *
+ * Extracted so the organizer path and the captain path share one set of rules
+ * — on the roster, not already out this week, both in this tournament — rather
+ * than drifting into two. `eventId` arrives already tied to the caller (staff's
+ * active event, or a club the caller captains), and every id below is narrowed
+ * through it, so the rows this works from are always the caller's own.
+ */
+async function nominatePairInEvent(
+  eventId: string,
+  stageId: string,
+  clubId: string,
+  playerIds: string[],
+): Promise<LeagueResult> {
   const club = await clubInEvent(eventId, clubId);
   if (!club) return { ok: false, error: "That club is not in this league." };
 
@@ -194,7 +292,33 @@ export async function nominatePair(
  */
 export async function withdrawPair(pairId: string): Promise<LeagueResult> {
   const eventId = await requireStaff();
+  return withdrawPairInEvent(eventId, pairId);
+}
 
+/**
+ * The same withdrawal, for a CAPTAIN acting on their own club's pair.
+ *
+ * The pair is looked up scoped to the clubs this caller captains AND to their
+ * events — both drawn from `session.email` via `captainClubs` — so a captain
+ * can only take down a pair of a team they run. The event then comes from the
+ * pair's own row, never the caller.
+ */
+export async function captainWithdrawPair(pairId: string): Promise<LeagueResult> {
+  const clubs = await captainClubs();
+  if (!clubs.size) return { ok: false, error: "You don't captain a team." };
+  const pair = await prisma.team.findFirst({
+    where: {
+      id: pairId,
+      clubGroupId: { in: [...clubs.keys()] },
+      eventId: { in: [...new Set(clubs.values())] },
+    },
+    select: { id: true, eventId: true },
+  });
+  if (!pair) return { ok: false, error: "That pair is not one of your team's." };
+  return withdrawPairInEvent(pair.eventId, pairId);
+}
+
+async function withdrawPairInEvent(eventId: string, pairId: string): Promise<LeagueResult> {
   const pair = await prisma.team.findFirst({
     where: { id: pairId, eventId, clubGroupId: { not: null } },
     select: { id: true, name: true },

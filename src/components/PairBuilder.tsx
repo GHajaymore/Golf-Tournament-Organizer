@@ -26,7 +26,24 @@ import type { ClubNominations } from "@/lib/services/league-nomination";
  * public HTTP endpoint. The two-at-a-time limit here is to stop a captain
  * clicking a third name, not to keep anything safe.
  */
-export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId: string }) {
+export function PairBuilder({
+  club,
+  stageId,
+  onNominate = nominatePair,
+  onWithdraw = withdrawPair,
+}: {
+  club: ClubNominations;
+  stageId: string;
+  /**
+   * The actions to nominate and withdraw. Default to the organizer's, so the
+   * grouping screen renders exactly as before; the captain's own team sheet
+   * passes the captain-scoped pair, which authorises against the flight they
+   * captain rather than the active-event cookie. Same UI, same rules on the
+   * server, different door in.
+   */
+  onNominate?: typeof nominatePair;
+  onWithdraw?: typeof withdrawPair;
+}) {
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -46,7 +63,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
 
   const nominate = () => {
     startTransition(async () => {
-      const result = await nominatePair(stageId, club.clubId, picked);
+      const result = await onNominate(stageId, club.clubId, picked);
       if (result.ok) setPicked([]);
       else setError(result.error);
     });
@@ -54,7 +71,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
 
   const withdraw = (pairId: string) => {
     startTransition(async () => {
-      const result = await withdrawPair(pairId);
+      const result = await onWithdraw(pairId);
       if (!result.ok) setError(result.error);
     });
   };
