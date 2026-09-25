@@ -47,6 +47,26 @@ export interface PositionRow {
 }
 
 /**
+ * Whether a row holds a position at all — the single rule every board asks.
+ *
+ * Both halves, and they are different questions. `started` is whether there is
+ * a result to report on; `ranked` is whether it earned a place. A 5&4 card has
+ * the first and not the second; a match player who has not teed off has
+ * neither, yet is `ranked: true` in the standings (a match row always is) — so
+ * a board that gated on `ranked` alone painted them a position the hero on
+ * `/me` refused. In stroke play `ranked` already implies `started` (a card with
+ * no holes is not ranked — see `isRanked`), so this only changes the match
+ * boards, bringing them into line with the player's own screen.
+ *
+ * Every reader that prints a position — the scoreboard tiles, both leaderboard
+ * tables and the player's own row — goes through this, so the four cannot
+ * disagree about who has a place. Pinned by `holds-position.test.ts`.
+ */
+export function holdsPosition(row: { ranked: boolean; started: boolean }): boolean {
+  return row.ranked && row.started;
+}
+
+/**
  * "T2" for a shared position, "2" for a solo one, "" when they have none.
  *
  * Returns the text rather than a boolean so the caller cannot render the
@@ -54,10 +74,7 @@ export interface PositionRow {
  */
 export function positionLabel(rows: PositionRow[], playerId: string): string {
   const mine = rows.find((r) => r.id === playerId);
-  // Both, and they are different questions. `started` is whether there is a
-  // result to report on; `ranked` is whether it earned a place. A 5&4 card has
-  // the first and not the second.
-  if (!mine || !mine.started || !mine.ranked) return "";
-  const sharing = rows.filter((r) => r.started && r.ranked && r.rank === mine.rank).length;
+  if (!mine || !holdsPosition(mine)) return "";
+  const sharing = rows.filter((r) => holdsPosition(r) && r.rank === mine.rank).length;
   return sharing > 1 ? `T${mine.rank}` : `${mine.rank}`;
 }

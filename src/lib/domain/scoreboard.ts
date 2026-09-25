@@ -9,11 +9,20 @@
  * screens cannot disagree about who leads.
  */
 
+import { holdsPosition } from "./shared-position";
+
 export interface BoardRow {
   id: string;
   name: string;
   rank: number;
   ranked: boolean;
+  /**
+   * Whether this row has a RESULT in this round yet — a match player who has
+   * not teed off is `ranked` but not `started`, and holds no position. Same
+   * fact `standingRows` computes for the player's own screen; see
+   * `holdsPosition`.
+   */
+  started: boolean;
   thru: number;
   holesOwed: number;
   absent?: boolean;
@@ -41,9 +50,12 @@ export function boardNames(names: readonly string[]): string[] {
  * over the whole field, not the rows shown, so a tie with somebody below the
  * fold is still a tie. An unranked row has no position.
  */
-export function positionLabel(row: Pick<BoardRow, "rank" | "ranked">, all: readonly Pick<BoardRow, "rank" | "ranked">[]): string {
-  if (!row.ranked || row.rank <= 0) return "–";
-  const shared = all.filter((r) => r.ranked && r.rank === row.rank).length > 1;
+export function positionLabel(
+  row: Pick<BoardRow, "rank" | "ranked" | "started">,
+  all: readonly Pick<BoardRow, "rank" | "ranked" | "started">[],
+): string {
+  if (!holdsPosition(row) || row.rank <= 0) return "–";
+  const shared = all.filter((r) => holdsPosition(r) && r.rank === row.rank).length > 1;
   return shared ? `T${row.rank}` : String(row.rank);
 }
 

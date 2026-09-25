@@ -400,7 +400,7 @@ export function roundMoneyFinality(input: {
 async function gameNets(
   eventId: string,
   onlyStageId?: string,
-): Promise<{ nets: Net[]; lines: GameLine[] }> {
+): Promise<{ nets: Net[]; nassauNets: Net[]; lines: GameLine[] }> {
   /**
    * TWO lists, because a withdrawal separates two questions.
    *
@@ -425,6 +425,18 @@ async function gameNets(
   // view and the outing ledger read the same arithmetic.
   const stageWhere = onlyStageId ? { stageId: onlyStageId } : {};
   const totals = new Map<string, number>();
+  /**
+   * The Nassau slice of `totals`, kept apart for one caller.
+   *
+   * A Nassau settles per SEGMENT — a finished front nine cannot be re-decided
+   * by a back nine nobody has started (see the branch below and
+   * `money-layout.ts`) — and it is the one bet `stakeFor` never counts as
+   * exposure. Both together are why `roundMoneyFor` can show it on a round
+   * still in play without either leaking a half-played position or
+   * double-counting a stake. Every other pot on a live round is withheld, so
+   * this is the only settled money that surfaces before the round is final.
+   */
+  const nassauTotals = new Map<string, number>();
   /**
    * The itemised half.
    *
@@ -696,7 +708,10 @@ async function gameNets(
                 stakeCents: game.buyInCents,
               };
             });
-          for (const n of nassauLedger(bets)) add(n.playerId, n.netCents);
+          for (const n of nassauLedger(bets)) {
+            add(n.playerId, n.netCents);
+            nassauTotals.set(n.playerId, (nassauTotals.get(n.playerId) ?? 0) + n.netCents);
+          }
           continue;
         }
 
@@ -886,6 +901,7 @@ async function gameNets(
 
   return {
     nets: [...totals.entries()].map(([playerId, netCents]) => ({ playerId, netCents })),
+    nassauNets: [...nassauTotals.entries()].map(([playerId, netCents]) => ({ playerId, netCents })),
     lines,
   };
 }
@@ -1439,10 +1455,25 @@ export interface RoundMoneyRow {
    * which is everybody down a stake and nobody paid.
    */
   sharedBall: boolean;
-  /** The signed-in player's net for this round, in cents. */
+  /** The signed-in player's net for this round, in cents. Final rounds only. */
   yourCents: number;
   /** Everyone's, biggest winner first — the round's own payout sheet. */
   standing: Array<{ playerId: string; name: string; netCents: number }>;
+  /**
+   * The player's SETTLED side-bet money on a round STILL IN PLAY — its Nassau,
+   * whose finished segments cannot change.
+   *
+   * A completed front nine of a Nassau is decided the moment the ninth is
+   * returned; the back nine and the overall are not, and neither is any pool
+   * pot (skins, birdies) whose whole character is that one late hole can move
+   * it. So this reports the Nassau alone, and only its finished segments —
+   * everything else on a live round stays out of the numbers until the round
+   * is final. Zero on a final round (the money is in `yourCents` then) and
+   * whenever there is no settled Nassau to show. It is NOT added to the outing
+   * total, which is deliberately "the rounds that have finished": this is a
+   * preview on a round still out, not a closed result.
+   */
+  settledSoFarCents: number;
 }
 
 export interface RoundMoneyView {
@@ -1671,13 +1702,22 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       playingIds: new Set(fieldIds),
     });
 
-    // Nothing is computed for a round in progress. Not hidden after the fact —
-    // not worked out at all, so there is no half-answer to leak.
-    const nets = final ? (await gameNets(eventId, stage.id)).nets : [];
+    // A finished round pays every pot. A round still in play pays only its
+    // Nassau — its finished segments cannot change — so `gameNets` is asked
+    // for that slice alone (see `nassauNets`); the pool pots stay out of the
+    // numbers until the round is final. This is the only settled money that
+    // surfaces before a round finishes, and it goes on the round's own line
+    // rather than into the outing total.
+    const gn = await gameNets(eventId, stage.id);
+    const nets = final ? gn.nets : [];
+    const settledSoFarCents =
+      !final && me ? gn.nassauNets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0;
 
     // The other side of that rule: a round with no result yet is exactly the
     // round a player wants their exposure for. Stakes only — see `stakeFor`,
-    // which reads membership and never touches a card.
+    // which reads membership and never touches a card. A Nassau is not in the
+    // stake (see `stakeFor`), so the settled figure above cannot be counted
+    // twice here.
     if (!final && me) {
       const s = await stakeFor(stage.id, me.id, fieldIds, stage.teeSheet ?? "", stakeholderIds);
       stakeGames += s.games;
@@ -1695,6 +1735,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       matchesTotal,
       matchesOver,
       sharedBall: sharedBallRound(stage.format),
+      settledSoFarCents,
       yourCents: me ? nets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
       standing: nets
         .filter((n) => n.netCents !== 0)

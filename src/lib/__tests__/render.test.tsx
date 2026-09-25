@@ -7099,6 +7099,42 @@ describe("what a player has riding on the round", () => {
     expect(html).not.toMatch(/games? still to play/);
   });
 
+  it("shows a settled Nassau segment on a round still being played", () => {
+    // A round still out, so no money row and no outing total — but its Nassau
+    // front nine is in, and that cannot change. The player sees it as a
+    // decided result, captioned so it is not mistaken for the whole round.
+    const html = render(
+      <RoundMoney
+        view={{
+          ...base,
+          stake: { games: 1, cents: 500 },
+          rounds: [
+            {
+              stageId: "s1",
+              label: "Round 1",
+              final: false,
+              holesReturned: 9,
+              holeCount: 18,
+              matchesTotal: 1,
+              matchesOver: 0,
+              sharedBall: false,
+              yourCents: 0,
+              standing: [],
+              settledSoFarCents: 1000,
+            },
+          ],
+        }}
+      />,
+    );
+    expect(html).toMatch(/settled so far/i);
+    expect(html).toMatch(/Nassau/);
+  });
+
+  it("shows no settled-so-far line when there is none", () => {
+    const html = render(<RoundMoney view={{ ...base, stake: { games: 1, cents: 500 } }} />);
+    expect(html).not.toMatch(/settled so far/i);
+  });
+
   describe("with no money in it at all", () => {
     /**
      * "NOT YET" AND "NOT AT ALL" ARE DIFFERENT ANSWERS. `anyFinal` is false in
@@ -7123,6 +7159,7 @@ describe("what a player has riding on the round", () => {
         yourCents: 0,
         // The fixture's whole point: finished, and nobody won anything.
         standing: [],
+        settledSoFarCents: 0,
       }));
 
     it("says the pots are still to come while a round is out", () => {
@@ -7189,6 +7226,7 @@ describe("what a player has riding on the round", () => {
         sharedBall: true,
         yourCents: 0,
         standing: [],
+        settledSoFarCents: 0,
       };
       const html = render(
         <RoundMoney
@@ -7230,6 +7268,7 @@ describe("what a player has riding on the round", () => {
                 sharedBall: true,
                 yourCents: 0,
                 standing: [],
+                settledSoFarCents: 0,
               },
             ],
             stake: { games: 0, cents: 0 },
@@ -7284,6 +7323,7 @@ describe("what a player has riding on the round", () => {
               sharedBall: false,
               yourCents: 1500,
               standing: [{ playerId: "ann", name: "Ann", netCents: 1500 }],
+              settledSoFarCents: 0,
             },
           ],
           stake: { games: 2, cents: 2500 },
