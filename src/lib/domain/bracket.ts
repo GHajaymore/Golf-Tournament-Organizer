@@ -265,11 +265,11 @@ export function seedOrder(size: number): number[] {
  * knockout has no finishing order, and inventing one is how this went wrong in
  * the first place — the caller falls back rather than being handed a guess.
  *
- * The WINNERS bracket only. A consolation draw is a second competition with its
- * own winner, and in plate mode its field is players who are already placed in
- * this list; scoring it would need a club to say how the two relate, which
- * nothing in the app asks. Its players are left unplaced, exactly as they are
- * today.
+ * One draw, per call. In PLATE mode the consolation draw's field is players
+ * already placed in this list, so it is not read. In SPLIT mode — the default —
+ * the consolation is a second flight of a DISJOINT field, and reading only this
+ * draw dropped that whole flight from finishing order; `bracketFinishOrderCombined`
+ * below stitches the two together (Flight B below Flight A) so nobody is lost.
  */
 export function bracketFinishOrder(
   view: BracketView,
@@ -346,6 +346,49 @@ export function bracketFinishOrder(
   }
 
   return placed.sort((a, b) => a.rank - b.rank);
+}
+
+/**
+ * Finishing order across BOTH draws, for a two-flight (split) knockout.
+ *
+ * `bracketFinishOrder` reads one draw. In SPLIT mode — the default — the field
+ * is divided by qualifying rank into two genuine flights: Flight A is the
+ * winners draw, Flight B is drawn straight into the "consolation" draw and
+ * never appears in the winners list (it is not a plate — see the drawing note
+ * above). Reading only the winners draw therefore dropped the entire bottom
+ * flight from finishing order: half the field scored zero season points and the
+ * season screen reported them as "entries dropped — no roster link".
+ *
+ * The rule is MODE-AGNOSTIC, so no caller has to know which mode it is. Take the
+ * winners order, then append the consolation finishers whose player is NOT
+ * already placed:
+ *
+ *   - SPLIT — Flight B is a disjoint field, so all of them are appended, ranked
+ *     below Flight A.
+ *   - PLATE — the second draw is fed by the winners' own first-round losers,
+ *     who are already placed here, so every one is filtered out and the result
+ *     is exactly the winners-only order, unchanged.
+ *
+ * Flight B ranks below Flight A: its own places (1, 2, 3, …) are offset by the
+ * number of players Flight A placed, so Flight A fills the top k positions and
+ * Flight B starts at k+1. An unfinished Flight B has no champion, so
+ * `bracketFinishOrder` returns [] for it and its players stay unplaced until it
+ * is decided — which is correct, their competition is not over.
+ */
+export function bracketFinishOrderCombined(
+  winners: BracketView,
+  consolation: BracketView,
+  thirdPlaceWinnerId?: string | null,
+): Array<{ playerId: string; name: string; rank: number }> {
+  const top = bracketFinishOrder(winners, thirdPlaceWinnerId);
+  if (top.length === 0) return top;
+
+  const placed = new Set(top.map((p) => p.playerId));
+  const below = bracketFinishOrder(consolation)
+    .filter((p) => !placed.has(p.playerId))
+    .map((p) => ({ ...p, rank: p.rank + top.length }));
+
+  return [...top, ...below];
 }
 
 /**

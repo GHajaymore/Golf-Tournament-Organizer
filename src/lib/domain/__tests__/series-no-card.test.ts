@@ -252,7 +252,10 @@ describe("the finishing order only reports players who returned something", () =
     const bracketState = (view: ReturnType<typeof buildBracket>, matches: unknown[]): PositionsInput =>
       ({
         isStroke: false,
-        brackets: { winners: view },
+        // Both draws, as the real EventState always carries — an empty
+        // consolation is a knockout with no second flight. finishingPositions
+        // now reads both (split-flight fix), so the fixture must have both.
+        brackets: { winners: view, consolation: { kind: "consolation", rounds: [], champion: null } },
         matches,
         strokeStandings: [],
         overall: [],

@@ -203,6 +203,15 @@ export function fieldEnteringRound(
     if (rule.scope === "perFlight" && flights.length > 0) {
       flights = flights.map((n) => survivorCount(rule, n));
       total = flights.reduce((a, b) => a + b, 0);
+    } else if (rule.scope === "perFlight") {
+      // A per-flight cut whose flight split an earlier overall cut already
+      // erased. Its true size is count × (surviving flights), and neither is
+      // known here. `survivorCount(rule, total)` — min(count, total) for a count
+      // rule — collapses "top N per flight" to "top N of the field", which errs
+      // LOW: two flights of top-2 read as 2, not 4, and the progress bar then
+      // shows over 100%. Leaving `total` as the whole remaining field errs HIGH
+      // instead — the documented, safe direction (a denominator too big, never
+      // too small). flights stays [] — still not derivable.
     } else {
       total = survivorCount(rule, total);
       // An overall cut takes whoever is at the top, so the flight split it
@@ -331,7 +340,10 @@ export function describeCut(rule: CutRule, fieldSize: number, flightCount: numbe
   }
 
   if (perFlight) {
-    const total = rule.count * flightCount;
+    // Clamped to the field: "top 16 from each of 2 flights" over a 16-player
+    // field cannot advance 32. Individual flight sizes are not passed here, so
+    // this bounds the total by what exists rather than sizing each flight.
+    const total = Math.min(rule.count * flightCount, fieldSize);
     return `Top ${rule.count} from each of the ${flightCount} flights advances — ${total} in total.`;
   }
   return `Top ${survivorCount(rule, fieldSize)} of ${fieldSize} advances.`;

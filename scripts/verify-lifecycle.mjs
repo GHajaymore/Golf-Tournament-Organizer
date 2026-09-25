@@ -413,8 +413,17 @@ async function build(label, steps) {
  * `nav.ts` filters what a player is OFFERED; these are the screens that answer
  * when they go there. The console routes they may open are already in HREFS
  * and get walked as them too.
+ *
+ * DERIVED from `player-nav.ts`, not hand-listed — the same rule HREFS follows
+ * above and the same rule `layout.spec.ts` follows for the filesystem. The hand
+ * list this replaces had gone stale: `ALL_PLAYER_SCREENS` grew `/me/events`
+ * (2026-09-19) and `/me/calendar` (2026-09-24) and neither was being walked in
+ * the early-lifecycle stages this script exists to cover. Reading the hrefs out
+ * of the source means the next player screen is swept the day it is added.
  */
-const PLAYER_ROUTES = ["/me", "/me/board", "/me/card", "/me/money", "/me/rules", "/me/messages"];
+const PLAYER_ROUTES = [...new Set(
+  [...readFileSync("src/lib/player-nav.ts", "utf8").matchAll(/href: "(\/me[a-z/-]*)"/g)].map((m) => m[1]),
+)].sort();
 
 const STAGES = [
   ["named-only", {}],

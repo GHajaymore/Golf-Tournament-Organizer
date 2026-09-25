@@ -157,13 +157,21 @@ export async function teamsForStage(
       position: m.position,
       withdrawn: m.player.status === "withdrawn",
     }));
+    // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
+    // sizes the side by. Including a withdrawn player anchors a single-ball
+    // side (scramble/foursomes/greensomes) to strokes from somebody who never
+    // hit a shot, so the net on the board disagreed with the "X has withdrawn"
+    // warning beside it. If the whole side withdrew there is no card to score
+    // anyway, so fall back to the full set rather than handicap off nobody.
+    const playing = members.filter((m) => !m.withdrawn);
+    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicap);
     return {
       id: t.id,
       name: t.name,
       seed: t.seed,
       stageId: t.stageId,
       members,
-      playingHandicap: sidePlayingHandicap(members.map((m) => m.handicap), format, allowanceOverride, weightsOverride),
+      playingHandicap: sidePlayingHandicap(forHandicap, format, allowanceOverride, weightsOverride),
     };
   });
 }

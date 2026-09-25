@@ -1,5 +1,5 @@
 import "server-only";
-import { bracketFinishOrder } from "../domain/bracket";
+import { bracketFinishOrderCombined } from "../domain/bracket";
 import { resolveMatch } from "../domain";
 import type { loadEventState } from "./tournament";
 import type { FinishingPosition } from "../domain/honours";
@@ -74,7 +74,16 @@ function thirdPlaceWinner(state: EventState): string | null {
  *      `rankPlayers` found, for the reason below.
  */
 export function finishingPositions(state: EventState): FinishingPosition[] {
-  const fromBracket = bracketFinishOrder(state.brackets.winners, thirdPlaceWinner(state));
+  // BOTH draws: in split mode (the default) the bottom flight is drawn into the
+  // consolation bracket and must be placed below the top flight, or half the
+  // field scores zero season points. Plate mode is unchanged — its consolation
+  // players are already placed in the winners order and are filtered out. See
+  // bracketFinishOrderCombined.
+  const fromBracket = bracketFinishOrderCombined(
+    state.brackets.winners,
+    state.brackets.consolation,
+    thirdPlaceWinner(state),
+  );
   if (fromBracket.length > 0) return fromBracket;
 
   if (state.isStroke) {
