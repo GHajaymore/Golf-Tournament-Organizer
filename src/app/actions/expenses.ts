@@ -511,6 +511,13 @@ export async function removeExpense(expenseId: string): Promise<ExpenseResult> {
  * is a payment; a negative one would be the same payment the other way and is
  * recorded as such), and it is audited like every other money write.
  */
+/**
+ * How recently an identical handover counts as the same double-tap rather than
+ * a second payment. Generous enough to swallow a slow retry, far short of any
+ * plausible genuine repeat of the exact same amount between the same two people.
+ */
+const SETTLEMENT_DEDUP_MS = 15_000;
+
 export async function recordSettlement(
   fromPlayerId: string,
   toPlayerId: string,
@@ -551,6 +558,28 @@ export async function recordSettlement(
       };
     }
   }
+
+  /**
+   * IDEMPOTENT AGAINST A DOUBLE-TAP. "Mark settled" is easy to press twice on a
+   * phone, and a second identical handover recorded seconds after the first is
+   * that same press arriving again, not a second payment — recording it twice
+   * would understate what is still owed between these two. Two genuine, separate
+   * payments of the EXACT same amount between the same two people within seconds
+   * do not happen; a double-submit does. A short window catches the real case
+   * with no schema change; a truly simultaneous pair is the rarer race a unique
+   * constraint would need, noted in docs/audit-round-4-findings.md (#9).
+   */
+  const recent = await prisma.settlement.findFirst({
+    where: {
+      eventId,
+      fromPlayerId,
+      toPlayerId,
+      cents: amount,
+      settledAt: { gte: new Date(Date.now() - SETTLEMENT_DEDUP_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return { ok: true };
 
   const nameOf = (id: string) => both.find((p) => p.id === id)?.name ?? id;
   const currency = await currencyForEvent(eventId);

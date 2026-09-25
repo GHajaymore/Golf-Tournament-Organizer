@@ -361,6 +361,20 @@ describe("settling up", () => {
     await signIn("dave");
     expect((await removeSettlement(id)).ok).toBe(true);
   });
+
+  it("does not record the same handover twice on a double-tap", async () => {
+    // "Mark settled" pressed twice must log ONE payment, not two — a duplicate
+    // would understate what is still owed. Distinctive amount so the count is
+    // independent of the other settlements in this block.
+    await signIn("rob");
+    const first = await recordSettlement(player.rob, player.ann, 1_777);
+    const second = await recordSettlement(player.rob, player.ann, 1_777);
+    expect(first.ok).toBe(true);
+    // The second tap succeeds too — it is an idempotent no-op, not an error.
+    expect(second.ok).toBe(true);
+    const view = await nets();
+    expect(view.settlements.filter((s) => s.cents === 1_777)).toHaveLength(1);
+  });
 });
 
 describe("the audit trail", () => {
