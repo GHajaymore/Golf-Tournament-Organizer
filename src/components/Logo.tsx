@@ -92,10 +92,25 @@ export function Logo({
   size = LOGO_SIZE.md,
   style,
   colors,
+  emblem = false,
 }: {
   size?: number;
   style?: React.CSSProperties;
   colors?: LogoColors;
+  /**
+   * The DISPLAY treatment — the same mark set inside a fairway-green disc
+   * ringed in brass, with the putt trailing in behind the ball. It is drawn
+   * from the SAME geometry as the flat mark (one copy, below), just framed —
+   * so the crest and the icon can never drift apart.
+   *
+   * Two-tier by decision (2026-09-24): the emblem is for DISPLAY — the
+   * marketing site, a hero, a lockup you actually look at. The flat mark stays
+   * the app header and every generated icon (favicon, PWA tile), because a
+   * 1px ring and a dashed trail turn to mush at 16px and the flat mark was
+   * built precisely to survive that. `brand-consistency.test.ts` keeps the
+   * ring out of the icon generator.
+   */
+  emblem?: boolean;
 }) {
   /**
    * TOURNEYHQ'S OWN COLOURS, never the club's. Decided 2026-09-18: the mark
@@ -110,6 +125,44 @@ export function Logo({
   const stick = colors?.stick ?? colors?.flag ?? "var(--logo-stick, var(--color-text, currentColor))";
   const ball = colors?.ball ?? "var(--logo-ball, var(--thq-ball))";
   const cup = colors?.cup ?? "var(--logo-cup, var(--color-neutral-800, currentColor))";
+
+  /* ONE geometry. The cup is drawn first so the pin is planted through it and
+     the ball breaks its near rim; both the flat mark and the framed emblem
+     render this exact set, which is why the two can never disagree.
+     An ARRAY, not a <>…</> fragment: the share-card renderer (Satori) draws
+     this same set, and a fragment hands it a Symbol type it tries to stringify
+     — "Cannot convert a Symbol value to a string", which fails the build on
+     /opengraph-image. An array of keyed children renders identically and
+     carries no Symbol. */
+  const mark = [
+    // The cup, FILLED rather than outlined — fault 1 in the notes above.
+    <ellipse key="cup" cx="15.2" cy="23.6" rx="8.4" ry="3.5" fill={cup} />,
+    // The pin, THROUGH the rim rather than hovering beside it, at the weight of
+    // everything else in the drawing.
+    <path key="stick" d="M18.6 6.1 V23.1" stroke={stick} strokeWidth="2.4" strokeLinecap="round" />,
+    <path key="flag" d="M18.6 6.3 L25.8 9.3 L18.6 12.3 Z" fill={flag} />,
+    // The ball, dropping in: it breaks the near rim from above.
+    <circle key="ball" cx="11" cy="18.2" r="3.4" fill={ball} />,
+  ];
+
+  if (emblem) {
+    // The frame carries TourneyHQ's OWN colours, fixed — a fairway-green disc
+    // and a brass ring, never a club's palette and never the landing page's
+    // (which is free to retune). Literal hex is why this file is on the
+    // brand-consistency hex allow-list.
+    return (
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" style={style}>
+        <circle cx="16" cy="16" r="15" fill="#0a1f16" stroke="#c6a052" strokeWidth="1.1" />
+        <g transform="translate(16 16) scale(0.72) translate(-16 -16)">
+          {/* The putt trailing in behind the ball — the display flourish that
+              the flat mark deliberately omits so it stays legible when small. */}
+          <path d="M6.6 19.6 Q10 21.4 13.6 20.6" stroke="rgba(233,240,232,.4)" strokeWidth="1.2" strokeDasharray="1.4 2" strokeLinecap="round" />
+          {mark}
+        </g>
+      </svg>
+    );
+  }
+
   return (
     <svg
       width={size}
@@ -126,16 +179,7 @@ export function Logo({
       aria-hidden="true"
       style={style}
     >
-      {/* The cup, FILLED rather than outlined — fault 1 above. Drawn first, so
-          the pin is planted through it and the ball breaks its near rim. */}
-      <ellipse cx="15.2" cy="23.6" rx="8.4" ry="3.5" fill={cup} />
-      {/* The pin, THROUGH the rim rather than hovering beside it. At 2.4 it
-          also matches the weight of everything else in the drawing. */}
-      <path d="M18.6 6.1 V23.1" stroke={stick} strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M18.6 6.3 L25.8 9.3 L18.6 12.3 Z" fill={flag} />
-      {/* The ball, dropping in: it breaks the near rim from above, which is the
-          one position that reads as falling rather than as resting alongside. */}
-      <circle cx="11" cy="18.2" r="3.4" fill={ball} />
+      {mark}
     </svg>
   );
 }

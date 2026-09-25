@@ -615,10 +615,11 @@ ${landingTokens("light", "    ")}
  * The cup is left unfilled here because it sits on the fairway-green ground
  * rather than on a flat surface.
  */
-function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
+function FlagMark({ size = LOGO_SIZE.md, emblem = false }: { size?: number; emblem?: boolean }) {
   return (
     <Logo
       size={size}
+      emblem={emblem}
       style={
         {
           // Pennant orange, ball green, stick in ink — the programme's
@@ -704,7 +705,7 @@ export default async function LoginPage() {
                 as subordinate to the sentence on the one page whose job is to
                 say who we are. Still a value from LOGO_SIZE, so the one-size
                 rule brand-consistency.test.ts enforces still holds. */}
-            <FlagMark size={LOGO_SIZE.lg} />
+            <FlagMark size={LOGO_SIZE.lg} emblem />
             {/* The same lockup the app uses, re-skinned by variables — the
                 pattern FlagMark above already follows. It used to be written
                 out here by hand in the sans face with an italic "HQ", so the
