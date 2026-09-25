@@ -134,7 +134,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
                   <div style={{ fontSize: 13 }}>{name}</div>
                   <div className="text-muted" style={{ fontSize: 11 }}>{roleLabel(viewRole)}</div>
                 </div>
-                <button type="button" className="btn btn-icon" title="Sign out" onClick={() => startTransition(() => signOutAction())}>
+                <button type="button" className="btn btn-icon" title="Sign out" aria-label="Sign out" onClick={() => startTransition(() => signOutAction())}>
                   <Icon name="sign-out" />
                 </button>
               </div>

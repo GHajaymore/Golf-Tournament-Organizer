@@ -49,7 +49,9 @@ export function PersonChip({
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        minHeight: 40,
+        // No inline min-height: it is the same property as `.touch-target`'s
+        // 44px coarse-pointer rule and, inline, silently beats it — leaving a
+        // 40px tap target on a control a member taps standing on the tee.
         padding: "0 12px",
         borderRadius: 999,
         cursor: disabled ? "default" : "pointer",

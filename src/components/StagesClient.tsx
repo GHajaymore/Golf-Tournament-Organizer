@@ -1518,7 +1518,7 @@ function StageCard({
 
         {customizeOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
-            <div className="field" style={{ width: 320 }}>
+            <div className="field" style={{ maxWidth: 320, width: "100%" }}>
               <label>
                 Result calculation
                 <FieldInfo label="result calculation">
@@ -1553,7 +1553,7 @@ function StageCard({
                 takes a card and has nothing to decide, so it gets no control
                 rather than a control with one option in it. */}
             {inputChoices(format).length > 1 && (
-              <div className="field" style={{ width: 420 }}>
+              <div className="field" style={{ maxWidth: 420, width: "100%" }}>
                 <label>
                   How scores are recorded
                   <FieldInfo label="how scores are recorded">

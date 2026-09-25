@@ -487,7 +487,13 @@ export async function skinsPotFor(
     pendingIds,
     field: offered.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
     result,
-    transfers: result ? settle(result.shares.map((s) => ({ playerId: s.playerId, netCents: s.netCents }))) : [],
+    // No settle-up list while the pot can still change. A skin carries, so one
+    // unplayed hole can move the whole pot — a "X pays Y £Z" list offered before
+    // every hole is in invites a handover that the last group then overturns
+    // (the bug the provisional flag was added for). The "Settling up" block gates
+    // on transfers.length, so an empty list hides it while the provisional
+    // warning and the running winners table stay.
+    transfers: result && !result.provisional ? settle(result.shares.map((s) => ({ playerId: s.playerId, netCents: s.netCents }))) : [],
     nameById,
     holes: outcome.holes.map((h) => ({
       hole: h.hole + from,
@@ -541,7 +547,16 @@ export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]>
       skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full", ""),
     ),
   );
-  const results = weeks.filter((w): w is SkinsPotView => !!w && !!w.result).map((w) => w.result!);
+  // Settled weeks only. A season total is presented as a record already settled
+  // on the night, so a week whose round is still in play must not be folded in:
+  // skins carry, and one unplayed hole can move the whole pot, so a provisional
+  // week's shares are still changeable. Same gate the per-round sink uses
+  // (gameNets skips a provisional pot); without it a mid-round league night
+  // shows "+£30 over 3 weeks" that can finish square. weeksPlayed counts only
+  // settled weeks too, for the same reason.
+  const results = weeks
+    .filter((w): w is SkinsPotView => !!w && !!w.result && !w.result.provisional)
+    .map((w) => w.result!);
   const nameById = weeks.find((w) => w)?.nameById ?? {};
 
   const totals = new Map<string, { netCents: number; weeksPlayed: number }>();

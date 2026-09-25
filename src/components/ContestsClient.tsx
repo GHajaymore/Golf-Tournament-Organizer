@@ -421,7 +421,7 @@ export function ContestsClient({
                     defaultValue={game ? plain(game.buyInCents) : ""}
                     placeholder="0.00"
                     disabled={pending}
-                    style={{ width: 82, minHeight: 40, textAlign: "right" }}
+                    style={{ width: 82, minHeight: 44, textAlign: "right" }}
                     onBlur={(e) => {
                       const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;
