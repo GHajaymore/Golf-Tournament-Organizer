@@ -435,8 +435,14 @@ export async function requestSkinsEntry(
   }
 
   if (existing) return { ok: true };
-  await prisma.skinsEntry.create({
-    data: { potId: pot.id, playerId: me.id, confirmed: false },
+  // upsert, not create: a double-tap on flaky course wifi fires two requests
+  // that both pass the existence check above, and a second create then throws
+  // P2002 out of the action as a 500. The unique (potId, playerId) makes the
+  // second an idempotent no-op instead.
+  await prisma.skinsEntry.upsert({
+    where: { potId_playerId: { potId: pot.id, playerId: me.id } },
+    update: {},
+    create: { potId: pot.id, playerId: me.id, confirmed: false },
   });
   await logAudit(eventId, "skins.request", `Asked to join ${potName(net, scope, key)}`);
   refresh();

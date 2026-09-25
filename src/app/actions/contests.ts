@@ -310,8 +310,13 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
   }
 
   if (existing) return { ok: true };
-  await prisma.contestEntry.create({
-    data: { contestId, playerId: me.id, confirmed: false },
+  // upsert, not create: two quick taps both pass the existence check above, and
+  // a second create then throws P2002 as a 500. The unique (contestId, playerId)
+  // makes the second an idempotent no-op instead.
+  await prisma.contestEntry.upsert({
+    where: { contestId_playerId: { contestId, playerId: me.id } },
+    update: {},
+    create: { contestId, playerId: me.id, confirmed: false },
   });
   await logAudit(session.eventId, "contest.request", `${me.name} asked to join ${contest.name}`);
   revalidatePath("/", "layout");
