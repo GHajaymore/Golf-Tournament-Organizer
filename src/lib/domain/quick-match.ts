@@ -288,6 +288,17 @@ export const MAX_QUICK_STAKE = 100_000;
 export const STAKE_NOTE_MAX = 40;
 
 /**
+ * Bounds on the two free-text fields a quick match persists, matching the
+ * `.slice()` discipline every other money-path string already has (the stake
+ * note above, the registration name, the expense description). A `planMatch`
+ * caller is authenticated but the strings still reach `Player.name` and the
+ * event title — the latter a public page title — so an unbounded value is
+ * storage bloat waiting to happen.
+ */
+export const PLAYER_NAME_MAX = 80;
+export const MATCH_TITLE_MAX = 120;
+
+/**
  * Why a `matchOnly` game cannot go on this round, in that game's own terms.
  *
  * It read `A ${game.label} is three bets on one match, so it needs two
@@ -661,7 +672,7 @@ export function sideName(names: string[]): string {
 export function planMatch(input: MatchSetupInput): MatchPlanResult {
   const named = (input.players ?? [])
     .map((p) => ({
-      name: (p.name ?? "").trim(),
+      name: (p.name ?? "").trim().slice(0, PLAYER_NAME_MAX),
       handicap: parseHandicap(p.handicap),
       email: (p.email ?? "").trim().toLowerCase(),
       memberId: (p.memberId ?? "").trim(),
@@ -881,7 +892,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
    * no opposition to name it against.
    */
   const title =
-    (input.name ?? "").trim() ||
+    (input.name ?? "").trim().slice(0, MATCH_TITLE_MAX) ||
     (sides.length === SIDES_IN_A_MATCH
       ? matchTitle(sides[0].name, sides[1].name)
       : named.length === SIDES_IN_A_MATCH

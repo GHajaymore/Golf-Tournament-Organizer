@@ -8,6 +8,7 @@ import { requirePotAccess } from "@/lib/services/game-access";
 import { getSession } from "@/lib/auth";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
+import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
 
 /**
@@ -98,8 +99,12 @@ export async function saveSkinsPot(
   const eventId = access.eventId;
 
   const buyIn = Math.round(input.buyInCents);
-  if (!Number.isFinite(buyIn) || buyIn < 0) {
-    return { ok: false, error: "A buy-in cannot be negative." };
+  // Bounded top AND bottom, the same ceiling every other money action uses
+  // (side-games.ts, contests.ts). requirePotAccess lets a PLAYER set their own
+  // fourball's pot, so an unbounded buy-in here is an untrusted number reaching
+  // the settle-up maths — buyIn × entrants flows straight into the ledger.
+  if (!Number.isFinite(buyIn) || buyIn < 0 || buyIn > MAX_EXPENSE_CENTS) {
+    return { ok: false, error: "Enter a buy-in per player, or zero to switch it off." };
   }
   /**
    * NOT ON A ROUND WHERE THE SIDE PLAYS ONE BALL.
