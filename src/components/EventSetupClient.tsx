@@ -491,8 +491,14 @@ export function EventSetupClient({
                 >
                   <Icon name="check" /> {datesPending ? "Saving…" : "Save dates"}
                 </button>
+                {/* SAYS THEY ARE NOT SAVED, because they are not. This read
+                    "Dates save on their own, so they can be changed after
+                    launch" — meaning their own BUTTON — which a newcomer read as
+                    "saved automatically", left the screen, and lost the date.
+                    Found 2026-09-26 setting up a Stableford from scratch. The
+                    line shows only while the dates differ from what is stored. */}
                 <span className="text-muted" style={{ fontSize: 12 }}>
-                  Dates save on their own, so they can be changed after launch.
+                  Not saved yet. Dates have their own Save, so they can still be changed after launch.
                 </span>
               </div>
             )}

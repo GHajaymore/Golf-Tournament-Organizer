@@ -70,7 +70,9 @@ export function launchRefusal(facts: LaunchFacts): string | null {
     return "Nobody is in the field yet, so there is nobody to launch it for. Enter the field on Registration & field, then launch.";
   }
   if (!facts.dated) {
-    return "This tournament has no dates, so nobody can plan around it. Add them on Tournament setup — mark them tentative if the committee hasn't fixed them yet — then launch.";
+    // "Tournament details" is the screen's name in the sidebar. This said
+    // "Tournament setup", which is no screen a newcomer can find.
+    return "This tournament has no dates, so nobody can plan around it. Add them on Tournament details — mark them tentative if the committee hasn't fixed them yet — then launch.";
   }
   return null;
 }

@@ -8,6 +8,7 @@ import {
   type SetupRound,
 } from "../setup-flow";
 import { screenName } from "@/lib/nav";
+import { launchRefusal } from "../phase-gate";
 
 /**
  * ONE ROUND, FULLY SET UP — a round robin with a day and its fixtures drawn.
@@ -274,6 +275,28 @@ describe("the hand-off from setting up to running", () => {
     const halfway = flowOf({ named: true, dated: true, rounds: [round()], launched: false });
     expect(halfway.complete).toBe(false);
     expect(halfway.readyToLaunch).toBe(false);
+  });
+
+  it("says what is still stopping the launch, in the launch gate's words", () => {
+    /**
+     * Found 2026-09-26 running a Stableford from scratch: every step done —
+     * the details step takes a venue in place of a date, deliberately — and the
+     * rail said "take it live" over a Launch button the dashboard disabled for
+     * want of a date. `finished` above is that tournament: a venue, no date.
+     */
+    const ready = flowOf({ ...finished, launched: false });
+    expect(ready.launchBlocked).toBe(
+      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false }),
+    );
+    expect(ready.launchBlocked).toContain("no dates");
+  });
+
+  it("says nothing is left once it has a date (control)", () => {
+    expect(flowOf({ ...finished, dated: true, launched: false }).launchBlocked).toBeNull();
+  });
+
+  it("says nothing once it has launched", () => {
+    expect(flowOf({ ...finished, launched: true }).launchBlocked).toBeNull();
   });
 });
 

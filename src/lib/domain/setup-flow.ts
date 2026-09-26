@@ -31,6 +31,8 @@
  * shape of the tournament is not a lock either, for the same reason.
  */
 
+import { launchRefusal } from "./phase-gate";
+
 /**
  * ONE ROUND, as the guide has to judge it.
  *
@@ -146,6 +148,12 @@ export interface SetupFacts {
   named: boolean;
   /** A day it is played on. */
   dated: boolean;
+  /**
+   * Rounds the field plays — `isPlayingRound`, the count the launch gate
+   * takes. Optional, and `rounds.length` when absent: every stage type is a
+   * playing round today, so the two agree until one is not.
+   */
+  playingRounds?: number;
   /** Somewhere to play — the event's own course, or a venue attached to it. */
   venued: boolean;
   /**
@@ -244,6 +252,22 @@ export interface SetupFlow {
    * itself through it.
    */
   readyToLaunch: boolean;
+  /**
+   * WHY IT CANNOT GO LIVE YET, when every step is done and it still cannot.
+   *
+   * The steps and the launch gate ask different questions on purpose: the
+   * details step takes a date OR a venue (a club still arguing over the day
+   * has a course), and launching needs a date, because a tournament published
+   * to its members without one cannot be planned around. Both are right.
+   *
+   * What was wrong is the hand-off between them. Found 2026-09-26 running a
+   * Stableford from scratch as a newcomer: the rail said "Setup is done — all
+   * 5 parts … the dashboard is where you open entries and take it live", and
+   * on the dashboard Launch was disabled for want of a date. So this asks the
+   * gate itself — `launchRefusal`, the function the launch action and the
+   * dashboard call — rather than restating its rules.
+   */
+  launchBlocked: string | null;
 }
 
 /** The order, and the test for each step. Labels arrive from the nav. */
@@ -529,12 +553,20 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
   }));
 
   const complete = currentIndex === -1;
+  const readyToLaunch = complete && !facts.launched;
   return {
     steps,
     current: complete ? null : steps[currentIndex],
     doneCount: done.filter(Boolean).length,
     complete,
-    readyToLaunch: complete && !facts.launched,
+    readyToLaunch,
+    launchBlocked: readyToLaunch
+      ? launchRefusal({
+          playingRounds: facts.playingRounds ?? facts.rounds.length,
+          confirmed: facts.confirmed,
+          dated: facts.dated,
+        })
+      : null,
   };
 }
 

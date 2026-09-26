@@ -3,7 +3,7 @@ import { prisma } from "../db";
 import { screenName } from "../nav";
 import { setupFlow, roundIsScheduled, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
 import { isMatch } from "../tournament-shape";
-import { generatesPairings } from "../stage-types";
+import { generatesPairings, isPlayingRound } from "../stage-types";
 import { roundLabel } from "../domain/round-label";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
@@ -115,6 +115,8 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
      */
     named: !!event.name.trim() && event.name.trim().toLowerCase() !== "new tournament",
     dated: !!event.dates.trim(),
+    // The launch gate's own count, so the guide's "what is left" is its answer.
+    playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,
     // Either the event's own course or a venue attached to it. A tournament
     // that rotates venues names none on the event itself and is not therefore
     // venue-less.

@@ -167,6 +167,18 @@ export default async function DashboardPage() {
   // `strokeStandings`, which now holds the cards of the round on the board —
   // so a flight card headed by match points under a leaderboard ranked on
   // strokes was the same screen contradicting itself.
+  /**
+   * A STABLEFORD BOARD PRINTS POINTS, on this card as on the board above it.
+   *
+   * The card printed a to-par whatever the round was ranked on, so a
+   * Stableford flight came out sorted by points and printing strokes: found
+   * 2026-09-26 on a newcomer's club Stableford, Flight 1 read "+18, +18, E,
+   * +18" — the level-par round third, behind two players eighteen over, in
+   * points order that nothing on the card printed. The rule every board
+   * follows: the figure printed is the figure the rows are ordered by. Same
+   * test (`isStablefordRound`) the leaderboard card above uses.
+   */
+  const stablefordBoard = isStablefordRound(state.boardStage?.scoringBasis, state.boardStage?.format);
   const flightColumns = state.boardIsStroke
     ? state.groups.map((group) => ({
         group,
@@ -178,7 +190,14 @@ export default async function DashboardPage() {
             // gross wearing a plus sign. `toParShown` follows the board's basis
             // (net to-par on a net board); reading `toPar` here printed the
             // gross, so this card disagreed with the leaderboard above it.
-            figure: s.thru > 0 ? (s.parKnown ? toParText(s.toParShown) : `${s.net}`) : "—",
+            figure:
+              s.thru > 0
+                ? stablefordBoard
+                  ? `${s.points} pts`
+                  : s.parKnown
+                    ? toParText(s.toParShown)
+                    : `${s.net}`
+                : "—",
           })),
       }))
     : groupStandings.map((gs) => ({
@@ -801,7 +820,10 @@ export default async function DashboardPage() {
           summary={{
             name: event.name,
             dates: event.dates,
-            course: event.course,
+            // The header's answer, from the same two sources: the launch
+            // confirmation read "Course —" under a header naming the course,
+            // for any tournament that holds its course as a venue only.
+            course: event.course || attachedVenues.join(" · "),
             format: event.format,
             players: state.confirmed.length,
             flights: state.groups.length,

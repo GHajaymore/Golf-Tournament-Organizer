@@ -24,6 +24,7 @@ import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/comp
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
+import { soleVenueCourse } from "@/lib/services/course-resolution";
 
 
 export const metadata = screenMetadata("/event");
@@ -90,6 +91,18 @@ export default async function EventPage({
   if (!state) redirect("/");
   const e = state.event;
   const locked = isSetupLocked(state.event);
+  /**
+   * THE COURSE A TOURNAMENT HOLDS ONLY AS A VENUE, shown in the form.
+   *
+   * Tournaments created before #626 had their club's home course attached as
+   * a venue and nothing in `course`/`courseId`, so this form showed an empty
+   * "Golf course" over a tournament whose dashboard named the course. Shown
+   * here when the event names no course and has no card of its own — the same
+   * condition `soleVenueCourse` answers the scoring from — and saving the form
+   * then writes the id, which heals the old shape for good.
+   */
+  const inheritedVenue =
+    !e.courseId && !e.course.trim() && !e.customPars.trim() ? soleVenueCourse(e) : null;
 
   /**
    * And the second wave: the two that genuinely need an answer from the
@@ -274,10 +287,10 @@ export default async function EventPage({
         locale={fmt.locale}
         initial={{
           name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
-          format: e.format, course: e.course, city: e.city,
+          format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",
           address: e.address, regDeadline: e.regDeadline, regOpens: e.regOpens, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
-          courseMode: e.courseMode, courseId: e.courseId ?? "",
+          courseMode: e.courseMode, courseId: e.courseId ?? inheritedVenue?.id ?? "",
         }}
         playersCount={state.confirmed.length}
         // The id travels now. It was dropped here, which is the whole reason
