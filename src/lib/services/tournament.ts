@@ -860,7 +860,13 @@ export function strokeHandicapResolver(ctx: {
  */
 export const loadEventState = cache(loadEventStateUncached);
 
-async function loadEventStateUncached(eventId: string): Promise<EventState | null> {
+/**
+ * `throughStageId` ranks the stroke standings on the rounds UP TO AND
+ * INCLUDING that one — what a cut out of it is taken on, whatever has already
+ * been played after it. Every screen omits it; only the stroke-play cut
+ * (`applyStrokeCut`) passes it.
+ */
+async function loadEventStateUncached(eventId: string, throughStageId?: string): Promise<EventState | null> {
   /**
    * The event, with the club course it points at.
    *
@@ -1652,10 +1658,12 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
    * wrong question `boardIsStroke` exists for.
    */
   const strokeUnitStage = boardStage ?? playRounds[playRounds.length - 1] ?? null;
+  const throughPosition = throughStageId ? stages.find((s) => s.id === throughStageId)?.position : undefined;
   const strokeRounds = playRounds.filter(
     (s) =>
       !isManualFormat(s.format) &&
-      (!strokeUnitStage || carryUnitsCompatible(s, strokeUnitStage)),
+      (!strokeUnitStage || carryUnitsCompatible(s, strokeUnitStage)) &&
+      (throughPosition === undefined || s.position <= throughPosition),
   );
   const strokeRoundIds = new Set(strokeRounds.map((s) => s.id));
   const strokeUnit = strokeUnitStage

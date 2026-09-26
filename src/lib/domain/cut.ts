@@ -32,7 +32,7 @@ export const CUT_SCOPE_HELP =
   "Overall takes the top players from the whole field, so one strong flight can fill most of the places. Per flight takes the same number out of each flight, so every flight sends someone through regardless of how the others scored.";
 
 export const ROUND_CUT_HELP =
-  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week.";
+  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week. In stroke play the cut is made when you mark this round finished — the leaders and everyone tied with the last of them get a card for the next round, and nobody else does.";
 
 export const QUALIFICATION_CUT_HELP =
   "This decides who reaches the knockout bracket, and it is a property of the tournament rather than of one round. A tournament that runs straight through from round to round does not need it — use the cut line on each round instead.";
@@ -100,6 +100,46 @@ export function survivors(rankedInOrder: CutCandidate[], rule: CutRule): Set<str
     const n = survivorCount(rule, list.length);
     for (const p of list.slice(0, n)) out.add(p.id);
   }
+  return out;
+}
+
+/**
+ * "TOP N AND TIES" — the survivors of a stroke-play cut.
+ *
+ * Ajay's call, 2026-09-26: a player level on the last surviving place goes
+ * through, so a cut to 16 can send 17 or 18 into round 2. That is the usual
+ * championship wording, and it spares the committee a play-off for the last
+ * place. "Level" is the standings' own rank — the countback has already
+ * separated whoever it can, so two rows sharing a rank are genuinely tied.
+ *
+ * Only ranked rows can go through (a player with no position did not complete
+ * the round being cut from); `rankedInOrder` must be in finishing order, as
+ * for `survivors`. Per-flight scope applies the rule inside each flight.
+ */
+export function survivorsWithTies(
+  rankedInOrder: (CutCandidate & { rank: number })[],
+  rule: CutRule,
+): Set<string> {
+  const take = (list: (CutCandidate & { rank: number })[], out: Set<string>) => {
+    const placed = list.filter((p) => p.rank > 0);
+    if (placed.length === 0) return;
+    const n = survivorCount(rule, placed.length);
+    const lastRank = placed[n - 1].rank;
+    for (const p of placed) if (p.rank <= lastRank) out.add(p.id);
+  };
+  const out = new Set<string>();
+  if (rule.scope === "overall") {
+    take(rankedInOrder, out);
+    return out;
+  }
+  const byFlight = new Map<string, (CutCandidate & { rank: number })[]>();
+  for (const p of rankedInOrder) {
+    const key = p.groupId ?? "";
+    const list = byFlight.get(key);
+    if (list) list.push(p);
+    else byFlight.set(key, [p]);
+  }
+  for (const list of byFlight.values()) take(list, out);
   return out;
 }
 

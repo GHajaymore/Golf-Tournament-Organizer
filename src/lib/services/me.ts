@@ -6,6 +6,7 @@ import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { roundIsStroke, isKnockoutRound } from "@/lib/stage-types";
 import { myTie, bracketDraws, type MyTie } from "@/lib/domain/my-tie";
 import { bracketResults } from "@/lib/services/bracket-results";
+import { strokeCutField, cutFeederName } from "@/lib/services/stroke-cut";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
@@ -141,6 +142,13 @@ export interface MyRound {
    * would be reading the same round and disagreeing about it.
    */
   ownCard: boolean;
+  /**
+   * The round this player was CUT after — "Round 1" — or "" when they are in
+   * this round's field. A round after an applied stroke cut belongs to the
+   * players who made it (`strokeCutField`); a player it left out was offered
+   * "Start my card" for it, and saving one put them back on the board.
+   */
+  cutOut: string;
   /**
    * Where this round is played, when the round names its own venue.
    *
@@ -335,6 +343,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     })
     .filter((v): v is MyMatchView => v !== null);
 
+  // Whether the stroke cut into this round left this player out — see the
+  // field's note. Null field means the round is open to everybody.
+  const cutField = await strokeCutField(state.event.id, stage.id);
+  const cutOut = cutField && !cutField.has(playerId) ? await cutFeederName(state.event.id, stage.id) : "";
+
   // And the knockout's version of the same question, read off the draw.
   let tie: MyTie | null = null;
   if (isKnockoutRound(stage.type)) {
@@ -486,9 +499,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
        * gets both directions right, which is why it is the one to share.
        */
       ownCard:
+        !cutOut &&
         !needsTeams(stage.format) &&
         roundIsStroke(stage.type, stage.format) &&
         canEnterScores(settingsOf(state.event), "player"),
+      cutOut,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       matches: myMatches,

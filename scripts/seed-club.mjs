@@ -441,6 +441,27 @@ export async function seed() {
 
     /* ---------------------------------------------------------- the helpers */
 
+    /**
+     * THE DATES AS THE APP WRITES THEM — calendar dates AND the label.
+     *
+     * Every tournament here was given `dates: "2026-09-25"` and nothing else,
+     * so the member's Events list, which groups by the calendar dates
+     * (`startOn`), filed ten of eleven under "No dates yet" — the live April
+     * Medal among them — and the sign-up page printed a raw "2026-10-23".
+     * `setTournamentDates` stores both, and labels them with the club's locale
+     * through `formatDayRange`; this is the same, for the club's en-GB.
+     */
+    function datesFor(value) {
+      const m = /^(\d{4}-\d{2}-\d{2})(?: to (\d{4}-\d{2}-\d{2}))?$/.exec(value ?? "");
+      if (!m) return {};
+      const [start, end] = [m[1], m[2] ?? m[1]];
+      const fmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      const a = new Date(`${start}T00:00:00Z`);
+      const b = new Date(`${end}T00:00:00Z`);
+      const label = start === end ? fmt.format(a) : fmt.formatRange(a, b);
+      return { startOn: start, endOn: end, dates: label.replace(/ | /g, " ") };
+    }
+
     /** A tournament, with the columns every one of them needs filled in. */
     async function makeEvent(slug, name, extra) {
       const event = await prisma.event.create({
@@ -454,6 +475,7 @@ export async function seed() {
           regDeadline: "",
           shareToken: `${MARK}-tok-${slug}`,
           ...extra,
+          ...datesFor(extra.dates),
         },
       });
       // The organizer administers every tournament in their own club. Written

@@ -97,6 +97,29 @@ export default async function PlayCardPage() {
     );
   }
 
+  /**
+   * CUT AFTER THE ROUND BEFORE — no card to fill in, and the server refuses
+   * one anyway (`assertMayKeepCard`). Said before the scoring pad is built,
+   * because an 18-box grid with "Certify my card" under it is an invitation.
+   */
+  if (me.round.cutOut) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          You didn&rsquo;t make the cut after {me.round.cutOut}, so there&rsquo;s no {me.round.name} card
+          for you. Your {me.round.cutOut} score stands on the board.
+        </p>
+        <WayForward
+          links={[
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+            { href: "/me", label: "Back to today", icon: "flag" },
+          ]}
+        />
+      </div>
+    );
+  }
+
   if (!canEnterScores(settings, session.viewRole)) {
     return (
       <div>
