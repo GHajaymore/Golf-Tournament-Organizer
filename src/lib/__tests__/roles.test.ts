@@ -272,7 +272,10 @@ describe("qualification is not a screen of its own", () => {
      */
     expect(canAccessScreen("player", "bracket")).toBe(true);
     const page = readSource("src", "app", "(app)", "bracket", "page.tsx");
-    expect(page).toMatch(/isStaff\s*$|isStaff\n/m);
+    // The panel's data is built only for staff. Pinned on the guard rather than
+    // on the line ending there: since 2026-09-26 it is `isStaff && !straight`
+    // (a straight knockout has no qualification to audit), still staff-only.
+    expect(page).toMatch(/const qualification = isStaff\b/);
     expect(page).toMatch(/qualification && <QualificationPanel/);
   });
 });

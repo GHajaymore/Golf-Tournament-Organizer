@@ -307,6 +307,27 @@ export function generatesPairings(type: string): boolean {
 }
 
 /**
+ * WHAT ADDING A ROUND OF THIS TYPE WILL DRAW, said before the click.
+ *
+ * The Rounds screen split this on `generatesPairings` alone, so everything
+ * that is not a round robin got the stroke-play sentence — and a Bracket was
+ * described as "No pairings are drawn — the field returns cards", the opposite
+ * of a knockout. Found 2026-09-26 setting up a club knockout from scratch.
+ * Keyed on the type's own facts, so a new type says something true or nothing
+ * false: unknown types get the conservative stroke-play sentence.
+ */
+export function addRoundConsequence(type: string): string {
+  if (isKnockoutRound(type)) {
+    return "Draws a knockout: players meet head to head, and each winner goes through to the next round until one is left.";
+  }
+  if (isStructuralStage(type) && isHeadToHead(type)) {
+    return "One match, head to head — the two go out and play it.";
+  }
+  if (generatesPairings(type)) return "Draws a full set of pairings once flights are generated.";
+  return "No pairings are drawn — the field returns cards.";
+}
+
+/**
  * Whether this round pits somebody against somebody.
  *
  * False for an unknown type, which is the safe direction: a type nobody has

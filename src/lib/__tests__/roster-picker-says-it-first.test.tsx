@@ -5,6 +5,7 @@ vi.mock("@/app/actions/roster", () => ({ addMembersToEvent: async () => ({ ok: t
 
 import { RosterPicker } from "@/components/RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
+import { PLAYER_ACCESS_LABEL } from "@/lib/tournament-settings";
 
 /**
  * THE ROSTER PICKER SAYS WHO CAN'T BE ENTERED BEFORE THE TICK.
@@ -43,6 +44,21 @@ describe("the roster picker", () => {
   it("says none can be entered when every one is missing something", () => {
     const html = render([member("a", "mobile"), member("b", "mobile")]);
     expect(html).toContain("None of these members can be entered yet");
+  });
+
+  it("offers a Round Code as the other way round a missing email", () => {
+    // Found 2026-09-26: a fresh tournament on email sign-in refused every
+    // member without an address, and the only remedy named was to go and
+    // find eight addresses.
+    const html = render([member("a", "email"), member("b", "email")]);
+    // By the option's own label, so the words match what the setting says.
+    expect(html).toContain(PLAYER_ACCESS_LABEL.code);
+    expect(html).toContain("How players sign in");
+  });
+
+  it("does not offer it for a missing mobile, which no setting waives (control)", () => {
+    const html = render([member("a", "mobile"), member("b", "mobile")]);
+    expect(html).not.toContain(PLAYER_ACCESS_LABEL.code);
   });
 
   it("says nothing when nobody is missing anything (control)", () => {

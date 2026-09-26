@@ -185,8 +185,18 @@ describe("knockout qualifiers come from the players who contested the round", ()
     const state = await loadEventState(eventId);
     expect(state).not.toBeNull();
 
+    /**
+     * THE WHOLE FIELD, since 2026-09-26 — not the top two by seed.
+     *
+     * This asserted `size === 2`: the "top 2 per flight" cut applied by seed
+     * order, because nothing had been played. The guarantee above — never an
+     * EMPTY bracket — still holds; what changed is that a bracket with no round
+     * before it draws every entrant, as a club match-play knockout does. Cutting
+     * it by seed left half of a newcomer's eight members out of their own
+     * knockout (see `a-straight-knockout-draws-everyone.audit.test.ts`).
+     */
     const qualifierIds = new Set(state!.qualifiers.map((p) => p.id));
-    expect(qualifierIds.size).toBe(2);
+    expect(qualifierIds.size).toBe(4);
     expect(qualifierIds.has(top)).toBe(true);
     expect(qualifierIds.has(second)).toBe(true);
   });

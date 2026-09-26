@@ -22,7 +22,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | live |
 | #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | live |
 | #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | merged |
-| — | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | this PR |
+| #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
+| — | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -119,6 +120,32 @@ handicaps evenly across flights — right for team or match play. For a club med
 flights are prize *divisions* and are drawn **by handicap** so like plays like; a newcomer taking
 the default gets a Flight 1 holding a 4 and a 24.
 
+### Third run: a club match-play knockout
+
+"Set it up yourself" → "A knockout", a bracket as the only round, the same eight members.
+
+16. **Half the field left out of the draw — the serious one.** A knockout's qualification cut ranks
+    players on a round played *before* the bracket. With the bracket as the first round there is no
+    such round, and the cut was applied anyway, by seed order. With the defaults a new knockout gets
+    (top 2 per flight), the bracket read **"0 players qualify"** before flights existed and would
+    have drawn **4 of the 8** after — measured: the new test gets exactly 4 with the fix removed.
+    A club match-play knockout puts every entrant in the draw, with byes to the top seeds.
+    **Fixed:** when the bracket is the first round, every confirmed entrant is drawn; the Rounds
+    card, the bracket's subtitle and its qualification panel now say so instead of offering a cut.
+    A bracket fed by a round robin or a medal is unchanged — the seeded Summer Knockout still reads
+    "Top 8 overall", 8 of 16.
+17. **"Add bracket" said "No pairings are drawn — the field returns cards"** — the stroke-play
+    sentence, for a knockout. **Fixed:** the line says what each round type draws.
+18. **A fresh tournament refused all eight members** for want of an email: "Set it up yourself"
+    takes the club default (email sign-in), while the Stableford — copied from a Round Code
+    tournament — had entered the same eight an hour earlier. The picker named one remedy (go and
+    find eight addresses). **Fixed:** it also names the other, "Access code on their scorecard", by
+    the option's own label.
+19. **The guide asked a straight knockout for flights** ("4 of 5 — NOW Flights") that its draw then
+    ignores. **Fixed:** the Flights step, the journey card and the dashboard checklist leave it out
+    when the bracket is the first round; the guide now reads "Setup is done — all 4 parts" and names
+    the one thing left (the date).
+
 ### Noted, not changed (UX calls for Ajay)
 
 - Tournament details has three save buttons ("Save dates", "Save event", "Save settings") — a
@@ -169,5 +196,11 @@ named. The deferred-register entry for this class is closed.
 3. **Default flight rule for a stroke or Stableford round: "By handicap"** instead of "Balanced
    skills" (see the golf-pro note above). A one-line default, but it changes what every new medal's
    divisions look like, so it's your call.
+4. **Default bracket arrangement for a new knockout: "One bracket"** instead of "Two flights".
+   Today a newcomer's knockout of eight is split into two brackets of four (top four seeds and bottom
+   four) — a real club format (A and B divisions), but not what most clubs mean by "the knockout".
+   It is one click to change on the Bracket screen; the default is your call.
+5. **Should a fresh tournament default to access codes rather than email sign-in** when the club's
+   roster holds no addresses? The picker now points at the option; the default is a product decision.
 
 ## Log
