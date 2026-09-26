@@ -109,8 +109,12 @@ describe("the player's position says whether it can move", () => {
     expect(row.indexOf("standing.note")).toBeGreaterThan(row.indexOf("standing.position"));
 
     // And the card a match player still sees keeps the old order: place,
-    // then its qualifier, then the score label.
-    const card = page.slice(page.indexOf('"Position"'));
+    // then its qualifier, then the score label. Anchored on the card's LABEL,
+    // which since 2026-09-26 is `standingLabels(...)` ("Position", or
+    // "Qualifying" once the round is a draw) rather than a literal "Position".
+    const cardAt = page.indexOf("standingLabels({ position: standing.position");
+    expect(cardAt, "the position card's label is gone").toBeGreaterThan(-1);
+    const card = page.slice(cardAt);
     expect(card.indexOf("standing.note")).toBeGreaterThan(-1);
     expect(card.indexOf("standing.note")).toBeLessThan(card.indexOf("standing.scoreLabel"));
   });

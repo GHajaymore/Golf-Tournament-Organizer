@@ -32,6 +32,7 @@ import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark } from "@/lib/domain/scoreboard";
 import { roundCardFor } from "@/lib/services/round-card";
 import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
+import { standingLabels } from "@/lib/domain/standing-labels";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
 
@@ -436,7 +437,7 @@ export default async function PlayTodayPage() {
             >
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-                  {standing.position ? "Position" : standing.thru > 0 ? "Not ranked" : "Not started"}
+                  {standingLabels({ position: standing.position, thru: standing.thru, knockout: round?.knockout }).hero}
                 </div>
                 <div style={{ fontFamily: "var(--font-heading)", fontSize: 40, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                   {standing.position || "–"}
@@ -558,7 +559,11 @@ export default async function PlayTodayPage() {
        * standings will change") is printed under the board it qualifies.
        */}
       {leaders.length > 0 ? (
-        <ScoreboardLeaders rows={leaders} note={standing?.note || standing?.record || ""} />
+        <ScoreboardLeaders
+          rows={leaders}
+          note={standing?.note || standing?.record || ""}
+          title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
+        />
       ) : (
         hero &&
         standing && (

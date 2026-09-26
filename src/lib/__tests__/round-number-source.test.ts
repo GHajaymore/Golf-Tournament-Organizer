@@ -45,14 +45,22 @@ function sourceFiles(dir: string): string[] {
  * from a list position at the point of display.
  */
 const HAND_COUNTED = /Round \$\{[^}]*\b(?:position|index|i|idx|n)\b[^}]*\+\s*1/;
+const HAND_COUNTED_ALL = new RegExp(HAND_COUNTED.source, "g");
 
 /**
  * Where a hand-built round number is still correct, each for a stated reason.
  *
  * Short by design. Anything added here needs the reason written next to it,
  * because every entry is a place the app can drift apart again.
+ *
+ * BY COUNT, NOT BY FILE. This used to exempt a whole file, and
+ * `app/actions/tournament.ts` is five thousand lines: two audit-log labels
+ * ("Closed Round 2", "Completing the tournament closed Round 2") were written
+ * inside it with exactly the banned count and nothing noticed, because the
+ * file's one legitimate key made every other use in it invisible. So each file
+ * may hold as many as its stated keys and no more — a new one fails here.
  */
-const ALLOWED: Record<string, string> = {
+const ALLOWED: Record<string, { count: number; reason: string }> = {
   /**
    * NOT A LABEL — a database lookup key.
    *
@@ -61,11 +69,12 @@ const ALLOWED: Record<string, string> = {
    * tournaments; it would create a second flight beside the first and split a
    * club's matches across the two. Changing it needs a migration, not an edit.
    */
-  "app/actions/teams.ts": "Group name used as a find-or-create key",
-  "app/actions/tournament.ts": "Group name used as a find-or-create key",
+  "app/actions/teams.ts": { count: 1, reason: "Group name used as a find-or-create key" },
+  // Two keys: the round's own match carrier and the play-off for third.
+  "app/actions/tournament.ts": { count: 2, reason: "Group name used as a find-or-create key" },
   // The league week draw hands `matchCarrierGroup` the same name
   // `generateTeamMatches` uses, so a week drawn either way finds one carrier.
-  "app/actions/league.ts": "Group name used as a find-or-create key",
+  "app/actions/league.ts": { count: 1, reason: "Group name used as a find-or-create key" },
 };
 
 describe("round numbers come from one place", () => {
@@ -76,9 +85,9 @@ describe("round numbers come from one place", () => {
       // explain the rule would be reported as a violation of it.
       src: stripComments(readFileSync(f, "utf8")),
     }))
-    .filter(({ src }) => HAND_COUNTED.test(src))
-    .map(({ file }) => file)
-    .filter((f) => !(f in ALLOWED));
+    .map(({ file, src }) => ({ file, found: (src.match(HAND_COUNTED_ALL) ?? []).length }))
+    .filter(({ file, found }) => found > (ALLOWED[file]?.count ?? 0))
+    .map(({ file, found }) => `${file} (${found} hand-counted, ${ALLOWED[file]?.count ?? 0} allowed)`);
 
   it("no screen derives a round number from a list position", () => {
     // The message names the file, because the fix is always the same: call
@@ -96,7 +105,7 @@ describe("round numbers come from one place", () => {
     for (const file of Object.keys(ALLOWED)) {
       const src = readSource("src", file);
       const looksItUp = /matchCarrierGroup\(/.test(src) || /group\.findFirst\(\{\s*where:\s*\{[^}]*name/.test(src);
-      expect(looksItUp, `${file}: ${ALLOWED[file]}`).toBe(true);
+      expect(looksItUp, `${file}: ${ALLOWED[file].reason}`).toBe(true);
     }
   });
 
