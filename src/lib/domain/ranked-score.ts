@@ -99,6 +99,28 @@ export interface RankedScore {
 }
 
 /**
+ * THE LABEL, SAYING WHICH TO-PAR IT IS: "Thru 11 · net".
+ *
+ * Found 2026-09-26 walking the player app on the seeded April Medal. Today
+ * hung the player's card under "YOUR CARD · THRU 11" with −2 beside it — the
+ * NET to-par, the figure the medal is ranked on and the Board prints — while
+ * My card, one tab along, read "Gross 49 · To par +5 · Net 42". Both right;
+ * a golfer reads −2 as two under and +5 as five over, of the same round.
+ *
+ * "To par" beside a gross total means gross to par, as it does on every card
+ * in golf, so that screen stays. The figure with no word on it gets the word,
+ * decided by `unitIsNet` on the same caption that heads the Board — so Today,
+ * the Board and this label cannot disagree about which to-par it is.
+ *
+ * Stroke rounds only, and only with a number beside it: Stableford points and
+ * match points are already their own unit, and a dash is not a to-par.
+ */
+export function withStrokeBasis(score: RankedScore, strokeRound: boolean, unit: string): string {
+  if (!strokeRound || score.text === "–") return score.label;
+  return `${score.label} · ${unitIsNet(unit) ? "net" : "gross"}`;
+}
+
+/**
  * ONE CELL, FOR EVERY TABLE THAT PRINTS A TO-PAR.
  *
  * `toPar` is `gross - parThru`, so a round with no course card returns the

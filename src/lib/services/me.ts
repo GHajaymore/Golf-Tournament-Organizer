@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { rankedScore } from "@/lib/domain/ranked-score";
+import { rankedScore, withStrokeBasis } from "@/lib/domain/ranked-score";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
@@ -398,10 +398,14 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
             isStableford: isStablefordRound(stage.scoringBasis, stage.format),
           }).text,
           record: state.boardIsStroke ? "" : standing.record,
-          scoreLabel: rankedScore(standing, {
-            isStroke: state.boardIsStroke,
-            isStableford: isStablefordRound(stage.scoringBasis, stage.format),
-          }).label,
+          scoreLabel: withStrokeBasis(
+            rankedScore(standing, {
+              isStroke: state.boardIsStroke,
+              isStableford: isStablefordRound(stage.scoringBasis, stage.format),
+            }),
+            state.boardIsStroke && !isStablefordRound(stage.scoringBasis, stage.format),
+            state.strokeUnitLabel,
+          ),
           // The board's own progress, through the rule `/reports` reads. See
           // the note on the field.
           note: snapshotStanding({
