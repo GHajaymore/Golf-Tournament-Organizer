@@ -30,7 +30,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #635 | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | live |
 | #636 | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | live |
 | #637 | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | live |
-| — | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | this PR |
+| #638 | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | merged |
+| — | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -278,6 +279,42 @@ wrong:
     screens take the table and its one-line "what this is ranked on", without the console's page
     header. The console's own Live leaderboard is unchanged. Checked in the browser on Reports and
     on the public link (one heading each); the public board was already public and was left so.
+
+### A score, entered and taken back
+
+The thing a member does most, done for real on the April Medal as the player (thru 11): tapped
+"Par" on the 12th. The card moved on to the 13th by itself and said "Saved — 12 of 18 holes in";
+Today then read "thru 12 · net −2" and the Board "T9 · thru 12 · −2" — gross 52, +5 on the card,
+all three agreeing. Emptying the 12th's box took the score back off, and after a reload the card
+was thru 11 again, exactly as seeded. No console errors throughout.
+
+Then the organizer's side of the same round, Score entry:
+
+30. **The tee picker named the wrong set as "the tournament's".** The April Medal is played off
+    the Whites — the tournament's tees, the round's, and every player's. The picker's first
+    option read "Blue (the tournament's)", directly above a card headed "TEES White". It was
+    naming the course's first rated set rather than the tournament's own choice, so an organizer
+    choosing it was promised Blue and would have had every card priced off White. A wrong tee
+    moves every course handicap in the round, so this is the kind of label a committee acts on.
+    **Fixed:** the page now works the name out through the same chain that prices the cards
+    (round, then tournament, then course) and the option reads "White (the tournament's)".
+    Nothing that scores a card changed — only the words on the option. Flights and Registration
+    have the same kind of option and were already right.
+
+### Noted, not changed — a decision for Ajay
+
+- **A finished championship lists players who missed the cut among those who made it.** The
+  seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
+  at T10 — above Cormac Threlfall, who made the cut and finished +16 over 36 (T14), and Hattie
+  Mwangi, who finished all 36 at T21. The leaderboard, Reports and the player's Board all agree,
+  because they read one ranking. The app already has the answer, and it is Ajay's decision of
+  2026-09-23 (#577): once the organizer ticks "This round is finished" on round 2, anybody with no
+  card for it is shown without a place. Nobody ticked it on this tournament, and nothing asks
+  them to — the tournament was marked Completed with round 2 still open. I have not changed the
+  ranking, because that decision says a round is over only when the organizer says so. **The
+  question:** should marking a tournament Completed also close its rounds (it is the organizer
+  saying so), or should it at least ask "Round 2 isn't marked finished — players who missed the
+  cut are still ranked. Close it?" Either is small; both change a decided rule, so it is yours.
 
 ### Noted, not changed (UX calls for Ajay)
 

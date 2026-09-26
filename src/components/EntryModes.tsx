@@ -46,6 +46,8 @@ export interface EntryRound {
   courseId: string;
   /** The set this round is played from, or "" for the tournament’s. */
   teeId: string;
+  /** The name of the set "the tournament's" resolves to here, or "". */
+  inheritedTeeName?: string;
   /**
    * The card this round will actually be scored against, and whether that
    * card exists.
@@ -407,6 +409,7 @@ export function EntryModes({
           library={courseLibrary}
           venue={round.venue}
           teeId={round.teeId}
+          inheritedTeeName={round.inheritedTeeName}
           canEdit={isStaff}
         />
       )}

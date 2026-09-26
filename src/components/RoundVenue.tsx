@@ -34,6 +34,7 @@ export function RoundVenue({
   library = [],
   venue,
   teeId = "",
+  inheritedTeeName,
   canEdit,
 }: {
   stageId: string;
@@ -53,6 +54,13 @@ export function RoundVenue({
   library?: Array<{ id: string; name: string; city?: string; tees?: Array<TeeLike & { rated: boolean }> }>;
   /** The set this round is currently played from, or "" for the tournament's. */
   teeId?: string;
+  /**
+   * The set "the tournament's" resolves to on this round, resolved on the
+   * server through `teeForPlay` — the chain that prices the cards. Only the
+   * server knows the tournament's own choice; without it the option falls back
+   * to guessing from the course, which named Blue on a medal off the Whites.
+   */
+  inheritedTeeName?: string;
   /** The venue this round resolves to, and whether it has a card. */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
   canEdit: boolean;
@@ -149,6 +157,10 @@ export function RoundVenue({
    * the rounds nobody has configured, which is most of them.
    */
   const teesHere = library.find((c) => c.id === venue?.courseId)?.tees ?? [];
+  // The server's answer when it gave one; the course's default only for a
+  // caller that could not say (it cannot know the tournament's own choice).
+  const inheritedName =
+    inheritedTeeName !== undefined ? inheritedTeeName : defaultTeeFor(venue?.courseId ?? null, teesHere)?.name ?? "";
   const setTee = (id: string) =>
     startTransition(async () => {
       const res = await setStageCourse(stageId, venue?.courseId ?? null, "full", true, id || null);
@@ -234,11 +246,7 @@ export function RoundVenue({
           >
             {/* Named rather than blank, and named with what it resolves to —
                 the same rule the course picker above follows for "inherited". */}
-            <option value="">
-              {defaultTeeFor(venue?.courseId ?? null, teesHere)?.name
-                ? `${defaultTeeFor(venue?.courseId ?? null, teesHere)!.name} (the tournament's)`
-                : "The tournament's"}
-            </option>
+            <option value="">{inheritedName ? `${inheritedName} (the tournament's)` : "The tournament's"}</option>
             {teesHere.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}

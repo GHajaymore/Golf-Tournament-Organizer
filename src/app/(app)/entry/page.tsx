@@ -683,6 +683,23 @@ export default async function EntryPage() {
         courseId: stage.courseId ?? "",
         teeId: stage.teeId ?? "",
         /**
+         * WHAT "THE TOURNAMENT'S" TEES ARE, for the picker's inherit option.
+         *
+         * The picker named that option through `defaultTeeFor` — the course's
+         * first rated set — and not the tournament's own choice. On the seeded
+         * April Medal it read "Blue (the tournament's)" while the tournament is
+         * off the Whites, so choosing it promised Blue and scored every card off
+         * White. Resolved here through `teeForPlay`, the chain that prices the
+         * cards, with the round's own set left out: this names what the round
+         * falls back TO, which is exactly the inherit option.
+         */
+        inheritedTeeName: (() => {
+          const v = stageCourse ?? soleVenue;
+          const tees = clubLibrary.find((c) => c.id === v?.id)?.tees ?? [];
+          const id = teeForPlay(tees, { eventDefaultTeeId: state.event.defaultTeeId }, v?.id ?? null);
+          return tees.find((t) => t.id === id)?.name ?? "";
+        })(),
+        /**
          * The venue this round will actually be scored against.
          *
          * Round's own venue, then the tournament's sole one — the same order
