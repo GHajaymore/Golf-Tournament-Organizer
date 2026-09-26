@@ -196,15 +196,18 @@ describe("the card screen on a casual round", () => {
 
   it("offers no spreadsheet import and no bulk clear", () => {
     const src = entry();
-    expect(src).toMatch(/isStaff && !casual && \(/);
-    expect(src).toMatch(/isStaff && !casual && !clearing && \(/);
+    // The casual gate, followed by anything else the control is gated on —
+    // since 2026-09-26 both also say `!bracket` (a knockout round is recorded
+    // on the Bracket). The guarantee is that `!casual` is in the gate.
+    expect(src).toMatch(/isStaff && !casual(?: && !\w+)* && \(/);
+    expect(src).toMatch(/isStaff && !casual && !clearing(?: && !\w+)* && \(/);
   });
 
   it("does not ask how to type the scores in", () => {
     // `defaultMode` reads the round's own format, so for a casual round the
     // toggle only ever offers the wrong one of the two — under a label
     // describing a field they do not have.
-    expect(entry()).toMatch(/\{!casual && \(/);
+    expect(entry()).toMatch(/\{!casual(?: && !\w+)* && \(/);
   });
 
   it("does not offer a committee step to a round that has no committee", () => {
@@ -223,7 +226,7 @@ describe("the card screen on a casual round", () => {
      * the round up, because they are staff of their own personal organization
      * and `isStaff` is therefore true for a fourball of two.
      */
-    expect(entry()).toMatch(/mode === "stroke" && isStaff && !casual && \(/);
+    expect(entry()).toMatch(/mode === "stroke" && isStaff && !casual(?: && !\w+)* && \(/);
   });
 
   it("still gives a tournament its committee step", () => {

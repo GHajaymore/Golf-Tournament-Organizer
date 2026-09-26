@@ -2934,6 +2934,28 @@ describe("saying where a tournament is played, from score entry", () => {
   });
 
   /**
+   * A KNOCKOUT ROUND POINTS AT THE BRACKET.
+   *
+   * Found 2026-09-26 on a newcomer's club knockout and on the seeded Summer
+   * Knockout alike: the bracket round opened as a stroke card for every player,
+   * and "Match by match" said "generate flights on the Flights screen", which
+   * never draws a bracket. Its results are recorded on the Bracket.
+   */
+  it("sends a knockout round to the bracket, with no way of entering it here", async () => {
+    const html = await entry({ bracket: true, drawsPairings: false, venue: { name: "Braid", courseId: "c", hasCard: true } });
+    expect(html).toContain("is the knockout");
+    expect(html).toContain('href="/bracket"');
+    expect(html).not.toContain("How to enter the scores");
+    expect(html).not.toContain("Generate flights");
+  });
+
+  it("keeps both ways of entering on any other round (control)", async () => {
+    const html = await entry({ venue: { name: "Braid", courseId: "c", hasCard: true } });
+    expect(html).toContain("How to enter the scores");
+    expect(html).not.toContain("is the knockout");
+  });
+
+  /**
    * A TOURNAMENT WITH NO ROUNDS — WHICH IS EVERY TOURNAMENT FOR TEN MINUTES.
    *
    * `rounds[roundIdx] ?? rounds[0]` is undefined on an empty list and the
