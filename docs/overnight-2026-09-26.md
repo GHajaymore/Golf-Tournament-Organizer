@@ -28,8 +28,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | live |
 | #634 | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | live |
 | #635 | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | live |
-| #636 | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | merged |
-| — | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | this PR |
+| #636 | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | live |
+| #637 | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | live |
+| — | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -259,6 +260,24 @@ joining the waitlist" and its button says "Join the waitlist".
     Noted, not changed: the seeded tournaments show their date as "2026-10-23" on this page. That
     is the seed script writing a raw date; a date saved in the app is stored as the club's own
     wording ("Fri 23 Oct 2026").
+
+### Every console screen in every tournament
+
+As the club secretary: twenty console screens in each of the eleven seeded tournaments at desktop
+width — 220 page loads. All returned 200, none overflowed, none showed an application error. The
+only console errors were three dropped connections to the dev server's reload socket while it
+restarted itself for memory, which is the development server and not the app. One screen was
+wrong:
+
+29. **Reports carried a second "Live leaderboard" heading — and so did the club's public link.**
+    The Invitational's Reports page had two page headings: its own, and the "Overview · Live
+    leaderboard" header of the team board it embeds in its print snapshot — so the sheet a
+    committee prints and pins up after the round said "Live". The public share link embeds the
+    same four boards (team, skins, Nassau, Modified Stableford) under the tournament's own name,
+    so members saw the console's "Overview" kicker and a second heading there too. **Fixed:** both
+    screens take the table and its one-line "what this is ranked on", without the console's page
+    header. The console's own Live leaderboard is unchanged. Checked in the browser on Reports and
+    on the public link (one heading each); the public board was already public and was left so.
 
 ### Noted, not changed (UX calls for Ajay)
 
