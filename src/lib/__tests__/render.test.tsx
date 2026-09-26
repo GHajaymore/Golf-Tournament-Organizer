@@ -7659,6 +7659,9 @@ describe("the setup rail", () => {
     expect(rail({ ...done, launched: true })).toBe("");
     // And the guide is gone, not merely quiet about the launch.
     expect(rail({ ...done, launched: true })).not.toContain("Setting up");
+    // Even with a step left undone — a finished championship with no flights
+    // was told "NOW Flights" (2026-09-26).
+    expect(rail({ ...done, groups: 0, launched: true })).toBe("");
   });
 
   it("shows nothing at all for a match", () => {

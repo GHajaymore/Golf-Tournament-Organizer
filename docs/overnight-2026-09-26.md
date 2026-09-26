@@ -26,7 +26,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #631 | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | live |
 | #632 | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | live |
 | #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | merged |
-| — | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | this PR |
+| #634 | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | merged |
+| — | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -173,6 +174,14 @@ the cut, the four-ball's 8/8 sides) except one:
     "8 finished, not yet certified · accept on Score entry", and "still out on the course" counts only
     cards that really are part-way round. (The committee queue is unchanged on purpose: an uncertified
     card waits on the player's marker, not the committee.)
+23. **A leaderboard with no rounds claimed a format.** The seeded Captain's Day — eighteen entered,
+    no round added — showed "Overall standings · stroke play (gross / net / to-par)" over eighteen
+    rows of dashes. **Fixed:** "No rounds yet — there is nothing to rank until this tournament has a
+    round", with the link to add one.
+24. **A finished championship was still being set up.** The completed Club Championship carried
+    "Setting up · 4 of 5 done · NOW Flights" on every setup screen — a locked, finished tournament
+    told to make flights a single-division medal doesn't need — and its lock banner said "the
+    tournament is live". **Fixed:** the guide stops at launch; the banner says "launched".
 
 ### Noted, not changed (UX calls for Ajay)
 

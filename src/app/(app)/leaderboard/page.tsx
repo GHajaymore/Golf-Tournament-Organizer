@@ -1,5 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
+import { screenName } from "@/lib/nav";
 import { requireState } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
@@ -57,6 +58,37 @@ export default async function LeaderboardPage() {
    * results were thrown away — see `boardKindForRound`.
    */
   const kind = boardKindForRound(activeStage?.format, activeStage?.type);
+
+  /**
+   * NO ROUNDS, NO BOARD.
+   *
+   * With nothing added to Rounds & formats this printed "Overall standings ·
+   * stroke play (gross / net / to-par)" over a row of dashes for every entrant
+   * — found 2026-09-26 on the seeded club's Captain's Day, eighteen entered and
+   * no format chosen. "Stroke play" was a default, not a fact, and the table
+   * answered a question the tournament has not asked yet. The heading stays
+   * (every screen has one); the sentence says what is missing and where.
+   */
+  if (!state.stages.some((s) => isPlayingRound(s.type))) {
+    const isStaffViewer = session.viewRole === "admin" || session.viewRole === "assistant";
+    return (
+      <>
+        <div className="page-kicker">Overview</div>
+        <h1 className="page-title">Live leaderboard</h1>
+        <div className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>No rounds yet</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
+            There is nothing to rank until this tournament has a round and somebody plays it.
+            {isStaffViewer && (
+              <>
+                {" "}Add the first on <Link href="/stages">{screenName("/stages")}</Link>.
+              </>
+            )}
+          </p>
+        </div>
+      </>
+    );
+  }
 
   /**
    * A STRAIGHT KNOCKOUT'S STANDINGS ARE ITS DRAW.

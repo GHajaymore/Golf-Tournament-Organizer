@@ -273,6 +273,16 @@ export interface SetupFlow {
    * dashboard call — rather than restating its rules.
    */
   launchBlocked: string | null;
+  /**
+   * Past launch — live or finished. The guide stops here whatever is left.
+   *
+   * Found 2026-09-26: a COMPLETED club championship carried "Setting up · 4 of
+   * 5 done · NOW Flights · Still to do: Flights" across its setup screens —
+   * a finished tournament, configuration locked, being told to make flights a
+   * single-division medal does not need. A guide that outlives the phase it
+   * guides is the furniture `readyToLaunch` was written to avoid.
+   */
+  launched: boolean;
 }
 
 /** The order, and the test for each step. Labels arrive from the nav. */
@@ -588,6 +598,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
     doneCount: done.filter(Boolean).length,
     complete,
     readyToLaunch,
+    launched: !!facts.launched,
     launchBlocked: readyToLaunch
       ? launchRefusal({
           playingRounds: facts.playingRounds ?? facts.rounds.length,
@@ -608,7 +619,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
  * how the two would come to disagree and put two progress lists on one screen.
  */
 export function railSpeaks(flow: SetupFlow | null): boolean {
-  return !!flow && (!flow.complete || flow.readyToLaunch);
+  return !!flow && !flow.launched && (!flow.complete || flow.readyToLaunch);
 }
 
 export interface SetupPosition {
