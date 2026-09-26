@@ -101,6 +101,7 @@ export function BracketClient({
   secondLabel = "",
   results = {},
   readOnly = false,
+  straight = false,
 }: {
   winners: BracketView;
   consolation: BracketView;
@@ -124,7 +125,12 @@ export function BracketClient({
   secondLabel?: string;
   results?: Record<string, string>;
   readOnly?: boolean;
+  /** No qualifying round before this bracket: the whole field is in it. */
+  straight?: boolean;
 }) {
+  // "Seeded from qualification" was printed over a knockout nobody qualified
+  // for — the bracket was the tournament's first round.
+  const seededFrom = straight ? "The whole field, seeded in order." : "Seeded from qualification.";
   const [tab, setTab] = useState<"winners" | "consolation">("winners");
   /**
    * ONLY WHERE THERE IS A SECOND BRACKET — and it is named, not assumed.
@@ -152,8 +158,8 @@ export function BracketClient({
           <h1 className="page-title">{bracketScreenName(readOnly)}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {readOnly
-              ? "Seeded from qualification. Winners advance automatically as results come in."
-              : "Seeded from qualification. Click a name to advance the winner (results auto-advance the next round)."}
+              ? `${seededFrom} Winners advance automatically as results come in.`
+              : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
           </p>
         </div>
         {hasSecond && (

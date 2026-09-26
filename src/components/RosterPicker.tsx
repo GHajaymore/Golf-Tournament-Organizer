@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { addMembersToEvent } from "@/app/actions/roster";
 import { listNames } from "@/lib/format";
+import { PLAYER_ACCESS_LABEL } from "@/lib/tournament-settings";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { Icon } from "./Icon";
 
@@ -54,6 +55,18 @@ export function RosterPicker({
    * add action refuses on (`contactGap`), so the row can say it first.
    */
   const missingCount = available.filter((c) => c.missing).length;
+  /**
+   * AN ADDRESS HAS A SECOND REMEDY; A MOBILE DOES NOT.
+   *
+   * An email is needed only because this tournament signs players in by
+   * email — `entryNeedsEmail` is `!usesAccessCodes`. Found 2026-09-26: a
+   * newcomer's "Set it up yourself" knockout took the club default (email
+   * sign-in) and refused all eight members its Stableford, copied from a
+   * Round Code tournament, had entered an hour earlier. "Add it under Manage
+   * members" is one way; letting players in with a Round Code, which needs no
+   * address, is the other, and the club may not have the addresses at all.
+   */
+  const missingEmail = available.some((c) => c.missing === "email");
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -155,6 +168,14 @@ export function RosterPicker({
               — each is missing a contact detail this tournament needs, marked below. Add it under{" "}
               <Link href="/roster" style={{ textDecoration: "underline" }}>Manage members</Link>, then pick
               them here.
+              {missingEmail && (
+                <>
+                  {" "}
+                  Or choose &ldquo;{PLAYER_ACCESS_LABEL.code}&rdquo;, which needs no email, under &ldquo;How
+                  players sign in&rdquo; on{" "}
+                  <Link href="/event" style={{ textDecoration: "underline" }}>Tournament details</Link>.
+                </>
+              )}
             </p>
           )}
 

@@ -8,6 +8,7 @@ import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
+import { isKnockoutRound } from "@/lib/stage-types";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -27,6 +28,13 @@ export default async function BracketPage() {
 
   const mode: BracketMode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
   const { mainLabel, secondLabel } = drawBrackets([], mode);
+  /**
+   * A STRAIGHT KNOCKOUT: the bracket is the first round, so there is no
+   * qualification to audit — `loadEventState` puts every entrant in the draw.
+   * Said once, plainly, instead of a qualification panel reading "Top 2/flight"
+   * over "8 players qualify" with no round anybody qualified in.
+   */
+  const straight = state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0;
 
   /**
    * The qualification audit, which used to be its own screen.
@@ -47,7 +55,7 @@ export default async function BracketPage() {
    * `bracketMode`, so it described a draw the tournament was not going to
    * make; that fix is kept rather than re-derived.
    */
-  const qualification = isStaff
+  const qualification = isStaff && !straight
     ? (() => {
         const draw = drawBrackets(state.qualifiers, mode);
         const flightOf = new Map(
@@ -104,7 +112,15 @@ export default async function BracketPage() {
         secondLabel={secondLabel}
         results={results}
         readOnly={!isStaff}
+        straight={straight}
       />
+      {straight && isStaff && (
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
+          No qualifying round comes before this bracket, so everyone in the field is in the draw
+          ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}), seeded in order.
+          Where the numbers are not 4, 8, 16 or 32, the top seeds get byes.
+        </p>
+      )}
       {/* Under the draw. Qualification comes first in time, so reading order
           argues for the top — but this is an `on-course` screen, tapped
           one-handed to advance a winner, and the audit is read sitting down.

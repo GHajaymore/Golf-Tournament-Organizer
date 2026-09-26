@@ -2014,6 +2014,29 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
           );
   }
 
+  /**
+   * A KNOCKOUT WITH NOTHING BEFORE IT: EVERY ENTRANT IS IN THE DRAW.
+   *
+   * The qualification cut above ranks a field on a round played BEFORE the
+   * bracket. When the bracket is the tournament's first round there is no such
+   * round, and applying the cut anyway kept entrants out of the draw by seed
+   * order alone. Found 2026-09-26 setting up a club knockout from scratch as a
+   * newcomer: eight members entered, a bracket as the only round, and the
+   * defaults a knockout is created with — top 2 per flight — drew nobody before
+   * flights existed and would have drawn four of the eight after. A club
+   * match-play knockout puts every entrant in the draw, with byes where the
+   * numbers do not make a power of two; qualification is for a draw fed by a
+   * qualifying round, which is what the seeded Summer Knockout is (round robin,
+   * then the top eight).
+   *
+   * Only the FIRST round: a bracket after a round robin or a medal is
+   * qualified into exactly as before. `bracketIdx` and its `feeders` are the
+   * reading `bracketVisibility` already takes of the same question.
+   */
+  if (bracketIdx === 0) {
+    qualifierIds = new Set(confirmed.map((p) => p.id));
+  }
+
   // Which players the standings highlight as advancing — the lit rows on the
   // dashboard flight standings and on the live leaderboard everyone watches.
   //

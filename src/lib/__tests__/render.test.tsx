@@ -1483,12 +1483,30 @@ describe("rounds and format", () => {
        * question it asked is real and moved to the bracket, which is whose
        * field it decides.
        */
+      /*
+       * FED BY A ROUND, since 2026-09-26. This rendered a bracket with nothing
+       * before it — the one case where there is nothing to qualify on, and
+       * where the cut, applied by seed order, left half a club's entrants out
+       * of its knockout. That bracket now draws the whole field (next test).
+       */
+      const html = render(
+        <StagesClient {...base}
+          stages={[
+            stage({ id: "q", position: 0, type: "Stroke Play Round", format: "Stroke Play" }),
+            stage({ id: "b1", position: 1, type: "Bracket Stage" }),
+          ]} />,
+      );
+      expect(html).toContain("Qualification cut");
+      closedPanel(html);
+    });
+
+    it("offers no cut on a bracket that is the first round — everyone is drawn", () => {
       const html = render(
         <StagesClient {...base}
           stages={[stage({ id: "b1", position: 0, type: "Bracket Stage" })]} />,
       );
-      expect(html).toContain("Qualification cut");
-      closedPanel(html);
+      expect(html).not.toContain("Qualification cut");
+      expect(html).toContain("everyone in the field goes into the draw");
     });
 
     it("says nothing at all on a round that decides nothing of its own", () => {

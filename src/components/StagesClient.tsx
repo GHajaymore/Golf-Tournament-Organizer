@@ -39,6 +39,7 @@ import {
   // STAGE_TYPES is gone with the round type this screen used to preselect.
   stageTypeInfo,
   generatesPairings,
+  addRoundConsequence,
   seededFromQualifiers,
   nextPlayingStage,
   isStructuralStage,
@@ -1480,7 +1481,18 @@ function StageCard({
             a stage the field never played, whose only job was to host this
             control and whose settings were the EVENT’s anyway. The stage went;
             the question it asked is real and stayed. */}
+        {/* NOTHING TO CUT ON when the bracket is the first round: there is no
+            qualifying round to rank anybody, so `loadEventState` puts the whole
+            field in the draw. Offering "Top 2 per flight" here was offering a
+            setting that — before 2026-09-26 — silently left half a club's
+            entrants out of its knockout. */}
         {stage.type === "Bracket Stage" && (
+          allStages.findIndex((s) => s.id === stage.id) === 0 ? (
+          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5, maxWidth: "62ch" }}>
+            This bracket is the first round, so everyone in the field goes into the draw, seeded in order —
+            there is no qualifying round to cut from. Add a round before it to qualify into it instead.
+          </p>
+        ) : (
           <div>
             <SectionLabel>
               Qualification cut
@@ -1494,6 +1506,7 @@ function StageCard({
             </p>
             <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
           </div>
+          )
         )}
       </SettingsGroup>
 
@@ -2356,10 +2369,8 @@ export function StagesClient({
           {!newType
             ? "Pick one above — the type decides what gets drawn."
             : !bulkFormat
-              ? `${generatesPairings(newType) ? "Draws a full set of pairings once flights are generated." : "No pairings are drawn — the field returns cards."} Now choose the format it is scored by.`
-              : generatesPairings(newType)
-                ? "Draws a full set of pairings once flights are generated."
-                : "No pairings are drawn — the field returns cards."}
+              ? `${addRoundConsequence(newType)} Now choose the format it is scored by.`
+              : addRoundConsequence(newType)}
         </p>
 
         {/* Said before the click, not discovered after it. Deliberately NOT a
