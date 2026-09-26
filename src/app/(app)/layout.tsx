@@ -5,7 +5,7 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
 import { loadEventState } from "@/lib/services/tournament";
-import { roundLabelWith } from "@/lib/domain/round-label";
+import { roundNameFor } from "@/lib/domain/round-label";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent, themeForEvent, formattingForEvent } from "@/lib/services/organization";
@@ -135,7 +135,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const roundState = event ? await loadEventState(event.id) : null;
   const boardRound = roundState?.boardStage ?? null;
   const roundName = boardRound
-    ? roundLabelWith(roundState!.playRounds, boardRound.id, boardRound.format || boardRound.type)
+    ? roundNameFor(roundState!.playRounds, boardRound)
     : undefined;
 
   /**

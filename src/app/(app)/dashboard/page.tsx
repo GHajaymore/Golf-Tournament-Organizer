@@ -1,6 +1,6 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
-import { roundLabel, roundLabelWith, roundNumber } from "@/lib/domain/round-label";
+import { roundLabel, roundNameFor, roundNumber } from "@/lib/domain/round-label";
 import { reviewQueueDetail } from "@/lib/domain/review-queue";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
@@ -291,12 +291,15 @@ export default async function DashboardPage() {
       casualMatch
       ? "The match"
       : "The round"
-    : state.playRounds.length > 1 && currentStage
-      ? roundLabelWith(state.playRounds, currentStage.id, currentStage.type)
+    : currentStage
+      ? /* THE HEADING'S WORDS, from the heading's function. This printed the
+           type alone, so a one-round Scramble read "Stroke Play Round" here
+           under a heading saying "Round 1 · Scramble". See `roundNameFor`. */
+        roundNameFor(state.playRounds, currentStage)
       : // "—" is what a tournament with no rounds read, over an empty progress
         // bar and "0/0 scorecards certified". A dash is a missing VALUE; this
         // is a state, and the line under it now says what to do about it.
-        (currentStage?.type ?? "No rounds yet");
+        "No rounds yet";
   const currentRoundDesc = matchEvent
     ? // A round robin of two IS the match, and telling two friends that
       // "every player meets everyone in their flight" describes the schema
@@ -1044,10 +1047,17 @@ export default async function DashboardPage() {
                   /* `standingRows` is per PLAYER, and a team round's result
                      belongs to the SIDE — so this card had five column names
                      and no rows under them on a four-ball that had finished.
-                     Name where the answer actually is. */
+                     Name where the answer actually is.
+
+                     BOTH places, since 2026-09-26. This said "they're on
+                     Reports & export" only, which sent a newcomer running a
+                     scramble away from the Live leaderboard — the screen built
+                     for it, which ranks the sides ("Scramble · 2 sides · lowest
+                     net wins"). Checked on the seeded club: both screens show
+                     them. */
                   emptyNote={
                     teamRound
-                      ? "This round is played in sides, so the standings are by side — they're on Reports & export."
+                      ? `This round is played in sides, so the standings rank the sides — they're on the ${screenName("/leaderboard")} and in ${screenName("/reports")}.`
                       : /* A HAND-SCORED ROUND'S BOARD NEVER FILLS IN. "The
                            board fills in as scores come back" is a promise
                            about cards that this format does not have — the
@@ -1255,8 +1265,14 @@ export default async function DashboardPage() {
 
           And never for a match: its one flight holds both players, so this
           card is the leaderboard directly above it printed a second time
-          under a heading about flights. */}
-      {showStandings && !unstarted && !matchEvent && (
+          under a heading about flights.
+
+          Nor for a round played in SIDES. The rows are per PLAYER, and a team
+          round's result belongs to the side — the standings card above says so
+          in words. This one printed all eight players of a finished scramble
+          with "—" against every name, which reads as a round nobody has
+          scored. Found 2026-09-26 running a scramble from scratch. */}
+      {showStandings && !unstarted && !matchEvent && !teamRound && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div className="card-head">
           <span className="card-title">Flight standings</span>

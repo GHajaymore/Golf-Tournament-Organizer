@@ -50,6 +50,8 @@ export interface EventCourseFields {
    * a broken row must not take a working card away.
    */
   courseRef?: StoredCourse | null;
+  /** The tournament's venues — see `soleVenueCourse` in course-resolution. */
+  courses?: { course: StoredCourse }[];
   course: string;
   city: string;
   customPars: string;
@@ -188,6 +190,19 @@ export function resolveCourse(event: EventCourseFields): CoursePreset {
   const strokeIndex = parseHoleArray(event.customStrokeIndex);
   if (pars && yards && strokeIndex) {
     return { name: event.course || "Custom course", city: event.city, address: "", pars, yards, strokeIndex };
+  }
+  // The tournament's only venue, when it names no card of its own — the same
+  // last step `fromEvent` takes, for the reason written on `soleVenueCourse`.
+  // Spelt out rather than imported: course-resolution already imports this
+  // file, and a runtime cycle between the two is not worth one line.
+  const venue = event.courses?.length === 1 ? event.courses[0].course : null;
+  if (venue) {
+    const vPars = parseHoleArray(venue.pars);
+    const vYards = parseHoleArray(venue.yards);
+    const vIndex = parseHoleArray(venue.strokeIndex);
+    if (vPars && vYards && vIndex) {
+      return { name: venue.name, city: venue.city, address: "", pars: vPars, yards: vYards, strokeIndex: vIndex };
+    }
   }
   // Unknown rather than a stand-in. Falling back to a bundled course meant
   // scoring a real tournament against a fictional card and never saying so.

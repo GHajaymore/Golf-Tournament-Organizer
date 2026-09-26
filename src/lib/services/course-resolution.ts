@@ -48,11 +48,39 @@ export interface EventCourseFields {
    * a broken row must not take a working card away.
    */
   courseRef?: StoredCourse | null;
+  /**
+   * The tournament's venues, when the caller loaded them — see
+   * `soleVenueCourse` for the one thing they are used for here.
+   */
+  courses?: { course: StoredCourse }[];
   course: string;
   city: string;
   customPars: string;
   customYards: string;
   customStrokeIndex: string;
+}
+
+/**
+ * THE TOURNAMENT'S ONLY VENUE, when the event itself names no card.
+ *
+ * Found 2026-09-26 running a club Scramble from scratch the way a newcomer
+ * would. `createEvent` starts a club's tournament at its home course by linking
+ * it as a VENUE, and never set `Event.courseId`. Score entry has always read a
+ * sole venue as the tournament's course (`soleVenue` in /entry), so the cards
+ * went in against the right par and stroke index — and every other reader
+ * resolved the card through `courseRef` alone, found nothing, and scored
+ * against an empty card. Both sides' cards were in, the dashboard said "Sides
+ * in 2/2", and the Live leaderboard, Reports and the public board showed both
+ * on 0 holes with no score.
+ *
+ * LAST, and only where the event has no card of its own: a `courseRef` or a
+ * hand-entered card still wins, so this changes nothing that resolves today —
+ * it only answers where the answer was "no card at all". And only a SOLE
+ * venue: with two, which one the tournament "is" is a real question, and the
+ * round or the match is where it gets answered.
+ */
+export function soleVenueCourse(event: EventCourseFields): StoredCourse | null {
+  return event.courses?.length === 1 ? event.courses[0].course : null;
 }
 
 /**
@@ -67,6 +95,15 @@ export interface EventCourseFields {
 export const COURSE_REF = {
   courseRef: {
     select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+  },
+  // The venues, for `soleVenueCourse`. Two at most in practice; one is the
+  // only count that is read.
+  courses: {
+    select: {
+      course: {
+        select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+      },
+    },
   },
 } as const;
 
@@ -99,7 +136,10 @@ function fromEvent(event: EventCourseFields): ResolvedCourse | null {
   const pars = parseHoleArray(event.customPars);
   const yards = parseHoleArray(event.customYards);
   const strokeIndex = parseHoleArray(event.customStrokeIndex);
-  if (!pars || !yards || !strokeIndex) return null;
+  if (!pars || !yards || !strokeIndex) {
+    const venue = soleVenueCourse(event);
+    return venue ? fromStored(venue, "event") : null;
+  }
   return {
     name: event.course || "Course",
     city: event.city,
