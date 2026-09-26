@@ -1,5 +1,5 @@
 import { toParCell } from "@/lib/domain/ranked-score";
-import { holdsPosition } from "@/lib/domain/shared-position";
+import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { FlipTableBody } from "./FlipList";
 
 export interface StandingRow {
@@ -229,6 +229,9 @@ export function LeaderboardTable({
    * flight and a row in "Flight 1" is still one flight, not two.
    */
   const showFlight = new Set(rows.map((r) => r.flight).filter(Boolean)).size > 1;
+  // "T9" where a place is shared — the same rule the public board and `/me`
+  // print. See `placeText`.
+  const shared = sharedRanks(rows);
 
   if (isStroke) {
     return (
@@ -254,7 +257,7 @@ export function LeaderboardTable({
               <tr key={r.id} data-flip-key={r.id} style={rowStyle(r.advancing)}>
                 {/* No position where none was earned — but the card beside it
                     is still shown. That is the whole of "show, do not rank". */}
-                <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? r.rank : "—"}</td>
+                <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
                 <td style={{ fontWeight: 500 }}>
                   {r.name}
                   {/* On the page, not in a tooltip. A reader who finds someone
@@ -324,7 +327,7 @@ export function LeaderboardTable({
               {/* A match player who has not teed off is `ranked` but not
                   `started`; no position until there is a result, matching the
                   hero on `/me`. See `holdsPosition`. */}
-              <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? r.rank : "—"}</td>
+              <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
               <td style={{ fontWeight: 500 }}>{r.name}</td>
               {showFlight && <td className="text-muted">{r.flight}</td>}
               {compact ? (
