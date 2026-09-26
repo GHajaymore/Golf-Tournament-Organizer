@@ -458,7 +458,37 @@ golfer would stop at:
     tournament's own locale (override, then club), and a test sweeps the whole source so a new
     screen cannot bring the American date back.
 
-The original note, kept for the reasoning:
+40. **The member's calendar put Round 2 before Round 1.** The Club Championship read "Sat 22 Aug ·
+    Round 2" above "Sun 23 Aug · Round 1" — dates right, numbers swapped. The round number is a
+    count down a list, and the calendar fetched its rounds in whatever order the database kept
+    them; closing Round 1 (item 34) rewrote that row and moved it to the back. **Fixed where the
+    number is made**, so no screen can repeat it: a round is now numbered by its position in the
+    tournament, whatever order the rows arrive in. The same sweep found two lines in the audit log
+    ("Closed Round N", one of them mine from item 34) counting rounds by hand. The test that exists
+    to stop exactly that had exempted the whole 5,000-line file for one legitimate use, so it never
+    saw them. Both fixed, and the test now allows that file its one legitimate use and no more.
+
+41. **A knockout's Today said "Position T1" over "Out in the semifinal".** The member topped his
+    round-robin group and lost the semi at the 19th; the first panel was the QUALIFYING table,
+    labelled as if it were his finishing place. Both numbers were right; the name was wrong. It
+    now reads **"Qualifying T1"**, and the top-five board beneath it is headed QUALIFYING. Stroke
+    rounds unchanged. No ranking touched.
+
+42. **The seeded money was a shape no club could store.** Money read "Paid by Séamus · £80.03" beside
+    a balance that only works if he had paid £71.03 — the seed had recorded a £9 repayment as a
+    second PAYER on the bill, which the app's own form refuses. The team dinner was worse: five
+    £20 "payers" on a £410.05 bill, and the line never named who paid the other £310.05. The app
+    was right about the money throughout; the fixture was wrong. Now a settlement and a real
+    two-card bill, and the seeder checks its own bills. After re-seeding every figure on the
+    member's Money screen reconciles by hand: expenses £44.95, side bets −£3.00, settled −£16.00,
+    owed £25.95, and the four suggested handovers also come to £25.95.
+
+43. **Walked and found right** (as a member, at 393px and 320px, no console errors, no sideways
+    scroll): Money and settle-up, messages, the calendar, the knockout draw (seeded 1v8, 4v5, 3v6,
+    2v7), and the foursomes round (every side's net to-par correct against Ardmore's par 32, and
+    Today's "5th of 8 sides" matching the board).
+
+The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
   seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
@@ -485,6 +515,19 @@ The original note, kept for the reasoning:
 - Tournaments list: a tournament created before #626 shows "—" in its Course column (the column
   reads the course NAME, which those tournaments never got). New ones are fine; re-saving
   Tournament details fixes an old one.
+- **"Enter this tournament" enters in one tap, and a member cannot undo it.** Deliberate (the
+  club already knows them), and it says honestly where the entry landed. But a mis-tap leaves a
+  member entered with no way out except asking the organizer, since players cannot withdraw
+  themselves (the player side is read-only by your earlier decision). Smallest honest change:
+  a line under "You're in" saying "Can't make it? Tell the organizer." Bigger: a withdraw
+  button until entries close. Your call; I tested it and removed my test entry.
+- **A tournament with dated rounds but no tournament dates is filed under "No dates yet"** on
+  Events while the member's calendar shows it on its round days. Two of the seeded club's
+  tournaments are like this (the fixture writes their dates as free text), but a club can reach
+  it for real by dating the rounds and never saving tournament dates. Events could fall back to
+  the rounds' own days.
+- **Shared places print as "1, 1, 3" on the sides board** (and on the skins, Modified Stableford
+  and league tables), where every other board prints "T1". Presentation only; queued next.
 
 ## Accessibility — every console control named
 
