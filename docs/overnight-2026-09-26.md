@@ -5,8 +5,8 @@ organizer", fixing as I go, and — specifically — tested **as a non-golfer ru
 
 ## Morning summary
 
-**21 pull requests, #621–#641, every one gated locally and merged only on a green CI run** —
-the table under "What shipped" says which are confirmed live on tourneyhq.club. 33 numbered findings below, each with what a member or
+**21 pull requests, #621–#641, every one gated locally, merged only on a green CI run, and
+confirmed live on tourneyhq.club** (each deploy checked by its own production run). 33 numbered findings below, each with what a member or
 organizer would actually have hit. Nothing touched production data; every walk ran on the
 development database and every fixture change was put back.
 
@@ -71,8 +71,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #637 | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | live |
 | #638 | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | live |
 | #639 | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | live |
-| #640 | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | merged |
-| #641 | **The club's public link could 500** once per tournament after a deploy — a cached board of the old shape read by the new code (item 33); this morning summary | this PR |
+| #640 | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | live |
+| #641 | **The club's public link could 500** once per tournament after a deploy — a cached board of the old shape read by the new code (item 33); this morning summary | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
