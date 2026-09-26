@@ -392,7 +392,7 @@ one 500.
     with the instruction. All five public boards measured clean twice over afterwards. (Not
     reproduced against production: I have no production share token and did not go looking.)
 
-### Decided the next morning — Completed closes the rounds
+### Decided the next morning — Completed closes the rounds; closing a round makes the cut
 
 34. **Built as Ajay decided.** Marking a tournament Completed now closes every round still open,
     through the same "This round is finished" his #577 rule already reads, and the audit log says
@@ -406,6 +406,34 @@ one 500.
     the tournaments it writes as completed, so a fresh seed shows the same. Tests: the real action
     against real rows (the precondition — the cut player leads while round 2 is open — asserted
     first), and the caption on both boards; every rule mutated and watched go red.
+
+35. **A stroke-play cut was never applied — cut players were offered the next round's card.**
+    Found walking the finished championship as a player who missed the cut: her Today said
+    "Start my card" for round 2, and My card opened an empty round 2 card to fill in and certify.
+    Saving one would have put her straight back on the board. A cut could be set on a stroke round
+    ("cuts to top 16") and was printed on the rules sheet, but nothing ever applied it — the only
+    code that makes a cut builds rounds from a round robin. **Ajay decided, 2026-09-26:** the cut
+    is made AUTOMATICALLY when the round it is taken out of is marked finished, and players level
+    on the last place ALL go through ("top 16 and ties"). **Built:** closing round 1 ranks the field
+    on round 1 alone (a round 2 card somebody started early cannot move the cut), gives every
+    survivor an empty round 2 card and nobody else one, and writes one audit line ("Round 1
+    closed: top 16 and ties go through — 17 into Round 2"). Closing it again after a correction
+    re-makes the cut on the corrected scores; an empty card left with somebody who no longer
+    survives is removed, a card with a score on it never is. A player the cut left out is told
+    "You didn't make the cut after Round 1" on Today and My card, and the server refuses a card
+    from them (the committee can still enter one). The Rounds screen's cut help now says when the
+    cut is made. Tests: the tie rule on its own (including a tie BELOW the last place, which stays
+    out), and the whole flow through the real actions with both roles — every rule mutated and
+    watched go red. Checked in the browser as the cut player on the seeded championship.
+
+36. **A member's Events list is walked as a member now — and two things on it were mine.** The
+    three tournaments I built from scratch overnight ("zz-novice …") were still in the development
+    club and sat at the top of every member's Events as "ON NOW"; deleted, as CLAUDE.md says a
+    fixture must be. And ten of the seeded club's eleven tournaments were filed under "No dates
+    yet", the live medal among them, with the sign-up page printing "2026-10-23": the seeder wrote
+    each tournament's date only as a sentence, while the app writes the calendar dates too and
+    groups by them. The seeder now writes both, labelled the way the app labels them ("25 Sept
+    2026"). A fixture problem, not an app one — but every walk runs on this fixture.
 
 The original note, kept for the reasoning:
 

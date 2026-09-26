@@ -1141,6 +1141,10 @@ championship went on ranking the players cut after round 1 among those who playe
 closed earlier keeps its time; reopening the tournament does not re-open rounds. A player
 unranked this way is captioned "didn't play Round 2", not "card incomplete".
 
+**And closing a round makes a stroke-play cut out of it (Ajay, 2026-09-26)** — automatically,
+"top N and ties". Before this a cut on a stroke round was configured and printed but never
+applied, so a cut player could start the next round's card. See `services/stroke-cut.ts`.
+
 Two things worth keeping:
 
 - **`chargedHoles` deliberately does NOT read `closedAt`.** It derives settled

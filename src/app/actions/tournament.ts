@@ -17,6 +17,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
+import { applyStrokeCut, strokeCutField } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
@@ -296,6 +297,16 @@ async function assertMayKeepCard(
   playerId: string,
 ): Promise<void> {
   if (session.role !== "player") return;
+  /**
+   * A ROUND AFTER A STROKE CUT BELONGS TO THE PLAYERS WHO MADE IT. Asked
+   * here, on the server, because the screens are only the polite half: a
+   * card for a player the cut left out would put them straight back on the
+   * board. Staff are exempt — a committee may put somebody back in.
+   */
+  const field = await strokeCutField(eventId, stageId);
+  if (field && !field.has(playerId)) {
+    throw new Error("Only the players who made the cut have a card for this round.");
+  }
   const own = await ownPlayerIds(eventId, session.email);
   if (own.has(playerId)) return;
   const [stage, confirmed] = await Promise.all([
@@ -5064,6 +5075,14 @@ export async function setRoundClosed(
       ? `Closed ${which}. Anybody without a card for it no longer holds a place on a stroke board.`
       : `Re-opened ${which}.`,
   );
+  /**
+   * AND CLOSING A ROUND MAKES THE CUT OUT OF IT — Ajay's call, 2026-09-26.
+   * If the next round is cut into ("top 16"), the survivors, with ties, get
+   * its cards and nobody else does. See `applyStrokeCut`. Only on closing:
+   * re-opening a round leaves the field as it is, and closing it again after a
+   * correction re-applies the cut to the corrected standings.
+   */
+  if (closed) await applyStrokeCut(eventId, stage.id);
   await refresh();
   return { ok: true };
 }

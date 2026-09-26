@@ -524,12 +524,29 @@ export default async function PlayTodayPage() {
            * your opponent, and a team round on your side's card" — on a round
            * that is only ever one of them. `mySide` says which.
            */}
-          <section className="card elev-sm" style={{ marginTop: 12 }}>
-            <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
-            <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-              {yourCardNote({ side: mySide, holes, round: !!round, knockout: round?.knockout })}
-            </p>
-          </section>
+          {/* CUT AFTER THE LAST ROUND, which is not a card to start. This
+              screen offered "Start my card" for round 2 to a player the cut
+              had left out after round 1 (2026-09-26) — and saving one put
+              them back on the board. */}
+          {round?.cutOut ? (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>
+              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+                You didn&rsquo;t make the cut after {round.cutOut}, so there&rsquo;s no {round.name} card for
+                you. Your {round.cutOut} score stands on the board.
+              </p>
+              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
+                See the board <Icon name="arrow-right" />
+              </Link>
+            </section>
+          ) : (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
+              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+                {yourCardNote({ side: mySide, holes, round: !!round, knockout: round?.knockout })}
+              </p>
+            </section>
+          )}
         </>
       )}
 
