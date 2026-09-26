@@ -1,6 +1,6 @@
 import { isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
-import { roundIsStroke, seededFromQualifiers } from "@/lib/stage-types";
+import { roundIsStroke, seededFromQualifiers, lookupStageType } from "@/lib/stage-types";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -219,9 +219,21 @@ export function ruleForFormat(format: string): string | undefined {
 export function tournamentTerms(input: TermsInput): TermItem[] {
   const out: TermItem[] = [];
 
+  /**
+   * The round's TYPE follows the format only where it says something the format
+   * does not: "Match Play · Round Robin" and "Match Play · Bracket Stage" are
+   * different competitions. After a stroke round it says nothing — the member's
+   * rules sheet read "Stroke Play · Stroke Play Round" — and after a points
+   * format it reads as a contradiction ("Stableford · Stroke Play Round").
+   *
+   * And in the words the app shows a person — "Round robin", "Bracket" — not
+   * the stored key ("Bracket Stage"), which is how it read on the knockout.
+   */
+  const typeSaysMore = !!input.type && input.type !== input.format && input.type !== "Stroke Play Round";
+  const typeName = lookupStageType(input.type)?.label ?? input.type;
   out.push({
     label: "Format",
-    value: `${input.format}${input.type && input.type !== input.format ? ` · ${input.type}` : ""}`,
+    value: `${input.format}${typeSaysMore ? ` · ${typeName}` : ""}`,
     rule: ruleForFormat(input.format),
   });
 

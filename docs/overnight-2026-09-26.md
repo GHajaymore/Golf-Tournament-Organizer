@@ -41,6 +41,13 @@ link; the money adds up on both sides.
 cut championship ranked players who missed the cut among the finishers) was answered the same
 morning — Completed closes the rounds — and is built as item 34.
 
+**The day after (2026-09-26, you out):** your two morning decisions built (#643, #644), then
+the app walked as an ordinary club member — Today, card, board, money, calendar, messages, a
+knockout, a league, the foursomes, the casual round — at 393px and 320px, every figure checked
+as a golf pro would (a medal handicap to the shot under WHS; the money to the penny). Items
+37–45, PRs #645–#648. Two more decisions noted for you under "Noted, not changed": a one-tap
+entry a member cannot undo, and Events filing dated rounds under "No dates yet".
+
 The rest of this file is the night's log in the order it happened.
 
 Method: the seeded club (`scripts/seed-club.mjs` — 11 tournaments spanning every format), walked
@@ -73,6 +80,13 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #639 | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | live |
 | #640 | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | live |
 | #641 | **The club's public link could 500** once per tournament after a deploy — a cached board of the old shape read by the new code (item 33); this morning summary | live |
+| #642 | This report: every PR's live status confirmed | live |
+| #643 | **Completed closes the rounds** — your decision; players who missed the cut no longer rank among the finishers, and say "didn't play Round 2" (item 34) | live |
+| #644 | **A stroke-play cut is made when its round is marked finished** — top N and ties, your decisions; cut players were being offered the next round's card (item 35) | live |
+| #645 | Today called a season total "YOUR CARD"; a Stableford card never showed its points; entry deadlines in American on a British club (items 37–39) | live |
+| #646 | The calendar put Round 2 before Round 1; a knockout's Today said "Position T1" over "Out in the semifinal"; two audit lines counted rounds by hand; the seeded money held rows the app refuses (items 40–43) | live |
+| #647 | Ties printed "1, 1, 3" on the sides, skins, Modified Stableford and league tables and "T1" everywhere else (item 44) | live |
+| #648 | My own #645 made the league read "YOUR TOTAL · FINAL" four weeks into seven — now "SO FAR" until completed (item 45) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -495,6 +509,24 @@ golfer would stop at:
     four now print T1, T1, T3. Also checked a member's medal handicap by hand under WHS — index
     8.4 off the White tee (70.8/129, par 71) at 95% is 9 shots, and all nine fall on stroke index
     1–9 — correct to the shot.
+
+45. **My own item 37 said a season was over when it wasn't.** Item 37 named Today's big number
+    "YOUR TOTAL" when it covers more than one round — and kept the card's label after it. That
+    label says "Final" when a player's returned cards are complete, so the Thursday league read
+    **"YOUR TOTAL · 72 HOLES · FINAL"** four weeks into seven, with the next round on Tuesday and
+    "these standings will change" printed underneath. **Fixed (#648):** a complete total says **SO
+    FAR** until you mark the tournament completed; then it says FINAL. A single round still reads
+    "YOUR CARD · FINAL", which is true of the card. Checked on the league (SO FAR), the completed
+    championship (FINAL · GROSS) and the live medal (YOUR CARD · THRU 11 · NET).
+
+46. **The rules sheet said the format twice, once in the app's own code.** A member's Rules read
+    "Format: Stroke Play · Stroke Play Round" on the medal, "Stableford · Stroke Play Round" on
+    the Twilight Nine (a contradiction to a golfer) and "Match Play · Bracket Stage" on the
+    knockout. The round's type now follows the format only where it tells two competitions apart,
+    and in the words the app shows elsewhere: "Stroke Play", "Stableford", "Match Play · Bracket".
+    Also walked, and right: "entered, nothing to play yet" (Spring Meeting) on Today, card and
+    board; the waiting-list line on Events; the medal's sheet otherwise — 95% under Appendix C,
+    countback 9/6/3/1 under Committee Procedures 5A, certification under Rule 3.3b.
 
 The original note behind item 34, kept for the reasoning:
 
