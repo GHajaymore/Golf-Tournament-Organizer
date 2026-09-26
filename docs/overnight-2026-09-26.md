@@ -28,7 +28,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | live |
 | #634 | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | live |
 | #635 | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | live |
-| — | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | this PR |
+| #636 | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | merged |
+| — | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -220,6 +221,44 @@ knockout:
     CUT LINE divider still follows the live qualifying order after the draw is frozen; if results
     are corrected after the draw, the divider and the draw can disagree. Left alone: changing who is
     "advancing" after a draw is qualification logic, and the draw itself is correct.
+
+Then the same eight tournaments at 320px, the narrowest phone: Today, Board, My card, Money and
+Rules in each, plus Events, Calendar and Messages — 43 page loads, every one 200, one heading
+each, nothing wider than the screen outside its own scroll box, no console or hydration errors.
+
+### Money: the player's and the organizer's figures, side by side
+
+The April Medal is the seeded tournament with money on it — expenses, a closest-to-the-pin, low
+net and a net skins pot, round still in play. The player's settle-up adds up (expenses £35.95,
+side bets −£3.00, settled −£7.00 → owed £25.95), and every pot on the player's screen matches
+the organizer's Prizes screen (closest-to-the-pin £42.00 = 14 × £3; low net £24.00 = 12 × £2;
+skins £80.00 = 16 × £5). The organizer's skins table shows a running split and says
+"Provisional — some holes have no score yet"; the player's screen correctly shows no running
+figure. The Nassau stake set on this stroke round is flagged on Prizes with what to do about it.
+One fault:
+
+27. **"3 games still to play · £10.00 in" counted a game already decided and paid.** The
+    closest-to-the-pin had a winner, and its −£3.00 was already on the settle-up as a side bet —
+    the ledger pays a contest the moment a winner is ticked. The exposure line counted the same
+    £3 again as a game still to play. **Fixed:** it now reads "2 games still to play · £7.00 in"
+    (low net £2 + skins £5). Only the exposure line changed; no settlement or payout figure moved.
+    The test was written first and failed on the old code.
+
+### The public sign-up page
+
+The page a member opens from the club's link, signed out — walked on the three open tournaments
+at 393px and 320px: all 200, no overflow, no errors; the full-field one says "Field full —
+joining the waitlist" and its button says "Join the waitlist".
+
+28. **None of its six boxes had a name for a screen reader** — name, email, handicap index,
+    index type, mobile, preferred tee. The captions were on screen and attached to nothing. The
+    accessibility pass (#627) covered the console and the player app and missed this page, which
+    is neither. **Fixed**, with the boxes also telling the phone which is the name and which the
+    email (so autofill offers the right thing), and a refused entry's error is announced.
+
+    Noted, not changed: the seeded tournaments show their date as "2026-10-23" on this page. That
+    is the seed script writing a raw date; a date saved in the app is stored as the club's own
+    wording ("Fri 23 Oct 2026").
 
 ### Noted, not changed (UX calls for Ajay)
 

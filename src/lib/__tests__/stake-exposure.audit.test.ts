@@ -244,6 +244,34 @@ describe("what a player has riding on a round still in play", () => {
     expect(await stakeOf("ann")).toEqual({ games: 0, cents: 0 });
   });
 
+  it("stops counting a contest once it has been decided", async () => {
+    /**
+     * A closest-to-the-pin is decided by hand the moment somebody is marked
+     * as winning it, and the ledger pays it then — `contestNets` needs a
+     * winner and nothing else, round finished or not. So a decided contest is
+     * SETTLED money, already on the settle-up as a side bet.
+     *
+     * The seeded April Medal showed both at once on 2026-09-26: "You're in 3
+     * games still to play · £10.00 in" above "Closest to the pin · won by
+     * Nkechi Obioma · -£3.00". The £3 was in both figures, and the pin was not
+     * still to play.
+     */
+    const kp = await prisma.contest.create({
+      data: { eventId, stageId, kind: "closest-pin", name: `${TAG} KP 4th`, hole: 4, buyInCents: 300 },
+    });
+    await prisma.contestEntry.createMany({
+      data: [player.ann, player.bob].map((playerId) => ({ contestId: kp.id, playerId })),
+    });
+
+    // The control: undecided, it is a stake like any other.
+    expect(await stakeOf("ann")).toEqual({ games: 1, cents: 300 });
+
+    await prisma.contestEntry.updateMany({ where: { contestId: kp.id, playerId: player.bob }, data: { won: true } });
+    // Decided: out of "still to play" for loser and winner alike.
+    expect(await stakeOf("ann")).toEqual({ games: 0, cents: 0 });
+    expect(await stakeOf("bob")).toEqual({ games: 0, cents: 0 });
+  });
+
   it("is a stake, not a position — no round reports a result", async () => {
     const pot = await prisma.skinsPot.create({
       data: { eventId, stageId, buyInCents: 2000, net: true, scope: "full", groupKey: "Group 1" },

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { registerForEvent, type RegisterResult } from "@/app/actions/register";
 import type { ApprovalMode } from "@/lib/domain/registration-intake";
 import type { RegistrationPrefill } from "@/lib/services/registration";
@@ -52,6 +52,7 @@ export function RegisterClient({
   const [error, setError] = useState("");
   const [done, setDone] = useState<RegisterResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const uid = useId();
 
   const submit = () => {
     if (!name.trim()) {
@@ -151,25 +152,40 @@ export function RegisterClient({
         </p>
       )}
 
+      {/* EVERY BOX NAMED BY ITS CAPTION (2026-09-26). The captions were on
+          screen and attached to nothing, so a screen reader announced six
+          unlabelled boxes on the first page a member ever opens. #627 named
+          every console and player control and missed this one, which is
+          neither. */}
       <div className="card elev-sm" style={{ gap: 12 }}>
         <div className="field">
-          <label>Your name</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+          <label htmlFor={`${uid}-name`}>Your name</label>
+          <input
+            id={`${uid}-name`}
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+            autoComplete="name"
+          />
         </div>
         <div className="field">
-          <label>Email</label>
+          <label htmlFor={`${uid}-email`}>Email</label>
           <input
+            id={`${uid}-email`}
             className="input"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@email"
+            autoComplete="email"
           />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div className="field">
-            <label>Handicap index</label>
+            <label htmlFor={`${uid}-hcp`}>Handicap index</label>
             <input
+              id={`${uid}-hcp`}
               className="input"
               value={handicap}
               onChange={(e) => setHandicap(e.target.value)}
@@ -178,8 +194,13 @@ export function RegisterClient({
             />
           </div>
           <div className="field">
-            <label>Index is a…</label>
-            <select className="input" value={handicapType} onChange={(e) => setHandicapType(e.target.value)}>
+            <label htmlFor={`${uid}-hcp-type`}>Index is a…</label>
+            <select
+              id={`${uid}-hcp-type`}
+              className="input"
+              value={handicapType}
+              onChange={(e) => setHandicapType(e.target.value)}
+            >
               <option value="18">18-hole</option>
               <option value="9">9-hole</option>
             </select>
@@ -187,7 +208,7 @@ export function RegisterClient({
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div className="field">
-            <label>
+            <label htmlFor={`${uid}-phone`}>
               Mobile{" "}
               {requirePhone ? (
                 <span className="text-muted">· required</span>
@@ -196,6 +217,7 @@ export function RegisterClient({
               )}
             </label>
             <input
+              id={`${uid}-phone`}
               className="input"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -214,8 +236,16 @@ export function RegisterClient({
             )}
           </div>
           <div className="field">
-            <label>Preferred tee <span className="text-muted">· optional</span></label>
-            <input className="input" value={tee} onChange={(e) => setTee(e.target.value)} placeholder="e.g. White" />
+            <label htmlFor={`${uid}-tee`}>
+              Preferred tee <span className="text-muted">· optional</span>
+            </label>
+            <input
+              id={`${uid}-tee`}
+              className="input"
+              value={tee}
+              onChange={(e) => setTee(e.target.value)}
+              placeholder="e.g. White"
+            />
           </div>
         </div>
 
@@ -223,7 +253,7 @@ export function RegisterClient({
           <Icon name="check" /> {pending ? "Registering…" : waitlistOnly ? "Join the waitlist" : "Register"}
         </button>
         {error && (
-          <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+          <p role="alert" style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
             <Icon name="warning-circle" /> {error}
           </p>
         )}
