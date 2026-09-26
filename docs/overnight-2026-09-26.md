@@ -9,7 +9,7 @@ in a real browser (Playwright, signed in as the club secretary and as a player),
 from-scratch tournament created and run the way a newcomer would, following only what the app
 says. Every fix has a test that was watched going red with the fix removed.
 
-## Shipped earlier in the evening (before the loop)
+## What shipped
 
 | PR | What a user would have hit | Status |
 |---|---|---|
@@ -19,9 +19,10 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | live |
 | #625 | A team event's setup never asked for the sides; the tee sheet split partners across tee times (items 6–7) | live |
 | #626 | **Every club tournament created from the list scored against an empty card** on the boards, Reports and the public page; one round had three names (items 8–10) | live |
-| #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | merged |
-| #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | open |
-| — | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | this PR |
+| #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | live |
+| #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | live |
+| #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | merged |
+| — | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -89,6 +90,35 @@ setup checklist.
     the side, so the card is no longer drawn for a team round (the standings card above it already
     says where the sides are ranked, and now names the Live leaderboard as well as Reports).
 
+### Second run: a club Stableford, start to finish
+
+Eight members entered from the roster, flights, dates, launch, eight cards, the board. **The golf
+was right**: every card scored exactly as worked by hand (a bogey on every hole is 18 + playing
+handicap in points, a par card 36 + it — Ada 22 shots → 40, Dev 35 → 53, Eve 6 → 42) and the
+board ranked them in that order. What was wrong was around it:
+
+11. **"Setup is done — all 5 parts"** over a Launch button the dashboard then disabled. The details
+    step takes a date *or* a venue (a club still arguing over the day has a course); launching needs
+    a date. Both are right; the hand-off promised "take it live" anyway. **Fixed:** the guide asks
+    the launch gate itself and says "One thing before it can go live" in the gate's words, with a
+    button to the screen that fixes it.
+12. The refusal sent people to **"Tournament setup"** — no such screen; the sidebar says
+    Tournament details. **Fixed.**
+13. **A date lost.** "Dates save on their own" sat beside a Save button; it meant "their own
+    button", read as "automatically", and the date was gone on leaving the screen. **Fixed:** it
+    says "Not saved yet".
+14. **The Stableford flight card printed strokes.** Sorted by points, printing gross to-par:
+    Flight 1 read "+18, +18, E, +18" — the level-par round third, behind two players 18 over.
+    **Fixed:** it prints points, like the leaderboard card above it.
+15. **"Course —"** on the launch confirmation, the Tournaments list and an empty "Golf course" box
+    on Tournament details, for any tournament created before #626 — while the dashboard header
+    named the course. **Fixed** on all three; saving the details form heals the old shape.
+
+Golf-pro note, not changed: the Flights screen defaults to **"Balanced skills"**, which spreads
+handicaps evenly across flights — right for team or match play. For a club medal or Stableford,
+flights are prize *divisions* and are drawn **by handicap** so like plays like; a newcomer taking
+the default gets a Flight 1 holding a 4 and a 24.
+
 ### Noted, not changed (UX calls for Ajay)
 
 - Tournament details has three save buttons ("Save dates", "Save event", "Save settings") — a
@@ -136,5 +166,8 @@ named. The deferred-register entry for this class is closed.
    behaviour first.
 2. Show the chosen format's one-line description under the Format select on Rounds & formats
    (today it is behind the ⓘ) — a small UI change, the moment a novice most needs it.
+3. **Default flight rule for a stroke or Stableford round: "By handicap"** instead of "Balanced
+   skills" (see the golf-pro note above). A one-line default, but it changes what every new medal's
+   divisions look like, so it's your call.
 
 ## Log
