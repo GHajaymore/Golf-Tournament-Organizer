@@ -56,18 +56,37 @@ export function boardNames(names: readonly string[]): string[] {
  * card. Walked as a member, 2026-09-26.
  *
  * So when the standing covers more holes than this round has, it is named for
- * what it is: "YOUR TOTAL · 72 HOLES · FINAL". One round, it stays YOUR CARD.
+ * what it is: "YOUR TOTAL · 72 HOLES". One round, it stays YOUR CARD.
+ *
+ * AND A TOTAL IS NOT FINAL WHILE THE TOURNAMENT IS STILL BEING PLAYED. The
+ * standing's label says "Final" when this player has returned every hole they
+ * owe SO FAR — true of a card, and what "YOUR CARD · FINAL" always meant. Put
+ * the same word after "YOUR TOTAL" and it becomes a claim about the season:
+ * the seeded league read "YOUR TOTAL · 72 HOLES · FINAL · 132" four weeks into
+ * seven, with the next round on Tuesday and "these standings will change"
+ * printed beneath it. Walked 2026-09-26, the day this headline was written.
+ * So a complete total in a tournament not yet completed says "SO FAR"; once
+ * the organizer completes it, "FINAL" is true and is what it says.
  */
 export function heroHeadline(input: {
   scoreLabel?: string | null;
   filled?: number;
   holesOwed: number;
+  /** Holes returned against `holesOwed` — decides "complete so far" from data, not the label's words. */
+  thru?: number;
   roundHoles: number;
+  /** The organizer has marked the tournament completed. */
+  tournamentOver?: boolean;
 }): string {
   const label = input.scoreLabel ?? (input.filled !== undefined ? `${input.filled} in` : "Not started");
   const total = input.roundHoles > 0 && input.holesOwed > input.roundHoles;
-  const lead = total ? `YOUR TOTAL · ${input.holesOwed} HOLES` : "YOUR CARD";
-  return `${lead} · ${label.toUpperCase()}`;
+  if (!total) return `YOUR CARD · ${label.toUpperCase()}`;
+  const complete = (input.thru ?? 0) >= input.holesOwed;
+  // Only the first part is the "how far" word; anything after it ("· gross")
+  // says what the number is, and stays.
+  const [, ...rest] = label.split(" · ");
+  const said = complete && !input.tournamentOver ? ["So far", ...rest].join(" · ") : label;
+  return `YOUR TOTAL · ${input.holesOwed} HOLES · ${said.toUpperCase()}`;
 }
 
 /**
