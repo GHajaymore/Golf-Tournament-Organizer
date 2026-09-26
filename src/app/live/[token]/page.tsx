@@ -3,8 +3,16 @@ import { prisma } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { liveBoard } from "@/lib/services/live-board";
-import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
-import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import {
+  SkinsStandingsTable,
+  NassauMatches,
+  ModifiedStablefordTable,
+  SKINS_NOTE,
+  NASSAU_NOTE,
+  MOD_STABLEFORD_NOTE,
+} from "@/components/PointsLeaderboard";
+import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import { EmbeddedBoard } from "@/components/EmbeddedBoard";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
@@ -196,18 +204,24 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
             rows={board.teamMatchRows}
             system={board.pointsSystem}
           />
-        ) : board.teamRound ? (
-          <TeamLeaderboard
-            format={board.teamFormat}
-            basis={board.teamBasis}
-            rows={board.teamRows}
-          />
+        ) : /* The next four without their console heading — this page's
+               `<h1>` is the tournament's name. See EmbeddedBoard. */
+        board.teamRound ? (
+          <EmbeddedBoard note={teamBoardNote(board.teamFormat, board.teamRows.length, board.teamBasis)}>
+            <TeamStandingsTable basis={board.teamBasis} rows={board.teamRows} />
+          </EmbeddedBoard>
         ) : board.kind === "skins" && board.skins ? (
-          <SkinsLeaderboard board={board.skins} net={board.skinsNet} />
+          <EmbeddedBoard note={SKINS_NOTE(board.skinsNet)}>
+            <SkinsStandingsTable board={board.skins} />
+          </EmbeddedBoard>
         ) : board.kind === "nassau" && board.nassau ? (
-          <NassauLeaderboard rows={board.nassau} />
+          <EmbeddedBoard note={NASSAU_NOTE}>
+            <NassauMatches rows={board.nassau} />
+          </EmbeddedBoard>
         ) : board.kind === "modified-stableford" && board.modStableford ? (
-          <ModifiedStablefordLeaderboard rows={board.modStableford} />
+          <EmbeddedBoard note={MOD_STABLEFORD_NOTE}>
+            <ModifiedStablefordTable rows={board.modStableford} />
+          </EmbeddedBoard>
         ) : (
           <PlayerLeaderboard
             isStroke={board.isStroke}

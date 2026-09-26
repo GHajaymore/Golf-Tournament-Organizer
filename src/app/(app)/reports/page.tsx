@@ -7,9 +7,18 @@ import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
 import { brandForEvent } from "@/lib/services/organization";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
-import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
-import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
+import {
+  SkinsStandingsTable,
+  NassauMatches,
+  ModifiedStablefordTable,
+  SKINS_NOTE,
+  NASSAU_NOTE,
+  MOD_STABLEFORD_NOTE,
+} from "@/components/PointsLeaderboard";
+// The snapshot card has its own title — see EmbeddedBoard.
+import { EmbeddedBoard } from "@/components/EmbeddedBoard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
@@ -175,7 +184,12 @@ export default async function ReportsPage() {
       unit: state.boardProgress.unit,
       noun: "team standings",
     }).title;
-    board = <TeamLeaderboard format={activeStage.format} basis={weekBasis(activeStage.scoringBasis, activeStage.format)} rows={teams} />;
+    const basis = weekBasis(activeStage.scoringBasis, activeStage.format);
+    board = (
+      <EmbeddedBoard note={teamBoardNote(activeStage.format, teams.length, basis)}>
+        <TeamStandingsTable basis={basis} rows={teams} />
+      </EmbeddedBoard>
+    );
     extraCsv = [
       {
         label: "Team standings",
@@ -200,7 +214,11 @@ export default async function ReportsPage() {
     const net = activeStage.scoringBasis !== "gross";
     const skins = await skinsBoard(session.eventId, activeStage.id, holes, net, course.holeDifficulty);
     snapshotTitle = `Skins — ${net ? "net" : "gross"}`;
-    board = <SkinsLeaderboard board={skins} net={net} />;
+    board = (
+      <EmbeddedBoard note={SKINS_NOTE(net)}>
+        <SkinsStandingsTable board={skins} />
+      </EmbeddedBoard>
+    );
     extraCsv = [
       {
         label: "Skins results",
@@ -221,7 +239,11 @@ export default async function ReportsPage() {
   } else if (kind === "nassau" && activeStage) {
     const nassau = await nassauBoard(session.eventId, activeStage.id);
     snapshotTitle = "Nassau results";
-    board = <NassauLeaderboard rows={nassau} />;
+    board = (
+      <EmbeddedBoard note={NASSAU_NOTE}>
+        <NassauMatches rows={nassau} />
+      </EmbeddedBoard>
+    );
     extraCsv = [
       {
         label: "Nassau results",
@@ -256,7 +278,11 @@ export default async function ReportsPage() {
       course.holeDifficulty,
     );
     snapshotTitle = "Modified Stableford standings";
-    board = <ModifiedStablefordLeaderboard rows={mod} />;
+    board = (
+      <EmbeddedBoard note={MOD_STABLEFORD_NOTE}>
+        <ModifiedStablefordTable rows={mod} />
+      </EmbeddedBoard>
+    );
     extraCsv = [
       {
         label: "Modified Stableford",
