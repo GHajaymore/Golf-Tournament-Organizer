@@ -29,7 +29,7 @@ import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { boardKind } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
-import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark } from "@/lib/domain/scoreboard";
+import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark, heroHeadline } from "@/lib/domain/scoreboard";
 import { roundCardFor } from "@/lib/services/round-card";
 import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
 import { clubEventsFor } from "@/lib/services/club-events";
@@ -346,7 +346,12 @@ export default async function PlayTodayPage() {
        */}
       {hero && (
         <ScoreboardCard
-          headline={`YOUR CARD · ${(standing?.scoreLabel ?? (card ? `${card.filled} in` : "Not started")).toUpperCase()}`}
+          headline={heroHeadline({
+            scoreLabel: standing?.scoreLabel,
+            filled: card?.filled,
+            holesOwed: standing?.holesOwed ?? 0,
+            roundHoles: holes,
+          })}
           total={standing?.scoreText || "–"}
           tiles={strokes.map((s, i) => ({
             n: i + 1,

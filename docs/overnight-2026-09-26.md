@@ -435,6 +435,29 @@ one 500.
     groups by them. The seeder now writes both, labelled the way the app labels them ("25 Sept
     2026"). A fixture problem, not an app one — but every walk runs on this fixture.
 
+### An ordinary golfer's day (2026-09-26, Ajay out)
+
+The member's own questions, on a phone: what's on, can I enter, when do I tee off, how am I
+doing, what did I score. The tee time is on Today (group, time, playing partners). Three things a
+golfer would stop at:
+
+37. **"YOUR CARD · 132" over a card that scored 36.** Today's big number is the player's standing
+    — the right number to lead with — but the panel called it "YOUR CARD" whatever it covered. On
+    the league it sat over the week-4 card (36 points) while 132 was the season; on the 36-hole
+    championship "+27" over the round-2 card. **Fixed:** when the standing covers more than this
+    round it says so — "YOUR TOTAL · 72 HOLES · FINAL"; one round stays "YOUR CARD".
+38. **A Stableford card never showed its points.** Gross, to par and net, on a round decided on
+    points — the Twilight Nine card read "Net 37" while Today said 13 points. **Fixed:** on a
+    Stableford round the card shows Points (13, the board's own figure) in place of to-par, both
+    hole by hole and in the full card's totals; Modified Stableford uses its own table. Worked
+    out through the same scoring functions the board totals with, so the two cannot disagree.
+39. **Entry deadlines in American on a British club's screens.** An Events card read "24 Oct 2026"
+    for the tournament and "Entries open Sep 19, 2026 · close Oct 17, 2026" beneath it; the
+    sign-up page and the organizer's Registration screen the same. Ten calls to the deadline
+    formatter passed no locale and fell back to US English. **Fixed:** every one now takes the
+    tournament's own locale (override, then club), and a test sweeps the whole source so a new
+    screen cannot bring the American date back.
+
 The original note, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The

@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { accessibleEvents } from "./access";
 import { registrationStatus, entryDatesOf } from "../registration";
 import { todayIso } from "../deadline";
+import { resolveLocale } from "../domain/locale";
 import {
   eventBand,
   whenOf,
@@ -155,7 +156,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
    */
   const events = await prisma.event.findMany({
     where: { id: { in: ids }, shape: { not: "match" }, expiresAt: null },
-    include: { series: { select: { name: true } } },
+    include: { series: { select: { name: true } }, organization: { select: { locale: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -232,6 +233,9 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   return events
     .filter((event) => event.status !== "draft" || hasResults.has(event.id))
     .map((event) => {
+    // The tournament's own way of writing a date, then the club's — the same
+    // resolution every other date on these cards goes through.
+    const locale = resolveLocale(event.organization, event);
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,
@@ -239,6 +243,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       capacity: event.capacity,
       confirmedCount: confirmedBy.get(event.id) ?? 0,
       override: event.registrationOverride,
+      locale,
     });
 
     const entered = enteredIn.has(event.id);
@@ -295,7 +300,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       eventStatus: event.status,
       statusLabel: status.label,
       statusDetail: status.detail,
-      entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status),
+      entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status, locale),
       canEnter,
       entered,
       waiting,

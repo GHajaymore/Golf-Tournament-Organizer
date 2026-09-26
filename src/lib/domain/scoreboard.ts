@@ -46,6 +46,31 @@ export function boardNames(names: readonly string[]): string[] {
 }
 
 /**
+ * WHAT THE BIG NUMBER ON TODAY IS — the card, or the whole tournament.
+ *
+ * The figure is the player's standing, which is right: it is the number they
+ * are ranked on. But the panel said "YOUR CARD" over it whatever it covered,
+ * beside this round's hole-by-hole tiles — so on the seeded league's week 4 it
+ * read "YOUR CARD · FINAL · 132" when the week-4 card scored 36 and 132 was the
+ * season, and on the 36-hole championship "YOUR CARD · +27" over a round-2
+ * card. Walked as a member, 2026-09-26.
+ *
+ * So when the standing covers more holes than this round has, it is named for
+ * what it is: "YOUR TOTAL · 72 HOLES · FINAL". One round, it stays YOUR CARD.
+ */
+export function heroHeadline(input: {
+  scoreLabel?: string | null;
+  filled?: number;
+  holesOwed: number;
+  roundHoles: number;
+}): string {
+  const label = input.scoreLabel ?? (input.filled !== undefined ? `${input.filled} in` : "Not started");
+  const total = input.roundHoles > 0 && input.holesOwed > input.roundHoles;
+  const lead = total ? `YOUR TOTAL · ${input.holesOwed} HOLES` : "YOUR CARD";
+  return `${lead} · ${label.toUpperCase()}`;
+}
+
+/**
  * "1", "T3" — a shared position carries the T a scoreboard paints. Counted
  * over the whole field, not the rows shown, so a tie with somebody below the
  * fold is still a tie. An unranked row has no position.
