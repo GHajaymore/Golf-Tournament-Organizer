@@ -25,7 +25,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
 | #631 | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | live |
 | #632 | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | live |
-| — | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | this PR |
+| #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | merged |
+| — | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -158,6 +159,20 @@ the default gets a Flight 1 holding a 4 and a 24.
     0 pts" and "8 of 8 advancing". **Fixed:** in a knockout with no qualifying round the draw *is*
     the standings — the Live leaderboard shows it (read-only), and the dashboard drops those cards
     and says so. A knockout fed by a qualifying round is unchanged.
+
+### Consistency sweep: every tournament's dashboard against its leaderboard
+
+All 13 tournaments walked, reading the dashboard's counts against the board's rows. They agreed
+everywhere (the league's "17/20" and its week view's "17 of 20 in", the championship's 16/16 after
+the cut, the four-ball's 8/8 sides) except one:
+
+22. **"8 still out on the course" for eight finished cards.** The newcomer typed in all eight of the
+    Stableford's cards; the leaderboard ranked all eight on eighteen holes, Score entry's approval
+    panel said "8 cards need attention — not certified yet", and the dashboard said "0/8 certified ·
+    8 still out on the course". Nobody was on the course. **Fixed:** the dashboard now says
+    "8 finished, not yet certified · accept on Score entry", and "still out on the course" counts only
+    cards that really are part-way round. (The committee queue is unchanged on purpose: an uncertified
+    card waits on the player's marker, not the committee.)
 
 ### Noted, not changed (UX calls for Ajay)
 

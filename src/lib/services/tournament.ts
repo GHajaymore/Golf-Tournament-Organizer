@@ -63,6 +63,7 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 import { holesPlayed } from "../domain/handicap";
+import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 
 export type HoleResultArr = DomainMatch["holes"];
@@ -533,6 +534,18 @@ export interface EventState {
      * a club counts there is ties decided out of ties that can be played.
      */
     unit: "cards" | "matches" | "sides" | "ties" | "manual";
+    /**
+     * Cards with EVERY hole of the round on them that nobody has certified —
+     * finished golf, waiting on a signature. Cards only; absent elsewhere.
+     *
+     * They sat inside `started - certified`, which the dashboard prints as
+     * "still out on the course". Found 2026-09-26: a newcomer typed in all
+     * eight of a Stableford's cards, the leaderboard ranked all eight on
+     * eighteen holes, and the dashboard said "8 still out on the course".
+     * Nobody was; the cards were waiting to be certified or accepted — which
+     * Score entry's approval panel already said ("8 cards need attention").
+     */
+    unreturned?: number;
   };
   /**
    * The first round the field has not started, in play order — or null once
@@ -1378,9 +1391,20 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
     }
     if (roundIsStroke(s.type, s.format)) {
       const own = scorecards.filter((c) => c.stageId === s.id);
+      const roundHoles = holesPlayed(s.holes);
+      const full = (strokes: string) => {
+        try {
+          const arr = JSON.parse(strokes) as (number | null)[];
+          return Array.isArray(arr) && filledHoles(arr, roundHoles) >= roundHoles;
+        } catch {
+          return false;
+        }
+      };
       return {
         started: own.filter((c) => hasAnyHole(c.strokes)).length,
         certified: own.filter((c) => c.status === "certified" || c.status === "approved").length,
+        // Finished and unsigned — see `unreturned` on the type.
+        unreturned: own.filter((c) => c.status === "entered" && full(c.strokes)).length,
         approved: own.filter((c) => c.status === "approved").length,
         // Among the STARTED only, since the dashboard subtracts it from them.
         disputed: own.filter((c) => c.status === "disputed" && hasAnyHole(c.strokes)).length,
@@ -1466,6 +1490,7 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
     certified: bp.certified,
     approved: bp.approved,
     disputed: bp.disputed,
+    unreturned: bp.unreturned ?? 0,
     total: bp.total,
     /**
      * The bar measures CERTIFIED, which is what the number beside it says.
