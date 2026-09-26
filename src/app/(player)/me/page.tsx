@@ -351,7 +351,9 @@ export default async function PlayTodayPage() {
             scoreLabel: standing?.scoreLabel,
             filled: card?.filled,
             holesOwed: standing?.holesOwed ?? 0,
+            thru: standing?.thru ?? 0,
             roundHoles: holes,
+            tournamentOver: state.event.status === "completed",
           })}
           total={standing?.scoreText || "–"}
           tiles={strokes.map((s, i) => ({
