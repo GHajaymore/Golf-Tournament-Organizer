@@ -258,15 +258,6 @@ product choice rather than a bug; flagged in case it is not the intent.
 Scope boundaries drawn while shipping something adjacent. Each is a real gap,
 not an oversight.
 
-### Timestamps near midnight render in two time zones (2026-09-25)
-`MessagesClient` and `ScoreEntryClient` format a timestamp's DATE with no
-`timeZone`, so the server (UTC) and the browser (local) can disagree within a
-few hours of midnight — a hydration mismatch there, and a message written at
-00:30 UTC reads as the previous day in the US. The browser's local date is the
-right one for the reader, so forcing UTC would be wrong; the fix is to render
-the date only after mount (as `when()` already does for "how long ago").
-Low frequency; recorded rather than rushed.
-
 ### In-app messaging is keyed on email, everywhere
 Threads, read receipts, authorship and the direct-thread key
 (`direct:<sorted participant emails>`) are all email strings. After #296 a
