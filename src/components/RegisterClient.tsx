@@ -28,6 +28,8 @@ interface Props {
   prefill: RegistrationPrefill | null;
   /** This tournament asks for a mobile number and refuses without one. */
   requirePhone?: boolean;
+  /** How this tournament writes a date; omitted falls back to the default. */
+  locale?: string;
 }
 
 export function RegisterClient({
@@ -40,6 +42,7 @@ export function RegisterClient({
   approvalMode,
   prefill,
   requirePhone = false,
+  locale,
 }: Props) {
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
@@ -140,7 +143,7 @@ export function RegisterClient({
           <span className="text-muted">
             {" · "}
             {formatLabel}
-            {regDeadline ? ` · closes ${formatDeadline(regDeadline)}` : ""}
+            {regDeadline ? ` · closes ${formatDeadline(regDeadline, locale)}` : ""}
           </span>
         </span>
       </div>

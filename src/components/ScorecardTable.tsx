@@ -2,6 +2,7 @@
 import { toParText } from "@/lib/domain";
 import { cardHeading } from "@/lib/domain/card-heading";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
+import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -245,7 +246,10 @@ export function ScorecardTable({
   brand,
   courseName = "",
   venueIsHome = false,
+  pointsTable = null,
 }: {
+  /** The Stableford table this round is decided on, or null — see `cardPoints`. */
+  pointsTable?: PointsTable | null;
   holes: number;
   pars: number[];
   yards?: number[];
@@ -518,7 +522,14 @@ export function ScorecardTable({
       >
         <Total label="Holes in" value={`${played} of ${holes}`} />
         <Total label="Gross" value={gross ? String(gross) : "—"} />
-        {pars.length > 0 && (
+        {/* A points round is decided on its points, so they take to-par's place. */}
+        {pars.length > 0 && pointsTable && (
+          <Total
+            label="Points"
+            value={played ? String(cardPoints(strokes.slice(0, holes), pars, shotsPerHole, pointsTable)) : "—"}
+          />
+        )}
+        {pars.length > 0 && !pointsTable && (
           <Total label="To par" value={played ? toParText(gross - parThru) : "—"} />
         )}
         {hasShots && (

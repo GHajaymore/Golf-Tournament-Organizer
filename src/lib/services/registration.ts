@@ -6,6 +6,7 @@ import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake
 import { planForOrganization } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
+import { resolveLocale } from "../domain/locale";
 
 /**
  * What the public /register/[token] page is allowed to know.
@@ -41,6 +42,8 @@ export interface PublicRegistrationView {
    */
   formatLabel: string;
   regDeadline: string;
+  /** How this tournament writes a date — so "closes …" matches the event's own date. */
+  locale: string;
   /** True when the field is full: a new entry would join the waitlist. */
   waitlistOnly: boolean;
   /** Remaining confirmed places, or null for an unlimited field. */
@@ -123,7 +126,10 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // The rounds come with the event because the entry form names what will be
     // played — see `roundsLabelOf`. Ordered by position so the formats are
     // listed in the order they are played.
-    include: { stages: { select: { type: true, format: true }, orderBy: { position: "asc" } } },
+    include: {
+      stages: { select: { type: true, format: true }, orderBy: { position: "asc" } },
+      organization: { select: { locale: true } },
+    },
   });
   if (!event || !event.registrationOpen) return null;
 
@@ -154,6 +160,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     venue: venueOf(event.course, event.city),
     formatLabel: roundsLabelOf(event.stages),
     regDeadline: event.regDeadline,
+    locale: resolveLocale(event.organization, event),
     waitlistOnly: status.waitlisting,
     spotsLeft: unlimited ? null : Math.max(0, event.capacity - confirmedCount),
     approvalMode: approvalModeOf(event.registrationApproval),
