@@ -22,8 +22,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | live |
 | #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | live |
 | #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | merged |
-| #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | merged |
-| — | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two (items 16–18) | this PR |
+| #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
+| — | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -141,6 +141,10 @@ the default gets a Flight 1 holding a 4 and a 24.
     tournament — had entered the same eight an hour earlier. The picker named one remedy (go and
     find eight addresses). **Fixed:** it also names the other, "Access code on their scorecard", by
     the option's own label.
+19. **The guide asked a straight knockout for flights** ("4 of 5 — NOW Flights") that its draw then
+    ignores. **Fixed:** the Flights step, the journey card and the dashboard checklist leave it out
+    when the bracket is the first round; the guide now reads "Setup is done — all 4 parts" and names
+    the one thing left (the date).
 
 ### Noted, not changed (UX calls for Ajay)
 
