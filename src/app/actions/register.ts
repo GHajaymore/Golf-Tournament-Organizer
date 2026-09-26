@@ -8,6 +8,7 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import { planForEvent } from "@/lib/services/entitlements";
 import { effectiveCapacity } from "@/lib/services/limits";
+import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
 import {
   cleanRegistration,
@@ -108,8 +109,17 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   });
   if (existing) return { ok: true, already: true };
 
-  // Capacity and deadline enforced HERE, from a fresh count — not from anything
-  // the form carried. The pure decision does the rest.
+  // Capacity and deadline enforced HERE, from the database — not from anything
+  // the form carried. The organizer's capacity, tightened to the tier's field
+  // cap when the owner has enforcement on (a no-op otherwise). A stranger over
+  // the cap waitlists like any full field — never refused with a billing wall.
+  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+
+  // A first count and decision. Whether registration is OPEN at all — the
+  // accept/reject verdict — does not depend on the count: a full field
+  // waitlists, it is never refused. So this verdict is race-free and safe to
+  // gate the roster write below. The confirmed-vs-waitlisted STATUS does depend
+  // on the count, and is decided again under the lock against a fresh one.
   const confirmedCount = await prisma.player.count({
     where: { eventId: event.id, status: "confirmed" },
   });
@@ -118,20 +128,15 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     approvalMode: approvalModeOf(event.registrationApproval),
     reg: {
       eventStatus: event.status,
-      deadline: event.regDeadline,
       // The enforcement point: the form and the lists only DISPLAY the date.
+      deadline: event.regDeadline,
       opens: event.regOpens,
-      // The organizer's capacity, tightened to the tier's field cap when the
-      // owner has enforcement on (a no-op otherwise). A stranger over the cap
-      // waitlists like any full field — never refused with a billing wall.
-      capacity: await effectiveCapacity(event.organizationId, event.capacity),
+      capacity,
       confirmedCount,
       override: event.registrationOverride,
     },
   });
   if (!decision.accepted) return { ok: false, error: NOT_OPEN };
-
-  const maxSeed = await prisma.player.aggregate({ where: { eventId: event.id }, _max: { seed: true } });
 
   // Roster write-through, exactly like the organizer-side add: registering
   // someone is also how they join the club roster, so there's one record of the
@@ -161,23 +166,66 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
 
   // What they typed, turned into the set they play from. Unmatched or
   // ambiguous stays null, which means the round’s tees and is correctable on
-  // the field screen — a guess would not be.
+  // the field screen — a guess would not be. Resolved above the lock: it reads
+  // the event's tees, not the confirmed count.
   const teeFor = await teeMatcherFor(event.id);
-  await prisma.player.create({
-    data: {
-      eventId: event.id,
-      teeId: teeFor(person.preferredTee),
-      memberId,
-      name: person.name,
-      handicap: person.handicap,
-      seed: (maxSeed._max.seed ?? 0) + 1,
-      status: decision.status,
-      email: person.email,
-      phone: person.phone,
-      preferredTee: person.preferredTee,
-      handicapSource: person.handicapSource,
-      handicapType: person.handicapType,
-    },
+
+  /**
+   * COUNT, DECIDE THE STATUS, AND CREATE UNDER THE EVENT'S INTAKE LOCK. Two
+   * strangers registering for a nearly-full field at the same moment would
+   * otherwise both read the same confirmed count and both be confirmed into the
+   * one remaining slot. Serialising this section per event closes that, and
+   * takes the seed with it. `capacity`, `memberId` and the tee matcher are
+   * resolved above because none of them reads the confirmed count — and
+   * `upsertMember` in particular must NOT run inside the transaction, where
+   * taking its own pooled connection while entrants are queued on this lock
+   * could deadlock. See `intake-lock.ts`, and `enter.ts` for the signed-in door
+   * guarded the same way.
+   */
+  const placed = await withEventIntakeLock(event.id, async (tx) => {
+    const freshCount = await tx.player.count({
+      where: { eventId: event.id, status: "confirmed" },
+    });
+    // Same inputs as the gate decision above but for the fresher count, and the
+    // accept/reject verdict does not read the count — so this is still accepted;
+    // only confirmed-vs-waitlisted can differ, which is exactly the point.
+    const fresh = decideIntake({
+      registrationOpen: event.registrationOpen,
+      approvalMode: approvalModeOf(event.registrationApproval),
+      reg: {
+        eventStatus: event.status,
+        deadline: event.regDeadline,
+        opens: event.regOpens,
+        capacity,
+        confirmedCount: freshCount,
+        override: event.registrationOverride,
+      },
+    });
+    // `decision` is already narrowed to accepted by the gate above; if the event
+    // somehow closed in the gap, keep its status rather than write one that does
+    // not exist. In practice `fresh` is accepted, only its placement can differ.
+    const d = fresh.accepted ? fresh : decision;
+    const maxSeed = await tx.player.aggregate({
+      where: { eventId: event.id },
+      _max: { seed: true },
+    });
+    await tx.player.create({
+      data: {
+        eventId: event.id,
+        teeId: teeFor(person.preferredTee),
+        memberId,
+        name: person.name,
+        handicap: person.handicap,
+        seed: (maxSeed._max.seed ?? 0) + 1,
+        status: d.status,
+        email: person.email,
+        phone: person.phone,
+        preferredTee: person.preferredTee,
+        handicapSource: person.handicapSource,
+        handicapType: person.handicapType,
+      },
+    });
+    return d;
   });
 
   /**
@@ -200,11 +248,11 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // real receipt. No-ops without RESEND_API_KEY, never throws.
   await sendRegistrationEmail(person.email, {
     eventName: event.name,
-    status: decision.status,
+    status: placed.status,
     organizationId: event.organizationId,
     eventId: event.id,
     toName: person.name,
   });
 
-  return { ok: true, status: decision.status };
+  return { ok: true, status: placed.status };
 }

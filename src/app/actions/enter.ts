@@ -8,6 +8,7 @@ import { decideIntake, approvalModeOf } from "@/lib/domain/registration-intake";
 import { effectiveCapacity } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
+import { withEventIntakeLock } from "@/lib/services/intake-lock";
 
 /**
  * A MEMBER PUTS THEIR NAME DOWN WITHOUT FILLING ANYTHING IN.
@@ -137,25 +138,12 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     };
   }
 
-  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // The organizer's capacity, tightened to the tier's field cap when the owner
   // has enforcement on — a no-op otherwise, so entry is unchanged until then. A
   // member over the cap waitlists through the same rule as any full field,
-  // rather than being refused.
+  // rather than being refused. Capacity cannot change under a concurrent entry,
+  // so it is resolved before the lock.
   const capacity = await effectiveCapacity(event.organizationId, event.capacity);
-  const decision = decideIntake({
-    registrationOpen: event.registrationOpen,
-    approvalMode: approvalModeOf(event.registrationApproval),
-    reg: {
-      eventStatus: event.status,
-      deadline: event.regDeadline,
-      opens: event.regOpens,
-      capacity,
-      confirmedCount,
-      override: event.registrationOverride,
-    },
-  });
-  if (!decision.accepted) return { ok: false, error: NOT_OPEN };
 
   /**
    * THE CLUB'S OWN RECORD OF THIS PERSON, which is the point of entering from
@@ -166,6 +154,9 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * entered anything — falls back to the account's own name and a zero
    * handicap, which is what the organizer's roster screen shows for a new
    * entrant and is correctable there.
+   *
+   * Read before the lock: it touches the member and (below) the tees, not the
+   * confirmed count, so it does not belong in the serialised section.
    */
   const member = await prisma.member.findFirst({
     where: {
@@ -173,28 +164,57 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       email: { equals: session.email, mode: "insensitive" },
     },
   });
-
-  const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   const teeFor = await teeMatcherFor(eventId);
   const preferredTee = member?.preferredTee ?? "";
 
-  await prisma.player.create({
-    data: {
-      eventId,
-      memberId: member?.id ?? null,
-      teeId: teeFor(preferredTee),
-      name: member?.name || session.name || session.email,
-      email: session.email,
-      phone: member?.phone ?? "",
-      handicap: member?.handicap ?? 0,
-      handicapType: member?.handicapType ?? "18",
-      handicapSource: member?.handicapSource ?? "manual",
-      gender: member?.gender ?? "",
-      preferredTee,
-      seed: (maxSeed._max.seed ?? 0) + 1,
-      status: decision.status,
-    },
+  /**
+   * COUNT, DECIDE, AND CREATE UNDER THE EVENT'S INTAKE LOCK. Without it, two
+   * members entering a nearly-full field at the same moment both read the same
+   * confirmed count, `decideIntake` tells both "confirmed", and both rows are
+   * created — the field one over the cap the organizer or the tier set.
+   * Serialising this section per event closes that, and takes the seed with it,
+   * so concurrent entrants cannot land on the same seed either. See
+   * `intake-lock.ts`; `register.ts` guards the public form the same way.
+   */
+  const decision = await withEventIntakeLock(eventId, async (tx) => {
+    const confirmedCount = await tx.player.count({
+      where: { eventId, status: "confirmed" },
+    });
+    const d = decideIntake({
+      registrationOpen: event.registrationOpen,
+      approvalMode: approvalModeOf(event.registrationApproval),
+      reg: {
+        eventStatus: event.status,
+        deadline: event.regDeadline,
+        opens: event.regOpens,
+        capacity,
+        confirmedCount,
+        override: event.registrationOverride,
+      },
+    });
+    if (!d.accepted) return d;
+
+    const maxSeed = await tx.player.aggregate({ where: { eventId }, _max: { seed: true } });
+    await tx.player.create({
+      data: {
+        eventId,
+        memberId: member?.id ?? null,
+        teeId: teeFor(preferredTee),
+        name: member?.name || session.name || session.email,
+        email: session.email,
+        phone: member?.phone ?? "",
+        handicap: member?.handicap ?? 0,
+        handicapType: member?.handicapType ?? "18",
+        handicapSource: member?.handicapSource ?? "manual",
+        gender: member?.gender ?? "",
+        preferredTee,
+        seed: (maxSeed._max.seed ?? 0) + 1,
+        status: d.status,
+      },
+    });
+    return d;
   });
+  if (!decision.accepted) return { ok: false, error: NOT_OPEN };
 
   // A new entrant changes the field, so the cached public board has to be
   // retired — and `revalidatePath` below does NOT do that, they are different
