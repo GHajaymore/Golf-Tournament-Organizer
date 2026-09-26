@@ -44,6 +44,16 @@ export function RosterPicker({
   const [pending, startTransition] = useTransition();
 
   const available = candidates.filter((c) => !c.entered);
+  /**
+   * WHO CANNOT BE ENTERED YET, SAID BEFORE ANYBODY TICKS THEM (2026-09-26).
+   *
+   * Walking the app as a new organizer: eight members ticked, "Add 8 members"
+   * pressed, and the answer was "Added 0 · no mobile for …". The rule is right
+   * — a free club collects a mobile from every entrant — but learning it after
+   * the click, eight times over, is the fault. `missing` is the same answer the
+   * add action refuses on (`contactGap`), so the row can say it first.
+   */
+  const missingCount = available.filter((c) => c.missing).length;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,10 +141,22 @@ export function RosterPicker({
         <>
           <input
             className="input"
+            aria-label="Search members"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={`Search ${available.length} member${available.length === 1 ? "" : "s"}…`}
           />
+
+          {missingCount > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+              {missingCount === available.length
+                ? "None of these members can be entered yet"
+                : `${missingCount} of these members can't be entered yet`}{" "}
+              — each is missing a contact detail this tournament needs, marked below. Add it under{" "}
+              <Link href="/roster" style={{ textDecoration: "underline" }}>Manage members</Link>, then pick
+              them here.
+            </p>
+          )}
 
           <label
             style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12 }}
@@ -174,6 +196,12 @@ export function RosterPicker({
                   {c.name}
                   {c.memberNumber && (
                     <span className="text-muted" style={{ fontSize: 11, marginLeft: 5 }}>#{c.memberNumber}</span>
+                  )}
+                  {/* Said BEFORE the tick — see `missingCount` above. */}
+                  {c.missing && (
+                    <span style={{ display: "block", fontSize: 11, color: "var(--color-accent-300)" }}>
+                      {c.missing === "mobile" ? "Needs a mobile number" : "Needs an email address"}
+                    </span>
                   )}
                 </span>
                 <span className="text-muted" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>

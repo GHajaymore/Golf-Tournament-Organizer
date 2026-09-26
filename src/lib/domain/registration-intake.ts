@@ -199,6 +199,34 @@ export function looksLikePhone(raw: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
+/** Which contact details a tournament requires of every entrant. */
+export interface ContactNeeds {
+  email: boolean;
+  phone: boolean;
+}
+
+/**
+ * What a roster member is MISSING to be entered in a tournament, or null.
+ *
+ * ONE ANSWER, TWO READERS. `addMembersToEvent` refuses a member for this, and
+ * the roster picker now shows it beside the member BEFORE anybody ticks them.
+ * Found walking the app as a new organizer (2026-09-26): eight members ticked,
+ * "Add 8 members" pressed, and the reply was "Added 0 · no mobile for …" — a
+ * free club collects a mobile from every entrant, and the roster had none. The
+ * rule is right; finding out after the click is the fault. Both readers call
+ * this, so the warning and the refusal cannot disagree.
+ *
+ * Email first, then mobile — the order the action has always reported them in.
+ */
+export function contactGap(
+  member: { email: string; phone: string },
+  needs: ContactNeeds,
+): "email" | "mobile" | null {
+  if (needs.email && !(member.email ?? "").trim()) return "email";
+  if (needs.phone && !looksLikePhone(member.phone ?? "")) return "mobile";
+  return null;
+}
+
 export function cleanRegistration(input: RegistrationForm, requirePhone = false): ValidationResult {
   const name = (input.name ?? "").trim();
   if (!name) return { ok: false, error: "Enter your name." };

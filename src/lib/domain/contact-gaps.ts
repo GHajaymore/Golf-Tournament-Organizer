@@ -65,16 +65,20 @@ export function contactGaps(
         : /**
            * CODES ARE ON, so an address is not how they get in and saying it is
            * would be false. What it still decides is whether they can be
-           * REACHED: `messageableField` selects on `email: { not: "" }`, so a
-           * player without one is absent from every announcement and every
-           * message — they can play the whole tournament and hear nothing.
+           * MESSAGED: `messageableField` selects on `email: { not: "" }`, so a
+           * player without one is absent from the Messages screen.
            *
-           * Worth saying plainly rather than dropping the line. The organizer
-           * of a society that entered its field by name is exactly the person
-           * who will later wonder why half the field missed the tee times.
+           * NOT FROM ANNOUNCEMENTS, which this line used to claim ("announcements
+           * and messages go by email, so those players won't receive any").
+           * Checked 2026-09-26 walking the app as a new organizer: announcements
+           * are loaded by tournament alone (`listAnnouncements`, eventId only)
+           * and shown on every entrant's Today screen, email or not —
+           * `messageableField` is read by the two Messages screens and nothing
+           * else. Telling an organizer that eight players will miss the tee-time
+           * notice is how they end up chasing addresses nobody needs.
            */
-          `${who} no email on file. They sign in with the Round Code, so nothing is blocked — but ` +
-          `announcements and messages go by email, so those players won’t receive any.`,
+          `${who} no email on file. They sign in with the Round Code and see every announcement in ` +
+          `the app — but Messages finds players by email, so they can’t be messaged until one’s added.`,
     );
   }
 
