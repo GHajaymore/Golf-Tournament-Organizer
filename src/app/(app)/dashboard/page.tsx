@@ -22,7 +22,7 @@ import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-s
 import { currentRoundCut } from "@/lib/domain/cut";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
-import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
@@ -432,6 +432,14 @@ export default async function DashboardPage() {
   // which only mean something when there is a Bracket/Qualification stage to
   // qualify into — a tournament that instead cuts round to round has neither.
   const hasKnockout = hasKnockoutStage(state.stages);
+  /**
+   * A knockout with nothing before it: the whole field is drawn, nobody
+   * qualifies, and there is no standings table — the draw is the standings.
+   * Found 2026-09-26: this dashboard showed "Qualification cutoff · Top
+   * 2/flight · cutoff ≈ 0 pts", "8 of 8 advancing" and a table of 0-0-0 rows
+   * with a semi-final already decided on the bracket.
+   */
+  const straightKnockout = state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0;
 
   /**
    * WHY THE NEXT PHASE IS NOT AVAILABLE YET, for the lifecycle bar's button.
@@ -535,7 +543,10 @@ export default async function DashboardPage() {
   // `boardStage`, because the rows beside it are the board's. Asking
   // `activeStage` in a mixed tournament gates one round's rows on a different
   // round's format. Same correction as `/entry`'s spoken position.
-  const rows = usesStandardBoard(state.boardStage?.format) ? standingRows(state).slice(0, 8) : [];
+  // No rows for a straight knockout: its standings are its draw, and the table
+  // printed every player on 0-0-0 (see `straightKnockout`).
+  const rows =
+    usesStandardBoard(state.boardStage?.format) && !straightKnockout ? standingRows(state).slice(0, 8) : [];
   const advancingIds = state.advancingIds;
 
   // With no knockout to qualify into, the field advances by a per-round cut
@@ -1019,7 +1030,7 @@ export default async function DashboardPage() {
           {/* Who's advancing is a live read on the standings, so it follows them
               — and only counts when there's a knockout to advance into; a
               round-to-round cut has no single event-level "advancing" number. */}
-          {hasKnockout && showStandings && (
+          {hasKnockout && !straightKnockout && showStandings && (
             <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
           )}
         </div>
@@ -1078,7 +1089,9 @@ export default async function DashboardPage() {
                      net wins"). Checked on the seeded club: both screens show
                      them. */
                   emptyNote={
-                    teamRound
+                    straightKnockout
+                      ? `This is a knockout, so the standings are the draw — who is still in and who plays whom is on the ${screenName("/bracket")}.`
+                      : teamRound
                       ? `This round is played in sides, so the standings rank the sides — they're on the ${screenName("/leaderboard")} and in ${screenName("/reports")}.`
                       : /* A HAND-SCORED ROUND'S BOARD NEVER FILLS IN. "The
                            board fills in as scores come back" is a promise
@@ -1192,7 +1205,9 @@ export default async function DashboardPage() {
                 <span className="card-title">Bracket status</span>
                 <span className="tag tag-neutral">{bracketTileBadge}</span>
               </div>
-              <div className="text-muted" style={{ fontSize: 12, marginTop: -2 }}>Seeded from live group standings</div>
+              <div className="text-muted" style={{ fontSize: 12, marginTop: -2 }}>
+                {straightKnockout ? "The whole field, seeded in order" : "Seeded from live group standings"}
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
@@ -1220,7 +1235,7 @@ export default async function DashboardPage() {
                 tournament cuts round to round instead. The cutoff line is also a
                 live read on the standings — in a blind event it would give away
                 exactly what the leaderboard hides, hence the showStandings gate. */}
-            {hasKnockout && showStandings && (
+            {hasKnockout && !straightKnockout && showStandings && (
               <FactCard
                 title="Qualification cutoff"
                 /*
