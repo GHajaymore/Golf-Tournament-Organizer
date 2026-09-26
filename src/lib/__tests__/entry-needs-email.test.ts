@@ -8,6 +8,7 @@ import {
 } from "../tournament-settings";
 import { readSource } from "./source";
 import { TOURNAMENT_TEMPLATES } from "../tournament-templates";
+import { contactGap } from "../domain/registration-intake";
 
 /**
  * A SOCIETY COULD NOT ENTER ITS OWN MEMBERS.
@@ -105,9 +106,27 @@ describe("the paths that ask", () => {
     const roster = readSource("src", "app", "actions", "roster.ts");
     // The by-hand add, and the entry CSV import.
     expect(actions.match(/entryNeedsEmail\(/g) ?? []).toHaveLength(2);
-    // Adding from the club roster.
-    expect(roster).toMatch(/needsEmail = entryNeedsEmail\(/);
-    expect(roster).toMatch(/missingEmail = needsEmail &&/);
+    // Adding from the club roster. Since 2026-09-26 this goes through ONE sink
+    // shared with the roster picker (which shows the gap before the tick):
+    // `entryContactNeeds` asks the tournament, `contactGap` applies it. So pin
+    // that the action uses both, and that the sink really asks `entryNeedsEmail`
+    // — the guarantee, not the old spelling of it.
+    expect(roster).toMatch(/entryContactNeeds\(event\)/);
+    expect(roster).toMatch(/contactGap\(m, needs\)/);
+    const service = readSource("src", "lib", "services", "roster.ts");
+    const sink = service.slice(service.indexOf("export async function entryContactNeeds"));
+    expect(sink.slice(0, sink.indexOf("\n}"))).toMatch(/email: entryNeedsEmail\(/);
+  });
+
+  it("refuses a missing email only when the tournament asks for one", () => {
+    // Behaviour, not spelling: the rule the roster path and the picker share.
+    const blank = { email: "", phone: "07700 900123" };
+    expect(contactGap(blank, { email: true, phone: false })).toBe("email");
+    expect(contactGap(blank, { email: false, phone: false })).toBeNull();
+    // Email is reported before mobile, the order the action has always used.
+    expect(contactGap({ email: "", phone: "" }, { email: true, phone: true })).toBe("email");
+    expect(contactGap({ email: "a@example.invalid", phone: "" }, { email: true, phone: true })).toBe("mobile");
+    expect(contactGap({ email: "a@example.invalid", phone: "07700 900123" }, { email: true, phone: true })).toBeNull();
   });
 
   it("leaves open registration asking every stranger", () => {

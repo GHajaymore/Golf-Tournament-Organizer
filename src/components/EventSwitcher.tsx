@@ -68,11 +68,17 @@ export function EventSwitcher({
    *
    * "Manage" switched the active tournament and left the organizer on this
    * list: the only visible change was the button turning into "Managing". A
-   * newcomer clicking Manage expects to be taken into the tournament, and
-   * creating one here already does exactly that (`createEvent` redirects to
-   * /dashboard). So opening one goes where creating one goes — the dashboard
-   * for a tournament, score entry for a quick round (where `NewMatchForm`
-   * sends a new one).
+   * newcomer clicking Manage expects to be taken into the tournament. So it
+   * goes there — the dashboard for a tournament, score entry for a quick round
+   * (where `NewMatchForm` sends a new one).
+   *
+   * CREATE AND COPY TOO. This note first said "creating one here already does
+   * exactly that (`createEvent` redirects to /dashboard)". It did not: the
+   * `redirect("/dashboard")` in tournament.ts belongs to `deleteEvent`, and
+   * `createEvent` / `cloneEvent` end with `return { ok: true }`. Walking the
+   * screen as a newcomer on 2026-09-26 showed it — "Create tournament" made the
+   * tournament and left them on this list with nothing visibly done. So the
+   * Create button below navigates on success as well.
    *
    * The navigation lives HERE rather than as a redirect inside `switchEvent`
    * because `TournamentClashNotice` switches and then goes somewhere else of
@@ -400,6 +406,8 @@ export function EventSwitcher({
                 ? await cloneEvent(copyId, name)
                 : await createEvent(name, source, shape, undefined, organizationId || undefined);
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
+              // Into the tournament just made — see the note on `openIn`.
+              else router.push("/dashboard");
             });
             setName("");
           }}

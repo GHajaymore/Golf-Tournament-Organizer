@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { contactGaps } from "@/lib/domain/contact-gaps";
+import { readSource } from "../../__tests__/source";
 
 const p = (email: string, phone = "") => ({ email, phone });
 const full = p("rita@example.invalid", "555 0147 231");
@@ -88,18 +89,35 @@ describe("when the Round Code is the way in", () => {
     expect(line, "still says they cannot sign in").not.toMatch(/can.t sign in/);
   });
 
-  it("says what a missing address DOES cost", () => {
+  it("says what a missing address DOES cost — messages, not announcements", () => {
     /**
-     * Not silence. `messageableField` selects on `email: { not: "" }`, so a
-     * player without one is absent from every announcement and every message —
-     * they can play the whole tournament and hear nothing. The organizer of a
-     * society that entered its field by name is exactly the person who will
-     * later wonder why half the field missed the tee times.
+     * Not silence: `messageableField` selects on `email: { not: "" }`, so a
+     * player without one cannot be messaged. But this used to go further and
+     * say announcements were lost too ("announcements and messages go by
+     * email, so those players won't receive any") — false, and the old
+     * assertion here pinned the false half. Announcements are loaded by
+     * tournament alone and shown to every entrant in the app. See the next
+     * test, which ties this sentence to that fact.
      */
     const line = contactGaps(field, false, false).lines[0];
     expect(line).toMatch(/Round Code/);
-    expect(line).toMatch(/announcements and messages/i);
+    expect(line).toMatch(/can.t be messaged/i);
+    expect(line).not.toMatch(/won.t receive any/i);
     expect(line).toContain("2 players");
+  });
+
+  it("is right that announcements reach a player with no email", () => {
+    // The sentence above says they "see every announcement in the app". That is
+    // only true while announcements are loaded by tournament and NOT filtered on
+    // email; if that ever changes, this goes red and the sentence must too.
+    const src = readSource("src", "lib", "services", "announcements.ts");
+    const at = src.indexOf("announcement.findMany(");
+    expect(at, "announcements are no longer listed where this test looks").toBeGreaterThan(-1);
+    const query = src.slice(at, src.indexOf("});", at));
+    expect(query).toMatch(/where:\s*\{\s*eventId\s*\}/);
+    expect(query).not.toMatch(/email/);
+    const line = contactGaps(field, false, false).lines[0];
+    expect(line).toMatch(/see every announcement/);
   });
 
   it("still says the plain thing when email IS the way in", () => {

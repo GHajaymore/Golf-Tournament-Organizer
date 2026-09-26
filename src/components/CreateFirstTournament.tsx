@@ -1,5 +1,6 @@
 "use client";
 import { useId, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createEvent, cloneEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
@@ -129,6 +130,7 @@ export function CreateFirstTournament({
   const [name, setName] = useState("");
   // Each caption is a real <label> for its control — see EventSwitcher.
   const fid = useId();
+  const router = useRouter();
   const [orgName, setOrgName] = useState("");
   /** Whatever the action refused with, shown rather than swallowed. */
   const [refusal, setRefusal] = useState("");
@@ -190,7 +192,9 @@ export function CreateFirstTournament({
     if (!name.trim() || (!copyFrom && !shape)) return;
     startTransition(async () => {
       if (copyFrom) {
-        await cloneEvent(copyFrom.id, name);
+        const copied = await cloneEvent(copyFrom.id, name);
+        if (copied?.ok) router.push("/dashboard");
+        else setRefusal(copied?.error ?? "That could not be copied.");
         return;
       }
       /**
@@ -199,8 +203,15 @@ export function CreateFirstTournament({
        * This was `await createEvent(...)` with the result dropped on the
        * floor, so every refusal the action can give — no shape, the club-first
        * gate, and now "that outfit is already here" — arrived and was thrown
-       * away. On success the action redirects, so nothing here has to handle
-       * the happy path; what was missing was the unhappy one.
+       * away.
+       *
+       * AND THE HAPPY PATH IS HANDLED HERE TOO. This note used to say "on
+       * success the action redirects". It does not: `createEvent` and
+       * `cloneEvent` end with `return { ok: true }` (the redirect in
+       * tournament.ts belongs to `deleteEvent`). On /choose it looked right
+       * only because that page re-renders after the refresh and redirects a
+       * signed-in organizer itself; the same form anywhere else left them where
+       * they were. So success navigates explicitly.
        */
       const res = await createEvent(
         name,
@@ -212,6 +223,7 @@ export function CreateFirstTournament({
       );
       if (!res?.ok) setRefusal(res?.error ?? "That could not be created.");
       if (res?.clubExists) setSameName(true);
+      if (res?.ok) router.push("/dashboard");
     });
   };
 

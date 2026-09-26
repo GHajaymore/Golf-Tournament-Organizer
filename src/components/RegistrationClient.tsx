@@ -4,7 +4,7 @@ import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } fro
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useId, useState, useRef, useEffect, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
@@ -126,6 +126,8 @@ export function RegistrationClient({
    */
   const [selfServeOpen, setSelfServeOpen] = useState(event.registrationOpen);
   const [name, setName] = useState("");
+  // The "Add someone new" captions are real <label>s for their controls.
+  const fid = useId();
   const [handicap, setHandicap] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1021,13 +1023,22 @@ export function RegistrationClient({
           <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
             Anyone added here joins the {org.noun} roster too, so you only enter their details once.
           </p>
-          <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
+          <div className="field"><label htmlFor={`${fid}-name`}>Player name</label><input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
-              <label>Email <span style={{ color: "var(--color-accent-300)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
-              <input className="input" type="email" required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-300)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
+              <input id={`${fid}-email`} className="input" type="email" required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
-            <div className="field"><label>Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" /></div>
+            {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). A free club
+                collects a mobile from every entrant and the server refuses an
+                add without one — but this label said only "Phone", so a new
+                organizer typed a name, pressed Add, and was refused. Email
+                beside it already says when it is required; now Phone does too,
+                and Add waits for it the same way. */}
+            <div className="field">
+              <label htmlFor={`${fid}-phone`}>Mobile {phoneRequired && <span style={{ color: "var(--color-accent-300)" }}>· required</span>}</label>
+              <input id={`${fid}-phone`} className="input" type="tel" required={phoneRequired} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" style={phoneRequired && !phone.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+            </div>
           </div>
           <div className="field">
             <label>Handicap source</label>
@@ -1040,8 +1051,8 @@ export function RegistrationClient({
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div className="field"><label>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input className="input" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.0" disabled={hSource === "none"} /></div>
-            <div className="field"><label>GHIN #</label><input className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.0" disabled={hSource === "none"} /></div>
+            <div className="field"><label htmlFor={`${fid}-ghin`}>GHIN #</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
           <div className="field">
             <label>Handicap is a…</label>
@@ -1053,8 +1064,8 @@ export function RegistrationClient({
               ))}
             </div>
           </div>
-          <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || (needsEmail && !email.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
+          <div className="field"><label htmlFor={`${fid}-club`}>Home club</label><input id={`${fid}-club`} className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
           {addError && (
             <p className="form-error">
               <Icon name="warning-circle" /> {addError}

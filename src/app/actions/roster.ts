@@ -6,19 +6,15 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
-import { upsertMember } from "@/lib/services/roster";
+import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
-import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
-import { planForEvent } from "@/lib/services/entitlements";
+import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
 import { effectiveCapacity } from "@/lib/services/limits";
-import { phoneRequiredFor } from "@/lib/plans";
-import { entryNeedsEmail } from "@/lib/tournament-settings";
-import { settingsOf } from "@/lib/services/tournament";
 
 /**
  * Club roster management.
@@ -475,8 +471,9 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const needContact: string[] = [];
   const needEmail: string[] = [];
   const needPhone: string[] = [];
-  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
-  const needsEmail = entryNeedsEmail(settingsOf(event));
+  // The same answer the roster picker shows beside each member before the tick
+  // — see `entryContactNeeds` and `contactGap`.
+  const needs = await entryContactNeeds(event);
 
   // Read once, outside the loop: adding forty members should not read the
   // tee table forty times.
@@ -521,8 +518,9 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
      * deliberately allowed to hold members without one, which is what made
      * "add from the club roster" refuse the very members it was listing.
      */
-    const missingEmail = needsEmail && !m.email.trim();
-    const missingPhone = needsPhone && !looksLikePhone(m.phone);
+    const gap = contactGap(m, needs);
+    const missingEmail = gap === "email";
+    const missingPhone = gap === "mobile";
     if (missingEmail || missingPhone) {
       needContact.push(m.name);
       if (missingEmail) needEmail.push(m.name);

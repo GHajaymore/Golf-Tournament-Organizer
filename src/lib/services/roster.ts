@@ -1,6 +1,26 @@
 import "server-only";
+import type { Event } from "@prisma/client";
 import { prisma } from "../db";
 import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
+import { contactGap, type ContactNeeds } from "../domain/registration-intake";
+import { planForEvent } from "./entitlements";
+import { phoneRequiredFor } from "../plans";
+import { cleanSettings, entryNeedsEmail } from "../tournament-settings";
+
+/**
+ * Which contact details THIS tournament requires of every entrant.
+ *
+ * A free club always collects a mobile; a paid club decides per tournament
+ * (`phoneRequiredFor`). An email is needed unless players sign in with Round
+ * Codes (`entryNeedsEmail`). The one place both the add action and the roster
+ * picker ask, so they cannot answer differently — see `contactGap`.
+ */
+export async function entryContactNeeds(event: Event): Promise<ContactNeeds> {
+  return {
+    phone: phoneRequiredFor(await planForEvent(event.id), event.requirePhone),
+    email: entryNeedsEmail(cleanSettings(event)),
+  };
+}
 
 /**
  * The club roster — the primary record of who plays here.
@@ -100,6 +120,12 @@ export interface RosterCandidate {
   memberNumber: string;
   /** True when this member is already entered in the event being filled. */
   entered: boolean;
+  /**
+   * What this member lacks to be entered in THIS tournament, or null — the
+   * same answer `addMembersToEvent` refuses them for (`contactGap`), shown
+   * before the tick rather than after the click.
+   */
+  missing: "email" | "mobile" | null;
 }
 
 /**
@@ -111,13 +137,15 @@ export async function rosterForEvent(eventId: string): Promise<RosterCandidate[]
   const organizationId = await organizationIdForEvent(eventId);
   if (!organizationId) return [];
 
-  const [members, entered] = await Promise.all([
+  const [members, entered, event] = await Promise.all([
     prisma.member.findMany({
       where: { organizationId, status: "active" },
       orderBy: { name: "asc" },
     }),
     prisma.player.findMany({ where: { eventId }, select: { memberId: true, email: true } }),
+    prisma.event.findUnique({ where: { id: eventId } }),
   ]);
+  const needs: ContactNeeds = event ? await entryContactNeeds(event) : { email: false, phone: false };
 
   const enteredIds = new Set(entered.map((p) => p.memberId).filter(Boolean) as string[]);
   // Also match on email, so an entry added before the roster existed (or
@@ -133,6 +161,7 @@ export async function rosterForEvent(eventId: string): Promise<RosterCandidate[]
     handicapType: m.handicapType,
     memberNumber: m.memberNumber,
     entered: enteredIds.has(m.id) || (!!m.email && enteredEmails.has(m.email.trim().toLowerCase())),
+    missing: contactGap(m, needs),
   }));
 }
 
