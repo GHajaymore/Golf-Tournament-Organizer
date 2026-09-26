@@ -488,6 +488,14 @@ golfer would stop at:
     2v7), and the foursomes round (every side's net to-par correct against Ardmore's par 32, and
     Today's "5th of 8 sides" matching the board).
 
+44. **A tie printed "1, 1, 3" on four boards and "T1" on the rest.** The foursomes board read 1, 1,
+    3, 3, 5, 6, 6, 8 beside a medal board reading T9, T9, 11 — two conventions on one phone. The
+    app settled on "T" the day before; the sides, skins, Modified Stableford and league tables had
+    simply never been brought onto it (the league table's own notes promised "T12, T12, 14"). All
+    four now print T1, T1, T3. Also checked a member's medal handicap by hand under WHS — index
+    8.4 off the White tee (70.8/129, par 71) at 95% is 9 shots, and all nine fall on stroke index
+    1–9 — correct to the shot.
+
 The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
@@ -526,8 +534,7 @@ The original note behind item 34, kept for the reasoning:
   tournaments are like this (the fixture writes their dates as free text), but a club can reach
   it for real by dating the rounds and never saving tournament dates. Events could fall back to
   the rounds' own days.
-- **Shared places print as "1, 1, 3" on the sides board** (and on the skins, Modified Stableford
-  and league tables), where every other board prints "T1". Presentation only; queued next.
+- ~~Shared places print as "1, 1, 3" on the sides board.~~ **Fixed (item 44).**
 
 ## Accessibility — every console control named
 
