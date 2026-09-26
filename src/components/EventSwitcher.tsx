@@ -1,5 +1,6 @@
 "use client";
 import { useId, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
@@ -61,6 +62,23 @@ export function EventSwitcher({
   // Each caption below is a real <label> for its control, so a screen reader
   // says "Start from, combo box" rather than an unnamed "combo box".
   const fid = useId();
+  const router = useRouter();
+  /**
+   * SWITCH, THEN GO THERE (2026-09-25).
+   *
+   * "Manage" switched the active tournament and left the organizer on this
+   * list: the only visible change was the button turning into "Managing". A
+   * newcomer clicking Manage expects to be taken into the tournament, and
+   * creating one here already does exactly that (`createEvent` redirects to
+   * /dashboard). So opening one goes where creating one goes — the dashboard
+   * for a tournament, score entry for a quick round (where `NewMatchForm`
+   * sends a new one).
+   *
+   * The navigation lives HERE rather than as a redirect inside `switchEvent`
+   * because `TournamentClashNotice` switches and then goes somewhere else of
+   * its own choosing (/me, /group-games); a redirect in the action would
+   * overrule it. Defined below, once `startTransition` exists.
+   */
   const [confirmingId, setConfirmingId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
   // first: anyone who clicks Create without reading gets exactly what that
@@ -93,6 +111,11 @@ export function EventSwitcher({
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const openIn = (eventId: string, to: string) =>
+    startTransition(async () => {
+      await switchEvent(eventId);
+      router.push(to);
+    });
 
   // Only tournaments this person organizes. A copy is created inside the source
   // tournament's organization, so anything less than organizer would let a
@@ -189,7 +212,7 @@ export function EventSwitcher({
                           {e.isActive ? (
                             <span className="tag tag-outline">Managing</span>
                           ) : e.hasAccess ? (
-                            <button type="button" className="btn btn-secondary" aria-label={`Manage ${e.name || "this tournament"}`} disabled={pending} onClick={() => startTransition(() => switchEvent(e.id))}>
+                            <button type="button" className="btn btn-secondary" aria-label={`Manage ${e.name || "this tournament"}`} disabled={pending} onClick={() => openIn(e.id, "/dashboard")}>
                               Manage
                             </button>
                           ) : (
@@ -257,7 +280,7 @@ export function EventSwitcher({
                       className="btn btn-secondary"
                       aria-label={`Open ${e.name || "this round"}`}
                       disabled={pending}
-                      onClick={() => startTransition(() => switchEvent(e.id))}
+                      onClick={() => openIn(e.id, "/entry")}
                     >
                       Open
                     </button>
