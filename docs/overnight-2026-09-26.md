@@ -18,6 +18,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #623 | A long surname clipped the "· YOU" marker on the player's leaders card | live |
 | #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | live |
 | #625 | A team event's setup never asked for the sides; the tee sheet split partners across tee times (items 6–7) | live |
+| #626 | **Every club tournament created from the list scored against an empty card** on the boards, Reports and the public page; one round had three names (items 8–10) | live |
+| — | Every console form control named for screen readers — measured at zero on every screen of five tournaments (see "Accessibility" below) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -94,6 +96,30 @@ setup checklist.
 - On a free club whose roster was imported without mobiles, no member can be entered until each
   record is edited. The screen now says so up front; whether the free tier should require a mobile
   for roster adds is a product decision.
+- Tournaments list: a tournament created before #626 shows "—" in its Course column (the column
+  reads the course NAME, which those tournaments never got). New ones are fine; re-saving
+  Tournament details fixes an old one.
+
+## Accessibility — every console control named
+
+A screen reader announces a form box by its label. Most of the console's boxes had a caption on
+screen that wasn't attached to the box, so a blind or low-vision organizer heard "edit text,
+combo box, checkbox" with no idea which was which. Measured in the browser on five tournaments
+covering every shape the club runs (a scramble, a 24-player medal, a knockout, a league, the
+Invitational), walking every sidebar screen:
+
+| Before | Screen |
+|---|---|
+| 18 on 8 players (58 on the seeded field) | Registration — every row's select box and handicap box |
+| 12 | Group games — each skins game's Buy-in and Holes |
+| 8 / 6 | Rounds & formats — knockout / league (points, carry-forward, deadlines, Which nine) |
+| 5 | Bracket — each match's result box |
+| 5 · 3 · 2 · 2 · 2 · 2 | Club settings · Prizes · Tee sheet · Score entry · Access · Announcements |
+| 1 each | Roster search · Leaderboard commentary · Seasons · Teams |
+
+**After: zero on every screen of all five.** Pinned by a render test that draws each screen with
+real rows (per-row boxes were most of the count). The player app is not yet measured — recorded
+in the deferred register.
 
 ## Decisions needed from Ajay
 

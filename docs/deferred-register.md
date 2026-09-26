@@ -258,25 +258,19 @@ product choice rather than a bug; flagged in case it is not the intent.
 Scope boundaries drawn while shipping something adjacent. Each is a real gap,
 not an oversight.
 
-### Form controls with no accessible name — the rest of the console (2026-09-25)
+### Form controls with no accessible name — the PLAYER app (2026-09-26)
 A `<label>` sitting BESIDE its control with no `htmlFor` names nothing: a screen
-reader announces "edit text" / "combo box". The first-run path is fixed and
-pinned (`first-run-controls-are-named.test.tsx`): the "Viewing as" switcher on
-every screen, both create panels, and Tournament details.
+reader announces "edit text" / "combo box". The CONSOLE is done: the first-run
+path in #622, and every other screen on 2026-09-26 — measured at zero on every
+sidebar link of five seeded tournaments (a scramble, a 24-player medal, a
+knockout, a league, the Invitational), pinned in
+`console-controls-are-named.test.tsx` with the checker shared in
+`unnamed-controls.ts`.
 
-**Measured in the browser, not grepped** — 240 `<label>` openings in `src` say
-nothing, because a label that WRAPS its control is fine. Unnamed controls still
-counted on real screens (seeded club, secretary): `/registration` 58 of 148,
-`/group-games` 13 of 13, `/organization` 5, `/prizes` 5, `/access` 2,
-`/announcements` 2, and one or two each on `/stages`, `/roster`, `/entry`,
-`/leaderboard`, `/bracket`, `/series`. `/match/new` is already clean.
-
-The fix per control is `htmlFor` + `id` (with `useId` in a client component)
-or `aria-label` where the caption holds a button (`FieldInfo`). Re-measure with
-the Playwright sweep in `testing-session-2026-09-25` memory and add each screen
-to the test as it is fixed. Not done in one pass because it is ~40 files of
-mechanical edits for a class sighted users never see — worth doing, not worth
-rushing.
+NOT YET MEASURED: the player app (`/me/*`, `/play`). Same sweep, signed in as a
+player — count controls whose accessible name (aria-label, label TEXT, title)
+is empty, and note a `<label>` wrapping only the box names nothing. Fix with
+`htmlFor` + `useId`, or `aria-label` where the caption holds a button.
 
 ### Timestamps near midnight render in two time zones (2026-09-25)
 `MessagesClient` and `ScoreEntryClient` format a timestamp's DATE with no
