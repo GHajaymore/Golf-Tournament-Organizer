@@ -6,6 +6,7 @@ import {
   formatMoney,
   formatDay,
   formatDayRange,
+  plainSpaces,
   isSupportedLocale,
   DEFAULT_LOCALE,
 } from "../locale";
@@ -168,6 +169,39 @@ describe("a span of days", () => {
 
   it("gives a single day when both ends are the same", () => {
     expect(formatDayRange("2026-05-14", "2026-05-14", "en-GB")).toBe(formatDay("2026-05-14", "en-GB"));
+  });
+});
+
+/**
+ * THE SAME BYTES ON THE SERVER AND IN THE BROWSER.
+ *
+ * Node's ICU wrote "14 U+2009 U+2013 U+2009 16 May 2026" where Chrome wrote
+ * ordinary spaces, and React compares bytes: the Tournament details screen's
+ * formatting preview threw a hydration mismatch (production error #418) and
+ * re-rendered on the client. The formatter now flattens thin (U+2009) and
+ * narrow no-break (U+202F) spaces, so the two sides cannot disagree on them.
+ * Written as escapes, never as the characters, so the file cannot drift.
+ */
+describe("a date reads the same bytes on the server and in the browser", () => {
+  const SPECIAL = /[  ]/;
+
+  it("flattens thin and narrow no-break spaces", () => {
+    expect(plainSpaces("14 – 16 May")).toBe("14 – 16 May");
+    expect(plainSpaces("3:00 PM")).toBe("3:00 PM");
+    expect(plainSpaces("plain")).toBe("plain");
+  });
+
+  it("leaves none in a range, a day or a month, in any shortlisted locale", () => {
+    for (const locale of ["en-US", "en-GB", "en-AU", "de-DE", "fr-FR", "ja-JP"]) {
+      for (const [a, b] of [
+        ["2026-05-14", "2026-05-16"],
+        ["2026-05-30", "2026-06-02"],
+        ["2026-12-30", "2027-01-02"],
+      ]) {
+        expect(formatDayRange(a, b, locale), `${locale} ${a}..${b}`).not.toMatch(SPECIAL);
+      }
+      expect(formatDay("2026-05-14", locale), locale).not.toMatch(SPECIAL);
+    }
   });
 });
 

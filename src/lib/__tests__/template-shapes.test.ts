@@ -181,7 +181,10 @@ describe("the picker's own words", () => {
      * The returning organizer's switcher has always said "Start from".
      */
     const src = readSource("src", "components", "CreateFirstTournament.tsx");
-    expect(src).toMatch(/<label>Start from<\/label>/);
+    // The WORDING is the guarantee. The label may carry attributes — it now
+    // has `htmlFor`, because a bare <label> beside its select named nothing to
+    // a screen reader (see first-run-controls-are-named.test.tsx).
+    expect(src).toMatch(/<label[^>]*>Start from<\/label>/);
     expect(src).not.toMatch(/What kind of tournament\?/);
     // And it says plainly that nothing here is binding.
     expect(src).toMatch(/starting point only/i);

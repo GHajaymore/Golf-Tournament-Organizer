@@ -106,6 +106,7 @@ export function TournamentFormatting({
         </label>
         <select
           className="input"
+          aria-label="Dates and numbers for this tournament"
           value={loc}
           disabled={pending || !canEdit}
           onChange={(e) => save(e.target.value, cur)}
@@ -149,6 +150,7 @@ export function TournamentFormatting({
         </label>
         <select
           className="input"
+          aria-label="Currency for this tournament"
           value={cur}
           disabled={pending || !canEdit}
           onChange={(e) => save(loc, e.target.value)}

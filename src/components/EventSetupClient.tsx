@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
 import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
@@ -132,6 +132,9 @@ export function EventSetupClient({
   scored?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
+  // Captions below are real <label>s for their controls (a screen reader said
+  // an unnamed "edit text" for the name, dates, course and deadline).
+  const fid = useId();
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
   /** Scored matches a resize would destroy, once the action refuses. */
   const [resizeScored, setResizeScored] = useState<number | null>(null);
@@ -386,11 +389,12 @@ export function EventSetupClient({
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-kicker">Tournament identity</span>
         <div className="field">
-          <label>
+          <label htmlFor={`${fid}-name`}>
             Tournament name{" "}
             {!f.name.trim() && <span style={{ color: "var(--color-accent-300)" }}>· required to launch</span>}
           </label>
           <input
+            id={`${fid}-name`}
             className="input"
             value={f.name}
             onChange={(e) => set("name", e.target.value)}
@@ -426,7 +430,7 @@ export function EventSetupClient({
         </div>
         <div className="pair-grid">
           <div className="field">
-            <label>
+            <label htmlFor={`${fid}-start`}>
               Tournament dates{" "}
               {!f.dates.trim() && <span style={{ color: "var(--color-accent-300)" }}>· required to launch</span>}
             </label>
@@ -437,9 +441,9 @@ export function EventSetupClient({
                 them plus a dash could not fit a 320px screen, so the row ran
                 off the edge even after the field above it learned to stack. */}
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
+              <input id={`${fid}-start`} aria-label="Tournament dates, first day" className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
               <span className="text-muted">–</span>
-              <input className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
+              <input aria-label="Tournament dates, last day" className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
             </div>
             {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
             {/* TENTATIVE IS A REAL ANSWER (2026-09-19). A club fixes its
@@ -617,13 +621,14 @@ export function EventSetupClient({
         {courseSelect === "__other" && (
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
             <div className="field">
-              <label>Course name</label>
-              <input className="input" value={f.course} onChange={(e) => set("course", e.target.value)} placeholder="e.g. Maketewah Country Club" />
+              <label htmlFor={`${fid}-course`}>Course name</label>
+              <input id={`${fid}-course`} className="input" value={f.course} onChange={(e) => set("course", e.target.value)} placeholder="e.g. Maketewah Country Club" />
             </div>
             <div className="field">
-              <label>Zip code</label>
+              <label htmlFor={`${fid}-zip`}>Zip code</label>
               <div style={{ display: "flex", gap: 6 }}>
                 <input
+                  id={`${fid}-zip`}
                   className="input"
                   value={zip}
                   onChange={(e) => setZip(e.target.value)}
@@ -648,8 +653,8 @@ export function EventSetupClient({
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
-          <div className="field"><label>City</label><input className="input" value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="City" /></div>
-          <div className="field"><label>Address</label><input className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
+          <div className="field"><label htmlFor={`${fid}-city`}>City</label><input id={`${fid}-city`} className="input" value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="City" /></div>
+          <div className="field"><label htmlFor={`${fid}-address`}>Address</label><input id={`${fid}-address`} className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
         {/* Was one heading, "Registration &amp; field", over three unrelated
@@ -687,8 +692,8 @@ export function EventSetupClient({
             </p>
           </div>
           <div className="field">
-            <label>Registration deadline</label>
-            <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
+            <label htmlFor={`${fid}-deadline`}>Registration deadline</label>
+            <input id={`${fid}-deadline`} className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
             {f.regDeadline && (
               <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
                 {formatDeadline(f.regDeadline, locale)}
@@ -703,7 +708,7 @@ export function EventSetupClient({
                 <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
               </div>
               {f.capacity > 0 && (
-                <input className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
+                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
               )}
             </div>
           </div>
@@ -720,8 +725,8 @@ export function EventSetupClient({
           <>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               <div className="field" style={{ flex: 1 }}>
-                <label>Target player count</label>
-                <input className="input" type="number" value={manualTarget} onChange={(e) => setManualTarget(parseInt(e.target.value, 10) || 0)} />
+                <label htmlFor={`${fid}-target`}>Target player count</label>
+                <input id={`${fid}-target`} className="input" type="number" value={manualTarget} onChange={(e) => setManualTarget(parseInt(e.target.value, 10) || 0)} />
               </div>
               <button
                 type="button"

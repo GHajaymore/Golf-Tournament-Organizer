@@ -115,6 +115,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
                   </div>
                   <select
                     className="input"
+                    aria-label="Viewing as"
                     value={viewRole}
                     disabled={pending}
                     onChange={(e) => startTransition(() => setPreviewAction(e.target.value))}

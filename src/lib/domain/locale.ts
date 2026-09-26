@@ -156,6 +156,26 @@ export function resolveCurrency(club?: LocaleSource | null, event?: LocaleOverri
 }
 
 /**
+ * Intl's output with its typographic spaces made plain.
+ *
+ * THE SERVER AND THE BROWSER DO NOT FORMAT A DATE IN THE SAME BYTES. Node and
+ * Chrome ship different ICU/CLDR data, and the newer one puts THIN spaces
+ * (U+2009) around a range dash and a NARROW no-break space (U+202F) before
+ * "AM"/"PM". Measured 2026-09-25 on the Tournament details screen's formatting
+ * preview: the server wrote 14 U+2009 U+2013 U+2009 16 May 2026, Chrome wrote
+ * the same with ordinary spaces. They look identical, and React compares bytes
+ * — so every client component that formats a date while rendering threw a
+ * hydration mismatch (production React error #418, which the CI logs are full
+ * of) and threw its server HTML away to re-render on the client.
+ *
+ * Flattening both to an ordinary space here, at the one place dates are
+ * formatted, makes the two sides agree whatever ICU each ships.
+ */
+export function plainSpaces(text: string): string {
+  return text.replace(/[  ]/g, " ");
+}
+
+/**
  * A calendar day, written the way this club writes one.
  *
  * Takes an ISO `yyyy-mm-dd` and never a `Date`, and forces `timeZone: "UTC"`,
@@ -170,12 +190,14 @@ export function formatDay(iso: string, locale: string = DEFAULT_LOCALE): string 
   const d = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return value;
   try {
-    return new Intl.DateTimeFormat(locale, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(d);
+    return plainSpaces(
+      new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(d),
+    );
   } catch {
     return value;
   }
@@ -211,7 +233,7 @@ export function formatDayRange(
       year: "numeric",
       timeZone: "UTC",
     });
-    return fmt.formatRange(start, end);
+    return plainSpaces(fmt.formatRange(start, end));
   } catch {
     return `${formatDay(a, locale)} – ${formatDay(b, locale)}`;
   }
@@ -224,8 +246,10 @@ export function formatMonth(iso: string, locale: string = DEFAULT_LOCALE): strin
   const value = (iso ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   try {
-    return new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(
-      new Date(`${value}T00:00:00Z`),
+    return plainSpaces(
+      new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(
+        new Date(`${value}T00:00:00Z`),
+      ),
     );
   } catch {
     return value;

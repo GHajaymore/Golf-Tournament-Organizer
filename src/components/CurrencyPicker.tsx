@@ -79,6 +79,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
 
       <select
         className="input"
+        aria-label="Currency"
         value={value}
         disabled={pending}
         onChange={(e) => save(e.target.value)}

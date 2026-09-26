@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
@@ -58,6 +58,9 @@ export function EventSwitcher({
 }) {
   const consoleOutfit = useOrgProfile();
   const [name, setName] = useState("");
+  // Each caption below is a real <label> for its control, so a screen reader
+  // says "Start from, combo box" rather than an unnamed "combo box".
+  const fid = useId();
   const [confirmingId, setConfirmingId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
   // first: anyone who clicks Create without reading gets exactly what that
@@ -303,17 +306,17 @@ export function EventSwitcher({
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", borderTop: "1px solid var(--color-divider)", paddingTop: 12, marginTop: 4 }}>
         <div className="field" style={{ flex: 1, minWidth: 220 }}>
-          <label>Create a new tournament</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Club Championship 2026" />
+          <label htmlFor={`${fid}-name`}>Create a new tournament</label>
+          <input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Club Championship 2026" />
         </div>
         <div className="field" style={{ flex: 1, minWidth: 220 }}>
-          <label>Start from</label>
+          <label htmlFor={`${fid}-source`}>Start from</label>
           {/* ONE SOURCE, SHARED WITH THE PICKER'S FORM — see `startFromGroups`.
               This built its own list and `CreateFirstTournament` built another,
               and the two had drifted into different answers to the same
               question: this one offered a copy and no suggestions, that one
               offered suggestions and no copy. */}
-          <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+          <select id={`${fid}-source`} className="input" value={source} onChange={(e) => setSource(e.target.value)}>
             {startFromGroups({ copyable, shape, orgKind: listFor }).map((group) => {
               const options = group.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -331,8 +334,9 @@ export function EventSwitcher({
             shape is not asked there. */}
         {!copyFrom && organizations.length > 1 && (
           <div className="field" style={{ flex: 1, minWidth: 220 }}>
-            <label>Who is this for?</label>
+            <label htmlFor={`${fid}-org`}>Who is this for?</label>
             <select
+              id={`${fid}-org`}
               className="input"
               value={organizationId}
               onChange={(e) => setOrganizationId(e.target.value)}
@@ -347,8 +351,9 @@ export function EventSwitcher({
             and offering the question there would let the two disagree. */}
         {!copyFrom && (
           <div className="field" style={{ flex: 1, minWidth: 220 }}>
-            <label>How is it played?</label>
+            <label htmlFor={`${fid}-shape`}>How is it played?</label>
             <select
+              id={`${fid}-shape`}
               className="input"
               value={shape}
               onChange={(e) => setShape(e.target.value as TournamentShape | "")}
