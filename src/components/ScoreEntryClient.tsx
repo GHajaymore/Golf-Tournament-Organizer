@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useRef, useTransition } from "react";
+import { useEffect, useMemo, useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import {
   resolveMatch,
@@ -307,6 +307,14 @@ export function ScoreEntryClient({
   // Written the club's way, from the same context its currency comes from —
   // this card was stamped in whatever locale the scorer's phone was set to.
   const { locale } = useFormatting();
+  /**
+   * Whether this is the browser, after hydration. The "Entered … · Sep 26"
+   * stamp is formatted in UTC until then, so the server's HTML and the first
+   * client render agree whatever zone each is in; see `when` in MessagesClient
+   * for the midnight mismatch this avoids.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
   );
@@ -1158,6 +1166,7 @@ export function ScoreEntryClient({
                     {active.scoredAt
                       ? ` · ${new Intl.DateTimeFormat(locale, {
                           month: "short", day: "numeric", year: "numeric",
+                          ...(mounted ? {} : { timeZone: "UTC" }),
                         }).format(new Date(active.scoredAt))}`
                       : ""}
                   </span>

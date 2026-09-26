@@ -19,7 +19,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | live |
 | #625 | A team event's setup never asked for the sides; the tee sheet split partners across tee times (items 6–7) | live |
 | #626 | **Every club tournament created from the list scored against an empty card** on the boards, Reports and the public page; one round had three names (items 8–10) | live |
-| — | Every console form control named for screen readers — measured at zero on every screen of five tournaments (see "Accessibility" below) | this PR |
+| #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | merged |
+| #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | open |
+| — | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
