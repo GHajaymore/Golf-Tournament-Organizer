@@ -30,6 +30,7 @@ vi.mock("@/app/actions/event", actionModule);
 vi.mock("@/app/actions/stages", actionModule);
 vi.mock("@/app/actions/roster", actionModule);
 vi.mock("@/app/actions/messaging", actionModule);
+vi.mock("@/app/actions/register", actionModule);
 
 /**
  * THE REST OF THE CONSOLE'S FORM CONTROLS HAVE NAMES — the follow-up
@@ -58,6 +59,26 @@ const player = (id: string, name: string, handicap: number) => ({
   seed: 1,
   email: `${id}@example.invalid`,
   phone: "",
+});
+
+describe("the public sign-up form is named", () => {
+  it("every box a member fills in to enter a tournament", async () => {
+    /**
+     * Not the console and not the player app, which is how #627 missed it:
+     * `/register/<token>` is the first page a member ever opens, signed out.
+     * Measured in the browser on 2026-09-26 on three open tournaments: all six
+     * boxes unnamed — name, email, handicap, index type, mobile, tee.
+     */
+    const { RegisterClient } = await import("@/components/RegisterClient");
+    const html = render(
+      <RegisterClient
+        token="zz-tok" eventName="zz-Captain's Day" formatLabel="Stroke play" regDeadline=""
+        waitlistOnly={false} spotsLeft={12} approvalMode="auto" prefill={null} requirePhone />,
+    );
+    expect(html).toContain("Handicap index");
+    expect(html).toContain("Preferred tee");
+    expect(unnamedControls(html)).toEqual([]);
+  });
 });
 
 describe("console form controls are named", () => {

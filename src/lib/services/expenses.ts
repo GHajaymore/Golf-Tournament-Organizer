@@ -1584,7 +1584,7 @@ async function stakeFor(
       select: {
         buyInCents: true,
         entryMode: true,
-        entrants: { select: { playerId: true, confirmed: true, excluded: true } },
+        entrants: { select: { playerId: true, confirmed: true, excluded: true, won: true } },
       },
     }),
   ]);
@@ -1620,6 +1620,15 @@ async function stakeFor(
 
   // Contests have no group key — a closest-to-the-pin is the field's.
   for (const c of contests) {
+    /**
+     * A DECIDED CONTEST IS NOT STILL TO PLAY. The ledger pays a contest the
+     * moment it has a winner (`contestNets` asks for nothing else), so its
+     * stake is already on the settle-up as a result. Counting it here too put
+     * the same £3 in "3 games still to play · £10.00 in" and in "Closest to
+     * the pin · won by … · -£3.00" on one screen. Same shape as the Nassau
+     * above: money the ledger already reports is never exposure as well.
+     */
+    if (c.entrants.some((e) => e.won)) continue;
     const who = potMembership(isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in", fieldIds, c.entrants, stakeholderIds);
     add(who.entrants.includes(playerId) || who.pending.includes(playerId), c.buyInCents);
   }
