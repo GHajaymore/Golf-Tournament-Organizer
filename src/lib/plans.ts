@@ -192,9 +192,13 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "club",
     name: "Club",
     blurb: "For a golf club — every competition, your own branding, WHS posting, and any size of field.",
-    // Priced at ~50% of Golf Genius's ~$3,500/yr club subscription (Ajay,
-    // 2026-09-25): a peer product at half the incumbent, no $500 setup fee.
-    // $175/mo bills $1,750/yr at the ten-month annual. Owner-adjustable.
+    // $175/mo, billing $1,750/yr at the ten-month annual. Owner-adjustable.
+    // NB (2026-09-25): an earlier note here claimed this was "~50% of Golf
+    // Genius's ~$3,500/yr". That is FALSE and was removed — verified public
+    // figures put Golf Genius nearer $1,300/yr plus a $200–500 setup fee, so
+    // Club is not categorically cheaper. The price story stands on the setup
+    // fee we don't charge and the free tier they don't have, never on "half
+    // the price". See docs/handoff-2026-09-25.md.
     priceMonthly: 175,
     limits: {
       activeEvents: null,
