@@ -24,7 +24,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | live |
 | #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
 | #631 | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | live |
-| — | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | this PR |
+| #632 | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | live |
+| — | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -151,6 +152,12 @@ the default gets a Flight 1 holding a 4 and a 24.
     ones included), and "Match by match" said "generate flights to draw this round's matches",
     which never happens for a bracket. **Fixed:** a bracket round says "Round 2 is the knockout —
     its matches are recorded on the bracket", with a button there, and nothing that does not apply.
+21. **A straight knockout's standings screens showed nothing true.** With a semi-final already
+    decided, the Live leaderboard listed all eight players on 0 played / 0 points "reflecting the
+    qualification cutoff", and the dashboard showed "Qualification cutoff · Top 2/flight · cutoff ≈
+    0 pts" and "8 of 8 advancing". **Fixed:** in a knockout with no qualifying round the draw *is*
+    the standings — the Live leaderboard shows it (read-only), and the dashboard drops those cards
+    and says so. A knockout fed by a qualifying round is unchanged.
 
 ### Noted, not changed (UX calls for Ajay)
 

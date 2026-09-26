@@ -21,7 +21,9 @@ import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
-import { boardKindForRound } from "@/lib/stage-types";
+import { boardKindForRound, isKnockoutRound } from "@/lib/stage-types";
+import { BracketClient } from "@/components/BracketClient";
+import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 function ago(d: Date): string {
@@ -55,6 +57,36 @@ export default async function LeaderboardPage() {
    * results were thrown away — see `boardKindForRound`.
    */
   const kind = boardKindForRound(activeStage?.format, activeStage?.type);
+
+  /**
+   * A STRAIGHT KNOCKOUT'S STANDINGS ARE ITS DRAW.
+   *
+   * With the bracket as the first round there is no round of matches or
+   * cards to rank, so the match-points table below printed every player on
+   * 0 played and 0 points — found 2026-09-26 with a semi-final already decided
+   * on the bracket — under "advancing rows reflect the qualification cutoff",
+   * for a draw nobody qualified for. Who is still in, and who plays whom, IS
+   * the leaderboard of a knockout; this shows it, read-only.
+   */
+  if (activeStage && isKnockoutRound(activeStage.type) && state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0) {
+    const mode: BracketMode = isBracketMode(event.bracketMode) ? event.bracketMode : "split";
+    const { mainLabel, secondLabel } = drawBrackets([], mode);
+    const results: Record<string, string> = {};
+    for (const w of await prisma.bracketWinner.findMany({ where: { eventId: session.eventId } })) {
+      if (w.result) results[w.key] = w.result;
+    }
+    return (
+      <BracketClient
+        winners={state.brackets.winners}
+        consolation={state.brackets.consolation}
+        mainLabel={mainLabel}
+        secondLabel={secondLabel}
+        results={results}
+        readOnly
+        straight
+      />
+    );
+  }
 
   if (kind === "manual") {
     return <ManualRoundBoard format={activeStage!.format} />;
