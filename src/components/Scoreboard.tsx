@@ -31,11 +31,20 @@ export interface LeaderTile {
   gap: boolean;
 }
 
-export function ScoreboardLeaders({ rows, note }: { rows: LeaderTile[]; note?: string }) {
+export function ScoreboardLeaders({
+  rows,
+  note,
+  title = "LEADERS",
+}: {
+  rows: LeaderTile[];
+  note?: string;
+  /** "QUALIFYING" when this table only decided who reached a draw — see `standingLabels`. */
+  title?: string;
+}) {
   return (
-    <section aria-label="Leaders" className="sb-frame" style={{ marginTop: 14 }}>
+    <section aria-label={title === "LEADERS" ? "Leaders" : "Qualifying"} className="sb-frame" style={{ marginTop: 14 }}>
       <div className="sb-board">
-        <div className="sb-title">LEADERS</div>
+        <div className="sb-title">{title}</div>
         <div className="sb-row sb-head" aria-hidden="true">
           <span>POS</span>
           <span style={{ textAlign: "left", paddingLeft: 8 }}>PLAYER</span>
