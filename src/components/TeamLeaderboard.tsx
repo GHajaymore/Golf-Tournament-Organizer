@@ -1,7 +1,7 @@
 import type { TeamStanding } from "@/lib/services/teams";
 import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
 import { toParText } from "@/lib/domain";
-import { placesByValue } from "@/lib/domain/flight-places";
+import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
 
 /**
  * Standings for a team round.
@@ -85,7 +85,8 @@ export function TeamStandingsTable({
    * gross round and the places numbered them 1, 2, 3 down that order, so the
    * `#` column agreed with the sort and both were wrong together.
    */
-  const places = placesByValue(rows, (r) => valueOnBasis(basis, r), (r) => r.played > 0);
+  // "T1" for a shared place, as every other board prints it — see `placeTexts`.
+  const places = placeTexts(placesByValue(rows, (r) => valueOnBasis(basis, r), (r) => r.played > 0));
 
   return (
     <>

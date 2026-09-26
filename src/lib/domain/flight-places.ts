@@ -103,6 +103,24 @@ export function placesByValue<T>(
 }
 
 /**
+ * THOSE PLACES AS A BOARD PRINTS THEM — "T1", "T1", "3" — or null for no place.
+ *
+ * `placesByValue` gets the tie right and every table using it printed it
+ * bare: the seeded club's foursomes board read 1, 1, 3, 3, 5, 6, 6, 8 on
+ * 2026-09-26 while the stroke board on the same phone read T9, T9, 11. The app
+ * settled the convention on 2026-09-25 (`placeText` in `shared-position.ts`:
+ * "a board reading 9, 9, 11, 12 looks like a numbering mistake") and these
+ * four tables — sides, skins, Modified Stableford, the league — were simply
+ * not on it. Same rule, for the same reason, over a places list instead of
+ * ranked rows: a place held by more than one row is shared.
+ */
+export function placeTexts(places: readonly (number | null)[]): (string | null)[] {
+  const held = new Map<number, number>();
+  for (const p of places) if (p !== null) held.set(p, (held.get(p) ?? 0) + 1);
+  return places.map((p) => (p === null ? null : (held.get(p) ?? 0) > 1 ? `T${p}` : `${p}`));
+}
+
+/**
  * A place, written the way it is read: 1st, 2nd, 3rd, 11th, 21st.
  *
  * Beside `placesByValue` because a place and the words for it belong together

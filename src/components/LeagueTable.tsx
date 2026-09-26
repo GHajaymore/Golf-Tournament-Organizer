@@ -1,4 +1,4 @@
-import { placesByValue } from "@/lib/domain/flight-places";
+import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
 import type { LeagueTableRow } from "@/lib/services/league";
 
 /**
@@ -30,12 +30,15 @@ export function LeagueTable({
    */
   orderNote?: string;
 }) {
-  const places = placesByValue(
-    rows,
-    (r) => r.points,
-    // Everybody is placed, including a club yet to play. A league table is the
-    // whole league or it is not a league table.
-    () => true,
+  // Printed "T12", as the note above has always promised — see `placeTexts`.
+  const places = placeTexts(
+    placesByValue(
+      rows,
+      (r) => r.points,
+      // Everybody is placed, including a club yet to play. A league table is the
+      // whole league or it is not a league table.
+      () => true,
+    ),
   );
 
   if (rows.length === 0) {
