@@ -20,7 +20,7 @@ import {
 } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, entryModeFor, findFormat } from "@/lib/formats";
-import { generatesPairings, isHeadToHead } from "@/lib/stage-types";
+import { generatesPairings, isHeadToHead, isKnockoutRound } from "@/lib/stage-types";
 import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
@@ -673,6 +673,8 @@ export default async function EntryPage() {
         // a Stroke Play Round created before this carries the schema's
         // "Match Play" default and would still be sent to the wrong entry.
         drawsPairings: generatesPairings(stage.type),
+        // The knockout is recorded on the Bracket, and the screen says so.
+        bracket: isKnockoutRound(stage.type),
         matches: stageMatches,
         netMode,
         scoreInput: stage.scoreInput,

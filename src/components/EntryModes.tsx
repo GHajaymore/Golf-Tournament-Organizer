@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
@@ -22,6 +23,14 @@ export interface EntryRound {
   /** Whether the scheduler draws pairings for this round's type. False for a
    *  medal round, which is entered as cards and never has matches. */
   drawsPairings: boolean;
+  /**
+   * The knockout itself. Its matches are recorded on the Bracket — a winner
+   * clicked, a result like "3&2" — so neither way of entering on this screen
+   * applies: stroke cards decide nothing in a knockout, and match entry here
+   * reads Match rows a bracket never files. Optional so older callers are
+   * unchanged.
+   */
+  bracket?: boolean;
   matches: EntryMatch[];
   netMode: boolean;
   /** The committee's override for how this round's scores are recorded, or ""
@@ -180,6 +189,16 @@ export function EntryModes({
         : "match";
   const mode = modeByRound[roundIdx] ?? naturalMode;
   const setMode = (m: "match" | "stroke") => setModeByRound((prev) => ({ ...prev, [roundIdx]: m }));
+  /**
+   * A KNOCKOUT ROUND IS RECORDED ON THE BRACKET, and this screen says so.
+   *
+   * Found 2026-09-26 running a club knockout as a newcomer: Score entry opened
+   * the bracket round as a stroke card for every player — eliminated ones
+   * included, on the seeded Summer Knockout — and "Match by match" said "No
+   * matches yet: generate flights on the Flights screen", which no flight ever
+   * does for a bracket. Two dead ends for the round that decides the winner.
+   */
+  const bracket = !!round?.bracket;
 
   /**
    * A TOURNAMENT WITH NO ROUNDS YET, WHICH IS EVERY TOURNAMENT FOR ITS FIRST
@@ -269,7 +288,7 @@ export function EntryModes({
                 people the toggle only ever offers the wrong one of the two,
                 under a label ("Whole field") describing a field they do not
                 have. */}
-            {!casual && (
+            {!casual && !bracket && (
               <div className="seg" role="radiogroup" aria-label="How to enter the scores">
                 <label className="seg-opt">
                   <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
@@ -298,7 +317,7 @@ export function EntryModes({
                 destructive control beside the card they are filling in as
                 they play. A wrong score on a quick round is fixed by typing
                 over it, which is the only correction two people need. */}
-            {isStaff && !casual && (
+            {isStaff && !casual && !bracket && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -308,7 +327,7 @@ export function EntryModes({
                 <Icon name="upload-simple" /> {importing ? "Close import" : "Import scores"}
               </button>
             )}
-            {isStaff && !casual && !clearing && (
+            {isStaff && !casual && !clearing && !bracket && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -372,7 +391,7 @@ export function EntryModes({
 
           Goes away again the moment a venue resolves, so the "two pickers for
           one answer is worse than none" rule holds wherever it was true. */}
-      {(mode === "stroke" || !round.venue) && (
+      {(mode === "stroke" || !round.venue) && !bracket && (
         <RoundVenue
           /* `venue-` prefixed, NOT the bare stage id.
              ScoreEntryClient and StrokePlayEntry are siblings of this in the
@@ -392,7 +411,19 @@ export function EntryModes({
         />
       )}
 
-      {mode === "match" ? (
+      {bracket ? (
+        <div className="card elev-sm" style={{ gap: 10 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>{round.label} is the knockout</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "62ch" }}>
+            {isStaff
+              ? "Its matches are recorded on the bracket: click the winner of each match, and add the result (3&2, 1 up) if you like. Winners go through to the next round on their own."
+              : "Its results go on the bracket as each match is decided."}
+          </p>
+          <Link href="/bracket" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+            <Icon name="tree-structure" /> Open the {screenName("/bracket")}
+          </Link>
+        </div>
+      ) : mode === "match" ? (
         <ScoreEntryClient
           key={round.stageId}
           matches={round.matches}
@@ -458,7 +489,7 @@ export function EntryModes({
        * no second party here to accept anything — the card is already final
        * where it stands.
        */}
-      {mode === "stroke" && isStaff && !casual && (
+      {mode === "stroke" && isStaff && !casual && !bracket && (
         <RoundApproval
           stageId={round.stroke.stageId}
           isAdmin={isAdmin}
