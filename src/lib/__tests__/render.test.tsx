@@ -2841,6 +2841,33 @@ describe("where this round was played", () => {
     expect(withTees).toContain("White");
   });
 
+  it("names the TOURNAMENT'S set on the inherit option, not the course's first", async () => {
+    /**
+     * The seeded April Medal is off the Whites. The option said "Blue (the
+     * tournament's)" — `defaultTeeFor` on the course, which picks the first
+     * rated set — so an organizer choosing it was promised Blue and got every
+     * card priced off White. The page now resolves the name through
+     * `teeForPlay`, the chain that prices the cards, and passes it in.
+     */
+    const library = [
+      {
+        id: "c1",
+        name: "Bushwood",
+        tees: [
+          { id: "t1", courseId: "c1", name: "Blue", courseRating: 71.2, slopeRating: 128, par: 72, position: 0, rated: true },
+          { id: "t2", courseId: "c1", name: "White", courseRating: 69.4, slopeRating: 117, par: 72, position: 1, rated: true },
+        ],
+      },
+    ];
+    const html = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library, inheritedTeeName: "White" });
+    expect(html).toContain("White (the tournament&#x27;s)");
+    expect(html).not.toContain("Blue (the tournament&#x27;s)");
+    // The control: with nobody saying, the course's first set is what it
+    // falls back to — so the assertion above is the prop working.
+    const guessed = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library });
+    expect(guessed).toContain("Blue (the tournament&#x27;s)");
+  });
+
   it("asks nothing about tees when the course has only one set", async () => {
     // A question with one answer is furniture — the same rule the venue picker
     // above follows, and the reason a single-venue tournament is not asked
