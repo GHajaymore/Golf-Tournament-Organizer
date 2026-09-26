@@ -35,6 +35,7 @@ import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { placesWithin } from "@/lib/domain/flight-places";
+import { sharedRanks, placeText, holdsPosition } from "@/lib/domain/shared-position";
 import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
@@ -186,6 +187,8 @@ export default async function DashboardPage() {
           .map((s) => ({
             player: s.player,
             rank: s.ranked ? s.rank : 0,
+            ranked: s.ranked,
+            started: s.thru > 0,
             // To-par where there is a par, net where there is not — never the
             // gross wearing a plus sign. `toParShown` follows the board's basis
             // (net to-par on a net board); reading `toPar` here printed the
@@ -205,6 +208,8 @@ export default async function DashboardPage() {
         ranked: gs.ranked.map((r) => ({
           player: r.player,
           rank: r.rank,
+          ranked: true,
+          started: r.stats.played > 0,
           figure: pts(r.stats.totalPoints),
         })),
       }));
@@ -1323,14 +1328,25 @@ export default async function DashboardPage() {
           in words. This one printed all eight players of a finished scramble
           with "—" against every name, which reads as a round nobody has
           scored. Found 2026-09-26 running a scramble from scratch. */}
-      {showStandings && !unstarted && !matchEvent && !teamRound && (
+      {/* AND ONLY WHERE THERE IS A STANDING TO SHOW (2026-09-26). The card
+          rendered its heading over nothing on a tournament with no flights and
+          on a round scored by hand, and promised "Advancing rows highlighted"
+          on tournaments where nobody advances — the seeded medal, the nine-hole
+          Stableford and a finished championship among them. The caption is now
+          there only when a row is lit, and a shared flight place reads "T2",
+          as it does on every board since #621. */}
+      {showStandings && !unstarted && !matchEvent && !teamRound && flightColumns.some((gs) => gs.ranked.length > 0) && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div className="card-head">
           <span className="card-title">Flight standings</span>
-          <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
+          {flightColumns.some((gs) => gs.ranked.some((r) => advancingIds.has(r.player.id))) && (
+            <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginTop: 6 }}>
-          {flightColumns.map((gs, gi) => (
+          {flightColumns.map((gs, gi) => {
+            const shared = sharedRanks(gs.ranked);
+            return (
             <div key={gs.group.id}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
               {gs.ranked.map((r) => {
@@ -1355,7 +1371,9 @@ export default async function DashboardPage() {
                         finishing place. The board directly above this has
                         always printed "—" for exactly that; this card printed
                         a zero against every name before a ball was struck. */}
-                    <span style={{ width: 14, color: "var(--color-neutral-500)" }}>{r.rank || "—"}</span>
+                    <span style={{ minWidth: 14, color: "var(--color-neutral-500)" }}>
+                      {r.rank > 0 && holdsPosition(r) ? placeText(r, shared) : "—"}
+                    </span>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {standingLabels.get(r.player.id) ?? shortName(r.player.name)}
                     </span>
@@ -1364,7 +1382,8 @@ export default async function DashboardPage() {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       )}
