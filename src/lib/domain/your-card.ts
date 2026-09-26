@@ -25,7 +25,12 @@ export interface SideProgress {
   played: number;
 }
 
-export function yourCardNote(input: { side: SideProgress | null; holes: number; round?: boolean }): string {
+export function yourCardNote(input: {
+  side: SideProgress | null;
+  holes: number;
+  round?: boolean;
+  knockout?: boolean;
+}): string {
   const { side, holes } = input;
   /**
    * NO ROUND AT ALL is a third shape, and there were two.
@@ -42,6 +47,14 @@ export function yourCardNote(input: { side: SideProgress | null; holes: number; 
    * caller keeps today's answer.
    */
   if (input.round === false) return "";
+  /**
+   * A KNOCKOUT TIE IS A RESULT ON THE DRAW, not a card and not the board.
+   * "It appears on the board as soon as it's in" sent a knockout player to a
+   * board of qualifying match points, which no knockout result ever reaches.
+   */
+  if (input.knockout) {
+    return "A knockout tie is recorded as a result on the draw rather than as your own card — your organizer records who went through, and it shows on the Board.";
+  }
   const whose = side
     ? "This round is played in sides, so the card belongs to your side rather than to you."
     : "This round is scored by your organizer — your score is recorded against your opponent rather than as your own card.";

@@ -3,7 +3,9 @@ import { rankedScore, withStrokeBasis } from "@/lib/domain/ranked-score";
 import { snapshotStanding } from "@/lib/domain/lifecycle-state";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
-import { roundIsStroke } from "@/lib/stage-types";
+import { roundIsStroke, isKnockoutRound } from "@/lib/stage-types";
+import { myTie, bracketDraws, type MyTie } from "@/lib/domain/my-tie";
+import { bracketResults } from "@/lib/services/bracket-results";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
@@ -167,6 +169,14 @@ export interface MyRound {
    * Empty for a stroke-play round, where there is no opponent to name.
    */
   matches: MyMatchView[];
+  /**
+   * My tie in the draw, when this round is a knockout — `matches` above is
+   * always empty for one, because a bracket files no `Match` rows. Null for
+   * every other round, and for a player the draw does not hold.
+   */
+  tie: MyTie | null;
+  /** Whether this round is a knockout at all — true even when `tie` is null. */
+  knockout: boolean;
   /** My card for this round: the strokes themselves, how far round I am, and
    *  where it has got to. The strokes are returned, not just the count,
    *  because the entry screen has to open on what is already there — a card
@@ -325,6 +335,12 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     })
     .filter((v): v is MyMatchView => v !== null);
 
+  // And the knockout's version of the same question, read off the draw.
+  let tie: MyTie | null = null;
+  if (isKnockoutRound(stage.type)) {
+    tie = myTie(bracketDraws(state.brackets), playerId, await bracketResults(state.event.id));
+  }
+
   const row = await prisma.scorecard.findFirst({
     where: { eventId: state.event.id, stageId: stage.id, playerId },
     select: { strokes: true, status: true },
@@ -476,6 +492,8 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       matches: myMatches,
+      tie,
+      knockout: isKnockoutRound(stage.type),
       card,
     },
   };

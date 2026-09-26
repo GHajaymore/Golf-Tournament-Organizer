@@ -25,9 +25,10 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
 | #631 | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | live |
 | #632 | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | live |
-| #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | merged |
-| #634 | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | merged |
-| — | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | this PR |
+| #633 | A straight knockout's leaderboard and dashboard showed 0-0-0 standings and a qualification cutoff for a draw nobody qualified into (item 21) | live |
+| #634 | The dashboard called eight finished, unsigned cards "8 still out on the course" (item 22) | live |
+| #635 | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | live |
+| — | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -182,6 +183,43 @@ the cut, the four-ball's 8/8 sides) except one:
     "Setting up · 4 of 5 done · NOW Flights" on every setup screen — a locked, finished tournament
     told to make flights a single-division medal doesn't need — and its lock banner said "the
     tournament is live". **Fixed:** the guide stops at launch; the banner says "launched".
+
+### The player app in every tournament shape
+
+Until now the player app had been walked as a medal player. Walked as the seeded member in all
+eight of their tournaments at 393px — medal, championship, knockout, league, four-ball invitational,
+nine-hole Stableford, a round-less meeting and the festival of formats. Every screen returned 200
+with no horizontal scroll and no script errors, and Today, Board and My card agreed with each other
+in all eight (medal −2 net thru 11 on both; league 132 pts on both; nine-hole 13 pts on both;
+the foursomes side 35 gross / 30 net / 5th of 8 on Today and on the board). Two faults, both in the
+knockout:
+
+25. **A knockout player could not find out who they were playing.** The Summer Knockout member,
+    beaten in a semi-final, opened Today and read "your score is recorded against your opponent —
+    it appears on the board as soon as it's in". No opponent was named, and the Board showed only
+    the qualifying match points with "Round 2 · Not settled yet". The draw existed only in the
+    organizer's console, so no screen a member could open said who was still in. (Match-play
+    rounds name the opponent from the Match table; a knockout files its results elsewhere.)
+    **Fixed:** Today has a "Your tie" card — "Semifinal v Dot", or "Semifinal v the winner of Dot v
+    Eve" before that's played, "Out in the semifinal · lost to Dilip Ranganathan at the 19th",
+    "Runner-up", "Champion" — and the Board shows the draw read-only under the standings (or instead
+    of them when the knockout is the first round, matching the console fix in #633). The Your card
+    note now points to the draw. **The club's public share link had the same gap and gets the same
+    draw** — checked on the Summer Knockout and on the newcomer's straight knockout, each made
+    public for the check and put back to "participants" in the same script.
+26. **The board said a tie at the cut was still undecided after the draw had settled it.** Under
+    the qualifying table: "Rafe Sandoval and the last qualifier are level on 10.5 pts … A play-off or
+    your published countback decides who goes through — the app has not", printed above a draw with
+    Rafe in it at seed 8, whose quarter-final was already lost 4&3. **Fixed:** once the draw is fixed by
+    its first result, the cut-line notes (tie, level-on-points, bubble watch) are no longer shown, on
+    the player board and on the console's highlights alike.
+
+    Noted, not changed: the seeded draw is not the qualifying order — Hattie Mwangi (0 points, 16th)
+    is seed 5 while Lena Kowalczyk (12.5, 5th) isn't in it. In the app a draw is frozen from the
+    qualifiers at the first result, so this is the fixture, not the product. But it shows the board's
+    CUT LINE divider still follows the live qualifying order after the draw is frozen; if results
+    are corrected after the draw, the divider and the draw can disagree. Left alone: changing who is
+    "advancing" after a draw is qualification logic, and the draw itself is correct.
 
 ### Noted, not changed (UX calls for Ajay)
 

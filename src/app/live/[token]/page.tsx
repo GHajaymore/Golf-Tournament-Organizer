@@ -8,6 +8,7 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
+import { TheDraw } from "@/components/TheDraw";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
@@ -176,7 +177,15 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           </p>
         </header>
 
-        {board.manualFormat ? (
+        {board.straightKnockout ? (
+          /* A knockout from the first tee: the draw IS the board. Its
+             match-points table ranks everybody on nothing (see #633). */
+          board.draws.length > 0 ? null : (
+            <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+              The draw appears here as soon as the organizer makes it.
+            </p>
+          )
+        ) : board.manualFormat ? (
           <PublicManualNotice />
         ) : board.kind === "team-match" ? (
           /* A round robin of team matches is decided on the matches, not on
@@ -209,6 +218,8 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
             unit={board.unit}
           />
         )}
+
+        {board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
 
         {/*
           Stamped HERE, outside the cache, on every request.

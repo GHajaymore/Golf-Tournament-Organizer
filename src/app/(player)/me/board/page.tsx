@@ -24,6 +24,10 @@ import {
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { ResultLines } from "@/components/ResultLines";
+import { TheDraw } from "@/components/TheDraw";
+import { isKnockoutRound } from "@/lib/stage-types";
+import { drawnDraws } from "@/lib/domain/my-tie";
+import { bracketResults } from "@/lib/services/bracket-results";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -227,6 +231,26 @@ export default async function PlayBoardPage() {
     );
   }
 
+  /**
+   * THE DRAW, WHICH NO SCREEN A MEMBER COULD OPEN USED TO SHOW.
+   *
+   * A knockout's results live on the bracket, and the bracket was console
+   * only: the seeded Summer Knockout's player board printed the qualifying
+   * match points and "Round 2 · Not settled yet" with a semi-final to play,
+   * and nothing anywhere in the player app said who was still in. Walked as a
+   * player on 2026-09-26.
+   *
+   * After the standings when there was a qualifying round, since those are
+   * how the draw was seeded; INSTEAD of them when the knockout is the first
+   * round, where the match-points table ranks everybody on nothing — the fault
+   * #633 fixed on the console leaderboard.
+   */
+  const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
+  const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];
+  const straightKnockout = knockoutAt === 0 && isKnockoutRound(stage.type);
+  const drawSection =
+    draws.length > 0 ? <TheDraw draws={draws} results={await bracketResults(state.event.id)} /> : null;
+
   const rows = standingRows(state);
   // The day's own result, round by round — see services/tournament-result.ts.
   const lines = await resultLinesFor(state);
@@ -281,20 +305,32 @@ export default async function PlayBoardPage() {
           a single-round medal the board below IS the result. */}
       <ResultLines lines={lines} kind={state.event.playKind} />
 
-      <PlayerLeaderboard
-        isStroke={state.boardIsStroke}
-        isStableford={isStablefordRound(stage?.scoringBasis, stage?.format)}
-        rows={rows}
-        holes={holes}
-        youId={me?.id ?? ""}
-        // What the column actually measures, from the same place the board
-        // totals it — the state now says, rather than the screen assuming.
-        unit={state.boardIsStroke ? state.strokeUnitLabel : "match points"}
-        // Why the cut line falls where it does. The player on the wrong side
-        // of it is the one person who most needs that sentence, and it was
-        // rendered only on the organizer's console.
-        cutNote={cutLineNote(state) ?? ""}
-      />
+      {straightKnockout ? (
+        drawSection ?? (
+          <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+            The draw appears here as soon as your organizer makes it.
+          </p>
+        )
+      ) : (
+        <>
+          <PlayerLeaderboard
+            isStroke={state.boardIsStroke}
+            isStableford={isStablefordRound(stage?.scoringBasis, stage?.format)}
+            rows={rows}
+            holes={holes}
+            youId={me?.id ?? ""}
+            // What the column actually measures, from the same place the board
+            // totals it — the state now says, rather than the screen assuming.
+            unit={state.boardIsStroke ? state.strokeUnitLabel : "match points"}
+            // Why the cut line falls where it does. The player on the wrong side
+            // of it is the one person who most needs that sentence, and it was
+            // rendered only on the organizer's console.
+            cutNote={cutLineNote(state) ?? ""}
+          />
+          {drawSection}
+        </>
+      )}
     </div>
   );
 }
+

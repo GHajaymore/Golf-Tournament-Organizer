@@ -19,6 +19,7 @@ import { weekBasis, valueOnBasis, isStablefordRound } from "@/lib/domain/week-ba
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote } from "@/lib/domain/your-card";
+import { myTieLine } from "@/lib/domain/my-tie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
@@ -420,7 +421,7 @@ export default async function PlayTodayPage() {
               </Link>
             </section>
           )}
-          {!standing && !mySide && !round?.matches.length && (
+          {!standing && !mySide && !round?.matches.length && !round?.tie && (
             <section className="card elev-sm" style={{ marginTop: 18 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }} className="text-muted">
@@ -490,6 +491,23 @@ export default async function PlayTodayPage() {
               )}
             </section>
           ))}
+          {/* A KNOCKOUT'S "WHO AM I PLAYING". `matches` above is empty for a
+              bracket round — its results are BracketWinner rows, not Match
+              rows — so a player one tie from the final was told their score
+              is "recorded against your opponent" and never who that was. */}
+          {round?.tie && (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-kicker">
+                {round.tie.state === "to-play" ? "Your tie" : "Your knockout"}
+              </span>
+              <p style={{ margin: "4px 0 0", fontFamily: "var(--font-heading)", fontSize: 20, lineHeight: 1.25 }}>
+                {myTieLine(round.tie)}
+              </p>
+              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
+                See the draw <Icon name="arrow-right" />
+              </Link>
+            </section>
+          )}
           {/**
            * AND WHETHER IT IS IN, which this promised without ever checking.
            *
@@ -509,7 +527,7 @@ export default async function PlayTodayPage() {
           <section className="card elev-sm" style={{ marginTop: 12 }}>
             <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
             <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-              {yourCardNote({ side: mySide, holes, round: !!round })}
+              {yourCardNote({ side: mySide, holes, round: !!round, knockout: round?.knockout })}
             </p>
           </section>
         </>

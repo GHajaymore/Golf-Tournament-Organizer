@@ -5,7 +5,8 @@ import type { BracketView } from "@/lib/domain";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
 
-function BracketBoard({
+/** The draw itself, without the console's heading — the player board shows it read-only. */
+export function BracketBoard({
   view,
   results,
   readOnly,
