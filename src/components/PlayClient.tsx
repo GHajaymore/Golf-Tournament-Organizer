@@ -450,8 +450,9 @@ export function PlayClient(props: Props) {
 
         <div className="card elev-sm" style={{ gap: 12 }}>
           <div className="field">
-            <label>Round code</label>
+            <label htmlFor="play-round-code">Round code</label>
             <input
+              id="play-round-code"
               className="input"
               value={code}
               autoCapitalize="characters"

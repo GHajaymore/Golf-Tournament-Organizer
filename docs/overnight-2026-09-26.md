@@ -118,8 +118,10 @@ Invitational), walking every sidebar screen:
 | 1 each | Roster search · Leaderboard commentary · Seasons · Teams |
 
 **After: zero on every screen of all five.** Pinned by a render test that draws each screen with
-real rows (per-row boxes were most of the count). The player app is not yet measured — recorded
-in the deferred register.
+real rows (per-row boxes were most of the count). The player app was measured too, signed in as
+a member at phone width: Today, Board, My card, Events, Money, Calendar and the round-code screen
+all load, none scrolls sideways, no console errors — and one unnamed box (the round code), now
+named. The deferred-register entry for this class is closed.
 
 ## Decisions needed from Ajay
 

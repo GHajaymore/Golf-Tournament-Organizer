@@ -258,20 +258,6 @@ product choice rather than a bug; flagged in case it is not the intent.
 Scope boundaries drawn while shipping something adjacent. Each is a real gap,
 not an oversight.
 
-### Form controls with no accessible name — the PLAYER app (2026-09-26)
-A `<label>` sitting BESIDE its control with no `htmlFor` names nothing: a screen
-reader announces "edit text" / "combo box". The CONSOLE is done: the first-run
-path in #622, and every other screen on 2026-09-26 — measured at zero on every
-sidebar link of five seeded tournaments (a scramble, a 24-player medal, a
-knockout, a league, the Invitational), pinned in
-`console-controls-are-named.test.tsx` with the checker shared in
-`unnamed-controls.ts`.
-
-NOT YET MEASURED: the player app (`/me/*`, `/play`). Same sweep, signed in as a
-player — count controls whose accessible name (aria-label, label TEXT, title)
-is empty, and note a `<label>` wrapping only the box names nothing. Fix with
-`htmlFor` + `useId`, or `aria-label` where the caption holds a button.
-
 ### Timestamps near midnight render in two time zones (2026-09-25)
 `MessagesClient` and `ScoreEntryClient` format a timestamp's DATE with no
 `timeZone`, so the server (UTC) and the browser (local) can disagree within a
