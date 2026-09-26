@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { addPrize, updatePrize, setPrizeWinner, removePrize, applyPrizeStructure } from "@/app/actions/tournament";
 import { PRIZE_STRUCTURES } from "@/lib/domain/prize-structures";
 import { useMoney } from "@/components/CurrencyProvider";
@@ -45,6 +45,7 @@ export function PrizesClient({
 }) {
   const money = usePrizeMoney();
   const { symbol } = useMoney();
+  const fid = useId();
   const [category, setCategory] = useState("");
   const [detail, setDetail] = useState("");
   const [amount, setAmount] = useState("");
@@ -110,8 +111,9 @@ export function PrizesClient({
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="field" style={{ flex: 2, minWidth: 200 }}>
-            <label>Category</label>
+            <label htmlFor={`${fid}-cat`}>Category</label>
             <input
+              id={`${fid}-cat`}
               className="input"
               placeholder="e.g. Flight 1 — Winner"
               value={category}
@@ -119,8 +121,9 @@ export function PrizesClient({
             />
           </div>
           <div className="field" style={{ flex: 2, minWidth: 160 }}>
-            <label>Detail (optional)</label>
+            <label htmlFor={`${fid}-detail`}>Detail (optional)</label>
             <input
+              id={`${fid}-detail`}
               className="input"
               placeholder="e.g. Pro shop credit"
               value={detail}
@@ -128,8 +131,9 @@ export function PrizesClient({
             />
           </div>
           <div className="field" style={{ width: 130 }}>
-            <label>Amount ({symbol})</label>
+            <label htmlFor={`${fid}-amount`}>Amount ({symbol})</label>
             <input
+              id={`${fid}-amount`}
               className="input"
               type="number"
               min={0}

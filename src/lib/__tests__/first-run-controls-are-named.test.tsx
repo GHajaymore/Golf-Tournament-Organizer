@@ -32,6 +32,7 @@ vi.mock("@/app/actions/messaging", actionModule);
 
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
+import { unnamedControls } from "./unnamed-controls";
 
 /**
  * EVERY CONTROL A NEW ORGANIZER MEETS FIRST HAS A NAME.
@@ -51,25 +52,6 @@ import { CreateFirstTournament } from "@/components/CreateFirstTournament";
  * (see docs/deferred-register.md); this file is where to add a screen as it is
  * fixed.
  */
-
-/** Controls in rendered HTML that nothing names. */
-function unnamedControls(html: string): string[] {
-  const labelFor = new Set([...html.matchAll(/<label[^>]*\sfor="([^"]+)"/g)].map((m) => m[1]));
-  const out: string[] = [];
-  for (const m of html.matchAll(/<(input|select|textarea)\b([^>]*)>/g)) {
-    const [tag, kind, attrs] = [m[0], m[1], m[2]];
-    const type = /\stype="([^"]+)"/.exec(attrs)?.[1] ?? "";
-    if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
-    if (/\saria-label(ledby)?="[^"]+"/.test(attrs) || /\stitle="[^"]+"/.test(attrs)) continue;
-    const id = /\sid="([^"]+)"/.exec(attrs)?.[1];
-    if (id && labelFor.has(id)) continue;
-    // Wrapped: an unclosed <label> opened before this control.
-    const before = html.slice(0, m.index);
-    if (before.lastIndexOf("<label") > before.lastIndexOf("</label>")) continue;
-    out.push(`${kind}${type ? `[${type}]` : ""} ${tag.slice(0, 80)}`);
-  }
-  return out;
-}
 
 describe("a new organizer's first controls are named", () => {
   it("the returning organizer's create panel", () => {

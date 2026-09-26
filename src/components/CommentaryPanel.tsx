@@ -50,6 +50,7 @@ export function CommentaryPanel({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Post an update, milestone or highlight…"
+            aria-label="Commentary update"
             style={{ resize: "vertical", fontFamily: "inherit" }}
           />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

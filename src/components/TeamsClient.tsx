@@ -250,8 +250,9 @@ export function TeamsClient({
       {!league && (<>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="field" style={{ flex: 1, minWidth: 200 }}>
-          <label>Add a team</label>
+          <label htmlFor="teams-new-name">Add a team</label>
           <input
+            id="teams-new-name"
             className="input"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

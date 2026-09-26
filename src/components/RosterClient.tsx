@@ -562,6 +562,7 @@ export function RosterClient({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, email, number…"
+            aria-label="Search members"
           />
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />

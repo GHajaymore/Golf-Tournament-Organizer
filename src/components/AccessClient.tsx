@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { addAccount, setAccountRole, removeAccount } from "@/app/actions/tournament";
 import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-roles";
 import { ConfirmButton } from "./ConfirmButton";
@@ -79,6 +79,7 @@ export function RoleChangeConfirm({
 }
 
 export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
+  const fid = useId();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("player");
@@ -205,8 +206,8 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
       </div>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add account</span>
-        <div className="field"><label>Name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="field"><label>Email</label><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${fid}-name`}>Name</label><input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${fid}-email`}>Email</label><input id={`${fid}-email`} className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="field">
           <label>Role</label>
           <div className="seg">

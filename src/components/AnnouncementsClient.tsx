@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { addAnnouncement, toggleAnnouncementPin, removeAnnouncement } from "@/app/actions/tournament";
 import { DraftAssistant } from "@/components/DraftAssistant";
 import { postRefusal } from "@/lib/domain/announcement-post";
@@ -23,6 +23,7 @@ export function AnnouncementsClient({
   /** False when this club's plan doesn't include drafting. */
   aiAvailable?: boolean;
 }) {
+  const fid = useId();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
@@ -56,8 +57,9 @@ export function AnnouncementsClient({
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Post an announcement</span>
         <div className="field">
-          <label>Title</label>
+          <label htmlFor={`${fid}-title`}>Title</label>
           <input
+            id={`${fid}-title`}
             ref={titleRef}
             className="input"
             placeholder="e.g. Round 2 tee times posted"
@@ -82,8 +84,9 @@ export function AnnouncementsClient({
           )}
         </div>
         <div className="field">
-          <label>Message (optional)</label>
+          <label htmlFor={`${fid}-body`}>Message (optional)</label>
           <textarea
+            id={`${fid}-body`}
             className="input"
             rows={3}
             placeholder="Details players should know…"

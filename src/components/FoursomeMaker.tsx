@@ -487,13 +487,14 @@ export function FoursomeMaker({
             </div>
           </div>
           <div className="field" style={{ width: 120 }}>
-            <label>First tee</label>
-            <input className="input" type="time" value={firstTee} onChange={(e) => setFirstTee(e.target.value)} />
+            <label htmlFor="tee-sheet-first-tee">First tee</label>
+            <input id="tee-sheet-first-tee" className="input" type="time" value={firstTee} onChange={(e) => setFirstTee(e.target.value)} />
           </div>
           {startType !== "shotgun" && (
             <div className="field" style={{ width: 130 }}>
-              <label>Interval (min)</label>
+              <label htmlFor="tee-sheet-interval">Interval (min)</label>
               <input
+                id="tee-sheet-interval"
                 className="input"
                 type="number"
                 min={1}

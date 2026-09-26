@@ -70,6 +70,9 @@ function BracketBoard({
                     className="input"
                     defaultValue={results[m.key] ?? ""}
                     placeholder="Result e.g. 3&2"
+                    // A placeholder is not a name, and there is one of these
+                    // per finished match — each says whose match it records.
+                    aria-label={`Result of ${m.a?.name ?? "TBD"} v ${m.b?.name ?? "TBD"}, ${rd.label}`}
                     onBlur={(e) => startTransition(() => setBracketResult(m.key, e.target.value))}
                     style={{ marginTop: 4, fontSize: 11, minHeight: 26, padding: "2px 8px" }}
                   />
