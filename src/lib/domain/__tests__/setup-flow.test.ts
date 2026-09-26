@@ -4,6 +4,7 @@ import {
   positionOf,
   canAdvance,
   roundIsScheduled,
+  railSpeaks,
   type SetupFacts,
   type SetupRound,
 } from "../setup-flow";
@@ -297,6 +298,18 @@ describe("the hand-off from setting up to running", () => {
 
   it("says nothing once it has launched", () => {
     expect(flowOf({ ...finished, launched: true }).launchBlocked).toBeNull();
+  });
+
+  it("stops guiding once launched, even with a step left undone", () => {
+    /**
+     * Found 2026-09-26 on a COMPLETED club championship: "Setting up · 4 of 5
+     * done · NOW Flights" across its setup screens — a finished, locked
+     * tournament told to make flights. The guide belongs to setting up.
+     */
+    const unfinished = { ...finished, groups: 0 };
+    expect(flowOf({ ...unfinished, launched: false }).complete, "the fixture has a step undone").toBe(false);
+    expect(railSpeaks(flowOf({ ...unfinished, launched: false })), "before launch it guides (control)").toBe(true);
+    expect(railSpeaks(flowOf({ ...unfinished, launched: true }))).toBe(false);
   });
 });
 

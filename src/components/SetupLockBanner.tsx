@@ -28,7 +28,9 @@ export function SetupLockBanner({ locked, isAdmin }: { locked: boolean; isAdmin:
       <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ fontWeight: 500, fontSize: 14 }}>Setup locked</div>
         <div className="text-muted" style={{ fontSize: 12 }}>
-          The tournament is live, so setup is read-only to protect the field and results.{" "}
+          {/* "Launched", not "live": the lock holds after the tournament is
+              finished too, and a completed championship was being called live. */}
+          The tournament has been launched, so setup is read-only to protect the field and results.{" "}
           {isAdmin ? "Unlock to make a correction." : "Ask the Organizer to unlock if a change is needed."}
         </div>
       </div>

@@ -19,8 +19,9 @@ import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-sta
  */
 export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: string }) {
   // Null for a match — nothing to set up, so nothing to guide through. Taken
-  // here rather than at four call sites, so a screen cannot forget.
-  if (!flow) return null;
+  // here rather than at four call sites, so a screen cannot forget. And
+  // nothing once it is launched: see `launched` on SetupFlow.
+  if (!flow || flow.launched) return null;
 
   /**
    * FINISHED, AND NOT YET LAUNCHED.
@@ -224,7 +225,7 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
   // Nothing at the foot of the page once setup is done — the hand-off in the
   // rail above says the one remaining thing, and saying it twice on one screen
   // would make it an instruction rather than an offer.
-  if (!flow || flow.complete) return null;
+  if (!flow || flow.complete || flow.launched) return null;
   const { step, back, next } = positionOf(flow, href);
   if (!step) return null;
   const ready = canAdvance(step);
