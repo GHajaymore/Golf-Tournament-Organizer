@@ -35,10 +35,22 @@ import { Icon } from "./Icon";
  * another to a member on a US phone. The club's locale comes from the same
  * context the club's currency does — see CurrencyProvider.
  */
-function when(ts: number, locale: string, now: number | null): string {
-  const date = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(
-    new Date(ts),
-  );
+export function when(ts: number, locale: string, now: number | null): string {
+  /**
+   * THE DATE IN UTC UNTIL THERE IS A CLOCK, then the reader's own.
+   *
+   * The same mismatch as the relative time below, one layer down: the server
+   * formats in ITS zone (UTC on Vercel) and the browser in the reader's, so a
+   * message written at 00:30 UTC was "Sep 26" in the HTML and "Sep 25" in a US
+   * browser's first render — a hydration error for a few hours around every
+   * midnight. Pinning the zone on the pre-mount render makes the two agree;
+   * once mounted, the reader's local date is the right one for them.
+   */
+  const date = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    ...(now === null ? { timeZone: "UTC" } : {}),
+  }).format(new Date(ts));
   /**
    * THE CLOCK IS AN ARGUMENT, and `null` until the component has mounted.
    *
