@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useTransition } from "react";
+import { useId, useState, useRef, useTransition } from "react";
 import { saveOrganizationBranding } from "@/app/actions/organization";
 import {
   LOGO_ACCEPT,
@@ -136,6 +136,9 @@ export function OrganizationClient(props: Props) {
    * that follows the record.
    */
   const outfit = orgProfile(props.kind, props.country, props.communityNoun);
+  // Ties each caption to its box, so a screen reader names the field rather
+  // than announcing "edit text".
+  const fid = useId();
   const [name, setName] = useState(props.name);
   const [shortName, setShortName] = useState(props.shortName);
   const [logoUrl, setLogoUrl] = useState(props.logoUrl);
@@ -290,8 +293,9 @@ export function OrganizationClient(props: Props) {
           <span className="card-kicker">Branding</span>
 
           <div className="field">
-            <label>Organization name</label>
+            <label htmlFor={`${fid}-name`}>Organization name</label>
             <input
+              id={`${fid}-name`}
               className="input"
               value={name}
               disabled={!props.canEdit || pending}
@@ -304,10 +308,11 @@ export function OrganizationClient(props: Props) {
           </div>
 
           <div className="field">
-            <label>
+            <label htmlFor={`${fid}-short`}>
               Short name <span className="text-muted">· optional, used in tight spaces</span>
             </label>
             <input
+              id={`${fid}-short`}
               className="input"
               value={shortName}
               disabled={!props.canEdit || pending}
@@ -317,7 +322,7 @@ export function OrganizationClient(props: Props) {
           </div>
 
           <div className="field">
-            <label>
+            <label htmlFor={`${fid}-logo`}>
               Logo <span className="text-muted">· upload a file, or link to one</span>
             </label>
 
@@ -365,6 +370,7 @@ export function OrganizationClient(props: Props) {
               </div>
             ) : (
               <input
+                id={`${fid}-logo`}
                 className="input"
                 value={logoUrl}
                 disabled={!props.canEdit || pending}

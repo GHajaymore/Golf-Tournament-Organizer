@@ -997,6 +997,7 @@ export function ScoreEntryClient({
                 value={filter.query}
                 onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
                 placeholder="Search player, flight or round…"
+                aria-label="Search matches"
                 style={{ fontSize: 13 }}
               />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>

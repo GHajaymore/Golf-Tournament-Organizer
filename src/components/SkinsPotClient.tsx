@@ -1,6 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot, confirmSkinsEntry } from "@/app/actions/skins";
@@ -96,6 +96,8 @@ export function SkinsPotClient({
   const org = useOrgProfile();
   const { plain: money, parse: parseBuyIn } = useMoney();
   const { pending, error, run } = useAction();
+  // One per game on the screen, so each game's captions name its own boxes.
+  const fid = useId();
   const [buyIn, setBuyIn] = useState(money(view.buyInCents));
   const [scope, setScope] = useState<SkinsScope>(view.scope);
   const [picking, setPicking] = useState(false);
@@ -218,8 +220,8 @@ export function SkinsPotClient({
       {/* ── Setup ─────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ width: 120 }}>
-          <label>Buy-in</label>
-          <input className="input" inputMode="decimal" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
+          <label htmlFor={`${fid}-buyin`}>Buy-in</label>
+          <input id={`${fid}-buyin`} className="input" inputMode="decimal" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
         </div>
         {/* What was agreed instead of money, shown where the money would be.
             An empty buy-in box on its own says "nobody has priced this yet",
@@ -238,8 +240,8 @@ export function SkinsPotClient({
           </p>
         )}
         <div className="field" style={{ width: 150 }}>
-          <label>Holes</label>
-          <select className="input" value={scope} onChange={(e) => setScope(e.target.value as SkinsScope)}>
+          <label htmlFor={`${fid}-holes`}>Holes</label>
+          <select id={`${fid}-holes`} className="input" value={scope} onChange={(e) => setScope(e.target.value as SkinsScope)}>
             {(["full", "front", "back"] as const).map((s) => (
               <option key={s} value={s}>{SCOPE_LABEL[s]}</option>
             ))}

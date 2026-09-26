@@ -80,8 +80,9 @@ export function SeriesClient({
         {canEdit && (
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div className="field" style={{ flex: 1, minWidth: 200 }}>
-              <label>Season name</label>
+              <label htmlFor="season-new-name">Season name</label>
               <input
+                id="season-new-name"
                 className="input"
                 value={newName}
                 placeholder="e.g. Winter League 2026"

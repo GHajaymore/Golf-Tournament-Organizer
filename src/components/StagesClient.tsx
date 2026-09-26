@@ -468,6 +468,8 @@ function NextRoundTransition({
           disabled={!carryEnabled}
           onChange={(e) => commitCarry(carryEnabled, parseInt(e.target.value, 10))}
           style={{ flex: 1, minWidth: 120 }}
+          aria-label={`Share of points carried into ${roundLabel}`}
+          aria-valuetext={`${carryPct}%`}
         />
         <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
       </div>
@@ -1068,7 +1070,16 @@ function StageCard({
               list of fifteen names does not say which of them need a partner.
               An organizer scanning for "how do we play four-ball" now finds a
               heading rather than having to recognise the name. */}
-          <select className="input" value={format} disabled={pending} onChange={(e) => commitFormat(e.target.value)}>
+          {/* Named directly: the caption above holds the ⓘ button, so it
+              cannot be the control's label without the button's name riding
+              along. Same pattern as the date field below. */}
+          <select
+            className="input"
+            aria-label={`Format for ${roundLabelOf(allStages, stage.id) || "this round"}`}
+            value={format}
+            disabled={pending}
+            onChange={(e) => commitFormat(e.target.value)}
+          >
             <optgroup label="Played on your own">
               {formatOptions.filter((o) => !isTeamFormat(o.name)).map((o) => (
                 <option key={o.name} value={o.name} disabled={o.disabled}>
@@ -1272,8 +1283,9 @@ function StageCard({
             completely differently — this is not cosmetic. */}
         {holes === 9 && (
           <div className="field" style={{ width: 168 }}>
-            <label>Which nine</label>
+            <label htmlFor={`nine-${stage.id}`}>Which nine</label>
             <select
+              id={`nine-${stage.id}`}
               className="input"
               value={nine}
               disabled={pending}
@@ -1630,12 +1642,13 @@ function StageCard({
               blurb="The day this round's scores are due, and whether they can still be entered."
             >
               <div className="field" style={{ width: 190 }}>
-                <label>Completion deadline</label>
+                <label htmlFor={`deadline-${stage.id}`}>Completion deadline</label>
                 {/* A date input, so it opens the platform calendar rather than
                     asking someone to guess a format. The native picker follows
                     `color-scheme`, which the app shell now sets from the club's
                     appearance, so it isn't a white popup on a dark page. */}
                 <input
+                  id={`deadline-${stage.id}`}
                   className="input"
                   type="date"
                   value={isIsoDate(deadline) ? deadline : ""}
@@ -1679,9 +1692,10 @@ function StageCard({
                 by default is a different tee sheet from 18 who said so. */}
             {stage.attendance && (
               <div className="field" style={{ maxWidth: 420 }}>
-                <label>Sign-up deadline</label>
+                <label htmlFor={`opt-deadline-${stage.id}`}>Sign-up deadline</label>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <input
+                    id={`opt-deadline-${stage.id}`}
                     className="input"
                     type="date"
                     style={{ width: 170 }}

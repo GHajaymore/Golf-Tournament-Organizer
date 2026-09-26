@@ -240,6 +240,7 @@ export function EntryModes({
               <select
                 className="input"
                 style={{ width: "auto" }}
+                aria-label="Round to enter scores for"
                 value={roundIdx}
                 onChange={(e) => setRoundIdx(parseInt(e.target.value, 10))}
               >

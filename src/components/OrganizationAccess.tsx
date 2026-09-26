@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import {
   addOrganizationMember,
@@ -96,6 +96,7 @@ export function OrganizationAccess({
   // together and every screen in the console is inside it.
   const from = useOrgProfile().noun;
   const [email, setEmail] = useState("");
+  const fid = useId();
   const [name, setName] = useState("");
   const [role, setRole] = useState("member");
   /** The role each waiting person would be given, keyed by request. */
@@ -313,12 +314,13 @@ export function OrganizationAccess({
             take a staff seat.
           </p>
           <div className="field">
-            <label>Name</label>
-            <input className="input" value={name} disabled={!canEdit || pending} onChange={(e) => setName(e.target.value)} />
+            <label htmlFor={`${fid}-name`}>Name</label>
+            <input id={`${fid}-name`} className="input" value={name} disabled={!canEdit || pending} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="field">
-            <label>Email</label>
+            <label htmlFor={`${fid}-email`}>Email</label>
             <input
+              id={`${fid}-email`}
               className="input"
               type="email"
               value={email}

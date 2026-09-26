@@ -116,6 +116,7 @@ export function ScoringClient({
               type="number"
               step={f.step}
               style={{ width: 90, textAlign: "right" }}
+              aria-label={`${f.label} — ${f.hint}`}
               value={values[f.key]}
               onChange={(e) => onChange(f.key, e.target.value)}
             />
@@ -149,7 +150,9 @@ export function ScoringClient({
               }}
             >
               <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
-                <input type="checkbox" checked disabled={pending} onChange={() => toggle(t, false)} />
+                {/* The label wraps nothing but the box, so it names nothing —
+                    the tiebreaker's name is two elements along. */}
+                <input type="checkbox" checked disabled={pending} onChange={() => toggle(t, false)} aria-label={`Use ${tiebreakerLabel(t)}`} />
               </label>
               <span
                 style={{

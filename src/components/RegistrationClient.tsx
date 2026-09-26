@@ -410,7 +410,7 @@ export function RegistrationClient({
             <thead>
               <tr>
                 <th style={{ width: 26 }}>
-                  <input type="checkbox" checked={allSelected} disabled={rows.length === 0} onChange={() => toggleSelectAll(rows)} />
+                  <input type="checkbox" aria-label={`Select everyone in ${title}`} checked={allSelected} disabled={rows.length === 0} onChange={() => toggleSelectAll(rows)} />
                 </th>
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
@@ -425,7 +425,7 @@ export function RegistrationClient({
             <tbody>
               {rows.map((p, i) => (
                 <tr key={p.id}>
-                  <td><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
+                  <td><input type="checkbox" aria-label={`Select ${p.name}`} checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>
                     {p.name}
@@ -465,6 +465,7 @@ export function RegistrationClient({
                         className="input"
                         type="number"
                         step="0.1"
+                        aria-label={`Handicap for ${p.name}`}
                         defaultValue={p.handicap}
                         disabled={pending || locked}
                         style={{ width: 52, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}

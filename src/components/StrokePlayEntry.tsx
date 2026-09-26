@@ -369,7 +369,7 @@ export function StrokePlayEntry({
     <div className="card elev-sm">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div className="field" style={{ minWidth: 220 }}>
-          <label>Player</label>
+          <label htmlFor={`${stageId}-entry-player`}>Player</label>
           {/* Split into two groups when a league has marked anybody out, and
               left as one flat list when it has not — a tournament has no
               "this week" and a lone optgroup labelled "Playing this round"
@@ -378,7 +378,7 @@ export function StrokePlayEntry({
               The absent are kept, and kept SECOND. A player who turned up
               unannounced still played, and a card is the proof; what this
               stops is the misclick, not the entry. */}
-          <select className="input" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
+          <select id={`${stageId}-entry-player`} className="input" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
             {absentPlayers.length === 0 ? (
               players.map((p) => (
                 <option key={p.id} value={p.id}>{p.name} (hcp {indexLabel(p)})</option>
