@@ -1345,6 +1345,41 @@ export default async function LoginPage() {
         </div>
       </section>
 
+      {/* ── Make it yours ─────────────────────────────────────────────────
+          Ajay: "I don't see we are marketing the customizations we offer."
+          Every claim here is a real, shipped feature — the club colour theme
+          (themeCss, on the console AND /live), white-label on the Club tier
+          (own logo, TourneyHQ reduced to a "powered by" line, never the club
+          recolouring the TourneyHQ mark itself — see brand rule), the sixteen
+          formats and their allowances, and the money games. Reuses .features /
+          .feat, so no new CSS meets the landing-contrast guard. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">Make it yours</div>
+            <h2 className="sec-h">Your colours, your formats, your prizes — not a template.</h2>
+            <p className="sec-sub">Most of what a club wants to change, it can. The look members see, the games you run and the field you set all bend to how your club already plays — rather than the other way round.</p>
+          </div>
+          <div className="features reveal">
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><circle cx="8.5" cy="9.5" r="1.1" /><circle cx="15.5" cy="9.5" r="1.1" /><circle cx="9.5" cy="15.5" r="1.1" /></svg>
+              <h3>Your colours, on every screen</h3>
+              <p>Choose your club&rsquo;s look and it carries across the whole console and the public board members watch. On the Club plan your own logo sits on it too, with TourneyHQ stepped back to a small &ldquo;powered by&rdquo; line.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" /><rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" /></svg>
+              <h3>Your formats and prizes</h3>
+              <p>Sixteen formats — medal and Stableford, matchplay and four-ball, scrambles, brackets and cuts — each scored off its own published allowance. Add skins, sweeps, Nassau and prize splits named the way your club names them.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" /><path d="M16 8a3 3 0 0 1 0 6" /><path d="M18.5 20c0-2-.8-3.6-2.1-4.4" /></svg>
+              <h3>Your field, your desk</h3>
+              <p>Set the field size, invite the organizers and assistants who run the day alongside you, and keep your roster and its history year on year. Caps and seats move with your plan; nothing is one-size.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section>
         <div className="wrap">
           <div className="reveal">
@@ -1494,6 +1529,18 @@ export default async function LoginPage() {
             <details>
               <summary style={paperInk}>How much do I have to set up to get going?<Chevron /></summary>
               <div className="ans" style={paperSoft}><p>A name is enough to start. Dates, course, the field and the format come after — and <b style={paperInk}>every one of them stays editable</b>, right through the event.</p></div>
+            </details>
+            <details>
+              <summary style={paperInk}>Can we use our own colours and logo?<Chevron /></summary>
+              <div className="ans" style={paperSoft}><p>Choose your club&rsquo;s <b style={paperInk}>colours</b> and they carry across every organiser screen and the public board your members watch. On the <b style={paperInk}>Club</b> plan your own <b style={paperInk}>logo</b> sits on it too, with TourneyHQ stepped back to a small &ldquo;powered by&rdquo; line.</p></div>
+            </details>
+            <details>
+              <summary style={paperInk}>What formats and games can we run?<Chevron /></summary>
+              <div className="ans" style={paperSoft}><p><b style={paperInk}>Sixteen formats</b> — medal and Stableford, matchplay and four-ball, scrambles, brackets and cuts — each scored off its own published allowance. Layer <b style={paperInk}>skins, sweeps, Nassau and prize splits</b> on top: we work out every penny and keep the record, and never move the money.</p></div>
+            </details>
+            <details>
+              <summary style={paperInk}>Do players need to download an app?<Chevron /></summary>
+              <div className="ans" style={paperSoft}><p>No. Players open a <b style={paperInk}>link</b> — or type the round&rsquo;s code — to see the board and enter scores, with <b style={paperInk}>no account and no app store</b>. It adds to the home screen if they want it, and keeps working when the signal on the course doesn&rsquo;t.</p></div>
             </details>
           </div>
         </div>
