@@ -3560,9 +3560,28 @@ export async function createEvent(
     where: { id: organizationId },
     select: { defaultCourseId: true },
   });
-  if (org?.defaultCourseId) {
+  const home = org?.defaultCourseId
+    ? await prisma.course.findFirst({
+        where: { id: org.defaultCourseId, organizationId },
+        select: { id: true, name: true, city: true },
+      })
+    : null;
+  if (home) {
     await prisma.eventCourse.create({
-      data: { eventId: event.id, courseId: org.defaultCourseId },
+      data: { eventId: event.id, courseId: home.id },
+    });
+    /**
+     * AND THE TOURNAMENT'S OWN COURSE, not only a venue — the same three
+     * fields `saveEvent` writes when the course is picked on Tournament
+     * details. This linked the venue and stopped, so every club tournament
+     * began with `Event.courseId` empty: Score entry found the card through
+     * its sole venue and every board resolving through `courseRef` found none,
+     * showing a Scramble with both cards in as two sides on 0 holes. See
+     * `soleVenueCourse`, which answers for tournaments created before this.
+     */
+    await prisma.event.update({
+      where: { id: event.id },
+      data: { courseId: home.id, course: home.name, city: home.city },
     });
   }
 

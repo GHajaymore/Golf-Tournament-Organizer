@@ -16,7 +16,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #621 | Tied places read "9, 9, 11, 12" — looked like a numbering mistake; now "T9" on every board | live |
 | #622 | Date formatting threw a React hydration error on every load of Tournament details; first-run controls had no accessible names; "Manage" left you on the list | live |
 | #623 | A long surname clipped the "· YOU" marker on the player's leaders card | live |
-| #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | merged |
+| #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | live |
+| #625 | A team event's setup never asked for the sides; the tee sheet split partners across tee times (items 6–7) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -61,6 +62,28 @@ setup checklist.
    sides (two four-ball pairs to a group, a scramble four on its own, an oversized side whole rather
    than cut); the rule only orders the sides, and the screen says so. Pinned as a golf invariant
    over 300 random shapes: no side split, every player on the sheet once.
+8. **THE BIG ONE — the results never appeared.** Launched, entered both sides' cards (Score
+   entry: "62 gross · 50 net", "60 · 47"; dashboard: "Sides in 2/2 · 100% returned"). The Live
+   leaderboard, Reports and the public board showed **both sides on 0 holes, no score**.
+   Cause: creating a tournament at a club attaches the home course as a *venue* but never set the
+   tournament's own course. Score entry quietly used "the only venue"; every other screen looked
+   only at the tournament's own course, found none, and scored every hole against an empty card.
+   **Every tournament a club created from the Tournaments list was in this state until someone
+   re-picked the course on Tournament details** — not scramble-specific: a medal would have shown
+   the same blank board. **Fixed** both ways: a new tournament now carries its home course
+   properly, and ones already created read the sole venue as their course (only when they name
+   no course of their own, and never guessing between two venues — so nothing that worked before
+   can move). Checked by hand: Team 2 60 gross off 13 = 47 net (−24) wins from Team 1 62 off 12 =
+   50 (−21). Verified on the Live leaderboard, Reports and the public board at 393px.
+9. **The round had three names.** Heading: "Round 1 · Scramble". Dashboard card under it:
+   "Current round — Stroke Play Round". Public board sent to members: "Stroke Play Round · 18 Oct
+   2026", and no course named. "Stroke Play Round" is how the app stores a round's shape — a
+   newcomer has never seen those words. **Fixed:** one function names a round for all three
+   ("Round 1 · Scramble"), and the public board names the course.
+10. **"Flight standings" on a team round** listed all eight players with "—" against every name
+    after the round was complete — reads as nobody having scored. A scramble's result belongs to
+    the side, so the card is no longer drawn for a team round (the standings card above it already
+    says where the sides are ranked, and now names the Live leaderboard as well as Reports).
 
 ### Noted, not changed (UX calls for Ajay)
 

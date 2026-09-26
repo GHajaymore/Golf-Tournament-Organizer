@@ -87,6 +87,27 @@ export function roundLabelWith(
 }
 
 /**
+ * WHAT A ROUND IS CALLED: "Round 1 · Scramble".
+ *
+ * The number, then the FORMAT — what the golfers are playing — falling back to
+ * the stage type only where no format is set. The type ("Stroke Play Round",
+ * "Round Robin") is how the app stores a round's shape, and it is internal
+ * vocabulary to anybody who did not build the Rounds screen.
+ *
+ * One function because three screens name the same round side by side and
+ * spelt it two ways: the console heading said "Round 1 · Scramble", the
+ * dashboard's Current round card under it said "Stroke Play Round", and the
+ * public board a club sends its members said "Stroke Play Round · 18 Oct
+ * 2026". Found 2026-09-26 running a scramble from scratch.
+ */
+export function roundNameFor(
+  stages: readonly NumberedStage[],
+  stage: NumberedStage & { format?: string | null },
+): string {
+  return roundLabelWith(stages, stage.id, stage.format?.trim() || stage.type);
+}
+
+/**
  * The longest a round's own description may be and still work as a KICKER.
  *
  * A kicker is the small, upper-cased, letter-spaced line above a heading. It

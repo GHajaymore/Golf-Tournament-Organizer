@@ -2,7 +2,8 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
-import { COURSE_REF } from "./course-resolution";
+import { COURSE_REF, soleVenueCourse } from "./course-resolution";
+import { roundNameFor } from "../domain/round-label";
 import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
 import { teamMatchBoard } from "./teams";
 import { boardKindForRound } from "../stage-types";
@@ -379,7 +380,12 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     teamFormat: activeStage?.format ?? "",
     venue: roundVenue
       ? [roundVenue.name, roundVenue.city].filter(Boolean).join(", ")
-      : [event.course, event.city].filter(Boolean).join(", "),
+      : event.course
+        ? [event.course, event.city].filter(Boolean).join(", ")
+        : /* A tournament holding its home course as a venue only — see
+             `soleVenueCourse`, which the card this board scores on already
+             reads. Named here too, or the line printed no venue at all. */
+          [soleVenueCourse(event)?.name, soleVenueCourse(event)?.city].filter(Boolean).join(", "),
     rows,
     teamRows,
     teamMatchRows,
@@ -403,7 +409,13 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     unit: state.boardIsStroke ? state.strokeUnitLabel : "match points",
     manualFormat: kind === "manual",
     allIn,
-    roundLabel: activeStage?.description?.trim() || activeStage?.type || "",
+    /* The organizer's own name for the round where they gave one, then the
+       console heading's words (`roundNameFor`). This fell back to the TYPE
+       alone, so a club's Scramble went out to its members as "Stroke Play
+       Round · 18 Oct 2026". */
+    roundLabel:
+      activeStage?.description?.trim() ||
+      (activeStage ? roundNameFor(state.playRounds, activeStage) : ""),
     brand,
     themeStyleSheet: themeCss(theme, "#player-theme"),
     colorScheme: playerColorScheme(theme),
