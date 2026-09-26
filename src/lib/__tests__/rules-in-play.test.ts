@@ -67,3 +67,38 @@ describe("the rules a tournament is under", () => {
     expect(rest).toHaveLength(Object.keys(RULES).length);
   });
 });
+
+/**
+ * The member's sheet read "Format: Stroke Play · Stroke Play Round" on the
+ * seeded medal (2026-09-26) — the round's internal type repeating the format.
+ * The type is kept where it tells two competitions apart.
+ */
+describe("the Format line says the format once", () => {
+  const formatLine = (format: string, type: string) =>
+    tournamentTerms({
+      format,
+      type,
+      holes: 18,
+      scoringBasis: "net",
+      handicapAllowance: 95,
+      countBest: 0,
+      tiebreakers: [],
+      cutEnabled: false,
+      cutMode: "",
+      cutCount: 0,
+      cutPercent: 0,
+      carryForwardEnabled: false,
+      carryForwardPct: 0,
+    }).find((t) => t.label === "Format")?.value;
+
+  it("does not follow a stroke round's format with its type", () => {
+    expect(formatLine("Stroke Play", "Stroke Play Round")).toBe("Stroke Play");
+    expect(formatLine("Stableford", "Stroke Play Round")).toBe("Stableford");
+  });
+
+  it("keeps the type where it tells a round robin from a knockout (the control), in the app's own words", () => {
+    expect(formatLine("Match Play", "Round Robin")).toBe("Match Play · Round robin");
+    // The stored key is "Bracket Stage"; a member is shown "Bracket".
+    expect(formatLine("Match Play", "Bracket Stage")).toBe("Match Play · Bracket");
+  });
+});

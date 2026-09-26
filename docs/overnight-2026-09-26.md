@@ -519,6 +519,15 @@ golfer would stop at:
     "YOUR CARD · FINAL", which is true of the card. Checked on the league (SO FAR), the completed
     championship (FINAL · GROSS) and the live medal (YOUR CARD · THRU 11 · NET).
 
+46. **The rules sheet said the format twice, once in the app's own code.** A member's Rules read
+    "Format: Stroke Play · Stroke Play Round" on the medal, "Stableford · Stroke Play Round" on
+    the Twilight Nine (a contradiction to a golfer) and "Match Play · Bracket Stage" on the
+    knockout. The round's type now follows the format only where it tells two competitions apart,
+    and in the words the app shows elsewhere: "Stroke Play", "Stableford", "Match Play · Bracket".
+    Also walked, and right: "entered, nothing to play yet" (Spring Meeting) on Today, card and
+    board; the waiting-list line on Events; the medal's sheet otherwise — 95% under Appendix C,
+    countback 9/6/3/1 under Committee Procedures 5A, certification under Rule 3.3b.
+
 The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
