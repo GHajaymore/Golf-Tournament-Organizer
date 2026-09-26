@@ -154,6 +154,11 @@ export interface SetupFacts {
    * playing round today, so the two agree until one is not.
    */
   playingRounds?: number;
+  /**
+   * The bracket is the tournament's first round, so the whole field is drawn
+   * and there is nothing for flights to decide. See the `grouping` step.
+   */
+  straightKnockout?: boolean;
   /** Somewhere to play — the event's own course, or a venue attached to it. */
   venued: boolean;
   /**
@@ -403,6 +408,14 @@ const STEPS: ReadonlyArray<{
     href: "/grouping",
     question: "How is the field divided, and who plays whom?",
     /**
+     * NOT FOR A STRAIGHT KNOCKOUT. When the bracket is the first round the
+     * whole field goes into the draw (`loadEventState`), and flights decide
+     * nothing about who plays whom. Found 2026-09-26: a newcomer's club
+     * knockout sat at "4 of 5 — NOW Flights", being told to divide a field
+     * that the draw then ignored.
+     */
+    applies: (f) => !f.straightKnockout,
+    /**
      * Two conditions where there are two, and one where there is only one.
      *
      * Flights existing is not the same as a schedule existing: on a round
@@ -513,7 +526,22 @@ export const SETUP_ORDER: readonly string[] = [
  */
 export function setupScreens(stepHrefs?: readonly string[]): string[] {
   const conditional = STEPS.filter((s) => s.applies).map((s) => s.href);
-  return SETUP_ORDER.filter((h) => !conditional.includes(h) || !!stepHrefs?.includes(h));
+  if (stepHrefs) return SETUP_ORDER.filter((h) => !conditional.includes(h) || stepHrefs.includes(h));
+  /**
+   * NO LIST: the steps a PLAIN tournament has, asked of each step's own
+   * `applies` rather than assumed absent. Teams & pairs is opt-in (only a team
+   * event) and Flights opt-out (every tournament but a straight knockout) —
+   * treating every conditional step as absent dropped Flights from the card
+   * the day it gained its exception.
+   */
+  const plain: SetupFacts = {
+    confirmed: 0, rounds: [], groups: 0, named: false, dated: false, venued: false,
+    moneyAnswered: false, launched: false,
+  };
+  return SETUP_ORDER.filter((h) => {
+    const s = STEPS.find((x) => x.href === h);
+    return !s?.applies || s.applies(plain);
+  });
 }
 
 /** Sort anything carrying an `href` into `SETUP_ORDER`, unknown hrefs last. */

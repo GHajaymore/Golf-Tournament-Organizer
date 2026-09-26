@@ -3,7 +3,7 @@ import { prisma } from "../db";
 import { screenName } from "../nav";
 import { setupFlow, roundIsScheduled, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
 import { isMatch } from "../tournament-shape";
-import { generatesPairings, isPlayingRound } from "../stage-types";
+import { generatesPairings, isKnockoutRound, isPlayingRound } from "../stage-types";
 import { roundLabel } from "../domain/round-label";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
@@ -117,6 +117,8 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     dated: !!event.dates.trim(),
     // The launch gate's own count, so the guide's "what is left" is its answer.
     playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,
+    // The same test `loadEventState` draws the whole field on.
+    straightKnockout: stageRows.length > 0 && isKnockoutRound(stageRows[0].type),
     // Either the event's own course or a venue attached to it. A tournament
     // that rotates venues names none on the event itself and is not therefore
     // venue-less.

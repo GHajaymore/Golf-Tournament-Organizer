@@ -1,6 +1,7 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
 import { screenName, screenAppliesToMatch } from "@/lib/nav";
 import { bySetupOrder } from "@/lib/domain/setup-flow";
+import { isKnockoutRound } from "@/lib/stage-types";
 import { orgProfile } from "@/lib/domain/org-profile";
 
 /**
@@ -128,6 +129,9 @@ export interface ChecklistState {
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   const hasSchedule = state.matches.length > 0;
   const step = (href: string) => state.flow?.find((s) => s.href === href);
+  // The first round's type, read defensively: `stages` is untyped here.
+  const firstType = (state.stages[0] as { type?: unknown } | undefined)?.type;
+  const straightKnockout = typeof firstType === "string" && isKnockoutRound(firstType);
   /**
    * The flow's answer where there is one, this list's own where there is not.
    *
@@ -200,7 +204,17 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       done: doneOf("/stages", state.stages.length > 0),
       href: "/stages",
     },
-    {
+    /**
+     * NOT FOR A STRAIGHT KNOCKOUT — the bracket is the first round, so its draw
+     * is the whole field and flights decide nothing (the `grouping` step in
+     * setup-flow does not apply either). Asked of the ROUNDS rather than read
+     * off a missing flow step, because a flow without a step means "no second
+     * opinion" everywhere else in this list, and the local fallback here would
+     * have called the tournament unfinished while the rail called it done.
+     */
+    ...(straightKnockout
+      ? []
+      : [{
       label: screenName("/grouping"),
       detail:
         state.groups.length > 0
@@ -216,7 +230,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
        */
       done: doneOf("/grouping", state.groups.length > 0 && hasSchedule),
       href: "/grouping",
-    },
+    }]),
     ...(step("/prizes")
       ? [
           {
