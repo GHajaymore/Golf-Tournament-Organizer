@@ -645,7 +645,18 @@ export interface EventState {
    */
   resultsIn: number;
   overallCutoff: number | null;
-  brackets: { winners: BracketView; consolation: BracketView };
+  /**
+   * The draw, and what the club calls each half of it. The labels are
+   * optional only so hand-built test states stay valid; `loadEventState`
+   * always sets them, from the same `drawBrackets` call that split the field.
+   */
+  brackets: { winners: BracketView; consolation: BracketView; mainLabel?: string; secondLabel?: string };
+  /**
+   * The draw has been fixed by its first recorded result, so who qualified is
+   * no longer a live question — see `drawnIds` in `loadEventState`. Optional
+   * only for hand-built test states.
+   */
+  drawFrozen?: boolean;
   /**
    * Whether the qualifying race can still change anything.
    *
@@ -2217,6 +2228,8 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
   const brackets = {
     winners: mainBracket,
     consolation: buildBracket("consolation", secondField, winnersMap),
+    mainLabel: firstDraw.mainLabel,
+    secondLabel: firstDraw.secondLabel,
   };
 
   /**
@@ -2421,6 +2434,7 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
     resultsIn: played,
     overallCutoff,
     brackets,
+    drawFrozen: drawnIds !== null,
     qualifyingSettled,
     qualifiers,
   };
@@ -2678,8 +2692,22 @@ export interface Highlight {
   kind?: "cut";
 }
 
-/** Data-driven "Tournament Highlights" for the live leaderboard. */
+/**
+ * Data-driven "Tournament Highlights" for the live leaderboard.
+ *
+ * ONCE THE DRAW IS FIXED, THE CUT IS NOT A QUESTION. Every cut-line note is a
+ * question about who goes through — "a play-off or your published countback
+ * decides who goes through — the app has not" — and after the first knockout
+ * result the draw is frozen (`event.bracketDraw`) and has answered it. The
+ * seeded Summer Knockout printed that sentence to its players on 2026-09-26
+ * directly above a draw with both named players already in it.
+ */
 export function computeHighlights(state: EventState): Highlight[] {
+  const all = highlightsOf(state);
+  return state.drawFrozen ? all.filter((h) => h.kind !== "cut") : all;
+}
+
+function highlightsOf(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
 

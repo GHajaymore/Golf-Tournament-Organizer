@@ -6,7 +6,10 @@ import { COURSE_REF, soleVenueCourse } from "./course-resolution";
 import { roundNameFor } from "../domain/round-label";
 import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
 import { teamMatchBoard } from "./teams";
-import { boardKindForRound } from "../stage-types";
+import { boardKindForRound, isKnockoutRound } from "../stage-types";
+import { drawnDraws } from "../domain/my-tie";
+import { bracketResults } from "./bracket-results";
+import type { BracketView } from "../domain/bracket";
 import { isLeaguePointsSystem, type LeaguePointsSystem } from "../domain/league-meeting";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -88,6 +91,16 @@ export interface LiveBoardView {
    */
   unit: string;
   manualFormat: boolean;
+  /**
+   * The knockout draw, where the tournament has one and somebody is in it —
+   * the same list and names `/me/board` shows. Empty otherwise. The club's
+   * share link is the page a knockout's members and families actually follow,
+   * and it printed the qualifying table and nothing about who was still in.
+   */
+  draws: { label: string; view: BracketView }[];
+  bracketResults: Record<string, string>;
+  /** The knockout IS the first round: the draw replaces the table. */
+  straightKnockout: boolean;
   allIn: boolean;
   roundLabel: string;
   brand: Awaited<ReturnType<typeof brandForEvent>>;
@@ -374,6 +387,9 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
         expectedStarted.length === expected.length &&
         expectedStarted.every((r) => r.thru >= holeCount));
 
+  const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
+  const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];
+
   return {
     name: event.name,
     dates: event.dates,
@@ -408,6 +424,9 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     // from one component cannot label the same column differently.
     unit: state.boardIsStroke ? state.strokeUnitLabel : "match points",
     manualFormat: kind === "manual",
+    draws,
+    bracketResults: draws.length > 0 ? await bracketResults(event.id) : {},
+    straightKnockout: knockoutAt === 0 && !!activeStage && isKnockoutRound(activeStage.type),
     allIn,
     /* The organizer's own name for the round where they gave one, then the
        console heading's words (`roundNameFor`). This fell back to the TYPE

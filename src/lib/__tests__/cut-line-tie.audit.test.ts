@@ -359,6 +359,26 @@ describe("a tie for the last qualifying place on a MATCH-PLAY board", () => {
     expect(text).toMatch(/tiebreakers/i);
   });
 
+  it("stops asking who goes through once the draw has been fixed", async () => {
+    /**
+     * After the first knockout result `event.bracketDraw` is written and the
+     * draw is what it was on the day. "A play-off or your published countback
+     * decides who goes through — the app has not" was then printed to players
+     * directly above a draw with both tied names already in it. The first test
+     * of this block is the control: the same tie, with no draw, says "level on".
+     */
+    const { eventId, ids } = await seedTiedMatchEvent({ tiebreakers: JSON.stringify(["head-to-head"]) });
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { bracketDraw: JSON.stringify([ids["WIN-A"], ids["WIN-B"]]) },
+    });
+    const { computeHighlights, cutLineNote } = await import("../services/tournament");
+    const state = (await loadEventState(eventId))!;
+    expect(state.drawFrozen).toBe(true);
+    expect(computeHighlights(state).filter((h) => h.kind === "cut")).toEqual([]);
+    expect(cutLineNote(state)).toBeNull();
+  });
+
   it("still reports a real gap as a gap", async () => {
     // The guard against the guard: a board where one player is genuinely
     // behind must not be told they are level.
