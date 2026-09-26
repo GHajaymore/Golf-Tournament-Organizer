@@ -1184,10 +1184,24 @@ export default async function DashboardPage() {
               {/* Out on the course EXCLUDES a dispute: a player disputing a
                   finished card is not playing, and counting them as if they
                   were hid the one card the committee has to act on. */}
-              {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed > 0 && (
+              {/* FINISHED IS NOT ON THE COURSE. A card with every hole on it and
+                  no signature is waiting on a certification, not on golf — see
+                  `unreturned`. Said separately, with where it is dealt with. */}
+              {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed - (state.boardProgress.unreturned ?? 0) > 0 && (
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                  {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed}{" "}
+                  {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed - (state.boardProgress.unreturned ?? 0)}{" "}
                   {state.boardProgress.unit === "matches" ? "still being played" : "still out on the course"}
+                </div>
+              )}
+              {(state.boardProgress.unreturned ?? 0) > 0 && (
+                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                  {state.boardProgress.unreturned} finished, not yet certified
+                  {isStaff && (
+                    <>
+                      {" · "}
+                      <Link href="/entry" style={{ color: "var(--color-accent)" }}>accept on {screenName("/entry")}</Link>
+                    </>
+                  )}
                 </div>
               )}
               {state.boardProgress.disputed > 0 && (
