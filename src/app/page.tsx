@@ -1310,11 +1310,46 @@ export default async function LoginPage() {
 
           Read from PLANS rather than typed here, so the page cannot promise
           a limit the code does not enforce. */}
+      {/* Value-framed comparison — the leading platforms are described, never
+          named (deliberate), and every claim is one that holds against their
+          real, current terms (verified 2026-09): the #1 championship platform
+          has no free tier and charges a setup fee; the enterprise one is
+          quote-only; the fundraising one is nonprofit-gated and funded by
+          moving the money. No price-superiority claim is made, because on the
+          public numbers we are not categorically cheaper — so the comparison
+          stands on what is actually different, not on a figure we can't defend. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">How it compares</div>
+            <h2 className="sec-h">Runs every competition your members play — championship to Thursday night — from a phone.</h2>
+            <p className="sec-sub">The big platforms are built for the committee&rsquo;s championship. We run that too — and the leagues, medals, matches and skins that fill the rest of the calendar, with a real free tier, pricing on the page, and no setup fee.</p>
+          </div>
+          <div className="features reveal">
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l2.6 5.7L21 9.4l-4.5 4.3L17.7 21 12 17.8 6.3 21l1.2-7.3L3 9.4l6.4-.7z" /></svg>
+              <h3>Start free, for real</h3>
+              <p>Run a casual round, a fourball or a one-off free — a genuine free tier the leading championship platforms don&rsquo;t offer.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9-9 9z" /><circle cx="8.5" cy="8.5" r="1.3" /></svg>
+              <h3>No setup fee — the others charge up to $500</h3>
+              <p>The leading championship platforms bill up to $500 just to switch on. TourneyHQ charges nothing to begin — and the price is published right here, not a quote you have to ask for.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6" /><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" /></svg>
+              <h3>We do the math, you keep the money</h3>
+              <p>Every skin, sweep and split recorded to the penny — and never moved. Nothing skimmed, no purse to trust.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section>
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">What it costs</div>
-            <h2 className="sec-h">Free for one event. {planPrice(effectivePrice(PLANS.club, overrides))} a month for a season.</h2>
+            <h2 className="sec-h">Free for a group. {planPrice(effectivePrice(PLANS.society, overrides))} a month for a season, {planPrice(effectivePrice(PLANS.club, overrides))} for a club.</h2>
             <p className="sec-sub">
               No card to start, and nothing is charged through the app — TourneyHQ works out the
               money and keeps the record; what changes hands is arranged between you and us, and
@@ -1344,6 +1379,28 @@ export default async function LoginPage() {
               <div className="keepwarn">{retentionNotice("free")}</div>
             </div>
 
+            {/* The middle tier. Its NAME is region-dependent — "Season" here,
+                a society or a league elsewhere — so it is read from PLANS
+                (`PLANS.society.name`) rather than written in, and its price
+                and field cap come from the same place the code enforces. */}
+            <div className="plan">
+              <div className="amt">
+                {planPrice(effectivePrice(PLANS.society, overrides))}
+                <span className="per"> / month</span>
+              </div>
+              <div className="per" style={{ marginTop: 2 }}>
+                or {planPrice(effectiveAnnualPrice(PLANS.society, overrides))} a year — two months free
+              </div>
+              <div className="per">{PLANS.society.blurb}</div>
+              <ul>
+                <li>As many events as your season runs</li>
+                <li>Up to {PLANS.society.limits.playersPerEvent} in a field</li>
+                <li>Up to {PLANS.society.limits.staffSeats} organizers</li>
+                <li>The season table across the weeks</li>
+                <li>Results kept for good</li>
+              </ul>
+            </div>
+
             <div className="plan paid">
               <div className="amt">
                 {planPrice(effectivePrice(PLANS.club, overrides))}
@@ -1355,16 +1412,41 @@ export default async function LoginPage() {
               <div className="per">{PLANS.club.blurb}</div>
               <ul>
                 <li>As many tournaments as your season runs</li>
+                <li>An unlimited field</li>
                 <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
-                <li>Results kept for good</li>
-                <li>The season table across the weeks</li>
                 <li>Your club&rsquo;s branding, ours removed</li>
+                <li>Results kept for good</li>
               </ul>
               <p className="sec-sub" style={{ margin: "14px 0 0", fontSize: 12.5 }}>
                 Text alerts, reading a photographed card, and drafted commentary are built and not
                 switched on for anybody yet — they cost per message and per call, and we will not
                 bill for them until they are worth it.
               </p>
+            </div>
+
+            {/* The top tier — for an association or a corporate, priced by
+                conversation rather than a number. Deliberately honest: the
+                multi-club-under-one-roof ENGINE is not built yet, so the copy
+                describes who it is for and that we tailor it, and does NOT list
+                cross-club leagues or one consolidated bill as if they exist. It
+                names no enforced limit; a real address (the domain's own). */}
+            <div className="plan">
+              <div className="amt">Let&rsquo;s talk</div>
+              <div className="per" style={{ marginTop: 2 }}>Ultimate — associations &amp; corporates</div>
+              <div className="per">Running several clubs, or a corporate golf programme? Tell us how you work and we&rsquo;ll tailor TourneyHQ to it.</div>
+              <ul>
+                <li>Everything in Club, across your whole team</li>
+                <li>Custom field caps, seats and billing</li>
+                <li>Priority onboarding and support</li>
+                <li>Multi-site needs scoped with you</li>
+              </ul>
+              <a
+                className="btn btn-ghost"
+                href="mailto:hello@tourneyhq.club?subject=TourneyHQ%20for%20our%20organisation"
+                style={{ display: "inline-block", marginTop: 14 }}
+              >
+                Talk to us
+              </a>
             </div>
           </div>
         </div>
