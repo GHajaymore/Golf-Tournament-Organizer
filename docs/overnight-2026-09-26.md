@@ -2,7 +2,46 @@
 
 Ajay asked for the app to be tested all night "as a golf pro and experienced tournament
 organizer", fixing as I go, and — specifically — tested **as a non-golfer running a tournament**.
-This is the running log; the summary for the morning is at the top once the night is done.
+
+## Morning summary
+
+**21 pull requests, #621–#641, every one gated locally and merged only on a green CI run** —
+the table under "What shipped" says which are confirmed live on tourneyhq.club. 33 numbered findings below, each with what a member or
+organizer would actually have hit. Nothing touched production data; every walk ran on the
+development database and every fixture change was put back.
+
+**The biggest things fixed**, in the order a club would feel them:
+
+- **Tournaments created from the list scored against an empty card** — every board, Reports and
+  the public page (#626).
+- **A straight knockout left half the field out of the draw**, and its members could not see the
+  draw anywhere — not on Today, their Board or the public link (#631–#633, #636).
+- **Score entry scrolled sideways on a phone** in six of eleven tournaments, taking holes 13–18
+  off the screen (#640); Score entry for a knockout was a dead end (#632).
+- **The public link could 500 once per tournament after a deploy** — a cached board of the old
+  shape read by new code (#641).
+- **The same round showed −2 on Today and +5 on My card**, net and gross unlabelled (#628); the
+  tee picker called Blue "the tournament's" on a medal off the Whites (#639); "3 games still to
+  play" counted a pin already won and paid (#637).
+- **Every form control in the console, the player app and the public sign-up** now has a name a
+  screen reader can announce (#627, #637).
+
+**What was tested:** three tournaments built from scratch the way a newcomer would (a Scramble, a
+Stableford, a match-play knockout), following only what the app says; the seeded club's eleven
+tournaments as the secretary (220 console loads at desktop width, 209 at phone width) and as a
+member (eight tournaments × every player tab at 393px and 320px); the public share link and the
+public sign-up; a real score entered on a phone and taken back; the money screens player against
+organizer, pot by pot; and one consistency sweep of every dashboard against its leaderboard.
+
+**What was clean** is worth knowing too: every page returned 200 in every sweep; the league, the
+four-ball and the medal agree across Today, the Board, the leaderboard, Reports and the public
+link; the money adds up on both sides.
+
+**Seven decisions are yours** — see "Decisions needed from Ajay" near the end. The one to read
+first is **#7**: a finished cut championship still ranks players who missed the cut among the
+finishers unless the organizer ticks "This round is finished" on round 2, which nothing prompts.
+
+The rest of this file is the night's log in the order it happened.
 
 Method: the seeded club (`scripts/seed-club.mjs` — 11 tournaments spanning every format), walked
 in a real browser (Playwright, signed in as the club secretary and as a player), plus a
@@ -32,7 +71,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #637 | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | live |
 | #638 | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | live |
 | #639 | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | live |
-| — | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | this PR |
+| #640 | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | merged |
+| #641 | **The club's public link could 500** once per tournament after a deploy — a cached board of the old shape read by the new code (item 33); this morning summary | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -334,6 +374,24 @@ again at 393px — 209 loads.
     restarting mid-page (it does, for memory), not as a fault. The only genuinely wide thing on
     Tournament details is the setup guide's step strip, which scrolls in its own box by design.
 
+### The public link, once more
+
+The share link is the page a club sends its members and families, signed out. Every seeded
+tournament that allows it (five), at 320px and 393px: no overflow, one heading, no errors — and
+one 500.
+
+33. **The public link threw a server error once, then worked.** The April Medal's link returned
+    500 ("Cannot read properties of undefined") and a clean page a moment later. The public board
+    is cached, and the cache outlives the code that filled it: an entry built before last night's
+    #636 added the knockout draw to the board was handed to the page that now reads the draw.
+    On Vercel that cache is documented to persist across deployments and to serve a stale entry
+    once while it refreshes — so in production the first spectator after any deploy that changes
+    the board's shape could get an error page, once per tournament. **Fixed:** the cache is keyed
+    on the deployment, so a new deploy never reads the old one's entries, and on a shape number
+    that a test ties to the board's fields — add a field without bumping it and the test fails
+    with the instruction. All five public boards measured clean twice over afterwards. (Not
+    reproduced against production: I have no production share token and did not go looking.)
+
 ### Noted, not changed — a decision for Ajay
 
 - **A finished championship lists players who missed the cut among those who made it.** The
@@ -409,5 +467,11 @@ named. The deferred-register entry for this class is closed.
    club knockout played over weeks (players arrange their own matches) every result has to go
    through the secretary. Most club knockouts let the winner report it. Worth deciding before a
    club runs one — it is a permissions question, so not changed overnight.
+7. **A finished cut championship ranks players who missed the cut among those who made it** —
+   unless the organizer ticks "This round is finished" on the round after the cut, which nothing
+   prompts and marking the tournament Completed does not do. Your #577 rule ("over when the
+   organizer says so") already gives the right answer once the box is ticked. Options: Completed
+   closes every round (it is the organizer saying so), or Completed asks first. Details under
+   "Noted, not changed — a decision for Ajay" above.
 
 ## Log
