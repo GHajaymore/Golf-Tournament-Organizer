@@ -48,8 +48,13 @@ export function ScoreboardLeaders({ rows, note }: { rows: LeaderTile[]; note?: s
               {r.gap && <div className="sb-gap" aria-hidden="true" />}
               <div className="sb-row" aria-label={`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}>
                 <span className="sb-tile" aria-hidden="true">{r.pos}</span>
+                {/* The NAME gives way, never "YOU". One string clipped from the
+                    right, so a long surname — O'HALLORAN-WHYTE — took the marker
+                    with it and read "· YO". Two pieces now: the name ellipsizes,
+                    the tag keeps its width. */}
                 <span className={`sb-tile sb-name${r.you ? " sb-you" : ""}`} aria-hidden="true">
-                  {r.you ? `${r.name} · YOU` : r.name}
+                  <span className="sb-name-text">{r.name}</span>
+                  {r.you && <span className="sb-you-tag">&nbsp;· YOU</span>}
                 </span>
                 <span className="sb-tile" aria-hidden="true">{r.thru}</span>
                 <span className={`sb-tile${r.under ? " sb-under" : ""}`} aria-hidden="true">{r.total}</span>
