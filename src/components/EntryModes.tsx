@@ -303,7 +303,13 @@ export function EntryModes({
               </div>
             )}
             {(courseName || eventDates) && (
-              <span className="text-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+              /* Allowed to wrap (2026-09-26). It was `nowrap`, and a real
+                 course name — "Braid Hollow — Championship Course" — made
+                 this line 530px wide, which dragged the whole header and the
+                 hole buttons past the edge of a phone: Score entry scrolled
+                 sideways by up to 170px on six of eleven seeded tournaments,
+                 on the screen an organizer uses standing on the course. */
+              <span className="text-muted" style={{ fontSize: 12, minWidth: 0, overflowWrap: "anywhere" }}>
                 <Icon name="map-pin" style={{ marginRight: 4 }} />
                 {/* The round's real format leads, because the control above
                     used to be the only thing on this screen naming a format

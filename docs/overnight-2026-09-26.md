@@ -30,8 +30,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #635 | A leaderboard with no rounds claimed "stroke play"; a finished championship was still being told "NOW Flights" and called "live" (items 23–24) | live |
 | #636 | **A knockout's members could not see the draw anywhere** — not on Today, their Board or the club's public link; the board also said a tie at the cut was undecided after the draw had decided it (items 25–26) | live |
 | #637 | A player's "games still to play" counted a closest-to-the-pin already decided and paid; the public sign-up form's six boxes had no names for a screen reader (items 27–28) | live |
-| #638 | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | merged |
-| — | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | this PR |
+| #638 | Reports and the club's public link showed the console's "Overview · Live leaderboard" heading inside their own page for team, skins, Nassau and Modified Stableford rounds (item 29) | live |
+| #639 | Score entry's tee picker called the course's first set "the tournament's" — Blue on a medal played off the Whites (item 30) | live |
+| — | **Score entry scrolled sideways on a phone** in six of eleven tournaments; the dashboard's Flight standings showed empty cards, a caption about highlights nobody got, and "2, 2" for a shared place (items 31–32) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -300,6 +301,38 @@ Then the organizer's side of the same round, Score entry:
     (round, then tournament, then course) and the option reads "White (the tournament's)".
     Nothing that scores a card changed — only the words on the option. Flights and Registration
     have the same kind of option and were already right.
+
+### The league, the festival and the dashboards
+
+The Thursday league agreed across all four readers — the night's results, the season table on the
+week sheet, the Live leaderboard and the member's Today (8th, 132 points, everywhere), and the
+movement column is read out properly by a screen reader ("up 2 places"). The Festival's ten
+played rounds, Modified Stableford to Texas Scramble, all read "Played". One card was wrong on
+several dashboards:
+
+31. **Flight standings said things that were not so.** On the finished championship and the
+    nine-hole Stableford (no flights) and the Festival (a round scored by hand) it showed its
+    heading over nothing. On every tournament where nobody advances it still said "Advancing rows
+    highlighted". And on the April Medal a shared flight place read "2, 2" — every board has
+    printed "T2" since #621. **Fixed:** the card appears only when it has rows, the caption only
+    when a row is lit (the knockout keeps it), and a shared place reads T2.
+
+### The console on a phone
+
+An organizer on the course is on a phone, so the same twenty screens in all eleven tournaments
+again at 393px — 209 loads.
+
+32. **Score entry scrolled sideways on six of eleven.** By 85 to 170 pixels, taking the round
+    tabs and holes 13–18 of the hole picker off the right edge. The cause was one line: the
+    caption under the heading ("Stableford · Braid Hollow — Championship Course · …") was told
+    never to wrap, and a real course name made it 530px wide. The end-to-end layout check measures
+    this very thing at phone widths and missed it because its test course has a short name.
+    **Fixed:** the caption wraps; all eleven measured clean at 393px and at 320px.
+
+    Two other screens (Announcements on the league, Tournament details on the Winter Series)
+    measured wide once and clean on every re-measure since — read as the development server
+    restarting mid-page (it does, for memory), not as a fault. The only genuinely wide thing on
+    Tournament details is the setup guide's step strip, which scrolls in its own box by design.
 
 ### Noted, not changed — a decision for Ajay
 
