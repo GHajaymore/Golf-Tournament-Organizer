@@ -33,6 +33,34 @@ import { isPlayingRound } from "@/lib/stage-types";
 export interface NumberedStage {
   id: string;
   type: string;
+  /**
+   * Where the round sits in the tournament. When the stages carry it, they are
+   * counted in THIS order rather than the order they arrived in — see
+   * `inPlayOrder`.
+   */
+  position?: number;
+}
+
+/**
+ * THE LIST IN THE ORDER IT IS PLAYED, whatever order it was handed over in.
+ *
+ * The count below is a count down a list, so it is only as right as the list's
+ * order. Prisma returns an `include` with no `orderBy` in the database's
+ * PHYSICAL order, and Postgres moves a row when it is updated — so closing
+ * Round 1 of the seeded championship (stamping `closedAt`) sent it to the back,
+ * and the member's calendar printed "Sat 22 Aug · Round 2" above "Sun 23 Aug ·
+ * Round 1". Nothing about the rounds had changed but a timestamp.
+ *
+ * Every caller could remember to order its query, and one did not. So the
+ * order is settled here, where the number is made: a caller written later is
+ * right without knowing the rule — the same reason `standingRows` checks a
+ * manual format on its own first line. A list with no positions is taken as
+ * given, which is every caller that already built its own playing order; the
+ * sort is stable, so equal positions keep the order they came in.
+ */
+function inPlayOrder<T extends NumberedStage>(stages: readonly T[]): readonly T[] {
+  if (!stages.some((s) => typeof s.position === "number")) return stages;
+  return [...stages].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
 /**
@@ -48,7 +76,7 @@ export interface NumberedStage {
 export function roundNumber(stages: readonly NumberedStage[], stageId: string): number {
   if (!stageId) return 0;
   let n = 0;
-  for (const s of stages) {
+  for (const s of inPlayOrder(stages)) {
     if (!isPlayingRound(s.type)) continue;
     n += 1;
     if (s.id === stageId) return n;

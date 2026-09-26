@@ -61,7 +61,8 @@ export async function clubCommitmentsFor(
   const [events, attendance] = await Promise.all([
     prisma.event.findMany({
       where: { id: { in: eventIds } },
-      include: { stages: true },
+      // In play order: the rounds are numbered off this list (`roundLabel`).
+      include: { stages: { orderBy: { position: "asc" } } },
     }),
     prisma.roundAttendance.findMany({
       where: { eventId: { in: eventIds }, playerId: { in: places.map((p) => p.id) } },

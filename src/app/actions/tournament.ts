@@ -83,6 +83,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { roundLabel } from "@/lib/domain/round-label";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
@@ -3809,12 +3810,14 @@ export async function setEventStatus(status: string): Promise<{ ok: boolean; err
    * correcting one round goes anyway.
    */
   if (s === "completed") {
-    const open = (
-      await prisma.stage.findMany({
-        where: { eventId, closedAt: null },
-        select: { id: true, type: true, description: true, position: true },
-      })
-    ).filter((st) => isPlayingRound(st.type));
+    // Every round, not only the open ones: a round is NAMED by where it sits in
+    // the whole tournament (`roundLabel`), which a subset cannot answer.
+    const all = await prisma.stage.findMany({
+      where: { eventId },
+      orderBy: { position: "asc" },
+      select: { id: true, type: true, description: true, position: true, closedAt: true },
+    });
+    const open = all.filter((st) => st.closedAt === null && isPlayingRound(st.type));
     if (open.length > 0) {
       await prisma.stage.updateMany({
         where: { id: { in: open.map((st) => st.id) } },
@@ -3824,7 +3827,7 @@ export async function setEventStatus(status: string): Promise<{ ok: boolean; err
         eventId,
         "round-closed",
         `Completing the tournament closed ${open
-          .map((st) => st.description || `Round ${st.position + 1}`)
+          .map((st) => st.description || roundLabel(all, st.id))
           .join(", ")}. Anybody without a card for a closed round no longer holds a place on a stroke board.`,
       );
     }
@@ -5067,7 +5070,16 @@ export async function setRoundClosed(
     data: { closedAt: closed ? new Date() : null },
   });
 
-  const which = stage.description || `Round ${stage.position + 1}`;
+  const which =
+    stage.description ||
+    roundLabel(
+      await prisma.stage.findMany({
+        where: { eventId },
+        orderBy: { position: "asc" },
+        select: { id: true, type: true, position: true },
+      }),
+      stage.id,
+    );
   await logAudit(
     eventId,
     "round-closed",

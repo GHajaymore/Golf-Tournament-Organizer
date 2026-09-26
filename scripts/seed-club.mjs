@@ -666,8 +666,23 @@ export async function seed() {
     // One person has paid PART of their share, so the settle-up shows a
     // remaining balance rather than a clean zero. A screen that only ever
     // renders nothing-owed is a screen whose arithmetic nobody has read.
-    await prisma.expensePayment.create({
-      data: { expenseId: bill.id, playerId: medalField[1].id, amountCents: 900 },
+    //
+    // A SETTLEMENT, NOT AN ExpensePayment. This was a £9 payment row on the
+    // bill, which in the app means "laid out £9 OF THE BILL" — a co-payer —
+    // not "paid back £9 of a share". `addExpense` refuses payments that do not
+    // sum to the amount, so no club could ever store it; the ledger quietly
+    // settled the gap against `paidBy`, and the member's screen read "Paid by
+    // Séamus · £80.03" beside a balance that only made sense if he had paid
+    // £71.03. A fixture must only hold what the app can write.
+    await prisma.settlement.create({
+      data: {
+        eventId: medal.id,
+        fromPlayerId: medalField[1].id,
+        toPlayerId: medalField[0].id,
+        cents: 900,
+        owedCents: 1601,
+        recordedBy: organizer.name,
+      },
     });
     await prisma.settlement.create({
       data: {
@@ -1392,8 +1407,15 @@ export async function seed() {
         shares: { create: teamField.map((p) => ({ playerId: p.id, weight: 1 })) },
       },
     });
+    // Two cards on one bill — the real multi-payer case, and it SUMS to the
+    // amount, which `addExpense` insists on. This was five £20 rows on a
+    // £410.05 bill: unstorable through the app, and the screen then listed
+    // five payers of £20 and never named who laid out the other £310.05.
     await prisma.expensePayment.createMany({
-      data: teamField.slice(1, 6).map((p) => ({ expenseId: dinner.id, playerId: p.id, amountCents: 2000 })),
+      data: [
+        { expenseId: dinner.id, playerId: teamField[0].id, amountCents: 31005 },
+        { expenseId: dinner.id, playerId: teamField[1].id, amountCents: 10000 },
+      ],
     });
     await prisma.settlement.create({
       data: {
@@ -1906,6 +1928,42 @@ export async function seed() {
 
 /* --------------------------------------------------------------------- main */
 
+/**
+ * THE FIXTURE MAY ONLY HOLD WHAT THE APP CAN WRITE.
+ *
+ * This script writes rows with Prisma directly, so none of the app's own
+ * refusals apply to it — and a walk over a row no club could store finds
+ * "defects" in a state that cannot happen, or hides real ones behind it. Two
+ * bills here carried payments that did not sum to the bill, which `addExpense`
+ * refuses in as many words; the member's Money screen then named one payer
+ * beside a balance that only made sense with two.
+ *
+ * Checked on the rows as stored, after the seed, so a later edit to any bill
+ * above is held to the same rule without having to remember it exists.
+ */
+async function assertStorableMoney(organizationId) {
+  const prisma = new PrismaClient();
+  let bills;
+  try {
+    bills = await prisma.expense.findMany({
+      where: { event: { organizationId } },
+      select: { description: true, amountCents: true, payments: { select: { amountCents: true } } },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+  const bad = bills.filter(
+    (b) => b.payments.length > 0 && b.payments.reduce((s, p) => s + p.amountCents, 0) !== b.amountCents,
+  );
+  if (bad.length > 0) {
+    throw new Error(
+      `Seeded bills whose payments do not add up to the bill (addExpense refuses these): ${bad
+        .map((b) => b.description)
+        .join("; ")}`,
+    );
+  }
+}
+
 async function main() {
   refuseNonLocal();
 
@@ -1916,6 +1974,7 @@ async function main() {
   }
 
   const data = await seed();
+  await assertStorableMoney(data.org.id);
 
   const lines = [
     "",

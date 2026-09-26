@@ -127,3 +127,48 @@ describe("a round labelled with something after it", () => {
     expect(roundLabelWith(WITH_CUT, "cut", "Retired Stage Type")).toBe("Retired Stage Type");
   });
 });
+
+/**
+ * THE ROWS ARRIVE IN WHATEVER ORDER THE DATABASE KEEPS THEM.
+ *
+ * A Prisma `include` with no `orderBy` comes back in physical row order, and
+ * Postgres moves a row when it is updated. On 2026-09-26 closing Round 1 of the
+ * seeded championship did exactly that, and a member's calendar printed "Sat 22
+ * Aug · Round 2" above "Sun 23 Aug · Round 1". The rounds carry their position;
+ * the number must come from it, not from where a row happened to land.
+ */
+describe("a round's number does not depend on the order its rows arrived in", () => {
+  const r1 = { id: "r1", type: "Stroke Play Round", position: 0 };
+  const r2 = { id: "r2", type: "Stroke Play Round", position: 1 };
+
+  it("numbers by position when Round 1 comes back last", () => {
+    expect(roundLabel([r2, r1], "r1")).toBe("Round 1");
+    expect(roundLabel([r2, r1], "r2")).toBe("Round 2");
+  });
+
+  it("still does not count a cut, however the list is shuffled", () => {
+    const shuffled = [
+      { id: "bracket", type: "Bracket Stage", position: 2 },
+      { id: "rr", type: "Round Robin", position: 0 },
+      { id: "cut", type: "Retired Stage Type", position: 1 },
+    ];
+    expect(roundLabel(shuffled, "rr")).toBe("Round 1");
+    expect(roundLabel(shuffled, "bracket")).toBe("Round 2");
+    expect(roundLabel(shuffled, "cut")).toBe("");
+  });
+
+  it("takes a list with no positions exactly as given (the control)", () => {
+    // Callers that already built their own playing order pass bare stages, and
+    // must get the count down THAT list — which is also what makes the two
+    // cases above a test of the position and not of the ids.
+    expect(roundLabel([stage("r2", "Stroke Play Round"), stage("r1", "Stroke Play Round")], "r1")).toBe(
+      "Round 2",
+    );
+  });
+
+  it("leaves the caller's list alone", () => {
+    const list = [r2, r1];
+    roundLabel(list, "r1");
+    expect(list.map((s) => s.id)).toEqual(["r2", "r1"]);
+  });
+});
