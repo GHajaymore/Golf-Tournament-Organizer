@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SETUP_ORDER, bySetupOrder } from "@/lib/domain/setup-flow";
+import { SETUP_ORDER, bySetupOrder, setupScreens } from "@/lib/domain/setup-flow";
 import { allNavItems, TOURNAMENT_ONLY_SCREENS, screenAppliesToMatch } from "@/lib/nav";
 import { setupChecklist, type ChecklistState } from "@/lib/services/checklist";
 import { readSource } from "./source";
@@ -42,7 +42,12 @@ describe("the setup sequence is stated once", () => {
      * round that "had somebody adding players before discovering the format
      * was not the one they wanted".
      */
-    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/grouping", "/prizes"]);
+    //
+    // "/teams" since 2026-09-26: the sides, after the field they are made from
+    // and before the flights a newcomer mistakes for them. It is a step only in
+    // a tournament with a round played in sides — see `teams` on SetupFacts —
+    // and is listed here so that, when present, every reader places it alike.
+    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/teams", "/grouping", "/prizes"]);
   });
 
   it("orders the dashboard checklist by it", () => {
@@ -119,15 +124,18 @@ describe("the setup sequence is stated once", () => {
      * listing it. A card with nothing of its own cannot disagree, which is the
      * same shape as the dashboard's quick actions below.
      */
-    expect(src).toContain("screens: [...SETUP_ORDER]");
-    expect(src).toContain('import { SETUP_ORDER } from "@/lib/domain/setup-flow"');
+    // Through `setupScreens` since 2026-09-26 — SETUP_ORDER filtered to the
+    // steps THIS tournament has, so the conditional Teams step shows only on a
+    // team event. Still no list of its own: the guarantee is unchanged.
+    expect(src).toContain("screens: setupScreens(setup?.hrefs)");
+    expect(src).toContain('import { setupScreens } from "@/lib/domain/setup-flow"');
     // And no href of its own in that phase — a literal is how the second copy
     // came back last time.
     const setupPhase = src.slice(src.indexOf('key: "setup"'), src.indexOf('key: "launch"'));
     expect(setupPhase, "the setup phase named a screen itself").not.toMatch(/"\/[a-z]/);
     // And setup still finishes before the tournament is handed to the field.
-    expect(at("SETUP_ORDER]"), "the setup phase is gone").toBeGreaterThan(-1);
-    expect(at("SETUP_ORDER]")).toBeLessThan(at('title: "Launch"'));
+    expect(at("setupScreens(setup"), "the setup phase is gone").toBeGreaterThan(-1);
+    expect(at("setupScreens(setup")).toBeLessThan(at('title: "Launch"'));
     // Which in turn comes before playing it and before settling up.
     expect(at('title: "Launch"')).toBeLessThan(at('title: "Play"'));
     expect(at('title: "Play"')).toBeLessThan(at('title: "Finish"'));
@@ -182,12 +190,35 @@ describe("the step the dashboard never had", () => {
       ...empty,
       flow: [
         { href: "/event", done: false, missing: "It still needs a name." },
+        // The conditional step too, so the WHOLE order is exercised — the
+        // sides land between the field and the flights, not at the end.
+        { href: "/teams", done: false, missing: "No sides yet." },
         { href: "/prizes", done: false, missing: "Nobody has said how money works here." },
       ],
     })
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));
     expect(hrefs).toEqual([...SETUP_ORDER]);
+  });
+});
+
+describe("the sides step, which only a team event has", () => {
+  it("is in the dashboard checklist only when the flow has it", () => {
+    expect(setupChecklist(empty).some((i) => i.href === "/teams")).toBe(false);
+    const withTeams = setupChecklist({ ...empty, flow: [{ href: "/teams", done: false, missing: "No sides yet." }] });
+    const row = withTeams.find((i) => i.href === "/teams");
+    expect(row?.detail).toBe("No sides yet.");
+    expect(row?.done).toBe(false);
+  });
+
+  it("is on the journey card only when the flow has it", () => {
+    expect(setupScreens()).not.toContain("/teams");
+    expect(setupScreens(["/event", "/stages", "/registration", "/grouping", "/prizes"])).not.toContain("/teams");
+    expect(setupScreens(["/event", "/stages", "/registration", "/teams", "/grouping", "/prizes"])).toEqual([
+      ...SETUP_ORDER,
+    ]);
+    // The always-present steps are never dropped — the control.
+    expect(setupScreens()).toEqual(SETUP_ORDER.filter((h) => h !== "/teams"));
   });
 });
 

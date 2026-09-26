@@ -171,6 +171,23 @@ export interface SetupFacts {
    */
   moneyAnswered: boolean;
   /**
+   * THE SIDES, for a tournament with a round played in them.
+   *
+   * Found 2026-09-26 creating a Scramble the way a non-golfer would and
+   * following only the guide: it walked details → rounds → field → flights →
+   * money and never once mentioned teams, while the dashboard read "Sides in
+   * 0/0" — a round that cannot be scored until sides exist, on a checklist that
+   * could reach "5 of 5 done" without them. Worse, the step it DID point at,
+   * Flights, previews "Flight 1: four names" — which to a newcomer looks exactly
+   * like a team, and is not one.
+   *
+   * `needed` is the sidebar's own test for showing Teams & pairs — any round in
+   * a team format (`TEAM_FORMAT_NAMES`) — so the step and the menu entry appear
+   * together. Absent, or `needed: false`, and the step does not exist at all: a
+   * medal is not a five-step setup with a sixth step it can never finish.
+   */
+  teams?: { needed: boolean; sides: number; unsided: number };
+  /**
    * Whether the tournament has been launched.
    *
    * Not a step, and deliberately not one: launching is not part of setting a
@@ -236,6 +253,8 @@ const STEPS: ReadonlyArray<{
   question: string;
   missing: (f: SetupFacts) => string;
   done: (f: SetupFacts) => boolean;
+  /** A step only some tournaments have. Absent means every tournament. */
+  applies?: (f: SetupFacts) => boolean;
 }> = [
   {
     key: "event",
@@ -330,6 +349,32 @@ const STEPS: ReadonlyArray<{
     done: (f) => f.confirmed > 0,
   },
   {
+    key: "teams",
+    href: "/teams",
+    /**
+     * WHO PLAYS ON WHICH SIDE — only where a round is played in sides.
+     *
+     * After the field, because sides are made FROM the field; before flights,
+     * because in a team event the flight preview ("Flight 1: four names") is
+     * what a newcomer mistakes for the teams, and this puts the real question
+     * first. See `teams` on SetupFacts for how it was found.
+     *
+     * DONE WHEN EVERY CONFIRMED PLAYER IS ON A SIDE, not when one side exists:
+     * a player left off every side has nothing to score in a scramble, and
+     * "one side made" would read finished with most of the field unplaced.
+     * Any side in the event counts, so a club using different sides per round
+     * is not held on this step by the rounds it has not reached.
+     */
+    question: "Who plays on which side?",
+    missing: (f) => {
+      const t = f.teams;
+      if (!t || t.sides === 0) return "No sides yet — draw them automatically, or make them by hand.";
+      return `${t.unsided === 1 ? "1 player is" : `${t.unsided} players are`} not on a side yet.`;
+    },
+    done: (f) => !f.teams?.needed || (f.teams.sides > 0 && f.teams.unsided === 0),
+    applies: (f) => !!f.teams?.needed,
+  },
+  {
     key: "grouping",
     href: "/grouping",
     question: "How is the field divided, and who plays whom?",
@@ -422,12 +467,30 @@ export const SETUP_ORDER: readonly string[] = [
   "/event",
   "/stages",
   "/registration",
+  // Only in a tournament with a round played in sides — see the step. Listed
+  // here so every reader places it the same way when it is present; the
+  // journey card filters it out when it is not (see TournamentJourney).
+  "/teams",
   "/grouping",
   // The money, last — see the step. It is the only one of the five that is not
   // a precondition of playing golf, and the one the club chain promised was
   // "changeable per tournament later" without saying where.
   "/prizes",
 ];
+
+/**
+ * The setup screens THIS tournament walks, in `SETUP_ORDER`.
+ *
+ * `stepHrefs` is the flow's own list of steps. A conditional step — one with
+ * `applies`, which today is only Teams & pairs — is kept only when the flow has
+ * it, so the journey card does not show a medal a Teams chip it can never tick.
+ * Absent, and it is the always-present steps: what the card showed before a
+ * conditional step existed.
+ */
+export function setupScreens(stepHrefs?: readonly string[]): string[] {
+  const conditional = STEPS.filter((s) => s.applies).map((s) => s.href);
+  return SETUP_ORDER.filter((h) => !conditional.includes(h) || !!stepHrefs?.includes(h));
+}
 
 /** Sort anything carrying an `href` into `SETUP_ORDER`, unknown hrefs last. */
 export function bySetupOrder<T extends { href: string }>(items: readonly T[]): T[] {
@@ -441,7 +504,9 @@ export function bySetupOrder<T extends { href: string }>(items: readonly T[]): T
 }
 
 export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string): SetupFlow {
-  const done = STEPS.map((s) => s.done(facts));
+  // Only the steps this tournament has — a medal has no sides to make.
+  const own = STEPS.filter((s) => !s.applies || s.applies(facts));
+  const done = own.map((s) => s.done(facts));
   /**
    * The current step is the FIRST unfinished one, not the first after the last
    * finished one.
@@ -453,7 +518,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
    */
   const currentIndex = done.indexOf(false);
 
-  const steps: SetupStep[] = STEPS.map((s, i) => ({
+  const steps: SetupStep[] = own.map((s, i) => ({
     key: s.key,
     href: s.href,
     label: labelFor(s.href),

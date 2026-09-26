@@ -112,6 +112,8 @@ export function EventSetupClient({
     total: number;
     complete: boolean;
     doneHrefs: readonly string[];
+    /** Every step this tournament has — see `setupScreens`. */
+    hrefs?: readonly string[];
     /** The step to do next — see the note on `TournamentJourney`'s own prop. */
     currentHref?: string;
   } | null;
