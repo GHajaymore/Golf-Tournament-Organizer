@@ -98,6 +98,7 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           spotsLeft={view.spotsLeft}
           approvalMode={view.approvalMode}
           requirePhone={view.requirePhone}
+          locale={view.locale}
           prefill={prefill}
         />
 

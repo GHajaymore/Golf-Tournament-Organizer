@@ -8,6 +8,7 @@ import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
+import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
@@ -67,7 +68,14 @@ export function PlayerCard({
   staffApproves = true,
   partners = [],
   startHole = 1,
+  pointsTable = null,
 }: {
+  /**
+   * The Stableford table this round is decided on, or null for a strokes
+   * round. On a points round the card shows its POINTS — the one figure the
+   * round is won on — through `cardPoints`, the board's own arithmetic.
+   */
+  pointsTable?: PointsTable | null;
   /**
    * The rest of the foursome on the round's PUBLISHED tee sheet, whose cards
    * this player may keep (`services/group-cards.ts` — the same rule
@@ -182,8 +190,15 @@ export function PlayerCard({
       received += shotsPerHole[i] ?? 0;
       played += 1;
     }
-    return { gross, played, toPar: gross - parThru, net: gross - Math.round(received), received };
-  }, [strokes, pars, shotsPerHole, holes]);
+    return {
+      gross,
+      played,
+      toPar: gross - parThru,
+      net: gross - Math.round(received),
+      received,
+      points: pointsTable ? cardPoints(strokes.slice(0, holes), pars, shotsPerHole, pointsTable) : 0,
+    };
+  }, [strokes, pars, shotsPerHole, holes, pointsTable]);
 
   /**
    * Write on every change, not on a button.
@@ -642,6 +657,7 @@ export function PlayerCard({
             brand={brand}
             courseName={courseName}
             venueIsHome={venueIsHome}
+            pointsTable={pointsTable}
           />
         </>
       ) : (
@@ -680,7 +696,12 @@ export function PlayerCard({
           >
             <Stat label="Thru" value={summary.played === 0 ? "–" : String(summary.played)} />
             <Stat label="Gross" value={summary.gross === 0 ? "–" : String(summary.gross)} />
-            {knownCourse && (
+            {/* On a points round the card shows its points in place of to-par,
+                which a Stableford round is not decided on. */}
+            {knownCourse && pointsTable && (
+              <Stat label="Points" value={summary.played === 0 ? "–" : String(summary.points)} />
+            )}
+            {knownCourse && !pointsTable && (
               <Stat
                 label="To par"
                 value={summary.played === 0 ? "–" : toParText(summary.toPar)}
@@ -832,6 +853,7 @@ export function PlayerCard({
               courseName={courseName}
               venueIsHome={venueIsHome}
               onSet={setHole}
+              pointsTable={pointsTable}
             />
             </>
           )}

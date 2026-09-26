@@ -5,7 +5,7 @@ import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
-import { brandForEvent } from "@/lib/services/organization";
+import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -65,6 +65,7 @@ export default async function RegistrationPage() {
         requirePhone: state.event.requirePhone,
         phoneLocked: phoneRequiredFor(plan, false),
         registrationToken: state.event.registrationToken,
+        locale: (await formattingForEvent(session.eventId)).locale,
       }}
       confirmed={state.confirmed.map((p) => ({
         id: p.id,

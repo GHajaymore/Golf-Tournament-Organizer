@@ -67,6 +67,8 @@ interface EventInfo {
   phoneLocked: boolean;
   /** Opaque token for the public /register/[token] link. Empty until first opened. */
   registrationToken: string;
+  /** How this tournament writes a date — the deadline reads like the event's own date. */
+  locale?: string;
 }
 
 export function RegistrationClient({
@@ -185,6 +187,7 @@ export function RegistrationClient({
     capacity: event.capacity,
     confirmedCount: confirmed.length,
     override: event.registrationOverride,
+    locale: event.locale,
   });
   const status = reg.label;
   // Both halves of the same rule, reported together — see contactGaps for why
@@ -619,7 +622,7 @@ export function RegistrationClient({
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Registration closes</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline) || "—"}</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline, event.locale) || "—"}</div>
           {/* Both this and the capacity above are SET on Tournament details and
               only shown here — on the screen called Registration & field, which
               is where an organizer goes to change them. Read-only with no way
@@ -676,7 +679,7 @@ export function RegistrationClient({
           }}
         />
         <span style={{ fontSize: 12.5, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
-          {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline)}` : ""}.`}
+          {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline, event.locale)}` : ""}.`}
           {!reg.acceptingEntries && (
             <>
               {" "}

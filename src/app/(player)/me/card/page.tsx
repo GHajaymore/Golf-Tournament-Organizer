@@ -2,7 +2,8 @@ import Link from "next/link";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { isManualFormat, needsTeams } from "@/lib/formats";
+import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -314,6 +315,16 @@ export default async function PlayCardPage() {
       shotsPerHole={shots}
       playingHandicap={playing}
       tee={tee}
+      // The table the round is decided on — the board's own reading of it
+      // (`isStablefordRound`, `boardKind`), so the card and the board count
+      // the same points.
+      pointsTable={
+        stage && isStablefordRound(stage.scoringBasis, stage.format)
+          ? boardKind(stage.format) === "modified-stableford"
+            ? "modified"
+            : "standard"
+          : null
+      }
       status={me.round.card?.status ?? "entered"}
       // Whether signing this card hands it to anybody. Under player
       // confirmation nothing approves a scorecard — `certifyCard` writes

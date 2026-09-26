@@ -96,6 +96,13 @@ export interface RegistrationInput {
   override: boolean | null;
   /** Injected so this is testable and so "today" is the caller's business. */
   now?: Date;
+  /**
+   * How this tournament writes a date — `formattingFor(club, event).locale`.
+   * Omitted, the sentences below fell back to US English, so a Scottish club
+   * showing "24 Oct 2026" for its tournament said entries "close Oct 17, 2026"
+   * on the same card. Walked as a member, 2026-09-26.
+   */
+  locale?: string;
 }
 
 /**
@@ -107,10 +114,10 @@ export interface RegistrationInput {
  * here beside a status it cannot affect it would be a date with nothing behind
  * it. Nothing at all once the tournament is over.
  */
-export function entryDatesOf(opens: string, closes: string, eventStatus: string): string {
+export function entryDatesOf(opens: string, closes: string, eventStatus: string, locale?: string): string {
   if (eventStatus === "completed") return "";
-  const o = parseDeadlineIso(opens) ? formatDeadline(opens) : "";
-  const c = parseDeadlineIso(closes) ? formatDeadline(closes) : "";
+  const o = parseDeadlineIso(opens) ? formatDeadline(opens, locale) : "";
+  const c = parseDeadlineIso(closes) ? formatDeadline(closes, locale) : "";
   if (o && c) return `Entries open ${o} · close ${c}`;
   if (o) return `Entries open ${o}`;
   if (c) return `Entries close ${c}`;
@@ -118,7 +125,7 @@ export function entryDatesOf(opens: string, closes: string, eventStatus: string)
 }
 
 export function registrationStatus(input: RegistrationInput): RegistrationStatus {
-  const { eventStatus, deadline, opens, capacity, confirmedCount, override, now = new Date() } = input;
+  const { eventStatus, deadline, opens, capacity, confirmedCount, override, now = new Date(), locale } = input;
   const unlimited = capacity <= 0;
   const full = !unlimited && confirmedCount >= capacity;
   // The deadline half of the question is the shared rule; capacity is layered
@@ -178,8 +185,8 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       acceptingEntries: false,
       waitlisting: false,
       label: "Opens soon",
-      detail: `Entries open ${formatDeadline(opens)}.`,
-      short: `not open until ${formatDeadline(opens)}`,
+      detail: `Entries open ${formatDeadline(opens, locale)}.`,
+      short: `not open until ${formatDeadline(opens, locale)}`,
     };
   }
 
@@ -192,7 +199,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       acceptingEntries: true,
       waitlisting: full,
       label: full ? "Extended — waitlist" : "Extended",
-      detail: `Past the ${formatDeadline(deadline)} deadline, kept open by the organizer.`,
+      detail: `Past the ${formatDeadline(deadline, locale)} deadline, kept open by the organizer.`,
       short: "kept open past the deadline",
     };
   }
@@ -203,8 +210,8 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       acceptingEntries: false,
       waitlisting: false,
       label: "Closed",
-      detail: `The ${formatDeadline(deadline)} deadline has passed. Reopen it if you're still taking entries.`,
-      short: `past the ${formatDeadline(deadline)} deadline`,
+      detail: `The ${formatDeadline(deadline, locale)} deadline has passed. Reopen it if you're still taking entries.`,
+      short: `past the ${formatDeadline(deadline, locale)} deadline`,
     };
   }
 
