@@ -37,9 +37,9 @@ organizer, pot by pot; and one consistency sweep of every dashboard against its 
 four-ball and the medal agree across Today, the Board, the leaderboard, Reports and the public
 link; the money adds up on both sides.
 
-**Seven decisions are yours** — see "Decisions needed from Ajay" near the end. The one to read
-first is **#7**: a finished cut championship still ranks players who missed the cut among the
-finishers unless the organizer ticks "This round is finished" on round 2, which nothing prompts.
+**Six decisions are yours** — see "Decisions needed from Ajay" near the end. A seventh (a finished
+cut championship ranked players who missed the cut among the finishers) was answered the same
+morning — Completed closes the rounds — and is built as item 34.
 
 The rest of this file is the night's log in the order it happened.
 
@@ -392,7 +392,22 @@ one 500.
     with the instruction. All five public boards measured clean twice over afterwards. (Not
     reproduced against production: I have no production share token and did not go looking.)
 
-### Noted, not changed — a decision for Ajay
+### Decided the next morning — Completed closes the rounds
+
+34. **Built as Ajay decided.** Marking a tournament Completed now closes every round still open,
+    through the same "This round is finished" his #577 rule already reads, and the audit log says
+    which. A round the committee closed earlier keeps its own time; reopening the tournament
+    leaves the rounds closed (a closed round blocks no card, and each can be re-opened on Rounds
+    & formats). Tried through the real button on the seeded Club Championship, put back to live
+    for the purpose: after "Complete tournament" the sixteen who played both rounds rank 1–16 and
+    the twelve cut after round 1 hold no place. And the sheet now says why — they were captioned
+    "card incomplete" (console) and "F · not ranked" (player board, public link), both wrong about
+    a complete card; all three now read **"didn't play Round 2"**. The seeder closes the rounds of
+    the tournaments it writes as completed, so a fresh seed shows the same. Tests: the real action
+    against real rows (the precondition — the cut player leads while round 2 is open — asserted
+    first), and the caption on both boards; every rule mutated and watched go red.
+
+The original note, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
   seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
@@ -467,11 +482,7 @@ named. The deferred-register entry for this class is closed.
    club knockout played over weeks (players arrange their own matches) every result has to go
    through the secretary. Most club knockouts let the winner report it. Worth deciding before a
    club runs one — it is a permissions question, so not changed overnight.
-7. **A finished cut championship ranks players who missed the cut among those who made it** —
-   unless the organizer ticks "This round is finished" on the round after the cut, which nothing
-   prompts and marking the tournament Completed does not do. Your #577 rule ("over when the
-   organizer says so") already gives the right answer once the box is ticked. Options: Completed
-   closes every round (it is the organizer saying so), or Completed asks first. Details under
-   "Noted, not changed — a decision for Ajay" above.
+7. ~~A finished cut championship ranks players who missed the cut among those who made it.~~
+   **DECIDED by Ajay on the morning of 2026-09-26: Completed closes the rounds. Built — item 34.**
 
 ## Log
