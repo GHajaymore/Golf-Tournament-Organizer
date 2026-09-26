@@ -1135,6 +1135,12 @@ place, as a card that stopped short already is. A POINTS board is untouched,
 because a missed week already costs the points it was worth via `chargedHoles`;
 unranking there would be the #565 defect wearing the other face.
 
+**Extended 2026-09-26, also Ajay's call: marking a tournament Completed closes every round still
+open** (`setEventStatus`). Completing IS the organizer saying so, and without it a finished cut
+championship went on ranking the players cut after round 1 among those who played 36. A round
+closed earlier keeps its time; reopening the tournament does not re-open rounds. A player
+unranked this way is captioned "didn't play Round 2", not "card incomplete".
+
 Two things worth keeping:
 
 - **`chargedHoles` deliberately does NOT read `closedAt`.** It derives settled

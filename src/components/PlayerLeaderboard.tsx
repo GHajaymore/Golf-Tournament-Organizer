@@ -54,7 +54,11 @@ function cardState(r: StandingRow, holes: number): string {
   // still on the course that they had finished.
   const owed = r.holesOwed > 0 ? r.holesOwed : holes;
   const played = r.thru >= owed ? "F" : `thru ${r.thru}`;
-  return r.ranked ? played : `${played} · not ranked`;
+  if (r.ranked) return played;
+  // The same reason the console gives — see `unrankedNote`. "F · not ranked"
+  // on a player cut after round 1 read as a finished card that lost its place
+  // for nothing.
+  return r.missedRound ? `${played} · didn't play ${r.missedRound}` : `${played} · not ranked`;
 }
 
 /** Under par earns colour; level and over stay in text. */

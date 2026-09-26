@@ -78,6 +78,8 @@ export interface StandingRow {
   thru: number;
   /** Holes the counted cards cover, so "thru" can read "14 of 18". */
   holesOwed: number;
+  /** The closed round this player has no card for, by name, or "". */
+  missedRound?: string;
   /**
    * Whether a PAR was known for the holes this player has played.
    *
@@ -109,8 +111,13 @@ export interface StandingRow {
  * nothing at all — an empty row explains itself, and captioning every player
  * yet to tee off would bury the two or three this is for.
  */
-function unrankedNote(r: StandingRow): string {
+export function unrankedNote(r: StandingRow): string {
   if (r.ranked || r.thru <= 0) return "";
+  // A round the committee closed, with no card for it — a player cut after
+  // round 1, or one who did not turn up for round 2. Their card is not
+  // incomplete, and saying so sent a reader looking for holes that were never
+  // owed. Checked first: it is the reason when both could be said.
+  if (r.missedRound) return `Not ranked — didn't play ${r.missedRound}`;
   return r.holesOwed > r.thru
     ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
     : "Not ranked — card incomplete";

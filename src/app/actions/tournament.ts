@@ -3776,10 +3776,48 @@ export async function setEventStatus(status: string): Promise<{ ok: boolean; err
   // retention window runs on. Reopening a tournament clears it: a club that
   // un-completes an event has said the result isn't final, and the countdown
   // to deleting it should not keep running underneath them.
+  const now = new Date();
   await prisma.event.update({
     where: { id: eventId },
-    data: { status: s, completedAt: s === "completed" ? new Date() : null },
+    data: { status: s, completedAt: s === "completed" ? now : null },
   });
+  /**
+   * COMPLETING CLOSES EVERY ROUND STILL OPEN — Ajay's call, 2026-09-26.
+   *
+   * A round is over when the organizer says so (#577), and marking the
+   * tournament Completed is the organizer saying so about all of them. Without
+   * this the seeded Club Championship was Completed with round 2 still open,
+   * so the players cut after round 1 were still ranked among the finishers —
+   * one on +14 over 18 holes above two who played all 36 — because
+   * `missedAClosedRound` only unranks a player for a round somebody closed.
+   *
+   * Only rounds still open are stamped, so a round the committee closed
+   * earlier keeps its own time. REOPENING does not undo it: closing blocks no
+   * card (a late one still counts the moment it is entered), and each round
+   * can be re-opened on Rounds & formats, which is where a committee
+   * correcting one round goes anyway.
+   */
+  if (s === "completed") {
+    const open = (
+      await prisma.stage.findMany({
+        where: { eventId, closedAt: null },
+        select: { id: true, type: true, description: true, position: true },
+      })
+    ).filter((st) => isPlayingRound(st.type));
+    if (open.length > 0) {
+      await prisma.stage.updateMany({
+        where: { id: { in: open.map((st) => st.id) } },
+        data: { closedAt: now },
+      });
+      await logAudit(
+        eventId,
+        "round-closed",
+        `Completing the tournament closed ${open
+          .map((st) => st.description || `Round ${st.position + 1}`)
+          .join(", ")}. Anybody without a card for a closed round no longer holds a place on a stroke board.`,
+      );
+    }
+  }
   await refresh();
   return { ok: true };
 }

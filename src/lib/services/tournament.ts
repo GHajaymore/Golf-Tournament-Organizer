@@ -7,6 +7,7 @@ import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../form
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
+import { roundLabel } from "../domain/round-label";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -384,6 +385,15 @@ export interface StrokeStanding {
    */
   ranked: boolean;
   rank: number;
+  /**
+   * The CLOSED round this player has no card for, by name — "Round 2" — or
+   * "" when there is none. It is one of the two reasons a stroke row holds no
+   * place (see `missedAClosedRound`), and the sheet has to say which: a player
+   * cut after round 1 was captioned "card incomplete" when their card was
+   * complete and they simply did not play round 2. Optional so hand-built test
+   * rows stay valid.
+   */
+  missedRound?: string;
 }
 
 export interface EventState {
@@ -1879,8 +1889,14 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
    * own looser test rather than sharing this one.
    */
   const closedRoundIds = strokeRounds.filter((s) => s.closedAt).map((s) => s.id);
-  const missedAClosedRound = (a: StrokeAgg): boolean =>
-    !stableford && closedRoundIds.some((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0);
+  /** The first closed round this player has no card for, or null. */
+  const missedClosedRoundId = (a: StrokeAgg): string | null =>
+    stableford ? null : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null);
+  const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
+  const nameOfRound = (id: string): string => {
+    const st = stages.find((s) => s.id === id);
+    return st?.description?.trim() || roundLabel(stages, id) || "a round";
+  };
 
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
@@ -1923,6 +1939,7 @@ async function loadEventStateUncached(eventId: string): Promise<EventState | nul
         holesOwed: a.holesOwed,
         ranked: isRanked(a) && !missedAClosedRound(a),
         rank: 0,
+        missedRound: a.thru > 0 && missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
       };
     })
     .sort((x, y) => {
@@ -2613,6 +2630,7 @@ export function standingRows(state: EventState): StandingRow[] {
       points: s.points,
       thru: s.thru,
       holesOwed: s.holesOwed,
+      missedRound: s.missedRound ?? "",
     }));
   }
   /**
@@ -2667,6 +2685,9 @@ export function standingRows(state: EventState): StandingRow[] {
       points: s?.points ?? 0,
       thru: s?.thru ?? 0,
       holesOwed: s?.holesOwed ?? 0,
+      // A match row always holds a position, so it never missed a closed
+      // round — set rather than absent, so both branches have one shape.
+      missedRound: "",
     };
   });
 }

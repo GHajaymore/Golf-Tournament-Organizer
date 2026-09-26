@@ -1846,6 +1846,22 @@ export async function seed() {
       },
     });
 
+    /**
+     * A COMPLETED TOURNAMENT'S ROUNDS ARE CLOSED — because completing one in
+     * the app closes them (`setEventStatus`, Ajay's call on 2026-09-26), and
+     * this seeder writes `status: "completed"` directly instead of going
+     * through it. Without this the championship kept round 2 open, and the
+     * players cut after round 1 ranked among those who played 36 holes.
+     * Stamped at the tournament's own completion time where it has one.
+     */
+    for (const ev of [champs, festival]) {
+      const row = await prisma.event.findUnique({ where: { id: ev.id }, select: { completedAt: true } });
+      await prisma.stage.updateMany({
+        where: { eventId: ev.id, closedAt: null },
+        data: { closedAt: row?.completedAt ?? new Date() },
+      });
+    }
+
     return {
       org,
       organizer: { session: sign(organizer.id), email: organizer.email },
