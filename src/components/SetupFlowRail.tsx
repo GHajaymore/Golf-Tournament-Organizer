@@ -77,13 +77,33 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
             nothing else; `canSeeLeaderboard` reads `leaderboardVisibility`.
             See `LAUNCH_DOES` in domain/lifecycle-state.ts, which both this and
             the dashboard warning now read so they cannot drift apart again. */}
-        <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
-          The dashboard is where you open entries and take it live. {LAUNCH_DOES}{" "}
-          {VISIBILITY_IS_ELSEWHERE}
-        </p>
-        <Link href="/dashboard" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-          <Icon name="rocket-launch" /> Go to the dashboard
-        </Link>
+        {/* ONE THING LEFT, when the launch gate still says no.
+            The steps take a date OR a venue; launching needs a date. This
+            panel promised "take it live" over a Launch button the dashboard
+            then disabled — so it asks the gate and says what it said, in the
+            gate's own words, before sending anybody anywhere. */}
+        {flow.launchBlocked ? (
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+            <b>One thing before it can go live.</b> {flow.launchBlocked}
+          </p>
+        ) : (
+          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+            The dashboard is where you open entries and take it live. {LAUNCH_DOES}{" "}
+            {VISIBILITY_IS_ELSEWHERE}
+          </p>
+        )}
+        {/* To the screen that fixes it. With every step done the gate can
+            only be refusing the DATE — the steps already require a round and a
+            field — and dates are set on Tournament details, not the dashboard. */}
+        {flow.launchBlocked ? (
+          <Link href="/event" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+            <Icon name="calendar-blank" /> Open {flow.steps.find((s) => s.href === "/event")?.label ?? "Tournament details"}
+          </Link>
+        ) : (
+          <Link href="/dashboard" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+            <Icon name="rocket-launch" /> Go to the dashboard
+          </Link>
+        )}
       </div>
     );
   }

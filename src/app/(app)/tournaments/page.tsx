@@ -66,7 +66,12 @@ export default async function TournamentsPage() {
   const allEvents = await prisma.event.findMany({
     where: { id: { in: accessList.map((a) => a.eventId) } },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { players: true } } },
+    include: {
+      _count: { select: { players: true } },
+      // The venues, for a tournament that names its course only as one — the
+      // dashboard header's fallback, so the list and the header agree.
+      courses: { select: { course: { select: { name: true } } } },
+    },
   });
   const accessible = new Map(accessList.map((a) => [a.eventId, a.role]));
 
@@ -75,7 +80,7 @@ export default async function TournamentsPage() {
     name: ev.name,
     status: ev.status,
     dates: ev.dates,
-    course: ev.course,
+    course: ev.course || ev.courses.map((c) => c.course.name).join(" · "),
     players: ev._count.players,
     isActive: ev.id === session.eventId,
     hasAccess: accessible.has(ev.id),

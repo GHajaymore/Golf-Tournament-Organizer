@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { launchRefusal, finishRefusal } from "../phase-gate";
 import { readSource } from "../../__tests__/source";
+import { screenName } from "../../nav";
 
 /**
  * GUIDE WITHIN A PHASE, GATE BETWEEN THEM.
@@ -71,9 +72,10 @@ describe("going live", () => {
      */
     const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false });
     expect(r).toContain("no dates");
-    // Every refusal names the screen that fixes it, and this one names the
-    // escape hatch too.
-    expect(r).toContain("Tournament setup");
+    // Every refusal names the screen that fixes it — by the name the sidebar
+    // gives it, which this used to get wrong ("Tournament setup") — and this
+    // one names the escape hatch too.
+    expect(r).toContain(screenName("/event"));
     expect(r).toContain("tentative");
   });
 

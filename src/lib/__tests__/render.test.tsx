@@ -7570,8 +7570,13 @@ describe("the setup rail", () => {
      * `launchTournament` writes status, launchedAt and configUnlocked and
      * nothing else. The banner now says what launching does do, from the one
      * string both it and the dashboard warning read.
+     *
+     * DATED, since 2026-09-26. `done` has a venue and no date — which finishes
+     * every step and still cannot launch — and this used to pin the "take it
+     * live" hand-off over exactly that tournament, which is the defect the next
+     * test is about. The hand-off below is the one a launchable tournament gets.
      */
-    const html = rail({ ...done, launched: false });
+    const html = rail({ ...done, dated: true, launched: false });
     expect(html).toContain("Setup is done");
     expect(html).toContain("locks the configuration");
     expect(html).toContain("/dashboard");
@@ -7589,6 +7594,22 @@ describe("the setup rail", () => {
      * a refusal naming a button that no longer exists.
      */
     expect(html).not.toContain("Launch it from the dashboard");
+  });
+
+  it("says what is left, and where, when setup is done but launch would refuse", () => {
+    /**
+     * Found 2026-09-26 running a Stableford from scratch: every step done (a
+     * venue in place of a date is a real answer for the details step), the
+     * rail said "take it live", and Launch on the dashboard was disabled for
+     * want of a date. Now the rail says the gate's own sentence and opens the
+     * screen that fixes it.
+     */
+    const html = rail({ ...done, launched: false });
+    expect(html).toContain("Setup is done");
+    expect(html).toContain("One thing before it can go live");
+    expect(html).toContain("no dates");
+    expect(html).toContain('href="/event"');
+    expect(html).not.toContain("take it live");
   });
 
   it("goes silent for good once the tournament is launched", () => {
