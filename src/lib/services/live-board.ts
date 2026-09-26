@@ -455,8 +455,28 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
  * that is permanently wrong because somebody forgot a line is a product that
  * cannot be trusted.
  */
+/**
+ * WHICH SHAPE OF BOARD A CACHED ENTRY WAS BUILT AS — bump when `LiveBoardView`
+ * changes.
+ *
+ * The data cache outlives the code that filled it: on Vercel it persists
+ * across deployments, and `revalidate` serves a stale entry once while it
+ * refreshes. So the first spectator after a deploy that added a field was
+ * handed an entry without it, and the page read it — measured 2026-09-26 on
+ * the seeded April Medal's public link, a 500 ("Cannot read properties of
+ * undefined (reading 'length')", `board.draws`) followed by a clean 200 a
+ * moment later. The widest-audience page in the app, failing once per
+ * tournament per deploy.
+ *
+ * Keyed on the deployment as well, so a new deploy never reads the last one's
+ * entries — the shape number is the backstop for a local server, which has
+ * no deployment id and keeps its cache across restarts.
+ */
+export const LIVE_BOARD_SHAPE = 2;
+const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
+
 export function liveBoard(eventId: string): Promise<LiveBoardView | null> {
-  return unstable_cache(() => gather(eventId), ["live-board", eventId], {
+  return unstable_cache(() => gather(eventId), ["live-board", `v${LIVE_BOARD_SHAPE}`, deployment, eventId], {
     tags: [boardTag(eventId)],
     revalidate: 60,
   })();
