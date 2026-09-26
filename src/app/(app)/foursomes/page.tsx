@@ -534,6 +534,9 @@ export default async function FoursomesPage({
       )}
       <FoursomeMaker
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
+        // The round's sides, so partners go out together — `groupBySides`.
+        // Loaded above for the cards already; empty for a round with no sides.
+        sides={teams.map((t) => t.members.map((m) => m.playerId))}
         standings={standings}
         holes={holes}
         stageId={stage?.id ?? ""}

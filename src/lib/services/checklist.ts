@@ -165,6 +165,22 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       done: doneOf("/registration", state.confirmed.length > 0),
       href: "/registration",
     },
+    /**
+     * The sides — only when the flow has the step, which it has only for a
+     * tournament with a round played in them (see `teams` on SetupFacts). The
+     * flow's answer outright, like the money row: there is no second opinion
+     * on this screen worth writing.
+     */
+    ...(step("/teams")
+      ? [
+          {
+            label: screenName("/teams"),
+            detail: step("/teams")!.done ? "Every player is on a side." : step("/teams")!.missing,
+            done: step("/teams")!.done,
+            href: "/teams",
+          },
+        ]
+      : []),
     {
       label: screenName("/stages"),
       /**

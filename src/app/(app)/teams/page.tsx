@@ -9,6 +9,8 @@ import { TeamsClient } from "@/components/TeamsClient";
 import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 
 /**
  * Drawing sides for the team formats.
@@ -59,9 +61,14 @@ export default async function TeamsPage({
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);
   const range = sideSizeRange(active.format);
+  // A setup step in a team event (2026-09-26) — so it carries the same rail and
+  // "next" footer as every other step, rather than being the one screen in the
+  // guide that does not say where it sits.
+  const flow = await setupFlowFor(session.eventId);
 
   return (
     <>
+      <SetupFlowRail flow={flow} href="/teams" />
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
       <TeamsClient
@@ -119,6 +126,7 @@ export default async function TeamsPage({
        * ordinary four-ball event sees exactly what it saw before.
        */}
       <LeagueSection eventId={session.eventId} stageId={active.id} canEdit={session.viewRole === "admin"} />
+      <SetupFlowFooter flow={flow} href="/teams" />
     </>
   );
 }

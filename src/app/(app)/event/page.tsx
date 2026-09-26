@@ -250,6 +250,9 @@ export default async function EventPage({
                 // WHICH are done, so the journey card can mark them. The
                 // count alone left five identical chips under "3 of 5 done".
                 doneHrefs: flow.steps.filter((s) => s.done).map((s) => s.href),
+                // Every step this tournament HAS, so the journey shows Teams &
+                // pairs exactly when the flow does — see `setupScreens`.
+                hrefs: flow.steps.map((s) => s.href),
                 // WHICH ONE IS NEXT. Ticks alone said what was finished and
                 // left every remaining chip identical, so the card answered
                 // "how far am I" and not "what do I do now" — which is the

@@ -10,6 +10,7 @@ import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { Icon } from "./Icon";
 import {
   DRAW_ORDERS,
+  groupBySides,
   groupByStandings,
   orderGroups,
   positionLookup,
@@ -58,8 +59,18 @@ export function FoursomeMaker({
   rounds = [],
   activeRoundId = "",
   rosterSize = 0,
+  sides = [],
 }: {
   players: Player[];
+  /**
+   * The round's SIDES, player ids per side, when it is played in them.
+   *
+   * Partners play together — in a scramble they share one ball — so a team
+   * round's groups are made from whole sides (`groupBySides`) rather than dealt
+   * player by player, which split every side across two tee times. Empty for a
+   * round with no sides, and the sheet is drawn exactly as before.
+   */
+  sides?: string[][];
   /** Current leaderboard, best first. Empty before anyone has posted a score. */
   standings?: Standing[];
   holes?: 9 | 18;
@@ -125,13 +136,41 @@ export function FoursomeMaker({
     };
   }, [seed]);
 
+  /**
+   * The sides that are playing THIS round — trimmed to the players on the
+   * sheet, so a league week that narrowed `players` does not draw absentees.
+   */
+  const playingSides = useMemo(
+    () => sides.map((s) => s.filter((id) => byId.has(id))).filter((s) => s.length > 0),
+    [sides, byId],
+  );
+  const bySides = playingSides.length > 0;
+
   const groups = useMemo(() => {
-    const formed =
-      algo === "standings"
-        ? groupByStandings(players, positionOf, size, (i) => `fs-${i}`)
-        : formGroups(players, algo, { mode: "perFlight", value: size }, (i) => `fs-${i}`, rng);
+    let formed;
+    if (bySides) {
+      // Whole sides, never split. The rule above only decides their ORDER:
+      // shuffled for Random, as drawn on the Teams screen otherwise (the
+      // automatic draw has already balanced the sides by handicap).
+      const onASide = new Set(playingSides.flat());
+      const sideOrder = [...playingSides];
+      if (algo === "random") {
+        // Fisher–Yates on the sheet's own seeded generator, so "Reshuffle"
+        // deals a new order and the same seed deals the same one.
+        for (let i = sideOrder.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          [sideOrder[i], sideOrder[j]] = [sideOrder[j], sideOrder[i]];
+        }
+      }
+      formed = groupBySides(sideOrder, players.filter((p) => !onASide.has(p.id)).map((p) => p.id), size, (i) => `fs-${i}`);
+    } else {
+      formed =
+        algo === "standings"
+          ? groupByStandings(players, positionOf, size, (i) => `fs-${i}`)
+          : formGroups(players, algo, { mode: "perFlight", value: size }, (i) => `fs-${i}`, rng);
+    }
     return orderGroups(formed, order, positionOf, rng);
-  }, [players, algo, order, size, rng, positionOf]);
+  }, [players, algo, order, size, rng, positionOf, bySides, playingSides]);
 
   const slots = useMemo(
     () => startSlots(groups, startType, { firstTee, interval, holes }),
@@ -313,6 +352,14 @@ export function FoursomeMaker({
 
         <div>
           <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Who plays together</div>
+          {bySides && (
+            /* Said, because otherwise the rule buttons below look broken: in a
+               team round they cannot break a side up, only order the sides. */
+            <p style={{ fontSize: 12.5, margin: "0 0 8px", lineHeight: 1.5 }}>
+              <Icon name="users-three" /> Partners play together, so each group is made from whole sides
+              from Teams &amp; pairs. The choice below only decides the order the sides go out in.
+            </p>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {ALGORITHMS.map((a) => {
               const on = a.key === algo;

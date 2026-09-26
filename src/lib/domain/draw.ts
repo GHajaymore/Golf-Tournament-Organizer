@@ -184,6 +184,57 @@ export function groupByStandings(
   return groups;
 }
 
+/**
+ * TEE GROUPS MADE FROM WHOLE SIDES — for a round played in sides.
+ *
+ * Found 2026-09-26 running a Scramble the way a newcomer would: the tee sheet
+ * dealt the eight players out one by one, so both sides were split across both
+ * tee times — Dev and Finn off at 8:00, their partners Ada and Eve at 8:10. In a
+ * scramble a side hits ONE ball between them; a sheet like that cannot be
+ * played, and nothing on the screen said so. Every team format has the same
+ * rule on the course — partners play together — so this is not scramble-only.
+ *
+ * So the unit is the side. Sides are packed into groups whole: two four-ball
+ * pairs make a four-ball, a scramble side of four is a group on its own. A side
+ * larger than `size` still goes out together as one group rather than being
+ * cut — the one case a group may exceed the size asked for, and the right one.
+ *
+ * Players on no side are still placed, in groups of their own after the sides,
+ * so nobody silently disappears from the sheet; the Teams screen is where they
+ * get a side.
+ */
+export function groupBySides(
+  sides: readonly (readonly string[])[],
+  others: readonly string[],
+  size: number,
+  makeId: (index: number) => string = (i) => `group-${i}`,
+): Group[] {
+  const per = Math.max(2, Math.round(size) || 2);
+  const groups: Group[] = [];
+  const push = (playerIds: string[]) =>
+    groups.push({ id: makeId(groups.length), name: `Group ${groups.length + 1}`, playerIds });
+
+  let current: string[] = [];
+  for (const side of sides) {
+    if (side.length === 0) continue;
+    // Never split a side: if it will not fit beside the group being built,
+    // that group goes out as it is and the side starts the next one.
+    if (current.length > 0 && current.length + side.length > per) {
+      push(current);
+      current = [];
+    }
+    current = [...current, ...side];
+    if (current.length >= per) {
+      push(current);
+      current = [];
+    }
+  }
+  if (current.length > 0) push(current);
+
+  for (let i = 0; i < others.length; i += per) push(others.slice(i, i + per));
+  return groups;
+}
+
 export interface StartSlot {
   groupId: string;
   /** Display time, e.g. "8:10 AM". Empty for a shotgun, which has one time. */

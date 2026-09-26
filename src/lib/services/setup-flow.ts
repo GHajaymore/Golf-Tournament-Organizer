@@ -7,6 +7,7 @@ import { generatesPairings } from "../stage-types";
 import { roundLabel } from "../domain/round-label";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
+import { TEAM_FORMAT_NAMES } from "../formats";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -37,7 +38,7 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
   if (!event) return null;
   if (isMatch(event.shape)) return null;
 
-  const [confirmed, stageRows, groups, venues, org] = await Promise.all([
+  const [confirmed, stageRows, groups, venues, org, teamRounds, sides, unsided] = await Promise.all([
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
     /**
      * THE ROUNDS THEMSELVES, not a count of them.
@@ -83,6 +84,15 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       where: { id: event.organizationId },
       select: { moneyMode: true },
     }),
+    /**
+     * THE SIDES — see `teams` on SetupFacts. `teamRounds` is the SAME test the
+     * sidebar uses to show Teams & pairs (layout.tsx counts stages whose format
+     * is in `TEAM_FORMAT_NAMES`), so the step and the menu entry cannot appear
+     * apart.
+     */
+    prisma.stage.count({ where: { eventId, format: { in: TEAM_FORMAT_NAMES } } }),
+    prisma.team.count({ where: { eventId } }),
+    prisma.player.count({ where: { eventId, status: "confirmed", teamMemberships: { none: {} } } }),
   ]);
   const facts: SetupFacts = {
     confirmed,
@@ -129,6 +139,7 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
      * that fires a day later about the very same thing.
      */
     launched: !PRE_LAUNCH_STATUSES.includes(event.status),
+    teams: { needed: teamRounds > 0, sides, unsided },
   };
 
   return setupFlow(facts, screenName);

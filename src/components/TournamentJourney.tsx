@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "./Icon";
 import { screenName } from "@/lib/nav";
-import { SETUP_ORDER } from "@/lib/domain/setup-flow";
+import { setupScreens } from "@/lib/domain/setup-flow";
 import { tournamentPhase } from "@/lib/domain/lifecycle-state";
 
 /**
@@ -47,6 +47,8 @@ export interface TournamentJourneyProps {
     total: number;
     complete: boolean;
     doneHrefs: readonly string[];
+    /** Every step this tournament has — see `setupScreens`. */
+    hrefs?: readonly string[];
     /**
      * The one step to do NEXT — `flow.current.href`, the first unfinished one.
      *
@@ -118,8 +120,12 @@ export function TournamentJourney({
        * one layer down: adding the money step to the guide would have left
        * this card silently describing four steps while the rail walked five,
        * with a count under it reading "0 of 5".
+       *
+       * Through `setupScreens`, which is SETUP_ORDER filtered to the steps
+       * this tournament has — so a team event shows Teams & pairs and a medal
+       * does not, and the chips always match the count beside them.
        */
-      screens: [...SETUP_ORDER],
+      screens: setupScreens(setup?.hrefs),
     },
     {
       key: "launch",

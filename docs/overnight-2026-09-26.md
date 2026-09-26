@@ -14,8 +14,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | PR | What a user would have hit | Status |
 |---|---|---|
 | #621 | Tied places read "9, 9, 11, 12" — looked like a numbering mistake; now "T9" on every board | live |
-| #622 | Date formatting threw a React hydration error on every load of Tournament details; first-run controls had no accessible names; "Manage" left you on the list | merged |
-| #623 | A long surname clipped the "· YOU" marker on the player's leaders card | in CI |
+| #622 | Date formatting threw a React hydration error on every load of Tournament details; first-run controls had no accessible names; "Manage" left you on the list | live |
+| #623 | A long surname clipped the "· YOU" marker on the player's leaders card | live |
+| #624 | Create left you on the list; roster "Added 0" after the click; Phone never said required; a false announcements warning (items 1, 3–5 below) | merged |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -44,6 +45,22 @@ setup checklist.
    shown to every entrant in the app; only the Messages screen needs an email. **Fixed** the
    sentence, and pinned it to the code that makes it true (if announcements ever become
    email-scoped, the test fails and forces the sentence to change).
+
+6. **The guide never asked for the teams.** The Scramble's setup walked details → rounds → field →
+   flights → money and never mentioned sides, while the dashboard read "Sides in 0/0" — a round
+   that cannot be scored, on a checklist that could reach "5 of 5 done". Worse, the step it did
+   point at, Flights, previews "Flight 1: four names", which a newcomer takes for a team.
+   **Fixed:** a "Teams & pairs" step, only for a tournament with a team-format round (the same test
+   the sidebar uses), between the field and the flights; done when every player is on a side. The
+   rail, dashboard checklist and journey card all carry it. Following it, "Draw sides
+   automatically" made two sides off 12 and 13 — checked by hand against the published scramble
+   split (25/20/15/10): side A 1.5 + 3.6 + 3.45 + 3.7 = 12.25 → 12.
+7. **The tee sheet split every side.** Dealt player by player: side 1 had Dev and Finn off at 8:00
+   and their partners Ada and Eve at 8:10. A scramble side hits one ball between them — unplayable,
+   and no grouping rule could avoid it. **Fixed:** a team round's tee groups are made from whole
+   sides (two four-ball pairs to a group, a scramble four on its own, an oversized side whole rather
+   than cut); the rule only orders the sides, and the screen says so. Pinned as a golf invariant
+   over 300 random shapes: no side split, every player on the sheet once.
 
 ### Noted, not changed (UX calls for Ajay)
 
