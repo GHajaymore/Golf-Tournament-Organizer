@@ -937,8 +937,10 @@ describe("leaderboards for every format", () => {
     const html = render(
       <SkinsLeaderboard net={false} board={{ outcome, nameById: { a: "Ann", b: "Bob" } }} />,
     );
-    expect(placeOf(html, "Ann")).toBe("1");
-    expect(placeOf(html, "Bob"), "two players on one skin each were 1st and 2nd").toBe("1");
+    // "T1" since 2026-09-26: a shared place is written the way every board
+    // writes one (`placeTexts`). The guarantee is unchanged — one place, shared.
+    expect(placeOf(html, "Ann")).toBe("T1");
+    expect(placeOf(html, "Bob"), "two players on one skin each were 1st and 2nd").toBe("T1");
   });
 
   it("shares a modified Stableford place between two players level on points", () => {
@@ -952,8 +954,8 @@ describe("leaderboards for every format", () => {
           { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84 },
         ]} />,
     );
-    expect(placeOf(html, "Ann")).toBe("1");
-    expect(placeOf(html, "Bob"), "two players on 12 points were 1st and 2nd").toBe("1");
+    expect(placeOf(html, "Ann")).toBe("T1");
+    expect(placeOf(html, "Bob"), "two players on 12 points were 1st and 2nd").toBe("T1");
     expect(placeOf(html, "Cal"), "the place after a shared one skips").toBe("3");
   });
 
@@ -969,8 +971,8 @@ describe("leaderboards for every format", () => {
             gross: 71, net: 67, points: 0, played: 18, toPar: -5 },
         ]} />,
     );
-    expect(placeOf(html, "Ants")).toBe("1");
-    expect(placeOf(html, "Bees"), "two sides on 65 net were 1st and 2nd").toBe("1");
+    expect(placeOf(html, "Ants")).toBe("T1");
+    expect(placeOf(html, "Bees"), "two sides on 65 net were 1st and 2nd").toBe("T1");
     expect(placeOf(html, "Cats")).toBe("3");
   });
 
@@ -989,8 +991,8 @@ describe("leaderboards for every format", () => {
             gross: 80, net: 71, points: 38, played: 18, toPar: 0 },
         ]} />,
     );
-    expect(placeOf(html, "Ants")).toBe("1");
-    expect(placeOf(html, "Bees"), "level on points, separated by a number this round ignores").toBe("1");
+    expect(placeOf(html, "Ants")).toBe("T1");
+    expect(placeOf(html, "Bees"), "level on points, separated by a number this round ignores").toBe("T1");
   });
 
   /**

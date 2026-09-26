@@ -1,6 +1,6 @@
 import { indexLabel } from "@/lib/domain/handicap-label";
 import type { SkinsBoard, NassauMatchRow, ModStablefordRow } from "@/lib/services/points-standings";
-import { placesByValue } from "@/lib/domain/flight-places";
+import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
 
 /**
  * Boards for the formats that read an ordinary card a different way.
@@ -47,7 +47,7 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
   // Two players on the same number of skins are level — the sort's fallback is
   // `playerId.localeCompare`, so `i + 1` placed them in cuid order on a table
   // that decides money. Skins has no tiebreak; the pot divides by skins won.
-  const places = placesByValue(outcome.standings, (s) => s.skins, (s) => s.skins > 0);
+  const places = placeTexts(placesByValue(outcome.standings, (s) => s.skins, (s) => s.skins > 0));
 
   return (
     <>
@@ -219,7 +219,7 @@ export function ModifiedStablefordTable({ rows }: { rows: ModStablefordRow[] }) 
   // Level on points is level. The sort falls back to gross and then to
   // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
   // and 2nd alphabetically.
-  const places = placesByValue(rows, (r) => r.points, (r) => r.played > 0);
+  const places = placeTexts(placesByValue(rows, (r) => r.points, (r) => r.played > 0));
   return (
     <>
       <div className="card elev-sm">
