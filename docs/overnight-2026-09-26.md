@@ -21,9 +21,10 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #626 | **Every club tournament created from the list scored against an empty card** on the boards, Reports and the public page; one round had three names (items 8–10) | live |
 | #627 | Every form control named for screen readers — measured at zero on every console screen of five tournaments and in the player app (see "Accessibility" below) | live |
 | #628 | A player's Today showed **−2** (net) while My card showed **To par +5** (gross) for the same round, with nothing saying which; Today now reads "Thru 11 · net" | live |
-| #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | merged |
+| #629 | Message and score-entry dates threw a hydration error for a few hours around every midnight (server in UTC, browser local) | live |
 | #630 | The newcomer's Stableford: "Setup is done" over a launch that refused; a date lost to "saves on their own"; a Stableford flight card printing strokes; "Course —" on older tournaments (items 11–15) | live |
-| — | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | this PR |
+| #631 | **A straight knockout left half the field out of the draw**; "Add bracket" described a stroke round; a fresh tournament refused members with no email and named one remedy of two; the guide asked a knockout for flights (items 16–19) | live |
+| — | Score entry was a dead end for every knockout round — stroke cards and "generate flights" instead of the bracket (item 20) | this PR |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -145,6 +146,11 @@ the default gets a Flight 1 holding a 4 and a 24.
     ignores. **Fixed:** the Flights step, the journey card and the dashboard checklist leave it out
     when the bracket is the first round; the guide now reads "Setup is done — all 4 parts" and names
     the one thing left (the date).
+20. **Score entry was a dead end for every knockout round** — the newcomer's and the seeded Summer
+    Knockout's alike. It opened the bracket round as a stroke card for every player (eliminated
+    ones included), and "Match by match" said "generate flights to draw this round's matches",
+    which never happens for a bracket. **Fixed:** a bracket round says "Round 2 is the knockout —
+    its matches are recorded on the bracket", with a button there, and nothing that does not apply.
 
 ### Noted, not changed (UX calls for Ajay)
 
@@ -202,5 +208,9 @@ named. The deferred-register entry for this class is closed.
    It is one click to change on the Bracket screen; the default is your call.
 5. **Should a fresh tournament default to access codes rather than email sign-in** when the club's
    roster holds no addresses? The picker now points at the option; the default is a product decision.
+6. **Players cannot record their own knockout results.** The bracket is staff-only to edit, so in a
+   club knockout played over weeks (players arrange their own matches) every result has to go
+   through the secretary. Most club knockouts let the winner report it. Worth deciding before a
+   club runs one — it is a permissions question, so not changed overnight.
 
 ## Log
