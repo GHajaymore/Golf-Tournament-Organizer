@@ -9,7 +9,7 @@
  * screens cannot disagree about who leads.
  */
 
-import { holdsPosition } from "./shared-position";
+import { holdsPosition, placeText, sharedRanks } from "./shared-position";
 
 export interface BoardRow {
   id: string;
@@ -55,8 +55,7 @@ export function positionLabel(
   all: readonly Pick<BoardRow, "rank" | "ranked" | "started">[],
 ): string {
   if (!holdsPosition(row) || row.rank <= 0) return "–";
-  const shared = all.filter((r) => holdsPosition(r) && r.rank === row.rank).length > 1;
-  return shared ? `T${row.rank}` : String(row.rank);
+  return placeText(row, sharedRanks(all));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
-import { holdsPosition } from "@/lib/domain/shared-position";
+import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { cutLineIndex } from "@/lib/domain/cut";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
@@ -141,6 +141,8 @@ export function PlayerLeaderboard({
      strokes prints a net to-par. See `unitIsNet`. */
   const isNet = unitIsNet(unit);
   const yourScore = you ? rankedScore(you, { isStroke, isStableford, isNet }).text : "";
+  // "T9" where a place is shared — the same rule `/me` uses. See `placeText`.
+  const shared = sharedRanks(rows);
 
   return (
     <>
@@ -162,7 +164,7 @@ export function PlayerLeaderboard({
             You
           </span>
           <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
-            {holdsPosition(you) ? you.rank : "–"}
+            {holdsPosition(you) ? placeText(you, shared) : "–"}
           </span>
           <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-neutral-400)" }}>
             {isStroke ? cardState(you, holes) : you.record}
@@ -252,13 +254,15 @@ export function PlayerLeaderboard({
               <span
                 style={{
                   ...num,
-                  minWidth: 26,
+                  // Wide enough for "T12" so the names still line up down the
+                  // board whether or not a row's place is shared.
+                  minWidth: 34,
                   fontSize: leader ? 17 : 15,
                   fontWeight: leader ? 700 : 500,
                   color: r.ranked ? "var(--color-text)" : "var(--color-neutral-400)",
                 }}
               >
-                {holdsPosition(r) ? r.rank : "–"}
+                {holdsPosition(r) ? placeText(r, shared) : "–"}
               </span>
 
               <span style={{ flex: 1, minWidth: 0 }}>

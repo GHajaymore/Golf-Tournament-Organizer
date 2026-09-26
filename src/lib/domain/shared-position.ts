@@ -3,8 +3,8 @@
  *
  * The player's own screen showed a bare rank — "Position 2" — taken straight
  * from the standings. When three players are level on 2 the standings correctly
- * give all three rank 2, and the board correspondingly prints 2 three times;
- * but on `/me` that number is addressed to one person. Telling somebody they
+ * give all three rank 2 (and the boards now print T2 for each — see
+ * `placeText`); on `/me` that number is addressed to one person. Telling somebody they
  * are second when two others are equally second is the number they will quote
  * in the bar, and it is not what the results sheet says.
  *
@@ -66,6 +66,45 @@ export function holdsPosition(row: { ranked: boolean; started: boolean }): boole
   return row.ranked && row.started;
 }
 
+type Placed = { rank: number; ranked: boolean; started: boolean };
+
+/**
+ * The ranks that more than one position-holding row sits on.
+ *
+ * Built once per board rather than asked per row: a board printing every
+ * row's place would otherwise re-scan the field for each line. Rows without a
+ * position are left out for the reason in the file note — a player who has not
+ * teed off is not level with anybody.
+ */
+export function sharedRanks(rows: readonly Placed[]): Set<number> {
+  const seen = new Set<number>();
+  const shared = new Set<number>();
+  for (const r of rows) {
+    if (!holdsPosition(r) || r.rank <= 0) continue;
+    if (seen.has(r.rank)) shared.add(r.rank);
+    else seen.add(r.rank);
+  }
+  return shared;
+}
+
+/**
+ * "T9" or "9" for a row that holds a position — the golf convention.
+ *
+ * THE BOARDS PRINT IT TOO, since 2026-09-25. They used to print the bare rank
+ * and let the repeated number show the tie ("2" three times), on the view that
+ * only `/me` addresses one person. But every tournament board and results sheet
+ * prints "T9", and a board reading 9, 9, 11, 12 looks to anybody who does not
+ * already know the convention like a numbering mistake — the skipped 10 most of
+ * all. It was read exactly that way on the seeded club's medal board during a
+ * test pass. With the prefix the skip explains itself: T9, T9, 11, 12.
+ *
+ * The caller decides what a row WITHOUT a position shows (each board has its
+ * own dash); this only answers for rows that hold one.
+ */
+export function placeText(row: Placed, shared: ReadonlySet<number>): string {
+  return shared.has(row.rank) ? `T${row.rank}` : `${row.rank}`;
+}
+
 /**
  * "T2" for a shared position, "2" for a solo one, "" when they have none.
  *
@@ -75,6 +114,5 @@ export function holdsPosition(row: { ranked: boolean; started: boolean }): boole
 export function positionLabel(rows: PositionRow[], playerId: string): string {
   const mine = rows.find((r) => r.id === playerId);
   if (!mine || !holdsPosition(mine)) return "";
-  const sharing = rows.filter((r) => holdsPosition(r) && r.rank === mine.rank).length;
-  return sharing > 1 ? `T${mine.rank}` : `${mine.rank}`;
+  return placeText(mine, sharedRanks(rows));
 }
