@@ -75,6 +75,7 @@ export function LocalePicker({ locale }: { locale: string }) {
 
       <select
         className="input"
+        aria-label="Dates and numbers"
         value={value}
         disabled={pending}
         onChange={(e) => save(e.target.value)}

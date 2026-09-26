@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { createEvent, cloneEvent } from "@/app/actions/tournament";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
@@ -127,6 +127,8 @@ export function CreateFirstTournament({
   const clubNameRequired = clubSteps.some((s) => s.key === "profile");
   const elsewhere = clubSteps.filter((s) => s.key !== "profile");
   const [name, setName] = useState("");
+  // Each caption is a real <label> for its control — see EventSwitcher.
+  const fid = useId();
   const [orgName, setOrgName] = useState("");
   /** Whatever the action refused with, shown rather than swallowed. */
   const [refusal, setRefusal] = useState("");
@@ -237,8 +239,9 @@ export function CreateFirstTournament({
         </p>
       </div>
       <div className="field">
-        <label>Tournament name</label>
+        <label htmlFor={`${fid}-name`}>Tournament name</label>
         <input
+          id={`${fid}-name`}
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -290,8 +293,10 @@ export function CreateFirstTournament({
           already states. */}
       {!copyFrom && (
       <div className="field">
-        <label>How is it played?</label>
-        <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+        {/* Labels a GROUP of choice buttons rather than one control, so it
+            names the group by id instead of pointing `htmlFor` at nothing. */}
+        <label id={`${fid}-shape`}>How is it played?</label>
+        <div role="group" aria-labelledby={`${fid}-shape`} style={{ display: "grid", gap: 8, marginTop: 4 }}>
           {TOURNAMENT_SHAPES.map((s) => {
             const active = s.key === shape;
             return (
@@ -348,7 +353,7 @@ export function CreateFirstTournament({
        * starts rather than kept in a second list beside it.
        */}
       <div className="field">
-        <label>Start from</label>
+        <label htmlFor={`${fid}-source`}>Start from</label>
         {/* ONE SOURCE, SHARED WITH THE DASHBOARD'S FORM. This built its own
             list and `EventSwitcher` built another, and the two had drifted
             into different answers to the same question: that one offered a
@@ -359,7 +364,7 @@ export function CreateFirstTournament({
 
             `startFromGroups` is now the only place that decides, so they
             cannot diverge again. */}
-        <select className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
+        <select id={`${fid}-source`} className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
           {startFromGroups({ copyable, shape, orgKind }).map((group) => {
             const options = group.options.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -403,13 +408,14 @@ export function CreateFirstTournament({
               rather than by sending somebody to Club settings and back,
               because typing it satisfies the rule outright: the organization
               is named on the way through creation. */}
-          <label>
+          <label htmlFor={`${fid}-org-name`}>
             Who&rsquo;s running this?{" "}
             <span className="text-muted" style={{ fontWeight: 400 }}>
               {clubNameRequired ? "— your club or society, set once for every tournament" : "— club, society or company (optional)"}
             </span>
           </label>
           <input
+            id={`${fid}-org-name`}
             className="input"
             value={orgName}
             onChange={(e) => setOrgName(e.target.value)}
@@ -532,13 +538,14 @@ export function CreateFirstTournament({
             </p>
           ) : (
             <>
-              <label style={{ fontSize: 12.5 }}>
+              <label htmlFor={`${fid}-ask`} style={{ fontSize: 12.5 }}>
                 Ask them to add you{" "}
                 <span className="text-muted" style={{ fontWeight: 400 }}>
                   — they see your name and email, you are told nothing about them
                 </span>
               </label>
               <input
+                id={`${fid}-ask`}
                 className="input"
                 value={askNote}
                 maxLength={300}
