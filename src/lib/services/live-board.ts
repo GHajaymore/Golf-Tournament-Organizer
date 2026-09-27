@@ -4,7 +4,8 @@ import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
 import { COURSE_REF, soleVenueCourse } from "./course-resolution";
 import { roundNameFor } from "../domain/round-label";
-import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
+import { loadEventState, standingRows, cutLineNote, settingsOf, withBoardRound } from "./tournament";
+import { leaderboardRounds } from "../domain/leaderboard-rounds";
 import { teamMatchBoard } from "./teams";
 import { boardKindForRound, isKnockoutRound } from "../stage-types";
 import { drawnDraws } from "../domain/my-tie";
@@ -103,6 +104,13 @@ export interface LiveBoardView {
   straightKnockout: boolean;
   allIn: boolean;
   roundLabel: string;
+  /**
+   * The rounds a viewer may switch the board to, and the one on screen — the
+   * console leaderboard's picker (Ajay, 2026-09-26), on the public board too
+   * (2026-09-27). Empty when choosing would not change the board.
+   */
+  rounds: { stageId: string; label: string }[];
+  shownStageId: string;
   brand: Awaited<ReturnType<typeof brandForEvent>>;
   themeStyleSheet: string;
   colorScheme: string;
@@ -164,7 +172,7 @@ async function withAttendance(
   return rows.map((r) => ({ ...r, absent: out.has(r.id) }));
 }
 
-async function gather(eventId: string): Promise<LiveBoardView | null> {
+async function gather(eventId: string, roundId: string): Promise<LiveBoardView | null> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return null;
 
@@ -190,8 +198,16 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    */
   if (!(await organizationAllows(event.organizationId, "publicBoard"))) return null;
 
-  const state = await loadEventState(eventId);
-  if (!state) return null;
+  const loaded = await loadEventState(eventId);
+  if (!loaded) return null;
+  /**
+   * THE ROUND A VIEWER PICKED, or the board's own — the same `withBoardRound`
+   * the console leaderboard uses, so both boards show a round the same way. A
+   * finished festival whose last round was hand-scored showed its members
+   * nothing here, with ten scored rounds behind it (Ajay, 2026-09-27).
+   */
+  const state = withBoardRound(loaded, roundId || undefined);
+  const rounds = leaderboardRounds(loaded.stages);
 
   const activeStage = state.boardStage;
   /**
@@ -435,6 +451,8 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     roundLabel:
       activeStage?.description?.trim() ||
       (activeStage ? roundNameFor(state.playRounds, activeStage) : ""),
+    rounds,
+    shownStageId: activeStage?.id ?? "",
     brand,
     themeStyleSheet: themeCss(theme, "#player-theme"),
     colorScheme: playerColorScheme(theme),
@@ -472,12 +490,23 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 2;
+export const LIVE_BOARD_SHAPE = 3; // 3: `rounds` and `shownStageId`, the round picker (2026-09-27)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
-export function liveBoard(eventId: string): Promise<LiveBoardView | null> {
-  return unstable_cache(() => gather(eventId), ["live-board", `v${LIVE_BOARD_SHAPE}`, deployment, eventId], {
-    tags: [boardTag(eventId)],
-    revalidate: 60,
-  })();
+/**
+ * `roundId` is the round a viewer picked, or "" for the board's own. It is part
+ * of the cache key, so it must already be one of THIS tournament's rounds —
+ * the page checks that before asking, or every made-up `?round=` would be a
+ * cache entry of its own. The tag is the event's, so a score retires every
+ * round's entry at once.
+ */
+export function liveBoard(eventId: string, roundId = ""): Promise<LiveBoardView | null> {
+  return unstable_cache(
+    () => gather(eventId, roundId),
+    ["live-board", `v${LIVE_BOARD_SHAPE}`, deployment, eventId, roundId],
+    {
+      tags: [boardTag(eventId)],
+      revalidate: 60,
+    },
+  )();
 }

@@ -90,9 +90,11 @@ confirmed live. What a user would have hit:
 The walks ended when two passes in a row found nothing new: as an assistant, on a Stableford
 nine, and on a knockout. **Three new decisions** (8–10 under "Decisions needed from Ajay"):
 
-- which mid-event jobs should work without unlocking setup;
-- what "gross" should mean on a Stableford round;
-- whether the round picker goes on the public board.
+- which mid-event jobs should work without unlocking setup — **decided, built (#661)**;
+- what "gross" should mean on a Stableford round — **decided, but held back: it needs a count
+  from production first (see 9)**;
+- whether the round picker goes on the public board — **decided "yes, both", built (#662,
+  item 68)**.
 
 Five one-liners are also under "Noted, not changed".
 
@@ -145,6 +147,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #657 | A live tournament's setup screens offered 35 controls whose action crashed the page — each now follows the lock; "You're in!" leads a member back to their events (items 62–64) | live |
 | #658 | Picking "Stableford" started a round called "Stroke Play" — now a Stableford round, scoring measured identical (item 65) | live |
 | #659 | The tee sheet showed a fresh shuffle over the published sheet — it now shows the sheet the players have; a finished board no longer promises a result "when it is settled" (items 66–67) | live |
+| #660 | This report: the day of 2026-09-27 and three new decisions | live |
+| #661 | **Your decision 8**: drawing the next round, adding a round, deadlines, the single match and the third-place play-off work on a live tournament without unlocking; a drawn round with scores is refused rather than wiped | live |
+| #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -812,6 +817,15 @@ under the organizer's name. One real defect, and three things for you.
     longer change". The player's Board said the same. Both now say only that there is no board for
     it here and the committee works out the result, which is true whether the tournament is live
     or finished.
+68. **The public board and the player's Board have the round picker** (decision 10, "yes add the
+    round picker to both"). The Festival of Formats' public link opened on its hand-scored last
+    round and showed no results, with ten scored rounds behind it. Both screens now carry the
+    console leaderboard's picker, "Showing Round 1 · Modified Stableford …", and only where
+    choosing changes the board. Walked at 393px as the anonymous viewer and as Séamus: all eleven
+    rounds listed, picking Round 1 shows its Modified Stableford table on both, and neither
+    scrolls sideways. The public board's one-minute cache now keys on the round too, so two
+    viewers on two rounds never see each other's. A round id that is not this tournament's falls
+    back to the board's own round.
 
 The rest of the public boards were clean at 393px as the anonymous viewer: all five load, none
 scrolls sideways, and no row is cut off. A member's money screen was checked figure by figure
@@ -997,5 +1011,8 @@ named. The deferred-register entry for this class is closed.
     item 49 noted, the dashboard and Reports. Should the picker go on the public board and the
     player's Board too? The public board has its own cache, so it is a real change rather than a
     copy, which is why I have not done it on the strength of an answer about the leaderboard.
+
+    **Decided 2026-09-27 ("yes add the round picker to both") — built, item 68 (#662).** The
+    dashboard and Reports still show the last round only.
 
 ## Log
