@@ -48,6 +48,29 @@ as a golf pro would (a medal handicap to the shot under WHS; the money to the pe
 37–45, PRs #645–#648. Two more decisions noted for you under "Noted, not changed": a one-tap
 entry a member cannot undo, and Events filing dated rounds under "No dates yet".
 
+**The second night (2026-09-26 → 27, "keep testing with multiple roles"):** your three evening
+decisions built first (#650: a member can withdraw until entries close; Events dates an undated
+tournament by its rounds; a round picker on the console leaderboard). Then the app walked as
+every role it has — secretary, member, public viewer, an assistant (the first time that role was
+ever walked) and the organizer who also plays — with the same fact checked from each side.
+Items 46–54, PRs #649–#653, every one confirmed live. What a user would have hit:
+
+- **An assistant was shown five organizer-only buttons that failed every time** — clear scores,
+  a round's course and tees, a flight's tees, the knockout arrangement, the course search — and
+  links into two screens they cannot open dropped them on the dashboard with nothing said. Both
+  fixed: the buttons follow the role, and a refused visit now says why (#651).
+- **One-tap entry let a member in without the mobile** every other way in requires (#652).
+- **A player entered after the tee sheet was drawn** saw no tee time and no reason (#652).
+- **A finished championship listed its missed cut in sign-up order** (+20, +15, +19 …) — now by
+  score, still without a place (#653).
+- Checked and right: a member withdrawing, from the member's side and yours (18 → 19 → 18);
+  the skins pot to the penny on your Prizes against the member's Money; Reports against the
+  public board; the new round picker on a phone.
+
+**Two new decisions for you** (end of the "second night" section): whether the audit log gets a
+screen — it records withdrawals, money and cuts, and nothing shows it — and whether assistants
+should be allowed to set a round's course and tees.
+
 The rest of this file is the night's log in the order it happened.
 
 Method: the seeded club (`scripts/seed-club.mjs` — 11 tournaments spanning every format), walked
@@ -91,6 +114,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #650 | **Your three evening decisions**: a member can withdraw until entries close; Events dates an undated tournament by its rounds; a round picker on the console leaderboard (items 47–49) | live |
 | #651 | Testing as an assistant: a link into a screen you cannot open now says why; five organizer-only buttons no longer offered to assistants (items 50–51) | live |
 | #652 | One-tap entry let a member in without the mobile every other door requires; a player entered after the tee sheet was drawn was told nothing (items 52–53) | live |
+| #653 | A finished championship's missed cut was listed in sign-up order — now by score, still without a place (item 54) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
