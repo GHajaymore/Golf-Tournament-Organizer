@@ -93,17 +93,37 @@ export async function requireOrgScreen(
    * is a narrower test than the role check, not a looser one.
    */
   if (session.eventId && !canAccessScreen(session.viewRole, key)) {
-    redirect(landingScreenFor(session.viewRole));
+    redirect(deniedLanding(session.viewRole, key));
   }
   const organizationId = await primaryOrganizationFor(session);
   if (!organizationId) redirect("/choose");
   return { session, organizationId };
 }
 
+/**
+ * WHERE A REFUSED VISIT GOES — the role's landing screen, SAYING WHY.
+ *
+ * It went there in silence. Walked as an assistant on 2026-09-26, five screens
+ * that role can open link into two it cannot — "change on Tournament details",
+ * "Unlock the tournament", "Correct the course's card", "Club settings" — and
+ * each click landed on the dashboard with nothing said: a link that looks
+ * broken, on the one screen an assistant arrives at to do their job.
+ *
+ * Fixed HERE rather than at each link, because the links are many, spread over
+ * ten components, and a new one will be written next week by somebody who
+ * never read this. The landing screen reads `?denied=` and names the screen
+ * and who holds it (`DeniedNotice`). It carries the screen KEY, never a message:
+ * the notice prints the name of a screen it knows, so a crafted link cannot put
+ * words on the page.
+ */
+export function deniedLanding(role: Session["viewRole"], key: string): string {
+  return `${landingScreenFor(role)}?denied=${encodeURIComponent(key)}`;
+}
+
 /** Guard a screen key against the current view-role. */
 export async function requireScreen(key: string): Promise<Session> {
   const session = await requireEventSession();
-  if (!canAccessScreen(session.viewRole, key)) redirect(landingScreenFor(session.viewRole));
+  if (!canAccessScreen(session.viewRole, key)) redirect(deniedLanding(session.viewRole, key));
   return session;
 }
 
