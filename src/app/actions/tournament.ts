@@ -1334,7 +1334,26 @@ export async function regenGroups(
  */
 export async function generateNextRound(stageId: string) {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  /**
+   * RUNNING THE COMPETITION, NOT SETTING IT UP (Ajay, 2026-09-27: "go with
+   * what a golf pro would decide"). Drawing the next round from the results
+   * is what a committee does DURING an event, so a live tournament no longer
+   * has to be unlocked for it.
+   *
+   * What the lock was also doing, and still must: `generateCutRound` DELETES
+   * the target round's cards or matches before drawing it. So once setup is
+   * locked, the draw is allowed only while that round has nothing on it — a
+   * re-press after the round has started would wipe the scores being played.
+   * Redrawing a round with results in it stays behind an explicit unlock.
+   */
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, configUnlocked: true } });
+  if (event && configurationLocked(event) && (await enteredCardCount(eventId, stageId)) > 0) {
+    return {
+      ok: false as const,
+      error:
+        "That round already has scores, so drawing it again would wipe them. Unlock setup first if that is really what you want.",
+    };
+  }
   const result = await generateCutRound(eventId, stageId);
   /**
    * A refusal has to reach the screen, or it is the same silence as before.
@@ -1415,7 +1434,8 @@ export async function setQualifyPerGroup(n: number) {
 
 export async function setStageDeadline(stageId: string, deadline: string) {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Not behind the lock: moving the day scores are due is a decision made
+  // during an event (rain, a late group) — Ajay, 2026-09-27.
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
   await refresh();
 }
@@ -1912,7 +1932,10 @@ export async function addStage(
   countOrOpts: number | AddStageOptions = 1,
 ): Promise<string | undefined> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Not behind the lock: a live league adds next week's round as it goes, and
+  // a championship adds a play-off round when the field finishes level. Adding
+  // is additive — the rounds already played are untouched (2026-09-27).
+  // Deleting a round (`removeStage`) and changing one's format stay locked.
   const stageType = isStageType(type) ? type : "Round Robin";
   const opts: AddStageOptions =
     typeof countOrOpts === "number" ? { count: countOrOpts } : countOrOpts;
@@ -4209,7 +4232,8 @@ export async function setStageDeadlineOverride(
   override: boolean | null,
 ): Promise<void> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Not behind the lock: closing a round's scoring early or reopening it is
+  // decided on the day, by definition while the event is live (2026-09-27).
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { deadlineOverride: override },
@@ -4947,7 +4971,9 @@ export async function setSingleMatchRule(
  */
 export async function createSingleMatch(stageId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Not behind the lock: the match is made once the rule resolves, which is
+  // during the event. Additive and refuses a second one below (2026-09-27).
+  // Choosing the RULE stays setup — `setSingleMatchRule` keeps its lock.
 
   const view = await singleMatchFor(eventId, stageId);
   if (!view) return { ok: false, error: "That round isn't in this tournament." };
@@ -5083,7 +5109,9 @@ export async function setRoundClosed(
  */
 export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
+  // Not behind the lock: the beaten semi-finalists are only known during the
+  // event. Additive, and refuses a second play-off below (2026-09-27).
+  // WHETHER there is one stays setup — `setThirdPlace` keeps its lock.
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
