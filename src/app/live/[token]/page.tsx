@@ -58,8 +58,10 @@ function PublicManualNotice() {
     >
       <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>This round is scored by hand</p>
       <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--color-neutral-400)" }}>
-        There is no live leaderboard for it — the committee works out the result and posts it when
-        it is settled.
+        {/* No promise about WHEN: this also renders under "Final · these scores
+            no longer change" on a finished tournament, where "posts it when it
+            is settled" was a future tense over a result long since decided. */}
+        There is no leaderboard for it here — the committee works out the result.
       </p>
     </div>
   );

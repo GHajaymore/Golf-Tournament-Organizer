@@ -118,6 +118,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #655 | **Your two "yes" answers**: a Recent changes list on Reports and Registration; assistants set a round's course and tees (items 55–56) | live |
 | #656 | A member's casual round: the organizer wasn't recognised in their own round; a blank handicap silently played off scratch; "the tournament's" tees and "Back —" on a nine (items 57–61) | live |
 | #657 | A live tournament's setup screens offered 35 controls whose action crashed the page — each now follows the lock; "You're in!" leads a member back to their events (items 62–64) | live |
+| #658 | Picking "Stableford" started a round called "Stroke Play" — now a Stableford round, scoring measured identical (item 65) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -769,6 +770,26 @@ under the organizer's name. One real defect, and three things for you.
     round "scored as Stroke Play, so ties break by lowest net". A sweep of every
     remaining reader found no others. Both now recognise Stableford either way.
 
+### The tee sheet and the public boards (2026-09-27)
+
+66. **The tee sheet showed a different draw from the one the players had.** On the live April
+    Medal, the secretary's Tee sheet screen put Séamus in Group 6 at 8:50. He had been published
+    Group 1 at 8:10, and the printed cards on the same page said 8:10. The screen always showed a
+    freshly shuffled draw, even over a published sheet. The only hint was "regenerating here only
+    changes the preview", which reads as a note about a button. It now shows the sheet of record
+    whenever one exists, and says "this is the sheet they have". Pressing "Re-draw this sheet"
+    shows a new draw and says that too. Closing it goes back to the published sheet. The screen
+    and the printed cards now agree.
+67. **A finished tournament's board promised a result "when it is settled".** The Festival of
+    Formats is finished; its last round was scored by hand. Its public board read "the committee
+    works out the result and posts it when it is settled" directly above "Final · these scores no
+    longer change". The player's Board said the same. Both now say only that there is no board for
+    it here and the committee works out the result, which is true whether the tournament is live
+    or finished.
+
+The rest of the public boards were clean at 393px as the anonymous viewer: all five load, none
+scrolls sideways, and no row is cut off.
+
 
 - **A finished championship lists players who missed the cut among those who made it.** The
   seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
@@ -884,5 +905,12 @@ named. The deferred-register entry for this class is closed.
    holds no such round. It is how points are calculated, so I have not touched it. Should
    "gross" on a Stableford round mean points off scratch (the Rules' reading), or should gross
    simply not be offered for Stableford?
+10. **The public board and the player's Board still show only the last round.** Your answer of
+    26 September ("add a round picker") was built on the console leaderboard (item 49). But the
+    finished Festival of Formats' public board, the link a club sends its members, still opens
+    on its hand-scored last round and shows no results at all. So do the player's Board and, as
+    item 49 noted, the dashboard and Reports. Should the picker go on the public board and the
+    player's Board too? The public board has its own cache, so it is a real change rather than a
+    copy, which is why I have not done it on the strength of an answer about the leaderboard.
 
 ## Log

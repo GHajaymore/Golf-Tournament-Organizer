@@ -7,6 +7,7 @@ import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
+import { sheetOnScreen, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { Icon } from "./Icon";
 import {
   DRAW_ORDERS,
@@ -60,7 +61,13 @@ export function FoursomeMaker({
   activeRoundId = "",
   rosterSize = 0,
   sides = [],
+  savedGroups = [],
 }: {
+  /**
+   * The SAVED sheet's groups — what the players were given. Shown whenever a
+   * sheet exists and the organizer is not re-drawing; see `sheetOnScreen`.
+   */
+  savedGroups?: TeeSheetGroup[];
   players: Player[];
   /**
    * The round's SIDES, player ids per side, when it is played in them.
@@ -176,6 +183,16 @@ export function FoursomeMaker({
     () => startSlots(groups, startType, { firstTee, interval, holes }),
     [groups, startType, firstTee, interval, holes],
   );
+
+  /** The draw being made, in the shape a saved sheet has. */
+  const previewSheet: TeeSheetGroup[] = groups.map((g, i) => ({
+    name: `Group ${i + 1}`,
+    startHole: slots[i].startHole,
+    half: slots[i].half,
+    time: slots[i].time,
+    playerIds: g.playerIds,
+  }));
+  const shown = sheetOnScreen(savedGroups, previewSheet, showDrawControls);
 
   // Composition summary, e.g. "7 foursomes · 1 twosome".
   const sizes = groups.map((g) => g.playerIds.length);
@@ -646,26 +663,30 @@ export function FoursomeMaker({
           ) : (
             <>
               <Icon name={saveState.published ? "ph ph-megaphone" : "ph ph-floppy-disk"} />{" "}
-              {saveState.published ? "Published to players" : "Saved as a draft"} — regenerating here only changes
-              the preview until you save again.
+              {shown.source === "saved"
+                ? `${saveState.published ? "Published to players" : "Saved as a draft"} — this is the sheet ${
+                    saveState.published ? "they have" : "you saved"
+                  }. Re-draw it to change it.`
+                : `${saveState.published ? "Published to players" : "Saved as a draft"} — this is a new draw, not the saved sheet, until you save it.`}
             </>
           )}
         </p>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
-        {groups.map((g, i) => {
+        {shown.groups.map((g, i) => {
+          // A player who has left the field since the sheet was saved has no
+          // row to show; the drift banner above says who and what to do.
           const gp = g.playerIds.map((id) => byId.get(id)!).filter(Boolean);
-          const slot = slots[i];
           return (
-            <div key={g.id} className="card elev-sm" style={{ gap: 6 }}>
+            <div key={`${shown.source}-${i}`} className="card elev-sm" style={{ gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Group {i + 1}</span>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{g.name || `Group ${i + 1}`}</span>
                 <span className="text-muted" style={{ fontSize: 11 }}>avg {avg(gp.map((p) => p.handicap))}</span>
               </div>
               <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
                 <Icon name="clock" style={{ marginRight: 4 }} />
-                {`Hole ${slot.startHole}${slot.half ?? ""} · ${slot.time}`}
+                {`Hole ${g.startHole}${g.half ?? ""} · ${g.time}`}
               </div>
               {gp.map((p) => {
                 const pos = positionOf(p.id);
