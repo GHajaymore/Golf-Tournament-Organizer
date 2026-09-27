@@ -1,5 +1,5 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
@@ -104,7 +104,7 @@ export default async function BracketPage() {
 
   return (
     <>
-      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} />
+      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={isSetupLocked(state.event)} />
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}

@@ -33,13 +33,19 @@ const FIELDS: Array<{ key: keyof Values; label: string; hint: string; step: numb
 export function ScoringClient({
   initial,
   tiebreakers,
+  locked = false,
 }: {
   initial: Values;
   tiebreakers: TiebreakerKey[];
+  /** Setup is locked, which `saveScoring` and `saveTiebreakers` refuse by throwing. */
+  locked?: boolean;
 }) {
   const [values, setValues] = useState<Values>(initial);
   const [order, setOrder] = useState<TiebreakerKey[]>(tiebreakers);
-  const [pending, startTransition] = useTransition();
+  const [saving, startTransition] = useTransition();
+  // The tiebreaker controls are disabled on this, so the lock rides along;
+  // the "saving…" note reads `saving`, which is what it means.
+  const pending = saving || locked;
 
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -104,7 +110,7 @@ export function ScoringClient({
   return (
     <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 14 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Points {pending && <span className="text-muted" style={{ fontSize: 12 }}>· saving…</span>}</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Points {saving && <span className="text-muted" style={{ fontSize: 12 }}>· saving…</span>}</span>
         {FIELDS.map((f) => (
           <div key={f.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div>
@@ -118,6 +124,7 @@ export function ScoringClient({
               style={{ width: 90, textAlign: "right" }}
               aria-label={`${f.label} — ${f.hint}`}
               value={values[f.key]}
+              disabled={locked}
               onChange={(e) => onChange(f.key, e.target.value)}
             />
           </div>

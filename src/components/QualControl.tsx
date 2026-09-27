@@ -6,15 +6,20 @@ export function QualControl({
   mode,
   perFlight,
   overall,
+  locked = false,
 }: {
   mode: string;
   perFlight: number;
   overall: number;
+  /** Setup is locked, which both actions refuse by throwing. */
+  locked?: boolean;
 }) {
   const [m, setM] = useState(mode === "overall" ? "overall" : "perFlight");
   const [pf, setPf] = useState(perFlight);
   const [ov, setOv] = useState(overall);
-  const [pending, startTransition] = useTransition();
+  const [saving, startTransition] = useTransition();
+  // Every control below is disabled on this, so the lock rides along with it.
+  const pending = saving || locked;
 
   const switchMode = (next: "perFlight" | "overall") => {
     setM(next);

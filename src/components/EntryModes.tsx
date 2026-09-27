@@ -104,6 +104,7 @@ export function EntryModes({
   venueIsHome = false,
   absentByStage = {},
   casual = false,
+  setupLocked = false,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -167,6 +168,8 @@ export function EntryModes({
   /** Whether this tournament is played on the club's own course. Decides
    *  whether the club's mark heads the card or the course does. */
   venueIsHome?: boolean;
+  /** Setup is locked — clearing a round's scores is refused until it is unlocked. */
+  setupLocked?: boolean;
 }) {
   const [importing, setImporting] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -368,6 +371,7 @@ export function EntryModes({
             roundLabel={round.label}
             players={players.map((p) => ({ id: p.id, name: p.name }))}
             onClose={() => setClearing(false)}
+            locked={setupLocked}
           />
         </div>
       )}

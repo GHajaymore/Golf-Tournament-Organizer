@@ -14,11 +14,18 @@ export function BracketModePicker({
   mode,
   secondLabel,
   readOnly,
+  locked = false,
 }: {
   mode: BracketMode;
   /** What the second bracket is currently called, or "" when there isn't one. */
   secondLabel: string;
   readOnly: boolean;
+  /**
+   * Setup is locked, which `setBracketMode` refuses — by THROWING, so a Change
+   * button offered here took the page down to "Application error" on every
+   * live knockout (walked 2026-09-27), under a sentence saying it was blocked.
+   */
+  locked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +48,7 @@ export function BracketModePicker({
         <span className="card-kicker">Arrangement</span>
         <span style={{ fontSize: 14, fontWeight: 500 }}>{current.label}</span>
         {secondLabel && <span className="tag tag-neutral">+ {secondLabel}</span>}
-        {!readOnly && (
+        {!readOnly && !locked && (
           <button
             type="button"
             className="btn btn-secondary"
@@ -53,10 +60,16 @@ export function BracketModePicker({
         )}
       </div>
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{current.blurb}</p>
+      {!readOnly && locked && (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
+          <a href="/event">Tournament details</a> to change it.
+        </p>
+      )}
 
       {error && <p className="form-error">{error}</p>}
 
-      {open && !readOnly && (
+      {open && !readOnly && !locked && (
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", marginTop: 4 }}>
           {BRACKET_MODES.map((m) => {
             const active = m.key === mode;
@@ -90,11 +103,6 @@ export function BracketModePicker({
         </div>
       )}
 
-      {open && !readOnly && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          Changing this redraws who plays whom, so it&apos;s blocked once the tournament is locked.
-        </p>
-      )}
     </div>
   );
 }

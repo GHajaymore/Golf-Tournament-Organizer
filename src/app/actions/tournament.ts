@@ -117,6 +117,7 @@ import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor } from "@/lib/services/action-shared";
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { isSupportedLocale } from "@/lib/domain/locale";
@@ -393,12 +394,25 @@ export interface SignupResult {
 
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   const clean = input.name.trim();
   if (!clean) return { ok: false, error: "Enter a player name." };
   const cleanEmail = (input.email ?? "").trim().toLowerCase();
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { ok: false, error: "Event not found." };
+  /**
+   * LOCKED IS A REFUSAL IN A SENTENCE, not a throw — the same answer, in the
+   * same words, as `addMembersToEvent` beside it on the same screen.
+   *
+   * This was `assertUnlocked`, which throws on the premise that "a screen that
+   * already hides the control" is the only way here. The Add form was the one
+   * control on Registration NOT gated on the lock, so on a live medal the
+   * organizer filled it in, pressed Add, and got the whole-page "Application
+   * error" (walked 2026-09-27). The form is gated now too; this is for any
+   * client still out of step, who is a person and should be told something.
+   */
+  if (configurationLocked(event)) {
+    return { ok: false, error: "Configuration is locked. Unlock the tournament to change the field." };
+  }
   /**
    * Asked of the tournament, not demanded of everybody — see `entryNeedsEmail`.
    *
@@ -703,9 +717,18 @@ export interface CsvImportResult {
 
 export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
+  // A sentence, not a throw — the same reasoning and words as `addSignup`:
+  // the import sat beside the Add form, ungated, on a locked tournament.
+  if (configurationLocked(event)) {
+    return {
+      imported: 0,
+      skippedDuplicates: 0,
+      skippedInvalid: 0,
+      error: "Configuration is locked. Unlock the tournament to change the field.",
+    };
+  }
 
   /**
    * Parsed with the shared reader, the same one the roster import uses.

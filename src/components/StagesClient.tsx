@@ -187,6 +187,22 @@ const BASIS_OPTIONS: Array<{ key: string; label: string; legacy?: true }> = [
 /** The ones an organizer may choose today. See `BASIS_OPTIONS`. */
 const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
 
+/**
+ * SETUP IS LOCKED — provided once by `StagesClient`, read by each card.
+ *
+ * The actions behind most controls on this screen refuse a locked tournament
+ * by THROWING (`assertUnlocked`), which takes the page down to "Application
+ * error". The page computed the lock and only showed a banner with it, so on a
+ * live tournament every one of them was offered and every one crashed (swept
+ * 2026-09-27: 24 controls). A context rather than a prop threaded through
+ * three layers of cards.
+ *
+ * NOT everything here is behind the lock, and those stay open: a round's date,
+ * its course and tees, "round finished", and the round's handicaps. Gate a new
+ * control on this only when its action calls `assertUnlocked`.
+ */
+const SetupLocked = React.createContext(false);
+
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
@@ -296,6 +312,8 @@ function NextRoundTransition({
   const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
   const [pending, startTransition] = useTransition();
   const [genPending, startGenTransition] = useTransition();
+  // Every control in this section is behind the lock — see `SetupLocked`.
+  const locked = React.useContext(SetupLocked);
   /**
    * Why the round would not build. Null until the server refuses.
    *
@@ -348,7 +366,7 @@ function NextRoundTransition({
           <button
             type="button"
             className="btn"
-            disabled={pending}
+            disabled={pending || locked}
             onClick={() =>
               startTransition(async () => {
                 await addStage("Round Robin");
@@ -406,7 +424,7 @@ function NextRoundTransition({
             <button
               type="button"
               className="btn btn-primary"
-              disabled={pending}
+              disabled={pending || locked}
               onClick={() => commitCarry(true, carryPct > 0 ? carryPct : 100)}
             >
               Yes, carry them forward
@@ -414,7 +432,7 @@ function NextRoundTransition({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={pending}
+              disabled={pending || locked}
               onClick={() => commitCarry(false, 0)}
             >
               No, each round starts fresh
@@ -444,6 +462,7 @@ function NextRoundTransition({
           <input
             type="checkbox"
             checked={carryEnabled}
+            disabled={pending || locked}
             onChange={(e) => commitCarry(e.target.checked, e.target.checked && carryPct === 0 ? 100 : carryPct)}
           />
           Carry forward points into {roundLabel}
@@ -466,7 +485,7 @@ function NextRoundTransition({
           max={100}
           step={5}
           value={carryPct}
-          disabled={!carryEnabled}
+          disabled={!carryEnabled || locked}
           onChange={(e) => commitCarry(carryEnabled, parseInt(e.target.value, 10))}
           style={{ flex: 1, minWidth: 120 }}
           aria-label={`Share of points carried into ${roundLabel}`}
@@ -501,6 +520,7 @@ function NextRoundTransition({
             scope={nextStage?.cutScope ?? "overall"}
             confirmedCount={confirmedCount}
             flightCount={flightCount}
+            locked={locked}
           />
         )}
         {!nextIsSeeded && (
@@ -508,7 +528,7 @@ function NextRoundTransition({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={genPending}
+            disabled={genPending || locked}
             onClick={() =>
               startGenTransition(async () => {
                 setGenError(null);
@@ -639,6 +659,9 @@ function StageCard({
   /** False for a single-round tournament, which has no next round. */
   chainsRounds: boolean;
 }) {
+  // Gates only the controls whose action refuses a locked tournament — see
+  // `SetupLocked` for the ones that deliberately stay open.
+  const locked = React.useContext(SetupLocked);
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [scoreInput, setScoreInput] = useState(stage.scoreInput);
@@ -664,7 +687,7 @@ function StageCard({
         format: stage.format,
         scoringBasis: stage.scoringBasis,
         answered: nextStage?.carryAsked ?? false,
-        locked: false,
+        locked,
       }).ask,
   );
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
@@ -843,7 +866,7 @@ function StageCard({
     format,
     scoringBasis: basis,
     answered: nextStage?.carryAsked ?? false,
-    locked: false,
+    locked,
   });
 
   // Round Robin description is derived (no hard-coded round count).
@@ -1086,7 +1109,7 @@ function StageCard({
             className="input"
             aria-label={`Format for ${roundLabelOf(allStages, stage.id) || "this round"}`}
             value={format}
-            disabled={pending}
+            disabled={pending || locked}
             onChange={(e) => commitFormat(e.target.value)}
           >
             <optgroup label="Played on your own">
@@ -1221,7 +1244,7 @@ function StageCard({
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  disabled={pending}
+                  disabled={pending || locked}
                   onClick={() => {
                     setRemoveCost(null);
                     startTransition(() => void removeStage(stage.id, true));
@@ -1246,10 +1269,10 @@ function StageCard({
           <label>Holes</label>
           <div className="seg" style={{ width: "100%" }}>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending} onChange={() => commitHoles(18)} />18
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending || locked} onChange={() => commitHoles(18)} />18
             </label>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending} onChange={() => commitHoles(9)} />9
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending || locked} onChange={() => commitHoles(9)} />9
             </label>
           </div>
         </div>
@@ -1346,7 +1369,7 @@ function StageCard({
           type="button"
           className="btn btn-icon"
           title="Remove stage"
-          disabled={pending}
+          disabled={pending || locked}
           onClick={() =>
             startTransition(async () => {
               // The server refuses when the round holds results or money, and
@@ -1397,7 +1420,7 @@ function StageCard({
             </FieldInfo>
           </SectionLabel>
           <div style={{ marginTop: 6 }}>
-            <RoundTeamScoring stageId={stage.id} info={stage.teamScoring} />
+            <RoundTeamScoring stageId={stage.id} info={stage.teamScoring} locked={locked} />
           </div>
         </div>
       )}
@@ -1445,7 +1468,7 @@ function StageCard({
               stale={singleMatch.stale}
               rounds={singleMatch.rounds}
               players={singleMatch.players}
-              locked={false}
+              locked={locked}
             />
           </div>
         )}
@@ -1487,6 +1510,7 @@ function StageCard({
               aName={thirdPlace.aName}
               bName={thirdPlace.bName}
               made={thirdPlace.made}
+              locked={locked}
             />
           </div>
         )}
@@ -1519,7 +1543,7 @@ function StageCard({
             <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
               How many players come through into this bracket — top N per flight, or top N overall.
             </p>
-            <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
+            <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} locked={locked} />
           </div>
           )
         )}
@@ -1581,7 +1605,7 @@ function StageCard({
                     summary line above still names it — see `BASIS_OPTIONS`. */}
                 {BASIS_CHOICES.map((o) => (
                   <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                    <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending} onChange={() => commitBasis(o.key)} />
+                    <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending || locked} onChange={() => commitBasis(o.key)} />
                     {o.label}
                   </label>
                 ))}
@@ -1627,7 +1651,7 @@ function StageCard({
                           // natural option is the one lit when nobody has
                           // chosen — the round is not silently overridden.
                           checked={scoreInput === key || (scoreInput === "" && natural)}
-                          disabled={pending}
+                          disabled={pending || locked}
                           // Choosing the natural input CLEARS the override
                           // rather than storing it. A round that says nothing
                           // follows its format when the format's mind changes.
@@ -1680,7 +1704,7 @@ function StageCard({
                   className="input"
                   type="date"
                   value={isIsoDate(deadline) ? deadline : ""}
-                  disabled={pending}
+                  disabled={pending || locked}
                   onChange={(e) => {
                     setDeadline(e.target.value);
                     startTransition(() => setStageDeadline(stage.id, e.target.value));
@@ -1707,7 +1731,7 @@ function StageCard({
                   roundLabel={roundLabelOf(allStages, stage.id)}
                   deadline={deadline}
                   override={stage.deadlineOverride}
-                  locked={pending}
+                  locked={pending || locked}
                 />
               </div>
             </SettingsGroup>
@@ -1814,7 +1838,7 @@ function StageCard({
                       Who takes the point when a match ends level. Tried in order; a halved match stays
                       halved if none of them separates the two.
                     </p>
-                    <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending} />
+                    <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending || locked} />
                   </div>
                 )}
 
@@ -1855,7 +1879,7 @@ function StageCard({
                             basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"
                           }, then by the steps below.`}
                   </p>
-                  <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
+                  <ScoringClient initial={scoring} tiebreakers={tiebreakers} locked={locked} />
                 </div>
               </div>
             )}
@@ -1886,10 +1910,13 @@ export function StagesClient({
   singleMatches,
   thirdPlaces,
   canSetVenue = true,
+  locked = false,
 }: {
   stages: StageView[];
   /** Organizer only — see `StageCard`'s prop of the same name. */
   canSetVenue?: boolean;
+  /** Setup is locked — provided to every card through `SetupLocked`. */
+  locked?: boolean;
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
@@ -2012,6 +2039,7 @@ export function StagesClient({
   );
 
   return (
+    <SetupLocked.Provider value={locked}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Net scoring without a Course Rating and Slope is an approximation,
           and an organizer should know that before the results are published
@@ -2340,7 +2368,7 @@ export function StagesClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || !newType || !bulkFormat}
+            disabled={pending || locked || !newType || !bulkFormat}
             onClick={() =>
               newType &&
               bulkFormat &&
@@ -2385,7 +2413,9 @@ export function StagesClient({
               "Draws a full set of pairings" on an untouched screen, which
               described the defaulted Round Robin rather than anything the
               organizer had asked for. */}
-          {!newType
+          {locked
+            ? "Setup is locked, so no round can be added. Unlock setup at the top of this page first."
+            : !newType
             ? "Pick one above — the type decides what gets drawn."
             : !bulkFormat
               ? `${addRoundConsequence(newType)} Now choose the format it is scored by.`
@@ -2428,5 +2458,6 @@ export function StagesClient({
       </div>
       )}
     </div>
+    </SetupLocked.Provider>
   );
 }

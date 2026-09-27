@@ -81,7 +81,16 @@ export function TeamsClient({
   unassigned,
   matchCount,
   league = false,
+  locked = false,
 }: {
+  /**
+   * Setup is locked. Every action here that changes a side refuses a locked
+   * tournament by THROWING (`assertUnlocked(…, "change teams")`), so each of
+   * these buttons took the page down to "Application error" on a live event
+   * (swept 2026-09-27). `busy` below gates them on it; renaming a side is not
+   * behind the lock and stays open.
+   */
+  locked?: boolean;
   rounds: RoundRow[];
   activeRoundId: string;
   format: FormatInfo;
@@ -99,6 +108,8 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
+  /** Anything that changes a side: waiting on a save, or setup locked. */
+  const busy = pending || locked;
   const [newName, setNewName] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
   const [confirmMatches, setConfirmMatches] = useState(false);
@@ -237,7 +248,7 @@ export function TeamsClient({
             This round already has teams. Drawing again discards them and starts over.
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => draw(true)}>
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => draw(true)}>
               Replace and redraw
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setConfirmDraw(false)}>
@@ -258,7 +269,7 @@ export function TeamsClient({
             onChange={(e) => setNewName(e.target.value)}
             placeholder="e.g. The Slicers"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && newName.trim()) {
+              if (e.key === "Enter" && newName.trim() && !busy) {
                 run(() => createTeam(newName, activeRoundId));
                 setNewName("");
               }
@@ -268,7 +279,7 @@ export function TeamsClient({
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={pending || !newName.trim()}
+          disabled={busy || !newName.trim()}
           onClick={() => {
             run(() => createTeam(newName, activeRoundId));
             setNewName("");
@@ -276,13 +287,13 @@ export function TeamsClient({
         >
           <Icon name="plus" /> Add team
         </button>
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={() => draw(false)}>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => draw(false)}>
           <Icon name="shuffle" /> Draw sides automatically
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={pending || !!sideBlock}
+          disabled={busy || !!sideBlock}
           onClick={() => makeMatches(false)}
         >
           <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
@@ -323,7 +334,7 @@ export function TeamsClient({
             discards them and pairs the sides again.
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => makeMatches(true)}>
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => makeMatches(true)}>
               Replace them
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setConfirmMatches(false)}>
@@ -392,7 +403,7 @@ export function TeamsClient({
                 <ConfirmButton
                   title="Remove team"
                   confirmLabel="Remove the team"
-                  disabled={pending}
+                  disabled={busy}
                   onConfirm={() => run(() => deleteTeam(t.id))}
                 />
               </div>
@@ -412,7 +423,7 @@ export function TeamsClient({
                           type="button"
                           className="btn btn-icon"
                           title={`Remove ${m.name}`}
-                          disabled={pending}
+                          disabled={busy}
                           onClick={() => removeMember(t.id, m.playerId, m.name, false)}
                         >
                           <Icon name="x" />
@@ -465,7 +476,7 @@ export function TeamsClient({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    disabled={pending || !!addBlock}
+                    disabled={busy || !!addBlock}
                     onClick={() => setAddingTo(t.id)}
                   >
                     <Icon name="user-plus" /> Add player

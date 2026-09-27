@@ -30,6 +30,43 @@ interface Props {
   requirePhone?: boolean;
   /** How this tournament writes a date; omitted falls back to the default. */
   locale?: string;
+  /**
+   * The visitor is signed in — a member sent here from their own Events screen
+   * to give the one detail one-tap entry was missing. Their confirmation then
+   * leads back into the app: this page has no navigation, and inside the
+   * installed app there is no browser back button, so "You're in!" was a room
+   * with no door (walked 2026-09-27).
+   */
+  signedIn?: boolean;
+}
+
+/**
+ * What the confirmation says, and whether it leads back into the app.
+ *
+ * A signed-in member is not told to "use this email to sign in" — they are
+ * signed in — and is given the way back to their Events screen, which is where
+ * they came from (see `signedIn`).
+ */
+export function entryReceipt(
+  done: Pick<RegisterResult, "already" | "status">,
+  eventName: string,
+  signedIn: boolean,
+): { heading: string; detail: string; good: boolean; backToApp: boolean } {
+  const heading = done.already
+    ? "You're already registered"
+    : done.status === "confirmed"
+      ? "You're in!"
+      : done.status === "waitlisted"
+        ? "You're on the waitlist"
+        : "Entry received";
+  const detail = done.already
+    ? `We already have you in the field for ${eventName}.`
+    : done.status === "confirmed"
+      ? `You're confirmed in the field for ${eventName}.${signedIn ? "" : " Use this email to sign in."}`
+      : done.status === "waitlisted"
+        ? "The field is full, so you're on the waitlist. We'll be in touch if a place opens up."
+        : "Your entry is with the organizer for approval. You'll hear once it's confirmed.";
+  return { heading, detail, good: !!done.already || done.status === "confirmed", backToApp: signedIn };
 }
 
 export function RegisterClient({
@@ -43,6 +80,7 @@ export function RegisterClient({
   prefill,
   requirePhone = false,
   locale,
+  signedIn = false,
 }: Props) {
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
@@ -94,21 +132,7 @@ export function RegisterClient({
 
   // Confirmation — this IS the receipt (email is best-effort and deferred).
   if (done) {
-    const heading = done.already
-      ? "You're already registered"
-      : done.status === "confirmed"
-        ? "You're in!"
-        : done.status === "waitlisted"
-          ? "You're on the waitlist"
-          : "Entry received";
-    const detail = done.already
-      ? `We already have you in the field for ${eventName}.`
-      : done.status === "confirmed"
-        ? `You're confirmed in the field for ${eventName}. Use this email to sign in.`
-        : done.status === "waitlisted"
-          ? "The field is full, so you're on the waitlist. We'll be in touch if a place opens up."
-          : "Your entry is with the organizer for approval. You'll hear once it's confirmed.";
-    const good = done.already || done.status === "confirmed";
+    const { heading, detail, good, backToApp } = entryReceipt(done, eventName, signedIn);
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
         <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
@@ -116,6 +140,11 @@ export function RegisterClient({
         />
         <h2 style={{ fontSize: 20, margin: 0, fontFamily: "var(--font-heading)" }}>{heading}</h2>
         <p className="text-muted" style={{ fontSize: 13.5, margin: 0, maxWidth: 340 }}>{detail}</p>
+        {backToApp && (
+          <a href="/me/events" className="btn btn-primary" style={{ marginTop: 6, minHeight: 44 }}>
+            Back to your events
+          </a>
+        )}
       </div>
     );
   }

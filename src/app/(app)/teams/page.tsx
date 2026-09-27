@@ -1,5 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { screenName } from "@/lib/nav";
 import { LeagueSection } from "@/components/LeagueSection";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
@@ -65,13 +66,21 @@ export default async function TeamsPage({
   // "next" footer as every other step, rather than being the one screen in the
   // guide that does not say where it sits.
   const flow = await setupFlowFor(session.eventId);
+  // The lock every other setup screen reads; the actions here refuse it.
+  const lockState = await prisma.event.findUnique({
+    where: { id: session.eventId },
+    select: { status: true, configUnlocked: true },
+  });
+  const locked = !!lockState && isSetupLocked(lockState);
 
   return (
     <>
       <SetupFlowRail flow={flow} href="/teams" />
       <p className="kicker">Set up</p>
       <h1 className="page-title">Teams &amp; pairs</h1>
+      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       <TeamsClient
+        locked={locked}
         rounds={teamStages.map((s) => ({
           id: s.id,
           // `stages`, not `teamStages` — the number is where a round sits in the

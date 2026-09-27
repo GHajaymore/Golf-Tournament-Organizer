@@ -691,8 +691,16 @@ export function RegistrationClient({
                   hand. Adding somebody yourself is the part that is unaffected,
                   and that is worth saying; telling an organizer the switch is
                   cosmetic is how they close it and wonder why nobody signed up. */}
-              <strong>You can still add players below</strong> — while it is closed the sign-up link
-              turns everyone else away.
+              {/* Not while setup is locked: then adding by hand is refused too,
+                  and the banner at the top says how to unlock it. */}
+              {locked ? (
+                <>While it is closed the sign-up link turns everyone away.</>
+              ) : (
+                <>
+                  <strong>You can still add players below</strong> — while it is closed the sign-up
+                  link turns everyone else away.
+                </>
+              )}
             </>
           )}
         </span>
@@ -1069,7 +1077,18 @@ export function RegistrationClient({
             </div>
           </div>
           <div className="field"><label htmlFor={`${fid}-club`}>Home club</label><input id={`${fid}-club`} className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
+          {/* Gated on the lock like every other control here and like the
+              roster picker above — `addSignup` refuses a locked tournament, and
+              this was the one button on the screen that still offered it. */}
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || locked || !name.trim() || (needsEmail && !email.trim()) || (phoneRequired && !phone.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
+          {/* Said HERE, where the dead button is — the lock banner is a
+              screen and a half above a form somebody has just filled in. */}
+          {locked && (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              Setup is locked, so nobody can be added.{" "}
+              {isAdmin ? "Unlock setup at the top of this page first." : "Ask the Organizer to unlock setup."}
+            </p>
+          )}
           {addError && (
             <p className="form-error">
               <Icon name="warning-circle" /> {addError}
@@ -1081,9 +1100,15 @@ export function RegistrationClient({
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
-            <label className="btn btn-secondary btn-block" style={{ cursor: "pointer", justifyContent: "center" }}>
+            {/* Gated on the lock as the Add button above is: `importCsvSignups`
+                refuses a locked tournament too. */}
+            <label
+              className="btn btn-secondary btn-block"
+              aria-disabled={locked || undefined}
+              style={{ cursor: locked ? "not-allowed" : "pointer", justifyContent: "center", opacity: locked ? 0.5 : undefined }}
+            >
               <Icon name="upload-simple" /> Import CSV
-              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending || locked} style={{ display: "none" }} />
             </label>
             {/* Says what this tournament actually requires, rather than what
                 every tournament used to. Built as a list rather than a third
