@@ -2957,9 +2957,20 @@ describe("saying where a tournament is played, from score entry", () => {
   };
 
   it("offers a course on a match-play round that has none", async () => {
-    const html = await entry();
+    // The ORGANIZER, since setting a round's venue is theirs (`setStageCourse`
+    // is organizer-only; 2026-09-26).
+    const html = await entry({}, { isAdmin: true });
     expect(html).toContain("No course set for this round");
     expect(html).toContain('role="combobox"');
+  });
+
+  it("tells an assistant the course is missing, without a picker that would refuse them", async () => {
+    // An assistant entering cards needs the warning at least as much — and a
+    // venue picker they could not use was a control that failed every time.
+    const html = await entry({}, { isAdmin: false });
+    expect(html).toContain("No course set for this round");
+    expect(html).toContain("The organizer sets the course");
+    expect(html).not.toContain('role="combobox"');
   });
 
   /**

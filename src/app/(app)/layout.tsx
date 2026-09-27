@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
+import { DeniedNotice } from "@/components/DeniedNotice";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -238,6 +240,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           />
         )}
         <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "26px 30px", maxWidth: 1220 }}>
+          {/* A refused visit says why — see `deniedLanding`. Suspense because it
+              reads the search params, which a layout cannot. */}
+          <Suspense fallback={null}>
+            <DeniedNotice />
+          </Suspense>
           {children}
         </main>
       </div>

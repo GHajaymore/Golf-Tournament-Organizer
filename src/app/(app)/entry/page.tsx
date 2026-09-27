@@ -111,6 +111,7 @@ export default async function EntryPage() {
         eventCourse={state.event.course}
         eventCity={state.event.city}
         isStaff={isStaff}
+        isAdmin={session.viewRole === "admin"}
         saved={saved.map((c) => ({
           id: c.id,
           name: c.name,

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { DeniedNotice } from "@/components/DeniedNotice";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { playerAppShut } from "@/lib/domain/lifecycle-state";
@@ -250,7 +252,14 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             </p>
           </div>
         ) : (
-          children
+          <>
+            {/* A console screen a member followed a link to says why it did not
+                open — see `deniedLanding`. */}
+            <Suspense fallback={null}>
+              <DeniedNotice />
+            </Suspense>
+            {children}
+          </>
         )}
       </main>
 

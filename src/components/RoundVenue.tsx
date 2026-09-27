@@ -36,6 +36,7 @@ export function RoundVenue({
   teeId = "",
   inheritedTeeName,
   canEdit,
+  informed = false,
 }: {
   stageId: string;
   /** The venue set on the round itself. "" means it inherits. */
@@ -63,7 +64,13 @@ export function RoundVenue({
   inheritedTeeName?: string;
   /** The venue this round resolves to, and whether it has a card. */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
+  /** May choose the course and tees — the organizer, as `setStageCourse` is. */
   canEdit: boolean;
+  /**
+   * Is told when the course or its card is missing, even without `canEdit` —
+   * staff, who enter the cards that need it. A player is not.
+   */
+  informed?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -132,10 +139,38 @@ export function RoundVenue({
    * it was sitting directly underneath.
    */
   const setsToChooseFrom = (library.find((c) => c.id === venue?.courseId)?.tees ?? []).length > 1;
-  if (
-    !canEdit ||
-    (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue && !setsToChooseFrom)
-  ) {
+
+  /**
+   * SOMEBODY WHO CANNOT CHANGE IT IS STILL TOLD WHAT IS WRONG.
+   *
+   * Choosing the venue is organizer-only (`setStageCourse`), so `canEdit` is
+   * the organizer since 2026-09-26 — offered to an assistant, every pick was
+   * refused. But returning nothing then hid the WARNING from them too, and an
+   * assistant entering cards on a round with no course is exactly who needs to
+   * know net scores have nothing to measure against. So they get the warning
+   * and who fixes it, without the controls.
+   */
+  if (!canEdit) {
+    // STAFF only. A player entering their own card does not set the venue for
+    // the field and is not the person to chase it — the render test "shows
+    // none of it to someone who cannot edit the tournament" pins that.
+    if (!informed || (!noVenue && !missingCard)) return null;
+    return (
+      <div className="card elev-sm" style={{ marginBottom: 16, gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
+        <span className="card-title" style={{ fontSize: 14 }}>
+          <Icon name="warning-circle" />{" "}
+          {noVenue ? "No course set for this round" : `${venue!.name} has no card yet`}
+        </span>
+        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          Par and stroke index have nothing to come from, so net scores, Stableford points and every
+          &ldquo;±&rdquo; on the board have nothing to measure against. The organizer sets the course
+          for a round — ask them to before the cards go in.
+        </p>
+      </div>
+    );
+  }
+
+  if (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue && !setsToChooseFrom) {
     return null;
   }
 

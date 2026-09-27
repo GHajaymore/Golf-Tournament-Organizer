@@ -108,6 +108,8 @@ export default async function GroupingPage() {
           cards={cards}
           locked={locked}
           canEdit={session.viewRole !== "player"}
+          // Organizer only, as `setFlightTee` is — see `canSetTees`.
+          canSetTees={session.viewRole === "admin"}
           confirmed={state.event.flightsConfirmed}
           // Captains are named whenever attendance is tracked per round —
           // including under `captains` mode, where knowing who to chase for a

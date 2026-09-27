@@ -335,7 +335,10 @@ export function EntryModes({
                 <Icon name="upload-simple" /> {importing ? "Close import" : "Import scores"}
               </button>
             )}
-            {isStaff && !casual && !clearing && !bracket && (
+            {/* ORGANIZER ONLY, as `clearRoundScores` is — it deletes results.
+                Gated on staff, it was a button an assistant pressed to a
+                refusal. */}
+            {isAdmin && !casual && !clearing && !bracket && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -357,7 +360,7 @@ export function EntryModes({
         </div>
       )}
 
-      {clearing && isStaff && (
+      {clearing && isAdmin && (
         <div style={{ marginBottom: 16 }}>
           <ClearScores
             key={round.stageId}
@@ -416,7 +419,10 @@ export function EntryModes({
           venue={round.venue}
           teeId={round.teeId}
           inheritedTeeName={round.inheritedTeeName}
-          canEdit={isStaff}
+          // Organizer only, as `setStageCourse` is: choosing the course and
+          // tees a round is played from reshapes every card in it.
+          canEdit={isAdmin}
+          informed={isStaff}
         />
       )}
 
