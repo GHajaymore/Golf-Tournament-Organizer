@@ -37,20 +37,18 @@ describe("every starting point is named for the golf it starts", () => {
      * "— round robin", "— alternate shot" — and is free text by design,
      * because the Rules do not name a round robin.
      *
-     * THE SCORING BASIS COUNTS TOO, and Stableford is why. Under Rule 21.1 it
-     * is a form of play in its own right, and "Stableford" is what a club
-     * calls that competition — but this app models it as a stroke-play round
-     * with `scoringBasis: "stableford"`, and `Stableford` is deliberately NOT
-     * playable as a format (see `template-shapes.test.ts`). So the golf the
-     * name has to match is the format OR the basis: matching only the format
-     * would force the entry to be called "Stroke Play", which is the right
-     * word for the wrong competition.
+     * THE FORMAT ONLY, since 2026-09-27. This used to accept the scoring
+     * basis too, because Stableford was modelled as a stroke-play round with a
+     * "stableford" basis — so an entry called "Stableford" could start a round
+     * whose screen said "Stroke Play" and still pass. Stableford (Rule 21.1)
+     * is a playable format now and the template plays it, so the name has to
+     * match the format, which is what the player sees on the round.
      */
     for (const t of TOURNAMENT_TEMPLATES) {
       if (t.blank) continue;
       const round = t.rounds[0];
       expect(round, `${t.key} starts no round`).toBeTruthy();
-      const golf = [round.format, round.scoringBasis].filter(Boolean).map((w) => String(w).toLowerCase());
+      const golf = [round.format.toLowerCase()];
       const head = t.name.split("—")[0].trim().toLowerCase();
       expect(
         golf.some((g) => head.includes(g)),

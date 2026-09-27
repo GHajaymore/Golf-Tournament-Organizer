@@ -108,6 +108,25 @@ export function isStablefordRound(
   return weekBasis(scoringBasis, format) === "stableford";
 }
 
+/**
+ * How level players are separated on an individual round, in one sentence —
+ * the Rounds & formats line above the tiebreaker steps.
+ *
+ * Through `isStablefordRound`, never the raw basis: a Stableford FORMAT is
+ * stored with basis "net" (the Stableford template has started one since
+ * 2026-09-27), and that screen read `basis === "stableford"` — a local copy of
+ * the raw field, which is why the guard above could not see it — and would
+ * have told the new round "scored as Stroke Play, so ties break by lowest net".
+ */
+export function individualTieBreak(
+  scoringBasis: string | null | undefined,
+  format: string | null | undefined,
+): string {
+  return isStablefordRound(scoringBasis, format)
+    ? "This round is scored on Stableford points, so ties break by highest points, then by the steps below."
+    : "This round is scored as Stroke Play, so ties break by lowest net, then lowest gross, then by the steps below.";
+}
+
 /** What the sheet calls it, in the words a league would use. */
 export const WEEK_BASIS_LABEL: Record<WeekBasis, string> = {
   stableford: "Stableford points",

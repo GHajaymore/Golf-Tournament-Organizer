@@ -279,15 +279,24 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       // A charity day is mixed by design - that is the point of it.
       teePolicy: "own",
     },
-    // Individual Stableford, not a scramble. Two things to note:
-    //
-    // Stableford is a scoring *basis* here, not a format — the engine keys off
-    // scoringBasis while the format stays Stroke Play. Setting it as a format
-    // would produce a round the format picker doesn't even offer.
-    //
-    // And not a scramble because team formats are named in formats.ts with no
-    // team model behind them; a template choosing one would be a promise that
-    // breaks on the first tee. The scramble variant belongs with the team work.
+    /**
+     * STABLEFORD IS THE FORMAT, and net is how the strokes are given.
+     *
+     * This was `format: "Stroke Play", scoringBasis: "stableford"`, under a
+     * note saying Stableford as a format "would produce a round the format
+     * picker doesn't even offer". That stopped being true when Stableford
+     * became playable, and the decision of 2026-09-20 settled the model:
+     * the FORMAT gives the unit, the BASIS gives the allocation. The old pair
+     * is the legacy spelling the Rounds screen deliberately no longer offers —
+     * so every newcomer who picked "Stableford" got a round whose screen said
+     * "Stroke Play", with none of its scoring options ticked (walked
+     * 2026-09-27).
+     *
+     * Scored identically: both formats carry the same 95% allowance, both are
+     * ranked on points (`weekBasis` reads the format's engine first), and the
+     * one reader that treats the legacy basis as gross — `isNetBasis` — is
+     * only asked on match-play paths, which a medal round never takes.
+     */
     /**
      * A medal round, same as the championship, and the same wrong type until
      * 2026-09-10 — with a worse consequence here, because this template turns
@@ -300,7 +309,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
      * score is recorded against your opponent rather than as your own card" —
      * on the one screen the template exists to send them to.
      */
-    rounds: [{ type: "Stroke Play Round", format: "Stroke Play", scoringBasis: "stableford", holes: 18 }],
+    rounds: [{ type: "Stroke Play Round", format: "Stableford", scoringBasis: "net", holes: 18 }],
   },
   {
     key: "foursomes",

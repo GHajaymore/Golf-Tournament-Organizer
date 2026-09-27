@@ -55,7 +55,7 @@ import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
-import { isStablefordRound } from "@/lib/domain/week-basis";
+import { isStablefordRound, individualTieBreak } from "@/lib/domain/week-basis";
 export interface ThirdPlaceView {
   on: boolean;
   problem: string;
@@ -1875,9 +1875,7 @@ function StageCard({
                       ? "How the table is ordered when players are level on points. Shared by every round-robin round scored as Match Play."
                       : entryModeFor(format) === "team"
                         ? `This round is played between sides, so each pairing is settled as a match and the table is ordered by the steps below when sides finish level.`
-                        : `This round is scored as Stroke Play, so ties break by ${
-                            basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"
-                          }, then by the steps below.`}
+                        : individualTieBreak(basis, format)}
                   </p>
                   <ScoringClient initial={scoring} tiebreakers={tiebreakers} locked={locked} />
                 </div>
