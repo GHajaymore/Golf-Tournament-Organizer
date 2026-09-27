@@ -68,8 +68,19 @@ interface Rescore {
   close: () => void;
 }
 
-export function RoundTeamScoring({ stageId, info }: { stageId: string; info: RoundScoringInfo }) {
-  const { pending, error, setError, run, startTransition } = useAction();
+export function RoundTeamScoring({
+  stageId,
+  info,
+  locked = false,
+}: {
+  stageId: string;
+  info: RoundScoringInfo;
+  /** Setup is locked, which every action here refuses by throwing. */
+  locked?: boolean;
+}) {
+  const { pending: saving, error, setError, run, startTransition } = useAction();
+  // Every control below is disabled on this, so the lock rides along with it.
+  const pending = saving || locked;
   const [rescore, setRescore] = useState<Rescore | null>(null);
 
   /**

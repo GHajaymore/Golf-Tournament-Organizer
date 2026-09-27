@@ -1,5 +1,5 @@
 import { screenMetadata } from "@/lib/screen-metadata";
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
@@ -905,6 +905,7 @@ export default async function EntryPage() {
 
   return (
     <EntryModes
+      setupLocked={isSetupLocked(state.event)}
       cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
       rounds={rounds}
       voice={voice}

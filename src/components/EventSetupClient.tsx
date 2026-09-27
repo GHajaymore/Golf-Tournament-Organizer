@@ -71,7 +71,15 @@ export function EventSetupClient({
   status = "draft",
   scored = false,
   locale = DEFAULT_LOCALE,
+  locked = false,
 }: {
+  /**
+   * Setup is locked. `saveEvent` and `applyManualCount` refuse a locked
+   * tournament by THROWING, so "Save event" on a live tournament took the page
+   * down to "Application error" (walked 2026-09-27). Their buttons follow the
+   * lock; the dates keep their own save, which is not behind it.
+   */
+  locked?: boolean;
   initial: EventForm;
   playersCount: number;
   courses: CourseOption[];
@@ -739,7 +747,7 @@ export function EventSetupClient({
               <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={pending}
+                disabled={pending || locked}
                 onClick={() =>
                   startTransition(async () => {
                     const res = await applyManualCount(manualTarget);
@@ -805,11 +813,21 @@ export function EventSetupClient({
             tournament's name — the first field — and the only button that
             keeps it. Fixing one of the two Saves on a screen that has two
             would have been a worse inconsistency than the distance. */}
-        <StickySave dirty={isDirty} note="Unsaved changes to the tournament">
+        <StickySave
+          dirty={isDirty}
+          // Still NAMES the form when locked: the note is what tells this save
+          // from the settings save below once one floats away from its heading
+          // (organizer.spec "each form's save follows only its own form").
+          note={
+            locked
+              ? "Unsaved changes to the tournament — setup is locked, so unlock it at the top to save them"
+              : "Unsaved changes to the tournament"
+          }
+        >
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || !isDirty}
+            disabled={pending || !isDirty || locked}
             onClick={() => {
               startTransition(() =>
                 saveEvent({

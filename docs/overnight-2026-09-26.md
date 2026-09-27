@@ -116,6 +116,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #652 | One-tap entry let a member in without the mobile every other door requires; a player entered after the tee sheet was drawn was told nothing (items 52–53) | live |
 | #653 | A finished championship's missed cut was listed in sign-up order — now by score, still without a place (item 54) | live |
 | #655 | **Your two "yes" answers**: a Recent changes list on Reports and Registration; assistants set a round's course and tees (items 55–56) | live |
+| #656 | A member's casual round: the organizer wasn't recognised in their own round; a blank handicap silently played off scratch; "the tournament's" tees and "Back —" on a nine (items 57–61) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -708,6 +709,40 @@ has now each have a test through the real actions, alongside the member's own en
     missing. On a round of the back nine it would have called its own total "Front". A nine now
     shows only the count ("9/9 holes"); the gross is printed just above it.
 
+### The same day — the Recent changes lists, and a live tournament's setup
+
+The Recent changes lists from item 55 were walked with real actions on Captain's Day: the
+secretary added a player and removed them, Séamus entered on the sign-up link and withdrew. All
+four lines appeared on both screens, newest first, in local time, with the right person against
+each, and all filed as Field. Nothing to fix there. What the walk found was on the way.
+
+62. **Adding a player to a live tournament crashed the page.** On the live April Medal, whose setup
+    is locked, Registration still offered the "Add someone new" form. Every other control on the
+    screen follows the lock and this one did not. Pressing Add replaced the whole screen with
+    "Application error: a server-side exception has occurred", because the action refuses a
+    locked tournament by throwing rather than answering. And the banner above it said, in bold,
+    "You can still add players below". Now the Add button and the CSV import follow the lock, a
+    line under the button says why it can't be pressed, the banner no longer promises it, and
+    both actions answer in a sentence if anything reaches them.
+63. **The same crash was waiting behind 34 more controls on five screens.** Swept as a class: 45
+    actions refuse a locked tournament that way, and 34 of them could be reached from a control
+    that stayed live on a live tournament. The five screens are Rounds & formats (24 controls:
+    format, holes, scoring, cut, carry-forward, deadlines, tiebreakers, adding, drawing and
+    deleting rounds), Teams & pairs (6), the bracket arrangement, Tournament details' Save, and
+    Score entry's Clear scores. I reproduced it on the live Summer Knockout: "Change", then
+    "Two flights", and the page went to the error screen, under a sentence that said changing it
+    was blocked. Every one now follows the lock the server already enforces, and says to unlock
+    setup. Nothing that was allowed before is refused now. The things that were deliberately left
+    open stay open: a round's date, course and tees, "this round is finished", the round's
+    handicaps and the sign-up deadline. A new guard fails if any control reaches such an action
+    without being given the lock. It was watched failing on the old Rounds & formats and Teams
+    screens, naming every action they reached.
+64. **"You're in!" was a dead end for a member.** A member without a mobile on file is sent from
+    one-tap entry to the entry form to add it. The form then confirmed them and stopped: no way
+    back, and on the installed app no browser back button. It also told a signed-in member to "use
+    this email to sign in". A signed-in member now gets "Back to your events", and is not told to
+    sign in. A stranger on the public link sees exactly what they did before.
+
 The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
@@ -793,5 +828,19 @@ named. The deferred-register entry for this class is closed.
    club runs one — it is a permissions question, so not changed overnight.
 7. ~~A finished cut championship ranks players who missed the cut among those who made it.~~
    **DECIDED by Ajay on the morning of 2026-09-26: Completed closes the rounds. Built — item 34.**
+8. **Which jobs should an organizer be able to do mid-event without unlocking setup?** Since item
+   63 the screens say what the server has always done. Once a tournament is launched, its setup
+   locks, and so do several things organizers genuinely do while it is being played:
+   - drawing the next round's pairings, or handing the field its next cards;
+   - adding next week's round to a live league;
+   - clearing a round's scores to re-enter them;
+   - creating the third-place play-off, or pairing a single match;
+   - the scoring window ("closed early" / "reopened").
+
+   Each now says "unlock setup first", where before it crashed. That works, but it means
+   unlocking the whole setup to do one of these, and re-locking is on the organizer to remember.
+   If some of them should just be allowed on a live tournament, as a round's course and date
+   already are, that is a change to what the server allows. Name which, and I'll take each one
+   out of the lock with a test.
 
 ## Log

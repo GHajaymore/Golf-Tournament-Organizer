@@ -20,10 +20,13 @@ export function ClearScores({
   roundLabel,
   players,
   onClose,
+  locked = false,
 }: {
   stageId: string;
   roundLabel: string;
   players: Array<{ id: string; name: string }>;
+  /** Setup is locked, which `clearRoundScores` refuses. */
+  locked?: boolean;
   /** Closes the panel; the entry screen owns whether it is shown. */
   onClose?: () => void;
 }) {
@@ -140,8 +143,17 @@ export function ClearScores({
       )}
 
       {/* The second press is the confirmation. A dialog gets dismissed on
-          reflex; a button that changes what it says has to be read. */}
-      {confirming ? (
+          reflex; a button that changes what it says has to be read.
+
+          Not while setup is locked: `clearRoundScores` refuses a locked
+          tournament by throwing, so "Yes — clear" took the page down to
+          "Application error" (walked 2026-09-27). Said instead of offered. */}
+      {locked ? (
+        <p style={{ fontSize: 12.5, margin: 0 }}>
+          Setup is locked, so scores can&apos;t be cleared. Unlock setup on{" "}
+          <a href="/event">Tournament details</a> first.
+        </p>
+      ) : confirming ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"

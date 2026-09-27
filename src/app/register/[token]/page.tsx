@@ -100,6 +100,7 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           requirePhone={view.requirePhone}
           locale={view.locale}
           prefill={prefill}
+          signedIn={!!session}
         />
 
         {/* The one place a member of the public hands us their own details, so

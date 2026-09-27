@@ -22,6 +22,7 @@ export function ThirdPlaceControl({
   aName,
   bName,
   made,
+  locked = false,
 }: {
   stageId: string;
   on: boolean;
@@ -31,8 +32,12 @@ export function ThirdPlaceControl({
   bName: string;
   /** The play-off has already been created. */
   made: boolean;
+  /** Setup is locked, which both actions refuse by throwing. */
+  locked?: boolean;
 }) {
-  const { pending, error, run } = useAction();
+  const { pending: saving, error, run } = useAction();
+  // Both controls below are disabled on this, so the lock rides along with it.
+  const pending = saving || locked;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

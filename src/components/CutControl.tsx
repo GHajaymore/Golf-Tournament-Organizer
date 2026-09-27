@@ -16,7 +16,10 @@ export function CutControl({
   scope,
   confirmedCount,
   flightCount = 1,
+  locked = false,
 }: {
+  /** Setup is locked, which both cut actions refuse — see `SetupLocked`. */
+  locked?: boolean;
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
   formId: string;
   /** Resolves the stage to write to, creating it first if it doesn't exist yet. */
@@ -39,7 +42,9 @@ export function CutControl({
   const [n, setN] = useState(count);
   const [pct, setPct] = useState(percent);
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
-  const [pending, startTransition] = useTransition();
+  const [saving, startTransition] = useTransition();
+  // Every control below is disabled on this, so the lock rides along with it.
+  const pending = saving || locked;
 
   const commitScope = (next: string) => {
     setSc(next);

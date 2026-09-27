@@ -285,6 +285,7 @@ export default async function EventPage({
         status={e.status}
         scored={cardsIn > 0}
         locale={fmt.locale}
+        locked={locked}
         initial={{
           name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
           format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",
