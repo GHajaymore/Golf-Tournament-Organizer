@@ -1,5 +1,19 @@
-import { METERED_FEATURES, type FeatureKey } from "@/lib/plans";
+import { METERED_FEATURES, PLANS, type FeatureKey } from "@/lib/plans";
 import { Icon } from "./Icon";
+
+/**
+ * The tag on the locked door, from whether ANY plan has the feature.
+ *
+ * It said "On the paid plan" unconditionally, over features that are off on
+ * every plan by cost (plans.ts, "the metered three are dark on BOTH tiers").
+ * A club already on Club read that it came with the plan it was paying for.
+ * plan-copy.test.ts already requires these to be pitched as COMING; this is
+ * the one surface that pitched them as included. When a plan turns one on,
+ * the tag says so by itself.
+ */
+export function lockedTag(feature: FeatureKey): string {
+  return Object.values(PLANS).some((p) => p.features[feature]) ? "On the paid plan" : "Coming soon";
+}
 
 /**
  * A feature that exists, is finished, and isn't switched on for this club yet.
@@ -53,7 +67,7 @@ export function LockedFeature({
             className="tag"
             style={{ fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}
           >
-            On the paid plan
+            {lockedTag(feature)}
           </span>
         </div>
         <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
