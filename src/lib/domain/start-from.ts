@@ -226,11 +226,10 @@ const RULES_FORMS: ReadonlySet<string> = new Set([
 /**
  * Whether this starting point is a form of play the Rules name.
  *
- * Reads the SCORING BASIS as well as the format, because Stableford is a form
- * of play under Rule 21.1 and this app models it as a stroke-play round with
- * `scoringBasis: "stableford"` — `Stableford` is deliberately not playable as
- * a format. Judging the format alone would already have got that one right for
- * the wrong reason, and would get the next one wrong.
+ * Reads the SCORING BASIS as well as the format: Stableford (Rule 21.1) is a
+ * playable format now and the template uses it, but a round can still hold the
+ * legacy spelling — Stroke Play with `scoringBasis: "stableford"` — and it is
+ * the same form of play either way.
  */
 export function isRulesForm(t: TournamentTemplate): boolean {
   const round = t.rounds[0];
@@ -256,7 +255,12 @@ export function isRulesForm(t: TournamentTemplate): boolean {
  * Read as: the forms a CLUB should see first. A society sees the others first.
  */
 function leadsForOutfit(t: TournamentTemplate, orgKind: string): boolean {
-  const societyStaple = t.rounds[0]?.scoringBasis === "stableford";
+  // The FORMAT, since the template plays Stableford as one (2026-09-27); the
+  // legacy basis spelling still counts, so a stored or older template reads
+  // the same. Keyed on the basis alone, the society's Stableford dropped behind
+  // greensomes the day the template stopped using the old spelling.
+  const round = t.rounds[0];
+  const societyStaple = round?.format === "Stableford" || round?.scoringBasis === "stableford";
   return orgKind === "club" ? isRulesForm(t) && !societyStaple : !isRulesForm(t) || societyStaple;
 }
 

@@ -53,12 +53,9 @@ describe("what the templates are called", () => {
      * missing entirely.
      */
     const formats = TOURNAMENT_TEMPLATES.flatMap((t) => t.rounds.map((r) => r.format));
-    for (const f of ["Stroke Play", "Match Play", "Four-Ball", "Foursomes", "Greensomes", "Scramble", "Skins"]) {
+    for (const f of ["Stroke Play", "Match Play", "Four-Ball", "Foursomes", "Greensomes", "Scramble", "Skins", "Stableford"]) {
       expect(formats, `no starting point plays ${f}`).toContain(f);
     }
-    // And the Stableford one is a scoring basis on a medal round, not a
-    // format — `Stableford` is deliberately not playable as a format.
-    expect(TOURNAMENT_TEMPLATES.some((t) => t.rounds.some((r) => r.scoringBasis === "stableford"))).toBe(true);
   });
 
   it("only starts formats the app can actually play", () => {

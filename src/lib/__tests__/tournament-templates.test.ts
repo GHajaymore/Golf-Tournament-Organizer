@@ -5,6 +5,7 @@ import { PLAYABLE_FORMAT_NAMES } from "../formats";
 import { needsCourseData } from "../courses";
 import { readSource } from "./source";
 import { roundShapeMismatch } from "../domain/round-shape";
+import { individualTieBreak } from "../domain/week-basis";
 
 describe("template catalogue", () => {
   it("has unique keys", () => {
@@ -148,13 +149,31 @@ describe("individual templates", () => {
     expect(byKey("charity-day").settings.leaderboardVisibility).toBe("public");
   });
 
-  it("charity day scores Stableford the way the engine models it", () => {
-    // Stableford is a scoring basis, not a format: computeStandings keys off
-    // scoringBasis while the format stays Stroke Play. Setting it as a format
-    // would produce a round the format picker never offers.
+  it("charity day plays the Stableford FORMAT, off handicap", () => {
+    // Format gives the unit, basis gives the allocation (decided 2026-09-20).
+    // This asserted the opposite — Stroke Play with a "stableford" basis — on
+    // the premise that Stableford was not a playable format, which stopped
+    // being true; so it froze the legacy spelling into every new tournament.
     const t = byKey("charity-day");
-    expect(t.rounds[0].format).toBe("Stroke Play");
-    expect(t.rounds[0].scoringBasis).toBe("stableford");
+    expect(t.rounds[0].format).toBe("Stableford");
+    expect(t.rounds[0].scoringBasis).toBe("net");
+  });
+
+  it("the round it starts is described as Stableford, not Stroke Play", () => {
+    // Rounds & formats' tie-break sentence read the raw basis, so the new
+    // Stableford round would have been told "scored as Stroke Play … lowest
+    // net". Both spellings must read as Stableford; a medal must not.
+    const r = byKey("charity-day").rounds[0];
+    expect(individualTieBreak(r.scoringBasis, r.format)).toMatch(/Stableford points/);
+    expect(individualTieBreak("stableford", "Stroke Play")).toMatch(/Stableford points/);
+    expect(individualTieBreak("net", "Stroke Play")).toMatch(/lowest net/);
+  });
+
+  it("no template stores the legacy 'stableford' basis", () => {
+    // The Rounds screen no longer offers it; a template must not create it.
+    for (const t of TOURNAMENT_TEMPLATES) {
+      for (const r of t.rounds) expect(r.scoringBasis, t.key).not.toBe("stableford");
+    }
   });
 
   it("a template may pick a team format, now that sides can actually be drawn", () => {

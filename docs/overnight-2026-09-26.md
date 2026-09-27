@@ -117,6 +117,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #653 | A finished championship's missed cut was listed in sign-up order — now by score, still without a place (item 54) | live |
 | #655 | **Your two "yes" answers**: a Recent changes list on Reports and Registration; assistants set a round's course and tees (items 55–56) | live |
 | #656 | A member's casual round: the organizer wasn't recognised in their own round; a blank handicap silently played off scratch; "the tournament's" tees and "Back —" on a nine (items 57–61) | live |
+| #657 | A live tournament's setup screens offered 35 controls whose action crashed the page — each now follows the lock; "You're in!" leads a member back to their events (items 62–64) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -743,7 +744,31 @@ each, and all filed as Field. Nothing to fix there. What the walk found was on t
     this email to sign in". A signed-in member now gets "Back to your events", and is not told to
     sign in. A stranger on the public link sees exactly what they did before.
 
-The original note behind item 34, kept for the reasoning:
+### A newcomer builds a tournament from scratch, once more (2026-09-27)
+
+A brand-new organizer with no club, on a 393px phone, did the whole route: the create form, four
+players, flights, a date, launch, and then every setup screen after launch. Nothing crashed after
+launch, and each locked screen said so, which is what #657 was for. The launch button without
+dates said why on the page, not only in a tooltip. Adding the field wrote four Recent-changes lines
+under the organizer's name. One real defect, and three things for you.
+
+65. **Picking "Stableford" gave a round called "Stroke Play".** The Stableford starting point
+    created its round in an old spelling that the Rounds screen deliberately no longer offers.
+    The newcomer saw "Round 1 · Stroke Play" on the dashboard under a points leaderboard, and on
+    Rounds & formats a Stroke Play round with none of its scoring options ticked. It now creates
+    a Stableford round, off handicap. It scores exactly the same, measured rather than argued: the
+    same two cards through the league week's reader give identical points, net and places either
+    way. One player's 37 points were worked by hand under Rule 21.1 and matched the board. Three
+    old tests had pinned the old spelling on the belief that Stableford could not be chosen as a
+    format; they now pin that no starting point creates the old spelling. Tournaments already
+    created from it are unchanged and still score correctly.
+
+    Two things were keyed on the old spelling, and would have broken with it. One was the
+    create form's ordering, which dropped Stableford behind greensomes for a society; a test
+    caught it. The other was the sentence on Rounds & formats that would have told the new
+    round "scored as Stroke Play, so ties break by lowest net". A sweep of every
+    remaining reader found no others. Both now recognise Stableford either way.
+
 
 - **A finished championship lists players who missed the cut among those who made it.** The
   seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
@@ -782,6 +807,16 @@ The original note behind item 34, kept for the reasoning:
   par" on a net round?
 - A league's week screen for a week not yet played does not list who has said they are playing;
   the tee sheet does. Whether members should see it there too is your call.
+- **The create form files every organizer as an "outing".** It asks "Who's running this? — club,
+  society or company", and whatever is typed becomes a personal outing. So the newcomer who typed
+  "Riverside Golf Society" was then told "Setting up your outing", "Name your outing" (they just
+  had) and "your outing's logo". Sign-up asks which kind it is and this form does not. The kind
+  isn't only a word: it switches the shared-costs ledger and the shared roster. So I have not
+  guessed it from the name. Should this form ask, as sign-up does?
+- **"Overall result: Stroke play" on a Stableford tournament.** The launch dialog and Tournament
+  details name the tournament-level choice between stroke and match, which is correct for how it
+  is ranked, but it reads wrong for a Stableford competition. Only the wording; it is the field
+  you ruled on on 20 September, so it's yours.
 
 ## Accessibility — every console control named
 
@@ -842,5 +877,12 @@ named. The deferred-register entry for this class is closed.
    If some of them should just be allowed on a live tournament, as a round's course and date
    already are, that is a change to what the server allows. Name which, and I'll take each one
    out of the lock with a test.
+9. **A Stableford round set to GROSS is still scored off handicap.** Found while measuring item 65.
+   Stableford points are computed with the player's strokes whatever the round's gross/net
+   setting says. So a scratch Stableford (a real competition, and one the Rounds screen lets
+   you set up) would be scored exactly like a handicap one. Not live: the development database
+   holds no such round. It is how points are calculated, so I have not touched it. Should
+   "gross" on a Stableford round mean points off scratch (the Rules' reading), or should gross
+   simply not be offered for Stableford?
 
 ## Log
