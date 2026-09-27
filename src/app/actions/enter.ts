@@ -9,6 +9,11 @@ import { effectiveCapacity } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
+import { ownWithdrawalOpen } from "@/lib/registration";
+import { hasPlayingHistory } from "@/lib/services/playing-history";
+import { revokePlayerAccount } from "@/lib/services/player-access";
+import { drainWaitlist } from "@/lib/services/waitlist";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * A MEMBER PUTS THEIR NAME DOWN WITHOUT FILLING ANYTHING IN.
@@ -51,6 +56,9 @@ export interface EnterResult {
 }
 
 const NOT_OPEN = "Entries aren't open for this tournament.";
+// One answer for "no such tournament", "not yours to see" and "not entered",
+// so withdrawing never confirms that a tournament exists.
+const NOT_ENTERED = "You aren't entered in this tournament.";
 
 export async function enterThisTournament(eventId: string): Promise<EnterResult> {
   const session = await getSession();
@@ -226,4 +234,108 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   revalidatePath("/registration");
 
   return { ok: true, status: decision.status };
+}
+
+export interface WithdrawResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * A MEMBER TAKES THEIR OWN NAME OFF — until entries close (Ajay, 2026-09-26).
+ *
+ * The other half of `enterThisTournament`. One tap put a name down and nothing
+ * let the member take it off again; now they can, for exactly as long as the
+ * door that let them in is open (`ownWithdrawalOpen`, the same rule).
+ *
+ * IT DOES WHAT THE ORGANIZER'S REMOVAL DOES, piece for piece, so the door used
+ * cannot change the outcome:
+ *   - a row with playing history is kept as `withdrawn`, anything else is
+ *     deleted (`hasPlayingHistory`, shared with `removeSignup`);
+ *   - their tournament sign-in is revoked only if no other live entry uses the
+ *     address (`revokePlayerAccount`);
+ *   - a CONFIRMED place freed goes to the waiting list, and only if the field
+ *     actually has room (`drainWaitlist`).
+ *
+ * AND ONLY THEIR OWN. The rows are found by the SESSION's email — the caller
+ * supplies which tournament and nothing else — and the tournament must be one
+ * they can reach, the same check that lets them enter. A "use server" export is
+ * a public endpoint; there is no player id here to guess.
+ */
+export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Sign in first." };
+
+  const limit = await checkRateLimit("register-email", session.email);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
+  const reachable = await accessibleEvents(session.email);
+  if (!reachable.some((r) => r.eventId === eventId)) return { ok: false, error: NOT_ENTERED };
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      registrationOpen: true,
+      registrationOverride: true,
+      regOpens: true,
+      regDeadline: true,
+      capacity: true,
+      status: true,
+    },
+  });
+  if (!event) return { ok: false, error: NOT_ENTERED };
+
+  const mine = await prisma.player.findMany({
+    where: {
+      eventId,
+      email: { equals: session.email, mode: "insensitive" },
+      status: { in: ["confirmed", "waitlisted", "pending"] },
+    },
+    select: { id: true, name: true, status: true },
+  });
+  if (mine.length === 0) return { ok: false, error: NOT_ENTERED };
+
+  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const open = ownWithdrawalOpen({
+    registrationOpen: event.registrationOpen,
+    eventStatus: event.status,
+    deadline: event.regDeadline,
+    opens: event.regOpens,
+    capacity: event.capacity,
+    confirmedCount,
+    override: event.registrationOverride,
+  });
+  if (!open) {
+    return {
+      ok: false,
+      error: "Entries have closed, so changes to the field go through the organizer now — ask them to take you out.",
+    };
+  }
+
+  for (const row of mine) {
+    if (await hasPlayingHistory(eventId, row.id)) {
+      await prisma.player.update({ where: { id: row.id }, data: { status: "withdrawn" } });
+    } else {
+      await prisma.player.delete({ where: { id: row.id } });
+    }
+  }
+  await revokePlayerAccount(eventId, session.email);
+
+  // The organizer's log is where a field change is looked for afterwards; a
+  // name that vanished with no line against it is a question nobody can answer.
+  await logAudit(
+    eventId,
+    "withdrawn",
+    `${mine[0].name} withdrew their own entry (${mine.map((r) => r.status).join(", ")}).`,
+    { actor: session.name || session.email },
+  );
+
+  if (mine.some((r) => r.status === "confirmed")) await drainWaitlist(eventId);
+
+  boardChanged(eventId);
+  revalidatePath("/me/events");
+  revalidatePath("/me");
+  revalidatePath("/entry");
+  revalidatePath("/registration");
+  return { ok: true };
 }
