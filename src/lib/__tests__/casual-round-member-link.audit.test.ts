@@ -351,14 +351,77 @@ describe("a quick round's players getting to their own cards", () => {
 describe("a player who is on the roster but is not staff", () => {
   const PLAYER = `${TAG} Player`;
   let asStaff: typeof session = null;
+  let playerMember: { id: string };
 
   beforeAll(async () => {
     await prisma.user.create({ data: { email: at("player"), name: PLAYER } });
     // A roster row, and deliberately NO OrganizationMember: this is a member
     // of the club, not an officer of it.
-    await prisma.member.create({
+    playerMember = await prisma.member.create({
       data: { organizationId: club.id, name: PLAYER, email: at("player"), handicap: 18 },
     });
+  });
+
+  it("is recognised in the round they set up, picked from the roster as themselves", async () => {
+    /**
+     * Walked 2026-09-27: the member who set a round up, and was playing in it
+     * with a saved card, was told on Today "You aren't entered in this
+     * tournament". A player is matched to the person signed in BY ADDRESS, and
+     * the form sends none — so the organizer's own row had to be given theirs
+     * here, which the action's own comment said it was and it was not.
+     */
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: PLAYER, handicap: "18", memberId: playerMember.id },
+        { name: `${TAG} Ours`, handicap: "12", memberId: ourMember.id },
+        { name: `${TAG} Walk-up`, handicap: "20", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+    const rows = await prisma.player.findMany({ where: { eventId: res.eventId! }, select: { id: true, name: true, email: true } });
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+    expect(byName[PLAYER].email).toBe(at("player"));
+    // THE CONTROL: a fellow member (who has an address of their own on the
+    // roster) and a guest get nothing — the organizer's address, or nobody's.
+    expect(byName[`${TAG} Ours`].email).toBe("");
+    expect(byName[`${TAG} Walk-up`].email).toBe("");
+    // And through the reader that decides it.
+    const { myPlayerIds } = await import("@/lib/services/me");
+    expect([...(await myPlayerIds(res.eventId!, at("player")))]).toEqual([byName[PLAYER].id]);
+  });
+
+  it("is recognised by their own name when they typed it rather than picking it", async () => {
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: `${TAG} Mate`, handicap: "18", memberId: "" },
+        { name: ` ${PLAYER.toUpperCase()} `, handicap: "18", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+    const rows = await prisma.player.findMany({ where: { eventId: res.eventId! }, select: { name: true, email: true } });
+    expect(rows.filter((r) => r.email).map((r) => r.email)).toEqual([at("player")]);
+    expect(rows.find((r) => r.name.includes("Mate"))?.email).toBe("");
+  });
+
+  it("gives nobody the address when the organizer is not playing", async () => {
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: `${TAG} Mate`, handicap: "18", memberId: "" },
+        { name: `${TAG} Ours`, handicap: "12", memberId: ourMember.id },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+    const rows = await prisma.player.findMany({ where: { eventId: res.eventId! }, select: { email: true } });
+    expect(rows.every((r) => r.email === "")).toBe(true);
   });
 
   beforeEach(() => {

@@ -237,13 +237,15 @@ export default async function PlayTodayPage() {
       {/**
        * A casual round is deleted about a day after it is set up, and the whole
        * justification for that being acceptable is that the people it belongs
-       * to are told before it happens. `canKeep` is false: `keepRound` is
-       * staff-only, so the sentence names the remedy a player actually has.
-       * `hoursLeft` is null for every tournament, so nothing mounts outside a
-       * casual round.
+       * to are told before it happens. `canKeep` follows `keepRound`'s own
+       * guard, which is staff: a player is told the remedy they actually have,
+       * and whoever SET THE ROUND UP — who lands here too, playing in it — gets
+       * the button. Hard-coded false, it told them to "ask whoever set it up to
+       * keep it", which was themselves (walked 2026-09-27). `hoursLeft` is null
+       * for every tournament, so nothing mounts outside a casual round.
        */}
       <div style={{ marginTop: 12 }}>
-        <RoundExpiryBanner notice={expiryNotice(hoursLeft(state.event), false)} canKeep={false} />
+        <RoundExpiryBanner notice={expiryNotice(hoursLeft(state.event), isStaff)} canKeep={isStaff} />
       </div>
 
       {/**

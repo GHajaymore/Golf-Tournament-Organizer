@@ -52,6 +52,21 @@ interface StrokePlayer {
   absent?: boolean;
 }
 
+/**
+ * The line under the card: the nines, then how many holes are in.
+ *
+ * Only an eighteen-hole round has a front and a back. `front` and `back` split
+ * the ROUND's own holes at the ninth, so a nine-hole round read "Front 40 ·
+ * Back —" — half a card apparently missing, walked on a casual nine on
+ * 2026-09-27 — and a round of the BACK nine would have called its own total
+ * "Front". The gross is printed just above, so a nine needs only the count.
+ */
+export function progressLine(card: { front: number; back: number; played: number }, holes: number): string {
+  const count = `${card.played}/${holes} holes`;
+  if (holes <= 9) return count;
+  return `Front ${card.front || "—"} · Back ${card.back || "—"} · ${count}`;
+}
+
 export function StrokePlayEntry({
   players,
   pars,
@@ -576,7 +591,7 @@ export function StrokePlayEntry({
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
         <span className="text-muted" style={{ fontSize: 12 }}>
-          Front {card.front || "—"} · Back {card.back || "—"} · {card.played}/{holes} holes
+          {progressLine(card, holes)}
           {saveNote && (
             <>
               {" · "}

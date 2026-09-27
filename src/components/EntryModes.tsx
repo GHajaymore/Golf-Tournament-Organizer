@@ -425,6 +425,7 @@ export function EntryModes({
           canEdit={isStaff}
           informed={isStaff}
           canSearchDirectory={isAdmin}
+          casual={casual}
         />
       )}
 

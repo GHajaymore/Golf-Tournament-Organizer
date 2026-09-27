@@ -71,11 +71,20 @@ describe("what a casual round tells the people in it", () => {
  * the warning was rendering on a screen no player ever reaches.
  */
 describe("where the warning renders", () => {
-  it("is on the player's own screen, worded for a player", () => {
+  it("is on the player's own screen, worded for whoever is reading it", () => {
+    /**
+     * Worded for a PLAYER when a player reads it — and for the person who set
+     * the round up when they do, because they land here too, playing in it.
+     * It was hard-coded false, which told the organizer to "ask whoever set it
+     * up" (walked 2026-09-27). The flag is `keepRound`'s own guard, staff.
+     */
     const me = readSource("src/app/(player)/me/page.tsx");
     expect(me).toMatch(/<RoundExpiryBanner/);
-    expect(me).toMatch(/expiryNotice\(hoursLeft\(state\.event\), false\)/);
-    expect(me).toMatch(/canKeep=\{false\}/);
+    expect(me).toMatch(/expiryNotice\(hoursLeft\(state\.event\), isStaff\)/);
+    expect(me).toMatch(/canKeep=\{isStaff\}/);
+    expect(me).toMatch(/const isStaff = session\.role === "admin" \|\| session\.role === "assistant"/);
+    const action = readSource("src/app/actions/round-expiry.ts");
+    expect(action).toMatch(/session\.role !== "admin" && session\.role !== "assistant"/);
   });
 
   it("is still on the console, worded for whoever can keep it", () => {

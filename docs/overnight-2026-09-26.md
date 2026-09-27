@@ -115,6 +115,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #651 | Testing as an assistant: a link into a screen you cannot open now says why; five organizer-only buttons no longer offered to assistants (items 50–51) | live |
 | #652 | One-tap entry let a member in without the mobile every other door requires; a player entered after the tee sheet was drawn was told nothing (items 52–53) | live |
 | #653 | A finished championship's missed cut was listed in sign-up order — now by score, still without a place (item 54) | live |
+| #655 | **Your two "yes" answers**: a Recent changes list on Reports and Registration; assistants set a round's course and tees (items 55–56) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -674,6 +675,39 @@ new screen, and which one is your call. **Decided 2026-09-27 ("yes") — built, 
     directory (it spends the app's shared daily lookups, so an assistant picks from the club's own
     courses), a flight's tees, and clearing a round's scores.
 
+### The day after — a member's casual round, end to end (2026-09-27)
+
+Walked as Séamus, an ordinary member, on a 393px phone: set up a net nine against a guest, scored
+both cards, read the board and Today. Every figure checked by hand — 40 gross is +4 off a par-36
+nine and 34 net with six shots; the guest's 39 is +3 and 38 net, because a 0.0 index still gets a
+shot off the Blues where the course rating is above par. What was wrong was all in what the round
+said to the people in it. The Recent changes list from item 55 was also checked from the
+organizer's side this time: adding a player, removing one who never played and withdrawing one who
+has now each have a test through the real actions, alongside the member's own entry.
+
+57. **The person who set up a casual round was told they weren't in it.** Today said "You aren't
+    entered in this tournament, so there's no card here" to the member who had set the round up,
+    was playing in it and had a saved card on it. A player is recognised by their email address,
+    and the setup screen asks nobody for one — so the organizer's own entry went in without theirs,
+    although the code's own comment said it carried it. It now does: their entry is found by their
+    own club record, or by their name exactly as the screen fills it in, and nobody else's entry
+    gets an address. Today now shows "Your card" and "· You" on the leaders.
+58. **…and then told to ask whoever set it up to keep the round.** That was themselves. Today now
+    words the warning for whoever is reading it, as the dashboard already did: the person who set
+    the round up gets the "Keep this round" button, and the other players are still told to ask
+    them.
+59. **A blank handicap on a net round played off scratch without a word.** The guest's box was
+    left empty, and the card started them on "hcp 0" — their whole handicap given away with
+    nobody having decided to. The setup screen now says "zz-walk Guest Golfer has no handicap
+    here, so plays off scratch (0). Add it if they have one." It is still allowed, because scratch,
+    or friends agreeing to it, is a real answer. The handicap boxes were also unnamed for a screen
+    reader, which read out "12.4" for every player; each is now "Handicap for" the player.
+60. **The tee picker offered "Blue (the tournament's)" on a round with no tournament.** On a casual
+    round it now reads "Blue (as set up)".
+61. **A finished nine read "Front 40 · Back —" under the card**, as if half the card were
+    missing. On a round of the back nine it would have called its own total "Front". A nine now
+    shows only the count ("9/9 holes"); the gross is printed just above it.
+
 The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
@@ -706,6 +740,13 @@ The original note behind item 34, kept for the reasoning:
 - ~~A tournament with dated rounds but no tournament dates is filed under "No dates yet".~~
   **Decided — use the rounds' dates. Built (item 48).**
 - ~~Shared places print as "1, 1, 3" on the sides board.~~ **Fixed (item 44).**
+- **Two figures called "To par" on one net round.** Score entry shows the gross to par beside the
+  gross (Séamus +4), and the leaderboard, which ranks a net round on net, shows the net to par
+  (−2). Both are right, and both are headed "To par". Relabelling a board column touches the
+  ranking display that three checks pin, so I have not changed it: should the board say "Net to
+  par" on a net round?
+- A league's week screen for a week not yet played does not list who has said they are playing;
+  the tee sheet does. Whether members should see it there too is your call.
 
 ## Accessibility — every console control named
 
