@@ -1956,7 +1956,25 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       // without a position, and neither may sit between two ranked players.
       const started = (y.ranked ? 1 : 0) - (x.ranked ? 1 : 0);
       if (started !== 0) return started;
-      if (!x.ranked) return 0;
+      if (!x.ranked) {
+        /**
+         * THE MISSED CUT, BY SCORE — and still without a place.
+         *
+         * Every unranked row stayed in sign-up order, so a finished
+         * championship's missed-cut block read +20, +15, +19, +23, +15, +14
+         * (the seeded Club Championship, 2026-09-26). A results sheet lists
+         * the players who missed the cut in score order, beneath the field
+         * that made it; this does the same, on the board's own basis. Nobody
+         * here is given a rank — that is the #577/#643 rule and it holds.
+         * Rows with no score to order by (never started, a card cut short)
+         * stay after them, as they entered.
+         */
+        const xMissed = x.missedRound ? 1 : 0;
+        const yMissed = y.missedRound ? 1 : 0;
+        if (xMissed !== yMissed) return yMissed - xMissed;
+        if (xMissed) return compareOnBasis(x, y, rankingBasis);
+        return 0;
+      }
       /**
        * Level on the score — go to the countback, WHATEVER the basis.
        *
