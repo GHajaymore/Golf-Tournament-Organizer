@@ -36,6 +36,7 @@ async function tournament(orgId: string, name: string, extra: Record<string, unk
         shape: "single",
         format: "stroke",
         formationRule: "balanced",
+        dates: "",
         course: `${TAG} Course`,
         city: "",
         address: "",
