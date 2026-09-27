@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { EnterButton } from "@/components/EnterButton";
+import { WithdrawButton } from "@/components/WithdrawButton";
 import type { ClubEventRow } from "@/lib/services/club-events";
 import { byBand, type EventBand } from "@/lib/domain/club-event-card";
 import {
@@ -339,6 +340,9 @@ export function ClubEventsList({
                     )}
                   </div>
                 )}
+
+                {/* Taking a name off — until entries close (Ajay, 2026-09-26). */}
+                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} />}
               </div>
             </article>
           )}

@@ -528,6 +528,32 @@ golfer would stop at:
     board; the waiting-list line on Events; the medal's sheet otherwise — 95% under Appendix C,
     countback 9/6/3/1 under Committee Procedures 5A, certification under Rule 3.3b.
 
+### Decided that evening — built overnight (your answers of 2026-09-26)
+
+47. **A member can withdraw their own entry until entries close.** On Events, an entered or
+    waiting member now sees "Can't make it? Withdraw" — two steps, because a place given up in a
+    full field goes to the next person waiting and entering again joins the back of the queue. It
+    does exactly what your own removal does: somebody who has already played is kept as withdrawn
+    with their cards, anybody else is removed; their tournament sign-in goes; a place freed in a
+    full field goes to the first person on the waiting list, only if there is room; and your
+    audit log gets a line saying they withdrew themselves. "Entries close" is read off the same
+    rule that lets them in — past the deadline, closed by you, or finished, and the button is
+    gone. Tried as a member on Captain's Day: in, withdraw, confirm, and the card is back to
+    "Open for entries · 22 of 40 places left".
+
+48. **Events files a tournament with no dates by its rounds' dates.** The Summer Knockout and the
+    Thursday league had left "No dates yet" and now sit in the season list on their first round's
+    day, where the member's calendar already put them. Where a tournament has no date sentence of
+    its own either, its card says the rounds' span ("Sat 5 Sept – Sat 19 Sept"). The tournament's
+    own dates still win wherever they are set.
+
+49. **The console leaderboard has a round picker.** On the Festival of Formats every round is
+    reachable again — "Showing: Round 1 · Modified Stableford" and so on, the same picker Group
+    games uses — and the hand-scored last round is still where it opens. It appears only where
+    choosing changes the board: a two-round medal or a league of Stableford weeks shares one
+    board and gets no picker. **Not done:** the dashboard and Reports still show the board's own
+    round only; your answer was about the leaderboard, so I left those alone.
+
 The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
@@ -555,17 +581,10 @@ The original note behind item 34, kept for the reasoning:
 - Tournaments list: a tournament created before #626 shows "—" in its Course column (the column
   reads the course NAME, which those tournaments never got). New ones are fine; re-saving
   Tournament details fixes an old one.
-- **"Enter this tournament" enters in one tap, and a member cannot undo it.** Deliberate (the
-  club already knows them), and it says honestly where the entry landed. But a mis-tap leaves a
-  member entered with no way out except asking the organizer, since players cannot withdraw
-  themselves (the player side is read-only by your earlier decision). Smallest honest change:
-  a line under "You're in" saying "Can't make it? Tell the organizer." Bigger: a withdraw
-  button until entries close. Your call; I tested it and removed my test entry.
-- **A tournament with dated rounds but no tournament dates is filed under "No dates yet"** on
-  Events while the member's calendar shows it on its round days. Two of the seeded club's
-  tournaments are like this (the fixture writes their dates as free text), but a club can reach
-  it for real by dating the rounds and never saving tournament dates. Events could fall back to
-  the rounds' own days.
+- ~~A member cannot undo a one-tap entry.~~ **Decided — withdraw until entries close. Built
+  (item 47).**
+- ~~A tournament with dated rounds but no tournament dates is filed under "No dates yet".~~
+  **Decided — use the rounds' dates. Built (item 48).**
 - ~~Shared places print as "1, 1, 3" on the sides board.~~ **Fixed (item 44).**
 
 ## Accessibility — every console control named
@@ -593,13 +612,9 @@ named. The deferred-register entry for this class is closed.
 
 ## Decisions needed from Ajay
 
-1. **A multi-round event whose LAST round is "Other (scored by hand)" hides every earlier round**
-   from the organizer: dashboard, Live leaderboard and Reports all show only the hand-scored round
-   ("no board"). Seen on the Festival of Formats (11 rounds; rounds 1–10 unreachable). The console
-   leaderboard has no round picker, although a `RoundPicker` component already exists (Group
-   games uses it). Not changed overnight: which round the board shows is chosen deep in
-   `loadEventState` and feeds many screens — ranking-adjacent, so it wants your call on the
-   behaviour first.
+1. ~~A multi-round event whose LAST round is scored by hand hides every earlier round.~~
+   **Decided 2026-09-26 — add a round picker. Built on the console leaderboard (item 49).** The
+   dashboard and Reports still show the last round only; say if you want the picker there too.
 2. Show the chosen format's one-line description under the Format select on Rounds & formats
    (today it is behind the ⓘ) — a small UI change, the moment a novice most needs it.
 3. **Default flight rule for a stroke or Stableford round: "By handicap"** instead of "Balanced

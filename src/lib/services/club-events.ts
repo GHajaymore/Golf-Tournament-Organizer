@@ -2,9 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
 import { accessibleEvents } from "./access";
-import { registrationStatus, entryDatesOf } from "../registration";
+import { registrationStatus, entryDatesOf, ownWithdrawalOpen } from "../registration";
 import { todayIso } from "../deadline";
 import { resolveLocale } from "../domain/locale";
+import { roundDaysOf, roundSpanOf } from "../domain/round-span";
 import {
   eventBand,
   whenOf,
@@ -82,6 +83,12 @@ export interface ClubEventRow {
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
+   * Whether this member may take their own name off now — entered or waiting,
+   * and entries not yet closed. `ownWithdrawalOpen`, the rule `withdrawMyEntry`
+   * enforces, so the screen cannot offer a button the server will refuse.
+   */
+  canWithdraw: boolean;
+  /**
    * Whether there is anything to LOOK at yet.
    *
    * A closed tournament is not a dead end — it is the one a member most wants
@@ -156,7 +163,12 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
    */
   const events = await prisma.event.findMany({
     where: { id: { in: ids }, shape: { not: "match" }, expiresAt: null },
-    include: { series: { select: { name: true } }, organization: { select: { locale: true } } },
+    include: {
+      series: { select: { name: true } },
+      organization: { select: { locale: true } },
+      // The rounds' own days — see `roundDaysOf` below.
+      stages: { select: { playedOn: true, type: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -286,11 +298,20 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
           : "",
       eventId: event.id,
       name: event.name,
-      dates: event.dates,
+      /**
+       * WHEN IT IS PLAYED — the tournament's own dates, or else its ROUNDS'
+       * (Ajay, 2026-09-26). A club can date every round on Rounds & formats
+       * and never save tournament dates, and Events then filed it under "No
+       * dates yet" while the member's own calendar — which reads the rounds —
+       * showed it on its round days. Two screens, one question, two answers.
+       * The tournament's dates still win wherever they are set; the rounds
+       * only fill what is empty.
+       */
+      dates: event.dates || roundSpanOf(event.stages, locale),
       // The calendar date this is grouped by — see `domain/club-season.ts`. The
       // sentence above is what a member READS; this is what the app sorts on,
       // and the two cannot disagree because the sentence is derived from it.
-      startOn: event.startOn,
+      startOn: event.startOn || (roundDaysOf(event.stages)[0] ?? ""),
       playKind: event.playKind,
       // Said on the card, because a member plans around this one line. See
       // `datesTentative` on the schema.
@@ -305,6 +326,17 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       entered,
       waiting,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
+      canWithdraw:
+        (entered || waiting) &&
+        ownWithdrawalOpen({
+          registrationOpen: event.registrationOpen,
+          eventStatus: event.status,
+          deadline: event.regDeadline,
+          opens: event.regOpens,
+          capacity: event.capacity,
+          confirmedCount: confirmedBy.get(event.id) ?? 0,
+          override: event.registrationOverride,
+        }),
       /**
        * Worth opening if there is something on it, or if the club has said it
        * is under way. Counted, not assumed — see the note above `hasResults`.
