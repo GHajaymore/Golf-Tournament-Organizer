@@ -149,7 +149,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #659 | The tee sheet showed a fresh shuffle over the published sheet — it now shows the sheet the players have; a finished board no longer promises a result "when it is settled" (items 66–67) | live |
 | #660 | This report: the day of 2026-09-27 and three new decisions | live |
 | #661 | **Your decision 8**: drawing the next round, adding a round, deadlines, the single match and the third-place play-off work on a live tournament without unlocking; a drawn round with scores is refused rather than wiped | live |
-| #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | pending |
+| #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | live |
+| #663 | "On now" on Events showed nothing to a member playing in five tournaments; the switcher now says which one has their card open; the landing's Club card promised "WHS posting" and its Free card "as many players as turn up" (items 69–71) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -847,6 +848,41 @@ That is by design, and both agree on what is owed.
   does the club's pinned notice about the second semi-final.
 
 Two passes in a row found nothing new, which is where you asked the testing loop to stop. It has.
+
+### The evening of 2026-09-27: navigation ("keep continuing with testing … and navigation")
+
+Walked as Séamus (member) and the secretary at 393px. Every tab, every menu item and every screen
+reached from them was checked for a heading, a way back and sideways scroll. All passed:
+five player tabs, nineteen console menu screens, and three old console addresses that now
+redirect to their replacements. What a member tripped on was not getting lost, but being told
+the wrong thing about where they were:
+
+69. **"On now" on Events showed nothing to a member playing in five tournaments.** Séamus is in
+    five live tournaments, one with his card open at the 12th. He chose "On now" and got "Nothing
+    matches". The filter read "when" off the card's band. The band puts the member's own place
+    first, so a live tournament he was IN counted as "upcoming", and "On now" listed only the ones
+    he was not in. "When" is now read from the tournament's own status, which is the same for
+    everybody. Within "You're in", what is being played now also comes before what hasn't started.
+    The November Spring Meeting had led the list above the medal he was mid-way through.
+70. **The tournament switcher said "Playing now" five times over and never said where his card
+    was.** After he looked at the Twilight Nine's board, Today followed it, and his unfinished medal
+    card was behind "Switch". The switcher then offered five identical "You're in · Playing now"
+    lines. It now names the one that needs him, "April Medal … Your card · thru 11", which agrees
+    with the medal's own Today, and puts it first. A card with every hole in but not signed reads
+    "Your card · to sign". Only stroke cards are read: a team round files its card per side and a
+    match files none, so those keep "Playing now" rather than a guess.
+
+71. **The public landing promised two things the app does not do.** The Club price card read
+    "…your own branding, WHS posting, and any size of field". No score posting exists (the GHIN
+    integration is a deliberate stub), and "WHS" is the word the landing's own handicap copy
+    refuses to use. The Free card listed "As many players as turn up" directly under its own
+    "up to ten players". Both now read what is true, and the Free cap comes from the plan, as the
+    Season card's always has. Found while checking launch-site claims for the session redesigning
+    the landing.
+
+Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
+text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
+the seed created the April Medal first, which real use would not.
 
 The original note behind item 34, kept for the reasoning:
 
