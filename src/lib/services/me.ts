@@ -161,6 +161,16 @@ export interface MyRound {
   /** The tee group I am in, if a sheet has been drawn. */
   group: { name: string; time: string; startHole: number; partners: string[] } | null;
   /**
+   * The tee sheet is OUT and I am not on it — somebody entered after the draw.
+   *
+   * `group` is null both before any sheet is published and when the published
+   * one leaves me off, and Today said nothing either way. A member entered late
+   * (or an organizer adding themselves to their own field — walked 2026-09-26)
+   * saw the field's tee times on the organizer's sheet and nothing about their
+   * own, with no way to tell "not drawn yet" from "left off".
+   */
+  offSheet: boolean;
+  /**
    * My matches in this round, when it is played as matches.
    *
    * SEPARATE FROM `group`, and the distinction is the whole point. A tee group
@@ -506,6 +516,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       cutOut,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
+      offSheet: !!sheet && sheet.groups.length > 0 && !mine,
       matches: myMatches,
       tie,
       knockout: isKnockoutRound(stage.type),
