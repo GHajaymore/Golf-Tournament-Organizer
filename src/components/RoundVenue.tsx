@@ -37,6 +37,7 @@ export function RoundVenue({
   inheritedTeeName,
   canEdit,
   informed = false,
+  canSearchDirectory = true,
 }: {
   stageId: string;
   /** The venue set on the round itself. "" means it inherits. */
@@ -64,8 +65,17 @@ export function RoundVenue({
   inheritedTeeName?: string;
   /** The venue this round resolves to, and whether it has a card. */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
-  /** May choose the course and tees — the organizer, as `setStageCourse` is. */
+  /**
+   * May choose the course and tees — STAFF, as `setStageCourse` is since
+   * Ajay's decision of 2026-09-27 (it was organizer-only for a night).
+   */
   canEdit: boolean;
+  /**
+   * May reach the national course DIRECTORY from the picker — the organizer
+   * only, because `searchCourseDirectory` spends the app's shared lookup
+   * allowance. An assistant picks from the club's own courses.
+   */
+  canSearchDirectory?: boolean;
   /**
    * Is told when the course or its card is missing, even without `canEdit` —
    * staff, who enter the cards that need it. A player is not.
@@ -143,12 +153,11 @@ export function RoundVenue({
   /**
    * SOMEBODY WHO CANNOT CHANGE IT IS STILL TOLD WHAT IS WRONG.
    *
-   * Choosing the venue is organizer-only (`setStageCourse`), so `canEdit` is
-   * the organizer since 2026-09-26 — offered to an assistant, every pick was
-   * refused. But returning nothing then hid the WARNING from them too, and an
-   * assistant entering cards on a round with no course is exactly who needs to
-   * know net scores have nothing to measure against. So they get the warning
-   * and who fixes it, without the controls.
+   * Written when choosing the venue was organizer-only (2026-09-26): an
+   * assistant got the warning without the controls. Since Ajay's decision of
+   * 2026-09-27 staff may choose it, so `canEdit` covers them and this branch is
+   * for anybody else a caller marks `informed` — kept, because the rule it
+   * states (whoever cannot fix it is still told) outlives who can fix it.
    */
   if (!canEdit) {
     // STAFF only. A player entering their own card does not set the venue for
@@ -232,7 +241,7 @@ export function RoundVenue({
              Deliberately NOT switched on in score entry: see the note there.
              Setting a venue and recording where a match happened to be played
              are different acts, and only one of them should invite a search. */
-          searchDirectory
+          searchDirectory={canSearchDirectory}
           /* The tournament's own venues first, then the rest of the club's
              library — same list, in the order a round is most likely to
              want. Deduped, because a venue is in both. */

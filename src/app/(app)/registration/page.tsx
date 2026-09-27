@@ -11,6 +11,8 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
+import { recentChanges } from "@/lib/services/recent-changes";
+import { RecentChanges } from "@/components/RecentChanges";
 
 export const metadata = screenMetadata("/registration");
 
@@ -91,6 +93,18 @@ export default async function RegistrationPage() {
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
+      {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,
+          2026-09-27). A member who withdraws themselves took the confirmed
+          count from 19 to 18 with nothing here saying who or when. */}
+      <div style={{ marginTop: 16 }}>
+        <RecentChanges
+          title="Recent changes to the field"
+          empty="No entries or withdrawals recorded yet."
+          rows={await recentChanges(session.eventId, { only: "field", take: 20 })}
+          locale={(await formattingForEvent(session.eventId)).locale}
+          showKind={false}
+        />
+      </div>
       <SetupFlowFooter flow={flow} href="/registration" />
     </>
   );

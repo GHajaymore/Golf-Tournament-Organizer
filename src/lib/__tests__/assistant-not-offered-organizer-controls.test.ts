@@ -40,11 +40,15 @@ describe("organizer-only controls are gated on the organizer", () => {
     expect(src).not.toMatch(/isStaff && !casual && !clearing/);
   });
 
-  it("a round's venue on Score entry and on Rounds & formats (setStageCourse)", () => {
+  it("a round's venue — STAFF, since Ajay's decision of 2026-09-27 (setStageCourse)", () => {
+    // The action opened to assistants, so the controls open with it: the same
+    // pairing rule, the other way round. The directory search inside the
+    // picker stays the organizer's (searchCourseDirectory spends the allowance).
     const entry = readSource("src", "components", "EntryModes.tsx");
-    expect(entry).toMatch(/<RoundVenue[\s\S]*?canEdit=\{isAdmin\}/);
+    expect(entry).toMatch(/<RoundVenue[\s\S]*?canEdit=\{isStaff\}/);
+    expect(entry).toMatch(/<RoundVenue[\s\S]*?canSearchDirectory=\{isAdmin\}/);
     const stages = readSource("src", "app", "(app)", "stages", "page.tsx");
-    expect(stages).toMatch(/canSetVenue=\{session\.viewRole === "admin"\}/);
+    expect(stages).toMatch(/canSetVenue=\{session\.viewRole === "admin" \|\| session\.viewRole === "assistant"\}/);
   });
 
   it("the course directory search (searchCourseDirectory)", () => {
@@ -61,6 +65,14 @@ describe("organizer-only controls are gated on the organizer", () => {
     expect(body(t, "setBracketMode")).toMatch(/requireAdminEvent\(\)/);
     expect(body(t, "clearRoundScores")).toMatch(/requireAdminEvent\(\)/);
     expect(body(c, "setFlightTee")).toMatch(/requireOrganizerOrg\(\)/);
-    expect(body(c, "setStageCourse")).toMatch(/requireOrganizerOrg\(\)/);
+  });
+
+  it("a round's venue is staff on the server too (the other half of the pairing)", () => {
+    const c = readSource("src", "app", "actions", "courses.ts");
+    const body = c.slice(c.indexOf("export async function setStageCourse(")).slice(0, 2500);
+    expect(body).toMatch(/requireStaffOrg\(\)/);
+    // And staff means organizer OR assistant — not anybody signed in.
+    const guard = c.slice(c.indexOf("async function requireStaffOrg(")).slice(0, 600);
+    expect(guard).toMatch(/session\.role !== "admin" && session\.role !== "assistant"/);
   });
 });

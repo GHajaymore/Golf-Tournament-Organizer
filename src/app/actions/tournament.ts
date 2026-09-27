@@ -506,6 +506,8 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     },
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
+  // On the record ("Recent changes to the field"), whoever added them.
+  await logAudit(eventId, "added", `${clean} was added to the field (${status}).`);
   await refresh();
   return { ok: true };
 }
@@ -635,6 +637,15 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
     await prisma.player.delete({ where: { id: playerId } });
   }
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
+  // On the record ("Recent changes to the field") — the organizer's removal, in
+  // the same list as a member's own withdrawal.
+  await logAudit(
+    eventId,
+    "removed",
+    played
+      ? `${player.name} was withdrawn from the field (their results are kept).`
+      : `${player.name} was removed from the field.`,
+  );
 
   /**
    * Promote the earliest waitlisted signup if a confirmed spot opened. True of

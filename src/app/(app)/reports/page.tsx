@@ -5,7 +5,9 @@ import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
-import { brandForEvent } from "@/lib/services/organization";
+import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
+import { recentChanges } from "@/lib/services/recent-changes";
+import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
@@ -415,6 +417,16 @@ export default async function ReportsPage() {
           they scroll to in September. */}
       <div style={{ marginTop: 16 }}>
         <AttendanceReport report={attendance} />
+      </div>
+      {/* THE RECORD, last — the tournament's audit log on screen (Ajay,
+          2026-09-27). Money, results, rounds, cuts and the field, newest first. */}
+      <div style={{ marginTop: 16 }}>
+        <RecentChanges
+          title="Recent changes"
+          empty="Nothing recorded yet. Entries, withdrawals, results confirmed, rounds closed and money in or out appear here as they happen."
+          rows={await recentChanges(session.eventId, { take: 50 })}
+          locale={(await formattingForEvent(session.eventId)).locale}
+        />
       </div>
     </>
   );

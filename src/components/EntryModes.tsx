@@ -419,10 +419,12 @@ export function EntryModes({
           venue={round.venue}
           teeId={round.teeId}
           inheritedTeeName={round.inheritedTeeName}
-          // Organizer only, as `setStageCourse` is: choosing the course and
-          // tees a round is played from reshapes every card in it.
-          canEdit={isAdmin}
+          // Staff, as `setStageCourse` is (Ajay, 2026-09-27) — an assistant
+          // sets the course and tees; only the directory search stays the
+          // organizer's, since it spends the shared lookup allowance.
+          canEdit={isStaff}
           informed={isStaff}
+          canSearchDirectory={isAdmin}
         />
       )}
 
