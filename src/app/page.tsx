@@ -1399,7 +1399,9 @@ export default async function LoginPage() {
               <ul>
                 <li>One tournament at a time</li>
                 <li>One organizer</li>
-                <li>As many players as turn up</li>
+                {/* From PLANS, like the Season card's — "As many players as
+                    turn up" sat under a blurb saying "up to ten players". */}
+                <li>Up to {PLANS.free.limits.playersPerEvent} players</li>
                 <li>Every format, every scoring engine</li>
               </ul>
               {/* The shared notice and nothing else. This block used to read

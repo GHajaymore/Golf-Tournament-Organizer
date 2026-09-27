@@ -96,7 +96,7 @@ beforeAll(async () => {
   id.draftEmpty = await makeEvent(org.id, "draft-empty", { status: "draft" });
 
   // The member is in one of them.
-  await prisma.player.create({
+  const me = await prisma.player.create({
     data: {
       eventId: id.entered,
       name: `${TAG} member`,
@@ -105,7 +105,22 @@ beforeAll(async () => {
       seed: 1,
       status: "confirmed",
     },
+    select: { id: true },
   });
+  // Two rounds of it: the first signed with every hole in, the second four
+  // holes in and not yet signed. Only the second still needs them.
+  for (const [position, strokes, status] of [
+    [0, new Array(18).fill(4), "certified"],
+    [1, [4, 5, 3, 4, ...new Array(14).fill(null)], "entered"],
+  ] as const) {
+    const round = await prisma.stage.create({
+      data: { eventId: id.entered, position, type: "Stroke Play Round", format: "Stroke Play", holes: 18, scoringBasis: "net" },
+      select: { id: true },
+    });
+    await prisma.scorecard.create({
+      data: { eventId: id.entered, stageId: round.id, playerId: me.id, strokes: JSON.stringify(strokes), status },
+    });
+  }
 
   // And on the waiting list for another — a row, but not a place.
   id.waiting = await makeEvent(org.id, "waiting", {});
@@ -211,6 +226,33 @@ describe("what a member is told about each of their club's tournaments", () => {
     expect(r.entered, "they are in the field").toBe(true);
     expect(r.canEnter, "so there is nothing to sign up for").toBe(false);
     expect(r.registrationHref, "and no form to send them to").toBe("");
+  });
+
+  it("files a live tournament they are in under On now", async () => {
+    /**
+     * Found 2026-09-27: "when" was read off the band, the band says "entered"
+     * for the member's own tournaments, and so "On now" listed only the ones
+     * the member was NOT in — empty for a member playing in five. The fixture's
+     * tournaments are live unless they say otherwise; the control is the open
+     * one beside it, live and not entered, which was always filed correctly.
+     */
+    const byId = await rows();
+    expect(byId.get(id.entered)!.band, "the band still leads with their place").toBe("entered");
+    expect(byId.get(id.entered)!.when, "and it is on now, like any live one").toBe("now");
+    expect(byId.get(id.open)!.when, "the control").toBe("now");
+    expect(byId.get(id.finished)!.when).toBe("finished");
+  });
+
+  it("knows which card of theirs is still open, and not the one they signed", async () => {
+    /**
+     * What the switcher says instead of five identical "Playing now" lines.
+     * The signed card has more holes on it than the open one, so a reading
+     * that forgot the status would report it — 18, complete — instead.
+     */
+    const byId = await rows();
+    expect(byId.get(id.entered)!.openCard).toEqual({ thru: 4, complete: false });
+    // Somebody else's card on the draft tournament is not this member's.
+    expect(byId.get(id.draftPlayed)!.openCard).toBeNull();
   });
 
   it("does not call a waiting-list place 'in', and does not offer the form again", async () => {

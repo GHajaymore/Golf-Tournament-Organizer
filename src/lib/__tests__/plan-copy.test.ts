@@ -123,3 +123,25 @@ describe("what a club gets for its money is actually said", () => {
     ).toBe(true);
   });
 });
+
+describe("a tier promises only what the app does", () => {
+  it("no plan claims a handicap-authority integration", () => {
+    /**
+     * The Club blurb said "WHS posting" and the public landing printed it. It
+     * was untrue — GHIN lookup and posting are a deliberate stub,
+     * integrations/ghin.ts — and "WHS" is the word the landing's handicap copy
+     * refuses, because it claims an endorsement nobody has given.
+     */
+    for (const plan of Object.values(PLANS)) {
+      expect(plan.blurb, `${plan.key}'s blurb`).not.toMatch(/\bWHS\b|GHIN|World Handicap|posting/i);
+    }
+  });
+
+  it("the landing's free card reads its field cap from the plan", () => {
+    // It said "As many players as turn up" under a blurb saying "up to ten".
+    // The Season card has always read its cap from PLANS; now both do.
+    const landing = stripComments(readFileSync(join(process.cwd(), "src", "app", "page.tsx"), "utf8"));
+    expect(landing).toContain("PLANS.free.limits.playersPerEvent");
+    expect(landing).not.toContain("As many players as turn up");
+  });
+});

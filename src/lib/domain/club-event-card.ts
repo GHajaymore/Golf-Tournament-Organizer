@@ -106,17 +106,40 @@ export function eventBand(i: {
 // that is what this list is sorted to put first.
 export const BAND_ORDER: readonly EventBand[] = ["entered", "waiting", "live", "open", "soon", "closed", "finished"];
 
-export function byBand<T extends { band: EventBand }>(rows: readonly T[]): T[] {
+//
+// And within the member's own bands, what is being PLAYED comes before what
+// has not started — the same rule one level down. "You're in" held five live
+// tournaments and one in November, newest-created first, so on medal day the
+// November one led the list above the round the member had his card open on.
+// Rows without a `when` keep the old order.
+export function byBand<T extends { band: EventBand; when?: string }>(rows: readonly T[]): T[] {
+  const onNow = (r: T) => (r.when === "now" ? 0 : 1);
   return rows
     .map((r, i) => ({ r, i }))
-    .sort((a, b) => BAND_ORDER.indexOf(a.r.band) - BAND_ORDER.indexOf(b.r.band) || a.i - b.i)
+    .sort(
+      (a, b) =>
+        BAND_ORDER.indexOf(a.r.band) - BAND_ORDER.indexOf(b.r.band) || onNow(a.r) - onNow(b.r) || a.i - b.i,
+    )
     .map(({ r }) => r);
 }
 
-/** Which "When" filter a band belongs under. */
-export function whenOf(band: EventBand): "upcoming" | "now" | "finished" {
-  if (band === "finished") return "finished";
-  if (band === "live") return "now";
+/**
+ * Which "When" filter a tournament belongs under — from ITS status, not the
+ * band.
+ *
+ * It was read off the band, and the band puts the member's own standing first:
+ * a tournament they are in is `entered` whether it starts in November or is
+ * being played today. So every live tournament a member was IN filed under
+ * "upcoming", and "On now" listed only the ones they were NOT in. Measured on
+ * the seeded club, 2026-09-27: a member in five live tournaments, one of them
+ * with his card open at the 12th, chose "On now" and was shown nothing.
+ *
+ * The band answers "what is this to me"; this answers "when is it", which is a
+ * fact about the tournament and the same for everybody.
+ */
+export function whenOf(eventStatus: string): "upcoming" | "now" | "finished" {
+  if (eventStatus === "completed") return "finished";
+  if (eventStatus === "live") return "now";
   return "upcoming";
 }
 

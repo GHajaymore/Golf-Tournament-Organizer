@@ -38,6 +38,52 @@ export interface SwitchableRow {
    * caller without it behaves as before.
    */
   eventStatus?: string;
+  /**
+   * The member's own stroke card in this tournament that still needs them —
+   * see `openCardOf`. Optional so a caller without it behaves as before.
+   */
+  openCard?: OpenCard | null;
+}
+
+/** A card of the member's that is started and not yet signed. */
+export interface OpenCard {
+  /** Holes on it so far. */
+  thru: number;
+  /** Every hole is in — what is left is signing it. */
+  complete: boolean;
+}
+
+/**
+ * WHICH OF A MEMBER'S TOURNAMENTS HAS THEIR CARD IN IT.
+ *
+ * "Playing now" was written for "a player entered in three needs to know which
+ * one their card belongs to today" — and it answers that only while one of the
+ * three is live. The seeded member is in FIVE live tournaments, and the switcher
+ * said "You’re in · Playing now" five times over, while the one with his card
+ * open at the 12th looked exactly like the five he had finished.
+ *
+ * So the card itself is asked. A stroke card still `entered` — not certified,
+ * approved or disputed — on a round nobody has closed, with at least one hole
+ * on it. A blank card (the tee sheet can make those) says nothing: nothing has
+ * been started, so there is nothing to go back to.
+ *
+ * Stroke cards only. A team round files its card per SIDE and a match files
+ * no card at all (CLAUDE.md, "which table this round files its result in"), so
+ * those rounds keep "Playing now" rather than being told something this does
+ * not know.
+ */
+export function openCardOf(strokesJson: string, holes: number, roundClosed: boolean): OpenCard | null {
+  if (roundClosed || holes <= 0) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(strokesJson);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(raw)) return null;
+  const thru = raw.slice(0, holes).filter((v) => typeof v === "number" && v > 0).length;
+  if (thru === 0) return null;
+  return { thru, complete: thru >= holes };
 }
 
 export interface SwitcherEntry {
@@ -98,7 +144,18 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
   // A tournament the player is IN and that is live is the one they are
   // playing — said in those words, because a player entered in three needs to
   // know which one their card belongs to today.
-  const what = row.band === "entered" ? (row.eventStatus === "live" ? "Playing now" : "") : row.bandLabel;
+  //
+  // And where they have a card still open, THAT is the answer — see `openCardOf`.
+  const card = row.entered ? row.openCard : null;
+  const what = card
+    ? card.complete
+      ? "Your card · to sign"
+      : `Your card · thru ${card.thru}`
+    : row.band === "entered"
+      ? row.eventStatus === "live"
+        ? "Playing now"
+        : ""
+      : row.bandLabel;
   return [who, what].filter(Boolean).join(" · ");
 }
 
@@ -119,7 +176,10 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
       ? {
           eventId: active.eventId,
           name: active.name,
-          note: noteOf(active, isStaff),
+          // Not the open card: the screen under this line is that tournament,
+          // and Today already says "YOUR CARD · THRU 9" in full. The card note
+          // is for pointing at a card somewhere ELSE.
+          note: noteOf({ ...active, openCard: null }, isStaff),
           watching: isWatching(active, isStaff),
           waiting: isWaiting(active, isStaff),
         }
@@ -130,10 +190,12 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
 
 /**
  * Within the player’s own tournaments, the one being played now comes first —
- * a stable move, so everything else keeps the events list’s order.
+ * a stable move, so everything else keeps the events list’s order. And one
+ * with their card still open comes before that: it is the one they came here
+ * to get back to.
  */
 function playingFirst<T extends SwitchableRow>(rows: T[]): T[] {
-  const now = (r: T) => (r.band === "entered" && r.eventStatus === "live" ? 0 : 1);
+  const now = (r: T) => (r.band !== "entered" ? 2 : r.openCard ? 0 : r.eventStatus === "live" ? 1 : 2);
   return rows.map((r, i) => ({ r, i })).sort((a, b) => {
     if (a.r.band === "entered" && b.r.band === "entered") return now(a.r) - now(b.r) || a.i - b.i;
     return a.i - b.i;
