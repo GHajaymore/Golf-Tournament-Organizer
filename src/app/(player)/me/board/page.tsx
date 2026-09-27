@@ -178,7 +178,8 @@ export default async function PlayBoardPage() {
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           {kind === "manual"
-            ? "This round is scored by hand — the committee works out the result and posts it when it's settled."
+            ? /* No "when it's settled": also shown on a finished tournament. */
+              "This round is scored by hand, so there is no board for it here — the committee works out the result."
             : kind === "team"
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",

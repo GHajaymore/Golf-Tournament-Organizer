@@ -82,6 +82,28 @@ export function validateTeeSheet(sheet: TeeSheet, confirmedIds: Set<string>): st
   return problems;
 }
 
+/**
+ * Which groups the tee-sheet screen shows: the SHEET OF RECORD once one has
+ * been saved, and the draw being made only while the organizer is re-drawing.
+ *
+ * It always showed the draw — a fresh, seeded shuffle on every visit — even
+ * over a published sheet. So the secretary opening Tee sheet on the morning
+ * read "Séamus · Group 6 · 8:50" while Séamus had been told Group 1 at 8:10,
+ * and the printed cards ("from the saved sheet") on the same page said 8:10
+ * too. The one line admitting it — "regenerating here only changes the
+ * preview" — reads as a note about pressing a button, not as "these are not
+ * the times" (walked 2026-09-27).
+ */
+export function sheetOnScreen(
+  saved: readonly TeeSheetGroup[],
+  preview: readonly TeeSheetGroup[],
+  redrawing: boolean,
+): { source: "saved" | "preview"; groups: readonly TeeSheetGroup[] } {
+  return !redrawing && saved.length > 0
+    ? { source: "saved", groups: saved }
+    : { source: "preview", groups: preview };
+}
+
 /** The group a player is drawn in, for "your tee time" on their dashboard. */
 export function groupForPlayer(sheet: TeeSheet, playerId: string): TeeSheetGroup | null {
   return sheet.groups.find((g) => g.playerIds.includes(playerId)) ?? null;

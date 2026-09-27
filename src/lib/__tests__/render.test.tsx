@@ -2272,6 +2272,40 @@ describe("tee sheet", () => {
     expect(html).not.toContain("Who plays together");
   });
 
+  /**
+   * AND WHAT IT READS IS THE SHEET THE PLAYERS HAVE.
+   *
+   * It showed the draw — a fresh seeded shuffle — over a published sheet, so
+   * the secretary read Séamus off at 8:50 in Group 6 while he had been told
+   * Group 1 at 8:10, and the printed cards on the same page agreed with him
+   * (walked 2026-09-27 on the seeded April Medal).
+   *
+   * The saved sheet here is one no draw of this field produces — a two-ball of
+   * players 8 and 1 off the 10th at 7:32 — so passing cannot be the preview
+   * happening to match it.
+   */
+  const saved = [
+    { name: "Group 1", startHole: 10, time: "7:32 AM", playerIds: ["p8", "p1"] },
+    { name: "Group 2", startHole: 1, time: "7:42 AM", playerIds: ["p2", "p3", "p4", "p5", "p6", "p7"] },
+  ];
+
+  it("reads out the saved sheet, not a fresh draw", () => {
+    const html = render(
+      <FoursomeMaker players={field} stageId="s1" savedAt="2026-05-14T08:00:00.000Z" published savedGroups={saved} />,
+    );
+    expect(html).toContain("Hole 10 · 7:32 AM");
+    expect(html).toContain("Hole 1 · 7:42 AM");
+    // The draw would have started at 8:00; nothing from it is on screen.
+    expect(html).not.toContain("8:00 AM");
+    expect(html).toContain("this is the sheet they have");
+  });
+
+  it("still draws a new sheet while there is none to read (the control)", () => {
+    const html = render(<FoursomeMaker players={field} stageId="s1" savedGroups={[]} />);
+    expect(html).toContain("8:00 AM");
+    expect(html).not.toContain("7:32 AM");
+  });
+
   it("offers them once there are standings", () => {
     const standings = field.map((p, i) => ({ playerId: p.id, position: i + 1 }));
     const html = render(<FoursomeMaker players={field} standings={standings} />);

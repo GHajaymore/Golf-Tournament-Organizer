@@ -541,6 +541,9 @@ export default async function FoursomesPage({
         holes={holes}
         stageId={stage?.id ?? ""}
         savedAt={stage ? parseTeeSheet(stage.teeSheet)?.savedAt ?? "" : ""}
+        // The sheet of record, so the screen shows what the players were given
+        // rather than a fresh shuffle — see `sheetOnScreen`.
+        savedGroups={savedSheet?.groups ?? []}
         published={stage?.teeSheetPublished ?? false}
         rounds={rounds.map((r) => ({
           id: r.id,
