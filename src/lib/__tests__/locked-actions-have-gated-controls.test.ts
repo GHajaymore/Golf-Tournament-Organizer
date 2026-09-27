@@ -88,7 +88,9 @@ describe("every control that reaches a lock-refusing action knows the lock", () 
   it("finds the actions and the screens it is about (the control)", () => {
     // If the sweep's parsing broke, it would find nothing and pass. These are
     // known members of the class, from the walk and the sweep.
-    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "addStage", "setStageCut"]) {
+    // (`addStage` left this list on 2026-09-27: adding a round is running the
+    // event, not setting it up. Deleting one still refuses.)
+    for (const a of ["setBracketMode", "saveEvent", "clearRoundScores", "createTeam", "removeStage", "setStageCut"]) {
       expect(locked.has(a), `${a} should refuse a locked tournament`).toBe(true);
     }
     for (const f of [

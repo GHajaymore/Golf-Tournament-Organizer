@@ -46,9 +46,9 @@ export function SingleMatchRulePicker({
   rounds: Array<{ id: string; label: string }>;
   players: Array<{ id: string; name: string }>;
   /**
-   * Optional. Both actions call assertUnlocked on the server, so a locked
-   * tournament is refused there with a message either way — this only saves
-   * the round trip when the caller already knows.
+   * Setup is locked. Only the RULE follows it — `setSingleMatchRule` is setup
+   * and refuses a locked tournament. Creating the match does not: it is made
+   * once the rule resolves, which is during the event (Ajay, 2026-09-27).
    */
   locked?: boolean;
 }) {
@@ -271,7 +271,7 @@ export function SingleMatchRulePicker({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={pending || locked || !!problem}
+          disabled={pending || !!problem}
           onClick={() =>
             startTransition(async () => {
               setError("");

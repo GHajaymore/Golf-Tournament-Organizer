@@ -946,6 +946,22 @@ named. The deferred-register entry for this class is closed.
    If some of them should just be allowed on a live tournament, as a round's course and date
    already are, that is a change to what the server allows. Name which, and I'll take each one
    out of the lock with a test.
+
+   **Decided 2026-09-27 ("go with what a golf pro would decide") — built.** A committee locks
+   setup to protect what the field entered, not the running of the competition. So these now
+   work on a live tournament without unlocking:
+   - drawing the next round;
+   - adding a round;
+   - the completion deadline and the scoring window;
+   - making the single match and the play-off for third.
+
+   Two safeguards hold:
+   - **Drawing:** it deletes and redraws the round. On a locked tournament, a round that
+     already has scores is refused ("drawing it again would wipe them") and its scores are left
+     alone. The lock used to prevent that only by accident.
+   - **Still behind the lock:** clearing a round's scores (a deliberate step before wiping
+     results), whether there is a third-place play-off, and the single-match rule. Those are
+     setup.
 9. **A Stableford round set to GROSS is still scored off handicap.** Found while measuring item 65.
    Stableford points are computed with the player's strokes whatever the round's gross/net
    setting says. So a scratch Stableford (a real competition, and one the Rounds screen lets
@@ -953,6 +969,27 @@ named. The deferred-register entry for this class is closed.
    holds no such round. It is how points are calculated, so I have not touched it. Should
    "gross" on a Stableford round mean points off scratch (the Rules' reading), or should gross
    simply not be offered for Stableford?
+
+   **You said "go with what a golf pro would decide" (2026-09-27). The golf pro's answer is
+   scratch (Rule 21.1), and I built it — then took it back out before shipping,** because
+   building it showed that "gross" on a Stableford round usually isn't a choice. Every new round
+   is created with the basis "gross" (the schema default, and what "Add round" writes), whatever
+   its format. So a club that added Stableford rounds with the round builder has them stored
+   "gross", and their points have always been counted off handicap. Making "gross" mean scratch
+   would silently re-score every such round already played. A golf pro would never change a
+   finished competition's result. The development database can't say how many there are: its
+   rounds are seeded "net" explicitly, which is exactly why it shows none. Production could have
+   many.
+
+   So nothing about Stableford scoring has changed. What it needs from you:
+   - **Count them.** How many Stableford or Modified Stableford rounds in production are stored
+     "gross"? That's one read-only query, but on production, so it isn't mine to run.
+   - **If none:** make new Stableford rounds default to "net", and then "gross" can safely mean
+     scratch.
+   - **If some:** those rounds need converting to "net" first (their results don't change,
+     because their points were always net). That is a write to live events, so it's your call.
+   - **Until then:** the Rounds screen can say "Gross scoring" on a Stableford round that is
+     scored off handicap. That's a wrong label, but it doesn't change anyone's result.
 10. **The public board and the player's Board still show only the last round.** Your answer of
     26 September ("add a round picker") was built on the console leaderboard (item 49). But the
     finished Festival of Formats' public board, the link a club sends its members, still opens
