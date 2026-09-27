@@ -815,7 +815,14 @@ export function EventSetupClient({
             would have been a worse inconsistency than the distance. */}
         <StickySave
           dirty={isDirty}
-          note={locked ? "Setup is locked — unlock it at the top to save these" : "Unsaved changes to the tournament"}
+          // Still NAMES the form when locked: the note is what tells this save
+          // from the settings save below once one floats away from its heading
+          // (organizer.spec "each form's save follows only its own form").
+          note={
+            locked
+              ? "Unsaved changes to the tournament — setup is locked, so unlock it at the top to save them"
+              : "Unsaved changes to the tournament"
+          }
         >
           <button
             type="button"
