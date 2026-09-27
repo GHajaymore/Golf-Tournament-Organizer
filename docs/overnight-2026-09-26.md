@@ -87,6 +87,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #646 | The calendar put Round 2 before Round 1; a knockout's Today said "Position T1" over "Out in the semifinal"; two audit lines counted rounds by hand; the seeded money held rows the app refuses (items 40–43) | live |
 | #647 | Ties printed "1, 1, 3" on the sides, skins, Modified Stableford and league tables and "T1" everywhere else (item 44) | live |
 | #648 | My own #645 made the league read "YOUR TOTAL · FINAL" four weeks into seven — now "SO FAR" until completed (item 45) | live |
+| #649 | The rules sheet named the format twice, once in the app's internal words (item 46) | live |
+| #650 | **Your three evening decisions**: a member can withdraw until entries close; Events dates an undated tournament by its rounds; a round picker on the console leaderboard (items 47–49) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -553,6 +555,38 @@ golfer would stop at:
     choosing changes the board: a two-round medal or a league of Stableford weeks shares one
     board and gets no picker. **Not done:** the dashboard and Reports still show the board's own
     round only; your answer was about the leaderboard, so I left those alone.
+
+### The second night — testing as each role (you asked: "keep testing with multiple roles")
+
+Walked as the club secretary, as a member, as the public viewer and — for the first time — as an
+**assistant**, the role that runs a tournament without reshaping it. There was no assistant in
+the seeded club, so one was created for the walk and removed afterwards. All 18 screens an
+assistant may open loaded at 393px with a heading and no sideways scroll, all four they may not
+sent them back, and the sidebar listed exactly the right screens. Two things were wrong.
+
+50. **A link into a screen you cannot open landed on the dashboard in silence.** Five screens an
+    assistant can open link to two they cannot — "change on Tournament details" on Registration,
+    "Unlock the tournament" on Flights, "Correct the course's card" on Score entry, "Check the
+    card" on Rounds & formats, "Club settings" on Prizes — and every click dropped them on the
+    dashboard with nothing said. A player sent to Prizes the same. **Fixed where every refusal
+    ends**, so a link written next year is covered too: the landing screen now says "Tournament
+    details is for the tournament's organizer, so it can't open for you. If something there needs
+    changing, ask them." It only ever names a screen it knows, so a crafted link cannot put words
+    on the page.
+
+51. **Five organizer-only controls were offered to assistants, and failed every time.** Found by
+    a sweep of every organizer-only action against the screens an assistant can open, then each
+    one read in the code: the knockout's Arrangement "Change" button, a flight's Tees select, the
+    "Clear scores" button, a round's course and tees (on Score entry and on Rounds & formats), and
+    the course-directory search. Each is now shown only to the organizer — on Rounds & formats the
+    course and nine stay visible but greyed, with "The organizer sets where this round is played"
+    on the page. **Kept for assistants, deliberately:** importing a spreadsheet of scores and
+    typing in a course card, both of which the server allows them. And an assistant entering cards
+    on a round with no course is still told the course is missing — a player still is not.
+    **Your call if you want it the other way:** assistants could be allowed to set a round's
+    course and tees (it is one permission on the server), but "assistants run it, they don't
+    reshape it" is the rule the app was written to, so I matched the buttons to it rather than
+    the other way round.
 
 The original note behind item 34, kept for the reasoning:
 
