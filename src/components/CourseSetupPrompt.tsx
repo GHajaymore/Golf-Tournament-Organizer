@@ -23,12 +23,21 @@ export function CourseSetupPrompt({
   eventCourse,
   eventCity,
   isStaff,
+  isAdmin = false,
   blocking = true,
   saved = [],
 }: {
   eventCourse: string;
   eventCity: string;
   isStaff: boolean;
+  /**
+   * Whether the course DIRECTORY may be searched — organizer only, because
+   * `searchCourseDirectory` spends the app's shared lookup allowance and is
+   * guarded for exactly that. Staff still get the paste-or-type card, which
+   * `saveCustomCourse` allows them; an assistant was shown a search box that
+   * failed whenever the stored catalogue had no match.
+   */
+  isAdmin?: boolean;
   /** Courses the club has already saved. Picking one is the fast path, and
    *  this screen used to ignore them entirely — asking an organizer to paste
    *  a card the app was already holding. */
@@ -221,7 +230,7 @@ export function CourseSetupPrompt({
           Event setup the library sits above with its own lookup, and two
           identical search boxes on one screen is not two ways in, it is one
           thing rendered twice. */}
-      {isStaff && blocking && <CourseSearch />}
+      {isAdmin && blocking && <CourseSearch />}
 
       {saved.length > 0 && (
         <div style={{ marginBottom: 16 }}>

@@ -46,6 +46,7 @@ export function FlightBoard({
   cards,
   locked,
   canEdit,
+  canSetTees = canEdit,
   confirmed,
   tees = [],
   byFlightTees = false,
@@ -54,6 +55,14 @@ export function FlightBoard({
   cards: FlightCard[];
   locked: boolean;
   canEdit: boolean;
+  /**
+   * Whether the flight's TEES can be changed — organizer only, because
+   * `setFlightTee` is. Separate from `canEdit`, which is staff: an assistant
+   * moves players between flights all day, and was offered a tee select that
+   * failed on every change. Defaults to `canEdit` for any caller that has not
+   * said otherwise.
+   */
+  canSetTees?: boolean;
   /** Show captain/vice pickers — league furniture, only when the weekly
    *  question is asked. */
   leadership?: boolean;
@@ -329,7 +338,7 @@ export function FlightBoard({
                   aria-label={`Tees for ${g.label}`}
                   style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
                   value={g.teeId ?? ""}
-                  disabled={locked || !canEdit || pending}
+                  disabled={locked || !canSetTees || pending}
                   onChange={(e) => {
                     setError("");
                     const teeId = e.target.value || null;

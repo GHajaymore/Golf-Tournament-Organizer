@@ -25,6 +25,10 @@ export default async function BracketPage() {
   const results: Record<string, string> = {};
   for (const w of bw) if (w.result) results[w.key] = w.result;
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  // The ARRANGEMENT redraws who plays whom, and `setBracketMode` is organizer
+  // only — offered to an assistant it was a Change button that always failed.
+  // Entering results stays open to staff.
+  const isAdmin = session.viewRole === "admin";
 
   const mode: BracketMode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
   const { mainLabel, secondLabel } = drawBrackets([], mode);
@@ -100,7 +104,7 @@ export default async function BracketPage() {
 
   return (
     <>
-      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isStaff} />
+      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} />
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}

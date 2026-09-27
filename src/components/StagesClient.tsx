@@ -584,8 +584,16 @@ function StageCard({
   onToggle,
   singleMatch,
   thirdPlace,
+  canSetVenue = true,
 }: {
   stage: StageView;
+  /**
+   * Whether the round's course and nine can be changed here — organizer only,
+   * because `setStageCourse` is. Shown either way, so an assistant can read
+   * where a round is played; disabled for them rather than a control that
+   * fails on every change.
+   */
+  canSetVenue?: boolean;
   /** For a Single Match Stage: the rule, and who it currently resolves to. */
   singleMatch?: SingleMatchView | null;
   /** For a Bracket Stage: whether it plays off for third, and who would. */
@@ -1289,7 +1297,7 @@ function StageCard({
               id={`nine-${stage.id}`}
               className="input"
               value={nine}
-              disabled={pending}
+              disabled={pending || !canSetVenue}
               onChange={(e) => commitVenue(courseId, e.target.value)}
             >
               <option value="front">Front nine</option>
@@ -1321,11 +1329,18 @@ function StageCard({
               searchDirectory={false}
               options={venues}
               value={courseId ?? ""}
-              disabled={pending}
+              disabled={pending || !canSetVenue}
               noneLabel="Same as the tournament"
               onChange={(id) => commitVenue(id || null, nine)}
             />
           </div>
+        )}
+        {/* Why those two are greyed out, ON the page — this app's rule is that
+            a control's reason is not left to a tooltip. */}
+        {!canSetVenue && (holes === 9 || venues.length > 1) && (
+          <span className="text-muted" style={{ fontSize: 11.5, alignSelf: "center" }}>
+            The organizer sets where this round is played.
+          </span>
         )}
         <button
           type="button"
@@ -1870,8 +1885,11 @@ export function StagesClient({
   roundsWithResults = [],
   singleMatches,
   thirdPlaces,
+  canSetVenue = true,
 }: {
   stages: StageView[];
+  /** Organizer only — see `StageCard`'s prop of the same name. */
+  canSetVenue?: boolean;
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
@@ -2022,6 +2040,7 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            canSetVenue={canSetVenue}
             allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}

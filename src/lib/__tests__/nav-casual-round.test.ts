@@ -199,8 +199,11 @@ describe("the card screen on a casual round", () => {
     // The casual gate, followed by anything else the control is gated on —
     // since 2026-09-26 both also say `!bracket` (a knockout round is recorded
     // on the Bracket). The guarantee is that `!casual` is in the gate.
+    // The ROLE in front of it is the action's business, not this test's: the
+    // bulk clear became organizer-only on 2026-09-26 (`clearRoundScores` is),
+    // so its gate reads `isAdmin`. Either role, `!casual` must follow.
     expect(src).toMatch(/isStaff && !casual(?: && !\w+)* && \(/);
-    expect(src).toMatch(/isStaff && !casual && !clearing(?: && !\w+)* && \(/);
+    expect(src).toMatch(/is(?:Staff|Admin) && !casual && !clearing(?: && !\w+)* && \(/);
   });
 
   it("does not ask how to type the scores in", () => {

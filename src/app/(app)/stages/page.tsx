@@ -321,6 +321,8 @@ export default async function StagesPage() {
         ))}
       <StagesClient
         stages={stages}
+        // A round's course and nine are the organizer's, as `setStageCourse` is.
+        canSetVenue={session.viewRole === "admin"}
         singleMatches={singleMatches}
         thirdPlaces={thirdPlaces}
         venues={venues}
