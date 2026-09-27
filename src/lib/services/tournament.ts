@@ -2523,6 +2523,32 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
  * docstring on `isManualFormat` calls out: a round the app does not score must
  * never reach a scoring path at all.
  */
+/**
+ * THE SAME STATE, LOOKING AT ANOTHER ROUND — for the console leaderboard's
+ * round picker (Ajay, 2026-09-26; see `leaderboardRounds`).
+ *
+ * A DISPLAY VIEW, and only that. The standings themselves are computed when
+ * the state is loaded, across every round, and nothing here recomputes them;
+ * what a board reads to decide WHICH board to draw is the round pointer —
+ * `boardStage`, `boardIsStroke`, and `activeStage`, which `standingRows` checks
+ * on its first line for a manual format. That check is why this exists: with a
+ * hand-scored LAST round the pointer sat on it, and the tournament's whole
+ * stroke board returned [] behind it.
+ *
+ * Returns the state untouched for an id that is not one of its playing rounds,
+ * so a hand-edited `?round=` cannot point the board at a cut or at nothing.
+ */
+export function withBoardRound(state: EventState, stageId: string | undefined): EventState {
+  const picked = stageId ? state.stages.find((s) => s.id === stageId && isPlayingRound(s.type)) : undefined;
+  if (!picked) return state;
+  return {
+    ...state,
+    activeStage: picked,
+    boardStage: picked,
+    boardIsStroke: roundIsStroke(picked.type, picked.format),
+  };
+}
+
 export function standingRows(state: EventState): StandingRow[] {
   if (isManualFormat(state.activeStage?.format ?? "")) return [];
 

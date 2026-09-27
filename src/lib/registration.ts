@@ -240,6 +240,30 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
 }
 
 /**
+ * CAN A MEMBER TAKE THEIR OWN NAME OFF? Until entries close — Ajay, 2026-09-26.
+ *
+ * "Enter this tournament" enters in one tap, and nothing let a member undo it:
+ * a mis-tap, or a change of plans, meant asking the organizer. Walked as a
+ * member that morning; decided the same evening: a member may withdraw until
+ * entries close, the place goes to the waiting list, and after that the
+ * organizer makes any change.
+ *
+ * "Until entries close" is read off the SAME rule that lets them in, so the
+ * Enter button and the Withdraw button cannot disagree about whether the door
+ * is open: self-entry has to be switched on (`registrationOpen`), and the
+ * state must not be one of the three closed ones — past the deadline, closed
+ * by the organizer, or finished. A FULL field is still open (entries go to the
+ * waiting list), and a withdrawal there is exactly what the list is waiting
+ * for. "Not open yet" is not closed either: somebody the organizer entered
+ * early can still say they cannot make it.
+ */
+export function ownWithdrawalOpen(input: RegistrationInput & { registrationOpen: boolean }): boolean {
+  if (!input.registrationOpen) return false;
+  const { state } = registrationStatus(input);
+  return state !== "closed-deadline" && state !== "closed-manual" && state !== "closed-finished";
+}
+
+/**
  * How many confirmed entries there are BEYOND the cap, or 0.
  *
  * The field screen printed "Confirmed 33 · of 32 capacity" with nothing

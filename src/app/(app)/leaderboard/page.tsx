@@ -4,7 +4,9 @@ import { screenName } from "@/lib/nav";
 import { requireState } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
-import { computeHighlights, standingRows, settingsOf } from "@/lib/services/tournament";
+import { computeHighlights, standingRows, settingsOf, withBoardRound } from "@/lib/services/tournament";
+import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
+import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -37,8 +39,43 @@ function ago(d: Date): string {
 
 export const metadata = screenMetadata("/leaderboard");
 
-export default async function LeaderboardPage() {
-  const { session, state } = await requireState();
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ round?: string }>;
+}) {
+  const { session, state: loaded } = await requireState();
+  /**
+   * WHICH ROUND — the picked one, or the board's own (Ajay, 2026-09-26).
+   *
+   * A hand-scored LAST round made this whole screen that round: the seeded
+   * Festival of Formats could not show rounds 1–10 from the console at all.
+   * `?round=` now points the board at any playing round, through the same
+   * `RoundPicker` Group games uses; with none given, nothing changes.
+   */
+  const params = await searchParams;
+  const state = withBoardRound(loaded, params.round);
+  const choices = leaderboardRounds(loaded.stages);
+  const picker =
+    choices.length > 0 ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          Showing
+        </span>
+        <RoundPicker
+          rounds={choices}
+          activeStageId={state.boardStage?.id ?? ""}
+          label="Which round the leaderboard shows"
+          style={{ minWidth: 0, maxWidth: "100%" }}
+        />
+      </div>
+    ) : null;
+  const withPicker = (board: React.ReactNode) => (
+    <>
+      {picker}
+      {board}
+    </>
+  );
   const { event } = state;
 
   // A blind event hides standings from players until the organizer publishes.
@@ -107,7 +144,7 @@ export default async function LeaderboardPage() {
     for (const w of await prisma.bracketWinner.findMany({ where: { eventId: session.eventId } })) {
       if (w.result) results[w.key] = w.result;
     }
-    return (
+    return withPicker(
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
@@ -116,12 +153,12 @@ export default async function LeaderboardPage() {
         results={results}
         readOnly
         straight
-      />
+      />,
     );
   }
 
   if (kind === "manual") {
-    return <ManualRoundBoard format={activeStage!.format} />;
+    return withPicker(<ManualRoundBoard format={activeStage!.format} />);
   }
 
   if (kind === "team-match" && activeStage) {
@@ -137,12 +174,12 @@ export default async function LeaderboardPage() {
       where: { id: session.eventId },
       select: { leaguePoints: true },
     });
-    return (
+    return withPicker(
       <TeamMatchLeaderboard
         format={activeStage.format}
         rows={rows}
         system={isLeaguePointsSystem(ev?.leaguePoints) ? ev.leaguePoints : "match"}
-      />
+      />,
     );
   }
 
@@ -163,12 +200,12 @@ export default async function LeaderboardPage() {
       activeStage.allowanceWeights,
       activeStage.countBest,
     );
-    return (
+    return withPicker(
       <TeamLeaderboard
         format={activeStage.format}
         basis={weekBasis(activeStage.scoringBasis, activeStage.format)}
         rows={standings}
-      />
+      />,
     );
   }
 
@@ -184,16 +221,16 @@ export default async function LeaderboardPage() {
       const board = await skinsBoard(
         session.eventId, activeStage.id, holes, net, c.holeDifficulty,
       );
-      return <SkinsLeaderboard board={board} net={net} />;
+      return withPicker(<SkinsLeaderboard board={board} net={net} />);
     }
     if (kind === "nassau") {
-      return <NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />;
+      return withPicker(<NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />);
     }
     if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(
         session.eventId, activeStage.id, c.pars, c.holeDifficulty,
       );
-      return <ModifiedStablefordLeaderboard rows={rows} />;
+      return withPicker(<ModifiedStablefordLeaderboard rows={rows} />);
     }
   }
 
@@ -248,6 +285,7 @@ export default async function LeaderboardPage() {
 
   return (
     <>
+      {picker}
       <div
         style={{
           display: "flex",
