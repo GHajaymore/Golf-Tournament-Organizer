@@ -69,7 +69,32 @@ Items 46–54, PRs #649–#653, every one confirmed live. What a user would have
 
 **Two new decisions for you** (end of the "second night" section): whether the audit log gets a
 screen — it records withdrawals, money and cuts, and nothing shows it — and whether assistants
-should be allowed to set a round's course and tees.
+should be allowed to set a round's course and tees. **Both answered "yes" on 2026-09-27 and built
+(#655).**
+
+**The day of 2026-09-27 ("keep continue with the testing and fixing"):** items 57–67, PRs
+#656–#659, every one gated locally (the last three with the full Playwright suite too) and
+confirmed live. What a user would have hit:
+
+- **The Tournament details, Rounds & formats, Teams, bracket and Clear scores screens of a live
+  tournament offered 35 controls that crashed the page** into "Application error" when pressed.
+  Each now follows the lock and says to unlock setup (#657).
+- **The tee sheet showed a fresh shuffle over the published sheet**, so the secretary read a
+  player's time as 8:50 when he'd been given 8:10 (#659).
+- **A member who set up a casual round was told they weren't in it**, and a blank handicap on a
+  net round silently played off scratch (#656).
+- **Picking "Stableford" started a round called "Stroke Play"** (#658).
+- **A finished board promised a result "when it is settled"**, and **"You're in!" was a dead end**
+  for a member sent to the entry form (#659, #657).
+
+The walks ended when two passes in a row found nothing new: as an assistant, on a Stableford
+nine, and on a knockout. **Three new decisions** (8–10 under "Decisions needed from Ajay"):
+
+- which mid-event jobs should work without unlocking setup;
+- what "gross" should mean on a Stableford round;
+- whether the round picker goes on the public board.
+
+Five one-liners are also under "Noted, not changed".
 
 The rest of this file is the night's log in the order it happened.
 
@@ -119,6 +144,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #656 | A member's casual round: the organizer wasn't recognised in their own round; a blank handicap silently played off scratch; "the tournament's" tees and "Back —" on a nine (items 57–61) | live |
 | #657 | A live tournament's setup screens offered 35 controls whose action crashed the page — each now follows the lock; "You're in!" leads a member back to their events (items 62–64) | live |
 | #658 | Picking "Stableford" started a round called "Stroke Play" — now a Stableford round, scoring measured identical (item 65) | live |
+| #659 | The tee sheet showed a fresh shuffle over the published sheet — it now shows the sheet the players have; a finished board no longer promises a result "when it is settled" (items 66–67) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -788,8 +814,27 @@ under the organizer's name. One real defect, and three things for you.
     or finished.
 
 The rest of the public boards were clean at 393px as the anonymous viewer: all five load, none
-scrolls sideways, and no row is cut off.
+scrolls sideways, and no row is cut off. A member's money screen was checked figure by figure
+against the organizer's: both say Séamus is owed £25.95, and the four handovers add up to it. The
+organizer also sees running skins winnings, labelled "Provisional", which the member does not.
+That is by design, and both agree on what is owed.
 
+### Two passes that found nothing new, and the loop stops (2026-09-27)
+
+- **As an assistant**, a temporary one on the April Medal, removed afterwards. All eight screens
+  an assistant may open loaded at 393px with a heading, and Tournament details sent them back with
+  the reason. Both Recent changes lists were there. Every money control Prizes offers them is one
+  the server accepts from an assistant.
+- **The Twilight Nine, a Stableford, as a member.** Today, the Board, the card and the public board
+  all say 13 points and 10th. The card adds up hole by hole, level players are separated on
+  countback, "11 of 12 cards in" is right, and the tee time comes from the published sheet.
+- **The Summer Knockout, as the seeded player and the organizer.** Today ("Out in the semifinal ·
+  lost to Dilip Ranganathan at the 19th"), the Board and the bracket tell the same story, and so
+  does the club's pinned notice about the second semi-final.
+
+Two passes in a row found nothing new, which is where you asked the testing loop to stop. It has.
+
+The original note behind item 34, kept for the reasoning:
 
 - **A finished championship lists players who missed the cut among those who made it.** The
   seeded Club Championship (36 holes, cut after 18) ranks Odette Brissaud, cut on +14 after 18,
@@ -838,6 +883,9 @@ scrolls sideways, and no row is cut off.
   details name the tournament-level choice between stroke and match, which is correct for how it
   is ranked, but it reads wrong for a Stableford competition. Only the wording; it is the field
   you ruled on on 20 September, so it's yours.
+- **"5 of 6 ties decided" on a knockout of eight.** It counts ties that can be played now, so the
+  final is left out until the second semi is played. That is deliberate and correct, but a golfer
+  may read it as one tie left when two are. "5 of 7" would count the whole draw; your call.
 
 ## Accessibility — every console control named
 
