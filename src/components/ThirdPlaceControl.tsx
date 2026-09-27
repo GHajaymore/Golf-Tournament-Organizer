@@ -32,12 +32,14 @@ export function ThirdPlaceControl({
   bName: string;
   /** The play-off has already been created. */
   made: boolean;
-  /** Setup is locked, which both actions refuse by throwing. */
+  /**
+   * Setup is locked. Only the SWITCH follows it — `setThirdPlace` is setup and
+   * refuses a locked tournament. Creating the play-off does not: the beaten
+   * semi-finalists are only known mid-event (Ajay, 2026-09-27).
+   */
   locked?: boolean;
 }) {
-  const { pending: saving, error, run } = useAction();
-  // Both controls below are disabled on this, so the lock rides along with it.
-  const pending = saving || locked;
+  const { pending, error, run } = useAction();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -45,7 +47,7 @@ export function ThirdPlaceControl({
         <input
           type="checkbox"
           checked={on}
-          disabled={pending}
+          disabled={pending || locked}
           onChange={(e) => run(() => setThirdPlace(stageId, e.target.checked))}
           style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
         />

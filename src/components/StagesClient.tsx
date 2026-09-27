@@ -198,8 +198,12 @@ const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
  * three layers of cards.
  *
  * NOT everything here is behind the lock, and those stay open: a round's date,
- * its course and tees, "round finished", and the round's handicaps. Gate a new
- * control on this only when its action calls `assertUnlocked`.
+ * its course and tees, "round finished", and the round's handicaps — and, since
+ * Ajay's call of 2026-09-27 that RUNNING an event is not setting it up: adding
+ * a round, drawing the next round (the server refuses a redraw of a round that
+ * already has scores), the completion deadline and scoring window, and making
+ * the single match or the play-off for third. Gate a new control on this only
+ * when its action calls `assertUnlocked`.
  */
 const SetupLocked = React.createContext(false);
 
@@ -366,7 +370,9 @@ function NextRoundTransition({
           <button
             type="button"
             className="btn"
-            disabled={pending || locked}
+            // Not gated on the lock: adding a round is running the event, and
+            // `addStage` allows it on a live tournament (2026-09-27).
+            disabled={pending}
             onClick={() =>
               startTransition(async () => {
                 await addStage("Round Robin");
@@ -528,7 +534,10 @@ function NextRoundTransition({
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={genPending || locked}
+            // Not gated on the lock: drawing the next round is running the
+            // event. The server refuses — in words, shown below — a redraw of
+            // a round that already has scores while setup is locked.
+            disabled={genPending}
             onClick={() =>
               startGenTransition(async () => {
                 setGenError(null);
@@ -1704,7 +1713,8 @@ function StageCard({
                   className="input"
                   type="date"
                   value={isIsoDate(deadline) ? deadline : ""}
-                  disabled={pending || locked}
+                  // Open while live: `setStageDeadline` is not behind the lock.
+                  disabled={pending}
                   onChange={(e) => {
                     setDeadline(e.target.value);
                     startTransition(() => setStageDeadline(stage.id, e.target.value));
@@ -1731,7 +1741,9 @@ function StageCard({
                   roundLabel={roundLabelOf(allStages, stage.id)}
                   deadline={deadline}
                   override={stage.deadlineOverride}
-                  locked={pending || locked}
+                  // Open while live: closing or reopening scoring is a
+                  // decision made on the day (2026-09-27).
+                  locked={pending}
                 />
               </div>
             </SettingsGroup>
@@ -2366,7 +2378,7 @@ export function StagesClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || locked || !newType || !bulkFormat}
+            disabled={pending || !newType || !bulkFormat}
             onClick={() =>
               newType &&
               bulkFormat &&
@@ -2411,9 +2423,7 @@ export function StagesClient({
               "Draws a full set of pairings" on an untouched screen, which
               described the defaulted Round Robin rather than anything the
               organizer had asked for. */}
-          {locked
-            ? "Setup is locked, so no round can be added. Unlock setup at the top of this page first."
-            : !newType
+          {!newType
             ? "Pick one above — the type decides what gets drawn."
             : !bulkFormat
               ? `${addRoundConsequence(newType)} Now choose the format it is scored by.`
