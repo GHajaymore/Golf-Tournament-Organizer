@@ -2964,13 +2964,13 @@ describe("saying where a tournament is played, from score entry", () => {
     expect(html).toContain('role="combobox"');
   });
 
-  it("tells an assistant the course is missing, without a picker that would refuse them", async () => {
-    // An assistant entering cards needs the warning at least as much — and a
-    // venue picker they could not use was a control that failed every time.
+  it("lets an assistant set the course too (Ajay, 2026-09-27)", async () => {
+    // For one night the picker was the organizer's and an assistant got the
+    // warning alone; `setStageCourse` is staff now, so they get the picker.
     const html = await entry({}, { isAdmin: false });
     expect(html).toContain("No course set for this round");
-    expect(html).toContain("The organizer sets the course");
-    expect(html).not.toContain('role="combobox"');
+    expect(html).toContain('role="combobox"');
+    expect(html).not.toContain("The organizer sets the course");
   });
 
   /**

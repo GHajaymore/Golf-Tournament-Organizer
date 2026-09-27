@@ -10,6 +10,7 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { effectiveCapacity } from "@/lib/services/limits";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
+import { logAudit } from "@/lib/services/action-shared";
 import {
   cleanRegistration,
   looksLikePhone,
@@ -237,6 +238,12 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
    * rather than inheriting a helper that reads a caller who is not there.
    */
   boardChanged(event.id);
+
+  // On the organizer's record ("Recent changes to the field"). No session here,
+  // so the actor is the person who filled the form in, by the name they gave.
+  await logAudit(event.id, "registered", `${person.name} entered on the sign-up link (${placed.status}).`, {
+    actor: person.name,
+  });
 
   // Email is identity in this app (accessibleEvents is keyed on it), so
   // registering also grants sign-in — the same as the organizer-side add. Never

@@ -249,6 +249,13 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   });
   if (!decision.accepted) return { ok: false, error: NOT_OPEN };
 
+  // On the record, beside the withdrawal line: the organizer's "Recent changes
+  // to the field" (Registration) shows who came as well as who went.
+  const enteredName = member?.name || session.name || session.email;
+  await logAudit(eventId, "entered", `${enteredName} entered themselves (${decision.status}).`, {
+    actor: session.name || session.email,
+  });
+
   // A new entrant changes the field, so the cached public board has to be
   // retired — and `revalidatePath` below does NOT do that, they are different
   // caches. `boardChanged` owns the tag; see board-refresh.ts.

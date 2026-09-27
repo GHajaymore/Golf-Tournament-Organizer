@@ -82,6 +82,25 @@ async function requireOrganizerOrg(): Promise<{ organizationId: string; eventId:
   return { organizationId: event.organizationId, eventId: session.eventId };
 }
 
+/**
+ * Organizer OR ASSISTANT of the open tournament, plus the club that owns it.
+ *
+ * For `setStageCourse` alone — Ajay, 2026-09-27: assistants may set a round's
+ * course and tees. Everything else in this file that reshapes a course, a
+ * library or a flight stays on `requireOrganizerOrg`.
+ */
+async function requireStaffOrg(): Promise<{ organizationId: string; eventId: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  if (session.role !== "admin" && session.role !== "assistant") throw new Error("Staff access required");
+  const event = await prisma.event.findUnique({
+    where: { id: session.eventId },
+    select: { organizationId: true },
+  });
+  if (!event) throw new Error("Event not found");
+  return { organizationId: event.organizationId, eventId: session.eventId };
+}
+
 /** Eighteen numbers, as the schema stores them. */
 /**
  * @param holes How long the card is. NOT always eighteen.
@@ -494,7 +513,8 @@ export async function setStageCourse(
    */
   teeId: string | null = null,
 ): Promise<CourseResult> {
-  const { eventId, organizationId } = await requireOrganizerOrg();
+  // Staff, not only the organizer: Ajay's decision of 2026-09-27.
+  const { eventId, organizationId } = await requireStaffOrg();
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, error: "Round not found." };
 

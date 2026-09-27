@@ -628,7 +628,27 @@ closed, cuts made, a member withdrawing themselves — the app writes a line for
 in the app shows them. So when a member withdraws, your field simply goes from 19 to 18 with
 nothing saying who or when. A small read-only "Recent changes" list — on Registration for entries
 and withdrawals, or on Reports for everything — would make the record visible. Not built: it is a
-new screen, and which one is your call.
+new screen, and which one is your call. **Decided 2026-09-27 ("yes") — built, item 55.**
+
+### Your two "yes" answers, 2026-09-27
+
+55. **The audit log has a screen.** You did not say where, so both: **Reports** ends with "Recent
+    changes" — the whole record, newest first, each line filed as Field, Scores & results,
+    Rounds, Money or Settings — and **Registration** ends with "Recent changes to the field",
+    entries and withdrawals only. Two things were needed to make it true rather than a list of
+    withdrawals: the app never recorded an ENTRY, so a member entering in one tap, a stranger on
+    the sign-up link, and you adding or removing somebody now each write a line too; and some
+    money lines held a player's internal id, so the list turns ids back into names — and a
+    player who has since left the field reads "someone no longer in the field", the words the
+    settle-up already uses. Times are shown in your own time zone. Only you and assistants see
+    either screen, as before. Lines from before today start with the withdrawals from last
+    night's walk, because entries were not recorded until now.
+
+56. **Assistants can set a round's course and tees.** On Score entry and on Rounds & formats, the
+    round's course, nine and tees are open to assistants again — the server allows it now, so the
+    buttons match. Three things stay yours, deliberately: searching the national course
+    directory (it spends the app's shared daily lookups, so an assistant picks from the club's own
+    courses), a flight's tees, and clearing a round's scores.
 
 The original note behind item 34, kept for the reasoning:
 
