@@ -53,6 +53,25 @@ interface Entrant {
   memberId: string;
 }
 
+/**
+ * Who would play off SCRATCH without having said so — a named player whose
+ * handicap box is empty. The round treats a blank as 0 (see the payload built
+ * below), which on a net round gives that player's whole handicap away; the
+ * form says so while the box is still in front of them. A row with no name yet
+ * is not a player yet, and is left out.
+ */
+export function playersOnScratchByDefault(players: readonly { name: string; hcp: string }[]): string[] {
+  return players.filter((p) => p.name.trim() && !p.hcp.trim()).map((p) => p.name.trim());
+}
+
+/** The sentence that says so, or null when everybody named has a handicap. */
+export function scratchNote(names: readonly string[]): string | null {
+  if (names.length === 0) return null;
+  const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const one = names.length === 1;
+  return `${who} ${one ? "has" : "have"} no handicap here, so ${one ? "plays" : "play"} off scratch (0). Add it if they have one.`;
+}
+
 export function NewMatchForm({
   courses,
   myName,
@@ -145,6 +164,8 @@ export function NewMatchForm({
   const [holes, setHoles] = useState(18);
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
+  /** Says who has an empty handicap box — on a net round they play off scratch. */
+  const scratchByDefault = scratchNote(playersOnScratchByDefault(players));
   const [courseId, setCourseId] = useState("");
   /** "" means playing for nothing, which is the default and stays the default. */
   const [moneyGame, setMoneyGame] = useState("");
@@ -624,10 +645,14 @@ export function NewMatchForm({
             </div>
             {useHandicaps && (
               <div className="field" style={{ width: 104 }}>
-                <label>Handicap</label>
+                <label aria-hidden="true">Handicap</label>
                 <input
                   className="input"
                   inputMode="decimal"
+                  // Named for the person it belongs to. The caption above was
+                  // never attached to the box, so a screen reader announced
+                  // the placeholder — "12.4, edit text" — for every player.
+                  aria-label={`Handicap for ${p.name.trim() || `player ${i + 1}`}`}
                   value={p.hcp}
                   onChange={(e) => setPlayer(i, { hcp: e.target.value })}
                   placeholder="12.4"
@@ -722,6 +747,16 @@ export function NewMatchForm({
           <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
             Strokes are given by stroke index, so a course with its card filled in is needed before
             this can be scored. Playing level needs nothing.
+          </p>
+        )}
+        {/* A BLANK HANDICAP IS SCRATCH, and that was never said. A guest left
+            empty on a net round started the card on "hcp 0" and gave their
+            whole handicap away with nobody noticing — walked 2026-09-27. Said
+            here, while the box is still in front of them; not refused, because
+            a scratch golfer, or friends who agree to it, is a real answer. */}
+        {useHandicaps && scratchByDefault && (
+          <p style={{ fontSize: 12.5, margin: "8px 0 0", lineHeight: 1.5, color: "var(--color-warning)" }} role="note">
+            {scratchByDefault}
           </p>
         )}
       </div>

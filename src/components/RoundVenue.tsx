@@ -27,6 +27,16 @@ import { Icon } from "./Icon";
  * So: say what the round is scored against, make the card checkable, and hand
  * over to the one place that edits it.
  */
+/**
+ * What the "inherit" tee option says. A casual round has no tournament to
+ * inherit from — it was walked on a 393px phone reading "Blue (the
+ * tournament's)" on a two-ball — so there it names the set it was set up with.
+ */
+export function inheritedLabel(name: string, casual: boolean): string {
+  if (casual) return name ? `${name} (as set up)` : "As set up";
+  return name ? `${name} (the tournament's)` : "The tournament's";
+}
+
 export function RoundVenue({
   stageId,
   courseId,
@@ -38,6 +48,7 @@ export function RoundVenue({
   canEdit,
   informed = false,
   canSearchDirectory = true,
+  casual = false,
 }: {
   stageId: string;
   /** The venue set on the round itself. "" means it inherits. */
@@ -76,6 +87,11 @@ export function RoundVenue({
    * allowance. An assistant picks from the club's own courses.
    */
   canSearchDirectory?: boolean;
+  /**
+   * A casual round, which has no tournament — so the inherited tees are the
+   * ones the round was set up with, and are named that way.
+   */
+  casual?: boolean;
   /**
    * Is told when the course or its card is missing, even without `canEdit` —
    * staff, who enter the cards that need it. A player is not.
@@ -290,7 +306,7 @@ export function RoundVenue({
           >
             {/* Named rather than blank, and named with what it resolves to —
                 the same rule the course picker above follows for "inherited". */}
-            <option value="">{inheritedName ? `${inheritedName} (the tournament's)` : "The tournament's"}</option>
+            <option value="">{inheritedLabel(inheritedName, casual)}</option>
             {teesHere.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}

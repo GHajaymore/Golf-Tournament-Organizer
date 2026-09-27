@@ -420,14 +420,39 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
   const members = claimed.length
     ? await prisma.member.findMany({
         where: { organizationId: { in: await organizationIdsForPlayer(session.email) }, id: { in: claimed } },
-        select: { id: true },
+        select: { id: true, email: true },
       })
     : [];
   const realMembers = new Set(members.map((m) => m.id));
 
+  /**
+   * WHICH ROW IS THE ORGANIZER'S OWN — so it can carry their address.
+   *
+   * The paragraph above says it does, and until 2026-09-27 nothing made it so:
+   * the form sends no address for anybody, so every row arrived without one.
+   * A player is matched to a signed-in person by address (`myPlayerIds`), so
+   * the person who set the round up and was standing on the tee in it was told
+   * on Today, over their own saved card, "You aren't entered in this
+   * tournament" — walked as a member, at 393px.
+   *
+   * Their own club record first (a member row whose address is theirs), then
+   * their own name, exactly as the form prefills it. ONE row at most, and only
+   * ever the session's own address: nothing here can give anybody else's card
+   * to the person signed in, which is the failure `myPlayerIds` is guarding.
+   */
+  const norm = (s: string) => s.trim().toLowerCase();
+  const myMemberIds = new Set(
+    members.filter((m) => m.email && norm(m.email) === norm(session.email)).map((m) => m.id),
+  );
+  const mySeed =
+    plan.players.find((p) => myMemberIds.has(p.memberId))?.seed ??
+    plan.players.find((p) => !p.memberId && norm(p.name) === norm(session.name))?.seed ??
+    null;
+
   const playerIds: string[] = [];
   for (const p of plan.players) {
     const memberId = realMembers.has(p.memberId) ? p.memberId : null;
+    const email = p.email || (p.seed === mySeed ? norm(session.email) : "");
 
     /**
      * A GUEST IS NOT ADDED TO THE CLUB.
@@ -454,7 +479,7 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
         memberId,
         groupId: group.id,
         name: p.name,
-        email: p.email,
+        email,
         handicap: p.handicap,
         handicapType: "18",
         handicapSource: "manual",
@@ -463,7 +488,7 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       },
     });
     playerIds.push(player.id);
-    await syncPlayerAccount(event.id, p.name, p.email);
+    await syncPlayerAccount(event.id, p.name, email);
   }
 
   /**
