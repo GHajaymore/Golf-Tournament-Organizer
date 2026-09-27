@@ -601,6 +601,17 @@ sent them back, and the sidebar listed exactly the right screens. Two things wer
     away. Also walked: a member withdrawing from Captain's Day as you watched Registration — 18 →
     19 → 18 confirmed, the numbers right throughout.
 
+53. **Entered after the tee sheet was drawn, a player was told nothing about their tee time.**
+    Walked as the organizer who also plays — you, adding yourself to your own medal after
+    publishing its tee sheet. The sidebar offered "My round", and Today, the card and the board
+    all treated you as a player, correctly. But Today showed no tee time and no reason, the same
+    silence as "no sheet yet". A late entrant is in exactly this state. **Fixed:** "You're not on
+    the tee sheet yet — the tee times for this round are out, and you were entered after they were
+    drawn. The organizer adds you to a group." Shown only while the sheet is published, you are
+    not on it and your card is empty; a drawn player still sees their group and time. (The seeded
+    club has no organizer in any field, so this state was unreachable until the walk added one —
+    removed afterwards.)
+
 **A decision for you, found on that walk: the audit log has no screen.** Money changes, rounds
 closed, cuts made, a member withdrawing themselves — the app writes a line for each, and nothing
 in the app shows them. So when a member withdraws, your field simply goes from 19 to 18 with

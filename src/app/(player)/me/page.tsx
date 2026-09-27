@@ -646,6 +646,19 @@ export default async function PlayTodayPage() {
         </section>
       )}
 
+      {/* The sheet is out and I am not on it — entered after the draw. Said
+          plainly, so "not drawn yet" and "left off" are not the same silence.
+          Not once a card has holes in: by then the question is answered. */}
+      {me.playerId && round?.offSheet && !round.group && !card?.filled && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
+          <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "4px 0 0" }}>
+            The tee times for this round are out, and you were entered after they were drawn. The
+            organizer adds you to a group — check back here, or ask them for your time.
+          </p>
+        </section>
+      )}
+
       {/* Opt in to tee-time push alerts. Self-hiding: it renders nothing where
           push isn't available and shrinks to one line once alerts are on, so it
           is a prompt rather than a permanent card. */}
