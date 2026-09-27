@@ -35,6 +35,7 @@ function row(i: number): ClubEventRow {
     band: "open",
     bandLabel: "Open",
     when: "upcoming",
+    openCard: null,
     windowNote: "",
     yourStatus: "",
     progress: null,

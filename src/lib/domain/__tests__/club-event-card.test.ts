@@ -13,6 +13,18 @@ describe("the order of the list", () => {
     ];
     expect(byBand(rows).map((r) => r.id)).toEqual(["e", "d", "c", "f", "b", "a"]);
   });
+
+  it("puts what is being played before what has not started, within their own", () => {
+    // The seeded member's list on medal day: a November tournament, created
+    // last, led "You're in" above the round his card was open on.
+    const rows = [
+      { band: "entered" as const, when: "upcoming", id: "november" },
+      { band: "entered" as const, when: "now", id: "league" },
+      { band: "waiting" as const, when: "upcoming", id: "am-am" },
+      { band: "entered" as const, when: "now", id: "medal" },
+    ];
+    expect(byBand(rows).map((r) => r.id)).toEqual(["league", "medal", "november", "am-am"]);
+  });
 });
 
 const band = (over: Partial<Parameters<typeof eventBand>[0]> = {}) =>
@@ -42,10 +54,19 @@ describe("the band on a tournament card", () => {
     expect(band({ regState: "not-open-yet" })).toBe("soon");
   });
 
-  it("files each band under one When", () => {
-    expect(whenOf("finished")).toBe("finished");
+  it("files each tournament under one When, by its own status", () => {
+    expect(whenOf("completed")).toBe("finished");
     expect(whenOf("live")).toBe("now");
-    for (const b of ["entered", "open", "soon", "closed"] as const) expect(whenOf(b)).toBe("upcoming");
+    for (const s of ["draft", "registration"]) expect(whenOf(s)).toBe("upcoming");
+  });
+
+  it("files a live tournament the member is IN under On now", () => {
+    // The band puts the member's own place first — "entered" — and "when"
+    // used to be read off the band, so "On now" never listed a tournament the
+    // member was playing in. The two answer different questions.
+    const status = "live";
+    expect(band({ eventStatus: status, entered: true })).toBe("entered");
+    expect(whenOf(status)).toBe("now");
   });
 });
 

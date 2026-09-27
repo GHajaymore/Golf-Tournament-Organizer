@@ -17,6 +17,7 @@ import {
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
+import { openCardOf, type OpenCard } from "../domain/tournament-switcher";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -104,6 +105,8 @@ export interface ClubEventRow {
   bandLabel: string;
   /** Which "When" filter it falls under. */
   when: "upcoming" | "now" | "finished";
+  /** This member's stroke card here that is started and not yet signed — see `openCardOf`. */
+  openCard: OpenCard | null;
   /** "Closes in 9 days" / "Entries open tomorrow", or "". */
   windowNote: string;
   /** Where THIS member stands — "You're on the waiting list…" — or "". */
@@ -188,7 +191,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
 
   const mine = await prisma.player.findMany({
     where: { eventId: { in: ids }, email: { equals: email, mode: "insensitive" } },
-    select: { eventId: true, status: true },
+    select: { id: true, eventId: true, status: true },
   });
   /**
    * ENTERED MEANS CONFIRMED — the rule `myPlayerIds` and every card guard use.
@@ -201,6 +204,36 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const waitingIn = new Set(
     mine.filter((p) => p.status === "waitlisted" || p.status === "pending").map((p) => p.eventId),
   );
+
+  /**
+   * THE MEMBER'S OWN CARDS STILL WAITING ON THEM — `openCardOf` has the rule.
+   * Asked of the CONFIRMED rows only, the same line `enteredIn` draws, and in
+   * two queries for the whole list: Scorecard carries no relation to its
+   * round, so the rounds' hole counts and closures are read beside it.
+   */
+  const myPlayerIds = mine.filter((p) => p.status === "confirmed").map((p) => p.id);
+  const unsigned = myPlayerIds.length
+    ? await prisma.scorecard.findMany({
+        where: { playerId: { in: myPlayerIds }, status: "entered" },
+        select: { eventId: true, stageId: true, strokes: true },
+      })
+    : [];
+  const roundsOf = unsigned.length
+    ? await prisma.stage.findMany({
+        where: { id: { in: unsigned.map((c) => c.stageId) } },
+        select: { id: true, holes: true, closedAt: true },
+      })
+    : [];
+  const roundById = new Map(roundsOf.map((s) => [s.id, s]));
+  const openCardIn = new Map<string, OpenCard>();
+  for (const c of unsigned) {
+    const round = roundById.get(c.stageId);
+    const open = round ? openCardOf(c.strokes, round.holes, round.closedAt !== null) : null;
+    const had = openCardIn.get(c.eventId);
+    // Two open at once is a data oddity rather than a state; the one further
+    // round is the one they were last writing on.
+    if (open && (!had || open.thru > had.thru)) openCardIn.set(c.eventId, open);
+  }
 
   /**
    * WHETHER THERE IS ANYTHING BEHIND THE LINK, COUNTED RATHER THAN ASSUMED.
@@ -275,7 +308,8 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       band,
       // The reason, not just "closed" — see `bandLabelFor`.
       bandLabel: bandLabelFor(band, status.state),
-      when: whenOf(band),
+      when: whenOf(event.status),
+      openCard: entered ? (openCardIn.get(event.id) ?? null) : null,
       /**
        * WHERE THIS MEMBER STANDS, separately from the entry window.
        *

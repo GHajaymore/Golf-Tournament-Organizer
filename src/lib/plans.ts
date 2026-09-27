@@ -191,7 +191,10 @@ export const PLANS: Record<PlanKey, Plan> = {
   club: {
     key: "club",
     name: "Club",
-    blurb: "For a golf club — every competition, your own branding, WHS posting, and any size of field.",
+    // No "WHS posting" (2026-09-27): it was printed on the public landing,
+    // where "WHS" is not said (page.tsx, the handicap copy), and it was not
+    // true — GHIN posting is a deliberate stub (integrations/ghin.ts).
+    blurb: "For a golf club — every competition, your own branding, and any size of field.",
     // $175/mo, billing $1,750/yr at the ten-month annual. Owner-adjustable.
     // NB (2026-09-25): an earlier note here claimed this was "~50% of Golf
     // Genius's ~$3,500/yr". That is FALSE and was removed — verified public
