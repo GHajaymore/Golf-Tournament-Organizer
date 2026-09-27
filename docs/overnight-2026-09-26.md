@@ -90,6 +90,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #649 | The rules sheet named the format twice, once in the app's internal words (item 46) | live |
 | #650 | **Your three evening decisions**: a member can withdraw until entries close; Events dates an undated tournament by its rounds; a round picker on the console leaderboard (items 47–49) | live |
 | #651 | Testing as an assistant: a link into a screen you cannot open now says why; five organizer-only buttons no longer offered to assistants (items 50–51) | live |
+| #652 | One-tap entry let a member in without the mobile every other door requires; a player entered after the tee sheet was drawn was told nothing (items 52–53) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -611,6 +612,16 @@ sent them back, and the sidebar listed exactly the right screens. Two things wer
     not on it and your card is empty; a drawn player still sees their group and time. (The seeded
     club has no organizer in any field, so this state was unreachable until the walk added one —
     removed afterwards.)
+
+54. **The missed cut was listed in sign-up order.** Walked as the public viewer on the finished
+    Club Championship's link: the sixteen who made the cut read −3 down to +33, correctly; the
+    twelve who missed it read +20, +15, +19, +23, +15, +14 … — the order they entered, because
+    nothing ordered a row without a place. Every results sheet lists the missed cut by score, and a
+    member reading down that block reads nonsense. **Fixed:** below the field, the players who
+    missed the cut now read +14, +14, +15, +15, +16, +19 …, on the same statistic as the board's
+    own "Ranked by"; anybody with no score at all comes after them. **None of them is given a
+    place** — your rule from #577 and the morning's Completed decision stands, and the test pins
+    it. The console, Reports and the player's Board read the same list, so all four agree.
 
 **A decision for you, found on that walk: the audit log has no screen.** Money changes, rounds
 closed, cuts made, a member withdrawing themselves — the app writes a line for each, and nothing
