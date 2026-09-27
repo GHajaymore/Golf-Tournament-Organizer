@@ -89,6 +89,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #648 | My own #645 made the league read "YOUR TOTAL · FINAL" four weeks into seven — now "SO FAR" until completed (item 45) | live |
 | #649 | The rules sheet named the format twice, once in the app's internal words (item 46) | live |
 | #650 | **Your three evening decisions**: a member can withdraw until entries close; Events dates an undated tournament by its rounds; a round picker on the console leaderboard (items 47–49) | live |
+| #651 | Testing as an assistant: a link into a screen you cannot open now says why; five organizer-only buttons no longer offered to assistants (items 50–51) | live |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -537,8 +538,10 @@ golfer would stop at:
     full field goes to the next person waiting and entering again joins the back of the queue. It
     does exactly what your own removal does: somebody who has already played is kept as withdrawn
     with their cards, anybody else is removed; their tournament sign-in goes; a place freed in a
-    full field goes to the first person on the waiting list, only if there is room; and your
-    audit log gets a line saying they withdrew themselves. "Entries close" is read off the same
+    full field goes to the first person on the waiting list, only if there is room; and the
+    tournament's audit log records that they withdrew themselves. **Correction, the same night:**
+    no screen shows that log yet, so you would not actually see the line — see the decision below
+    item 52. "Entries close" is read off the same
     rule that lets them in — past the deadline, closed by you, or finished, and the button is
     gone. Tried as a member on Captain's Day: in, withdraw, confirm, and the card is back to
     "Open for entries · 22 of 40 places left".
@@ -587,6 +590,23 @@ sent them back, and the sidebar listed exactly the right screens. Two things wer
     course and tees (it is one permission on the server), but "assistants run it, they don't
     reshape it" is the rule the app was written to, so I matched the buttons to it rather than
     the other way round.
+
+52. **One-tap entry let a member in without the mobile every other way in insists on.** Walked
+    from both sides at once: a member entered Captain's Day in one tap, and your Registration
+    screen then read "19 players have no mobile on file … entered before that applied" — untrue
+    for the entry just made. A free club collects a mobile from every entrant; the public form,
+    your own "add a player" and the roster import all refuse without one; the one-tap button did
+    not ask. **Fixed:** it now keeps the same rule — "This tournament needs a mobile number, and the
+    club doesn't have one for you yet — add it on the entry form", with the entry form one tap
+    away. Also walked: a member withdrawing from Captain's Day as you watched Registration — 18 →
+    19 → 18 confirmed, the numbers right throughout.
+
+**A decision for you, found on that walk: the audit log has no screen.** Money changes, rounds
+closed, cuts made, a member withdrawing themselves — the app writes a line for each, and nothing
+in the app shows them. So when a member withdraws, your field simply goes from 19 to 18 with
+nothing saying who or when. A small read-only "Recent changes" list — on Registration for entries
+and withdrawals, or on Reports for everything — would make the record visible. Not built: it is a
+new screen, and which one is your call.
 
 The original note behind item 34, kept for the reasoning:
 
