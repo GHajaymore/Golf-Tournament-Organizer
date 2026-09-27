@@ -29,12 +29,13 @@ function viewFields(): string[] {
 
 // The fields shape 2 was written for. When this list changes, bump
 // LIVE_BOARD_SHAPE in live-board.ts AND update both numbers here.
-const SHAPE = 2;
+// 3: `rounds` and `shownStageId`, the round picker (2026-09-27).
+const SHAPE = 3;
 const FIELDS = [
   "name", "dates", "venue", "teamFormat", "rows", "teamRows", "teamMatchRows", "pointsSystem",
   "skins", "nassau", "modStableford", "skinsNet", "kind", "teamRound", "isStroke", "isStableford",
   "teamBasis", "holeCount", "cutNote", "unit", "manualFormat", "draws", "bracketResults",
-  "straightKnockout", "allIn", "roundLabel", "brand", "themeStyleSheet", "colorScheme",
+  "straightKnockout", "allIn", "roundLabel", "rounds", "shownStageId", "brand", "themeStyleSheet", "colorScheme",
 ];
 
 describe("the public board's cache", () => {
@@ -43,8 +44,13 @@ describe("the public board's cache", () => {
     expect(viewFields()).toContain("draws");
   });
 
-  it("is keyed on the deployment and the shape", () => {
-    expect(src).toMatch(/unstable_cache\(\(\) => gather\(eventId\), \["live-board", `v\$\{LIVE_BOARD_SHAPE\}`, deployment, eventId\]/);
+  it("is keyed on the deployment, the shape and the round on screen", () => {
+    // The round too, since the public board got the round picker: two rounds
+    // of one tournament are two different boards, and sharing an entry would
+    // hand one viewer the other's round.
+    expect(src).toMatch(
+      /unstable_cache\(\s*\(\) => gather\(eventId, roundId\),\s*\["live-board", `v\$\{LIVE_BOARD_SHAPE\}`, deployment, eventId, roundId\]/,
+    );
     expect(src).toMatch(/process\.env\.VERCEL_DEPLOYMENT_ID/);
   });
 

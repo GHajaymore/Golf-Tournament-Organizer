@@ -20,6 +20,7 @@ import { TheDraw } from "@/components/TheDraw";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { RoundPicker } from "@/components/RoundPicker";
 
 /**
  * The public read-only leaderboard.
@@ -93,8 +94,15 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   return { title: `${event.name} — Live leaderboard`, robots: NOINDEX };
 }
 
-export default async function PublicLeaderboardPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function PublicLeaderboardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ round?: string }>;
+}) {
   const { token } = await params;
+  const { round } = await searchParams;
 
   /**
    * The credential check, on every request, uncached.
@@ -119,7 +127,17 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
    * commissioning their own copy of an answer identical to their neighbour's,
    * thirty seconds apart, for five hours. See services/live-board.ts.
    */
-  const board = await liveBoard(event.id);
+  /**
+   * WHICH ROUND — the picked one, if it is one of THIS tournament's (Ajay,
+   * 2026-09-27). Checked here, uncached and only when asked, because the round
+   * is part of the board's cache key: a made-up id must fall back to the
+   * board's own round rather than become an entry of its own.
+   */
+  const picked =
+    round && (await prisma.stage.findFirst({ where: { id: round, eventId: event.id }, select: { id: true } }))
+      ? round
+      : "";
+  const board = await liveBoard(event.id, picked);
   if (!board) notFound();
 
   return (
@@ -185,6 +203,19 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>
             {[board.roundLabel, board.dates, board.venue].filter(Boolean).join(" · ")}
           </p>
+          {/* Every round, not only the latest — the same picker the console
+              leaderboard has. Renders nothing where choosing changes nothing. */}
+          {board.rounds.length > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>Showing</span>
+              <RoundPicker
+                rounds={board.rounds}
+                activeStageId={board.shownStageId}
+                label="Which round the leaderboard shows"
+                style={{ minWidth: 0, maxWidth: "100%" }}
+              />
+            </div>
+          )}
         </header>
 
         {board.straightKnockout ? (

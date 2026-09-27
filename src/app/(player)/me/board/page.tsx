@@ -4,7 +4,9 @@ import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { loadEventState, standingRows, settingsOf, cutLineNote } from "@/lib/services/tournament";
+import { loadEventState, standingRows, settingsOf, cutLineNote, withBoardRound } from "@/lib/services/tournament";
+import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
+import { RoundPicker } from "@/components/RoundPicker";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
@@ -42,10 +44,36 @@ export const metadata = screenMetadata("/me/board");
  * published the leaderboard has not published it to its players either, and
  * hiding the tab while leaving the route open would be theatre.
  */
-export default async function PlayBoardPage() {
+export default async function PlayBoardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ round?: string }>;
+}) {
   const session = await requireSession();
-  const state = await loadEventState(session.eventId);
-  if (!state) redirect("/");
+  const loaded = await loadEventState(session.eventId);
+  if (!loaded) redirect("/");
+  /**
+   * WHICH ROUND — the picked one, or the board's own. The console leaderboard's
+   * picker (Ajay, 2026-09-26), on the player's Board too (2026-09-27): a member
+   * of a finished festival whose last round was hand-scored could not see any
+   * of the ten rounds before it. `withBoardRound` ignores an id that is not one
+   * of this tournament's playing rounds.
+   */
+  const { round } = await searchParams;
+  const state = withBoardRound(loaded, round);
+  const choices = leaderboardRounds(loaded.stages);
+  const picker =
+    choices.length > 1 ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 14px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>Showing</span>
+        <RoundPicker
+          rounds={choices}
+          activeStageId={state.boardStage?.id ?? ""}
+          label="Which round the board shows"
+          style={{ minWidth: 0, maxWidth: "100%" }}
+        />
+      </div>
+    ) : null;
 
   if (!canSeeLeaderboard(settingsOf(state.event), session.viewRole)) {
     return (
@@ -175,7 +203,8 @@ export default async function PlayBoardPage() {
         : null;
     return (
       <div>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
+        {picker}
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           {kind === "manual"
             ? /* No "when it's settled": also shown on a finished tournament. */
@@ -297,6 +326,8 @@ export default async function PlayBoardPage() {
           <Icon name="book-open" /> Rules
         </Link>
       </div>
+
+      {picker}
 
       {/* WHAT HAPPENED, ROUND BY ROUND (2026-09-19). A day with more than one
           round is more than one result — a team nine, a pairs match and a
