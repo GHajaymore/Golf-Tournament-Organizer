@@ -4,7 +4,9 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { accessibleEvents } from "@/lib/services/access";
-import { decideIntake, approvalModeOf } from "@/lib/domain/registration-intake";
+import { decideIntake, approvalModeOf, looksLikePhone } from "@/lib/domain/registration-intake";
+import { planForEvent } from "@/lib/services/entitlements";
+import { phoneRequiredFor } from "@/lib/plans";
 import { effectiveCapacity } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
@@ -88,6 +90,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       regDeadline: true,
       capacity: true,
       status: true,
+      requirePhone: true,
     },
   });
   if (!event) return { ok: false, error: NOT_OPEN };
@@ -172,6 +175,28 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       email: { equals: session.email, mode: "insensitive" },
     },
   });
+  /**
+   * A MOBILE, WHERE THE TOURNAMENT NEEDS ONE — the rule every other door keeps.
+   *
+   * The public form, the organizer adding a player and the roster import all
+   * refuse an entrant without a mobile when `phoneRequiredFor` says one is
+   * needed (a free club always; a paid club when it asks). This door took the
+   * roster's phone as it found it — often none — so a member entered in one tap
+   * and Registration then said "19 players have no mobile on file … entered
+   * before that applied", which was false for the entry just made. Walked
+   * 2026-09-26.
+   *
+   * Refused rather than let in: `EnterButton` answers a refusal with "Use the
+   * entry form", which asks for the number, so the member is one step from in.
+   */
+  const phone = member?.phone ?? "";
+  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone) && !looksLikePhone(phone)) {
+    return {
+      ok: false,
+      error: "This tournament needs a mobile number, and the club doesn't have one for you yet — add it on the entry form.",
+    };
+  }
+
   const teeFor = await teeMatcherFor(eventId);
   const preferredTee = member?.preferredTee ?? "";
 
@@ -210,7 +235,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         teeId: teeFor(preferredTee),
         name: member?.name || session.name || session.email,
         email: session.email,
-        phone: member?.phone ?? "",
+        phone,
         handicap: member?.handicap ?? 0,
         handicapType: member?.handicapType ?? "18",
         handicapSource: member?.handicapSource ?? "manual",
