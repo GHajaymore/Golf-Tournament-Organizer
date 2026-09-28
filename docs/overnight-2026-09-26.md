@@ -171,6 +171,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #681 | A new club can decide how money works before its first tournament (item 89) | live |
 | #682 | A club member with nothing published is told their club; /week's number headers no longer run together (items 90–91) | live |
 | #683 | The Events card tells a waiting-list member the truth about their place (items 92–93) | live |
+| #684 | An entry awaiting approval is said as such, not as a waiting list (item 94) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1092,6 +1093,14 @@ the wrong thing about where they were:
     "Awaiting approval" and "Keep my entry". This was found by extending the one rule
     `verify-player-states` asserts to the state it did not walk. The walk went red on the old
     code on `/me` and `/me/card`, and green after.
+95. **Recent changes did not say who got a freed place, or who approved an entry.** The field
+    record listed entries, withdrawals and removals. Approving an entry wrote nothing, and
+    neither did a freed place filling from the waiting list, so "who took Ann's place?" had no
+    answer on the screen built to give it. Both now write a Field line. The promotion is
+    attributed to "Automatic" rather than to whoever freed the place, since the waiting list's
+    order chose. Declining an entry used to read "X was removed from the field", a field they
+    were never in; it now says the entry was declined, or that they were taken off the waiting
+    list.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
