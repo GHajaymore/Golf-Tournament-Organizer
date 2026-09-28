@@ -159,7 +159,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #669 | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 75) | merged |
 | #670 | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | merged |
 | #671 | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | merged |
-| — | A UK club's own role reads "Organiser" on every screen at once (item 79) | pending |
+| #672 | A UK club's own role reads "Organiser" on every screen at once (item 79) | merged |
+| — | A second tap on a listening mic stops it, on every screen that has one (item 80) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -956,6 +957,15 @@ the wrong thing about where they were:
     header and the plan panel's staff line. Nobody's actual role changes. On the seeded Scottish
     club's Access screen: "Organiser" six times and "Organizer" none; switched to US wording,
     the reverse.
+80. **Tapping a listening mic again didn't stop it.** On four of the five microphones, a second
+    tap only reset the button: "Listening…" went away while the phone kept hearing until the
+    recogniser gave up on its own. The four were:
+    - the player's "Say the card";
+    - the hole-by-hole mic;
+    - both of the organizer's entry screens.
+    The app's own note under each mic promises "only on while you use this button". All four
+    now stop the recogniser, and a test sweeps every mic for it. Found in the same fact check
+    as item 77.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
