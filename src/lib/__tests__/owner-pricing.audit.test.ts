@@ -91,4 +91,31 @@ describe("the owner's price control", () => {
     // The bogus key resolves to free and is never priced.
     expect(planFor("enterprise-gold").key).toBe("free");
   });
+
+  it("keeps the local prices in the row when a dollar price is saved", async () => {
+    /**
+     * The save rebuilt the whole row from the USD prices it was handed. With
+     * `byCurrency` in the same row, that silently deleted every local price
+     * the moment the owner touched a dollar figure.
+     */
+    await prisma.platformSetting.create({
+      data: {
+        key: "pricing",
+        value: JSON.stringify({
+          plans: { club: { monthly: 175, byCurrency: { GBP: 129 } }, society: { byCurrency: { EUR: 44 } } },
+        }),
+      },
+    });
+    session = sess(OWNER);
+    const res = await saveTierPrices({ club: 160 });
+    expect(res.ok).toBe(true);
+
+    const overrides = parsePricingOverrides((await pricingRow())!.value);
+    expect(effectivePrice(planFor("club"), overrides)).toBe(160);
+    expect(effectivePrice(planFor("club"), overrides, "GBP"), "the sterling price was wiped").toBe(129);
+    // A plan this save did not name keeps its local price too.
+    expect(effectivePrice(planFor("society"), overrides, "EUR")).toBe(44);
+    // CONTROL: a currency nobody overrode reads the plan's own set price.
+    expect(effectivePrice(planFor("club"), overrides, "EUR")).toBe(159);
+  });
 });
