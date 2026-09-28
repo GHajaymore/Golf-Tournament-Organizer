@@ -147,6 +147,10 @@ export default async function LandingPage() {
   const ours = ourCells(prices);
   const glance = atAGlance();
   const note = editionNote(local, overridden);
+  // UK-English editions only (TourneyHQv2, 2026-09-28): the app follows the
+  // club's own conventions there — the course's unit, the club's clock, and a
+  // Monday week — which a US or Canadian club would never notice.
+  const localGolf = shown.register === "uk";
 
   const check = icon("check");
   const tick = (text: React.ReactNode) => (
@@ -784,7 +788,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <div className="idx-col reveal">
-                <h3><span className="ic">{icon("calendar")}</span>The field &amp; the day<em>17</em></h3>
+                <h3><span className="ic">{icon("calendar")}</span>The field &amp; the day<em>{localGolf ? 18 : 17}</em></h3>
                 <ul>
                   {feature("Registration with open and close dates")}
                   {feature("Waiting list, one-tap member entry")}
@@ -803,6 +807,9 @@ export default async function LandingPage() {
                   {feature("Interclub scoring systems", "match play, holes won, Nassau — pairs per club, play-offs")}
                   {feature("Roster import from a spreadsheet")}
                   {feature("Course card check", "flags a card that's unchecked, missing stroke index, or old")}
+                  {localGolf
+                    ? feature("Your club's own conventions", "cards in the course's unit, yards or metres · tee times on the club's clock · calendars that start on Monday")
+                    : null}
                 </ul>
               </div>
               <div className="idx-col reveal">
@@ -850,7 +857,7 @@ export default async function LandingPage() {
             <div className="idx-more">
               <label>
                 <input className="sr" type="checkbox" aria-controls="all-features" />
-                <span className="when-closed">Show all 67 features</span>
+                <span className="when-closed">Show all {localGolf ? 68 : 67} features</span>
                 <span className="when-open">Show fewer</span>
               </label>
             </div>
