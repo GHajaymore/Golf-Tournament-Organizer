@@ -168,6 +168,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #678 | A notice says when it was posted; a net board says its To par is net; a complete card asks to be certified (items 83–85) | live |
 | #679 | Landing polish: named comparison tabs, a formats gallery, facts-only copy (from the landing session) | held: /faq overflowed at 320px (fixed), now reopened for Ajay's mobile rework |
 | #680 | A new club can start before its first tournament: add members and save settings; entry form in the club's words; labelled Members form (items 86–88) | live |
+| #681 | A new club can decide how money works before its first tournament (item 89) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1059,6 +1060,19 @@ the wrong thing about where they were:
     club. It now asks only the club question (owner or admin), which #680 taught to work before
     the first tournament. The same controls apply: a person who owns nothing and a plain member
     are still refused, and the test goes red when the old tournament requirement is put back.
+90. **A member of a club with nothing published yet was greeted as a stranger.** Walked as a
+    plain member of a British society with no tournaments. `/choose` said "If an organizer has
+    invited you … otherwise create your own" and never named the society. It now says "You're a
+    member of <club>, which hasn't published a tournament yet", with a button to Events. Events,
+    for its part, said "Your club has not published…" to people in no club at all. It now names
+    the club, or says plainly that no club has added them. Both states are added to
+    `verify-player-states.mjs`, with somebody in no club as the control. Each of its three
+    checks was mutated and watched go red.
+91. **On `/week` at phone width the Results headers ran together as "GROSSPOINTS"** (reported by
+    the landing session). Neither header nor cell had any sideways padding, so two right-aligned
+    number columns met. They now carry a 14px gutter. Measured at 390px: the header gap is 0
+    without the gutter and 14 with it. The same measurement was then swept across every visible
+    table on 14 routes × 6 tournaments of the seeded club (64 tables): no other collisions.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"

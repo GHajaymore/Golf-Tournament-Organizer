@@ -244,6 +244,43 @@ async function main() {
   });
   await walk("playing/stranger", stranger, playing.id, { entered: false, mustSayNotEntered: true });
 
+  /**
+   * NO TOURNAMENT AT ALL — the state every new club's members are in first.
+   *
+   * Walked 2026-09-28: a member of a society with nothing published was greeted
+   * on /choose as a stranger ("If an organizer has invited you …"), with their
+   * club unnamed. The rule: a member is told WHICH club they are in. The
+   * CONTROL is somebody in no club, who must still get the stranger's sentence
+   * and must not be told about a club they do not have.
+   */
+  const quietOrg = await prisma.organization.create({
+    data: { name: `${MARK} quiet society`, kind: "community", country: "GB" },
+    select: { id: true },
+  });
+  const quietMember = await makeMember(quietOrg.id, "quiet");
+  const loner = await prisma.user.create({
+    data: { email: `${MARK}-loner@example.invalid`, name: `${MARK} loner` },
+    select: { id: true },
+  });
+  const clubName = `${MARK} quiet society`;
+  for (const [label, user, inClub] of [["no-events/member", quietMember, true], ["no-events/no-club", loner, false]]) {
+    const cookie = `ng_session=${sign(user.id)}`;
+    for (const path of ["/choose", "/me/events"]) {
+      const where = `${label} ${path}`;
+      const { status, text } = await get(path, cookie);
+      if (status !== 200) {
+        fail(where, `expected 200, got ${status}`);
+        continue;
+      }
+      if (inClub && !text.includes(clubName)) fail(where, "a member of a club is not told which club");
+      if (!inClub && text.includes("Your club")) fail(where, "told somebody in no club about 'your club'");
+    }
+    const choose = (await get("/choose", cookie)).text;
+    const strangerLine = choose.includes("If an organizer has invited you");
+    if (inClub && strangerLine) fail(`${label} /choose`, "greeted a club member as a stranger");
+    if (!inClub && !strangerLine) fail(`${label} /choose`, "the stranger's sentence is missing — the rule above proves nothing");
+  }
+
   console.log(failures === 0 ? "Every player state reads correctly." : `${failures} problem(s).`);
 }
 

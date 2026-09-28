@@ -222,7 +222,15 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
     fontSize: 13,
     borderTop: "1px solid var(--color-divider)",
   };
-  const num: React.CSSProperties = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+  /**
+   * A NUMBER COLUMN CARRIES ITS OWN GUTTER. Neither `th` nor `td` has any
+   * sideways padding, so two right-aligned columns side by side shrank to their
+   * headings and met: at 390px the Results table read "GROSSPOINTS" (landing
+   * session, 2026-09-28). The figures below looked fine only because "80" is
+   * narrower than "GROSS". Heading and cell share it, so they stay aligned.
+   */
+  const num: React.CSSProperties = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums", paddingLeft: 14 };
+  const thNum: React.CSSProperties = { ...th, textAlign: "right", paddingLeft: 14 };
 
   return (
     <>
@@ -348,9 +356,9 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                         column would be a column of the same numbers" — and
                         this table had it as Gross | Gross. */}
                     {view.basis !== "gross" && (
-                      <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                      <th style={thNum}>Gross</th>
                     )}
-                    <th style={{ ...th, textAlign: "right" }}>
+                    <th style={thNum}>
                       {WEEK_BASIS_COLUMN[view.basis]}
                     </th>
                   </tr>
@@ -442,9 +450,9 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                         player table above states: "no handicap is involved, so
                         a net column would be a column of the same numbers". */}
                     {view.basis !== "gross" && (
-                      <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                      <th style={thNum}>Gross</th>
                     )}
-                    <th style={{ ...th, textAlign: "right" }}>
+                    <th style={thNum}>
                       {WEEK_BASIS_COLUMN[sideBasis]}
                     </th>
                   </tr>
@@ -531,7 +539,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                     <th style={{ ...th, width: 44 }}>Pos</th>
                     <th style={{ ...th, width: 52 }}>+/−</th>
                     <th style={th}>Player</th>
-                    <th style={{ ...th, textAlign: "right" }}>Total</th>
+                    <th style={thNum}>Total</th>
                   </tr>
                 </thead>
                 <tbody>

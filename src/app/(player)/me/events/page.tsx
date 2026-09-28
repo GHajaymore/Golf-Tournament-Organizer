@@ -5,6 +5,7 @@ import { clubEventsFor, clubSeasonFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { ClubEventsList } from "@/components/ClubEventsList";
+import { organizationsFor } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/me/events");
 
@@ -59,10 +60,12 @@ export default async function ClubEventsPage() {
   const events = await clubEventsFor(session.email);
   // The club's own season, so this list groups the way its fixture card reads.
   const season = await clubSeasonFor(session.eventId);
+  // Only needed to word the empty state honestly.
+  const club = events.length === 0 ? ((await organizationsFor(session.email))[0]?.organization ?? null) : null;
 
   return (
     <>
-      <div className="page-kicker">Your club</div>
+      <div className="page-kicker">{events.length === 0 && !club ? "TourneyHQ" : "Your club"}</div>
       <h1 className="page-title">Events</h1>
 
       {/* A ROUND OF YOUR OWN, beside everything the club runs. It was a row on
@@ -119,11 +122,15 @@ export default async function ClubEventsPage() {
       </Link>
 
       {events.length === 0 ? (
+        /* "Your club" only to somebody who HAS one — this screen is a tab, so a
+           person who signed up on their own reaches it too, and was told their
+           club had published nothing (walked 2026-09-28). */
         <div className="card elev-sm" style={{ marginTop: 16 }}>
-          <span className="card-title">Nothing on the calendar</span>
+          <span className="card-title">No tournaments yet</span>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Your club has not published any tournaments yet. When it does, they
-            will appear here and you can enter from this screen.
+            {club
+              ? `${club.name} has not published any tournaments yet. When it does, they will appear here and you can enter from this screen.`
+              : "You are not in a club's tournaments yet. When a club adds you, its tournaments appear here and you can enter from this screen."}
           </p>
         </div>
       ) : (
