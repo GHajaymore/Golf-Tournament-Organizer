@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useId, useMemo, useRef, useState } from "react";
 import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
@@ -141,6 +141,8 @@ export function RosterClient({
   /** Whose handicap record is open. One at a time — see the trigger below. */
   const [recordFor, setRecordFor] = useState<string | null>(null);
   const [form, setForm] = useState<MemberInput>(BLANK);
+  // Ties each add/edit form label to its field (see the form below).
+  const fid = useId();
   const [adding, setAdding] = useState(false);
   const { pending, error, setError, run: runAction, startTransition } = useAction();
   const [notice, setNotice] = useState("");
@@ -434,9 +436,13 @@ export function RosterClient({
             {editing ? "Edit member" : "Add a member"}
           </span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+            {/* Every label is tied to its field. They were plain text above the
+                boxes, so a screen reader announced eight unnamed edit boxes —
+                on the form every new club fills in first (walked 2026-09-28). */}
             <div className="field">
-              <label>Name</label>
+              <label htmlFor={`${fid}-name`}>Name</label>
               <input
+                id={`${fid}-name`}
                 className="input"
                 value={form.name}
                 disabled={pending}
@@ -445,10 +451,11 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>
+              <label htmlFor={`${fid}-email`}>
                 Email <span className="text-muted">· how they sign in</span>
               </label>
               <input
+                id={`${fid}-email`}
                 className="input"
                 value={form.email}
                 disabled={pending}
@@ -457,8 +464,9 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>Phone</label>
+              <label htmlFor={`${fid}-phone`}>Phone</label>
               <input
+                id={`${fid}-phone`}
                 className="input"
                 value={form.phone}
                 disabled={pending}
@@ -466,8 +474,9 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>Handicap index</label>
+              <label htmlFor={`${fid}-hcp`}>Handicap index</label>
               <input
+                id={`${fid}-hcp`}
                 className="input"
                 type="number"
                 step="0.1"
@@ -477,8 +486,9 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>Handicap is for</label>
+              <label htmlFor={`${fid}-hctype`}>Handicap is for</label>
               <select
+                id={`${fid}-hctype`}
                 className="input"
                 value={form.handicapType}
                 disabled={pending}
@@ -489,10 +499,11 @@ export function RosterClient({
               </select>
             </div>
             <div className="field">
-              <label>
+              <label htmlFor={`${fid}-number`}>
                 Member number <span className="text-muted">· optional</span>
               </label>
               <input
+                id={`${fid}-number`}
                 className="input"
                 value={form.memberNumber}
                 disabled={pending}
@@ -500,10 +511,11 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>
+              <label htmlFor={`${fid}-ghin`}>
                 GHIN <span className="text-muted">· optional</span>
               </label>
               <input
+                id={`${fid}-ghin`}
                 className="input"
                 value={form.ghin}
                 disabled={pending}
@@ -511,10 +523,11 @@ export function RosterClient({
               />
             </div>
             <div className="field">
-              <label>
+              <label htmlFor={`${fid}-club`}>
                 Home club <span className="text-muted">· optional</span>
               </label>
               <input
+                id={`${fid}-club`}
                 className="input"
                 value={form.homeClub}
                 disabled={pending}
@@ -523,10 +536,11 @@ export function RosterClient({
             </div>
           </div>
           <div className="field">
-            <label>
+            <label htmlFor={`${fid}-notes`}>
               Notes <span className="text-muted">· visible to organizers only</span>
             </label>
             <input
+              id={`${fid}-notes`}
               className="input"
               value={form.notes}
               disabled={pending}

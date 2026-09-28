@@ -81,6 +81,25 @@ describe("the public sign-up form is named", () => {
   });
 });
 
+describe("forms that open on a click are named too", () => {
+  /**
+   * The renders below see a form only in the state the server draws it, and
+   * the Members screen's add/edit form is closed until "Add member" is
+   * pressed — so nothing here ever measured it, and its nine labels were plain
+   * text above unnamed boxes. Walked 2026-09-28: it is the first form a new
+   * club fills in. Pinned in the source instead: no BARE `<label>` there — one
+   * with neither `htmlFor` nor an input inside it.
+   */
+  it("Members: every add/edit field has its label tied to it", async () => {
+    const { readSource } = await import("./source");
+    const src = readSource("src/components/RosterClient.tsx");
+    const bare = src.match(/<label>/g) ?? [];
+    expect(bare, "a <label> with no htmlFor names nothing").toEqual([]);
+    // The control: the fixed fields are really there, each tied by id.
+    expect((src.match(/htmlFor=\{`\$\{fid\}-/g) ?? []).length).toBeGreaterThanOrEqual(9);
+  });
+});
+
 describe("console form controls are named", () => {
   it("Registration & field, with players in both lists", async () => {
     const { RegistrationClient } = await import("@/components/RegistrationClient");
