@@ -126,7 +126,7 @@ ${landingTokens("light", "    ")}
 .thq .nav.scrolled { border-bottom-color: var(--line); background: color-mix(in srgb, var(--ground) 84%, transparent); }
 .thq .nav-in { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 24px; }
 .thq .nav-links { display: flex; gap: 4px; font: 500 14px/1 var(--sans); color: var(--ink-soft); }
-.thq .nav-links a { padding: 10px 12px; border-radius: 8px; transition: color .15s, background .15s; }
+.thq .nav-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px; transition: color .15s, background .15s; }
 .thq .nav-links a:hover, .thq .nav-links a[aria-current="page"] { color: var(--ink); background: var(--wash-2); }
 .thq .nav-act { display: flex; gap: 8px; }
 .thq .nav-act .btn { font-size: 14px; padding: 0 16px; }
@@ -151,6 +151,12 @@ ${landingTokens("light", "    ")}
 .thq .showcase::before { content: ""; position: absolute; left: 10%; right: 10%; top: 10%; height: 70%; background: radial-gradient(closest-side, var(--accent-a22), transparent); filter: blur(40px); z-index: -1; }
 .thq .showcase .phone { position: absolute; left: -6px; bottom: -40px; width: 216px; z-index: 2; }
 @media (max-width: 1000px) { .thq .showcase { padding: 0; } .thq .showcase .phone { display: none; } }
+@media (max-width: 700px) {
+  /* On a phone the desktop console shrinks to a stamp nobody can read; the
+     player's own screen, at the size it is actually used, says more. */
+  .thq .showcase .window { display: none; }
+  .thq .showcase .phone { display: block; position: static; width: min(300px, 78vw); margin: 0 auto; }
+}
 @media (max-height: 520px) and (orientation: landscape) { .thq .hero { padding-top: 48px; } .thq .sec { padding: 64px 0; } .thq .showcase { margin-top: 40px; } .thq .h1 { font-size: clamp(34px, 6vw, 56px); } }
 
 /* ── product frames: a browser window and a phone ── */
@@ -219,7 +225,7 @@ ${landingTokens("light", "    ")}
 .thq .shot { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); box-shadow: 0 1px 0 var(--wash), 0 22px 44px -22px rgba(0,0,0,.8); }
 .thq .cell .shot-fig .shot { max-height: 300px; object-fit: cover; object-position: top; }
 @media (max-width: 640px) { .thq .cell .shot-fig .shot { max-height: 240px; } }
-.thq .shot-fig figcaption { display: flex; align-items: center; gap: 7px; font: 500 11.5px/1.3 var(--mono); color: var(--ink-faint); }
+.thq .shot-fig figcaption { display: flex; align-items: center; gap: 7px; font: 500 12.5px/1.3 var(--mono); color: var(--ink-faint); }
 .thq .shot-fig figcaption i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--flag); }
 .thq .shot-fig.panel { margin: 0; }
 .thq .shot-fig.panel .shot { border-radius: 16px; box-shadow: var(--shadow); }
@@ -266,6 +272,14 @@ ${landingTokens("light", "    ")}
 .thq .feat h4 { font: 600 15.5px/1.3 var(--sans); margin-bottom: 3px; }
 .thq .feat p { font-size: 14.5px; color: var(--ink-soft); }
 .thq .feats.yours { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
+
+.thq .player-phones { display: grid; grid-template-columns: repeat(3, minmax(0, 230px)); justify-content: center; align-items: end; gap: 28px; margin-top: 56px; }
+.thq .player-phones .phone:nth-child(2) { transform: translateY(-28px); }
+@media (max-width: 700px) {
+  .thq .player-phones { grid-template-columns: repeat(2, minmax(0, 170px)); gap: 16px; }
+  .thq .player-phones .phone:nth-child(2) { transform: none; }
+  .thq .player-phones .phone:nth-child(3) { display: none; }
+}
 
 /* ── desktop and phone ── */
 .thq .dp { display: grid; justify-items: center; gap: 22px; }
@@ -352,7 +366,7 @@ __CMP_FRAMES__
 .thq .vs-table th, .thq .vs-table td { vertical-align: top; }
 .thq .vs-table thead th { font: 650 16px/1.2 var(--sans); letter-spacing: -.01em; color: var(--ink); text-align: left; padding: 22px 18px 16px; border-bottom: 1px solid var(--line-2); }
 .thq .vs-table thead th:first-child { width: 190px; }
-.thq .vs-table tbody th { font: 600 10.5px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); text-align: left; padding: 18px; }
+.thq .vs-table tbody th { font: 600 11.5px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); text-align: left; padding: 18px; }
 .thq .vs-table td { font-size: 14px; line-height: 1.45; color: var(--ink-soft); padding: 18px; }
 .thq .vs-table tbody tr + tr > * { border-top: 1px solid var(--line); }
 .thq .vs-table .hot { background: var(--accent-a08); color: var(--ink); }
@@ -369,6 +383,24 @@ __CMP_FRAMES__
 .thq .vs-hint { display: none; margin: 10px 0 0; text-align: right; font: 500 12px/1 var(--mono); color: var(--ink-faint); }
 .thq .vs-legal { max-width: 760px; margin: 24px auto 0; text-align: center; font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
 @media (max-width: 980px) { .thq .vs-hint { display: block; } .thq .vs-table thead th:first-child { width: 118px; } }
+/* On a phone a three-column table shows one column and a swipe hint, so the
+   two platforms being compared are off the screen. Each row becomes a card
+   instead: the question, then all three answers, each naming its product. */
+@media (max-width: 700px) {
+  .thq .vs-scroll { overflow: visible; }
+  .thq .vs-table { min-width: 0; table-layout: auto; }
+  .thq .vs-table, .thq .vs-table tbody, .thq .vs-table tr, .thq .vs-table th, .thq .vs-table td { display: block; width: auto; }
+  .thq .vs-table thead { display: none; }
+  .thq .vs-table tbody tr { padding: 16px; }
+  .thq .vs-table tbody tr + tr > * { border-top: 0; }
+  .thq .vs-table tbody tr + tr { border-top: 1px solid var(--line); }
+  .thq .vs-table tbody th { position: static; padding: 0 0 10px; background: none; font-size: 12px; color: var(--ink-soft); }
+  .thq .vs-table td { padding: 8px 10px; border-radius: 10px; }
+  .thq .vs-table td + td { margin-top: 4px; }
+  .thq .vs-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; font: 600 11.5px/1.3 var(--mono); letter-spacing: .04em; color: var(--ink-faint); }
+  .thq .vs-table td.hot::before { color: var(--brass); }
+  .thq .vs-hint { display: none; }
+}
 
 /* ── pricing ── */
 .thq .per-y { display: none; }

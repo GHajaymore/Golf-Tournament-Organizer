@@ -44,6 +44,13 @@ const STORE_LINKS = {
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
+/** The player app's tabs, shown in the "For the player" section: [capture, what it shows]. */
+const PLAYER_PHONES = [
+  ["phone-today", "Today: the player's round, their card so far and the leaders."],
+  ["phone-board", "Board: their own line first, then the field ranked by net strokes."],
+  ["phone-card", "My card: the full card, with a Say the card button and the certify step."],
+] as const;
+
 /** The desktop-and-phone pairs: [key, desktop capture, phone capture, url, caption, what it is]. */
 const DEVICE_SETS = [
   ["live", "dp-live-desktop", "dp-live-phone", "tourneyhq.club/live/…", "the public board — no login, names and scores only", "The public live board"],
@@ -247,7 +254,7 @@ export default async function LandingPage() {
                   scores only.
                 </p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-live-board", variant: d, width: 1000, height: 846, className: "shot", alt: "The public live board: ranked by net strokes, the leader highlighted, each player's flight and holes played." })}
+                  {shot({ name: "crop-live-board", variant: d, width: 1000, height: 830, className: "shot", alt: "The public live board: ranked by net strokes, the leader highlighted, each player's flight and holes played." })}
                   <figcaption><i />Real screen · the public board</figcaption>
                 </figure>
               </div>
@@ -265,7 +272,7 @@ export default async function LandingPage() {
                 <h3 className="h3">The tee sheet, drawn for you</h3>
                 <p>Groups drawn by handicap, standings or sides — from who&rsquo;s in — then yours to adjust, publish and print.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-tee-sheet", variant: d, width: 1200, height: 494, className: "shot", alt: "The tee sheet: groups with their start times, each player's handicap and the group average." })}
+                  {shot({ name: "crop-tee-sheet", variant: d, width: 700, height: 470, className: "shot", alt: "The published tee sheet: Group 1 off hole 1 at 08:10, each player's handicap and the group average." })}
                   <figcaption><i />Real screen · tee sheet</figcaption>
                 </figure>
               </div>
@@ -305,7 +312,7 @@ export default async function LandingPage() {
                 <h3 className="h3">It tells you why — and the way out</h3>
                 <p>When something can&rsquo;t be done, the screen says why and what to do next, right where you tried. Not a dead button, not a tooltip to hunt for.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-locked", variant: d, width: 1200, height: 115, className: "shot", alt: "'Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on Tournament details to change it.'" })}
+                  {shot({ name: "crop-locked", variant: d, width: 700, height: 269, className: "shot", alt: "The bracket's arrangement, locked: 'Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on Tournament details to change it.'" })}
                   <figcaption><i />Real screen · the bracket, locked</figcaption>
                 </figure>
               </div>
@@ -482,6 +489,15 @@ export default async function LandingPage() {
               <div className="feat"><div className="ic">{icon("board")}</div><div><h4>Board</h4><p>Their own line first, and the column says whether it&rsquo;s strokes, points or match play.</p></div></div>
               <div className="feat"><div className="ic">{icon("grid")}</div><div><h4>My card</h4><p>Opens on the hole they&rsquo;re playing — tap the score, or say it. Net cards show gross and net, with the stroke dot.</p></div></div>
               <div className="feat"><div className="ic">{icon("calendar")}</div><div><h4>Events</h4><p>Every tournament the club runs — enter in a tap, and &ldquo;am I in next week?&rdquo; answered.</p></div></div>
+            </div>
+            {/* The tabs themselves, not a description of them: three real
+                screens of the player app, in the page's chosen appearance. */}
+            <div className="player-phones" role="group" aria-label="The player app: Today, Board and My card — real screens">
+              {PLAYER_PHONES.map(([name, alt]) => (
+                <div className="phone" key={name}>
+                  <div className="scr">{shot({ name, variant: d, width: 600, height: 1298, alt })}</div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -807,9 +823,9 @@ export default async function LandingPage() {
                     {vsRow("Entry fees and payments", mk("part", "Records who has paid; never collects or holds the money"), mk("part", "Online registration and payment processing on TM Premium"), mk("part", "Registration with built-in payments, on every plan except the base Club plan"))}
                     <tr className="vs-srcrow">
                       <th scope="row">Source</th>
-                      <td className="hot">This page</td>
-                      <td><a href="https://golfgenius.com/products/tm" rel="nofollow noopener noreferrer" target="_blank">golfgenius.com/products/tm</a></td>
-                      <td><a href="https://tm.bluegolf.com/pricing" rel="nofollow noopener noreferrer" target="_blank">tm.bluegolf.com/pricing</a></td>
+                      <td className="hot" data-label="TourneyHQ">This page</td>
+                      <td data-label="Golf Genius"><a href="https://golfgenius.com/products/tm" rel="nofollow noopener noreferrer" target="_blank">golfgenius.com/products/tm</a></td>
+                      <td data-label="BlueGolf TM"><a href="https://tm.bluegolf.com/pricing" rel="nofollow noopener noreferrer" target="_blank">tm.bluegolf.com/pricing</a></td>
                     </tr>
                   </tbody>
                 </table>
@@ -997,9 +1013,9 @@ function vsRow(label: string, ours: React.ReactNode, golfGenius: React.ReactNode
   return (
     <tr>
       <th scope="row">{label}</th>
-      <td className="hot">{ours}</td>
-      <td>{golfGenius}</td>
-      <td>{blueGolf}</td>
+      <td className="hot" data-label="TourneyHQ">{ours}</td>
+      <td data-label="Golf Genius">{golfGenius}</td>
+      <td data-label="BlueGolf TM">{blueGolf}</td>
     </tr>
   );
 }
