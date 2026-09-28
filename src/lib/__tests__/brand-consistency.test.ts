@@ -323,6 +323,33 @@ describe("nothing is set smaller than it can be read", () => {
     }
     expect(offenders, `text below 10px in: ${offenders.join(", ")}`).toEqual([]);
   });
+
+  it("keeps the wordmark's HQ chip at 10px or more, at every size the wordmark is set", async () => {
+    /**
+     * The sweep above reads LITERAL sizes, and the chip has none: it is
+     * `0.42em` of whatever the wordmark is set at. So it rendered at 9.2px in
+     * every page header, 8px in the phone top bar and 6.7px in the landing
+     * footer, and this file stayed green (found 2026-09-27, measuring the
+     * landing's lockup). So compute it: every LOGO_SIZE step, and every
+     * literal `<BrandMark size={N}>` in the app.
+     */
+    const { LOGO_SIZE } = await import("@/components/Logo");
+    const css = read("src/app/globals.css");
+    const block = /\.brand-hq\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    const decl = /font-size:\s*([^;]+);/.exec(block)?.[1]?.trim() ?? "";
+    expect(decl, "found the chip's font-size (control)").not.toBe("");
+    const em = Number(/([\d.]+)em/.exec(decl)?.[1] ?? NaN);
+    const floor = Number(/max\(\s*([\d.]+)px/.exec(decl)?.[1] ?? 0);
+    expect(em, "the chip is sized in em").toBeGreaterThan(0);
+    const chipAt = (wordmark: number) => Math.max(floor, em * wordmark);
+
+    const sizes = new Set<number>([LOGO_SIZE.sm, LOGO_SIZE.md, LOGO_SIZE.lg]);
+    for (const f of allTsx("src")) {
+      for (const m of read(f).matchAll(/<BrandMark[^>]*size=\{(\d+(?:\.\d+)?)\}/g)) sizes.add(Number(m[1]));
+    }
+    const under = [...sizes].filter((s) => chipAt(s) < 10).map((s) => `${s}px wordmark -> ${chipAt(s).toFixed(2)}px chip`);
+    expect(under, `HQ chip below 10px: ${under.join(", ")}`).toEqual([]);
+  });
 });
 
 describe("the mark is the same colour in both renderings", () => {

@@ -150,7 +150,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #660 | This report: the day of 2026-09-27 and three new decisions | live |
 | #661 | **Your decision 8**: drawing the next round, adding a round, deadlines, the single match and the third-place play-off work on a live tournament without unlocking; a drawn round with scores is refused rather than wiped | live |
 | #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | live |
-| #663 | "On now" on Events showed nothing to a member playing in five tournaments; the switcher now says which one has their card open; the landing's Club card promised "WHS posting" and its Free card "as many players as turn up" (items 69–71) | pending |
+| #663 | "On now" on Events showed nothing to a member playing in five tournaments; the switcher now says which one has their card open; the landing's Club card promised "WHS posting" and its Free card "as many players as turn up" (items 69–71) | live |
+| #664 | Retire the team season engine no screen ever called (from a separate session; the week sheet's stroke table finding it surfaced is parked by Ajay) | live |
+| #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -879,6 +881,19 @@ the wrong thing about where they were:
     "up to ten players". Both now read what is true, and the Free cap comes from the plan, as the
     Season card's always has. Found while checking launch-site claims for the session redesigning
     the landing.
+
+72. **A feature nobody can have said it came with the paid plan.** Text alerts, reading a
+    photographed card and AI drafting are switched off on every plan, Club included, by cost.
+    Their locked card was still tagged "On the paid plan", so a club already paying for Club was
+    told the feature came with the plan it pays for. The tag now follows the plans: "Coming soon"
+    until a plan has the feature, and "On the paid plan" from the day one does. Found on the
+    secretary's Announcements screen.
+73. **The "HQ" in the TourneyHQ wordmark was too small to read.** It is sized as a fraction of
+    the wordmark. That put it at 9.2px in every page header, 8px in the phone top bar and 6.7px
+    in the landing footer, under the app's own 10px floor. The test that enforces the floor only
+    reads literal sizes, so it never saw this one. The chip now stops shrinking at 10px, and a new
+    test computes it at every size the wordmark is set at. Found by the session redesigning the
+    landing.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and

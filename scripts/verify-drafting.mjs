@@ -106,7 +106,10 @@ async function main() {
     if (locked) {
       // A locked feature has to say what to do instead, or it reads as broken.
       check("names the feature", html, "AjAi drafting");
-      check("says it is a paid feature", html, "On the paid plan");
+      // "Coming soon" (2026-09-27), not "On the paid plan": aiAssist is off on
+      // every plan, and a club already paying was told it came with theirs.
+      check("says it is not switched on yet", html, "Coming soon");
+      check("does not claim a plan includes it", html, "On the paid plan", false);
       // "above", because that is where the composer is. This panel sits below
       // it by design, so the old "below" sent a locked-out organizer to the
       // end of the page.

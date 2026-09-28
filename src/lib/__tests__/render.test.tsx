@@ -4937,7 +4937,10 @@ describe("locked metered features", () => {
       />,
     );
     expect(html).toContain("Photograph a scorecard");
-    expect(html).toContain("On the paid plan");
+    // "Coming soon", not "On the paid plan": no plan has it today, and a club
+    // already on Club was being told it came with the plan it pays for.
+    expect(html).toContain("Coming soon");
+    expect(html).not.toContain("On the paid plan");
     // And it says what to do instead, so the screen is still usable.
     expect(html).toContain("Type the scores in below");
     // The control itself must be gone — a button that does nothing is worse
@@ -5022,10 +5025,25 @@ describe("locked metered features", () => {
   it("shows the course card camera as locked rather than hiding it", async () => {
     const { CourseCardCamera } = await import("@/components/CourseCardCamera");
     const html = render(<CourseCardCamera holes={18} onReading={() => {}} available={false} />);
-    expect(html).toContain("On the paid plan");
+    expect(html).toContain("Coming soon");
     // And the way in that always works, because pasting a card is free.
     expect(html).toContain("Paste or type the rows below");
     expect(html).not.toContain("Photograph the card");
+  });
+
+  it("tags a locked feature by whether any plan actually has it", async () => {
+    // The tag follows PLANS, so the day a plan switches one on, a club
+    // without it is told it comes with that plan — and not before.
+    const { lockedTag } = await import("@/components/LockedFeature");
+    const { PLANS } = await import("@/lib/plans");
+    expect(lockedTag("aiAssist")).toBe("Coming soon");
+    const was = PLANS.club.features.aiAssist;
+    PLANS.club.features.aiAssist = true;
+    try {
+      expect(lockedTag("aiAssist")).toBe("On the paid plan");
+    } finally {
+      PLANS.club.features.aiAssist = was;
+    }
   });
 
   it("renders the course card camera normally when the plan allows it", async () => {
