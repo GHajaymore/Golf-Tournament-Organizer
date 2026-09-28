@@ -154,10 +154,11 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #664 | Retire the team season engine no screen ever called (from a separate session; the week sheet's stroke table finding it surfaced is parked by Ajay) | live |
 | #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | live |
 | #666 | **The TourneyHQ logo stands up**: one lockup everywhere, the mark the full height of the word, deeper orange on light screens (your choice); the new-round page opens on its header (item 74) | live |
-| #667 | The share picture that unfurls when someone posts a TourneyHQ link now wears the real lockup (from the landing session) | pending |
-| #668 | **Your local prices**: a club is quoted its own set price in GBP, EUR, CAD, AUD, NZD or ZAR, otherwise USD; the owner console lists them (from a separate session) | pending |
-| — | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 75) | pending |
-| — | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | pending |
+| #667 | The share picture that unfurls when someone posts a TourneyHQ link now wears the real lockup (from the landing session) | live |
+| #668 | **Your local prices**: a club is quoted its own set price in GBP, EUR, CAD, AUD, NZD or ZAR, otherwise USD; the owner console lists them (from a separate session) | live |
+| #669 | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 75) | merged |
+| #670 | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | merged |
+| — | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -931,6 +932,21 @@ the wrong thing about where they were:
     The role NAME "Organizer" is left as it is on purpose: it is one label in a dozen places,
     and changing it screen by screen would show a club both spellings of its own role.
     Checked as a GB-club member: "is for the tournament's organiser".
+77. **Switching off voice entry did nothing.** Play settings has "Voice entry: let scores be
+    dictated out loud instead of typed". It was saved, set by the templates and copied with a
+    tournament, but no microphone ever read it, so a club that turned it off still gave every
+    player a mic. It now works everywhere a player scores: their card ("Say the card" and the
+    hole-by-hole mic), group scoring, and the Round Code card. The organizer's own entry screen
+    is unaffected. Found while checking the landing's voice claim against the code.
+78. **The landing overstated the sixteen formats.** It said every format is "scored off its own
+    published allowance" and counted brackets and cuts among them. In fact:
+    - "Other" is entered by hand;
+    - scrambles and shambles use a common club convention, because no allowance is published;
+    - brackets and cuts are ways to run a format, not formats.
+    The page now says fifteen are scored for you and the sixteenth is for a club's own game.
+    The landing session's new comparison was checked the same way, row by row. Voice "hold the
+    button", Free "no time limit" and an unqualified "public board" were corrected before
+    anything shipped.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
@@ -1115,5 +1131,16 @@ named. The deferred-register entry for this class is closed.
     so nothing has changed. The landing's named comparison is hidden until you rule on it, and a
     lawyer should read any named comparison before it goes live. Sources are in the landing
     session's `HANDOVER-2026-09-27.md`.
+
+    **Later that night:** you chose to name the club platforms (Golf Genius and BlueGolf TM),
+    with a disclaimer, and approved porting the redesign to the real site. Squabbit stays a
+    finding and is not named.
+12. **The plan limits are published but not enforced.** The Free card says "one tournament at a
+    time" and "up to 10 in a field", and both are in the code (`plans.ts`). But
+    `enforcementEnabled` is off by default, so today nothing refuses a Free club its second
+    tournament or its eleventh player. That is consistent with the plans being display-only
+    until billing exists, and it is a switch on `/owner`, not a code change. The question is
+    when to turn it on. Probably with billing, since a club refused a place it cannot pay to
+    unlock is the worse experience.
 
 ## Log
