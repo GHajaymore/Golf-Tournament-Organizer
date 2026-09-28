@@ -653,12 +653,20 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
   // On the record ("Recent changes to the field") — the organizer's removal, in
   // the same list as a member's own withdrawal.
+  //
+  // Worded by what they HAD: an entry awaiting approval was never in the field,
+  // so turning it away is declining it, and somebody on the waiting list leaves
+  // the list — "removed from the field" was false for both (2026-09-28).
   await logAudit(
     eventId,
     "removed",
-    played
-      ? `${player.name} was withdrawn from the field (their results are kept).`
-      : `${player.name} was removed from the field.`,
+    player.status === "pending"
+      ? `${player.name}'s entry was declined.`
+      : player.status === "waitlisted"
+        ? `${player.name} was taken off the waiting list.`
+        : played
+          ? `${player.name} was withdrawn from the field (their results are kept).`
+          : `${player.name} was removed from the field.`,
   );
 
   /**

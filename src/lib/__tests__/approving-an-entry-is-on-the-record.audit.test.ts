@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock("next/navigation", () => ({ redirect: () => {} }));
 
-const { approveSignup } = await import("@/app/actions/tournament");
+const { approveSignup, removeSignup } = await import("@/app/actions/tournament");
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -86,6 +86,21 @@ describe("approving an entry is on the record", () => {
     await approveSignup(p.id);
     expect((await prisma.player.findUniqueOrThrow({ where: { id: p.id } })).status).toBe("waitlisted");
     expect((await lines())[0]?.detail).toMatch(/field is full, so they are on the waiting list/);
+  });
+
+  it("turning an entry away says it was declined, not removed from a field it was never in", async () => {
+    const p = await eventWith(8, 0);
+    await removeSignup(p.id);
+    const removed = await prisma.auditLog.findMany({ where: { eventId: session.eventId, action: "removed" }, select: { detail: true } });
+    expect(removed.map((r) => r.detail)).toEqual([`${TAG} Applicant's entry was declined.`]);
+  });
+
+  it("CONTROL: removing a confirmed entrant still says they left the field", async () => {
+    const p = await eventWith(8, 0);
+    await prisma.player.update({ where: { id: p.id }, data: { status: "confirmed" } });
+    await removeSignup(p.id);
+    const removed = await prisma.auditLog.findMany({ where: { eventId: session.eventId, action: "removed" }, select: { detail: true } });
+    expect(removed.map((r) => r.detail)).toEqual([`${TAG} Applicant was removed from the field.`]);
   });
 
   it("CONTROL: approving an entry that is not pending writes nothing", async () => {
