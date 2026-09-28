@@ -10,17 +10,20 @@
  * same facts, and so both are testable without a browser.
  */
 
-export const ROLE_OPTS = [
-  { v: "admin", l: "Organizer" },
-  { v: "assistant", l: "Assistant" },
-  { v: "player", l: "Player" },
-] as const;
+import { roleName } from "./roles";
+
+/**
+ * The roles an account can hold, in order. The LABEL is not here: a role is
+ * named through `roleName`, which spells "Organizer" / "Organiser" by the
+ * club's golf words — see `roles.ts`.
+ */
+export const ROLE_OPTS = [{ v: "admin" }, { v: "assistant" }, { v: "player" }] as const;
 
 export type AccountRoleValue = (typeof ROLE_OPTS)[number]["v"];
 
 /** Human label for a stored role value, falling back to the raw value. */
-export function roleLabel(role: string): string {
-  return ROLE_OPTS.find((o) => o.v === role)?.l ?? role;
+export function roleLabel(role: string, organizer = "organizer"): string {
+  return roleName(role, organizer);
 }
 
 // Organizer > Assistant > Player. Higher rank = more access; a move to a lower
@@ -43,6 +46,8 @@ export interface RoleChange {
   to: string;
   /** True when the proposed role has less access than the current one. */
   demotion: boolean;
+  /** What this club calls the top role — "Organizer" or "Organiser". */
+  adminName: string;
   /**
    * True when this would demote the only remaining organizer. The server
    * refuses this outright; the client warns before it is even attempted.
@@ -61,13 +66,15 @@ export function describeRoleChange(
   account: { name: string; role: string },
   next: string,
   adminCount: number,
+  organizer = "organizer",
 ): RoleChange | null {
   if (account.role === next) return null;
   return {
     name: account.name,
-    from: roleLabel(account.role),
-    to: roleLabel(next),
+    from: roleLabel(account.role, organizer),
+    to: roleLabel(next, organizer),
     demotion: isDemotion(account.role, next),
+    adminName: roleLabel("admin", organizer),
     lastAdmin: account.role === "admin" && next !== "admin" && adminCount <= 1,
   };
 }

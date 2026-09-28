@@ -11,6 +11,7 @@ import { LocalePicker } from "@/components/LocalePicker";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { GolfTermsPicker } from "@/components/GolfTermsPicker";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { pendingAsks } from "@/lib/services/join-requests";
@@ -299,6 +300,7 @@ export default async function OrganizationPage() {
           overrides={await storedPricingOverrides()}
           currency={org.currency}
           locale={org.locale}
+          terms={golfTermsFor(golfRegister(org.country, org.golfTerms))}
         />
       </SettingsSectionAnchor>
 
@@ -312,6 +314,7 @@ export default async function OrganizationPage() {
           canEdit={canEdit}
           asks={asks}
           seats={standing.staffSeats.current}
+          organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
         />
       </SettingsSectionAnchor>
     </>

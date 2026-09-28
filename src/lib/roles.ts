@@ -23,6 +23,21 @@ export const ROLE_LABEL: Record<string, string> = {
 };
 
 /**
+ * A role's name in the club's own golf words — "Organizer" or "Organiser"
+ * (`golf-terms.ts`, passed in as the lower-case `organizer` term).
+ *
+ * THE ONE PLACE A ROLE IS NAMED FOR A SCREEN. The same label used to be
+ * spelled out in four files (here, the sidebar, the phone tab bar and the
+ * access screen), so converting it one screen at a time would have shown a
+ * Scottish club both spellings of its own role. Everything that shows a role
+ * reads this. The Account row's stored `role` ("admin") never changes.
+ */
+export function roleName(role: string, organizer = "organizer"): string {
+  if (role === "admin") return organizer.charAt(0).toUpperCase() + organizer.slice(1);
+  return ROLE_LABEL[role] ?? role;
+}
+
+/**
  * Which roles may open each screen, keyed by the screen key used in both
  * `NAV` and `requireScreen(...)`.
  *

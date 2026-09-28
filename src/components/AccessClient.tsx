@@ -2,6 +2,7 @@
 import { useId, useState, useTransition } from "react";
 import { addAccount, setAccountRole, removeAccount } from "@/app/actions/tournament";
 import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-roles";
+import { roleName } from "@/lib/roles";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
@@ -37,7 +38,7 @@ export function RoleChangeConfirm({
         Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
         {change.lastAdmin ? (
           <span style={{ display: "block", color: "var(--color-danger)", marginTop: 2 }}>
-            <Icon name="warning" /> This is the only Organizer on the event — promote someone else first,
+            <Icon name="warning" /> This is the only {change.adminName} on the event — promote someone else first,
             or this will be refused.
           </span>
         ) : change.demotion ? (
@@ -78,7 +79,14 @@ export function RoleChangeConfirm({
   );
 }
 
-export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
+export function AccessClient({
+  accounts,
+  organizer = "organizer",
+}: {
+  accounts: AccountRow[];
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
+}) {
   const fid = useId();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -134,7 +142,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
-          <b>Organizer</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
+          <b>{roleName("admin", organizer)}</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
           scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
         </p>
         {error && (
@@ -155,7 +163,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
             <tbody>
               {accounts.map((a) => {
                 const change =
-                  confirm?.accountId === a.id ? describeRoleChange(a, confirm.next, adminCount) : null;
+                  confirm?.accountId === a.id ? describeRoleChange(a, confirm.next, adminCount, organizer) : null;
                 return (
                   <tr key={a.id}>
                     <td style={{ fontWeight: 500 }}>{a.name}</td>
@@ -171,7 +179,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
                               disabled={pending}
                               onChange={() => requestRole(a, o.v)}
                             />
-                            {o.l}
+                            {roleName(o.v, organizer)}
                           </label>
                         ))}
                       </div>
@@ -214,7 +222,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
             {ROLE_OPTS.map((o) => (
               <label className="seg-opt" key={o.v}>
                 <input type="radio" name="newrole" checked={role === o.v} onChange={() => setRole(o.v)} />
-                {o.l}
+                {roleName(o.v, organizer)}
               </label>
             ))}
           </div>

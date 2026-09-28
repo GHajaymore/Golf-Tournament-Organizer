@@ -7,12 +7,13 @@ import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { LOGO_SIZE } from "@/components/Logo";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
 import { Icon } from "./Icon";
+import { roleName } from "@/lib/roles";
 
 type Role = "admin" | "assistant" | "player";
 
-const roleLabel = (r: Role) => (r === "admin" ? "Organizer" : r === "assistant" ? "Assistant" : "Player");
-
 interface Props {
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
   sections: NavSection[];
   name: string;
   role: Role;
@@ -22,7 +23,8 @@ interface Props {
   brand?: Brand | null;
 }
 
-export function Sidebar({ sections, name, role, viewRole, initials, brand }: Props) {
+export function Sidebar({ sections, name, role, viewRole, initials, brand, organizer = "organizer" }: Props) {
+  const roleLabel = (r: Role) => roleName(r, organizer);
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
@@ -184,9 +186,9 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
               onChange={(e) => startTransition(() => setPreviewAction(e.target.value))}
               style={{ width: "100%", padding: "6px 8px" }}
             >
-              <option value="admin">Organizer</option>
-              <option value="assistant">Assistant</option>
-              <option value="player">Player</option>
+              <option value="admin">{roleLabel("admin")}</option>
+              <option value="assistant">{roleLabel("assistant")}</option>
+              <option value="player">{roleLabel("player")}</option>
             </select>
           </div>
         )}
