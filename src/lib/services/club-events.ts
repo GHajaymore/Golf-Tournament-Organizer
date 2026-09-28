@@ -18,6 +18,7 @@ import {
 import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 import { openCardOf, type OpenCard } from "../domain/tournament-switcher";
+import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -83,6 +84,12 @@ export interface ClubEventRow {
   waiting: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
+  /**
+   * What THIS tournament's club calls the person running it — "organizer" or
+   * "organiser" (`golf-terms.ts`). Per row, because a member's list can hold
+   * tournaments from clubs in two countries.
+   */
+  organizer: string;
   /**
    * Whether this member may take their own name off now — entered or waiting,
    * and entries not yet closed. `ownWithdrawalOpen`, the rule `withdrawMyEntry`
@@ -168,7 +175,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     where: { id: { in: ids }, shape: { not: "match" }, expiresAt: null },
     include: {
       series: { select: { name: true } },
-      organization: { select: { locale: true } },
+      organization: { select: { locale: true, country: true, golfTerms: true } },
       // The rounds' own days — see `roundDaysOf` below.
       stages: { select: { playedOn: true, type: true } },
     },
@@ -360,6 +367,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       entered,
       waiting,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
+      organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
       canWithdraw:
         (entered || waiting) &&
         ownWithdrawalOpen({

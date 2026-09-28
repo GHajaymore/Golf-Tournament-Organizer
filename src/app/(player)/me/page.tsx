@@ -35,6 +35,7 @@ import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components
 import { standingLabels } from "@/lib/domain/standing-labels";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 /**
  * Today — the player's home.
@@ -77,6 +78,8 @@ export default async function PlayTodayPage() {
   const me = await meFor(state, session.email);
   const availability = await availabilityFor(state, session.email);
   const announcements = await announcementsFor(session.eventId);
+  // The club's own golf words — organizer or organiser (`golf-terms.ts`).
+  const terms = await golfTermsForEvent(session.eventId);
   /**
    * The events-list row for this tournament — the same one the switcher above
    * reads, memoised for the request — so "watching" and the way in agree with
@@ -293,7 +296,7 @@ export default async function PlayTodayPage() {
         <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
-            Your name is down and the organizer will confirm your place if one opens up. There&rsquo;s
+            Your name is down and the {terms.organizer} will confirm your place if one opens up. There&rsquo;s
             no card until then — the board, the groups and the notices are all open to read.
           </p>
           {myRow?.placesNote && (
@@ -331,7 +334,7 @@ export default async function PlayTodayPage() {
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {myRow?.canEnter && (
-              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} style={{ flex: "1 1 160px" }} />
+              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} style={{ flex: "1 1 160px" }} />
             )}
             <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
               See the board <Icon name="arrow-right" />
@@ -656,7 +659,7 @@ export default async function PlayTodayPage() {
           <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
           <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "4px 0 0" }}>
             The tee times for this round are out, and you were entered after they were drawn. The
-            organizer adds you to a group — check back here, or ask them for your time.
+            {terms.organizer} adds you to a group — check back here, or ask them for your time.
           </p>
         </section>
       )}

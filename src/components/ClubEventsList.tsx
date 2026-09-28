@@ -324,7 +324,7 @@ export function ClubEventsList({
                 {(e.canEnter || e.canView || e.entered) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {e.canEnter && (
-                      <EnterButton eventId={e.eventId} href={e.registrationHref} style={{ flex: "1 1 140px" }} />
+                      <EnterButton eventId={e.eventId} href={e.registrationHref} organizer={e.organizer} style={{ flex: "1 1 140px" }} />
                     )}
                     {(e.canView || e.entered) && (
                       <form action={openAction} style={{ flex: "1 1 140px", display: "flex" }}>

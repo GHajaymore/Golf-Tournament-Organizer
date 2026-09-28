@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 /**
  * Messages.
@@ -58,6 +59,7 @@ export default async function MessagesPage() {
         isStaff={isStaff}
         optedOut={optedOut}
         smsOptIn={rosterRow?.smsOptIn ?? false}
+        organizer={(await golfTermsForEvent(session.eventId)).organizer}
       />
     </>
   );

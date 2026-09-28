@@ -7,7 +7,8 @@ import { playerAppShut } from "@/lib/domain/lifecycle-state";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
-import { formattingForEvent } from "@/lib/services/organization";
+import { formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { OrgBrand } from "@/components/OrgBrand";
@@ -256,7 +257,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             {/* A console screen a member followed a link to says why it did not
                 open — see `deniedLanding`. */}
             <Suspense fallback={null}>
-              <DeniedNotice />
+              <DeniedNotice organizer={(session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer} />
             </Suspense>
             {children}
           </>

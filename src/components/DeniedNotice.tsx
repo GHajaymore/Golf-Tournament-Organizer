@@ -16,7 +16,7 @@ import { screenName } from "@/lib/nav";
  * not in `SCREEN_ACCESS` renders nothing, so a crafted link cannot put its own
  * words on the page.
  */
-export function DeniedNotice() {
+export function DeniedNotice({ organizer = "organizer" }: { organizer?: string } = {}) {
   const key = useSearchParams().get("denied") ?? "";
   if (!key || !(key in SCREEN_ACCESS)) return null;
   const name = screenName(`/${key}`);
@@ -33,7 +33,7 @@ export function DeniedNotice() {
         background: "var(--color-surface-2)",
       }}
     >
-      <strong>{name}</strong> is for the tournament&rsquo;s organizer, so it can&rsquo;t open for you. If
+      <strong>{name}</strong> is for the tournament&rsquo;s {organizer}, so it can&rsquo;t open for you. If
       something there needs changing, ask them.
     </p>
   );

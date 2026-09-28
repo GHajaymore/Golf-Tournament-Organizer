@@ -38,14 +38,56 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
     file: "src/app/actions/expenses.ts",
     banned: [/The organi[sz]ers add/],
   },
+  {
+    file: "src/app/(player)/me/page.tsx",
+    banned: [/the organi[sz]er will confirm/i, /organi[sz]er adds you/i],
+  },
+  // Client components take the word as a prop from a page that read the club.
+  {
+    file: "src/components/EnterButton.tsx",
+    banned: [/The organi[sz]er will/, /the organi[sz]er to approve/],
+  },
+  {
+    file: "src/components/MessagesClient.tsx",
+    banned: [/your organi[sz]er/i],
+  },
+  {
+    file: "src/components/DeniedNotice.tsx",
+    banned: [/tournament&rsquo;s organi[sz]er/],
+  },
 ];
+
+/**
+ * A CLIENT COMPONENT'S DEFAULT IS THE US WORD, so a caller that forgets the
+ * prop does not fail — it quietly tells a Scottish club "organizer". Every
+ * place that renders one of these must hand it the club's word.
+ */
+const CALLERS: ReadonlyArray<{ file: string; tag: string }> = [
+  { file: "src/components/ClubEventsList.tsx", tag: "EnterButton" },
+  { file: "src/app/(player)/me/page.tsx", tag: "EnterButton" },
+  { file: "src/app/(player)/me/messages/page.tsx", tag: "MessagesClient" },
+  { file: "src/app/(app)/messages/page.tsx", tag: "MessagesClient" },
+  { file: "src/app/(player)/layout.tsx", tag: "DeniedNotice" },
+  { file: "src/app/(app)/layout.tsx", tag: "DeniedNotice" },
+];
+
+describe("every caller hands a converted component the club's word", () => {
+  for (const { file, tag } of CALLERS) {
+    it(`${file} passes organizer to <${tag}>`, () => {
+      const src = readSource(file);
+      const uses = src.split(`<${tag}`).slice(1).map((rest) => rest.slice(0, rest.indexOf("/>")));
+      expect(uses.length, `no <${tag}> in ${file}`).toBeGreaterThan(0);
+      for (const use of uses) expect(use).toContain("organizer=");
+    });
+  }
+});
 
 describe("screens converted to the club's golf words", () => {
   for (const { file, banned } of CONVERTED) {
     const src = readSource(file);
 
     it(`${file} reads the club's terms`, () => {
-      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)/);
+      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}/);
     });
 
     for (const word of banned) {
