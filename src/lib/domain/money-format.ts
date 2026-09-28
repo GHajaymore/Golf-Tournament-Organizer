@@ -138,6 +138,32 @@ export function money(
 }
 
 /**
+ * A WHOLE amount — a plan price — written for a currency: "£39", "$1,750".
+ *
+ * A sibling of `money` rather than a flag on it, because the input means
+ * something different. `money` takes MINOR units and always prints them, which
+ * is right for a prize of £12.50 and wrong for a price somebody set at £39:
+ * "£39.00" reads like a computed figure. Same Intl call, and the same
+ * fall-back to dollars on a code or locale Intl refuses.
+ */
+export function wholeMoney(
+  amount: number,
+  currency: string = DEFAULT_CURRENCY,
+  locale: string = "en-US",
+): string {
+  const code = (currency || DEFAULT_CURRENCY).toUpperCase();
+  const value = Number.isFinite(amount) ? amount : 0;
+  // Both bounds: an older engine throws when only the maximum drops below the
+  // currency's own two digits.
+  const opts = { style: "currency", currency: code, minimumFractionDigits: 0, maximumFractionDigits: 0 } as const;
+  try {
+    return new Intl.NumberFormat(locale, opts).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US", { ...opts, currency: DEFAULT_CURRENCY }).format(value);
+  }
+}
+
+/**
  * What somebody typed, as minor units — the exact inverse of `money`.
  *
  * The formatter was made currency-aware and the PARSER was not, which left the

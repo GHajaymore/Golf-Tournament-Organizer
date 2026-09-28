@@ -1,4 +1,5 @@
-import { PLANS, planFor, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
+import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
+import { wholeMoney } from "@/lib/domain/money-format";
 import type { OrgLimits } from "@/lib/services/limits";
 import { Icon } from "./Icon";
 
@@ -19,8 +20,24 @@ import { Icon } from "./Icon";
  * keeps results 48 hours, and that is the one fact a club has to know BEFORE
  * it runs an event rather than after the results are gone.
  */
-export function PlanPanel({ planKey, standing, overrides }: { planKey: string; standing?: OrgLimits; overrides?: PricingOverrides }) {
+export function PlanPanel({
+  planKey,
+  standing,
+  overrides,
+  currency,
+  locale,
+}: {
+  planKey: string;
+  standing?: OrgLimits;
+  overrides?: PricingOverrides;
+  /** The club's own currency. Quoted in it where a plan has a price there, else USD. */
+  currency?: string;
+  /** The club's locale, which decides how the number is written. */
+  locale?: string;
+}) {
   const current = planFor(planKey);
+  const quoteIn = planCurrency(currency);
+  const price = (amount: number) => wholeMoney(amount, quoteIn, locale);
   const benefits = upgradeBenefits(planKey);
   const retention = retentionNotice(planKey);
 
@@ -167,10 +184,11 @@ export function PlanPanel({ planKey, standing, overrides }: { planKey: string; s
                       `effectivePrice`, so an override reaches this panel, the
                       landing page and the schema.org offer as one number. The
                       annual figure is derived (two months free) and follows the
-                      same override. */}
-                  {effectivePrice(p, overrides) === 0
+                      same override. In the club's currency when a plan has a
+                      set price there, never a converted one. */}
+                  {effectivePrice(p, overrides, quoteIn) === 0
                     ? "Free"
-                    : `$${effectivePrice(p, overrides)}/mo · $${effectiveAnnualPrice(p, overrides)}/yr`}
+                    : `${price(effectivePrice(p, overrides, quoteIn))}/mo · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr`}
                 </span>
                 {mine && (
                   <span className="tag" style={{ fontSize: 10 }}>You are here</span>

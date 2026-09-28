@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PLAN_CURRENCIES, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
 import { listDiscountCodes } from "@/lib/services/platform-discounts";
@@ -114,6 +115,16 @@ export default async function OwnerConsolePage() {
     free: p.key === "free",
   }));
 
+  // Every paid tier in every plan currency, through the same reader a club's
+  // settings panel quotes from, so this line and that panel cannot disagree.
+  const localTiers = Object.values(PLANS)
+    .filter((p) => p.priceMonthly > 0)
+    .map((p) => ({
+      key: p.key,
+      name: p.name,
+      prices: PLAN_CURRENCIES.map((c) => wholeMoney(effectivePrice(p, overrides, c), c, DEFAULT_LOCALE)),
+    }));
+
   // The tier LIMITS the owner can tune, and whether they're enforced at all —
   // the effective value per tier (an override if set, else the plan default),
   // so the editor opens on the numbers actually in force.
@@ -169,6 +180,22 @@ export default async function OwnerConsolePage() {
       {/* The controls that write: the price every screen quotes, and the caps
           every entry gate reads. */}
       <OwnerPricing tiers={tiers} />
+      {/* The local prices, read-only. They are set per currency rather than
+          converted, so the USD editor above does not move them. An override
+          goes in the same pricing row, under `byCurrency`. */}
+      <div className="card elev-sm" style={{ marginBottom: 16 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Local prices</span>
+        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 8px" }}>
+          Monthly, set per currency rather than converted. A club is quoted in its own currency when it is one of these, otherwise in US dollars.
+        </p>
+        {localTiers.map((t) => (
+          <p key={t.key} style={{ fontSize: 13, margin: "3px 0", fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontWeight: 500 }}>{t.name}</span>
+            {": "}
+            {t.prices.join(" · ")}
+          </p>
+        ))}
+      </div>
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
       <OwnerDiscounts codes={discounts} />
 

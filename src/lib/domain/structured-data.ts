@@ -1,4 +1,4 @@
-import { PLANS, effectivePrice, type PricingOverrides } from "@/lib/plans";
+import { PLANS, effectivePrice, planCurrency, type PricingOverrides } from "@/lib/plans";
 
 /**
  * What the site tells a search engine about itself, in schema.org terms.
@@ -20,18 +20,23 @@ import { PLANS, effectivePrice, type PricingOverrides } from "@/lib/plans";
  * shows next to the product while the site itself shows another.
  */
 
-/** ISO 4217. The page formats with a `$`, so the offers must say USD. */
-const CURRENCY = "USD";
-
 export interface StructuredDataOptions {
   /** Absolute site origin, e.g. https://tourneyhq.club — no trailing slash. */
   origin: string;
   /** The owner's price overrides, so the crawler indexes the live price. */
   overrides?: PricingOverrides;
+  /**
+   * The currency the PAGE quotes in, so the offer says the same thing. USD
+   * when omitted, and USD for any code a plan has no set price in: an offer
+   * reading "GBP" beside a dollar figure is worse than no offer.
+   */
+  currency?: string;
 }
 
-export function siteStructuredData({ origin, overrides }: StructuredDataOptions): Record<string, unknown> {
+export function siteStructuredData({ origin, overrides, currency }: StructuredDataOptions): Record<string, unknown> {
   const org = `${origin}/#organization`;
+  /** ISO 4217, and always a currency the price below is actually set in. */
+  const CURRENCY = planCurrency(currency);
 
   return {
     "@context": "https://schema.org",
@@ -71,7 +76,7 @@ export function siteStructuredData({ origin, overrides }: StructuredDataOptions)
         offers: Object.values(PLANS).map((plan) => {
           // The configurable price, not `priceMonthly` raw, so the offer a
           // crawler indexes and the number on the page are the same one.
-          const price = effectivePrice(plan, overrides);
+          const price = effectivePrice(plan, overrides, CURRENCY);
           return {
             "@type": "Offer",
             name: plan.name,
