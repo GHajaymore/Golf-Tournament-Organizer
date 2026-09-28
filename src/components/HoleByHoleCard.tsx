@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { useDistanceWords } from "./DistanceUnitProvider";
 import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
@@ -132,6 +133,8 @@ export function HoleByHoleCard({
    */
   showVoice?: boolean;
 }) {
+  // Yards or metres — the course's own unit, from the nearest provider.
+  const distance = useDistanceWords();
   const [listening, setListening] = useState(false);
   const dictationRef = useRef<Dictation | null>(null);
   const [heard, setHeard] = useState("");
@@ -316,7 +319,7 @@ export function HoleByHoleCard({
           </div>
           <div style={{ textAlign: "right", fontSize: 13.5, lineHeight: 1.7, color: "var(--color-neutral-400)" }}>
             <div>Par <strong style={{ color: "var(--color-text)", fontSize: 16 }}>{par ?? "—"}</strong></div>
-            {yards[hole] != null && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} yds</div>}
+            {yards[hole] != null && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
             {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
           </div>
         </div>

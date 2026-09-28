@@ -19,6 +19,8 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
+import { useClubDistanceUnit } from "./DistanceUnitProvider";
+import { distanceWords, type DistanceUnit } from "@/lib/domain/distance-unit";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
@@ -160,6 +162,13 @@ export function CourseLibrary({
   const [pars, setPars] = useState<string[]>(opened ? cardOf(opened, opened.pars) : BLANK);
   const [yards, setYards] = useState<string[]>(opened ? cardOf(opened, opened.yards) : BLANK);
   const [si, setSi] = useState<string[]>(opened ? cardOf(opened, opened.strokeIndex) : BLANK);
+  /**
+   * What this card's distances are in. The course's own unit when editing one,
+   * the club's for a new one — which is what an unset course resolves to, so the
+   * label never promises something the save does not store. Decision 15.
+   */
+  const clubUnit = useClubDistanceUnit();
+  const [unit, setUnit] = useState<DistanceUnit>(opened?.distanceUnit ?? clubUnit);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   /** Set when the server says this card already has rounds scored against it. */
@@ -209,7 +218,7 @@ export function CourseLibrary({
     setSi(card.strokeIndex.map(String));
     if (card.yards.length === 18) setYards(card.yards.map(String));
     setPasteNote(
-      `Read 18 pars and 18 stroke indexes${card.yards.length === 18 ? " and 18 yardages" : ""}. Check the boxes below, then save.`,
+      `Read 18 pars and 18 stroke indexes${card.yards.length === 18 ? ` and 18 lengths in ${distanceWords(unit).noun}` : ""}. Check the boxes below, then save.`,
     );
   };
 
@@ -219,6 +228,7 @@ export function CourseLibrary({
     setPars(BLANK);
     setYards(BLANK);
     setSi(BLANK);
+    setUnit(clubUnit);
     setEditing(null);
     setAdding(false);
     setError("");
@@ -234,6 +244,7 @@ export function CourseLibrary({
     setPars(cardOf(c, c.pars));
     setYards(cardOf(c, c.yards));
     setSi(cardOf(c, c.strokeIndex));
+    setUnit(c.distanceUnit);
     setError("");
   };
 
@@ -255,6 +266,7 @@ export function CourseLibrary({
         pars: nums(pars),
         yards: nums(yards),
         strokeIndex: nums(si),
+        distanceUnit: unit,
         played,
       });
       if (res.needsConfirm) {
@@ -803,7 +815,7 @@ export function CourseLibrary({
               `saveClubCourse`, so it is an input aid to the one editor, not a
               second writer of the same eighteen numbers. */}
           <div className="field" style={{ marginBottom: 10 }}>
-            <label>Paste the card — par, stroke index, then yardage; one row each</label>
+            <label>Paste the card — par, stroke index, then {distanceWords(unit).noun}; one row each</label>
             <textarea
               className="input"
               rows={3}
@@ -830,6 +842,27 @@ export function CourseLibrary({
             would make &ldquo;back nine&rdquo; meaningless.
           </p>
 
+          {/* WHAT THE CARD IS MEASURED IN (decision 15). Set to what is printed
+              on the card; the numbers are stored as typed and never converted —
+              only the label they are read under changes. */}
+          <div className="field" style={{ marginBottom: 10 }}>
+            <label id="course-distance-unit">Distances on this card are in</label>
+            <div className="seg" role="radiogroup" aria-labelledby="course-distance-unit" style={{ maxWidth: 260 }}>
+              {(["yards", "metres"] as const).map((u) => (
+                <label key={u} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                  <input
+                    type="radio"
+                    name="course-distance-unit"
+                    checked={unit === u}
+                    disabled={pending}
+                    onChange={() => setUnit(u)}
+                  />
+                  {distanceWords(u).row}
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 12 }}>
               <tbody>
@@ -844,7 +877,7 @@ export function CourseLibrary({
                   {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(pars, setPars, i)}</td>)}
                 </tr>
                 <tr>
-                  <td style={{ fontWeight: 600 }}>Yards</td>
+                  <td style={{ fontWeight: 600 }}>{distanceWords(unit).row}</td>
                   {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(yards, setYards, i)}</td>)}
                 </tr>
                 <tr>

@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { importClubCourseCard } from "@/app/actions/courses";
 import { parseCard, type CardProblem } from "@/lib/domain/scorecard-parse";
 import { CourseCardCamera } from "@/components/CourseCardCamera";
+import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { Icon } from "./Icon";
 
 /**
@@ -45,6 +46,9 @@ export function CardImport({
   const [strokeIndex, setStrokeIndex] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // A pasted card is saved without a unit, which resolves to the club's — so
+  // its distance row is labelled in the club's unit. See DistanceUnitProvider.
+  const distance = useClubDistanceWords();
   const [pending, startTransition] = useTransition();
 
   // Validated as you type, not on submit. The whole value of this screen is
@@ -124,7 +128,7 @@ export function CardImport({
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Paste a course card</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
-          Copy the par, yardage and stroke-index rows straight off the course&apos;s website — totals and
+          Copy the par, {distance.noun} and stroke-index rows straight off the course&apos;s website — totals and
           labels are stripped automatically. Everything is checked before it saves.
         </p>
       </div>
@@ -183,7 +187,7 @@ export function CardImport({
         hint="7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14"
       />
       <Row
-        label="Yardage"
+        label={distance.row}
         row="yards"
         value={yards}
         onChange={setYards}

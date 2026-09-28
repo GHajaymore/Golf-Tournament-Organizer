@@ -3,6 +3,7 @@ import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
+import { distanceUnitFor } from "@/lib/services/round-card";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -534,6 +535,8 @@ export default async function EntryPage() {
        */
       const roundCourse = courseForRound(stageCourse ?? soleVenue, state.event);
       const roundCard = roundCourse ? cardForStage(roundCourse, stage) : null;
+      // What that card's distances are in, from the course the walk above chose.
+      const distanceUnit = await distanceUnitFor(roundCourse, state.event.organizationId);
 
       const cards = await prisma.scorecard.findMany({ where: { eventId: session.eventId, stageId: stage.id } });
       const cardsByPlayer: Record<string, (number | null)[]> = {};
@@ -726,6 +729,7 @@ export default async function EntryPage() {
           pars: roundCard?.pars ?? [],
           yards: roundCard?.yards ?? [],
           strokeIndex: roundCard?.strokeIndex ?? [],
+          distanceUnit,
         },
         stroke: {
           holes: holeCount,

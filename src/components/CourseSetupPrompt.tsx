@@ -1,5 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
@@ -48,6 +49,9 @@ export function CourseSetupPrompt({
 }) {
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
+  // A NEW course is saved without a unit, which resolves to the club's — so
+  // its boxes are labelled in the club's unit. See DistanceUnitProvider.
+  const distance = useClubDistanceWords();
   const [name, setName] = useState(eventCourse);
   const [city, setCity] = useState(eventCity);
   const [pasteText, setPasteText] = useState("");
@@ -114,7 +118,7 @@ export function CourseSetupPrompt({
     const yardNums = yards.map((v) => parseInt(v, 10));
     const siNums = strokeIndex.map((v) => parseInt(v, 10));
     if (parNums.some((n) => !Number.isFinite(n) || n < 3 || n > 6)) return setError("Every hole needs a par between 3 and 6.");
-    if (yardNums.some((n) => !Number.isFinite(n) || n <= 0)) return setError("Every hole needs a yardage.");
+    if (yardNums.some((n) => !Number.isFinite(n) || n <= 0)) return setError(`Every hole needs a length in ${distance.noun}.`);
     const siSet = new Set(siNums);
     if (siNums.some((n) => !Number.isFinite(n) || n < 1 || n > 18) || siSet.size !== 18) {
       return setError("Stroke index must use each number 1–18 exactly once.");
@@ -305,7 +309,7 @@ export function CourseSetupPrompt({
                 {(
                   [
                     ["Par", pars, setPars, "4"],
-                    ["Yards", yards, setYards, "400"],
+                    [distance.row, yards, setYards, "400"],
                     ["S.I.", strokeIndex, setStrokeIndex, String(offset + 1)],
                   ] as const
                 ).map(([label, values, setter, hint]) => (

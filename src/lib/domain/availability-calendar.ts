@@ -84,6 +84,8 @@ export interface AvailabilityCalendar {
 export function buildAvailabilityCalendar(
   rounds: CalendarRound[],
   todayIso: string,
+  /** 0 Sunday, 1 Monday — the club's, from `firstDayOfWeek`. */
+  weekStart: 0 | 1 = 0,
 ): AvailabilityCalendar {
   const dated: CalendarRound[] = [];
   const undated: CalendarRound[] = [];
@@ -104,6 +106,7 @@ export function buildAvailabilityCalendar(
   const months: CalendarMonth[] = monthGrids(
     dated.map((r) => r.playedOn),
     todayIso,
+    weekStart,
   ).map((m) => {
     let roundCount = 0;
     let inCount = 0;

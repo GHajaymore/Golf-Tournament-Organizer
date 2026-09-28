@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
+import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
@@ -235,6 +236,12 @@ export interface ClubCourseInput {
   pars: number[];
   yards: number[];
   strokeIndex: number[];
+  /**
+   * "yards" | "metres" — what `yards` is measured in (domain/distance-unit.ts).
+   * Anything else is ignored, leaving the course's unit as it was: a caller
+   * written before this field existed changes nothing about it.
+   */
+  distanceUnit?: string;
 }
 
 /**
@@ -272,6 +279,10 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
     strokeIndex: siGiven
       ? holeArray(input.strokeIndex, holes, holes)
       : JSON.stringify(Array.from({ length: holes }, (_, i) => i + 1)),
+    // Validated at the boundary — this is a public endpoint — and only
+    // written when it is one of the two real units. The numbers are never
+    // converted; only the label they are read under changes.
+    ...(isDistanceUnit(input.distanceUnit) ? { distanceUnit: input.distanceUnit } : {}),
   };
 
   /**

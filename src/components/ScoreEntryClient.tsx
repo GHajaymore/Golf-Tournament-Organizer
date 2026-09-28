@@ -13,6 +13,7 @@ import {
   type HoleResult,
 } from "@/lib/domain";
 import { useFormatting } from "@/components/CurrencyProvider";
+import { useDistanceWords } from "@/components/DistanceUnitProvider";
 import { CoursePicker } from "@/components/CoursePicker";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
@@ -307,6 +308,8 @@ export function ScoreEntryClient({
   // Written the club's way, from the same context its currency comes from —
   // this card was stamped in whatever locale the scorer's phone was set to.
   const { locale } = useFormatting();
+  // Yards or metres — the round's course's unit, from the nearest provider.
+  const distance = useDistanceWords();
   /**
    * Whether this is the browser, after hydration. The "Entered … · Sep 26"
    * stamp is formatted in UTC until then, so the server's HTML and the first
@@ -1499,7 +1502,7 @@ export function ScoreEntryClient({
                     {hasCourseData && (
                       <>
                         <tr className="sc-ref">
-                          <td>Yards</td>
+                          <td>{distance.row}</td>
                           {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
                           {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
                           {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}

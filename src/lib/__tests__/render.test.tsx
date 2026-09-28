@@ -1638,6 +1638,7 @@ describe("course library", () => {
     pars: Array(18).fill(4), yards: Array(18).fill(400),
     strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
     inEvent: true, source: "manual", verified: true, verifiedBy: "", sourceUrl: "", hasCard: true,
+    distanceUnit: "yards" as const,
     tees: [{ id: "t1", courseId: "c1", name: "Blue", gender: "men", courseRating: 71.5, slopeRating: 125, par: 72, rated: true }],
   };
 
@@ -2565,6 +2566,7 @@ describe("course card verification", () => {
     verifiedBy: "",
     sourceUrl: "https://bushwood.example/card",
     hasCard: true,
+    distanceUnit: "yards" as const,
     tees: [],
   };
 

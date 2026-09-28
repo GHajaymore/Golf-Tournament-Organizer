@@ -443,6 +443,14 @@ model Course {
   yards       String
   strokeIndex String
 
+  /**
+   * What `yards` (and every tee's) is measured in: "yards" | "metres", or ""
+   * for not set — see lib/domain/distance-unit.ts, which decides what an empty
+   * value means (a directory card is yards; otherwise the club's country).
+   * The numbers are never converted. Ajay's decision 15, 2026-09-28.
+   */
+  distanceUnit String @default("")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
