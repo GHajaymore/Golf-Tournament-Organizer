@@ -48,6 +48,11 @@ export interface PushPayload {
   url?: string;
   /** Collapses repeats: a second push with the same tag replaces the first. */
   tag?: string;
+  /**
+   * A safety notice (play suspended): the service worker asks for a long
+   * vibration and keeps it on screen until dismissed. See `public/sw.js`.
+   */
+  urgent?: boolean;
 }
 
 /**

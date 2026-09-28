@@ -33,7 +33,7 @@ const SCORE_ACTIONS = [
   // `every-change-has-a-heading.test.ts`, 2026-09-28.
   "match.forfeit", "match.forfeit.undo",
 ];
-const ROUND_ACTIONS = ["round-closed", "cut-applied", "regenerate-flights"];
+const ROUND_ACTIONS = ["round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed"];
 const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings"];
 
 export function changeKind(action: string): ChangeKind {

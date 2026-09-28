@@ -42,6 +42,7 @@ import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
 import { CasualRoundPanel } from "@/components/CasualRoundPanel";
+import { PlayStatusControl } from "@/components/PlayStatusControl";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -777,6 +778,16 @@ export default async function DashboardPage() {
           );
         })()}
       </div>
+
+      {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
+          always while it is suspended, so the way back is never hidden. */}
+      {isStaff && !matchEvent && (event.status === "live" || !!event.playSuspendedAt) && (
+        <PlayStatusControl
+          suspended={!!event.playSuspendedAt}
+          note={event.playSuspendedNote}
+          since={event.playSuspendedAt ? event.playSuspendedAt.toISOString() : ""}
+        />
+      )}
 
       {/* A MATCH HAS NO LIFECYCLE TO RUN, so it is not offered one.
           Draft → taking entries → ready → launch → complete is the arc of an
