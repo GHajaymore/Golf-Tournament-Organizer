@@ -148,7 +148,14 @@ ${landingTokens("light", "    ")}
 @media (max-width: 420px) { .thq .nav-act .btn-ghost { display: none; } }
 /* 320px (iPhone SE): the logo keeps its brand step, so the room comes from the
    buttons — the menu button made the row 14px too wide there. */
-@media (max-width: 360px) { .thq .nav-act { gap: 4px; } .thq .nav-act .btn { padding: 0 8px; font-size: 13.5px; } .thq .nav-in { gap: 6px; } }
+@media (max-width: 360px) {
+  /* Slack, not an exact fit: CI renders the same row 2px wider than a local
+     browser (different fonts), so leave room — a 12px side gutter for the nav
+     alone, 4px gaps, and buttons that never wrap. ~12px of headroom at 320. */
+  .thq .nav-in { gap: 4px; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .thq .nav-act { gap: 4px; }
+  .thq .nav-act .btn { padding: 0 8px; font-size: 13.5px; white-space: nowrap; }
+}
 
 /* ── hero ── */
 .thq .hero { position: relative; padding: 96px 0 0; overflow: hidden; isolation: isolate; }
