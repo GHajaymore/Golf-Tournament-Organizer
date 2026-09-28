@@ -163,8 +163,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #673 | A second tap on a listening mic stops it, on every screen that has one (item 80) | merged |
 | #674 | A US club's dates in US order everywhere; the tee sheet's group words follow the club (item 81) | live |
 | #675 | **Your landing redesign, ported to the real site**: country editions, real captures, the sourced comparison, /faq (from the landing session) | live |
-| #676 | Landing refinement: readable phone-width crops, the phone hero, stacked comparison on phones (from the landing session) | merging |
-| — | The landing's sign-in form clears the 44px touch minimum (item 82) | pending |
+| #676 | Landing refinement: readable phone-width crops, the phone hero, stacked comparison on phones (from the landing session) | live |
+| #677 | The landing's sign-in form clears the 44px touch minimum (item 82) | live |
+| — | A notice says when it was posted; a net board says its To par is net; a complete card asks to be certified (items 83–85) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -1000,6 +1001,34 @@ the wrong thing about where they were:
     ever measured this form, because the touch tests sign in first and the form only appears
     when you are signed out. All four targets are now 44px, and a signed-out test measures the
     form at every width.
+83. **A member couldn't tell when a notice was posted.** Walked as the Scottish club's secretary
+    and a member. The secretary's list read "Tee times moved ten minutes later · just now". The
+    member's Today showed the same notice with no time at all, so this morning's tee-time change
+    looked the same as last week's. Both now say "3 minutes ago" in the same words.
+
+    Two smaller fixes to the same screens:
+    - A long title no longer leaves the megaphone icon alone on its own row.
+    - The Announcements screen now says where a notice lands before anyone posts one. Nothing is
+      sent to phones; it waits on Today, pinned at the top and the rest at the foot, below the card
+      and the board.
+84. **The board's "To par" was net and said nothing.** On a member's casual nine, the score card
+    read "Gross 41 · To par +5 · Net 35" and the board read "41 · 35 · −1". Both are right: the
+    board ranks on net, so its To par is net. But a golfer reads +5 and −1 as two different
+    rounds. A net board's footnote now says its To par is the net score against par. A gross
+    board keeps its sentence exactly as it was.
+85. **A finished card said "Finish my card".** All nine holes were in, and Today read "YOUR CARD ·
+    FINAL" over a button saying "Finish my card". The only step left is signing, so it now reads
+    "Every hole in — not yet certified" with a "Certify my card" button, the same words as the
+    card screen's button. Left alone: "Nothing returned for this round yet" under the two unsigned
+    cards. A card is returned when it is signed, so that sentence is true.
+
+    Checked and found fine on the same walk:
+    - "and 2 others" in the setup line for three players;
+    - the "plays off scratch" note for a guest with no handicap;
+    - the service worker's pre-cache list. An agent flagged `/icon.svg` as missing, but Next serves
+      it from `src/app/icon.svg`.
+
+    Found in the walk and left for you as decision 14: a notice doesn't alert anyone.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
@@ -1204,5 +1233,19 @@ named. The deferred-register entry for this class is closed.
     - finish the M365 step so tourneyhq.club receives mail;
     - use an ajailabs.app address you read;
     - or drop the mailto and send that card to sign-up instead.
+
+    **Decided 2026-09-28:** aliases hello@ and support@tourneyhq.club on the admin@ajailabs.app
+    mailbox, set up through GoDaddy in your Chrome. It is parked until you are back ("ask me
+    tomorrow"). Until a test email arrives, the landing shows no address and sends "Talk to us"
+    to sign-up.
+14. **A new announcement alerts nobody.** Players can turn on phone alerts, but alerts are only
+    ever sent for tee times. Posting on Announcements writes the notice and nothing else. It
+    appears the next time a player opens Today: pinned at the top, the rest at the foot. It
+    doesn't ring, and it isn't counted anywhere. Messages broadcasts at least show an unread
+    count. So "Tee times moved ten minutes" posted at 7am reaches a player only if they open
+    the app and scroll. The Announcements screen now says that honestly (item 83). The question
+    is whether a new or pinned announcement should also send a phone alert to players who
+    turned alerts on, the same way tee times do. That would be in-app and consistent with your
+    non-email rule, but it is a behaviour change, so it waits for you.
 
 ## Log

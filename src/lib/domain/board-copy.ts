@@ -41,6 +41,15 @@ export interface BoardCopyInput {
    * still eight friends.
    */
   casual: boolean;
+  /**
+   * The board is ranked on NET, so its To par column is net to par
+   * (`toParOnBasis`). The footnote says which: walked 2026-09-28, a casual
+   * nine read "Gross 41 · To par +5 · Net 35" on the score card and
+   * "41 · 35 · -1" on this board — both right, and a golfer reads +5 and -1
+   * as two different rounds unless the board says its -1 is net. Read from
+   * the board's own unit caption (`unitIsNet`), never re-derived here.
+   */
+  netToPar?: boolean;
 }
 
 /** The line under "Live leaderboard". */
@@ -67,7 +76,7 @@ export function boardIntro({ isStroke, stableford, casual }: BoardCopyInput): st
  * — the arithmetic explanation is just as useful to a fourball, and rewriting
  * it would be a second copy of a rule that is already stated once.
  */
-export function boardFootnote({ isStroke, stableford, casual }: BoardCopyInput): string {
+export function boardFootnote({ isStroke, stableford, casual, netToPar = false }: BoardCopyInput): string {
   const cut = casual ? "" : " Advancing rows reflect the qualification cutoff.";
   if (!isStroke) {
     return casual
@@ -76,6 +85,9 @@ export function boardFootnote({ isStroke, stableford, casual }: BoardCopyInput):
   }
   if (stableford) {
     return `Points are Stableford: 2 for a net par, +1 per stroke better, -1 per stroke worse, floored at 0.${cut}`;
+  }
+  if (netToPar) {
+    return `Net = gross minus handicap strokes received on the holes played; To par is the net score against par for the holes played.${cut}`;
   }
   return `Net = gross minus handicap strokes received on the holes played; To-par is versus the holes played.${cut}`;
 }

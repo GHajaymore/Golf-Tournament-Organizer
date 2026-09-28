@@ -50,6 +50,21 @@ describe("what a player is told about their own signed card", () => {
     expect(cardStanding("certified", false).action).toBeTruthy();
   });
 
+  it("asks for the signature, not the holes, when every hole is in", () => {
+    // Walked 2026-09-28: "YOUR CARD · FINAL" over "Finish my card".
+    for (const staff of [true, false]) {
+      const s = cardStanding("entered", staff, true);
+      expect(s.action).toBe("Certify my card");
+      expect(s.action).not.toBe("Finish my card");
+      expect(s.tone).toBe("waiting");
+    }
+  });
+
+  it("Today tells cardStanding whether the card is complete", () => {
+    const src = readSource("src/app/(player)/me/page.tsx");
+    expect(src).toMatch(/card\.filled >= \(round\?\.holes \?\? 0\)/);
+  });
+
   it("still asks for the holes when the card is short", () => {
     for (const staff of [true, false]) {
       const s = cardStanding("entered", staff);

@@ -203,7 +203,7 @@ export interface CardStanding {
   action: string;
 }
 
-export function cardStanding(status: string, staffApproves: boolean): CardStanding {
+export function cardStanding(status: string, staffApproves: boolean, complete = false): CardStanding {
   if (status === "approved") return { label: "Approved", tone: "done", action: "" };
   // Someone says this card is wrong. It is the player's to look at, and it is
   // emphatically not "finish" — every hole may already be on it.
@@ -218,6 +218,17 @@ export function cardStanding(status: string, staffApproves: boolean): CardStandi
          * been signed. There is nothing left to finish.
          */
         { label: "Certified — that's your card", tone: "done", action: "See my card" };
+  }
+  /**
+   * EVERY HOLE IN, NOT YET SIGNED — which is not "finish".
+   *
+   * Walked 2026-09-28: a casual nine, all nine holes on the card, and Today
+   * read "YOUR CARD · FINAL" over a button saying "Finish my card". There was
+   * nothing left to finish; the one step left is the signature, and the card
+   * screen's own button for it says "Certify my card". So this says that.
+   */
+  if (complete) {
+    return { label: "Every hole in — not yet certified", tone: "waiting", action: "Certify my card" };
   }
   return { label: "Entered, not yet certified", tone: "waiting", action: "Finish my card" };
 }

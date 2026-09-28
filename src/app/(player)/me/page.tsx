@@ -108,7 +108,12 @@ export default async function PlayTodayPage() {
    * that a card stops at "certified" when nobody approves cards, and this
    * screen was calling that state unfinished, in grey, forever.
    */
-  const cardState = cardStanding(card?.status ?? "entered", !allowsAutoConfirm(settingsOf(state.event)));
+  const cardState = cardStanding(
+    card?.status ?? "entered",
+    !allowsAutoConfirm(settingsOf(state.event)),
+    // Every hole in: the step left is signing, not finishing.
+    !!card && (round?.holes ?? 0) > 0 && card.filled >= (round?.holes ?? 0),
+  );
   const standing = hasStandingToShow(me.standing) ? me.standing : null;
 
   /**

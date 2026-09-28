@@ -88,6 +88,21 @@ describe("what the board says under the table", () => {
     expect(boardFootnote({ ...match, casual: true })).toMatch(/P played, W won/);
   });
 
+  it("says the to-par is NET on a board ranked on net, and not otherwise", () => {
+    // Walked 2026-09-28: the score card read "To par +5" (gross) beside
+    // "Net 35", and this board's To par column read -1 — net, unsaid.
+    expect(boardFootnote({ ...stroke, casual: true, netToPar: true })).toMatch(/To par is the net score against par/);
+    // The control: a gross board keeps the plain sentence, word for word.
+    expect(boardFootnote({ ...stroke, casual: true, netToPar: false })).toMatch(/To-par is versus the holes played/);
+    expect(boardFootnote({ ...stroke, casual: true, netToPar: false })).not.toMatch(/net score against par/);
+  });
+
+  it("the console board passes its own net-ness from the unit caption", () => {
+    expect(readSource("src", "app", "(app)", "leaderboard", "page.tsx")).toMatch(
+      /netToPar: unitIsNet\(state\.strokeUnitLabel\)/,
+    );
+  });
+
   it("leaves the tournament footnotes exactly as they were", () => {
     // This screen is the club's too, and the wording is pinned elsewhere.
     expect(boardFootnote({ ...stroke, casual: false })).toBe(
