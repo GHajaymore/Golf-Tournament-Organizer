@@ -46,12 +46,31 @@ import { contrastRatio, hslToHex, relativeLuminance, solveLightness } from "./th
  * redesign changes.
  */
 const HUE = {
-  /** Aged wood under lacquer — the warm near-black the dark page is built on. */
-  lacquer: 18,
+  /**
+   * The dark page's ground: the PRODUCT's own neutral near-black, the family
+   * the app's console and player screens are drawn on.
+   *
+   * It was 18, aged wood under lacquer, until the redesign of 2026-09-27
+   * ("modern and professional", Ajay): the front door and the app it opens
+   * onto read as two products when one is warm and the other is not, and the
+   * screenshots on this page are the app's own dark screens. The surface keeps
+   * its name, `lacquer` — it is the DARK surface, and every reader of this
+   * module already knows it by that name.
+   */
+  lacquer: 214,
   /** Card stock: the cream the light page is built on, and the band on the dark one. */
   cream: 43,
-  /** Warm neutral, a few degrees off both grounds so text never reads as a tint of them. */
+  /** Warm neutral text, a few degrees off the cream so it never reads as a tint of it. */
   ink: 34,
+  /** Cool neutral text for the dark ground — the app's own ink on its own ground. */
+  inkCool: 212,
+  /**
+   * "No" and "partly" in the comparison table: a red and an amber, solved like
+   * every other foreground. MEANING, not identity — they mark a cell, never a
+   * control, and they sit well away from both the patina and the green.
+   */
+  danger: 6,
+  warn: 36,
   /**
    * Patina — verdigris on copper. IDENTITY: the marks, the rules, the buttons,
    * the last word of the headline.
@@ -96,6 +115,8 @@ const FLOOR = {
   accent: 4.5,
   /** "Live", "under par", the leader's position. Read as text, so text's bar. */
   flag: 4.5,
+  /** The comparison table's ✕ and ◐ — glyphs a reader has to see, so text's bar. */
+  mark: 4.5,
   /**
    * Accent FILL. Never a text colour on this page — `--brass-ui` and
    * `--brass-hi` appear only as `background:` — so these are judged as UI
@@ -131,6 +152,8 @@ interface Shade {
 interface LandingSurface {
   key: "lacquer" | "cream";
   hue: number;
+  /** The hue this surface's TEXT is set in: warm on cream, cool on the dark ground. */
+  inkHue: number;
   /** Which way is away from this surface, for anything that has to be read on it. */
   away: "lighter" | "darker";
 
@@ -156,6 +179,8 @@ interface LandingSurface {
   accentHi: Shade;
   onAccent: Shade;
   flag: Shade;
+  danger: Shade;
+  warn: Shade;
 
   /** Hairlines, drawn as the surface's own ink at these two alphas. */
   lineAlpha: [number, number];
@@ -178,18 +203,20 @@ interface LandingSurface {
 const LACQUER: LandingSurface = {
   key: "lacquer",
   hue: HUE.lacquer,
+  inkHue: HUE.inkCool,
   away: "lighter",
-  page: { saturation: 0.18, lightness: 0.076 },
-  raised: { saturation: 0.21, lightness: 0.112 },
-  inset: { saturation: 0.27, lightness: 0.08 },
+  // The app's own dark ground and card, near enough to read as one product.
+  page: { saturation: 0.14, lightness: 0.055 },
+  raised: { saturation: 0.15, lightness: 0.096 },
+  inset: { saturation: 0.14, lightness: 0.075 },
   // The leaderboard card is the raised surface at 52%, so the hero's grid and
   // glow read through it. Graded as if it were opaque, which is the safe
   // direction: composited over the page it can only end up darker than this,
   // and darker is more contrast for light text.
-  panel: { saturation: 0.21, lightness: 0.112, alpha: 0x85 },
-  ink: { saturation: 0.31, lightness: 0.895 },
-  inkSoft: { saturation: 0.15, lightness: 0.625 },
-  inkFaint: { saturation: 0.13, lightness: 0.486 },
+  panel: { saturation: 0.15, lightness: 0.096, alpha: 0x85 },
+  ink: { saturation: 0.12, lightness: 0.94 },
+  inkSoft: { saturation: 0.08, lightness: 0.67 },
+  inkFaint: { saturation: 0.05, lightness: 0.52 },
   // Accent TEXT and accent FILL are different weights, the way the app's own
   // ramp separates step 400 from 500. Held to one value the button and the
   // body text come out the same colour and the button stops reading as a
@@ -202,7 +229,11 @@ const LACQUER: LandingSurface = {
   accentHi: { saturation: 0.73, lightness: 0.798 },
   onAccent: { saturation: 0.6, lightness: 0.078 },
   flag: { saturation: 0.34, lightness: 0.578 },
-  lineAlpha: [0.12, 0.24],
+  danger: { saturation: 0.68, lightness: 0.62 },
+  warn: { saturation: 0.78, lightness: 0.57 },
+  // Finer than the lacquer's were: on a neutral ground a strong hairline reads
+  // as a grid drawn over the page rather than an edge.
+  lineAlpha: [0.08, 0.14],
 };
 
 /**
@@ -225,6 +256,7 @@ const LACQUER: LandingSurface = {
 const CREAM: LandingSurface = {
   key: "cream",
   hue: HUE.cream,
+  inkHue: HUE.ink,
   away: "darker",
   page: { saturation: 0.45, lightness: 0.922 },
   raised: { saturation: 0.45, lightness: 0.869 },
@@ -242,6 +274,8 @@ const CREAM: LandingSurface = {
   accentHi: { saturation: 0.79, lightness: 0.19 },
   onAccent: { saturation: 1, lightness: 0.975 },
   flag: { saturation: 0.6, lightness: 0.3 },
+  danger: { saturation: 0.62, lightness: 0.4 },
+  warn: { saturation: 0.8, lightness: 0.3 },
   lineAlpha: [0.12, 0.22],
 };
 
@@ -317,6 +351,8 @@ export interface SurfacePalette {
   /** Solved against `accentUi` rather than against the surface. */
   onAccent: string;
   flag: string;
+  danger: string;
+  warn: string;
   line: string;
   line2: string;
 }
@@ -324,7 +360,7 @@ export interface SurfacePalette {
 /** Every colour one surface produces, backgrounds designed and foregrounds solved. */
 export function paletteFor(surface: LandingSurface): SurfacePalette {
   const bg = worstBackground(surface);
-  const ink = solved(surface, HUE.ink, surface.ink, FLOOR.ink, bg);
+  const ink = solved(surface, surface.inkHue, surface.ink, FLOOR.ink, bg);
   const accentUi = solved(surface, HUE.patina, surface.accentUi, FLOOR.fill, bg);
   const rgb = (hex: string, alpha: number) =>
     `rgba(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",")},${alpha})`;
@@ -339,8 +375,8 @@ export function paletteFor(surface: LandingSurface): SurfacePalette {
         ? ""
         : surface.panel.alpha.toString(16).padStart(2, "0").toUpperCase()),
     ink,
-    inkSoft: solved(surface, HUE.ink, surface.inkSoft, FLOOR.inkSoft, bg),
-    inkFaint: solved(surface, HUE.ink, surface.inkFaint, FLOOR.inkFaint, bg),
+    inkSoft: solved(surface, surface.inkHue, surface.inkSoft, FLOOR.inkSoft, bg),
+    inkFaint: solved(surface, surface.inkHue, surface.inkFaint, FLOOR.inkFaint, bg),
     accent: solved(surface, HUE.patina, surface.accent, FLOOR.accent, bg),
     accentUi,
     accentHi: solved(surface, HUE.patina, surface.accentHi, FLOOR.fill, bg),
@@ -359,6 +395,8 @@ export function paletteFor(surface: LandingSurface): SurfacePalette {
       surface.away === "lighter" ? "darker" : "lighter",
     ),
     flag: solved(surface, HUE.flag, surface.flag, FLOOR.flag, bg),
+    danger: solved(surface, HUE.danger, surface.danger, FLOOR.mark, bg),
+    warn: solved(surface, HUE.warn, surface.warn, FLOOR.mark, bg),
     line: rgb(ink, surface.lineAlpha[0]),
     line2: rgb(ink, surface.lineAlpha[1]),
   };
@@ -394,7 +432,7 @@ export function landingTokens(appearance: "dark" | "light", indent: string): str
     `--paper-accent:${band.accent};`,
     `--ink:${page.ink}; --ink-soft:${page.inkSoft}; --ink-faint:${page.inkFaint};`,
     `--line:${page.line}; --line-2:${page.line2};`,
-    `--flag:${page.flag}; --under:${page.flag};`,
+    `--flag:${page.flag}; --under:${page.flag}; --danger:${page.danger}; --warn:${page.warn};`,
     `--brass:${page.accent}; --brass-ui:${page.accentUi}; --brass-hi:${page.accentHi}; --on-accent:${page.onAccent};`,
   ];
   return lines.map((l) => indent + l).join("\n");

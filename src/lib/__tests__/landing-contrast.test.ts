@@ -80,6 +80,10 @@ const TEXT: Array<[token: string, on: string[], floor: number]> = [
   ["brass", PAGE_BG, 4.5],
   ["flag", PAGE_BG, 4.5],
   ["under", PAGE_BG, 4.5],
+  // The comparison table's ✕ and ◐ (added 2026-09-27) — glyphs a reader has
+  // to see, so text's bar.
+  ["danger", PAGE_BG, 4.5],
+  ["warn", PAGE_BG, 4.5],
   ["paper-ink", BAND_BG, 12],
   ["paper-soft", BAND_BG, 4.5],
   ["paper-accent", BAND_BG, 4.5],
@@ -181,7 +185,18 @@ describe("identity and meaning are different colours", () => {
  * be exposed to a solver that is free to move a colour.
  */
 describe("the page cannot hand-write a colour", () => {
-  const PAGE = readSource("src/app/page.tsx");
+  // The front door is these files since the 2026-09-27 redesign: the stylesheet
+  // moved to lib/landing/styles.ts so /faq shares it, and the nav and footer to
+  // components/landing/chrome.tsx. Each is read, so a colour cannot escape this
+  // rule by moving one file over.
+  const PAGE = [
+    "src/app/page.tsx",
+    "src/app/faq/page.tsx",
+    "src/lib/landing/styles.ts",
+    "src/components/landing/chrome.tsx",
+  ]
+    .map((f) => readSource(f))
+    .join("\n");
 
   /**
    * The wordmark's orange and green, on each ground. These four values are

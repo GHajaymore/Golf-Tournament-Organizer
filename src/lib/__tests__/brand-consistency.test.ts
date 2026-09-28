@@ -19,6 +19,16 @@ import { join } from "node:path";
 const root = process.cwd();
 const read = (p: string) => stripComments(readFileSync(join(root, p), "utf8"));
 
+/**
+ * The front door, as the files it is made of. Since the 2026-09-27 redesign the
+ * page's stylesheet lives in `lib/landing/styles.ts` (shared with /faq) and its
+ * nav and footer lockups in `components/landing/chrome.tsx`, so a rule about the
+ * landing reads all three — moving a line between them must not move it out of
+ * reach of the test.
+ */
+const readLanding = () =>
+  ["src/app/page.tsx", "src/components/landing/chrome.tsx", "src/lib/landing/styles.ts"].map(read).join("\n");
+
 /** Every .tsx under src, so a new file cannot quietly reintroduce either. */
 function allTsx(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
@@ -77,7 +87,7 @@ const drawing = files.filter((f) => read(f).includes('d="M18.6 6.1 V23.1"'));
     // The variables stay so a renderer with no stylesheet (the share card) can
     // be given colours — but no PAGE re-skins the mark's flag or ball any
     // more. TourneyHQ looks the same everywhere (2026-09-18).
-    expect(read("src/app/page.tsx"), "the homepage recolours the flag again").not.toContain('"--logo-flag"');
+    expect(readLanding(), "the homepage recolours the flag again").not.toContain('"--logo-flag"');
   });
 });
 
@@ -126,7 +136,7 @@ describe("the wordmark is written once too", () => {
     // Through `<Lockup>` since 2026-09-27, which draws BrandMark itself and
     // takes no style for it — `markStyle` reaches the mark's stick and cup
     // only. So the homepage cannot re-skin the wordmark even by accident.
-    const landing = read("src/app/page.tsx");
+    const landing = readLanding();
     expect(landing).toContain("<Lockup");
     expect(landing, "the homepage re-skins the wordmark again").not.toMatch(/<BrandMark[^>]*style=/);
     expect(read("src/components/Lockup.tsx")).toContain("<BrandMark size={size} />");
@@ -181,7 +191,7 @@ describe("the wordmark is written once too", () => {
     expect(mark).toContain("light-dark(var(--thq-word-light-1), var(--thq-orange-light))");
     expect(read("src/components/Logo.tsx"), "the flag follows the ground now").not.toContain("word-light");
     // And the landing declares its light scheme, or it would draw the dark stops on card stock.
-    expect(read("src/app/page.tsx")).toMatch(/prefers-color-scheme: light\) \{\s*\.thq \{[^}]*color-scheme: light/);
+    expect(readLanding()).toMatch(/prefers-color-scheme: light\) \{\s*\.thq \{[^}]*color-scheme: light/);
   });
 
   it("sizes the mark so it stands the full height of the wordmark", async () => {
@@ -438,7 +448,7 @@ describe("the mark is the same colour in both renderings", () => {
     // It used to map the flag and ball to this page's own amber and green —
     // honest about its own palette, and a different logo from the app's. One
     // brand now: the homepage sets neither.
-    const landing = read("src/app/page.tsx");
+    const landing = readLanding();
     expect(landing).not.toContain('"--logo-flag"');
     expect(landing).not.toContain('"--logo-ball"');
   });
@@ -458,7 +468,7 @@ describe("the mark is the same colour in both renderings", () => {
    * wired to must not be a token the page's design is free to retune.
    */
   it("never wires the mark to a colour the page is free to retune", () => {
-    const landing = read("src/app/page.tsx");
+    const landing = readLanding();
 
     // The mappings that still colour the mark on this page, as
     // `"--token": "value"` pairs. The flag, ball and wordmark mappings are
