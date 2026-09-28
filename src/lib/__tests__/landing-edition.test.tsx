@@ -136,3 +136,12 @@ describe("the contact address", () => {
     if (!CONTACT_EMAIL_LIVE) expect(html).not.toContain("mailto:");
   });
 });
+
+describe("a competitor's price", () => {
+  it("prints exactly as they print it: whole, or to the cent", () => {
+    const us = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
+    expect(us.usd(1425)).toBe("$1,425");
+    expect(us.usd(99.99)).toBe("$99.99");
+    expect(landingPrices(editionFor("GB"), parsePricingOverrides(undefined)).usd(249.99)).toBe("US$249.99");
+  });
+});

@@ -123,6 +123,10 @@ ${landingTokens("light", "    ")}
 
 /* ── nav ── */
 .thq .nav { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--ground) 60%, transparent); backdrop-filter: saturate(1.6) blur(16px); -webkit-backdrop-filter: saturate(1.6) blur(16px); border-bottom: 1px solid transparent; transition: border-color .2s, background .2s; }
+/* The app's design-system .nav rule pads its bar sideways; here the .wrap inside
+   already carries the page gutter, so taking both doubled it on a phone and
+   pushed a 320px nav 14px off-screen. */
+.thq .nav { padding-left: 0; padding-right: 0; }
 .thq .nav.scrolled { border-bottom-color: var(--line); background: color-mix(in srgb, var(--ground) 84%, transparent); }
 .thq .nav-in { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 24px; }
 .thq .nav-links { display: flex; gap: 4px; font: 500 14px/1 var(--sans); color: var(--ink-soft); }
@@ -131,8 +135,27 @@ ${landingTokens("light", "    ")}
 .thq .nav-act { display: flex; gap: 8px; }
 .thq .nav-act .btn { font-size: 14px; padding: 0 16px; }
 @media (max-width: 960px) { .thq .nav-links { display: none; } }
+.thq .nav-menu { display: none; position: relative; }
+@media (max-width: 960px) { .thq .nav-menu { display: block; } }
+.thq .nav-menu > summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--wash); color: var(--ink); cursor: pointer; }
+.thq .nav-menu > summary::-webkit-details-marker { display: none; }
+.thq .nav-menu > summary .i { width: 20px; height: 20px; }
+.thq .nav-menu[open] > summary { background: var(--surface-3); }
+.thq .nav-menu .menu-panel { position: absolute; right: 0; top: calc(100% + 10px); min-width: 230px; display: grid; padding: 8px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface); box-shadow: var(--shadow-xl); z-index: 60; }
+.thq .nav-menu .menu-panel a { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 10px; font: 500 15px/1 var(--sans); color: var(--ink-soft); }
+.thq .nav-menu .menu-panel a:hover, .thq .nav-menu .menu-panel a[aria-current="page"] { background: var(--wash-2); color: var(--ink); }
+.thq .nav-menu .menu-panel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 @media (max-width: 420px) { .thq .nav-act .btn-ghost { display: none; } }
-@media (max-width: 360px) { .thq .nav-act .btn { padding: 0 12px; font-size: 13.5px; } .thq .nav-in { gap: 10px; } }
+/* 320px (iPhone SE): the logo keeps its brand step, so the room comes from the
+   buttons — the menu button made the row 14px too wide there. */
+@media (max-width: 360px) {
+  /* Slack, not an exact fit: CI renders the same row 2px wider than a local
+     browser (different fonts), so leave room — a 12px side gutter for the nav
+     alone, 4px gaps, and buttons that never wrap. ~12px of headroom at 320. */
+  .thq .nav-in { gap: 4px; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .thq .nav-act { gap: 4px; }
+  .thq .nav-act .btn { padding: 0 8px; font-size: 13.5px; white-space: nowrap; }
+}
 
 /* ── hero ── */
 .thq .hero { position: relative; padding: 96px 0 0; overflow: hidden; isolation: isolate; }
@@ -143,6 +166,9 @@ ${landingTokens("light", "    ")}
 .thq .verbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font: 500 12.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
 .thq .verbs span { display: inline-flex; align-items: center; gap: 18px; }
 .thq .verbs span + span::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--line-3); }
+/* One line on a phone: wrapped, it left "Crown it" alone on the second. */
+@media (max-width: 600px) { .thq .verbs { gap: 6px 10px; font-size: 11.5px; letter-spacing: .08em; flex-wrap: nowrap; } .thq .verbs span { gap: 10px; } }
+@media (max-width: 360px) { .thq .verbs { font-size: 10.5px; letter-spacing: .06em; } }
 .thq .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .thq .proof { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; font-size: 13.5px; color: var(--ink-soft); }
 .thq .proof span { display: inline-flex; align-items: center; gap: 7px; }
@@ -199,6 +225,29 @@ ${landingTokens("light", "    ")}
 @media (max-width: 600px) { .thq .strip .s { padding: 26px 16px; } .thq .strip .s:nth-child(odd) { padding-left: 0; } }
 @media (max-width: 360px) { .thq .strip .wrap { grid-template-columns: minmax(0, 1fr); } .thq .strip .s { border-left: 0 !important; padding-left: 0 !important; border-bottom: 1px solid var(--line); } .thq .strip .s:last-child { border-bottom: 0; } }
 
+/* ── the scorecard motif ──
+   Ajay, 2026-09-28: "make it unique". The signature is golf's own paper: the
+   stats strip reads as a row of a scorecard — a hole number over each cell,
+   each figure boxed in the app's scoreboard face (Oswald, the same tiles the
+   player's Today screen uses), and the one that matters circled, the way a
+   birdie is marked on a card. Colours come from the palette tokens only. */
+.thq { --card-font: var(--font-board), "Arial Narrow", system-ui, sans-serif; }
+.thq .strip.card-row .wrap { counter-reset: hole; }
+.thq .strip.card-row .s { counter-increment: hole; gap: 12px; align-content: start; }
+.thq .strip.card-row .s::before { content: "Hole " counter(hole); font: 600 11px/1 var(--card-font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.thq .strip.card-row b { justify-self: start; font: 600 clamp(30px, 3.2vw, 40px)/1 var(--card-font); letter-spacing: 0; padding: .14em .34em .16em; border: 1.5px solid var(--line-3); border-radius: 4px; min-width: 1.6em; text-align: center; font-variant-numeric: tabular-nums; }
+.thq .strip.card-row b.accent { border-color: currentColor; border-radius: 999px; padding-inline: .42em; box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 4.5px var(--accent-a45); }
+
+/* ── formats gallery: four real boards, each titled like a scorecard header ── */
+.thq .fmt-rack { display: grid; grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: center; gap: 28px; margin-top: 8px; }
+.thq .fmt { margin: 0; display: grid; gap: 16px; align-content: start; }
+.thq .fmt figcaption { display: grid; gap: 6px; text-align: center; }
+.thq .fmt figcaption b { font: 600 13px/1.2 var(--card-font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
+.thq .fmt figcaption span { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
+.thq .formats .real-note { text-align: center; margin-top: 28px; }
+@media (max-width: 960px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 220px)); row-gap: 40px; } }
+@media (max-width: 440px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; row-gap: 32px; } .thq .fmt figcaption span { font-size: 12.5px; } }
+
 /* ── formats ticker ── */
 .thq .ticker { overflow: hidden; position: relative; padding: 8px 0; }
 .thq .ticker::before, .thq .ticker::after { content: ""; position: absolute; top: 0; bottom: 0; width: 160px; z-index: 1; pointer-events: none; }
@@ -224,7 +273,22 @@ ${landingTokens("light", "    ")}
 .thq .shot-fig { margin: 10px 0 0; display: grid; gap: 10px; align-content: start; }
 .thq .shot { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); box-shadow: 0 1px 0 var(--wash), 0 22px 44px -22px rgba(0,0,0,.8); }
 .thq .cell .shot-fig .shot { max-height: 300px; object-fit: cover; object-position: top; }
-@media (max-width: 640px) { .thq .cell .shot-fig .shot { max-height: 240px; } }
+/* Every crop taken from a PHONE capture is shown at one width, so the app's
+   type reads at the same size in every card — a wide card must not blow a
+   phone crop up to twice the size of its neighbour's (Ajay, 2026-09-28: "this
+   section doesn't match with other sections"). They are whole crops, framed
+   to what the card says, so they are never cut short either. */
+.thq .cell .shot-fig .shot.from-phone { width: min(100%, 360px); max-height: none; }
+.thq .narrow-only { display: none; }
+@media (max-width: 700px) {
+  .thq .wide-only { display: none !important; }
+  .thq .narrow-only { display: block; }
+  /* The screens are the point of each card: on a phone they take the card's
+     full width, not the width left inside its padding, and show whole. */
+  .thq .bento .cell { padding: 22px 18px; }
+  .thq .cell .shot-fig { margin-inline: -8px; }
+  .thq .cell .shot-fig .shot, .thq .cell .shot-fig .shot.from-phone { width: 100%; max-height: none; }
+}
 .thq .shot-fig figcaption { display: flex; align-items: center; gap: 7px; font: 500 12.5px/1.3 var(--mono); color: var(--ink-faint); }
 .thq .shot-fig figcaption i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--flag); }
 .thq .shot-fig.panel { margin: 0; }
@@ -355,12 +419,23 @@ __CMP_FRAMES__
 .thq .idx-more label:has(input:checked) .when-closed, .thq .idx-more label:not(:has(input:checked)) .when-open { display: none; }
 
 /* ── how it compares ── */
-.thq .cmp-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1000px) { .thq .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .thq .cmp-cards { grid-template-columns: minmax(0, 1fr); } }
-.thq .cmp-cards .cell { gap: 10px; }
-.thq .cmp-cards .big { font: 600 40px/1 var(--sans); letter-spacing: -.04em; margin-bottom: 6px; }
-.thq .vs { margin-top: 56px; }
+.thq .vs { display: grid; justify-items: center; }
+.thq .vs > * { width: 100%; }
+.thq .vs .vs-tabs { width: auto; margin-bottom: 18px; }
+.thq .vs-set { display: none; }
+.thq .vs:has(input[name="vs-set"][value="club"]:checked) .vs-set[data-set="club"],
+.thq .vs:has(input[name="vs-set"][value="apps"]:checked) .vs-set[data-set="apps"] { display: block; animation: thq-fade .35s var(--ease); }
+.thq .vs-intro { text-align: center; color: var(--ink-soft); font-size: 15px; margin: 0 auto 18px; max-width: 620px; }
+.thq .vs-table[data-cols="4"] { min-width: 900px; }
+.thq .glance { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 28px; }
+@media (max-width: 800px) { .thq .glance { grid-template-columns: minmax(0, 1fr); } }
+.thq .glance-col { border: 1px solid var(--line-2); border-radius: var(--r-lg); padding: 24px; background: var(--surface); }
+.thq .glance-col.further { background: var(--bg-2); }
+.thq .glance-col h3 { margin-bottom: 14px; }
+.thq .glance-col ul { list-style: none; display: grid; gap: 11px; }
+.thq .glance-col li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+.thq .glance-col li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 2px; stroke-width: 2.2; }
+.thq .glance-col li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); margin: 8px 0 0 5px; }
 .thq .vs-scroll { overflow-x: auto; border: 1px solid var(--line-2); border-radius: 18px; background: var(--surface); -webkit-overflow-scrolling: touch; }
 .thq .vs-table { width: 100%; min-width: 720px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .thq .vs-table th, .thq .vs-table td { vertical-align: top; }
@@ -383,22 +458,37 @@ __CMP_FRAMES__
 .thq .vs-hint { display: none; margin: 10px 0 0; text-align: right; font: 500 12px/1 var(--mono); color: var(--ink-faint); }
 .thq .vs-legal { max-width: 760px; margin: 24px auto 0; text-align: center; font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
 @media (max-width: 980px) { .thq .vs-hint { display: block; } .thq .vs-table thead th:first-child { width: 118px; } }
-/* On a phone a three-column table shows one column and a swipe hint, so the
-   two platforms being compared are off the screen. Each row becomes a card
-   instead: the question, then all three answers, each naming its product. */
+/* On a phone (Ajay, 2026-09-28: "comparisons should show side by side"):
+   TourneyHQ and ONE competitor, two columns that fit and read, with the chips
+   above choosing which competitor. Each row is its question across the top,
+   then the two answers side by side. The product names stay pinned under the
+   nav while the rows scroll past. */
+.thq .vs-pick { display: none; }
 @media (max-width: 700px) {
-  .thq .vs-scroll { overflow: visible; }
-  .thq .vs-table { min-width: 0; table-layout: auto; }
-  .thq .vs-table, .thq .vs-table tbody, .thq .vs-table tr, .thq .vs-table th, .thq .vs-table td { display: block; width: auto; }
-  .thq .vs-table thead { display: none; }
-  .thq .vs-table tbody tr { padding: 16px; }
+  .thq .vs-pick { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 0 0 14px; }
+  .thq .vs-pick-lead { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-right: 2px; }
+  .thq .vs-pick .chip { min-height: 44px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; border: 1px solid var(--line-2); background: var(--surface); font: 600 13.5px/1 var(--sans); color: var(--ink-soft); cursor: pointer; }
+  .thq .vs-pick .chip:has(input:checked) { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .thq .vs-pick .chip:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
+  .thq .vs-set:has(.vs-pick input[value="0"]:checked) .vs-table tr > :nth-child(n+4),
+  .thq .vs-set:has(.vs-pick input[value="1"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(n+5)),
+  .thq .vs-set:has(.vs-pick input[value="2"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(4)) { display: none; }
+  .thq .vs-scroll { overflow: visible; border-radius: 16px; }
+  .thq .vs-table, .thq .vs-table[data-cols="4"] { min-width: 0; table-layout: auto; display: block; }
+  .thq .vs-table thead, .thq .vs-table tbody { display: block; }
+  .thq .vs-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* Under the nav: its 68px row, the design-system .nav padding above and below it, and its 1px rule. */
+  .thq .vs-table thead { position: sticky; top: calc(69px + 2 * var(--space-3, 12px)); z-index: 3; }
+  .thq .vs-table thead th { font-size: 14.5px; padding: 14px 12px 12px; background: var(--surface); position: static; }
+  .thq .vs-table thead th:first-child { display: none; }
+  .thq .vs-table thead th:nth-child(2) { border-top-left-radius: 16px; }
+  .thq .vs-table thead th:last-child { border-top-right-radius: 16px; }
+  .thq .vs-table thead th.hot { background: color-mix(in srgb, var(--brass-ui) 8%, var(--surface)); }
+  .thq .vs-table tbody th { grid-column: 1 / -1; position: static; padding: 14px 12px 4px; background: none; font-size: 11px; color: var(--ink-faint); }
+  .thq .vs-table td { font-size: 13px; line-height: 1.42; padding: 6px 12px 14px; }
+  .thq .vs-table .vs-mk { width: 16px; height: 16px; margin-right: 6px; font-size: 10px; }
   .thq .vs-table tbody tr + tr > * { border-top: 0; }
   .thq .vs-table tbody tr + tr { border-top: 1px solid var(--line); }
-  .thq .vs-table tbody th { position: static; padding: 0 0 10px; background: none; font-size: 12px; color: var(--ink-soft); }
-  .thq .vs-table td { padding: 8px 10px; border-radius: 10px; }
-  .thq .vs-table td + td { margin-top: 4px; }
-  .thq .vs-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; font: 600 11.5px/1.3 var(--mono); letter-spacing: .04em; color: var(--ink-faint); }
-  .thq .vs-table td.hot::before { color: var(--brass); }
   .thq .vs-hint { display: none; }
 }
 
@@ -412,7 +502,7 @@ __CMP_FRAMES__
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--wash); color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
 .thq .ed-note button:hover { border-color: var(--brass-ui); color: var(--brass); }
 .thq .tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-@media (max-width: 1000px) { .thq .tiers { grid-template-columns: minmax(0, 1fr); max-width: 520px; margin: 0 auto; } }
+@media (max-width: 1000px) { .thq .tiers { gap: 12px; } .thq .tier { padding: 24px 18px; } .thq .tier .price b { font-size: 38px; } }
 .thq .tier { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px 28px; display: grid; grid-template-rows: auto auto auto auto 1fr auto; gap: 18px; position: relative; }
 .thq .tier.hot { background: linear-gradient(180deg, color-mix(in srgb, var(--brass-ui) 10%, transparent), var(--surface) 45%); border-color: var(--accent-a45); box-shadow: 0 0 0 1px var(--accent-a22), 0 30px 70px -30px var(--accent-a45); }
 .thq .tier .badge { position: absolute; top: 18px; right: 18px; font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 9px; border-radius: 7px; }
@@ -428,6 +518,32 @@ __CMP_FRAMES__
 .thq .tier .note { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
 .thq .tier .btn { width: 100%; }
 @media (max-width: 420px) { .thq .price b { font-size: 42px; } .thq .tier { padding: 26px 20px; } }
+/* On a phone the plans stay side by side (Ajay, 2026-09-28): each card is its
+   plan's head — name, price, button — and the table under them says what
+   each includes, in the same three columns. After the tier rules, so it wins. */
+.thq .plan-grid { display: none; }
+@media (max-width: 700px) {
+  .thq .tiers { gap: 8px; }
+  .thq .tier { padding: 16px 10px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }
+  .thq .tier .for, .thq .tier ul, .thq .tier .note, .thq .tier .price-sub { display: none; }
+  .thq .tier .badge { position: static; order: -1; font-size: 9.5px; padding: 4px 6px; }
+  .thq .tier:not(.hot)::before { content: ""; order: -1; height: 17.5px; }
+  .thq .tier h3 { font-size: 15px; }
+  .thq .tier .price { flex-direction: column; align-items: center; gap: 2px; }
+  .thq .tier .price b { font-size: clamp(22px, 7vw, 30px); }
+  .thq .tier .price > span { font-size: 12px; }
+  .thq .tier .btn { min-height: 44px; padding: 0 6px; font-size: 13px; }
+  .thq .plan-grid { display: block; margin-top: 10px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); overflow: hidden; }
+  .thq .plan-grid tbody { display: block; }
+  .thq .plan-grid tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; padding: 0 0 12px; }
+  .thq .plan-grid tr + tr { border-top: 1px solid var(--line); }
+  .thq .plan-grid th { grid-column: 1 / -1; text-align: center; padding: 12px 12px 8px; font: 600 11px/1.35 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+  .thq .plan-grid td { display: grid; place-items: center; text-align: center; font: 600 13.5px/1.3 var(--sans); color: var(--ink); min-height: 24px; }
+  .thq .plan-grid td.hot { color: var(--brass); }
+  .thq .plan-grid .pg-yes .i { width: 18px; height: 18px; color: var(--flag); stroke-width: 2.4; }
+  .thq .plan-grid .pg-no { color: var(--ink-faint); }
+}
+@media (max-width: 360px) { .thq .tier { padding: 14px 6px 12px; } .thq .tier .btn { font-size: 12px; } }
 .thq .ultimate { margin-top: 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 24px 28px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-2); }
 .thq .ultimate .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); color: var(--ink-soft); border-color: var(--line); }
 .thq .ultimate h3 { font: 600 17px/1.25 var(--sans); margin-bottom: 3px; }
@@ -514,11 +630,7 @@ __CMP_FRAMES__
 .thq .cta-card .lead { text-align: center; }
 .thq .cta-card .h1 { font-size: clamp(34px, 5.6vw, 72px); }
 @media (max-width: 420px) { .thq .cta-card { padding: 64px 20px; } }
-.thq .authsec { padding: 0 0 96px; }
 .thq .anchor { display: block; position: relative; top: -84px; visibility: hidden; }
-.thq .authwrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
-@media (max-width: 900px) { .thq .authwrap { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
-.thq .authcopy { display: grid; gap: 18px; }
 .thq .authpanel {
   /* The sign-in form is the app's own component (LoginPanel), drawn with the
      app's --color-* tokens and carrying its own card. On the front door its
@@ -552,8 +664,6 @@ __CMP_FRAMES__
 .thq .foot-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; }
 .thq .foot-base .ed-note { margin-top: 0; justify-content: flex-start; }
 .thq .cred { white-space: nowrap; }
-.thq .ajai { display: inline-flex; align-items: baseline; font-weight: 700; letter-spacing: -.01em; }
-.thq .ajai-labs { font-weight: 600; }
 
 /* ── reveal on scroll: only once JavaScript is there to reveal it ── */
 .thq-js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
@@ -570,7 +680,7 @@ __CMP_FRAMES__
 @media (min-width: 2200px) { .thq { --wrap: 1440px; font-size: 17px; } }
 @media (horizontal-viewport-segments: 2) {
   .thq .wrap { max-width: none; }
-  .thq .money, .thq .yours-head, .thq .aud-panel, .thq .faq, .thq .authwrap {
+  .thq .money, .thq .yours-head, .thq .aud-panel, .thq .faq {
     grid-template-columns: calc(env(viewport-segment-width 0 0) - 48px) calc(env(viewport-segment-width 1 0) - 48px);
     column-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0) + 48px);
   }

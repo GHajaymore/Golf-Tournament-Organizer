@@ -73,6 +73,8 @@ export function iconSprite() {
         <symbol id="i-apple-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3" />{p("M10 4.5h4M11 19h2")}</symbol>
         <symbol id="i-android-phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" />{p("M5 18h14M12 20h.01M9 8l3 3 3-3M12 11V5")}</symbol>
         <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3" />{p("M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8")}</symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">{p("M4 7h16M4 12h16M4 17h16")}</symbol>
+        <symbol id="i-scale" viewBox="0 0 24 24">{p("M12 3v18M5 7h14M3 13l2-6 2 6a2.5 2.5 0 0 1-4 0zM17 13l2-6 2 6a2.5 2.5 0 0 1-4 0zM8 21h8")}</symbol>
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />{p("M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z")}</symbol>
       </defs>
     </svg>
@@ -94,6 +96,15 @@ export function icon(id: string, className = "i") {
  */
 export function landingNav(at: "home" | "faq") {
   const home = at === "home" ? "" : "/";
+  // One list for the desktop row and the phone menu, so they cannot disagree.
+  const links: Array<[string, string]> = [
+    [`${home}#features`, "Features"],
+    [`${home}#how`, "How it works"],
+    [`${home}#for`, "Who it’s for"],
+    [`${home}#compare`, "Compare"],
+    [`${home}#pricing`, "Pricing"],
+    ["/faq", "FAQ"],
+  ];
   return (
     <header className="nav">
       <div className="wrap nav-in">
@@ -103,16 +114,25 @@ export function landingNav(at: "home" | "faq") {
           <Lockup size={LOGO_SIZE.md} emblem markStyle={FLAG_MARK_STYLE} />
         </a>
         <nav className="nav-links" aria-label="Sections">
-          <a href={`${home}#features`}>Features</a>
-          <a href={`${home}#how`}>How it works</a>
-          <a href={`${home}#for`}>Who it&rsquo;s for</a>
-          <a href={`${home}#money`}>Money</a>
-          <a href={`${home}#pricing`}>Pricing</a>
-          <a href="/faq" aria-current={at === "faq" ? "page" : undefined}>FAQ</a>
+          {links.map(([href, label]) => (
+            <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>
+          ))}
         </nav>
         <div className="nav-act">
           <a className="btn btn-ghost" href={`${home}#signin`}>Sign in</a>
           <a className="btn btn-solid" href={`${home}#signup`}>Start free</a>
+          {/* On a phone or tablet the row above is hidden; the same links
+              live here, in a native disclosure that needs no script. */}
+          <details className="nav-menu">
+            <summary aria-label="Menu">{icon("menu")}</summary>
+            <nav className="menu-panel" aria-label="Sections">
+              {links.map(([href, label]) => (
+                <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>
+              ))}
+              <hr />
+              <a href={`${home}#signin`}>Sign in</a>
+            </nav>
+          </details>
         </div>
       </div>
     </header>
@@ -160,6 +180,7 @@ export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
               <li><a href={`${home}#features`}>Features</a></li>
               <li><a href={`${home}#how`}>How it works</a></li>
               <li><a href={`${home}#for`}>Who it&rsquo;s for</a></li>
+              <li><a href={`${home}#compare`}>Compare</a></li>
               <li><a href={`${home}#pricing`}>Pricing</a></li>
             </ul>
           </div>

@@ -1,4 +1,4 @@
-import { wholeMoney } from "@/lib/domain/money-format";
+import { money, wholeMoney } from "@/lib/domain/money-format";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { PLANS, effectiveAnnualPrice, effectivePrice, type PricingOverrides } from "@/lib/plans";
 import type { Edition } from "./edition";
@@ -37,7 +37,10 @@ export function landingPrices(edition: Edition, overrides: PricingOverrides): La
     monthly: fmt(effectivePrice(PLANS[key], overrides, edition.currency)),
     yearly: fmt(effectiveAnnualPrice(PLANS[key], overrides, edition.currency)),
   });
-  const dollars = (amount: number) => wholeMoney(amount, "USD", DEFAULT_LOCALE);
+  // Whole where the company quotes a whole price ("$1,425"), to the cent where
+  // it quotes cents ("$99.99") — their number exactly as they print it.
+  const dollars = (amount: number) =>
+    Number.isInteger(amount) ? wholeMoney(amount, "USD", DEFAULT_LOCALE) : money(Math.round(amount * 100), "USD", DEFAULT_LOCALE);
   return {
     zero: fmt(0),
     society: plan("society"),
