@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/page-helpers";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/me/messages");
 
@@ -52,6 +53,7 @@ export default async function PlayMessagesPage() {
         isStaff={isStaff}
         optedOut={optedOut}
         smsOptIn={rosterRow?.smsOptIn ?? false}
+        organizer={(await golfTermsForEvent(session.eventId)).organizer}
       />
     </div>
   );

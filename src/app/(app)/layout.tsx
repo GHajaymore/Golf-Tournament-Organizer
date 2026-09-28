@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { NOINDEX } from "@/lib/site";
 import { DeniedNotice } from "@/components/DeniedNotice";
+import { golfTermsForEvent } from "@/lib/services/organization";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -243,7 +245,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* A refused visit says why — see `deniedLanding`. Suspense because it
               reads the search params, which a layout cannot. */}
           <Suspense fallback={null}>
-            <DeniedNotice />
+            <DeniedNotice organizer={(session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer} />
           </Suspense>
           {children}
         </main>

@@ -157,6 +157,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #667 | The share picture that unfurls when someone posts a TourneyHQ link now wears the real lockup (from the landing session) | pending |
 | #668 | **Your local prices**: a club is quoted its own set price in GBP, EUR, CAD, AUD, NZD or ZAR, otherwise USD; the owner console lists them (from a separate session) | pending |
 | — | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 75) | pending |
+| — | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -921,6 +922,15 @@ the wrong thing about where they were:
     console's Group games; `docs/country-terms.md` lists what is left. Measured on the seeded
     Scottish club: its Group games reads "a fourball's own skins", and switching the setting to
     US reads "a foursome's".
+76. **More of the player app speaks the club's golf.** These now say "organiser" to a UK club:
+    - Today;
+    - the Enter button's reply, which takes each row's own club's word, since a member can
+      play for two clubs;
+    - Messages, in both apps;
+    - the notice a member reads when a console screen is refused.
+    The role NAME "Organizer" is left as it is on purpose: it is one label in a dozen places,
+    and changing it screen by screen would show a club both spellings of its own role.
+    Checked as a GB-club member: "is for the tournament's organiser".
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
@@ -1092,5 +1102,18 @@ named. The deferred-register entry for this class is closed.
 
     **Decided 2026-09-27 ("yes add the round picker to both") — built, item 68 (#662).** The
     dashboard and Reports still show the last round only.
+11. **A free competitor offers more than our Free plan (a finding, not a proposal).** The
+    landing session checked competitors' own pricing pages on 2026-09-27 and found Squabbit
+    (squabbitgolf.com/pricing.html). It is free for unlimited players, events and leagues, with
+    live boards, handicaps and standings. Tournament Pro is $99.99 a year and League Pro $249.99
+    a year, priced in seven currencies. Against ours:
+    - our Free plan caps at 10 players and one active tournament;
+    - Season is $490 a year.
+
+    It is not a like-for-like comparison: our paid plans are display-only for now, and a club's
+    console, local set prices and the money record are not what it sells. Pricing is your call,
+    so nothing has changed. The landing's named comparison is hidden until you rule on it, and a
+    lawyer should read any named comparison before it goes live. Sources are in the landing
+    session's `HANDOVER-2026-09-27.md`.
 
 ## Log
