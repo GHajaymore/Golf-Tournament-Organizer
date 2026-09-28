@@ -97,7 +97,7 @@ export function AnnouncementsClient({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
             <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
-            Pin to the top of players&rsquo; dashboards
+            Pin to the top of players&rsquo; Today screen
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <SaveState status={saveStatus} label="Posted" />
