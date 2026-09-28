@@ -355,10 +355,23 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
 
   // The organizer's log is where a field change is looked for afterwards; a
   // name that vanished with no line against it is a question nobody can answer.
+  //
+  // WHAT THEY GAVE UP, in words. This printed the raw status — "withdrew their
+  // own entry (confirmed)" — which reads as if the withdrawal was confirmed,
+  // not that a confirmed PLACE was given up (walked 2026-09-28). The status
+  // matters to the organizer, since a place freed pulls in the waiting list.
+  const gaveUp = (status: string) =>
+    status === "confirmed"
+      ? "had a place"
+      : status === "waitlisted"
+        ? "was on the waiting list"
+        : status === "pending"
+          ? "was awaiting approval"
+          : status;
   await logAudit(
     eventId,
     "withdrawn",
-    `${mine[0].name} withdrew their own entry (${mine.map((r) => r.status).join(", ")}).`,
+    `${mine[0].name} withdrew their own entry (${[...new Set(mine.map((r) => gaveUp(r.status)))].join(", ")}).`,
     { actor: session.name || session.email },
   );
 
