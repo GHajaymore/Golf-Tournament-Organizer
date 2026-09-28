@@ -45,6 +45,26 @@ const STORE_LINKS = {
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
 
+/** The plans in the order the page shows them. */
+const PLAN_ORDER = ["free", "society", "club"] as const;
+
+/** The phone's plan table: [row, one cell per plan], all read from PLANS. */
+function planRows(): [string, React.ReactNode[]][] {
+  const yes = <span className="pg-yes">{icon("check")}<span className="sr">Included</span></span>;
+  const no = <span className="pg-no" aria-label="Not included">—</span>;
+  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
+  const each = <T,>(f: (p: (typeof PLANS)[(typeof PLAN_ORDER)[number]]) => T) => PLAN_ORDER.map((k) => f(PLANS[k]));
+  return [
+    ["Players in a field", each((p) => count(p.limits.playersPerEvent, "One"))],
+    ["Tournaments at once", each((p) => count(p.limits.activeEvents, "One"))],
+    ["Organizers", each((p) => count(p.limits.staffSeats, "One"))],
+    ["Every format, the live board, the money", each(() => yes)],
+    ["The season table across the weeks", each((p) => (p.features.seasonStandings ? yes : no))],
+    ["Results kept for good", each((p) => (p.retentionHours === null ? yes : no))],
+    ["Your club's branding, ours removed", each((p) => (p.features.whiteLabel ? yes : no))],
+  ];
+}
+
 /** The formats gallery: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
 const FORMAT_BOARDS = [
   ["fmt-champs", "Stroke play, gross", "36 holes, cut to the top 16 after round one", "A final public board ranked by gross strokes after two rounds."],
@@ -265,7 +285,10 @@ export default async function LandingPage() {
                   scores only.
                 </p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-live-board", variant: d, width: 1000, height: 830, className: "shot", alt: "The public live board: ranked by net strokes, the leader highlighted, each player's flight and holes played." })}
+                  {/* On a phone the desktop board shrinks past reading, so a phone
+                      gets the same public board as a phone shows it. */}
+                  {shot({ name: "crop-live-board", variant: d, width: 1000, height: 830, className: "shot wide-only", alt: "The public live board: ranked by net strokes, the leader highlighted, each player's flight and holes played." })}
+                  {shot({ name: "crop-live-phone", variant: d, width: 700, height: 808, className: "shot from-phone narrow-only", alt: "The public live board on a phone: ranked by net strokes, the leader highlighted, each player's flight." })}
                   <figcaption><i />Real screen · the public board</figcaption>
                 </figure>
               </div>
@@ -454,7 +477,8 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <figure className="shot-fig panel">
-                {shot({ name: "panel-club-bracket", variant: d, width: 1100, height: 582, className: "shot", alt: "The bracket manager: quarterfinals, semifinals and final, with match results such as 4&3 and 2&1." })}
+                {shot({ name: "panel-club-bracket", variant: d, width: 1100, height: 582, className: "shot wide-only", alt: "The bracket manager: quarterfinals, semifinals and final, with match results such as 4&3 and 2&1." })}
+                {shot({ name: "crop-bracket-phone", variant: d, width: 700, height: 768, className: "shot narrow-only", alt: "The bracket manager on a phone: quarterfinal matches with results such as 4&3 and 2&1, and the semifinals beside them." })}
                 <figcaption><i />Real screen · the knockout bracket</figcaption>
               </figure>
             </div>
@@ -471,7 +495,8 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <figure className="shot-fig panel">
-                {shot({ name: "panel-league-week", variant: d, width: 1100, height: 608, className: "shot", alt: "A league week: Stableford results for the night, with '17 of 20 in have returned a card · 3 still to come'." })}
+                {shot({ name: "panel-league-week", variant: d, width: 1100, height: 608, className: "shot wide-only", alt: "A league week: Stableford results for the night, with '17 of 20 in have returned a card · 3 still to come'." })}
+                {shot({ name: "crop-week-phone", variant: d, width: 700, height: 835, className: "shot narrow-only", alt: "A league week on a phone: Stableford results for the night, with '17 of 20 in have returned a card · 3 still to come'." })}
                 <figcaption><i />Real screen · a league week</figcaption>
               </figure>
             </div>
@@ -488,8 +513,9 @@ export default async function LandingPage() {
                 </ul>
               </div>
               <figure className="shot-fig panel">
-                {shot({ name: "panel-day-board", variant: d, width: 900, height: 901, className: "shot", alt: "The public live board, as shown on a clubhouse screen: the club's name, the round, and the field ranked by net strokes." })}
-                <figcaption><i />Real screen · the board on the clubhouse screen</figcaption>
+                {shot({ name: "panel-day-board", variant: d, width: 900, height: 901, className: "shot wide-only", alt: "The public live board, as shown on a clubhouse screen: the club's name, the round, and the field ranked by net strokes." })}
+                {shot({ name: "crop-live-phone", variant: d, width: 700, height: 808, className: "shot narrow-only", alt: "The same public live board on a phone: the round, and the field ranked by net strokes." })}
+                <figcaption><i /><span className="wide-only">Real screen · the board on the clubhouse screen</span><span className="narrow-only">Real screen · the same board on a phone</span></figcaption>
               </figure>
             </div>
 
@@ -840,6 +866,17 @@ export default async function LandingPage() {
               {sets.map((set) => (
                 <div className="vs-set" data-set={set.key} key={set.key}>
                   <p className="vs-intro">{set.intro}</p>
+                  {/* Phones only: two columns side by side read; four do not.
+                      The radios choose which competitor sits beside TourneyHQ. */}
+                  <div className="vs-pick" role="radiogroup" aria-label="Show TourneyHQ beside">
+                    <span className="vs-pick-lead" aria-hidden="true">TourneyHQ vs</span>
+                    {set.products.map((p, i) => (
+                      <label className="chip" key={p.name}>
+                        <input className="sr" type="radio" name={`vs-pick-${set.key}`} value={i} defaultChecked={i === 0} />
+                        {p.name}
+                      </label>
+                    ))}
+                  </div>
                   <div className="vs-scroll" tabIndex={0} role="region" aria-label={`TourneyHQ and ${set.tab.toLowerCase()}, side by side`}>
                     <table className="vs-table" data-cols={set.products.length + 1}>
                       <caption className="sr">TourneyHQ, {set.products.map((p) => p.name).join(" and ")}, side by side</caption>
@@ -975,6 +1012,26 @@ export default async function LandingPage() {
                 <p className="note">Plan changes are arranged with us directly — nothing is charged through the app.</p>
               </div>
             </div>
+            {/* Phones only: the plans' contents side by side, in the same three
+                columns as the plan cards above them. Read from PLANS, like the
+                cards, so a limit shown here is the limit the code enforces. */}
+            <table className="plan-grid">
+              <caption className="sr">What each plan includes, side by side</caption>
+              <thead className="sr">
+                <tr>
+                  <th scope="col">Feature</th>
+                  {PLAN_ORDER.map((k) => <th scope="col" key={k}>{PLANS[k].name}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {planRows().map(([label, cells]) => (
+                  <tr key={label}>
+                    <th scope="row">{label}</th>
+                    {cells.map((c, i) => <td key={PLAN_ORDER[i]} className={PLAN_ORDER[i] === "society" ? "hot" : undefined}>{c}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {/* The top tier is priced by conversation. Honest about what exists:
                 the multi-club engine is not built, so this names who it is for
                 and that it is scoped with them — no invented limits. */}

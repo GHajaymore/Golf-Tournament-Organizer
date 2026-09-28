@@ -159,6 +159,9 @@ ${landingTokens("light", "    ")}
 .thq .verbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font: 500 12.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
 .thq .verbs span { display: inline-flex; align-items: center; gap: 18px; }
 .thq .verbs span + span::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--line-3); }
+/* One line on a phone: wrapped, it left "Crown it" alone on the second. */
+@media (max-width: 600px) { .thq .verbs { gap: 6px 10px; font-size: 11.5px; letter-spacing: .08em; flex-wrap: nowrap; } .thq .verbs span { gap: 10px; } }
+@media (max-width: 360px) { .thq .verbs { font-size: 10.5px; letter-spacing: .06em; } }
 .thq .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .thq .proof { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; font-size: 13.5px; color: var(--ink-soft); }
 .thq .proof span { display: inline-flex; align-items: center; gap: 7px; }
@@ -263,13 +266,22 @@ ${landingTokens("light", "    ")}
 .thq .shot-fig { margin: 10px 0 0; display: grid; gap: 10px; align-content: start; }
 .thq .shot { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); box-shadow: 0 1px 0 var(--wash), 0 22px 44px -22px rgba(0,0,0,.8); }
 .thq .cell .shot-fig .shot { max-height: 300px; object-fit: cover; object-position: top; }
-@media (max-width: 640px) { .thq .cell .shot-fig .shot { max-height: 240px; } }
 /* Every crop taken from a PHONE capture is shown at one width, so the app's
    type reads at the same size in every card — a wide card must not blow a
    phone crop up to twice the size of its neighbour's (Ajay, 2026-09-28: "this
    section doesn't match with other sections"). They are whole crops, framed
    to what the card says, so they are never cut short either. */
 .thq .cell .shot-fig .shot.from-phone { width: min(100%, 360px); max-height: none; }
+.thq .narrow-only { display: none; }
+@media (max-width: 700px) {
+  .thq .wide-only { display: none !important; }
+  .thq .narrow-only { display: block; }
+  /* The screens are the point of each card: on a phone they take the card's
+     full width, not the width left inside its padding, and show whole. */
+  .thq .bento .cell { padding: 22px 18px; }
+  .thq .cell .shot-fig { margin-inline: -8px; }
+  .thq .cell .shot-fig .shot, .thq .cell .shot-fig .shot.from-phone { width: 100%; max-height: none; }
+}
 .thq .shot-fig figcaption { display: flex; align-items: center; gap: 7px; font: 500 12.5px/1.3 var(--mono); color: var(--ink-faint); }
 .thq .shot-fig figcaption i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--flag); }
 .thq .shot-fig.panel { margin: 0; }
@@ -402,7 +414,6 @@ __CMP_FRAMES__
 /* ── how it compares ── */
 .thq .cmp-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 1000px) { .thq .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .thq .cmp-cards { grid-template-columns: minmax(0, 1fr); } }
 .thq .cmp-cards .cell { gap: 10px; }
 .thq .cmp-cards .big { font: 600 40px/1 var(--sans); letter-spacing: -.04em; margin-bottom: 6px; }
 .thq .vs { margin-top: 56px; display: grid; justify-items: center; }
@@ -444,23 +455,43 @@ __CMP_FRAMES__
 .thq .vs-hint { display: none; margin: 10px 0 0; text-align: right; font: 500 12px/1 var(--mono); color: var(--ink-faint); }
 .thq .vs-legal { max-width: 760px; margin: 24px auto 0; text-align: center; font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
 @media (max-width: 980px) { .thq .vs-hint { display: block; } .thq .vs-table thead th:first-child { width: 118px; } }
-/* On a phone a three-column table shows one column and a swipe hint, so the
-   two platforms being compared are off the screen. Each row becomes a card
-   instead: the question, then all three answers, each naming its product. */
+/* On a phone (Ajay, 2026-09-28: "comparisons should show side by side"):
+   TourneyHQ and ONE competitor, two columns that fit and read, with the chips
+   above choosing which competitor. Each row is its question across the top,
+   then the two answers side by side. The product names stay pinned under the
+   nav while the rows scroll past. */
+.thq .vs-pick { display: none; }
 @media (max-width: 700px) {
-  .thq .vs-scroll { overflow: visible; }
-  .thq .vs-table { min-width: 0; table-layout: auto; }
-  .thq .vs-table, .thq .vs-table tbody, .thq .vs-table tr, .thq .vs-table th, .thq .vs-table td { display: block; width: auto; }
-  .thq .vs-table thead { display: none; }
-  .thq .vs-table tbody tr { padding: 16px; }
+  .thq .vs-pick { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 0 0 14px; }
+  .thq .vs-pick-lead { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-right: 2px; }
+  .thq .vs-pick .chip { min-height: 44px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; border: 1px solid var(--line-2); background: var(--surface); font: 600 13.5px/1 var(--sans); color: var(--ink-soft); cursor: pointer; }
+  .thq .vs-pick .chip:has(input:checked) { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .thq .vs-pick .chip:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
+  .thq .vs-set:has(.vs-pick input[value="0"]:checked) .vs-table tr > :nth-child(n+4),
+  .thq .vs-set:has(.vs-pick input[value="1"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(n+5)),
+  .thq .vs-set:has(.vs-pick input[value="2"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(4)) { display: none; }
+  .thq .vs-scroll { overflow: visible; border-radius: 16px; }
+  .thq .vs-table, .thq .vs-table[data-cols="4"] { min-width: 0; table-layout: auto; display: block; }
+  .thq .vs-table thead, .thq .vs-table tbody { display: block; }
+  .thq .vs-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* Under the nav: its 68px row, the design-system .nav padding above and below it, and its 1px rule. */
+  .thq .vs-table thead { position: sticky; top: calc(69px + 2 * var(--space-3, 12px)); z-index: 3; }
+  .thq .vs-table thead th { font-size: 14.5px; padding: 14px 12px 12px; background: var(--surface); position: static; }
+  .thq .vs-table thead th:first-child { display: none; }
+  .thq .vs-table thead th:nth-child(2) { border-top-left-radius: 16px; }
+  .thq .vs-table thead th:last-child { border-top-right-radius: 16px; }
+  .thq .vs-table thead th.hot { background: color-mix(in srgb, var(--brass-ui) 8%, var(--surface)); }
+  .thq .vs-table tbody th { grid-column: 1 / -1; position: static; padding: 14px 12px 4px; background: none; font-size: 11px; color: var(--ink-faint); }
+  .thq .vs-table td { font-size: 13px; line-height: 1.42; padding: 6px 12px 14px; }
+  .thq .vs-table .vs-mk { width: 16px; height: 16px; margin-right: 6px; font-size: 10px; }
   .thq .vs-table tbody tr + tr > * { border-top: 0; }
   .thq .vs-table tbody tr + tr { border-top: 1px solid var(--line); }
-  .thq .vs-table tbody th { position: static; padding: 0 0 10px; background: none; font-size: 12px; color: var(--ink-soft); }
-  .thq .vs-table td { padding: 8px 10px; border-radius: 10px; }
-  .thq .vs-table td + td { margin-top: 4px; }
-  .thq .vs-table td::before { content: attr(data-label); display: block; margin-bottom: 3px; font: 600 11.5px/1.3 var(--mono); letter-spacing: .04em; color: var(--ink-faint); }
-  .thq .vs-table td.hot::before { color: var(--brass); }
   .thq .vs-hint { display: none; }
+  .thq .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .thq .cmp-cards .cell { padding: 18px 16px; gap: 6px; }
+  .thq .cmp-cards .big { font-size: 28px; margin-bottom: 2px; }
+  .thq .cmp-cards .cell p { font-size: 13px; line-height: 1.45; }
+  .thq .cmp-cards .h3 { font-size: 15px; }
 }
 
 /* ── pricing ── */
@@ -473,7 +504,7 @@ __CMP_FRAMES__
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--wash); color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
 .thq .ed-note button:hover { border-color: var(--brass-ui); color: var(--brass); }
 .thq .tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-@media (max-width: 1000px) { .thq .tiers { grid-template-columns: minmax(0, 1fr); max-width: 520px; margin: 0 auto; } }
+@media (max-width: 1000px) { .thq .tiers { gap: 12px; } .thq .tier { padding: 24px 18px; } .thq .tier .price b { font-size: 38px; } }
 .thq .tier { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px 28px; display: grid; grid-template-rows: auto auto auto auto 1fr auto; gap: 18px; position: relative; }
 .thq .tier.hot { background: linear-gradient(180deg, color-mix(in srgb, var(--brass-ui) 10%, transparent), var(--surface) 45%); border-color: var(--accent-a45); box-shadow: 0 0 0 1px var(--accent-a22), 0 30px 70px -30px var(--accent-a45); }
 .thq .tier .badge { position: absolute; top: 18px; right: 18px; font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 9px; border-radius: 7px; }
@@ -489,6 +520,32 @@ __CMP_FRAMES__
 .thq .tier .note { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
 .thq .tier .btn { width: 100%; }
 @media (max-width: 420px) { .thq .price b { font-size: 42px; } .thq .tier { padding: 26px 20px; } }
+/* On a phone the plans stay side by side (Ajay, 2026-09-28): each card is its
+   plan's head — name, price, button — and the table under them says what
+   each includes, in the same three columns. After the tier rules, so it wins. */
+.thq .plan-grid { display: none; }
+@media (max-width: 700px) {
+  .thq .tiers { gap: 8px; }
+  .thq .tier { padding: 16px 10px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }
+  .thq .tier .for, .thq .tier ul, .thq .tier .note, .thq .tier .price-sub { display: none; }
+  .thq .tier .badge { position: static; order: -1; font-size: 9.5px; padding: 4px 6px; }
+  .thq .tier:not(.hot)::before { content: ""; order: -1; height: 17.5px; }
+  .thq .tier h3 { font-size: 15px; }
+  .thq .tier .price { flex-direction: column; align-items: center; gap: 2px; }
+  .thq .tier .price b { font-size: clamp(22px, 7vw, 30px); }
+  .thq .tier .price > span { font-size: 12px; }
+  .thq .tier .btn { min-height: 44px; padding: 0 6px; font-size: 13px; }
+  .thq .plan-grid { display: block; margin-top: 10px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); overflow: hidden; }
+  .thq .plan-grid tbody { display: block; }
+  .thq .plan-grid tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; padding: 0 0 12px; }
+  .thq .plan-grid tr + tr { border-top: 1px solid var(--line); }
+  .thq .plan-grid th { grid-column: 1 / -1; text-align: center; padding: 12px 12px 8px; font: 600 11px/1.35 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+  .thq .plan-grid td { display: grid; place-items: center; text-align: center; font: 600 13.5px/1.3 var(--sans); color: var(--ink); min-height: 24px; }
+  .thq .plan-grid td.hot { color: var(--brass); }
+  .thq .plan-grid .pg-yes .i { width: 18px; height: 18px; color: var(--flag); stroke-width: 2.4; }
+  .thq .plan-grid .pg-no { color: var(--ink-faint); }
+}
+@media (max-width: 360px) { .thq .tier { padding: 14px 6px 12px; } .thq .tier .btn { font-size: 12px; } }
 .thq .ultimate { margin-top: 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 24px 28px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-2); }
 .thq .ultimate .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); color: var(--ink-soft); border-color: var(--line); }
 .thq .ultimate h3 { font: 600 17px/1.25 var(--sans); margin-bottom: 3px; }
