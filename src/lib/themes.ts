@@ -1317,4 +1317,18 @@ export const SHARE_CARD = {
   accent: themeScale(THEME_PRESETS[0], DARK_GROUND)[500],
   /** Fairway green, lifted so the ball reads against the dark ground. */
   fairway: "#5fb484",
+  /**
+   * TourneyHQ's OWN orange — the flag, the HQ chip, and the wordmark's middle
+   * stop. A rasterizer (Satori) cannot read custom properties, so the share
+   * image needs the literal; share-card-brand.test.ts pins each of these to
+   * its value in globals.css (thq-flag, thq-orange-light, thq-orange-deep,
+   * thq-on-flag) so the card cannot drift from the lockup.
+   */
+  flag: "#f2862e",
+  /** The wordmark gradient's light stop, dark ground. */
+  flagLight: "#f6a566",
+  /** The wordmark gradient's deep stop, dark ground. */
+  flagDeep: "#d06f23",
+  /** The ink on the orange HQ chip. */
+  onFlag: "#16181a",
 } as const;
