@@ -11,6 +11,7 @@ import {
 } from "../domain/draw";
 import { formGroups } from "../domain/grouping";
 import type { Group, Player } from "../domain/types";
+import { readSource } from "./source";
 
 /**
  * The draw.
@@ -204,6 +205,27 @@ describe("start times and tees", () => {
     const slots = startSlots(three, "tee", { firstTee: "08:00", interval: 10 });
     expect(slots.map((s) => s.time)).toEqual(["8:00 AM", "8:10 AM", "8:20 AM"]);
     expect(slots.every((s) => s.startHole === 1)).toBe(true);
+  });
+
+  it("writes the time on the club's own clock (2026-09-28)", () => {
+    // A club on the 24-hour clock reads "08:10", never "8:10 AM" — a Scottish
+    // club's tee sheet read the one while its cards read "17:30".
+    const day = startSlots(three, "tee", { firstTee: "08:00", interval: 10, hour24: true });
+    expect(day.map((s) => s.time)).toEqual(["08:00", "08:10", "08:20"]);
+    const evening = startSlots(three, "tee", { firstTee: "17:30", interval: 10, hour24: true });
+    expect(evening.map((s) => s.time)).toEqual(["17:30", "17:40", "17:50"]);
+    // CONTROL: the 12-hour clock is unchanged, and remains the default.
+    expect(startSlots(three, "tee", { firstTee: "17:30", interval: 10 }).map((s) => s.time)).toEqual(["5:30 PM", "5:40 PM", "5:50 PM"]);
+  });
+
+  it("the tee sheet hands the draw the club's clock", () => {
+    // The default is the 12-hour clock, so a caller that forgets the option
+    // does not fail — it quietly draws "8:10 AM" for a Scottish club.
+    const src = readSource("src/components/FoursomeMaker.tsx");
+    const calls = src.split("startSlots(").slice(1).map((rest) => rest.slice(0, rest.indexOf(")")));
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) expect(call).toContain("hour24");
+    expect(src).toContain("usesTwentyFourHourClock(locale)");
   });
 
   it("sends two groups at a time off a split tee", () => {

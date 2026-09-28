@@ -10,6 +10,8 @@ import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { sheetOnScreen, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
+import { useFormatting } from "./CurrencyProvider";
+import { usesTwentyFourHourClock } from "@/lib/domain/locale";
 import {
   DRAW_ORDERS,
   groupBySides,
@@ -183,9 +185,13 @@ export function FoursomeMaker({
     return orderGroups(formed, order, positionOf, rng);
   }, [players, algo, order, size, rng, positionOf, bySides, playingSides]);
 
+  // The club's clock — "08:10" for a club on the 24-hour clock, "8:10 AM" for
+  // one on the 12-hour. The time is stored on the sheet as drawn here.
+  const { locale } = useFormatting();
+  const hour24 = usesTwentyFourHourClock(locale);
   const slots = useMemo(
-    () => startSlots(groups, startType, { firstTee, interval, holes }),
-    [groups, startType, firstTee, interval, holes],
+    () => startSlots(groups, startType, { firstTee, interval, holes, hour24 }),
+    [groups, startType, firstTee, interval, holes, hour24],
   );
 
   /** The draw being made, in the shape a saved sheet has. */

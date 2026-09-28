@@ -198,6 +198,26 @@ export function firstDayOfWeek(locale: string = DEFAULT_LOCALE): 0 | 1 {
 }
 
 /**
+ * Whether this club writes a clock time on the 24-hour clock — "17:30", not
+ * "5:30 PM".
+ *
+ * A tee time is the one TIME the app writes, and it was always drawn as
+ * "8:10 AM" whatever the club: a Scottish club's tee sheet read "8:10 AM"
+ * while its own seeded sheets and every member's card read "17:30" (walked
+ * 2026-09-28). Asked of Intl rather than a list of countries, so every locale
+ * answers as its own conventions do: en-GB, en-IE and en-ZA say 24-hour; en-US,
+ * en-AU, en-CA and en-NZ say 12-hour. An unknown tag keeps the old answer.
+ */
+export function usesTwentyFourHourClock(locale: string = DEFAULT_LOCALE): boolean {
+  try {
+    const cycle = new Intl.DateTimeFormat(locale, { hour: "numeric" }).resolvedOptions().hourCycle;
+    return cycle === "h23" || cycle === "h24";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A calendar day, written the way this club writes one.
  *
  * Takes an ISO `yyyy-mm-dd` and never a `Date`, and forces `timeZone: "UTC"`,
