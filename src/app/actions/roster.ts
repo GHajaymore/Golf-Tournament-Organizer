@@ -15,6 +15,7 @@ import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
 import { effectiveCapacity } from "@/lib/services/limits";
+import { organizationsForOrganizer } from "@/lib/services/organization";
 
 /**
  * Club roster management.
@@ -36,6 +37,25 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function requireRosterOrg(): Promise<{ organizationId: string; eventId: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
+  /**
+   * A CLUB WITH NO TOURNAMENT YET — the one every new club is in.
+   *
+   * The session's role is derived from event access, so a secretary who has
+   * just created a society and no tournament reads as a "player", and this
+   * threw "Organizer access required" at the first member they added. The
+   * checklist on /choose will not open the tournament step until members
+   * exist, so a new society could never start (walked 2026-09-28).
+   *
+   * The same rule `requireOrgScreen` applies to reach this screen: with no
+   * tournament, the permission comes from the club — `organizationsForOrganizer`
+   * returns only clubs this person owns or administers, a narrower test than
+   * the role check, never a looser one. With a tournament open, nothing changes.
+   */
+  if (!session.eventId) {
+    const owned = await organizationsForOrganizer(session.email);
+    if (owned[0]) return { organizationId: owned[0].id, eventId: "" };
+    throw new Error("Organizer access required");
+  }
   if (session.role !== "admin" && session.role !== "assistant") {
     throw new Error("Organizer access required");
   }

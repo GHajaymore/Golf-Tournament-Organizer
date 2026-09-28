@@ -82,6 +82,12 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
   { file: "src/app/(player)/layout.tsx", banned: [/\/> Organi[sz]er/] },
   { file: "src/app/(app)/access/page.tsx", banned: [/Organi[sz]ers get full/] },
   { file: "src/components/PlanPanel.tsx", banned: [/"organi[sz]er", "organi[sz]ers"/] },
+  // THE PUBLIC ENTRY FORM — the first page a stranger reads in the club's voice.
+  { file: "src/app/register/[token]/page.tsx", banned: [/The organi[sz]er uses/] },
+  {
+    file: "src/components/RegisterClient.tsx",
+    banned: [/The organi[sz]er needs/, /by the organi[sz]er,/, /with the organi[sz]er for/],
+  },
   // THE GROUP WORDS. A tee sheet's summary and the casual-round clash notice.
   { file: "src/components/FoursomeMaker.tsx", banned: [/"twosome"/, /"threesome"/, /"foursome"/] },
   { file: "src/components/TournamentClashNotice.tsx", banned: [/your fourball/, /your foursome/] },
@@ -95,6 +101,7 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
 const CALLERS: ReadonlyArray<{ file: string; tag: string; prop?: string }> = [
   { file: "src/app/(app)/foursomes/page.tsx", tag: "FoursomeMaker", prop: "terms=" },
   { file: "src/app/match/new/page.tsx", tag: "TournamentClashNotice", prop: "group=" },
+  { file: "src/app/register/[token]/page.tsx", tag: "RegisterClient" },
   { file: "src/components/ClubEventsList.tsx", tag: "EnterButton" },
   { file: "src/app/(player)/me/page.tsx", tag: "EnterButton" },
   { file: "src/app/(player)/me/messages/page.tsx", tag: "MessagesClient" },
@@ -123,7 +130,7 @@ describe("screens converted to the club's golf words", () => {
     const src = readSource(file);
 
     it(`${file} reads the club's terms`, () => {
-      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}|\{group\}|roleName\(/);
+      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}|\{group\}|\.organizer\}|roleName\(/);
     });
 
     for (const word of banned) {

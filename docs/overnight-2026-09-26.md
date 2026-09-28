@@ -165,7 +165,9 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #675 | **Your landing redesign, ported to the real site**: country editions, real captures, the sourced comparison, /faq (from the landing session) | live |
 | #676 | Landing refinement: readable phone-width crops, the phone hero, stacked comparison on phones (from the landing session) | live |
 | #677 | The landing's sign-in form clears the 44px touch minimum (item 82) | live |
-| — | A notice says when it was posted; a net board says its To par is net; a complete card asks to be certified (items 83–85) | pending |
+| #678 | A notice says when it was posted; a net board says its To par is net; a complete card asks to be certified (items 83–85) | live |
+| #679 | Landing polish: named comparison tabs, a formats gallery, facts-only copy (from the landing session) | merging |
+| — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -1029,6 +1031,32 @@ the wrong thing about where they were:
       it from `src/app/icon.svg`.
 
     Found in the walk and left for you as decision 14: a notice doesn't alert anyone.
+86. **A brand-new club or society could never create its first tournament.** Walked as a
+    fresh society sign-up. The checklist keeps "Create tournament" shut until the society is
+    named and has members. But with no tournament yet, the app treated the new owner as a
+    player:
+    - adding the first member crashed the page with an application error;
+    - their own society settings were read-only ("Only an organization owner or admin can change
+      these settings") with every save refused, so they couldn't name it either.
+
+    This was live in production: nobody could have started a new club. Both steps now recognise
+    the owner of the club they just created. That is the same rule that already lets them open
+    those screens, and it is narrower than the usual role check, not wider. A person who owns
+    nothing and a plain member of the club are still refused, and tests check both. Walked
+    again after the fix: member added, society named, tournament created.
+87. **The public entry form said "organizer" to a Scottish club's entrants.** Three sentences
+    ("The organizer needs this…", "The organizer uses them…", "with the organizer for
+    approval") now use the club's own word, "organiser". Also from that walk: the organizer's
+    Recent changes read "withdrew their own entry (confirmed)", as if the withdrawal were what
+    was confirmed. It now says what was given up: "(had a place)".
+88. **The Members add form's labels weren't attached to its boxes**, so a screen reader heard
+    eight unnamed fields on the first form every new club fills in. Each label is now tied to
+    its field.
+
+    Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
+    the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
+    note was my measuring error). Withdrawing restores the places-left count, and Recent
+    changes shows both lines, attributed, on Registration and Reports.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and

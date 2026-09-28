@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import type { Session } from "@/lib/auth";
+import { organizationsForOrganizer } from "./organization";
 
 /**
  * Who may administer a CLUB, as opposed to one of its tournaments.
@@ -65,12 +66,28 @@ export function canAdministerOrganization(input: {
  * person may change it.
  */
 export async function organizationAccess(session: Session | null): Promise<OrganizationAccess | null> {
-  if (!session?.eventId) return null;
+  if (!session) return null;
 
-  const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { organizationId: true },
-  });
+  /**
+   * WHICH CLUB, when there is no tournament yet.
+   *
+   * This returned null without an open tournament, so a new society's owner
+   * saw their own settings page rendered read-only — "Only an organization
+   * owner or admin can change these settings", on the page for the club they
+   * had just created — and every save refused (walked 2026-09-28). The page
+   * itself was already reachable through `requireOrgScreen`'s no-tournament
+   * rule; this is the same rule: the club they own or administer. The rights
+   * are then decided exactly as before, from their membership.
+   */
+  const event = session.eventId
+    ? await prisma.event.findUnique({
+        where: { id: session.eventId },
+        select: { organizationId: true },
+      })
+    : await (async () => {
+        const owned = await organizationsForOrganizer(session.email);
+        return owned[0] ? { organizationId: owned[0].id } : null;
+      })();
   if (!event) return null;
 
   const user = await prisma.user.findUnique({ where: { email: session.email } });

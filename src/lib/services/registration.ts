@@ -7,6 +7,7 @@ import { planForOrganization } from "./entitlements";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
 import { resolveLocale } from "../domain/locale";
+import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 
 /**
  * What the public /register/[token] page is allowed to know.
@@ -53,6 +54,13 @@ export interface PublicRegistrationView {
   /** This tournament asks for a mobile number and refuses without one. */
   requirePhone: boolean;
   brand: EventBrand | null;
+  /**
+   * The club's word for who runs it — "organizer" or "organiser"
+   * (`golf-terms.ts`). The public form is the first page a stranger reads in
+   * the club's voice, and it said "organizer" to a Scottish club's entrants
+   * after the rest of the app had learned not to (walked 2026-09-28).
+   */
+  organizer: string;
 }
 
 export function venueOf(course: string, city: string): string {
@@ -128,7 +136,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // listed in the order they are played.
     include: {
       stages: { select: { type: true, format: true }, orderBy: { position: "asc" } },
-      organization: { select: { locale: true } },
+      organization: { select: { locale: true, country: true, golfTerms: true } },
     },
   });
   if (!event || !event.registrationOpen) return null;
@@ -170,6 +178,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // their entry for leaving it blank.
     requirePhone: phoneRequiredFor(await planForOrganization(event.organizationId), event.requirePhone),
     brand,
+    organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
   };
 }
 

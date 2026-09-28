@@ -38,6 +38,8 @@ interface Props {
    * with no door (walked 2026-09-27).
    */
   signedIn?: boolean;
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
 }
 
 /**
@@ -51,6 +53,7 @@ export function entryReceipt(
   done: Pick<RegisterResult, "already" | "status">,
   eventName: string,
   signedIn: boolean,
+  organizer = "organizer",
 ): { heading: string; detail: string; good: boolean; backToApp: boolean } {
   const heading = done.already
     ? "You're already registered"
@@ -65,7 +68,7 @@ export function entryReceipt(
       ? `You're confirmed in the field for ${eventName}.${signedIn ? "" : " Use this email to sign in."}`
       : done.status === "waitlisted"
         ? "The field is full, so you're on the waitlist. We'll be in touch if a place opens up."
-        : "Your entry is with the organizer for approval. You'll hear once it's confirmed.";
+        : `Your entry is with the ${organizer} for approval. You'll hear once it's confirmed.`;
   return { heading, detail, good: !!done.already || done.status === "confirmed", backToApp: signedIn };
 }
 
@@ -81,6 +84,7 @@ export function RegisterClient({
   requirePhone = false,
   locale,
   signedIn = false,
+  organizer = "organizer",
 }: Props) {
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
@@ -132,7 +136,7 @@ export function RegisterClient({
 
   // Confirmation — this IS the receipt (email is best-effort and deferred).
   if (done) {
-    const { heading, detail, good, backToApp } = entryReceipt(done, eventName, signedIn);
+    const { heading, detail, good, backToApp } = entryReceipt(done, eventName, signedIn, organizer);
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
         <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
@@ -179,7 +183,7 @@ export function RegisterClient({
 
       {approvalMode === "approve" && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          <Icon name="info" /> Entries for this event are confirmed by the organizer, so yours will be
+          <Icon name="info" /> Entries for this event are confirmed by the {organizer}, so yours will be
           held for approval.
         </p>
       )}
@@ -263,7 +267,7 @@ export function RegisterClient({
                 one they fill in. */}
             {requirePhone && (
               <span className="text-muted" style={{ fontSize: 11.5 }}>
-                The organizer needs this to reach you on the day.
+                The {organizer} needs this to reach you on the day.
               </span>
             )}
           </div>
