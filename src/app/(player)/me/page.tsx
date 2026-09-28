@@ -20,6 +20,7 @@ import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote } from "@/lib/domain/your-card";
 import { myTieLine } from "@/lib/domain/my-tie";
+import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
@@ -533,6 +534,18 @@ export default async function PlayTodayPage() {
               <p style={{ margin: "4px 0 0", fontFamily: "var(--font-heading)", fontSize: 20, lineHeight: 1.25 }}>
                 {myTieLine(round.tie)}
               </p>
+              {/* Both players known and no result yet: either may report it,
+                  and the organizer approves before the draw moves. */}
+              {round.tie.state === "to-play" && round.tie.opponentId && me.playerId && (
+                <ReportTie
+                  tieKey={round.tie.key}
+                  meId={me.playerId}
+                  opponentId={round.tie.opponentId}
+                  opponent={round.tie.opponent}
+                  waiting={round.tieReport}
+                  organizer={terms.organizer}
+                />
+              )}
               <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
                 See the draw <Icon name="arrow-right" />
               </Link>

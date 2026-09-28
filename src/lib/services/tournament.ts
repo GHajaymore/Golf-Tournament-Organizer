@@ -31,6 +31,7 @@ import {
   type RankingBasis,
 } from "../domain/stroke-countback";
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
+import { bracketDraws, openTieReport } from "../domain/my-tie";
 import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
@@ -2179,7 +2180,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   const autoConfirm = allowsAutoConfirm(settingsOf(event));
   const staffApproves = !autoConfirm;
-  const reviewing = reviewQueue({
+  // Assembled here, counted once the draw exists below — a knockout report is
+  // only waiting while the draw still holds its tie (`openTieReport`).
+  const reviewInput = {
     matches: matches.map((m) => {
       let holes: HoleResultArr;
       try {
@@ -2196,8 +2199,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     }),
     cards: scorecards,
     staffApproves,
-  });
-  const pendingConfirmations = reviewing.total;
+  };
   /**
    * The same two arrays, asked a different and much looser question.
    *
@@ -2274,6 +2276,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     mainLabel: firstDraw.mainLabel,
     secondLabel: firstDraw.secondLabel,
   };
+
+  // Knockout results players have reported, still open on this draw.
+  const tieReports = await prisma.bracketReport.findMany({
+    where: { eventId: event.id },
+    select: { key: true, winnerId: true },
+  });
+  const drawList = bracketDraws(brackets);
+  const reviewing = reviewQueue({
+    ...reviewInput,
+    knockoutReports: tieReports.filter((r) => openTieReport(drawList, r) !== null).length,
+  });
+  const pendingConfirmations = reviewing.total;
 
   /**
    * AND THE ONE ROUND WHOSE PROGRESS IS NOT IN EITHER TABLE ABOVE.

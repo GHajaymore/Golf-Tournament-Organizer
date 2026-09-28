@@ -36,6 +36,12 @@ export interface ReviewQueue {
   matches: number;
   /** Certified scorecards the committee has not accepted. */
   cards: number;
+  /**
+   * Knockout ties a player has reported and staff have not yet approved or
+   * turned down (2026-09-28). Always a committee's work, whatever
+   * `staffApproves` says: a reported tie does not move the draw on its own.
+   */
+  knockouts: number;
   total: number;
   /**
    * Cards and match results somebody has said are WRONG. Not in `total`.
@@ -112,6 +118,12 @@ export function reviewQueue(input: {
   cards: ReadonlyArray<{ status: string }>;
   /** Whether a committee signs things off in this tournament at all. */
   staffApproves: boolean;
+  /**
+   * Knockout results players have reported, waiting on staff. REQUIRED, so a
+   * caller that forgets the fourth table fails to compile rather than
+   * reporting an empty queue over a tie nobody has approved.
+   */
+  knockoutReports: number;
 }): ReviewQueue {
   /**
    * A match counts when it is FINISHED and still pending.
@@ -128,7 +140,8 @@ export function reviewQueue(input: {
   const disputed =
     input.cards.filter((c) => c.status === "disputed").length +
     input.matches.filter((m) => m.status === "disputed" && !m.unreadable).length;
-  return { matches, cards, total: matches + cards, disputed };
+  const knockouts = Math.max(0, Math.floor(input.knockoutReports));
+  return { matches, cards, knockouts, total: matches + cards + knockouts, disputed };
 }
 
 /**
@@ -143,6 +156,9 @@ export function reviewQueueDetail(q: ReviewQueue): string {
   if (q.cards > 0) parts.push(`${q.cards} ${q.cards === 1 ? "card" : "cards"}`);
   if (q.matches > 0) {
     parts.push(`${q.matches} match ${q.matches === 1 ? "result" : "results"}`);
+  }
+  if (q.knockouts > 0) {
+    parts.push(`${q.knockouts} knockout ${q.knockouts === 1 ? "result" : "results"}`);
   }
   // Not "0 to confirm": the number above already says none, and a stat card
   // that repeats its own zero in words reads as an error state.

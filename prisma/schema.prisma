@@ -1302,6 +1302,7 @@ model Event {
   skinsPots       SkinsPot[]
   playoffHoles    LeaguePlayoffHole[]
   bracketWinners  BracketWinner[]
+  bracketReports  BracketReport[]
   commentary      Commentary[]
   scorecards      Scorecard[]
   roundHandicaps  RoundHandicap[]
@@ -1956,6 +1957,34 @@ model BracketWinner {
   key      String
   winnerId String
   result   String @default("") // recorded match result, e.g. "3&2"
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, key])
+  @@index([eventId])
+}
+
+/// A knockout result a PLAYER has reported, waiting for staff to approve it
+/// (Ajay, 2026-09-28: "player may enter it but organizer/club needs to approve
+/// it").
+///
+/// A SEPARATE TABLE ON PURPOSE. Every reader of `BracketWinner` — the draw, the
+/// champion, the plate that fills from results, board progress, "has anybody
+/// played" — treats a row there as final. A status column on that table would
+/// make each of them remember to skip the unapproved ones, and one would not.
+/// Nothing reads a report as a result: approval writes the `BracketWinner` row
+/// through the same code the console uses, and deletes this one.
+model BracketReport {
+  id           String   @id @default(cuid())
+  eventId      String
+  /// The tie, keyed exactly as `BracketWinner.key`.
+  key          String
+  winnerId     String
+  result       String   @default("") // the margin as reported, e.g. "3&2"
+  /// The Player row of whoever reported it — one of the two in the tie.
+  reportedById String
+  reportedBy   String   @default("")
+  createdAt    DateTime @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

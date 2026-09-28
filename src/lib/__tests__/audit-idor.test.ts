@@ -237,6 +237,8 @@ const EXEMPT: Record<string, string> = {
     "narrowed by membership instead of by event: team.members.some(m => m.playerId === playerId), on a team already proven to be this event's",
   "tournament.ts:setBracketWinner:winnerId":
     "a slot label written into this event's own BracketWinner row, never used as a lookup key — the bracket only ever compares it against its own slots, so a foreign id renders as nothing",
+  "tournament.ts:reportBracketResult:winnerId":
+    "narrower than setBracketWinner's: tieReportRefusal refuses any winnerId that is not one of the two seats of the tie, read off this event's own draw by tieByKey — and the reporter must hold one of those seats (myPlayerIds on this event). Pinned in a-player-reports-their-tie.audit.test.ts, which refuses a winner from another tie",
   "side-games.ts:confirmSideGameEntry:playerId":
     "same shape as confirmContestEntry: the lookup is the composite key (sideGameId, playerId) on a side game already proved to be in this event, so a foreign playerId matches no entry",
   "contests.ts:confirmContestEntry:playerId":
