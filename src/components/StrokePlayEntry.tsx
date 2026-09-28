@@ -333,6 +333,9 @@ export function StrokePlayEntry({
 
   const toggleListen = () => {
     if (listening) {
+      // Stop the recogniser, not just the button — see `dictation.test.ts`.
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
       setListening(false);
       return;
     }

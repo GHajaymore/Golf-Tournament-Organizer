@@ -139,6 +139,40 @@ describe("starting dictation", () => {
   });
 });
 
+describe("a mic that says it stopped has stopped", () => {
+  /**
+   * Found 2026-09-27. The player's "Say the card", the hole-by-hole mic and
+   * both organizer entry screens kept (or never kept) the handle and, on a
+   * second tap, only reset their button — "Listening…" went away while the
+   * phone went on hearing until the recogniser gave up by itself. The app's
+   * own mic note promises "only on while you use this button".
+   *
+   * Every component that starts dictation must keep the handle it is given
+   * and call `.stop()` on it. VoiceAsk always did; it is the control for this
+   * sweep, which must find it.
+   */
+  const CALLERS = [
+    "src/components/PlayerCard.tsx",
+    "src/components/HoleByHoleCard.tsx",
+    "src/components/StrokePlayEntry.tsx",
+    "src/components/ScoreEntryClient.tsx",
+    "src/components/VoiceAsk.tsx",
+  ];
+
+  it("knows every caller", () => {
+    const callers = CALLERS.filter((f) => readSource(f).includes("startDictation("));
+    expect(callers, "a listed file no longer starts dictation — update the list").toEqual(CALLERS);
+  });
+
+  for (const file of CALLERS) {
+    it(`${file} keeps the handle and stops it`, () => {
+      const src = readSource(file);
+      expect(src, "keeps the handle startDictation returns").toMatch(/Ref\.current = started/);
+      expect(src, "calls stop() on it").toMatch(/Ref\.current\?\.stop\(\)/);
+    });
+  }
+});
+
 describe("nobody builds a recogniser by hand", () => {
   it("is asked for through startDictation and nowhere else", () => {
     const files: string[] = [];
