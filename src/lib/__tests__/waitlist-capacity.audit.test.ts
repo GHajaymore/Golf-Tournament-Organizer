@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { drainWaitlist, fieldLimitOf } from "../services/waitlist";
+import { changeKind } from "../domain/change-kind";
 
 /**
  * The field and the waitlist stay in step.
@@ -206,6 +207,34 @@ describe("raising the capacity drains the waitlist", () => {
     });
     expect(promoted?.status).toBe("confirmed");
     expect(promoted?.promotedAt).not.toBeNull();
+  });
+});
+
+describe("a place filling from the waiting list is on the record", () => {
+  /**
+   * 2026-09-28: Recent changes showed "Ann withdrew" and never who took her
+   * place — the one field change that wrote no line. One line per promotion,
+   * under Field, attributed to the rule rather than to whoever freed the place.
+   */
+  it("writes one Field line per promotion, naming who came in", async () => {
+    await field({ capacity: 8, confirmed: 8, waiting: 3 });
+    await prisma.event.update({ where: { id: eventId }, data: { capacity: 10 } });
+    await drainWaitlist(eventId);
+
+    const lines = await prisma.auditLog.findMany({ where: { eventId, action: "promoted" }, select: { actor: true, detail: true } });
+    expect(lines.map((l) => l.detail).sort()).toEqual([
+      `${TAG} wait0 came off the waiting list into the field.`,
+      `${TAG} wait1 came off the waiting list into the field.`,
+    ]);
+    expect(lines.every((l) => l.actor === "Automatic")).toBe(true);
+    expect(changeKind("promoted")).toBe("Field");
+    expect(changeKind("approved")).toBe("Field");
+  });
+
+  it("CONTROL: a full field promotes nobody and writes nothing", async () => {
+    await field({ capacity: 8, confirmed: 8, waiting: 3 });
+    await drainWaitlist(eventId);
+    expect(await prisma.auditLog.count({ where: { eventId, action: "promoted" } })).toBe(0);
   });
 });
 

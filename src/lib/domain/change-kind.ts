@@ -13,8 +13,17 @@
  */
 export type ChangeKind = "Field" | "Scores & results" | "Rounds" | "Money" | "Settings" | "Other";
 
-/** Changes to WHO IS IN the tournament — what Registration shows. */
-export const FIELD_ACTIONS = ["entered", "registered", "added", "removed", "withdrawn", "resize-field"] as const;
+/**
+ * Changes to WHO IS IN the tournament — what Registration shows.
+ *
+ * `approved` and `promoted` joined on 2026-09-28: approving an entry and a
+ * waiting-list place filling were the two field changes that wrote no line, so
+ * "who got the place Ann gave up?" — the question a committee asks after every
+ * withdrawal — had no answer on the screen built to give it.
+ */
+export const FIELD_ACTIONS = [
+  "entered", "registered", "added", "removed", "withdrawn", "resize-field", "approved", "promoted",
+] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];
 const SCORE_ACTIONS = [

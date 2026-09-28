@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { notifyFieldChange } from "./field-notify";
+import { logAudit } from "./action-shared";
 
 /**
  * Keeping the field and the waitlist in step.
@@ -91,6 +92,18 @@ export async function drainWaitlist(eventId: string): Promise<number> {
     where: { id: { in: waiting.map((p) => p.id) } },
     data: { status: "confirmed", promotedAt: new Date() },
   });
+
+  /**
+   * ON THE RECORD, one line each (2026-09-28). A place filling was the one
+   * field change that wrote nothing, so Recent changes showed "Ann withdrew"
+   * and never who took her place. "Automatic" rather than the session's name:
+   * this runs inside whoever freed the place — a member withdrawing, an
+   * organizer raising the limit — and it is the waiting list's rule that chose,
+   * not them.
+   */
+  for (const p of waiting) {
+    await logAudit(eventId, "promoted", `${p.name} came off the waiting list into the field.`, { actor: "Automatic" });
+  }
 
   /**
    * Told, and told after the write.
