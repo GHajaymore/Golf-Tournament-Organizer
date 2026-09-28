@@ -5,6 +5,7 @@ import {
   guessExpenseCategory,
   totalsByCategory,
 } from "@/lib/domain/expense-categories";
+import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, updateExpense, removeExpense, recordSettlement, removeSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
@@ -56,7 +57,14 @@ type SplitMode = "evenly" | "shares" | "exact" | "percent";
  *  renders and a `useMemo` depending on it can actually memoize. */
 const NO_IDS: string[] = [];
 
-export function MoneyClient({ view }: { view: MoneyView }) {
+export function MoneyClient({
+  view,
+  terms = golfTermsFor("us"),
+}: {
+  view: MoneyView;
+  /** The club's golf words — cart or buggy (`golf-terms.ts`). */
+  terms?: Record<GolfTerm, string>;
+}) {
   const { money, plain, parse: centsFrom } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -360,7 +368,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           className="text-muted"
           style={{ fontSize: 12.5, margin: "12px 0 0", lineHeight: 1.6 }}
         >
-          <Icon name="info" /> The organizers add the shared costs for this one — send them
+          <Icon name="info" /> The {terms.organizers} add the shared costs for this one — send them
           what you paid for and it will appear here.
         </p>
       ) : !adding ? (
@@ -386,7 +394,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                  read as a green-fee splitter — while the lodging, the fuel
                  and the meals, which are the LARGER half of a golf trip, went
                  into somebody else's app and a second settle-up. */
-              placeholder="Lodging, travel, fuel, carts, food, green fees…"
+              placeholder={`Lodging, travel, fuel, ${terms.carts}, food, green fees…`}
               onChange={(e) => {
                 setDescription(e.target.value);
                 // The category follows what they typed until they set it
@@ -455,7 +463,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             >
               {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
-                  {c.label}
+                  {expenseCategoryLabel(c.key, terms)}
                 </option>
               ))}
             </select>
@@ -472,7 +480,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               style={{ minHeight: 46, fontSize: 18, fontVariantNumeric: "tabular-nums" }}
             />
             <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0" }}>
-              A refund goes in as a negative — “-30” for a cart fee that came back.
+              A refund goes in as a negative — “-30” for a {terms.cart} fee that came back.
             </p>
           </div>
 
@@ -1075,6 +1083,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         {(() => {
           const totals = totalsByCategory(
             view.expenses.map((e) => ({ category: e.category ?? "", amountCents: e.amountCents })),
+            terms,
           );
           if (totals.length < 2) return null;
           return (
@@ -1098,8 +1107,8 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         })()}
         {view.expenses.length === 0 && (
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
-            Nothing yet. Add what you paid for and it splits between whoever was there — carts with your
-            group, dinner with everyone.
+            Nothing yet. Add what you paid for and it splits between whoever was there — {terms.carts} with
+            your group, dinner with everyone.
           </p>
         )}
         {/* OPEN, not collapsed.
@@ -1145,7 +1154,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   {e.category &&
                     e.category !== "other" &&
                     guessExpenseCategory(e.description) !== e.category &&
-                    ` · ${expenseCategoryLabel(e.category)}`}
+                    ` · ${expenseCategoryLabel(e.category, terms)}`}
                   {e.spentOn && ` · ${e.spentOn}`}
                 </span>
                 {/* WHO IS ON THIS LINE, WITHOUT OPENING IT.

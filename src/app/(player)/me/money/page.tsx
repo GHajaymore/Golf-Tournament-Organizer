@@ -9,6 +9,7 @@ import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { SideBetStart } from "@/components/SideBetStart";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/me/money");
 
@@ -182,7 +183,7 @@ export default async function MoneyPage() {
           "Money", the same word as the tab that reaches it. */}
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "0 0 4px" }}>Money</h1>
       <RoundMoney view={rounds} />
-      {ledger && <MoneyClient view={ledger} />}
+      {ledger && <MoneyClient view={ledger} terms={await golfTermsForEvent(session.eventId)} />}
       {bettable && field.length > 1 && (
         <SideBetStart
           stageId={bettable.id}

@@ -176,6 +176,17 @@ model Organization {
    */
   communityNoun     String @default("")
   /**
+   * Which golf the app speaks to this club — "us", "uk", or "" to follow the
+   * country above (src/lib/domain/golf-terms.ts). Ajay, 2026-09-27: "local by
+   * default and overridden option for USD and US terminologies".
+   *
+   * The same shape as `communityNoun`, and for the same reasons: EMPTY MEANS
+   * "FOLLOW THE COUNTRY", so no row needed backfilling; and an unrecognised
+   * value resolves through to the country rather than throwing. It changes
+   * WORDS only — never a Rules of Golf format name.
+   */
+  golfTerms         String @default("")
+  /**
    * Accent colour preset, from src/lib/themes.ts.
    * A key rather than a hex value, deliberately. Storing raw colour would let
    * a club pick something the app cannot stay readable against; the presets

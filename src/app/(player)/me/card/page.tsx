@@ -10,7 +10,7 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
 import { meFor } from "@/lib/services/me";
-import { cardBrand } from "@/lib/services/organization";
+import { cardBrand, golfTermsForEvent } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 import { partnerCardsFor } from "@/lib/services/group-cards";
@@ -47,6 +47,8 @@ export default async function PlayCardPage() {
   // The club's mark for the head of the card. Same reader every other card in
   // the app uses, so no two of them can disagree about the club's name.
   const brand = await cardBrand(session.eventId);
+  // The club's own golf words — organizer or organiser (`golf-terms.ts`).
+  const terms = await golfTermsForEvent(session.eventId);
 
   if (!me.playerId || !me.round) {
     /**
@@ -81,8 +83,8 @@ export default async function PlayCardPage() {
             </>
           ) : onTheList ? (
             <>
-              You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The
-              organizer will confirm your place if one opens up.
+              You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The{" "}
+              {terms.organizer} will confirm your place if one opens up.
             </>
           ) : (
             <>You aren&rsquo;t entered in this tournament, so there&rsquo;s no card to fill in.</>
@@ -126,7 +128,7 @@ export default async function PlayCardPage() {
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          Scores for this tournament are entered by the organizer. Your card will appear on the board once
+          Scores for this tournament are entered by the {terms.organizer}. Your card will appear on the board once
           it is in.
         </p>
         <WayForward
@@ -204,7 +206,7 @@ export default async function PlayCardPage() {
             : `${me.round.name} is match play, so your score is recorded against your opponent rather than as your own card.`}{" "}
           {myCardedSide
             ? `Your side's card is in: ${myCardedSide.name} went round in ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
-            : "Your organizer enters it, and it appears on the board as soon as it’s in."}
+            : `Your ${terms.organizer} enters it, and it appears on the board as soon as it’s in.`}
         </p>
         {/* A way forward out of what was otherwise a dead end.
             A player taps "My card" on a match-play round, is told the card is

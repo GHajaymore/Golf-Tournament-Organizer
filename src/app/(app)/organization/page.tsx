@@ -10,6 +10,7 @@ import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
+import { GolfTermsPicker } from "@/components/GolfTermsPicker";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { pendingAsks } from "@/lib/services/join-requests";
@@ -243,6 +244,14 @@ export default async function OrganizationPage() {
           <section className="card elev-sm" style={{ marginBottom: 16 }}>
             <span className="card-title" style={{ fontSize: 15 }}>What we are called</span>
             <OrgNounPicker noun={org.communityNoun} country={org.country} />
+          </section>
+        )}
+        {/* Every kind, unlike the noun above: a club in Scotland and a league
+            in Ohio both have a word for the cart. */}
+        {canEdit && (
+          <section className="card elev-sm" style={{ marginBottom: 16 }}>
+            <span className="card-title" style={{ fontSize: 15 }}>Golf words</span>
+            <GolfTermsPicker terms={org.golfTerms} country={org.country} />
           </section>
         )}
         {canEdit && (

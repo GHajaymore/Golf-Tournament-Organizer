@@ -1,3 +1,5 @@
+import type { GolfTerm } from "./golf-terms";
+
 /**
  * What a golf trip actually costs, as the categories somebody would file it
  * under.
@@ -77,7 +79,10 @@ export function isExpenseCategory(v: string): v is ExpenseCategory {
  * still shows what it says rather than becoming blank — the ledger is a
  * record, and a record that quietly drops a word is worse than an odd one.
  */
-export function expenseCategoryLabel(v: string): string {
+export function expenseCategoryLabel(v: string, terms?: Pick<Record<GolfTerm, string>, "cart">): string {
+  // The one category golf names two ways: cart fees in the US, buggy fees in
+  // Britain (`golf-terms.ts`). Without the club's terms it reads as it always did.
+  if (v === "cart" && terms) return `${terms.cart.charAt(0).toUpperCase()}${terms.cart.slice(1)} fees`;
   return EXPENSE_CATEGORIES.find((c) => c.key === v)?.label ?? v;
 }
 
@@ -142,6 +147,7 @@ export function guessExpenseCategory(description: string): ExpenseCategory | "" 
  */
 export function totalsByCategory(
   rows: ReadonlyArray<{ category: string; amountCents: number }>,
+  terms?: Pick<Record<GolfTerm, string>, "cart">,
 ): Array<{ category: string; label: string; cents: number }> {
   const totals = new Map<string, number>();
   for (const r of rows) {
@@ -149,6 +155,6 @@ export function totalsByCategory(
     totals.set(key, (totals.get(key) ?? 0) + r.amountCents);
   }
   return [...totals.entries()]
-    .map(([category, cents]) => ({ category, label: expenseCategoryLabel(category), cents }))
+    .map(([category, cents]) => ({ category, label: expenseCategoryLabel(category, terms), cents }))
     .sort((a, b) => b.cents - a.cents || a.label.localeCompare(b.label));
 }
