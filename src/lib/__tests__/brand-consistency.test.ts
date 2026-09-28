@@ -122,9 +122,44 @@ describe("the wordmark is written once too", () => {
     // The homepage used to re-point the wordmark's --color-accent* at its own
     // amber. The wordmark now reads the fixed --thq-* colours, so the homepage
     // renders exactly the lockup the app does — and must not re-skin it.
+    //
+    // Through `<Lockup>` since 2026-09-27, which draws BrandMark itself and
+    // takes no style for it — `markStyle` reaches the mark's stick and cup
+    // only. So the homepage cannot re-skin the wordmark even by accident.
     const landing = read("src/app/page.tsx");
-    expect(landing).toContain("<BrandMark");
+    expect(landing).toContain("<Lockup");
     expect(landing, "the homepage re-skins the wordmark again").not.toMatch(/<BrandMark[^>]*style=/);
+    expect(read("src/components/Lockup.tsx")).toContain("<BrandMark size={size} />");
+  });
+
+  it("assembles the mark and the wordmark in one place: <Lockup>", () => {
+    /**
+     * Five files built the pair by hand, each setting the mark's box to the
+     * wordmark's own number, so the mark came out the height of a capital
+     * letter beside it — "tiny", Ajay said of the console sidebar
+     * (2026-09-27). Three of them also put the mark in a tinted tile, a third
+     * treatment of "the logo". A file that draws BOTH is building a lockup,
+     * and the lockup is built once.
+     */
+    const offenders = allTsx("src")
+      .filter((f) => f !== "src/components/Lockup.tsx")
+      .filter((f) => {
+        const src = read(f);
+        return /<Logo[\s>]/.test(src) && /<BrandMark[\s>/]/.test(src);
+      });
+    expect(offenders, `mark and wordmark paired by hand in: ${offenders.join(", ")}`).toEqual([]);
+    expect(read("src/components/OrgBrand.tsx"), "OrgBrand builds its own pair again").toContain("<Lockup");
+  });
+
+  it("sizes the mark so it stands the full height of the wordmark", async () => {
+    // The flat mark's artwork spans 22.2 of its 32 units (y 4.9 to 27.1).
+    // At a box equal to the wordmark's size it stood ~0.69 of it.
+    const { markSizeFor, LOGO_SIZE } = await import("@/components/Logo");
+    const ARTWORK = (27.1 - 4.9) / 32;
+    for (const step of [LOGO_SIZE.sm, LOGO_SIZE.md, LOGO_SIZE.lg]) {
+      expect(markSizeFor(step) * ARTWORK, `${step}px wordmark`).toBeGreaterThanOrEqual(step * 0.98);
+    }
+    expect(read("src/components/Lockup.tsx")).toContain("markSizeFor(size, emblem)");
   });
 });
 

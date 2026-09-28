@@ -1,5 +1,5 @@
-import { Logo, LOGO_SIZE } from "@/components/Logo";
-import { BrandMark } from "@/components/BrandMark";
+import { LOGO_SIZE } from "@/components/Logo";
+import { Lockup } from "@/components/Lockup";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 import { NOINDEX } from "@/lib/site";
 
@@ -29,20 +29,8 @@ export default async function ResetPasswordPage({
         color: "var(--color-text)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 40 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 11,
-            background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-          }}
-        >
-          <Logo size={LOGO_SIZE.md} style={{ color: "var(--color-accent)" }} />
-        </div>
-        <BrandMark />
+      <div style={{ marginBottom: 40 }}>
+        <Lockup size={LOGO_SIZE.md} />
       </div>
       <ResetPasswordForm token={token ?? ""} />
     </div>

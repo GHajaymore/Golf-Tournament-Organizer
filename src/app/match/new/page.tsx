@@ -3,8 +3,8 @@ import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { parseHoleArray } from "@/lib/courses";
 import { NewMatchForm } from "@/components/NewMatchForm";
-import { Logo, LOGO_SIZE } from "@/components/Logo";
-import { BrandMark } from "@/components/BrandMark";
+import { LOGO_SIZE } from "@/components/Logo";
+import { Lockup } from "@/components/Lockup";
 import { Icon } from "@/components/Icon";
 import { NOINDEX } from "@/lib/site";
 import { tournamentClashFor } from "@/lib/services/tournament-clash";
@@ -117,20 +117,8 @@ export default async function NewMatchPage() {
       }}
     >
       <div style={{ width: "min(560px, 100%)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 11,
-              background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-            }}
-          >
-            <Logo size={LOGO_SIZE.md} style={{ color: "var(--color-accent)" }} />
-          </div>
-          <BrandMark />
+        <div style={{ marginBottom: 28 }}>
+          <Lockup size={LOGO_SIZE.md} />
         </div>
 
         {/* The heading and the form have to describe the same screen.

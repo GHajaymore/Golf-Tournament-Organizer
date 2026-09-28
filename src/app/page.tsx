@@ -11,8 +11,8 @@ import { landingTokens } from "@/lib/landing-palette";
 import { siteOrigin } from "@/lib/site";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
-import { Logo, LOGO_SIZE } from "@/components/Logo";
-import { BrandMark } from "@/components/BrandMark";
+import { LOGO_SIZE } from "@/components/Logo";
+import { Lockup } from "@/components/Lockup";
 
 /**
  * Only the canonical. Title, description and the share cards come from the root
@@ -614,33 +614,23 @@ ${landingTokens("light", "    ")}
  *
  * The cup is left unfilled here because it sits on the fairway-green ground
  * rather than on a flat surface.
+ *
+ * Passed to `<Lockup markStyle>` (2026-09-27): the page no longer assembles
+ * the mark and wordmark itself, so its lockups are sized by the same rule as
+ * every other surface.
  */
-function FlagMark({ size = LOGO_SIZE.md, emblem = false }: { size?: number; emblem?: boolean }) {
-  return (
-    <Logo
-      size={size}
-      emblem={emblem}
-      style={
-        {
-          // Pennant orange, ball green, stick in ink — the programme's
-          // two-tone. The app draws stick and pennant in one colour; this is
-          // the difference the variables exist to carry.
-          //
-          // The comment above said "pennant orange" while the line below
-          // mapped it to --flag, which is this page's GREEN. The mark rendered
-          // green-on-green and the ball took the ink colour, because it was
-          // not a variable at all.
-          // Flag and ball are NOT re-skinned any more: TourneyHQ's own orange
-          // and green, the same as inside the app (decided 2026-09-18 — "same
-          // color and font across"). Only the two that answer to this page's
-          // ground stay: the stick in its ink, the cup open on the green.
-          "--logo-stick": "currentColor",
-          "--logo-cup": "transparent",
-        } as React.CSSProperties
-      }
-    />
-  );
-}
+const FLAG_MARK_STYLE = {
+  // Pennant orange, ball green, stick in ink — the programme's two-tone. The
+  // app draws stick and pennant in one colour; this is the difference the
+  // variables exist to carry.
+  //
+  // Flag and ball are NOT re-skinned: TourneyHQ's own orange and green, the
+  // same as inside the app (decided 2026-09-18 — "same color and font
+  // across"). Only the two that answer to this page's ground stay: the stick
+  // in its ink, the cup open on the green.
+  "--logo-stick": "currentColor",
+  "--logo-cup": "transparent",
+} as React.CSSProperties;
 
 function Chevron() {
   return (
@@ -699,19 +689,12 @@ export default async function LoginPage() {
       <nav className="nav">
         <div className="wrap nav-in">
           <div className="brand">
-            {/* `lg`, which the scale documents as the hero size — and this
-                nav IS the hero placement. At `md` the mark stood 22px in an
-                89px bar beside a 51px headline: a quarter of the bar, reading
-                as subordinate to the sentence on the one page whose job is to
-                say who we are. Still a value from LOGO_SIZE, so the one-size
-                rule brand-consistency.test.ts enforces still holds. */}
-            <FlagMark size={LOGO_SIZE.lg} emblem />
-            {/* The same lockup the app uses, re-skinned by variables — the
-                pattern FlagMark above already follows. It used to be written
-                out here by hand in the sans face with an italic "HQ", so the
-                wordmark above the sign-in button was not the wordmark inside
-                the product. */}
-            <BrandMark size={22} />
+            {/* The one lockup, with the EMBLEM — the display treatment,
+                marketing surfaces only (decided 2026-09-24). A 22px wordmark
+                with the emblem at the lockup's own ratio: the 28px disc this
+                nav was already drawn with, now sized by the rule every other
+                surface uses rather than by hand. */}
+            <Lockup size={LOGO_SIZE.md} emblem markStyle={FLAG_MARK_STYLE} />
           </div>
           <div className="nav-actions">
             <a className="btn btn-ghost" href="#signin" role="button">Sign in</a>
@@ -1584,8 +1567,9 @@ export default async function LoginPage() {
       <footer>
         <div className="wrap foot-in">
           <div className="foot-brand">
-            <FlagMark size={LOGO_SIZE.sm} />
-            <BrandMark size={16} />
+            {/* sm, a real step: the footer's 16px wordmark was on no step at
+                all, and its HQ chip rendered at 6.7px. */}
+            <Lockup size={LOGO_SIZE.sm} markStyle={FLAG_MARK_STYLE} />
           </div>
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>

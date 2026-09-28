@@ -85,12 +85,12 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
           letterSpacing: "-0.01em",
         }}
       >
-        {/* sm: the scale's "beside a nav label or in a dense bar". A bare 20
-            was a fifth size nobody chose and no guard was catching. */}
-        {/* One lockup for every club: TourneyHQ first with its tagline — the
-            sidebar is the one header with room for it — and the club beneath,
-            unless a white-label club has uploaded its own logo. */}
-        <OrgBrand brand={brand} size={LOGO_SIZE.sm} tagline />
+        {/* md, the scale's page-header step (2026-09-27). It was sm, the
+            dense-bar step, and at the head of the console the brand read as
+            "tiny" (Ajay). One lockup for every club: TourneyHQ first with its
+            tagline — the sidebar is the one header with room for it — and the
+            club beneath, unless a white-label club has uploaded its own logo. */}
+        <OrgBrand brand={brand} size={LOGO_SIZE.md} tagline />
       </div>
 
       {/* The only band that scrolls. min-height:0 is what allows it to. */}
