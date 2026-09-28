@@ -82,6 +82,11 @@ export interface ClubEventRow {
    * because a sentence is copy and this is a state three screens branch on.
    */
   waiting: boolean;
+  /**
+   * Within `waiting`: the entry is with a person to approve, not in a queue for
+   * a place. Words only — every rule reads `waiting`.
+   */
+  awaiting: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
@@ -217,6 +222,14 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const waitingIn = new Set(
     mine.filter((p) => p.status === "waitlisted" || p.status === "pending").map((p) => p.eventId),
   );
+  /**
+   * AWAITING APPROVAL, within `waiting`. Every RULE treats the two alike — no
+   * card, not a spectator, not offered the form again — but the WORDS may not:
+   * a club that approves entries puts each one in front of a person with the
+   * field wide open, and those members were told "You're on the waiting list",
+   * a queue they were never in (walked 2026-09-28).
+   */
+  const awaitingIn = new Set(mine.filter((p) => p.status === "pending").map((p) => p.eventId));
 
   /**
    * THE MEMBER'S OWN CARDS STILL WAITING ON THEM — `openCardOf` has the rule.
@@ -320,11 +333,13 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // — the status line said "organizer" to a Scottish club (walked 2026-09-28)
     // while the button beside it, fed from the field below, said "organiser".
     const organizer = golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer;
+    const awaiting = waiting && awaitingIn.has(event.id);
 
     return {
       band,
-      // The reason, not just "closed" — see `bandLabelFor`.
-      bandLabel: bandLabelFor(band, status.state),
+      // The reason, not just "closed" — see `bandLabelFor`. The "waiting" band
+      // covers both kinds of applicant; its label says which.
+      bandLabel: awaiting ? "Awaiting approval" : bandLabelFor(band, status.state),
       when: whenOf(event.status),
       openCard: entered ? (openCardIn.get(event.id) ?? null) : null,
       /**
@@ -340,7 +355,11 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
        * Their own status is the one line on the card that is about them, so it
        * is its own field and the screen shows it whatever the band.
        */
-      yourStatus: waiting ? `You’re on the waiting list — the ${organizer} will confirm your place.` : "",
+      yourStatus: awaiting
+        ? `Your entry is with the ${organizer} to approve.`
+        : waiting
+          ? `You’re on the waiting list — the ${organizer} will confirm your place.`
+          : "",
       windowNote: entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
       progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
       placesNote:
@@ -377,6 +396,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       canEnter,
       entered,
       waiting,
+      awaiting,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
       organizer,
       canWithdraw:

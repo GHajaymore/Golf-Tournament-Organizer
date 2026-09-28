@@ -19,6 +19,12 @@ describe("withdrawing tells each person what they give up", () => {
     expect(w.keep).toBe("Stay on the list");
   });
 
+  it("somebody awaiting approval is in no queue and holds no place", () => {
+    const w = withdrawWords(true, true);
+    expect(`${w.consequence} ${w.keep} ${w.done}`).not.toMatch(/queue|waiting list|your place|my place/i);
+    expect(w.consequence).toMatch(/before it’s approved/);
+  });
+
   it("CONTROL: somebody in the field is still told their place goes to the next person", () => {
     const w = withdrawWords(false);
     expect(w.consequence).toMatch(/your place goes to the next person/);
@@ -31,6 +37,10 @@ describe("withdrawing tells each person what they give up", () => {
     const src = readSource("src/components/ClubEventsList.tsx");
     const uses = src.split("<WithdrawButton").slice(1).map((rest) => rest.slice(0, rest.indexOf("/>")));
     expect(uses.length).toBeGreaterThan(0);
-    for (const use of uses) expect(use).toContain("waiting=");
+    for (const use of uses) {
+      // A leading space, because "awaiting=" also contains "waiting=".
+      expect(use).toContain(" waiting=");
+      expect(use).toContain(" awaiting=");
+    }
   });
 });

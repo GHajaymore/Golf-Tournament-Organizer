@@ -170,6 +170,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #680 | A new club can start before its first tournament: add members and save settings; entry form in the club's words; labelled Members form (items 86–88) | live |
 | #681 | A new club can decide how money works before its first tournament (item 89) | live |
 | #682 | A club member with nothing published is told their club; /week's number headers no longer run together (items 90–91) | live |
+| #683 | The Events card tells a waiting-list member the truth about their place (items 92–93) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1083,6 +1084,14 @@ the wrong thing about where they were:
 93. **A full field's button said "Enter this tournament"** beside "Full — waiting list open".
     The reply after the tap was already honest ("You're on the waiting list…"); the label
     before it now says "Join the waiting list", on Events and on Today.
+94. **An entry awaiting approval was told it was on the waiting list.** A club that approves
+    entries puts each one in front of a person with the field wide open, and the player app
+    filed those members with the waiting list. Today, My card, Events and the switcher all said
+    "You're on the waiting list", a queue they were never in. Every rule still treats the two
+    alike (no card, not a spectator), but the words now say "Your entry is awaiting approval",
+    "Awaiting approval" and "Keep my entry". This was found by extending the one rule
+    `verify-player-states` asserts to the state it did not walk. The walk went red on the old
+    code on `/me` and `/me/card`, and green after.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"

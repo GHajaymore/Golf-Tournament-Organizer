@@ -297,7 +297,19 @@ export default async function PlayTodayPage() {
         </section>
       )}
 
-      {waiting && (
+      {/* Awaiting approval is a kind of waiting with different words — see
+          `awaitingIn` in club-events.ts. */}
+      {waiting && myRow?.awaiting && (
+        <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="card-title">Your entry is awaiting approval</span>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+            The {terms.organizer} approves each entry to this tournament, and yours is with them. There&rsquo;s
+            no card until it&rsquo;s approved — the board, the groups and the notices are all open to read.
+          </p>
+        </section>
+      )}
+
+      {waiting && !myRow?.awaiting && (
         <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>

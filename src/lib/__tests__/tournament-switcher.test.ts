@@ -25,7 +25,19 @@ describe("the tournament switcher", () => {
       note: "Watching · On now",
       watching: true,
       waiting: false,
+      awaiting: false,
     });
+  });
+
+  it("an entry awaiting approval is said as such, not as a waiting list (2026-09-28)", () => {
+    const s = switcherFor([row("vetted", "waiting", { waiting: true, awaiting: true })], "vetted", false);
+    expect(s.current?.awaiting).toBe(true);
+    expect(s.current?.waiting).toBe(true); // every RULE still treats it as waiting
+    expect(s.current?.note).toMatch(/^Awaiting approval/);
+    // CONTROL: a real waiting-list place keeps its words.
+    const q = switcherFor([row("am", "waiting", { waiting: true })], "am", false);
+    expect(q.current?.awaiting).toBe(false);
+    expect(q.current?.note).toMatch(/^Waiting list/);
   });
 
   it("does not call a member watching a tournament they are in", () => {
