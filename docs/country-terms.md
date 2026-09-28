@@ -80,8 +80,31 @@ Converted in this PR:
 Measured on the seeded club (country GB) by rendering `/group-games` as its secretary: blank
 setting reads "fourball", "us" reads "foursome", "uk" reads "fourball"; setting restored.
 
-Still to convert: the console's own organizer wording, tee sheet and draw screens ("group"
-words), and the landing (owned by the site session, which keeps its own swap table).
+Converted in the second PR:
+
+- `/me` (Today): the waiting-list line and "not on the tee sheet yet".
+- `EnterButton`'s reply ("The organiser will confirm…", "Sent to the organiser…"). The
+  events list carries the word PER ROW (`ClubEventRow.organizer`), because a member's list
+  can hold tournaments from clubs in two countries.
+- `MessagesClient`, on both the player's and the console's Messages: the announcements-only
+  line and the two message-settings sentences.
+- `DeniedNotice`, in both shells: "is for the tournament's organiser".
+
+A client component takes the word as a prop, and its default is the US word, so a caller
+that forgets it would fail quietly. The sweep test therefore also pins that every caller
+passes `organizer=`.
+
+Measured: a member of the seeded GB club sent to `/me?denied=dashboard` reads "organiser";
+with the club's setting on `us`, "organizer"; setting restored.
+
+Still to convert:
+
+- **The ROLE name "Organizer"** (`roles.ts`, `MobileTabBar`, `access-roles.ts`, the
+  Access screen, the player header's button). It is one label used in a dozen places, so
+  it changes everywhere at once or not at all; half-converted, a club would read both
+  spellings of its own role.
+- The console's remaining organizer wording, tee sheet and draw screens ("group" words).
+- The landing, which is owned by the site session and keeps its own swap table.
 
 ## Out of scope unless asked
 

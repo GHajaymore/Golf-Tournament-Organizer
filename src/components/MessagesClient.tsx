@@ -141,6 +141,7 @@ export function MessagesClient({
   isStaff,
   optedOut = false,
   smsOptIn = false,
+  organizer = "organizer",
 }: {
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
@@ -151,6 +152,8 @@ export function MessagesClient({
   optedOut?: boolean;
   /** This reader has agreed to receive texts. */
   smsOptIn?: boolean;
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
 }) {
   // The club's way of writing a date, from the same context its currency comes from.
   const { locale } = useFormatting();
@@ -343,7 +346,7 @@ export function MessagesClient({
         ) : (
           <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
             <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-              This one is announcements only — your organizer posts here.
+              This one is announcements only — your {organizer} posts here.
             </p>
           </div>
         )}
@@ -373,7 +376,7 @@ export function MessagesClient({
       </div>
 
       {showPrefs && (
-        <OptOutPanel optedOut={off} onChange={setOff} smsOptIn={sms} onSmsChange={setSms} />
+        <OptOutPanel optedOut={off} onChange={setOff} smsOptIn={sms} onSmsChange={setSms} organizer={organizer} />
       )}
 
       {composing && (
@@ -467,11 +470,13 @@ function OptOutPanel({
   onChange,
   smsOptIn,
   onSmsChange,
+  organizer,
 }: {
   optedOut: boolean;
   onChange: (v: boolean) => void;
   smsOptIn: boolean;
   onSmsChange: (v: boolean) => void;
+  organizer: string;
 }) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -523,7 +528,7 @@ function OptOutPanel({
       </label>
       <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
         <Icon name="info" style={{ marginRight: 5 }} />
-        Your organizer can still reach you. Tee times, delays and changes of venue go to the whole
+        Your {organizer} can still reach you. Tee times, delays and changes of venue go to the whole
         tournament or your flight, and this setting deliberately doesn&rsquo;t touch those — turning
         it on should never cost you your tee time.
       </p>
@@ -546,7 +551,7 @@ function OptOutPanel({
               Also text me tournament announcements
             </span>
             <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-              Only what your organizer sends to the whole tournament, your flight or your round —
+              Only what your {organizer} sends to the whole tournament, your flight or your round —
               never chat from your group, and never a direct message. Standard message and data
               rates from your carrier apply. Reply STOP to any text to turn this off.
             </span>

@@ -32,11 +32,14 @@ export function EnterButton({
   eventId,
   href,
   style,
+  organizer = "organizer",
 }: {
   eventId: string;
   /** The public form, kept as the way out when the one tap is refused. */
   href: string;
   style?: React.CSSProperties;
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
 }) {
   /**
    * NO `router.refresh()` HERE, deliberately.
@@ -66,8 +69,8 @@ export function EnterButton({
         {done === "confirmed"
           ? "You're in — see you there."
           : done === "waitlisted"
-            ? "You're on the waiting list. The organizer will confirm if a place opens."
-            : "Sent to the organizer to approve."}
+            ? `You're on the waiting list. The ${organizer} will confirm if a place opens.`
+            : `Sent to the ${organizer} to approve.`}
       </span>
     );
   }
