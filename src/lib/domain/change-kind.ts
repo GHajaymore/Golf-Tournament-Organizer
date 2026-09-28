@@ -34,7 +34,7 @@ const SCORE_ACTIONS = [
   "match.forfeit", "match.forfeit.undo",
 ];
 const ROUND_ACTIONS = ["round-closed", "cut-applied", "regenerate-flights"];
-const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings"];
+const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on"];
 
 export function changeKind(action: string): ChangeKind {
   const a = action.trim();

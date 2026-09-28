@@ -16,8 +16,14 @@ const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: stri
     desc: "Combines handicap and ranking to make each flight's total strength as even as possible — the most competitively balanced flights.",
   },
   {
+    key: "divisions",
+    label: "Handicap divisions",
+    icon: "ph ph-ranking",
+    desc: "Lowest handicaps in Flight A, the next band in Flight B, and so on — how a club divides a medal or Stableford field for prizes.",
+  },
+  {
     key: "handicap",
-    label: "By handicap",
+    label: "Spread by handicap",
     icon: "ph ph-chart-bar",
     desc: "Snake-drafts strictly by handicap, so every flight holds a comparable spread of low to high handicaps.",
   },
@@ -97,7 +103,7 @@ export function GroupingControls({
   const [error, setError] = useState("");
 
   const config = { mode, value: value || undefined };
-  const flightCount = flightCountFor(players.length, config);
+  const flightCount = flightCountFor(players.length, config, rule);
   // The one thing to fix before a draw is possible, or null. Rendered below
   // the button rather than hidden in a `title`.
   const block = drawReadiness({ fieldSize: players.length, locked });

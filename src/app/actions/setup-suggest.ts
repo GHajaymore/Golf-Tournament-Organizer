@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { basisFor } from "@/lib/domain/week-basis";
+import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -172,6 +173,7 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
   // already built something and then tries a description should not lose it.
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const from = (agg._max.position ?? -1) + 1;
+  const flightsBefore = await flightDefaultFor(eventId);
 
   await prisma.stage.createMany({
     data: checked.rounds.map((r, i) => ({
@@ -185,6 +187,7 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
       description: r.description,
     })),
   });
+  await followFlightDefault(eventId, flightsBefore);
 
   // Rounds made from a description are rounds like any other, and a
   // code-using tournament's rounds need codes. No-op when codes are off.

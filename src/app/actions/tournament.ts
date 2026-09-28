@@ -87,6 +87,7 @@ import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
+import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
@@ -723,6 +724,8 @@ export interface CsvImportResult {
   skippedDuplicates: number;
   skippedInvalid: number;
   error?: string;
+  /** True when a names-only list switched this tournament to Round Codes as well as email. */
+  codesTurnedOn?: boolean;
 }
 
 export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
@@ -772,15 +775,25 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
    * tournament using Round Codes is not asked for the column, because a
    * names-only membership list is exactly the file it will be handed.
    */
-  const needsEmail = entryNeedsEmail(settingsOf(event));
-  if (needsEmail && emailIdx === -1) {
-    return {
-      imported: 0,
-      skippedDuplicates: 0,
-      skippedInvalid: 0,
-      error: 'Couldn\'t find an "email" column in the header row — email is required so each player can sign in.',
-    };
-  }
+  let needsEmail = entryNeedsEmail(settingsOf(event));
+  /**
+   * A LIST WITH NO ADDRESSES AT ALL TURNS ROUND CODES ON, rather than being
+   * refused (Ajay, 2026-09-28, left to my recommendation: "Round Codes by
+   * default when the roster has no emails").
+   *
+   * A club's membership export is very often names and handicaps and nothing
+   * else, and the refusal — "email is required so each player can sign in" —
+   * sent the organizer off to collect sixty addresses before anybody could be
+   * entered. Round Codes exist for exactly that list. So an email-only
+   * tournament handed a names-only file keeps email sign-in AND gains codes
+   * ("both"), imports the list, and says so on the screen.
+   *
+   * Only for a file with NO address anywhere. A file where some rows have one
+   * is a list with gaps, and those rows are still refused one by one — the
+   * organizer meant email sign-in and has most of the addresses.
+   */
+  const noAddresses = emailIdx === -1 || table.rows.every((cols) => !cell(table, cols, "email").trim());
+  const codesTurnedOn = needsEmail && noAddresses;
   const phoneIdx = headerCols.indexOf("phone");
   // Same plan rule as every other way in. Refused at the header rather than
   // row by row: a file with no phone column at all would otherwise be read as
@@ -795,6 +808,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       error:
         'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every entrant. Add a phone column, or enter the field by hand.',
     };
+  }
+  // After every header refusal, so a file that is going to be turned away
+  // anyway does not change the tournament's sign-in on its way out.
+  if (codesTurnedOn) {
+    await prisma.event.update({ where: { id: eventId }, data: { playerAccess: "both" } });
+    await ensureRoundCodes(eventId);
+    await logAudit(eventId, "round-codes-on", "Round Codes turned on: the imported list has no email addresses");
+    needsEmail = false;
   }
   /**
    * De-duplicated on email where there is one, and on name where there is not.
@@ -918,7 +939,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   }
 
   await refresh();
-  return { imported, skippedDuplicates, skippedInvalid };
+  return { imported, skippedDuplicates, skippedInvalid, ...(codesTurnedOn ? { codesTurnedOn } : {}) };
 }
 
 export async function setInviteMessage(message: string) {
@@ -1185,7 +1206,7 @@ export async function applyManualCount(target: number, force = false): Promise<R
 
 /* ── Grouping ─────────────────────────────────────────────────────────── */
 
-const FORMATION_RULES = ["balanced", "handicap", "seeding", "random", "manual"];
+const FORMATION_RULES = ["balanced", "handicap", "divisions", "seeding", "random", "manual"];
 const FLIGHT_MODES = ["auto", "count", "perFlight"];
 
 export interface RegenResult {
@@ -1700,10 +1721,12 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
   const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } });
+  const flightsBefore = await flightDefaultFor(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { format: value, scoringBasis: basisFor(value, before?.scoringBasis) },
   });
+  await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };
 }
@@ -1965,6 +1988,7 @@ export async function addStage(
   const howMany = Math.min(MAX_ROUNDS_AT_ONCE, Math.max(1, Math.round(Number(opts.count) || 1)));
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
+  const flightsBefore = await flightDefaultFor(eventId);
   /**
    * WHAT THE LAST ROUND PLAYED, which is what a club does.
    *
@@ -2055,6 +2079,8 @@ export async function addStage(
     });
     if (i === 0) firstId = created.id;
   }
+  // A medal's field divides by handicap unless somebody has chosen otherwise.
+  await followFlightDefault(eventId, flightsBefore);
 
   // A new round of a code-using tournament needs a code, or it is a round
   // nobody without an account can enter. No-op when codes are off.
@@ -2090,7 +2116,9 @@ export async function removeStage(stageId: string, force = false) {
     }
   }
 
+  const flightsBefore = await flightDefaultFor(eventId);
   await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
+  await followFlightDefault(eventId, flightsBefore);
   await refresh();
   return { ok: true as const };
 }
@@ -3580,6 +3608,14 @@ export async function createEvent(
       capacity: 0, // open field by default
       status: "draft",
       shape,
+      /**
+       * ONE BRACKET, which is what a club knockout is (2026-09-28, left to my
+       * recommendation). The schema's "split" divides the qualifiers into a
+       * main draw and a consolation before anybody has played — right for a
+       * society's two-tier day, surprising as the default for a club's
+       * match-play championship. Changeable on Bracket until it is played.
+       */
+      bracketMode: "single",
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
       ...(templated ? templated.settings : {}),
@@ -3654,6 +3690,9 @@ export async function createEvent(
         scoringBasis: basisFor(r.format, r.scoringBasis),
       })),
     });
+    // A new event has no flights and the schema's rule — the default for no
+    // rounds — so a medal template starts dividing by handicap.
+    await followFlightDefault(event.id, "balanced");
 
     /**
      * AND THE EVENT'S SCORING IS SET FROM THE ROUNDS IT JUST MADE.
