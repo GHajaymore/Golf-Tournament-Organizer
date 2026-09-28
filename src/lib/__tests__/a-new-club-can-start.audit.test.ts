@@ -41,6 +41,7 @@ vi.mock("@/lib/email", () => ({ sendStaffInviteEmail: async () => {}, sendJoinRe
 const { addMember } = await import("@/app/actions/roster");
 const { saveOrganizationGolfTerms } = await import("@/app/actions/organization");
 const { organizationAccess } = await import("@/lib/services/org-access");
+const { setOrgMoneyMode } = await import("@/app/actions/money-setup");
 
 /** The mocked session, typed as the real one — only the fields the code reads are set. */
 const current = () => session as unknown as Parameters<typeof organizationAccess>[0];
@@ -110,11 +111,18 @@ describe("a club with no tournament yet", () => {
     expect(await prisma.member.count({ where: { organizationId: orgId, name: `${TAG} First Member` } })).toBe(1);
   });
 
+  it("its owner may decide how money works — step three of the checklist", async () => {
+    const res = await setOrgMoneyMode("split");
+    expect(res.ok, res.error).toBe(true);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).moneyMode).toBe("split");
+  });
+
   it("CONTROL: somebody who owns no club gets no club, and cannot add to one", async () => {
     as(nobody);
     expect(await organizationAccess(current())).toBeNull();
     await expect(addMember({ name: `${TAG} Sneaky` })).rejects.toThrow(/Organizer access required/);
     expect(await prisma.member.count({ where: { name: `${TAG} Sneaky` } })).toBe(0);
+    expect((await setOrgMoneyMode("none")).ok).toBe(false);
   });
 
   it("CONTROL: a plain member of the club is not handed it either", async () => {
@@ -123,5 +131,7 @@ describe("a club with no tournament yet", () => {
     // resolves to no club at all — not to this one with canEdit false.
     expect(await organizationAccess(current())).toBeNull();
     await expect(addMember({ name: `${TAG} Also Sneaky` })).rejects.toThrow(/Organizer access required/);
+    expect((await setOrgMoneyMode("none")).ok).toBe(false);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).moneyMode).not.toBe("none");
   });
 });

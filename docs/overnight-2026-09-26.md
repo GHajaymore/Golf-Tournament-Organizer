@@ -166,7 +166,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #676 | Landing refinement: readable phone-width crops, the phone hero, stacked comparison on phones (from the landing session) | live |
 | #677 | The landing's sign-in form clears the 44px touch minimum (item 82) | live |
 | #678 | A notice says when it was posted; a net board says its To par is net; a complete card asks to be certified (items 83–85) | live |
-| #679 | Landing polish: named comparison tabs, a formats gallery, facts-only copy (from the landing session) | merging |
+| #679 | Landing polish: named comparison tabs, a formats gallery, facts-only copy (from the landing session) | held: /faq overflowed at 320px (fixed), now reopened for Ajay's mobile rework |
+| #680 | A new club can start before its first tournament: add members and save settings; entry form in the club's words; labelled Members form (items 86–88) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1052,6 +1053,12 @@ the wrong thing about where they were:
 88. **The Members add form's labels weren't attached to its boxes**, so a screen reader heard
     eight unnamed fields on the first form every new club fills in. Each label is now tied to
     its field.
+89. **The third checklist step, "Decide how money works", refused the same new club.** It said
+    "An organizer sets how money is handled" to the owner it had just sent there, because the
+    club-default setter demanded an open tournament before asking whether this person runs the
+    club. It now asks only the club question (owner or admin), which #680 taught to work before
+    the first tournament. The same controls apply: a person who owns nothing and a plain member
+    are still refused, and the test goes red when the old tournament requirement is put back.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
