@@ -1206,6 +1206,21 @@ Resumed at Ajay's "keep going … make it error free and professional":
     cannot disagree and redraw every square. Checked in the browser: the seeded (GB) member's
     calendar reads M T W T F S S, with no console errors. A test proves every column is the
     same weekday under either start, and reverting the grid arithmetic turns it red.
+101. **A tournament cannot launch with a round its format cannot score** (Ajay, 2026-09-28:
+    "we need to warn or stop if golf course score card is incomplete"). Score entry already
+    refused a round with no card, but on the first tee. Launch now asks the same question at
+    setup, per round. A round that needs par and stroke index (anything but gross match play)
+    and has none stops the launch, with the round, the course and the fix named. So does a
+    round whose OWN venue has no card: falling back to the home course's card would score it
+    against the wrong pars. These never stop a launch: gross match play, a "players choose the
+    course" tournament, a round with no venue in a tournament with carded venues (scored per
+    match), an imported card nobody has checked (already a warning), missing distances and
+    unrated tees. The fact is REQUIRED on `LaunchFacts`, so the Launch action, the dashboard's
+    button and the setup guide all had to supply it. Rounds & formats shows the same sentence
+    while the tournament is being built. Checked in the browser on a throwaway club: the note
+    on Rounds & formats, and "Launch tournament" disabled on the dashboard with the reason.
+    Pinned by domain and audit tests with controls; the wrong-course fallback and the action
+    skipping the check were each mutated and watched go red.
 
     **Open for Ajay:** #679, the landing session's phone rework, is approved per the landing
     session. My permission check refused to merge it on an approval that came through another

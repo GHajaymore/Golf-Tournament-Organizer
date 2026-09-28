@@ -287,9 +287,14 @@ describe("the hand-off from setting up to running", () => {
      */
     const ready = flowOf({ ...finished, launched: false });
     expect(ready.launchBlocked).toBe(
-      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false }),
+      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [] }),
     );
     expect(ready.launchBlocked).toContain("no dates");
+  });
+
+  it("says the launch gate's card refusal too, so the rail cannot say 'take it live' over it", () => {
+    const dated = flowOf({ ...finished, dated: true, launched: false, missingCards: [{ label: "Round 1", course: "zz-Links" }] });
+    expect(dated.launchBlocked).toContain("Round 1 at zz-Links needs its course card");
   });
 
   it("says nothing is left once it has a date (control)", () => {

@@ -155,6 +155,13 @@ export interface SetupFacts {
    */
   playingRounds?: number;
   /**
+   * Rounds whose format needs a course card they do not have — the launch
+   * gate's own fact (`LaunchFacts.missingCards`). Optional here only because
+   * a SetupFacts is built in many places; `services/setup-flow.ts`, which
+   * builds the real one, passes it, and a test pins that.
+   */
+  missingCards?: readonly { label: string; course: string }[];
+  /**
    * The bracket is the tournament's first round, so the whole field is drawn
    * and there is nothing for flights to decide. See the `grouping` step.
    */
@@ -604,6 +611,7 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
           playingRounds: facts.playingRounds ?? facts.rounds.length,
           confirmed: facts.confirmed,
           dated: facts.dated,
+          missingCards: facts.missingCards ?? [],
         })
       : null,
   };
