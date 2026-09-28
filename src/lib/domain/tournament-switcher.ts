@@ -31,6 +31,8 @@ export interface SwitchableRow {
    * behaves exactly as before.
    */
   waiting?: boolean;
+  /** Within `waiting`: with a person to approve rather than in a queue. Words only. */
+  awaiting?: boolean;
   canView: boolean;
   /**
    * The organizer’s lifecycle word — "live" is how the switcher tells a
@@ -95,7 +97,7 @@ export interface SwitcherEntry {
 
 export interface Switcher {
   /** The tournament on screen, or null when the list does not hold it. */
-  current: (SwitcherEntry & { watching: boolean; waiting: boolean }) | null;
+  current: (SwitcherEntry & { watching: boolean; waiting: boolean; awaiting: boolean }) | null;
   /** Everywhere else worth going, in the events list's own order. */
   others: SwitcherEntry[];
 }
@@ -140,7 +142,15 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
   // were in it comes first — and "Waiting list" comes before "Watching",
   // because a member who applied is not a spectator and this line is the only
   // thing on the switcher that is about THEM.
-  const who = row.entered ? "You’re in" : row.waiting && !isStaff ? "Waiting list" : isStaff ? "" : "Watching";
+  const who = row.entered
+    ? "You’re in"
+    : row.waiting && !isStaff
+      ? row.awaiting
+        ? "Awaiting approval"
+        : "Waiting list"
+      : isStaff
+        ? ""
+        : "Watching";
   // A tournament the player is IN and that is live is the one they are
   // playing — said in those words, because a player entered in three needs to
   // know which one their card belongs to today.
@@ -182,6 +192,7 @@ export function switcherFor(rows: readonly SwitchableRow[], activeId: string | n
           note: noteOf({ ...active, openCard: null }, isStaff),
           watching: isWatching(active, isStaff),
           waiting: isWaiting(active, isStaff),
+          awaiting: isWaiting(active, isStaff) && !!active.awaiting,
         }
       : null,
     others,
