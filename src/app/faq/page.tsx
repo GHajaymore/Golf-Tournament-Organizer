@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
+import Link from "next/link";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
@@ -8,7 +9,7 @@ import { FAQ, FAQ_COUNT } from "@/lib/landing/faq";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FaqSearch } from "@/components/landing/FaqSearch";
-import { CONTACT_EMAIL, editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
+import { contactEmail, editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 
 export const metadata: Metadata = {
   // The root layout appends the product name with its title template.
@@ -39,7 +40,7 @@ export default async function FaqPage() {
     h.get("x-vercel-ip-country"),
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
-  const ctx = { prices: landingPrices(shown, overrides), email: CONTACT_EMAIL };
+  const ctx = { prices: landingPrices(shown, overrides), email: contactEmail };
 
   const page = (
     <div className="thq" lang={shown.locale}>
@@ -96,12 +97,25 @@ export default async function FaqPage() {
               </details>
             ))}
 
+            {/* No address until the domain receives mail (CONTACT_EMAIL_LIVE). */}
             <div className="fq-cta">
-              <div>
-                <h2>Still have a question?</h2>
-                <p>Send it to us and we&rsquo;ll answer it.</p>
-              </div>
-              <a className="btn btn-solid" href={`mailto:${CONTACT_EMAIL}`}>Email TourneyHQ</a>
+              {contactEmail ? (
+                <>
+                  <div>
+                    <h2>Still have a question?</h2>
+                    <p>Send it to us and we&rsquo;ll answer it.</p>
+                  </div>
+                  <a className="btn btn-solid" href={`mailto:${contactEmail}`}>Email TourneyHQ</a>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h2>The quickest answer is to try it.</h2>
+                    <p>Free for up to ten players, with no card and no setup fee.</p>
+                  </div>
+                  <Link className="btn btn-solid" href="/#signup">Start free</Link>
+                </>
+              )}
             </div>
           </div>
         </section>

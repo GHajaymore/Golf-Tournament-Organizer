@@ -494,7 +494,7 @@ __CMP_FRAMES__
      tokens are re-pointed for this panel only — never in globals.css. */
   --color-accent: var(--brass-ui); --color-accent-300: var(--brass-hi); --color-accent-400: var(--brass-hi); --color-accent-600: var(--brass);
   --color-accent-2: var(--brass); --color-accent-2-300: var(--brass-hi); --color-on-accent: var(--on-accent);
-  --color-text: var(--ink); --color-surface: var(--surface);
+  --color-text: var(--ink); --color-surface: var(--ground-2);
 }
 .thq .store-block { display: grid; gap: 12px; margin-top: 8px; }
 .thq .stores { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }

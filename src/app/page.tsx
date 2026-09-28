@@ -15,7 +15,7 @@ import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { ScreensToggle } from "@/components/landing/ScreensToggle";
 import {
-  CONTACT_EMAIL,
+  contactEmail,
   editionNote,
   icon,
   iconSprite,
@@ -106,7 +106,7 @@ export default async function LandingPage() {
   const prices = landingPrices(shown, overrides);
   const d = shown.shots;
   const cur = shown.currency.toLowerCase();
-  const ctx = { prices, email: CONTACT_EMAIL };
+  const ctx = { prices, email: contactEmail };
   const note = editionNote(local, overridden);
 
   const check = icon("check");
@@ -907,9 +907,18 @@ export default async function LandingPage() {
               <span className="ic">{icon("globe")}</span>
               <div>
                 <h3>Associations &amp; corporates</h3>
-                <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
+                {contactEmail ? (
+                  <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
+                ) : (
+                  <p>Running several clubs, or a corporate golf program? Start free today — a direct line for scoping larger setups is coming soon.</p>
+                )}
               </div>
-              <a className="btn btn-ghost" href={`mailto:${CONTACT_EMAIL}?subject=TourneyHQ%20for%20our%20organization`}>Talk to us</a>
+              {/* No address until the domain receives mail (CONTACT_EMAIL_LIVE). */}
+              {contactEmail ? (
+                <a className="btn btn-ghost" href={`mailto:${contactEmail}?subject=TourneyHQ%20for%20our%20organization`}>Talk to us</a>
+              ) : (
+                <a className="btn btn-ghost" href="#signup">Start free</a>
+              )}
             </div>
             <p className="metered">
               Text alerts, reading a photographed card and drafted commentary are built and not switched on for
@@ -940,7 +949,9 @@ export default async function LandingPage() {
                   </details>
                 );
               })}
-              <div className="faq-more"><small>Didn&rsquo;t find it? <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></small></div>
+              {contactEmail ? (
+                <div className="faq-more"><small>Didn&rsquo;t find it? <a href={`mailto:${contactEmail}`}>{contactEmail}</a></small></div>
+              ) : null}
             </div>
           </div>
         </section>

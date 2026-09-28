@@ -28,6 +28,22 @@ export const FLAG_MARK_STYLE = {
 /** The contact address, in the one place it is written. */
 export const CONTACT_EMAIL = "hello@tourneyhq.club";
 
+/**
+ * Whether mail to CONTACT_EMAIL actually arrives — and so whether the page may
+ * publish it.
+ *
+ * NOT YET (2026-09-27): tourneyhq.club has no MX record, so every
+ * @tourneyhq.club address bounces (TourneyHQv2 checked the zone and 8.8.8.8).
+ * Ajay chose to set the domain up in Microsoft 365 rather than use another
+ * address. Until that is done the page shows no address at all — a dead one
+ * is worse than none — and "Talk to us" leads to sign-up. Flip this to true
+ * once a test email to CONTACT_EMAIL has been received, and every link returns.
+ */
+export const CONTACT_EMAIL_LIVE = false;
+
+/** The address to show, or null while it cannot receive mail. */
+export const contactEmail: string | null = CONTACT_EMAIL_LIVE ? CONTACT_EMAIL : null;
+
 /** The page's one icon set, drawn once and referenced with <use>. */
 export function iconSprite() {
   const p = (d: string) => <path d={d} />;
@@ -151,7 +167,7 @@ export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
             <h4>Help</h4>
             <ul>
               <li><a href="/faq">FAQ</a></li>
-              <li><a href={`mailto:${CONTACT_EMAIL}`}>Contact</a></li>
+              {contactEmail ? <li><a href={`mailto:${contactEmail}`}>Contact</a></li> : null}
             </ul>
           </div>
           <div>

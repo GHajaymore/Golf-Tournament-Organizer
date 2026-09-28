@@ -20,8 +20,8 @@ import type { LandingPrices } from "./pricing";
 
 export interface FaqContext {
   prices: LandingPrices;
-  /** The address people write to. One constant, because it appears in three places. */
-  email: string;
+  /** The address people write to, or null while it cannot receive mail (see CONTACT_EMAIL_LIVE). */
+  email: string | null;
 }
 
 export interface FaqItem {
@@ -363,7 +363,12 @@ export const FAQ: FaqGroup[] = [
       {
         id: "several-clubs",
         q: "We run several clubs, or a corporate golf program.",
-        a: ({ email }) => <p>Tell us how you work — <a href={`mailto:${email}`}>{email}</a> — and we&rsquo;ll scope it with you.</p>,
+        a: ({ email }) =>
+          email ? (
+            <p>Tell us how you work — <a href={`mailto:${email}`}>{email}</a> — and we&rsquo;ll scope it with you.</p>
+          ) : (
+            <p>We&rsquo;ll scope it with you. Start free today — a direct line for scoping larger setups is coming soon.</p>
+          ),
       },
     ],
   },

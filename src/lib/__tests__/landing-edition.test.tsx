@@ -124,3 +124,15 @@ describe("the questions", () => {
     expect(html).not.toContain("$");
   });
 });
+
+describe("the contact address", () => {
+  it("is not published while its domain cannot receive mail", async () => {
+    const { CONTACT_EMAIL_LIVE, contactEmail } = await import("@/components/landing/chrome");
+    // tourneyhq.club has no MX yet (2026-09-27): a dead address is worse than none.
+    expect(CONTACT_EMAIL_LIVE ? contactEmail : null).toBe(contactEmail);
+    if (!CONTACT_EMAIL_LIVE) expect(contactEmail).toBeNull();
+    const prices = landingPrices(editionFor("US"), parsePricingOverrides(undefined));
+    const html = renderToStaticMarkup(<>{faqItem("several-clubs").a({ prices, email: contactEmail })}</>);
+    if (!CONTACT_EMAIL_LIVE) expect(html).not.toContain("mailto:");
+  });
+});
