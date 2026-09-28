@@ -172,6 +172,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #682 | A club member with nothing published is told their club; /week's number headers no longer run together (items 90–91) | live |
 | #683 | The Events card tells a waiting-list member the truth about their place (items 92–93) | live |
 | #684 | An entry awaiting approval is said as such, not as a waiting list (item 94) | live |
+| #685 | Recent changes says who approved an entry and who got a freed place (item 95) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1101,6 +1102,17 @@ the wrong thing about where they were:
     order chose. Declining an entry used to read "X was removed from the field", a field they
     were never in; it now says the entry was declined, or that they were taken off the waiting
     list.
+96. **A forfeit was filed under "Other" in Recent changes.** A new guard,
+    `every-change-has-a-heading.test.ts`, reads every action name the app writes to the record
+    (62 of them, across every writer) and requires each to resolve to a real heading. It found
+    `match.forfeit` and its undo unfiled; a conceded match is its result, so both are now
+    Scores & results. A writer added later is swept the day it is added.
+
+    Checked and fine after this batch: the player app at 320px on 11 tournaments × 8 routes
+    (88 screens) has no sideways scroll, and an injected over-wide element was caught, so the
+    check can fail. The member's own row on the player Board matches the organiser's
+    leaderboard on all five boards that list him: place, figure and to-par. Two consecutive
+    passes found nothing new, which is this run's stopping rule.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
