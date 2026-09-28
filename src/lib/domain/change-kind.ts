@@ -20,6 +20,9 @@ const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidega
 const SCORE_ACTIONS = [
   "score", "confirm", "confirm-batch", "dispute", "reopen", "match.clear", "clear-round-scores",
   "single-match", "third-place", "league-playoff-hole",
+  // A conceded match IS its result. Found filed under "Other" by
+  // `every-change-has-a-heading.test.ts`, 2026-09-28.
+  "match.forfeit", "match.forfeit.undo",
 ];
 const ROUND_ACTIONS = ["round-closed", "cut-applied", "regenerate-flights"];
 const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings"];
