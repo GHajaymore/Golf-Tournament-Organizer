@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
+import { basisFor } from "@/lib/domain/week-basis";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -179,7 +180,8 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
       type: r.type,
       format: r.format,
       holes: r.holes,
-      scoringBasis: r.scoringBasis,
+      // A Stableford round is net — `basisFor` (2026-09-28).
+      scoringBasis: basisFor(r.format, r.scoringBasis),
       description: r.description,
     })),
   });
