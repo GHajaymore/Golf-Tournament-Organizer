@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { PLANS, retentionNotice } from "@/lib/plans";
 import { HANDICAP_EXAMPLE } from "./example";
 import type { LandingPrices } from "./pricing";
@@ -113,6 +114,11 @@ export const FAQ: FaqGroup[] = [
         id: "app",
         q: "Do players need to download an app?",
         a: () => <p>No. Players open a link — or type the round&rsquo;s code — to see the board and enter scores, with nothing to install and no app store. It adds to the home screen if they want it, and their card keeps saving when the signal on the course doesn&rsquo;t.</p>,
+      },
+      {
+        id: "stores",
+        q: "Is there an iPhone or Android app?",
+        a: () => <p>Not in the App Store or Google Play today. It installs straight from the browser: add it to your home screen and it opens in its own window, with no browser bar, on iPhone and Android alike.</p>,
       },
       {
         id: "account",
@@ -341,6 +347,17 @@ export const FAQ: FaqGroup[] = [
         ),
       },
       {
+        id: "compare",
+        q: "How does TourneyHQ compare with other golf software?",
+        a: () => (
+          <p>
+            See the <Link href="/#compare">side-by-side on the home page</Link>: the club platforms Golf Genius and BlueGolf TM,
+            and the league and group apps Squabbit, Golf GameBook and LeagueGolfer. Every figure there is from each
+            company&rsquo;s own website, dated, including where the others go further.
+          </p>
+        ),
+      },
+      {
         id: "card",
         q: "Do I need a credit card?",
         a: () => <p>No card to start. Nothing is charged through the app — moving to a paid plan is arranged with us directly.</p>,
@@ -367,7 +384,7 @@ export const FAQ: FaqGroup[] = [
           email ? (
             <p>Tell us how you work — <a href={`mailto:${email}`}>{email}</a> — and we&rsquo;ll scope it with you.</p>
           ) : (
-            <p>We&rsquo;ll scope it with you. Start free today — a direct line for scoping larger setups is coming soon.</p>
+            <p>Each club runs on its own Club plan. Start free, and move each club up when it needs more.</p>
           ),
       },
     ],

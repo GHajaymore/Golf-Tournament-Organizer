@@ -11,6 +11,7 @@ import { inDialect } from "@/lib/landing/dialect";
 import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
 import { COMPARE_APPEARANCE, COMPARE_COLOURS, LANDING_CSS } from "@/lib/landing/styles";
+import { COMPARED_ON, ROW_LABELS, atAGlance, compareSets, ourCells } from "@/lib/landing/compare";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { ScreensToggle } from "@/components/landing/ScreensToggle";
@@ -43,6 +44,14 @@ const STORE_LINKS = {
   ios: process.env.TOURNEYHQ_IOS_URL ?? "",
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
+
+/** The formats gallery: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
+const FORMAT_BOARDS = [
+  ["fmt-champs", "Stroke play, gross", "36 holes, cut to the top 16 after round one", "A final public board ranked by gross strokes after two rounds."],
+  ["fmt-twilight", "Stableford, net", "Nine holes at 95% allowance, live", "A live public board ranked by Stableford points."],
+  ["fmt-fourball", "Pairs", "Net foursomes, in pairs, at 50% allowance", "A live pairs board: sides, their handicaps, holes played and gross, lowest net wins."],
+  ["fmt-matchplay", "Match play", "One knockout bracket, seeded from qualifying", "The bracket manager: quarterfinal matches with results such as 4&3 and 2&1."],
+] as const;
 
 /** The player app's tabs, shown in the "For the player" section: [capture, what it shows]. */
 const PLAYER_PHONES = [
@@ -114,6 +123,9 @@ export default async function LandingPage() {
   const d = shown.shots;
   const cur = shown.currency.toLowerCase();
   const ctx = { prices, email: contactEmail };
+  const sets = compareSets(prices);
+  const ours = ourCells(prices);
+  const glance = atAGlance();
   const note = editionNote(local, overridden);
 
   const check = icon("check");
@@ -169,8 +181,8 @@ export default async function LandingPage() {
               </div>
               <p className="lead">
                 The club championship, the Thursday league and the Saturday foursome — run from one place.
-                Every format scored to the book, the tee sheet drawn from who&rsquo;s in, the skins settled to
-                the cent, and a live leaderboard on every phone.
+                Sixteen formats, the tee sheet drawn from who&rsquo;s in, the skins worked out from the cards,
+                and a live leaderboard on every phone.
               </p>
               <div className="cta-row">
                 <a className="btn btn-solid btn-lg" href="#signup">Set up your first event {icon("arrow", "i i-sm arr")}</a>
@@ -224,7 +236,7 @@ export default async function LandingPage() {
         </section>
 
         {/* ═══════════ STATS ═══════════ */}
-        <div className="strip">
+        <div className="strip card-row">
           <div className="wrap">
             <div className="s"><b>16</b><span>formats on one leaderboard</span></div>
             <div className="s"><b>4</b><span>ways to decide who&rsquo;s in each week</span></div>
@@ -238,10 +250,9 @@ export default async function LandingPage() {
           <div className="wrap">
             <div className="sec-head reveal">
               <span className="kick">Features</span>
-              <h2 className="h2">Everything the day needs. <span className="muted">Nothing it doesn&rsquo;t.</span></h2>
+              <h2 className="h2">What it does on the day. <span className="muted">Shown, not described.</span></h2>
               <p className="lead">
-                More configurable, and it asks less. Most of what other tools make you set, TourneyHQ already
-                knows from the format, the event and the kind of outfit you are.
+                Every picture on this page is a real screen of the app, running a demo club with invented players.
               </p>
             </div>
             <div className="bento">
@@ -263,7 +274,7 @@ export default async function LandingPage() {
                 <h3 className="h3">No account. No install.</h3>
                 <p>Turn on round codes and a player types eight characters to reach their card.</p>
                 <figure className="shot-fig">
-                  {fixedShot("/landing/crop-round-code.webp", 700, 592, "The round code screen: 'Enter your score — type the round code you were given', with a code box reading ABCD-EFGH.", "shot")}
+                  {fixedShot("/landing/crop-round-code.webp", 700, 592, "The round code screen: 'Enter your score — type the round code you were given', with a code box reading ABCD-EFGH.", "shot from-phone")}
                   <figcaption><i />Real screen · round code</figcaption>
                 </figure>
               </div>
@@ -272,7 +283,7 @@ export default async function LandingPage() {
                 <h3 className="h3">The tee sheet, drawn for you</h3>
                 <p>Groups drawn by handicap, standings or sides — from who&rsquo;s in — then yours to adjust, publish and print.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-tee-sheet", variant: d, width: 700, height: 470, className: "shot", alt: "The published tee sheet: Group 1 off hole 1 at 08:10, each player's handicap and the group average." })}
+                  {shot({ name: "crop-tee-sheet", variant: d, width: 700, height: 470, className: "shot from-phone", alt: "The published tee sheet: Group 1 off hole 1 at 08:10, each player's handicap and the group average." })}
                   <figcaption><i />Real screen · tee sheet</figcaption>
                 </figure>
               </div>
@@ -285,7 +296,7 @@ export default async function LandingPage() {
                   the scores, not what you said. Where the phone&rsquo;s browser supports it.
                 </p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-say-card", variant: d, width: 700, height: 233, className: "shot", alt: "My card, full-card view: a 'Say the card' button — 'Read your 18 scores down the card' — and the app's note that the microphone is only on while you use the button and nothing said is recorded or kept." })}
+                  {shot({ name: "crop-say-card", variant: d, width: 700, height: 233, className: "shot from-phone", alt: "My card, full-card view: a 'Say the card' button — 'Read your 18 scores down the card' — and the app's note that the microphone is only on while you use the button and nothing said is recorded or kept." })}
                   <figcaption><i />Real screen · say the card</figcaption>
                 </figure>
               </div>
@@ -294,7 +305,7 @@ export default async function LandingPage() {
                 <h3 className="h3">One phone, the whole foursome</h3>
                 <p>One player can keep the card for the group on the published tee sheet. Each player still signs their own card, and a partner&rsquo;s own edits always win.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-group", variant: d, width: 700, height: 191, className: "shot", alt: "My card: the By hole / Full card switch, a Me / Group (2) switch, and the hole strip." })}
+                  {shot({ name: "crop-group", variant: d, width: 700, height: 191, className: "shot from-phone", alt: "My card: the By hole / Full card switch, a Me / Group (2) switch, and the hole strip." })}
                   <figcaption><i />Real screen · me or the group</figcaption>
                 </figure>
               </div>
@@ -303,7 +314,7 @@ export default async function LandingPage() {
                 <h3 className="h3">Cards the committee can stand behind</h3>
                 <p>Entered, certified, approved — and a disputed card is set aside and named, never quietly counted. A disputed result can&rsquo;t settle the money or finish the event.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-card-status", variant: d, width: 700, height: 538, className: "shot", alt: "A player's card with 11 of 18 holes in, its gross, to-par and net, and a Certify my card button — certify once all 18 holes are in." })}
+                  {shot({ name: "crop-card-status", variant: d, width: 700, height: 646, className: "shot from-phone", alt: "A player's full card: holes, yards, par, stroke index and their scores, 11 of 18 holes in, gross 49, net 42, saved, and a Certify my card button — certify once all 18 holes are in." })}
                   <figcaption><i />Real screen · card status</figcaption>
                 </figure>
               </div>
@@ -312,7 +323,7 @@ export default async function LandingPage() {
                 <h3 className="h3">It tells you why — and the way out</h3>
                 <p>When something can&rsquo;t be done, the screen says why and what to do next, right where you tried. Not a dead button, not a tooltip to hunt for.</p>
                 <figure className="shot-fig">
-                  {shot({ name: "crop-locked", variant: d, width: 700, height: 269, className: "shot", alt: "The bracket's arrangement, locked: 'Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on Tournament details to change it.'" })}
+                  {shot({ name: "crop-locked", variant: d, width: 700, height: 269, className: "shot from-phone", alt: "The bracket's arrangement, locked: 'Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on Tournament details to change it.'" })}
                   <figcaption><i />Real screen · the bracket, locked</figcaption>
                 </figure>
               </div>
@@ -330,6 +341,35 @@ export default async function LandingPage() {
             {FORMAT_NAMES.map((f) => <span key={`${f}-again`} aria-hidden="true">{f}</span>)}
           </div>
         </div>
+
+        {/* ═══════════ FORMATS ═══════════
+            Ajay, 2026-09-28: "show different formats". Each board is the app's
+            own public board (or, for match play, the bracket) captured on the
+            demo club, and each caption is the format exactly as the event is
+            set up in the seed — TourneyHQv2 read them off seed-club.mjs. */}
+        <section className="sec formats" id="formats">
+          <div className="wrap">
+            <div className="sec-head center reveal">
+              <span className="kick">Formats</span>
+              <h2 className="h2">One app, <span className="muted">every kind of competition.</span></h2>
+              <p className="lead">Four real boards from the demo club, each scored by its own format&rsquo;s rules.</p>
+            </div>
+            <div className="fmt-rack reveal">
+              {FORMAT_BOARDS.map(([name, title, caption, alt]) => (
+                <figure className="fmt" key={name}>
+                  <div className="phone">
+                    <div className="scr">{shot({ name, variant: d, width: 600, height: 1298, alt })}</div>
+                  </div>
+                  <figcaption>
+                    <b>{title}</b>
+                    <span>{caption}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="real-note"><i />Real screens · the public board a club publishes, and the bracket its organizer runs</p>
+          </div>
+        </section>
 
         {/* ═══════════ HOW IT WORKS ═══════════ */}
         <section className="sec" id="how">
@@ -377,7 +417,7 @@ export default async function LandingPage() {
                 <ul>
                   {tick("Countback on the last 9, 6, 3 and 1")}
                   {tick("Prizes by finishing order, and the honors board")}
-                  {tick("The money worked out to the cent — never touched")}
+                  {tick("The money worked out exactly — never touched")}
                 </ul>
               </div>
             </div>
@@ -477,7 +517,7 @@ export default async function LandingPage() {
           <div className="wrap reveal">
             <div className="sec-head" style={{ marginBottom: 0 }}>
               <span className="kick">For the player</span>
-              <h2 className="h2">Four tabs. <span className="muted">Nothing to learn.</span></h2>
+              <h2 className="h2">Four tabs. <span className="muted">Today, Board, My card, Events.</span></h2>
               <p className="lead">
                 A member opens their phone on the first tee, not a manual — their round, the board, their card
                 and what&rsquo;s coming up, in the club&rsquo;s own colors. A Money tab joins them when there&rsquo;s
@@ -544,7 +584,7 @@ export default async function LandingPage() {
             <div className="reveal">
               <div className="sec-head" style={{ marginBottom: 0 }}>
                 <span className="kick">The money</span>
-                <h2 className="h2">Works it out to the cent. <span className="muted">Never touches it.</span></h2>
+                <h2 className="h2">Works it out exactly. <span className="muted">Never touches it.</span></h2>
                 <p className="lead">
                   Skins and pots worked out from the cards as you play, shared costs added alongside, and the lot
                   reduced to the fewest handovers that square everybody. TourneyHQ keeps the record — it never
@@ -770,72 +810,91 @@ export default async function LandingPage() {
         </section>
 
         {/* ═══════════ HOW IT COMPARES ═══════════
-            Named, at Ajay's decision (2026-09-27): the club platforms, side by
-            side. EVERY competitor cell is from that company's own website,
-            checked 27 September 2026 — golfgenius.com/products/tm and
-            tm.bluegolf.com/pricing (+ /features) — and every TourneyHQ cell was
-            checked against the code by TourneyHQv2 the same day. Their prices
-            are theirs, in US dollars, never converted. No "cheaper" wording.
-            RE-CHECK EVERY CELL AND THE DATE before changing any of it, and have
-            the named comparison looked over by a lawyer before it ships. */}
+            Named at Ajay's decision: the club platforms (default tab) and the
+            league and group apps closest to TourneyHQ's features. Every cell
+            and its source live in lib/landing/compare.tsx — read the rules at
+            the top of that file before changing any of it. */}
         <section className="sec paper" id="compare">
           <div className="wrap">
             <div className="sec-head center reveal">
               <span className="kick">How it compares</span>
-              <h2 className="h2">Side by side <span className="muted">with the club platforms.</span></h2>
-              <p className="lead">TourneyHQ next to Golf Genius and BlueGolf TM, using what each company publishes on its own website.</p>
+              <h2 className="h2">Side by side <span className="muted">with the names you know.</span></h2>
+              <p className="lead">TourneyHQ next to the club platforms and the league and group apps closest to it — every figure from each company&rsquo;s own website.</p>
             </div>
             <div className="cmp-cards">
               <div className="cell reveal"><div className="big accent">{prices.zero}</div><h3 className="h3">A real free plan</h3><p>Up to {PLANS.free.limits.playersPerEvent} players, every format and the live board. It&rsquo;s free for good, not a trial.</p></div>
-              <div className="cell reveal"><div className="big">{prices.zero} setup</div><h3 className="h3">No setup fee</h3><p>Sign up and run your first event the same day. There&rsquo;s nothing to pay to get started.</p></div>
+              <div className="cell reveal"><div className="big">{prices.zero} setup</div><h3 className="h3">No setup fee</h3><p>There&rsquo;s nothing to pay to get started, on any plan.</p></div>
               <div className="cell reveal"><div className="big">Public</div><h3 className="h3">Prices on the page</h3><p>Every plan&rsquo;s price is on this page. You don&rsquo;t have to ask for a quote.</p></div>
-              <div className="cell reveal"><div className="big accent">0%</div><h3 className="h3">Never touches the money</h3><p>Every skin, sweep and split is recorded to the cent. TourneyHQ never collects or holds it.</p></div>
+              <div className="cell reveal"><div className="big accent">0%</div><h3 className="h3">Never touches the money</h3><p>Every skin, sweep and split is worked out and recorded. TourneyHQ never collects or holds it.</p></div>
             </div>
 
             <div className="vs reveal">
-              <div className="vs-scroll" tabIndex={0} role="region" aria-label="Side-by-side comparison">
-                <table className="vs-table">
-                  <caption className="sr">TourneyHQ, Golf Genius and BlueGolf TM, side by side</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col"><span className="sr">Feature</span></th>
-                      <th scope="col" className="hot">TourneyHQ</th>
-                      <th scope="col">Golf Genius</th>
-                      <th scope="col">BlueGolf TM</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vsRow("Built for", "Clubs, courses and resorts, plus societies, leagues and one-off outings", "Private clubs, public courses, resorts and associations", "Private clubs, public courses and resorts")}
-                    {vsRow(
-                      "Price",
-                      <>Free · {PLANS.society.name} <b>{prices.society.monthly}/mo</b> · {PLANS.club.name} <b>{prices.club.monthly}/mo</b></>,
-                      <>TM Club {prices.usd(1425)} a year<br />TM Premium {prices.usd(4275)} a year</>,
-                      <>{prices.usd(495)} to {prices.usd(2495)} a year</>,
-                    )}
-                    {vsRow("Setup fee", mk("yes", "None"), mk("no", <>{prices.usd(200)} or {prices.usd(500)}, one-time</>), mk("no", <>{prices.usd(99)} to {prices.usd(499)}, one-time</>))}
-                    {vsRow("A free plan", mk("yes", `Yes, up to ${PLANS.free.limits.playersPerEvent} players, one tournament at a time. It's not a trial.`), mk("na", "None listed"), mk("na", "None listed"))}
-                    {vsRow("Live scoring on players' phones", mk("yes", "On every plan, including Free"), mk("part", "TM Premium only"), mk("part", "Priced by the number of tournaments scored live (1, 10, 25 or all)"))}
-                    {vsRow("Score by voice", mk("yes", "Players tap the mic and say their score, or read out the whole card"), mk("na", "Not listed. Its AI assistant (beta) takes voice commands for staff tasks"), mk("na", "Not listed"))}
-                    {vsRow("Live leaderboard", mk("yes", "Yes, including a public board with no login, when you publish it"), mk("yes", "Yes; live TV leaderboards on Premium"), mk("yes", "Yes, online and on clubhouse TVs"))}
-                    {vsRow("Formats", mk("yes", "16 formats (15 scored automatically, plus ‘Other’ for a club’s own)"), mk("yes", "A full library of formats"), mk("yes", "All popular formats, plus a custom builder"))}
-                    {vsRow("Leagues and seasons", mk("yes", `Season standings across separate tournaments (${PLANS.society.name} plan and up)`), mk("yes", "League management and season-long competitions"), mk("yes", "Leagues with season standings"))}
-                    {vsRow("Handicap service link (WHS / GHIN)", mk("no", "No"), mk("yes", "Full integration with GHIN"), mk("yes", "Integrated with WHS, including score posting"))}
-                    {vsRow("Entry fees and payments", mk("part", "Records who has paid; never collects or holds the money"), mk("part", "Online registration and payment processing on TM Premium"), mk("part", "Registration with built-in payments, on every plan except the base Club plan"))}
-                    <tr className="vs-srcrow">
-                      <th scope="row">Source</th>
-                      <td className="hot" data-label="TourneyHQ">This page</td>
-                      <td data-label="Golf Genius"><a href="https://golfgenius.com/products/tm" rel="nofollow noopener noreferrer" target="_blank">golfgenius.com/products/tm</a></td>
-                      <td data-label="BlueGolf TM"><a href="https://tm.bluegolf.com/pricing" rel="nofollow noopener noreferrer" target="_blank">tm.bluegolf.com/pricing</a></td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="seg vs-tabs" role="radiogroup" aria-label="Compare TourneyHQ with">
+                {sets.map((set, i) => (
+                  <label className="tab" key={set.key}>
+                    <input className="sr" type="radio" name="vs-set" value={set.key} defaultChecked={i === 0} />
+                    {set.tab}
+                  </label>
+                ))}
               </div>
-              <p className="vs-hint" aria-hidden="true">Swipe to see all three →</p>
+              {sets.map((set) => (
+                <div className="vs-set" data-set={set.key} key={set.key}>
+                  <p className="vs-intro">{set.intro}</p>
+                  <div className="vs-scroll" tabIndex={0} role="region" aria-label={`TourneyHQ and ${set.tab.toLowerCase()}, side by side`}>
+                    <table className="vs-table" data-cols={set.products.length + 1}>
+                      <caption className="sr">TourneyHQ, {set.products.map((p) => p.name).join(" and ")}, side by side</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col"><span className="sr">Feature</span></th>
+                          <th scope="col" className="hot">TourneyHQ</th>
+                          {set.products.map((p) => <th scope="col" key={p.name}>{p.name}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ROW_LABELS.map((label, r) => (
+                          <tr key={label}>
+                            <th scope="row">{label}</th>
+                            <td className="hot" data-label="TourneyHQ">{ours[r]}</td>
+                            {set.products.map((p, c) => <td data-label={p.name} key={p.name}>{set.cells[r][c]}</td>)}
+                          </tr>
+                        ))}
+                        <tr className="vs-srcrow">
+                          <th scope="row">Source</th>
+                          <td className="hot" data-label="TourneyHQ">This page</td>
+                          {set.products.map((p) => (
+                            <td data-label={p.name} key={p.name}>
+                              <a href={p.source.href} rel="nofollow noopener noreferrer" target="_blank">{p.source.label}</a>
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="vs-hint" aria-hidden="true">Swipe to see all of them →</p>
+                </div>
+              ))}
+
+              {/* An honest summary — what sets TourneyHQ apart, and where the
+                  others go further. A comparison that only lists wins is one a
+                  club will not trust. */}
+              <div className="glance">
+                <div className="glance-col">
+                  <h3 className="h3">What sets TourneyHQ apart</h3>
+                  <ul>{glance.apart.map((t) => <li key={t}>{icon("check")}<span>{t}</span></li>)}</ul>
+                </div>
+                <div className="glance-col further">
+                  <h3 className="h3">Where others go further</h3>
+                  <ul>{glance.further.map((t) => <li key={t}><span className="dot" aria-hidden="true" /><span>{t}</span></li>)}</ul>
+                </div>
+              </div>
+
               <p className="vs-legal">
-                Golf Genius and BlueGolf information is from each company&rsquo;s own website as of 27 September 2026.
-                Their prices are for facilities in the US and Canada with up to 36 holes, before tax. Prices and
-                features change, so check with each provider. Golf Genius and BlueGolf are trademarks of their
-                respective owners. TourneyHQ is not affiliated with or endorsed by either company.
+                Competitor information is from each company&rsquo;s own website as of {COMPARED_ON}. Golf Genius and
+                BlueGolf prices are for facilities in the US and Canada with up to 36 holes; every competitor price is
+                in US dollars, before tax. &ldquo;Not listed&rdquo; means their website does not say so, not that the
+                feature is missing. Prices and features change, so check with each provider. Golf Genius, BlueGolf,
+                Squabbit, Golf GameBook and LeagueGolfer are trademarks of their respective owners. TourneyHQ is not
+                affiliated with or endorsed by any of them.
               </p>
             </div>
           </div>
@@ -926,7 +985,7 @@ export default async function LandingPage() {
                 {contactEmail ? (
                   <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
                 ) : (
-                  <p>Running several clubs, or a corporate golf program? Start free today — a direct line for scoping larger setups is coming soon.</p>
+                  <p>Running several clubs, or a corporate golf program? The Club plan runs each club; start free and move up when you need to.</p>
                 )}
               </div>
               {/* No address until the domain receives mail (CONTACT_EMAIL_LIVE). */}
@@ -979,7 +1038,7 @@ export default async function LandingPage() {
               <span className="anchor" id="signup" aria-hidden="true" />
               <span className="anchor" id="signin" aria-hidden="true" />
               <span className="eyebrow"><i />Free to start · no setup fee</span>
-              <h2 className="h1">Your next event, <span className="grad">sorted.</span></h2>
+              <h2 className="h1">Set up your <span className="grad">first event.</span></h2>
               <p className="lead">
                 A name is enough to start. No card — and with round codes on, your players don&rsquo;t need an
                 account. Organizers create an event here; players invited to one sign in with the same box.
@@ -1007,29 +1066,6 @@ export default async function LandingPage() {
 }
 
 
-
-/** One row of the comparison table: TourneyHQ first, then the two platforms. */
-function vsRow(label: string, ours: React.ReactNode, golfGenius: React.ReactNode, blueGolf: React.ReactNode) {
-  return (
-    <tr>
-      <th scope="row">{label}</th>
-      <td className="hot" data-label="TourneyHQ">{ours}</td>
-      <td data-label="Golf Genius">{golfGenius}</td>
-      <td data-label="BlueGolf TM">{blueGolf}</td>
-    </tr>
-  );
-}
-
-/** A cell's mark — yes, no, partly, or not listed — and its words. The mark is decoration; the words say it. */
-function mk(kind: "yes" | "no" | "part" | "na", text: React.ReactNode) {
-  const glyph = { yes: "✓", no: "✕", part: "◐", na: "—" }[kind];
-  return (
-    <>
-      <span className={`vs-mk ${kind}`} aria-hidden="true">{glyph}</span>
-      {text}
-    </>
-  );
-}
 
 /** An app-store button: "Coming soon" and inert until its listing exists, then a real link. */
 function storeButton(store: "ios" | "android", url: string) {

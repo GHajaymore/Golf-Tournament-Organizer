@@ -131,6 +131,16 @@ ${landingTokens("light", "    ")}
 .thq .nav-act { display: flex; gap: 8px; }
 .thq .nav-act .btn { font-size: 14px; padding: 0 16px; }
 @media (max-width: 960px) { .thq .nav-links { display: none; } }
+.thq .nav-menu { display: none; position: relative; }
+@media (max-width: 960px) { .thq .nav-menu { display: block; } }
+.thq .nav-menu > summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--wash); color: var(--ink); cursor: pointer; }
+.thq .nav-menu > summary::-webkit-details-marker { display: none; }
+.thq .nav-menu > summary .i { width: 20px; height: 20px; }
+.thq .nav-menu[open] > summary { background: var(--surface-3); }
+.thq .nav-menu .menu-panel { position: absolute; right: 0; top: calc(100% + 10px); min-width: 230px; display: grid; padding: 8px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface); box-shadow: var(--shadow-xl); z-index: 60; }
+.thq .nav-menu .menu-panel a { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 10px; font: 500 15px/1 var(--sans); color: var(--ink-soft); }
+.thq .nav-menu .menu-panel a:hover, .thq .nav-menu .menu-panel a[aria-current="page"] { background: var(--wash-2); color: var(--ink); }
+.thq .nav-menu .menu-panel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 @media (max-width: 420px) { .thq .nav-act .btn-ghost { display: none; } }
 @media (max-width: 360px) { .thq .nav-act .btn { padding: 0 12px; font-size: 13.5px; } .thq .nav-in { gap: 10px; } }
 
@@ -199,6 +209,29 @@ ${landingTokens("light", "    ")}
 @media (max-width: 600px) { .thq .strip .s { padding: 26px 16px; } .thq .strip .s:nth-child(odd) { padding-left: 0; } }
 @media (max-width: 360px) { .thq .strip .wrap { grid-template-columns: minmax(0, 1fr); } .thq .strip .s { border-left: 0 !important; padding-left: 0 !important; border-bottom: 1px solid var(--line); } .thq .strip .s:last-child { border-bottom: 0; } }
 
+/* ── the scorecard motif ──
+   Ajay, 2026-09-28: "make it unique". The signature is golf's own paper: the
+   stats strip reads as a row of a scorecard — a hole number over each cell,
+   each figure boxed in the app's scoreboard face (Oswald, the same tiles the
+   player's Today screen uses), and the one that matters circled, the way a
+   birdie is marked on a card. Colours come from the palette tokens only. */
+.thq { --card-font: var(--font-board), "Arial Narrow", system-ui, sans-serif; }
+.thq .strip.card-row .wrap { counter-reset: hole; }
+.thq .strip.card-row .s { counter-increment: hole; gap: 12px; align-content: start; }
+.thq .strip.card-row .s::before { content: "Hole " counter(hole); font: 600 11px/1 var(--card-font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.thq .strip.card-row b { justify-self: start; font: 600 clamp(30px, 3.2vw, 40px)/1 var(--card-font); letter-spacing: 0; padding: .14em .34em .16em; border: 1.5px solid var(--line-3); border-radius: 4px; min-width: 1.6em; text-align: center; font-variant-numeric: tabular-nums; }
+.thq .strip.card-row b.accent { border-color: currentColor; border-radius: 999px; padding-inline: .42em; box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 4.5px var(--accent-a45); }
+
+/* ── formats gallery: four real boards, each titled like a scorecard header ── */
+.thq .fmt-rack { display: grid; grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: center; gap: 28px; margin-top: 8px; }
+.thq .fmt { margin: 0; display: grid; gap: 16px; align-content: start; }
+.thq .fmt figcaption { display: grid; gap: 6px; text-align: center; }
+.thq .fmt figcaption b { font: 600 13px/1.2 var(--card-font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
+.thq .fmt figcaption span { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
+.thq .formats .real-note { text-align: center; margin-top: 28px; }
+@media (max-width: 960px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 220px)); row-gap: 40px; } }
+@media (max-width: 440px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; row-gap: 32px; } .thq .fmt figcaption span { font-size: 12.5px; } }
+
 /* ── formats ticker ── */
 .thq .ticker { overflow: hidden; position: relative; padding: 8px 0; }
 .thq .ticker::before, .thq .ticker::after { content: ""; position: absolute; top: 0; bottom: 0; width: 160px; z-index: 1; pointer-events: none; }
@@ -225,6 +258,12 @@ ${landingTokens("light", "    ")}
 .thq .shot { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); box-shadow: 0 1px 0 var(--wash), 0 22px 44px -22px rgba(0,0,0,.8); }
 .thq .cell .shot-fig .shot { max-height: 300px; object-fit: cover; object-position: top; }
 @media (max-width: 640px) { .thq .cell .shot-fig .shot { max-height: 240px; } }
+/* Every crop taken from a PHONE capture is shown at one width, so the app's
+   type reads at the same size in every card — a wide card must not blow a
+   phone crop up to twice the size of its neighbour's (Ajay, 2026-09-28: "this
+   section doesn't match with other sections"). They are whole crops, framed
+   to what the card says, so they are never cut short either. */
+.thq .cell .shot-fig .shot.from-phone { width: min(100%, 360px); max-height: none; }
 .thq .shot-fig figcaption { display: flex; align-items: center; gap: 7px; font: 500 12.5px/1.3 var(--mono); color: var(--ink-faint); }
 .thq .shot-fig figcaption i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--flag); }
 .thq .shot-fig.panel { margin: 0; }
@@ -360,7 +399,23 @@ __CMP_FRAMES__
 @media (max-width: 600px) { .thq .cmp-cards { grid-template-columns: minmax(0, 1fr); } }
 .thq .cmp-cards .cell { gap: 10px; }
 .thq .cmp-cards .big { font: 600 40px/1 var(--sans); letter-spacing: -.04em; margin-bottom: 6px; }
-.thq .vs { margin-top: 56px; }
+.thq .vs { margin-top: 56px; display: grid; justify-items: center; }
+.thq .vs > * { width: 100%; }
+.thq .vs .vs-tabs { width: auto; margin-bottom: 18px; }
+.thq .vs-set { display: none; }
+.thq .vs:has(input[name="vs-set"][value="club"]:checked) .vs-set[data-set="club"],
+.thq .vs:has(input[name="vs-set"][value="apps"]:checked) .vs-set[data-set="apps"] { display: block; animation: thq-fade .35s var(--ease); }
+.thq .vs-intro { text-align: center; color: var(--ink-soft); font-size: 15px; margin: 0 auto 18px; max-width: 620px; }
+.thq .vs-table[data-cols="4"] { min-width: 900px; }
+.thq .glance { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 28px; }
+@media (max-width: 800px) { .thq .glance { grid-template-columns: minmax(0, 1fr); } }
+.thq .glance-col { border: 1px solid var(--line-2); border-radius: var(--r-lg); padding: 24px; background: var(--surface); }
+.thq .glance-col.further { background: var(--bg-2); }
+.thq .glance-col h3 { margin-bottom: 14px; }
+.thq .glance-col ul { list-style: none; display: grid; gap: 11px; }
+.thq .glance-col li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+.thq .glance-col li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 2px; stroke-width: 2.2; }
+.thq .glance-col li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); margin: 8px 0 0 5px; }
 .thq .vs-scroll { overflow-x: auto; border: 1px solid var(--line-2); border-radius: 18px; background: var(--surface); -webkit-overflow-scrolling: touch; }
 .thq .vs-table { width: 100%; min-width: 720px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .thq .vs-table th, .thq .vs-table td { vertical-align: top; }

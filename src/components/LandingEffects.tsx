@@ -49,6 +49,14 @@ export function LandingEffects() {
     // captures, and dragging it moves where one gives way to the other. The
     // input is native, so it works by keyboard and screen reader; this only
     // turns its value into the position the stylesheet draws.
+    // The phone menu is a native <details>; jumping to a section from it should
+    // close it, or it sits open over the section the reader just asked for.
+    const menu = document.querySelector<HTMLDetailsElement>(".thq .nav-menu");
+    const closeMenu = (e: Event) => {
+      if (menu && (e.target as HTMLElement).closest("a")) menu.open = false;
+    };
+    menu?.addEventListener("click", closeMenu);
+
     const ranges = Array.from(document.querySelectorAll<HTMLInputElement>(".thq .cmp-range"));
     const onRange = (e: Event) => {
       const input = e.currentTarget as HTMLInputElement;
@@ -60,6 +68,7 @@ export function LandingEffects() {
       window.removeEventListener("scroll", onScroll);
       io?.disconnect();
       ranges.forEach((r) => r.removeEventListener("input", onRange));
+      menu?.removeEventListener("click", closeMenu);
     };
   }, []);
 
