@@ -160,7 +160,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #670 | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | merged |
 | #671 | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | merged |
 | #672 | A UK club's own role reads "Organiser" on every screen at once (item 79) | merged |
-| — | A second tap on a listening mic stops it, on every screen that has one (item 80) | pending |
+| #673 | A second tap on a listening mic stops it, on every screen that has one (item 80) | merged |
+| — | A US club's dates in US order everywhere; the tee sheet's group words follow the club (item 81) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -966,6 +967,30 @@ the wrong thing about where they were:
     The app's own note under each mic promises "only on while you use this button". All four
     now stop the recogniser, and a test sweeps every mic for it. Found in the same fact check
     as item 77.
+81. **A US club's league weeks were dated the British way.** Braid Hollow, set up as a US club
+    (locale en-US), read "Sun 20 Sep" across its league week, while its public board said
+    "Sep 27, 2026". The short date was hand-built day-first for every club; only the month
+    name followed the locale. It now follows the club's locale, "Sun, Sep 20" in the US and
+    "Sun 20 Sept" in Britain.
+
+    It also stopped being optional. Half the screens never passed the club's locale and fell
+    back to US, which was harmless only while the order ignored it. Fixing the order alone
+    would have turned every British club's dates American. So each screen now reads its own
+    club's locale:
+    - the week sheet;
+    - availability;
+    - the attendance report;
+    - the member calendar (per tournament);
+    - the clash notice;
+    - the rounds screen;
+    - season dates;
+    - the tee sheet.
+
+    The old tests had pinned the defect. Found by the landing session capturing the US
+    edition. In the same PR, the tee sheet's "7 foursomes · 1 twosome" reads "fourballs ·
+    two-ball" for a UK club. The casual-round notice now says "your foursome" to a US club,
+    where it had said "fourball" to everyone. The Season plan's blurb names "league, society
+    or golf group".
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
@@ -1161,5 +1186,14 @@ named. The deferred-register entry for this class is closed.
     until billing exists, and it is a switch on `/owner`, not a code change. The question is
     when to turn it on. Probably with billing, since a club refused a place it cannot pay to
     unlock is the worse experience.
+13. **The contact address on the live landing page cannot receive mail.** The "Let's talk" card
+    links to hello@tourneyhq.club, and tourneyhq.club has no MX record (checked 2026-09-27
+    against GoDaddy's zone and 8.8.8.8), so anything sent there bounces. The Microsoft 365 step
+    that would have added support@tourneyhq.club was planned and never finished. The same
+    address is the push-notification contact (`VAPID_SUBJECT` fallback), which is harmless. The
+    landing session will not publish any @tourneyhq.club address until you choose:
+    - finish the M365 step so tourneyhq.club receives mail;
+    - use an ajailabs.app address you read;
+    - or drop the mailto and send that card to sign-up instead.
 
 ## Log
