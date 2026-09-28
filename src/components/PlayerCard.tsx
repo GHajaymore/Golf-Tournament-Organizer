@@ -12,7 +12,7 @@ import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
-import { startDictation } from "@/lib/dictation";
+import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseStrokesTranscript } from "@/lib/domain/stroke";
 import { ConfirmButton } from "./ConfirmButton";
 import { GroupScoring, type GroupPartner } from "./GroupScoring";
@@ -167,6 +167,11 @@ export function PlayerCard({
   const [who, setWho] = useState<"me" | "group">("me");
   /** The full card's microphone, and what it heard. See the button below. */
   const [listening, setListening] = useState(false);
+  // The recogniser in flight, so a second tap on "Listening…" actually stops
+  // it. It only reset the button, and the mic went on listening until it gave
+  // up by itself — a button that says it has stopped while the phone still
+  // hears the player.
+  const dictationRef = useRef<Dictation | null>(null);
   const [listenHint, setListenHint] = useState("");
   const [error, setError] = useState("");
   /** What the server holds, when it refused our write for disagreeing. */
@@ -461,6 +466,8 @@ export function PlayerCard({
    */
   const toggleListen = () => {
     if (listening) {
+      dictationRef.current?.stop();
+      dictationRef.current = null;
       setListening(false);
       return;
     }
@@ -500,6 +507,7 @@ export function PlayerCard({
       setListenHint("This browser can’t do voice entry — type the scores instead.");
       return;
     }
+    dictationRef.current = started;
     setListening(true);
   };
 
