@@ -45,9 +45,21 @@ export function LandingEffects() {
       els.forEach((e) => io!.observe(e));
     }
 
+    // The comparison viewer's divider: the range input sits over the two
+    // captures, and dragging it moves where one gives way to the other. The
+    // input is native, so it works by keyboard and screen reader; this only
+    // turns its value into the position the stylesheet draws.
+    const ranges = Array.from(document.querySelectorAll<HTMLInputElement>(".thq .cmp-range"));
+    const onRange = (e: Event) => {
+      const input = e.currentTarget as HTMLInputElement;
+      input.parentElement?.style.setProperty("--pos", `${input.value}%`);
+    };
+    ranges.forEach((r) => r.addEventListener("input", onRange));
+
     return () => {
       window.removeEventListener("scroll", onScroll);
       io?.disconnect();
+      ranges.forEach((r) => r.removeEventListener("input", onRange));
     };
   }, []);
 

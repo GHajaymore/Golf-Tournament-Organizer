@@ -80,6 +80,10 @@ const TEXT: Array<[token: string, on: string[], floor: number]> = [
   ["brass", PAGE_BG, 4.5],
   ["flag", PAGE_BG, 4.5],
   ["under", PAGE_BG, 4.5],
+  // The comparison table's ✕ and ◐ (added 2026-09-27) — glyphs a reader has
+  // to see, so text's bar.
+  ["danger", PAGE_BG, 4.5],
+  ["warn", PAGE_BG, 4.5],
   ["paper-ink", BAND_BG, 12],
   ["paper-soft", BAND_BG, 4.5],
   ["paper-accent", BAND_BG, 4.5],
@@ -181,7 +185,18 @@ describe("identity and meaning are different colours", () => {
  * be exposed to a solver that is free to move a colour.
  */
 describe("the page cannot hand-write a colour", () => {
-  const PAGE = readSource("src/app/page.tsx");
+  // The front door is these files since the 2026-09-27 redesign: the stylesheet
+  // moved to lib/landing/styles.ts so /faq shares it, and the nav and footer to
+  // components/landing/chrome.tsx. Each is read, so a colour cannot escape this
+  // rule by moving one file over.
+  const PAGE = [
+    "src/app/page.tsx",
+    "src/app/faq/page.tsx",
+    "src/lib/landing/styles.ts",
+    "src/components/landing/chrome.tsx",
+  ]
+    .map((f) => readSource(f))
+    .join("\n");
 
   /**
    * The wordmark's orange and green, on each ground. These four values are
@@ -215,4 +230,57 @@ describe("the page cannot hand-write a colour", () => {
       `page.tsx writes ${strays.join(", ")} by hand; landing colours come from landing-palette.ts`,
     ).toEqual([]);
   });
+});
+
+/**
+ * THE SIGN-IN FORM, RE-POINTED.
+ *
+ * The form on the front door is the app's own LoginPanel, drawn with the app's
+ * --color-* tokens. On the landing those are re-pointed at the landing's
+ * palette, inside `.thq .authpanel` only (lib/landing/styles.ts), so its
+ * controls wear the page's teal rather than the app's orange.
+ *
+ * Which means the app's own contrast tests no longer see these pairs — they
+ * grade the app's tokens, and on this page the tokens are the landing's. A
+ * pair nobody grades is the one that drifts unnoticed (TourneyHQv2's
+ * condition for keeping the re-point, 2026-09-27), so each pair the form
+ * actually draws is graded here, on both grounds, through the mapping as it
+ * is written in the stylesheet.
+ */
+describe("the sign-in form, re-pointed at the landing palette, can be read", async () => {
+  const { LANDING_CSS } = await import("@/lib/landing/styles");
+  const block = LANDING_CSS.slice(LANDING_CSS.indexOf(".thq .authpanel {"));
+  const mapping: Record<string, string> = {};
+  for (const m of block.slice(0, block.indexOf("}")).matchAll(/--(color-[a-z0-9-]+)\s*:\s*var\(--([a-z0-9-]+)\)/g)) {
+    mapping[m[1]] = m[2];
+  }
+
+  it("found the re-pointing at all", () => {
+    for (const t of ["color-accent", "color-accent-2", "color-on-accent", "color-text", "color-surface", "color-accent-400"]) {
+      expect(mapping[t], `--${t} is no longer re-pointed on the landing`).toBeTruthy();
+    }
+  });
+
+  // [foreground, background, floor, what it is]
+  const PAIRS: Array<[string, string, number, string]> = [
+    ["color-text", "color-surface", 4.5, "labels and body text on the form's card"],
+    ["color-accent", "color-surface", 4.5, "links and the focus ring on the card"],
+    ["color-accent-2", "color-surface", 4.5, "the secondary links (Forgot?, the round-code prompt)"],
+    ["color-on-accent", "color-accent", 4.5, "the Log in / Sign up button's label"],
+    ["color-on-accent", "color-accent-400", 4.5, "the button's label on hover"],
+  ];
+
+  for (const ground of ["dark", "light"] as const) {
+    for (const [fg, bg, floor, what] of PAIRS) {
+      it(`${ground}: ${what} clear ${floor}:1`, () => {
+        const t = tokens(ground);
+        const f = t[mapping[fg]];
+        const b = t[mapping[bg]];
+        expect(f, `--${fg} → --${mapping[fg]} was not emitted`).toBeTruthy();
+        expect(b, `--${bg} → --${mapping[bg]} was not emitted`).toBeTruthy();
+        const ratio = contrastRatio(opaque(f), opaque(b));
+        expect(Number(ratio.toFixed(2)), `${f} on ${b} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(floor);
+      });
+    }
+  }
 });

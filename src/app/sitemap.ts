@@ -24,6 +24,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      // Every question the product answers, from the same module as the
+      // landing's eight (added 2026-09-27).
+      url: siteUrl("/faq"),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
       url: siteUrl("/privacy"),
       changeFrequency: "yearly",
       priority: 0.3,
