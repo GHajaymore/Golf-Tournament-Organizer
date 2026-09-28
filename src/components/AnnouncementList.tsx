@@ -49,7 +49,9 @@ export function AnnouncementList({ items }: { items: AnnouncementItem[] }) {
                 plain wrapping item a long title dropped whole to the next line
                 and left the megaphone alone on the row above it. */}
             <span style={{ fontWeight: 600, fontSize: 14, flex: "1 1 0", minWidth: 0 }}>
-              {a.title}
+              {/* The title in an element of its own: its text stays one node,
+                  which is how a reader (and player-round.spec) finds it. */}
+              <span>{a.title}</span>
               {a.createdAt && (
                 <span className="text-muted" style={{ fontSize: 12, fontWeight: 400 }}>
                   {" "}
