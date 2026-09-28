@@ -1177,7 +1177,35 @@ Resumed at Ajay's "keep going … make it error free and professional":
     yards. It cannot be fixed by relabelling from the club's country, because a card from the
     course catalogue may be in yards whatever the club. It needs a unit stored per course (set
     on import or entry), or per club. Not built; it is a data-model choice, and every scoring
-    figure is unaffected, since nothing scores off distance.
+    figure is unaffected, since nothing scores off distance. **DECIDED 2026-09-28: per course,
+    built as item 99.**
+
+99. **A course's distances are labelled in its own unit (decision 15).** `Course.distanceUnit`
+    stores "yards" or "metres", or "" for not set. An unset course follows one rule
+    (`resolveDistanceUnit`): a card from the course directory is yards, and anything else
+    follows the club's country (metres for Australia, New Zealand, South Africa, continental
+    Europe, Korea and China). The migration adds the column with an empty default, so no
+    existing row is rewritten, and the numbers are never converted. The unit rides on the
+    resolved card from the same round → tournament → venue walk that chose it, so every
+    screen agrees:
+    - the player's card, the Round Code card and score entry label the row "Metres" and the
+      hole "150 m";
+    - forms for a NEW course say the club's unit, even inside another course's score entry;
+    - the course library has a Yards | Metres switch that saves with the card.
+
+    `saveClubCourse` validates the unit at the boundary, since it is a public endpoint. It
+    was checked in the browser: the member's card read "m" with the club set to Germany and
+    "yds" back in Britain, and the library's switch relabelled the row. Pinned by domain,
+    render and audit tests; the unguarded save, the hard-coded "Yards" and the directory
+    rule were each mutated and watched go red.
+100. **A club's calendar week starts where its members' diaries do** (reported by the landing
+    session). Both calendars drew every month Sunday-first, so a British club read S M T W T F
+    S. The grid and its headings now take the club's week start from one fixed table: Monday
+    for Britain, Ireland, Europe, Australia and China; Sunday for the US, Canada, India, Japan
+    and Korea. It is a table, not `Intl` week data, so the server's HTML and the browser
+    cannot disagree and redraw every square. Checked in the browser: the seeded (GB) member's
+    calendar reads M T W T F S S, with no console errors. A test proves every column is the
+    same weekday under either start, and reverting the grid arithmetic turns it red.
 
     **Open for Ajay:** #679, the landing session's phone rework, is approved per the landing
     session. My permission check refused to merge it on an approval that came through another

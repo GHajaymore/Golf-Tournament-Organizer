@@ -7,11 +7,13 @@ import {
   buildClubCalendar,
   toneFor,
   TONE_LABEL,
-  WEEKDAY_INITIALS,
   type Commitment,
   type CommitmentDay,
   type DayTone,
 } from "@/lib/domain/club-calendar";
+import { weekdayInitials } from "@/lib/domain/month-grid";
+import { firstDayOfWeek } from "@/lib/domain/locale";
+import { useFormatting } from "./CurrencyProvider";
 
 /**
  * A member's whole club, on days.
@@ -84,7 +86,11 @@ export function ClubCalendar({
     [commitments, byStage, explicitByStage],
   );
 
-  const { months, undated } = useMemo(() => buildClubCalendar(live, today), [live, today]);
+  // The club's week — Monday first in Britain, Sunday first in the US. The
+  // grid and the headings above it take the SAME start, or they misalign.
+  const { locale } = useFormatting();
+  const weekStart = firstDayOfWeek(locale);
+  const { months, undated } = useMemo(() => buildClubCalendar(live, today, weekStart), [live, today, weekStart]);
 
   const legendTones = useMemo(() => {
     const present = new Set<DayTone>();
@@ -126,7 +132,7 @@ export function ClubCalendar({
           {/* The weekday strip is aria-hidden decoration — every square carries
               its own date in its accessible name. */}
           <div aria-hidden className="cal-week">
-            {WEEKDAY_INITIALS.map((d, i) => (
+            {weekdayInitials(weekStart).map((d, i) => (
               <div
                 key={`${d}${i}`}
                 className="text-muted"

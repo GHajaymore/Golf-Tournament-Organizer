@@ -3,6 +3,7 @@ import { toParText } from "@/lib/domain";
 import { cardHeading } from "@/lib/domain/card-heading";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
+import { useDistanceWords } from "./DistanceUnitProvider";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -330,6 +331,8 @@ export function ScorecardTable({
   const net = gross - Math.round(received);
   const hasShots = shotsPerHole.some((n) => (n ?? 0) > 0);
   const hasYards = yards.some((y) => typeof y === "number" && y > 0);
+  // Yards or metres — the course's own unit, from the nearest provider.
+  const distance = useDistanceWords();
   const hasSi = strokeIndex.some((n) => typeof n === "number" && n > 0);
 
   /**
@@ -470,7 +473,7 @@ export function ScorecardTable({
           <tbody>
             {hasYards && (
               <tr className="sc-ref">
-                <td>Yards</td>
+                <td>{distance.row}</td>
                 {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
                 {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
                 {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}

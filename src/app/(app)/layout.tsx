@@ -28,6 +28,8 @@ export const metadata = { robots: NOINDEX };
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { OrgProfileProvider } from "@/components/OrgProfileProvider";
+import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
+import { clubDistanceUnit } from "@/lib/domain/distance-unit";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
@@ -206,6 +208,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       country={orgCountryNow || undefined}
       noun={orgNounNow || undefined}
     >
+    {/* The CLUB's distance unit, from the same country — what a form for a
+        new course says. A screen showing one course's card overrides it with
+        that course's own unit. See DistanceUnitProvider. */}
+    <DistanceUnitProvider unit={clubDistanceUnit(orgCountryNow)} club={clubDistanceUnit(orgCountryNow)}>
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date
@@ -264,6 +270,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         organizer={organizer}
       />
     </div>
+    </DistanceUnitProvider>
     </OrgProfileProvider>
     </CurrencyProvider>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
+import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
 import {
@@ -100,6 +101,10 @@ export function VenuePrompt({
   const [pastePar, setPastePar] = useState("");
   const [pasteSi, setPasteSi] = useState("");
   const [pasteYards, setPasteYards] = useState("");
+  // A NEW venue is saved without a unit, which resolves to the club's — so it
+  // is labelled in the club's unit, not the round's (this sits inside the
+  // round's score entry). See DistanceUnitProvider.
+  const distance = useClubDistanceWords();
   const [pars, setPars] = useState<string[]>(BLANK);
   const [yards, setYards] = useState<string[]>(BLANK);
   const [si, setSi] = useState<string[]>(BLANK);
@@ -411,7 +416,7 @@ export function VenuePrompt({
             <label>Paste the card, a row at a time</label>
             <input className="input" value={pastePar} onChange={(e) => setPastePar(e.target.value)} placeholder="Par   4 5 3 4 4 4 3 4 5  36  …" />
             <input className="input" style={{ marginTop: 6 }} value={pasteSi} onChange={(e) => setPasteSi(e.target.value)} placeholder="S.I.  7 3 11 1 15 5 17 9 13 …" />
-            <input className="input" style={{ marginTop: 6 }} value={pasteYards} onChange={(e) => setPasteYards(e.target.value)} placeholder="Yards (optional)" />
+            <input className="input" style={{ marginTop: 6 }} value={pasteYards} onChange={(e) => setPasteYards(e.target.value)} placeholder={`${distance.row} (optional)`} />
             <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={applyPaste}>
               <Icon name="clipboard" /> Read these rows
             </button>
@@ -423,7 +428,7 @@ export function VenuePrompt({
 
           {grid("Par", pars, setPars, "front nine, then back")}
           {grid("Stroke index", si, setSi, "1–18, each once")}
-          {grid("Yards", yards, setYards, "optional")}
+          {grid(distance.row, yards, setYards, "optional")}
         </>
       )}
 

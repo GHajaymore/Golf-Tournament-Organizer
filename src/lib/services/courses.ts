@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { parseHoleArray } from "../courses";
+import { resolveDistanceUnit, type DistanceUnit } from "../domain/distance-unit";
 
 /**
  * EVERY COURSE THIS TOURNAMENT MAY BE PLAYED ON — its linked venues AND its
@@ -53,6 +54,8 @@ export interface ClubCourse {
   verifiedBy: string;
   /** Where an imported card came from, so it can be re-checked. */
   sourceUrl: string;
+  /** What its distances are in, resolved — see domain/distance-unit.ts. */
+  distanceUnit: DistanceUnit;
   /** The sets of tees it is played from, with their ratings. */
   tees: ClubTee[];
 }
@@ -112,7 +115,11 @@ export async function clubCourses(
         organizationId: Array.isArray(organizationId) ? { in: organizationId } : organizationId,
       },
       orderBy: { name: "asc" },
-      include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
+      include: {
+        tees: { orderBy: [{ position: "asc" }, { name: "asc" }] },
+        // The owning club's country, for a course that has not set its unit.
+        organization: { select: { country: true } },
+      },
     }),
     prisma.eventCourse.findMany({ where: { eventId }, select: { courseId: true } }),
   ]);
@@ -138,6 +145,7 @@ export async function clubCourses(
     verified: c.verifiedAt !== null,
     verifiedBy: c.verifiedBy,
     sourceUrl: c.sourceUrl,
+    distanceUnit: resolveDistanceUnit({ stored: c.distanceUnit, sourceUrl: c.sourceUrl, country: c.organization.country }),
     // Ratings are what turn a Handicap Index into the strokes a player
     // actually receives here, so they travel with the course rather than
     // living on a separate screen nobody finds.
@@ -158,7 +166,14 @@ export async function clubCourses(
 export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
   const links = await prisma.eventCourse.findMany({
     where: { eventId },
-    include: { course: { include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } } } },
+    include: {
+      course: {
+        include: {
+          tees: { orderBy: [{ position: "asc" }, { name: "asc" }] },
+          organization: { select: { country: true } },
+        },
+      },
+    },
   });
   return links
     .map((l) => ({
@@ -169,6 +184,11 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       verified: l.course.verifiedAt !== null,
       verifiedBy: l.course.verifiedBy,
       sourceUrl: l.course.sourceUrl,
+      distanceUnit: resolveDistanceUnit({
+        stored: l.course.distanceUnit,
+        sourceUrl: l.course.sourceUrl,
+        country: l.course.organization.country,
+      }),
       pars: parseHoleArray(l.course.pars) ?? DEFAULT_PARS,
       hasCard:
         parseHoleArray(l.course.pars) !== null && parseHoleArray(l.course.strokeIndex) !== null,

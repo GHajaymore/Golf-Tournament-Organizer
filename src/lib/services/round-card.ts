@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { resolveCourse, hasCourseData } from "../courses";
 import { courseForRound, applyNine, cleanNine } from "./course-resolution";
 import type { EventState } from "./tournament";
+import { resolveDistanceUnit, type DistanceUnit } from "../domain/distance-unit";
 
 /**
  * The course card ONE ROUND is played on, narrowed to the nine actually
@@ -31,5 +32,27 @@ export async function roundCardFor(
   const resolved = courseForRound(venue, state.event);
   const known = !!resolved || hasCourseData(state.event);
   const card = resolved ? applyNine(resolved, cleanNine(stage?.nine), holes) : resolveCourse(state.event);
-  return { venue, known, card };
+  const unit = await distanceUnitFor(resolved, state.event.organizationId);
+  return { venue, known, card, unit };
+}
+
+/**
+ * What a resolved card's distances are in — its course row's own unit, else
+ * the rule in domain/distance-unit.ts, reading the club's country.
+ *
+ * Takes the RESOLVED card, which carries the chosen row's unit and provenance,
+ * so every screen asks the walk that already chose the card rather than walking
+ * round → tournament → venue a second time. `null` (no card) answers for the
+ * club.
+ */
+export async function distanceUnitFor(
+  resolved: { distanceUnit?: string; sourceUrl?: string } | null | undefined,
+  organizationId: string,
+): Promise<DistanceUnit> {
+  const club = await prisma.organization.findUnique({ where: { id: organizationId }, select: { country: true } });
+  return resolveDistanceUnit({
+    stored: resolved?.distanceUnit,
+    sourceUrl: resolved?.sourceUrl,
+    country: club?.country,
+  });
 }

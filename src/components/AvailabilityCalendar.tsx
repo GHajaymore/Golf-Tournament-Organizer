@@ -5,11 +5,13 @@ import {
   buildAvailabilityCalendar,
   toneOf,
   TONE_LABEL,
-  WEEKDAY_INITIALS,
   type CalendarDay,
   type CalendarRound,
   type DayTone,
 } from "@/lib/domain/availability-calendar";
+import { weekdayInitials } from "@/lib/domain/month-grid";
+import { firstDayOfWeek } from "@/lib/domain/locale";
+import { useFormatting } from "./CurrencyProvider";
 
 /**
  * The season on days.
@@ -89,9 +91,13 @@ export function AvailabilityCalendar({
   pending: boolean;
   onAnswer: (stageId: string, status: "in" | "out") => void;
 }) {
+  // The club's week — Monday first in Britain, Sunday first in the US. The
+  // grid and the headings above it take the SAME start, or they misalign.
+  const { locale } = useFormatting();
+  const weekStart = firstDayOfWeek(locale);
   const { months, undated } = useMemo(
-    () => buildAvailabilityCalendar(rounds, today),
-    [rounds, today],
+    () => buildAvailabilityCalendar(rounds, today, weekStart),
+    [rounds, today, weekStart],
   );
 
   /**
@@ -149,7 +155,7 @@ export function AvailabilityCalendar({
               accessible name — and a `row` of nothing but hidden cells is an
               empty row to anything reading the structure. */}
           <div aria-hidden className="cal-week">
-            {WEEKDAY_INITIALS.map((d, i) => (
+            {weekdayInitials(weekStart).map((d, i) => (
               <div
                 key={`${d}${i}`}
                 className="text-muted"

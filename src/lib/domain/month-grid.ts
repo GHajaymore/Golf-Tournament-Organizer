@@ -27,6 +27,15 @@ const MONTHS = [
 /** Sunday first, the way a US club prints its calendar. */
 export const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
 
+/**
+ * The column headings for a week starting on `weekStart` (0 Sunday, 1 Monday)
+ * — see `firstDayOfWeek` in locale.ts. The grid below must be built with the
+ * SAME start, or the headings sit over the wrong days.
+ */
+export function weekdayInitials(weekStart: 0 | 1 = 0): string[] {
+  return [...WEEKDAY_INITIALS.slice(weekStart), ...WEEKDAY_INITIALS.slice(0, weekStart)];
+}
+
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** The parts of an ISO day, or null when it isn't one. */
@@ -77,7 +86,7 @@ export interface GridMonth {
  * to do with a commitment nobody has dated; it is not the grid's business, and
  * a grid that throws would take a whole screen down over one bad string.
  */
-export function monthGrids(isoDates: readonly string[], todayIso: string): GridMonth[] {
+export function monthGrids(isoDates: readonly string[], todayIso: string, weekStart: 0 | 1 = 0): GridMonth[] {
   const stamps: number[] = [];
   for (const iso of isoDates) {
     const parts = partsOf(iso);
@@ -98,11 +107,11 @@ export function monthGrids(isoDates: readonly string[], todayIso: string): GridM
     const firstOfMonth = new Date(Date.UTC(year, month, 1));
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-    // Back up to the Sunday on or before the 1st, then run whole weeks until
-    // the month is covered. The grid is rectangular by construction rather
-    // than by the renderer padding it.
+    // Back up to the week's first day (Sunday or Monday — `weekStart`) on or
+    // before the 1st, then run whole weeks until the month is covered. The
+    // grid is rectangular by construction rather than by the renderer padding it.
     const start = new Date(firstOfMonth);
-    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+    start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() - weekStart + 7) % 7));
 
     const weeks: GridDay[][] = [];
     const day = new Date(start);
