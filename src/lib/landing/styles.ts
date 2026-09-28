@@ -593,6 +593,7 @@ __CMP_FRAMES__
 .thq .fq-body { padding: 40px 0 96px; }
 .thq .fq-body .faq { display: block; }
 .thq details.fq-group { border-top: 1px solid var(--line); scroll-margin-top: 140px; }
+.thq .fq-body details.q { scroll-margin-top: 150px; }
 .thq details.fq-group:first-child { border-top: 0; }
 .thq .fq-head { list-style: none; display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 18px 4px; cursor: pointer; }
 .thq .fq-head::-webkit-details-marker { display: none; }
@@ -636,8 +637,8 @@ __CMP_FRAMES__
 .thq .store > span { display: grid; gap: 3px; }
 .thq .store small { font: 500 11px/1 var(--sans); color: color-mix(in srgb, white 72%, transparent); letter-spacing: .01em; }
 .thq .store b { font: 600 17px/1 var(--sans); letter-spacing: -.02em; }
-.thq .store[aria-disabled="true"] { cursor: default; opacity: .78; }
 .thq a.store:hover { border-color: var(--ink); }
+.thq a.store.soon { opacity: .85; }
 .thq .stores-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; max-width: 460px; margin: 0 auto; }
 
 /* ── footer ── */

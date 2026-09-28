@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
 import { PLANS, retentionNotice, retentionSummary } from "@/lib/plans";
@@ -34,9 +35,11 @@ import { fixedShot, shot, shotSrc } from "@/components/landing/shots";
 export const metadata = { alternates: { canonical: "/" } };
 
 /**
- * The app-store listings, when they exist. Empty today, so the buttons read
- * "Coming soon" and link nowhere; set a URL in the environment and that button
- * becomes a real link. Swap in Apple's and Google's official badge artwork at
+ * The app-store listings, when they exist. Empty today, so each button reads
+ * "Coming soon" and — never a dead control (Ajay, 2026-09-28: "I don't want
+ * anyone to click on it when it does nothing") — opens the FAQ answer on
+ * installing it from the browser now. Set a URL in the environment and that
+ * button links to the listing instead. Swap in Apple's and Google's official badge artwork at
  * the same moment — both companies allow their badges only on a link to a live
  * listing.
  */
@@ -1055,7 +1058,10 @@ export default async function LandingPage() {
                   {storeButton("ios", STORE_LINKS.ios)}
                   {storeButton("android", STORE_LINKS.android)}
                 </div>
-                <p className="stores-note">Until then it installs straight from the browser — add it to your home screen and it opens like an app.</p>
+                <p className="stores-note">
+                  Until then it installs straight from the browser on iPhone and Android — add it to your home screen
+                  and it opens in its own window, like an app.
+                </p>
               </div>
             </div>
           </div>
@@ -1071,7 +1077,11 @@ export default async function LandingPage() {
 
 
 
-/** An app-store button: "Coming soon" and inert until its listing exists, then a real link. */
+/**
+ * An app-store button. With a live listing it links there; until then it reads
+ * "Coming soon" and opens the FAQ answer on installing from the browser today,
+ * so a tap always goes somewhere true.
+ */
 function storeButton(store: "ios" | "android", url: string) {
   const live = Boolean(url);
   const [lead, name, ic] =
@@ -1087,7 +1097,7 @@ function storeButton(store: "ios" | "android", url: string) {
   return live ? (
     <a className="store" href={url} rel="noopener">{inner}</a>
   ) : (
-    <span className="store" aria-disabled="true">{inner}</span>
+    <Link className="store soon" href="/faq#q-stores" aria-label={`${name} — coming soon. How to install it from your browser today`}>{inner}</Link>
   );
 }
 
