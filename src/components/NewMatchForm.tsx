@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createMatch } from "@/app/actions/match-setup";
 import { CoursePicker, type CourseOption } from "@/components/CoursePicker";
@@ -145,6 +145,16 @@ export function NewMatchForm({
    * intent win, which is the only thing that can be correct here.
    */
   const closeTimer = useRef<number | null>(null);
+  /**
+   * The partner box is ready to type into — WITHOUT scrolling the page to it.
+   * `autoFocus` scrolled it into view on load, so the screen opened past its
+   * own header at every viewport: the TourneyHQ lockup and the page heading
+   * were off-screen on arrival (measured in the 2026-09-27 logo audit).
+   */
+  const partnerInput = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    partnerInput.current?.focus({ preventScroll: true });
+  }, []);
 
   const openSuggestions = (i: number) => {
     if (closeTimer.current !== null) {
@@ -566,7 +576,7 @@ export function NewMatchForm({
                   if (e.key === "Enter") submit();
                 }}
                 placeholder={i === 0 ? "You" : members.length ? "Search members, or type a name" : "Playing partner"}
-                autoFocus={i === 1}
+                ref={i === 1 ? partnerInput : undefined}
                 autoComplete="off"
                 role="combobox"
                 aria-expanded={openRow === i}

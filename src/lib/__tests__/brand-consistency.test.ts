@@ -151,6 +151,39 @@ describe("the wordmark is written once too", () => {
     expect(read("src/components/OrgBrand.tsx"), "OrgBrand builds its own pair again").toContain("<Lockup");
   });
 
+  it("keeps the wordmark readable on the light ground, without touching the flag", async () => {
+    /**
+     * Ajay, 2026-09-27: deeper orange for the wordmark ONLY on a light ground.
+     * The dark-ground stops measured 1.8, 2.3 and 3.1:1 on #f4f2ee. Computed
+     * here against the real grounds rather than quoted, and the dark stops are
+     * checked unchanged so the fix cannot dim the dark mode it did not touch.
+     */
+    const { LIGHT_GROUND, DARK_GROUND } = await import("../themes");
+    const css = read("src/app/globals.css");
+    const hex = (name: string) => new RegExp(`--thq-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)?.[1] ?? "";
+    const lum = (h: string) => {
+      const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a: string, b: string) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    for (const stop of ["word-light-1", "word-light-2", "word-light-3"]) {
+      expect(hex(stop), `--thq-${stop} is not declared`).toMatch(/^#/);
+      expect(ratio(hex(stop), LIGHT_GROUND.bg), `--thq-${stop} on the light ground`).toBeGreaterThanOrEqual(3.5);
+    }
+    for (const stop of ["orange-light", "flag", "orange-deep"]) {
+      expect(ratio(hex(stop), DARK_GROUND.bg), `--thq-${stop} on the dark ground`).toBeGreaterThanOrEqual(5);
+    }
+    // Wired through light-dark() in the wordmark, and the flag keeps one colour.
+    const mark = css.slice(css.indexOf(".brand-mark {"), css.indexOf("}", css.indexOf(".brand-mark {")));
+    expect(mark).toContain("light-dark(var(--thq-word-light-1), var(--thq-orange-light))");
+    expect(read("src/components/Logo.tsx"), "the flag follows the ground now").not.toContain("word-light");
+    // And the landing declares its light scheme, or it would draw the dark stops on card stock.
+    expect(read("src/app/page.tsx")).toMatch(/prefers-color-scheme: light\) \{\s*\.thq \{[^}]*color-scheme: light/);
+  });
+
   it("sizes the mark so it stands the full height of the wordmark", async () => {
     // The flat mark's artwork spans 22.2 of its 32 units (y 4.9 to 27.1).
     // At a box equal to the wordmark's size it stood ~0.69 of it.

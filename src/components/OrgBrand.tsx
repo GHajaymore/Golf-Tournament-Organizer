@@ -137,14 +137,31 @@ export function OrgBrand({
               />
             )}
             <span
-              style={{
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "var(--color-text-muted)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              style={
+                tagline
+                  ? {
+                      // Where there is room (the placements that ask for the
+                      // tagline), a real club's name gets two lines rather than
+                      // "Braid Hollow Men's & L…" — measured in the 2026-09-27
+                      // logo audit. The phone header keeps one: a second line
+                      // there is a line of the round.
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                    }
+                  : {
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }
+              }
             >
               {brand.name}
             </span>

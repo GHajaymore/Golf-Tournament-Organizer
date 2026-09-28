@@ -215,6 +215,11 @@ const LANDING_CSS = `
 }
 @media (prefers-color-scheme: light) {
   .thq {
+    /* Declares the scheme it switches to, so the wordmark's light-dark()
+       stops (globals.css .brand-mark) follow this page into daylight. The
+       html element says "dark" for the app's sake; without this the landing
+       drew the dark-ground orange on card stock. */
+    color-scheme: light;
     /* The same page in daylight rather than a different design: card stock
        instead of lacquer.
 
