@@ -245,13 +245,19 @@ export interface StartSlot {
   half?: "A" | "B";
 }
 
-/** Add `mins` to an "HH:MM" clock time, returning "H:MM AM/PM". */
-export function addMinutes(clock: string, mins: number): string {
+/**
+ * Add `mins` to an "HH:MM" clock time, returning it the way the club writes a
+ * time: "8:10 AM" on the 12-hour clock, "08:10" on the 24-hour one — see
+ * `usesTwentyFourHourClock`. The result is STORED on the sheet, so it is
+ * written in the club's form here rather than converted on every screen.
+ */
+export function addMinutes(clock: string, mins: number, hour24 = false): string {
   const m = /^(\d{1,2}):(\d{2})$/.exec(clock.trim());
   const base = m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 8 * 60;
   const t = (((base + mins) % (24 * 60)) + 24 * 60) % (24 * 60);
   let h = Math.floor(t / 60);
   const mm = String(t % 60).padStart(2, "0");
+  if (hour24) return `${String(h).padStart(2, "0")}:${mm}`;
   const ap = h < 12 ? "AM" : "PM";
   h = h % 12 || 12;
   return `${h}:${mm} ${ap}`;
@@ -274,11 +280,12 @@ export function addMinutes(clock: string, mins: number): string {
 export function startSlots(
   groups: Group[],
   style: StartStyle,
-  opts: { firstTee?: string; interval?: number; holes?: number } = {},
+  opts: { firstTee?: string; interval?: number; holes?: number; hour24?: boolean } = {},
 ): StartSlot[] {
   const firstTee = opts.firstTee ?? "08:00";
   const interval = Math.max(1, opts.interval ?? 10);
   const holes = holesPlayed(opts.holes);
+  const clock = (mins: number) => addMinutes(firstTee, mins, opts.hour24 ?? false);
 
   if (style === "shotgun") {
     return groups.map((g, i) => {
@@ -286,7 +293,7 @@ export function startSlots(
       const wave = Math.floor(i / holes);
       return {
         groupId: g.id,
-        time: addMinutes(firstTee, 0),
+        time: clock(0),
         startHole,
         ...(groups.length > holes ? { half: (wave === 0 ? "A" : "B") as "A" | "B" } : {}),
       };
@@ -299,14 +306,14 @@ export function startSlots(
     const secondTee = holes === 9 ? 5 : 10;
     return groups.map((g, i) => ({
       groupId: g.id,
-      time: addMinutes(firstTee, Math.floor(i / 2) * interval),
+      time: clock(Math.floor(i / 2) * interval),
       startHole: i % 2 === 0 ? 1 : secondTee,
     }));
   }
 
   return groups.map((g, i) => ({
     groupId: g.id,
-    time: addMinutes(firstTee, i * interval),
+    time: clock(i * interval),
     startHole: 1,
   }));
 }
