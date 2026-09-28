@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
+import { basisFor } from "@/lib/domain/week-basis";
 import { revalidatePath } from "next/cache";
 import { personalOrganizationFor, organizationIdsForPlayer, settingsForNewEvent } from "@/lib/services/organization";
 import { syncPlayerAccount } from "@/lib/services/player-access";
@@ -322,7 +323,8 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       format: plan.format,
       holes: plan.holes,
       nine: plan.nine,
-      scoringBasis: plan.scoringBasis,
+      // A Stableford round is net — `basisFor` (2026-09-28).
+      scoringBasis: basisFor(plan.format, plan.scoringBasis),
       courseId: plan.courseId,
       /**
        * The round's code, issued with the round rather than later.

@@ -1,4 +1,4 @@
-import { isStablefordRound } from "./domain/week-basis";
+import { isStablefordFormat, isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, seededFromQualifiers, lookupStageType } from "@/lib/stage-types";
 
@@ -256,8 +256,11 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
      * halves: what wins, and whether they get their shots.
      */
     const stableford = isStablefordRound(input.scoringBasis, input.format);
-    const allocation =
-      input.scoringBasis === "gross" ? "gross" : input.scoringBasis === "both" ? "gross and net" : "net";
+    // A Stableford FORMAT is always played off handicap (2026-09-28) — a row
+    // stored "gross" before `basisFor` existed was scored net all along.
+    const allocation = isStablefordFormat(input.format)
+      ? "net"
+      : input.scoringBasis === "gross" ? "gross" : input.scoringBasis === "both" ? "gross and net" : "net";
     out.push({
       label: "Scoring",
       value: stableford

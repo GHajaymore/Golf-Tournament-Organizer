@@ -1404,6 +1404,19 @@ named. The deferred-register entry for this class is closed.
      because their points were always net). That is a write to live events, so it's your call.
    - **Until then:** the Rounds screen can say "Gross scoring" on a Stableford round that is
      scored off handicap. That's a wrong label, but it doesn't change anyone's result.
+
+   **DECIDED 2026-09-28: "go with what other professional clubs would do." BUILT.** Clubs play
+   Stableford off handicap; a scratch competition is run as stroke play. So a Stableford round
+   is always net:
+   - **Every write of a round's basis goes through `basisFor`** (`week-basis.ts`). That covers
+     adding a round, changing its format, the basis control, cloning, templates, a described
+     setup and the match planner. A source sweep names each writer, and has a control.
+   - **Rounds & formats no longer offers Gross for Stableford.** In its place it says "Off
+     handicap", and names Stroke Play for a scratch competition.
+   - **No stored round is rewritten, and no result moves.** Points were always counted off
+     handicap, so a row still stored "gross" is scored exactly as before. Rounds & formats and
+     the member's rules sheet ("Stableford (net)") no longer call it gross. The production
+     count is no longer needed.
 10. **The public board and the player's Board still show only the last round.** Your answer of
     26 September ("add a round picker") was built on the console leaderboard (item 49). But the
     finished Festival of Formats' public board, the link a club sends its members, still opens
