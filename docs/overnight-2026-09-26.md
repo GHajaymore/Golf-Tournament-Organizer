@@ -174,6 +174,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #684 | An entry awaiting approval is said as such, not as a waiting list (item 94) | live |
 | #685 | Recent changes says who approved an entry and who got a freed place (item 95) | live |
 | #686 | Every action written to the record has a heading; a forfeit is a result (item 96) | live |
+| #687 | Sign-in addresses land on the sign-in panel; branded 404 and error pages (item 97) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1132,6 +1133,26 @@ Resumed at Ajay's "keep going … make it error free and professional":
       the brand and a way on. The 404 still answers with status 404. The error page offers
       "Try again" and quotes the error's reference, never its message, which is server detail
       and could name a person. A test turns red if the message is ever printed.
+
+    Then three class sweeps, each with a planted-defect control, all clean:
+    - **Copy:** 145 organiser and member screens were scanned for a space before punctuation,
+      doubled full stops, unfilled `{{ }}`, a literal undefined/NaN/null, a leftover TODO,
+      empty brackets and doubled words. Nothing found. A planted sentence tripped four of
+      the checks.
+    - **Accessibility basics:** 116 screens at 393px were checked for images without alt text,
+      buttons or links with no accessible name, duplicate element ids and a missing page
+      language. Nothing real. The three candidates were controls inside a closed `<details>`,
+      where `innerText` is empty; their `textContent` names them ("Add tees", the tournament
+      switcher rows, "under Rules of Golf 22").
+    - **Public pages at 320px:** the five public boards, three entry forms, the front page,
+      /faq, /play and /privacy. No sideways scroll, and exactly one `<h1>` each.
+
+    Three consecutive clean passes: stopped here.
+
+    **Open for Ajay:** #679, the landing session's phone rework, is approved per the landing
+    session. My permission check refused to merge it on an approval that came through another
+    session rather than from you. It is frozen at `05187716` and waiting on your word or your
+    click.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
