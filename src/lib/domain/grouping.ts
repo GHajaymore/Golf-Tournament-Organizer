@@ -1,5 +1,6 @@
 // Flight formation. Each rule pursues a genuinely different objective, so
-// Balanced / By handicap / By seeding / Random / Manual produce distinct flights.
+// Balanced / Handicap divisions / Spread by handicap / By seeding / Random /
+// Manual produce distinct flights.
 
 import type { FormationRule, Group, Player } from "./types";
 
@@ -27,11 +28,23 @@ export interface FlightConfig {
  * nobody can play in. This is that same rule, applied where the field is first
  * drawn rather than only where it is redrawn.
  */
-export function flightCountFor(playerCount: number, config: FlightConfig = { mode: "auto" }): number {
+export function flightCountFor(
+  playerCount: number,
+  config: FlightConfig = { mode: "auto" },
+  rule?: FormationRule,
+): number {
   if (playerCount <= 0) return 0;
 
   let requested: number;
-  if (config.mode === "count" && config.value) {
+  if (rule === "divisions" && config.mode === "auto") {
+    /**
+     * DIVISIONS ARE PRIZE BANDS, NOT PLAYING GROUPS. "About four a flight" is
+     * right for a round robin, where a flight is who you play; a medal
+     * divided by handicap splits the field for prizes, and a club runs one,
+     * two or three of those — never ten divisions of four.
+     */
+    requested = divisionCountFor(playerCount);
+  } else if (config.mode === "count" && config.value) {
     requested = Math.max(1, Math.min(playerCount, Math.round(config.value)));
   } else if (config.mode === "perFlight" && config.value) {
     const per = Math.max(2, Math.round(config.value));
@@ -45,6 +58,38 @@ export function flightCountFor(playerCount: number, config: FlightConfig = { mod
   // in one on their own.
   const playable = Math.max(1, Math.floor(playerCount / 2));
   return Math.max(1, Math.min(requested, playable));
+}
+
+/**
+ * How many handicap divisions a field of this size is split into when the
+ * organizer has not said: one under sixteen players, two under thirty-two,
+ * three above — the shape of a club medal's Division 1, 2 and 3.
+ */
+export function divisionCountFor(playerCount: number): number {
+  if (playerCount < 16) return 1;
+  if (playerCount < 32) return 2;
+  return 3;
+}
+
+/**
+ * THE FLIGHTS A NEW TOURNAMENT IS DRAWN UNDER, from what its rounds are
+ * (Ajay, 2026-09-28, left to my recommendation: "flights by handicap for
+ * stroke/Stableford").
+ *
+ * A medal or Stableford field is divided the way clubs divide one — lowest
+ * handicaps in the first division — because there a flight is a prize band.
+ * Anything with an opponent keeps `balanced`: there a flight is who you play,
+ * and even flights are the point. Team formats keep it too; a side's strength
+ * is not one handicap.
+ */
+export function defaultFormationRule(
+  rounds: ReadonlyArray<{ headToHead: boolean; engine: string | undefined }>,
+): FormationRule {
+  if (rounds.length === 0) return "balanced";
+  const individualStrokes = rounds.every(
+    (r) => !r.headToHead && (r.engine === "stroke" || r.engine === "stableford" || r.engine === "modified-stableford"),
+  );
+  return individualStrokes ? "divisions" : "balanced";
 }
 
 /** Legacy alias. */
@@ -102,6 +147,7 @@ function strengthOf(p: Player, hMin: number, hMax: number, sMin: number, sMax: n
 
 /**
  * Form flights from players by the chosen rule.
+ *  - divisions: sort by handicap, cut into bands (Division A = lowest handicaps).
  *  - handicap: sort by handicap, snake-draft (comparable handicap spread per flight).
  *  - seeding:  sort by seed, snake-draft (1,8,9,16… seeding distribution).
  *  - balanced: greedy min-sum partition on a composite ability score, so each
@@ -117,12 +163,22 @@ export function formGroups(
   rng: () => number = Math.random,
 ): Group[] {
   const n = players.length;
-  const count = flightCountFor(n, config);
+  const count = flightCountFor(n, config, rule);
   if (count === 0) return [];
 
   let buckets: string[][];
 
-  if (rule === "manual") {
+  if (rule === "divisions") {
+    // Lowest handicaps first, cut into even bands: Division A is the lowest
+    // band. Level handicaps keep seed order, so a redraw is stable.
+    const sorted = [...players].sort((a, b) => a.handicap - b.handicap || a.seed - b.seed);
+    buckets = [];
+    let k = 0;
+    for (const size of flightSizes(n, count)) {
+      buckets.push(sorted.slice(k, k + size).map((p) => p.id));
+      k += size;
+    }
+  } else if (rule === "manual") {
     const sizes = flightSizes(n, count);
     buckets = [];
     let k = 0;

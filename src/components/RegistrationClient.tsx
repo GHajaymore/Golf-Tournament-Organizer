@@ -1146,6 +1146,12 @@ export function RegistrationClient({
                   <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} /> Imported {importResult.imported}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
+                  {importResult.codesTurnedOn && (
+                    <>
+                      {" "}The list had no email addresses, so Round Codes are now on as well: players sign in with
+                      the round&rsquo;s code. Change it on Tournament details.
+                    </>
+                  )}
                 </p>
               )
             )}

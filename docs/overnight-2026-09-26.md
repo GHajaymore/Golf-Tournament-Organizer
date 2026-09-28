@@ -1328,6 +1328,22 @@ named. The deferred-register entry for this class is closed.
    It is one click to change on the Bracket screen; the default is your call.
 5. **Should a fresh tournament default to access codes rather than email sign-in** when the club's
    roster holds no addresses? The picker now points at the option; the default is a product decision.
+
+   **3–5 DECIDED 2026-09-28 ("you recommend based on your experience"). BUILT.**
+   - **Flights, corrected on the way in:** item 3 above proposed "By handicap", but that rule
+     snake-drafts, giving every flight the same spread of handicaps. That is the opposite of a
+     division.
+     - There is now a real **Handicap divisions** rule: Flight A holds the lowest handicaps. On auto
+       it makes one, two or three divisions (under 16 players, under 32, then more), never flights
+       of four. The old rule is renamed **Spread by handicap**.
+     - A tournament whose playing rounds are all individual stroke or Stableford defaults to
+       divisions. Anything with an opponent or a side keeps Balanced.
+     - The default only moves while no flights are drawn and the stored rule is still the app's own
+       default, so an organizer's choice is never overwritten.
+   - **Knockout:** a new tournament starts in **One bracket**.
+   - **Access:** an email-only tournament handed a list with **no addresses at all** turns on
+     Round Codes as well as email, imports the list and says so. A list with some addresses keeps
+     email sign-in and skips the gaps as before.
 6. **Players cannot record their own knockout results.** The bracket is staff-only to edit, so in a
    club knockout played over weeks (players arrange their own matches) every result has to go
    through the secretary. Most club knockouts let the winner report it. Worth deciding before a
