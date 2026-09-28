@@ -144,17 +144,20 @@ interface Dead {
  * reading what is left — the list is shorter than it was and it is now the
  * measurement rather than the instrument's shadow.
  *
- * The four worth looking at first, because they are features rather than
+ * The two worth looking at first, because they are features rather than
  * leftovers:
  *
- *   season.ts:seasonStandings / seasonTotals   the league's own season table —
- *       "where do we stand after six weeks", which its file calls "the only
- *       table a league actually cares about". Computed, mutation-tested, and
- *       on no screen.
  *   skins-pot.ts:seasonPosition                a player's money across a
- *       weekly league, same story.
+ *       weekly league. Computed, tested, and on no screen.
  *   handicap-record.ts:handicapRecordFrom      a scoring record built for
  *       handicapping and never shown.
+ *
+ * A third, `season.ts:seasonStandings`, was retired on 2026-09-27 rather than
+ * wired in. It ranked a PAIR across weeks, keyed on a `Team` id that no
+ * screen ever keeps from one round to the next. It averaged net per round,
+ * where the stroke rule Ajay decided in #577 unranks a player who missed a
+ * closed round. The table that does rank sides across weeks is the interclub
+ * `leagueTable`, and `matrix.test.ts` now sweeps that table.
  *
  * The rest are smaller: helpers that outlived their caller, validators the
  * boundary stopped needing, formatters replaced by the `Formatting` versions.
@@ -187,8 +190,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/score-payload.ts:cleanWinner",
   "lib/domain/score-posting.ts:decidePost",
   "lib/domain/score-posting.ts:postKey",
-  "lib/domain/season.ts:seasonStandings",
-  "lib/domain/season.ts:seasonTotals",
   "lib/domain/skins-pot.ts:seasonPosition",
   "lib/domain/team-entry.ts:declaredTeamEntry",
   "lib/domain/tee-sheet.ts:teeSheetAsPlayed",
