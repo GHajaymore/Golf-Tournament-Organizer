@@ -18,6 +18,9 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
+import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { missingCardsRefusal } from "@/lib/domain/round-card-status";
+import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
@@ -214,6 +217,18 @@ export default async function StagesPage() {
 
   // Venues this tournament may be played on — more than one turns on the
   // per-round course picker.
+  /**
+   * ROUNDS THE FORMAT CANNOT SCORE, said while they are being built (Ajay,
+   * 2026-09-28). The same reader and the same sentence launch refuses with —
+   * `roundsMissingCards` and `missingCardsRefusal` — so this screen cannot
+   * pass a round the Launch button then stops on.
+   */
+  // Before launch only: the sentence is about launching, and once a
+  // tournament is live score entry's own prompt says the same thing where
+  // the card is needed.
+  const missingCardsNote = PRE_LAUNCH_STATUSES.includes(state.event.status)
+    ? missingCardsRefusal(await roundsMissingCards(session.eventId))
+    : null;
   const venues = await prisma.course.findMany({
     where: { events: { some: { eventId: session.eventId } } },
     // Provenance with the name: this is the screen that decides which card a
@@ -294,6 +309,28 @@ export default async function StagesPage() {
             <b>These rounds cannot be scored as set.</b> {scoring.message}{" "}
             <Link href="/event" style={{ color: "var(--color-accent)" }}>
               Tournament details
+            </Link>
+          </p>
+        </div>
+      )}
+      {missingCardsNote && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            borderRadius: 10,
+            marginBottom: 16,
+            background: "var(--color-danger-bg)",
+            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
+          }}
+        >
+          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+            <b>A course card is missing.</b> {missingCardsNote}{" "}
+            <Link href="/event" style={{ color: "var(--color-accent)" }}>
+              Open the course library
             </Link>
           </p>
         </div>

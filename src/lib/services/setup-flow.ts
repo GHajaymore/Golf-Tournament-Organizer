@@ -8,6 +8,7 @@ import { roundLabel } from "../domain/round-label";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
 import { TEAM_FORMAT_NAMES } from "../formats";
+import { roundsMissingCards } from "./round-card-lines";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -117,6 +118,8 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     dated: !!event.dates.trim(),
     // The launch gate's own count, so the guide's "what is left" is its answer.
     playingRounds: stageRows.filter((s) => isPlayingRound(s.type)).length,
+    // And its card fact, from the same reader the launch action refuses on.
+    missingCards: await roundsMissingCards(eventId),
     // The same test `loadEventState` draws the whole field on.
     straightKnockout: stageRows.length > 0 && isKnockoutRound(stageRows[0].type),
     // Either the event's own course or a venue attached to it. A tournament

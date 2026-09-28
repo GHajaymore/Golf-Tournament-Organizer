@@ -21,20 +21,20 @@ import { screenName } from "../../nav";
 
 describe("going live", () => {
   it("refuses a tournament with nothing to play", () => {
-    const r = launchRefusal({ playingRounds: 0, confirmed: 12, dated: true });
+    const r = launchRefusal({ playingRounds: 0, confirmed: 12, dated: true, missingCards: [] });
     expect(r).toContain("no rounds");
     // Every refusal names the screen that fixes it.
     expect(r).toContain("Rounds & formats");
   });
 
   it("refuses a tournament with nobody to play it", () => {
-    const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true });
+    const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true, missingCards: [] });
     expect(r).toContain("Nobody is in the field");
     expect(r).toContain("Registration & field");
   });
 
   it("allows the ordinary case", () => {
-    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: true })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: true, missingCards: [] })).toBeNull();
   });
 
   it("does not demand flights or a venue", () => {
@@ -47,7 +47,7 @@ describe("going live", () => {
      * failure mode the course-card rules are written about — "a guard that
      * refuses a real golf course is worse than no guard".
      */
-    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true, missingCards: [] })).toBeNull();
   });
 
   it("does demand a date, which it did not until 2026-09-19", () => {
@@ -70,7 +70,7 @@ describe("going live", () => {
      * created by `match-setup` with an expiry and is played the same day.
      * Casual stays casual.
      */
-    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false });
+    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false, missingCards: [] });
     expect(r).toContain("no dates");
     // Every refusal names the screen that fixes it — by the name the sidebar
     // gives it, which this used to get wrong ("Tournament setup") — and this
@@ -79,9 +79,35 @@ describe("going live", () => {
     expect(r).toContain("tentative");
   });
 
+  it("refuses a round its format cannot score, naming the round, the course and the fix (2026-09-28)", () => {
+    // Score entry already refused this — on the first tee. Launch now says it
+    // while the committee can still add the card.
+    const r = launchRefusal({
+      playingRounds: 2, confirmed: 40, dated: true,
+      missingCards: [{ label: "Round 2", course: "zz-Ardmore" }],
+    });
+    expect(r).toContain("Round 2 at zz-Ardmore needs its course card");
+    expect(r).toContain("par and stroke index");
+    expect(r).toContain("course library");
+    // Two rounds are named together, in one sentence.
+    const two = launchRefusal({
+      playingRounds: 3, confirmed: 40, dated: true,
+      missingCards: [{ label: "Round 1", course: "" }, { label: "Round 3", course: "zz-Links" }],
+    });
+    expect(two).toContain("Round 1 and Round 3 at zz-Links need their course card");
+  });
+
+  it("the setup guide asks the same card question as the Launch button", () => {
+    // `SetupFacts.missingCards` is optional (many fixtures build one), so the
+    // service building the REAL facts is pinned to pass it — otherwise the
+    // guide says "take it live" over a Launch the action then refuses.
+    const src = readSource("src/lib/services/setup-flow.ts");
+    expect(src).toContain("missingCards: await roundsMissingCards(eventId)");
+  });
+
   it("takes whitespace as no date at all", () => {
     // The gate reads `!!dates.trim()` at the call site; a space is not an answer.
-    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: false })).not.toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: false, missingCards: [] })).not.toBeNull();
   });
 });
 
