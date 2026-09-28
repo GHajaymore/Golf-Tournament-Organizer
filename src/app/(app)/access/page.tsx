@@ -7,6 +7,7 @@ import { AccessClient } from "@/components/AccessClient";
 import { emailConfig } from "@/lib/email";
 import { emailTroubleFor } from "@/lib/services/email-trouble";
 import { Icon } from "@/components/Icon";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/access");
 
@@ -18,6 +19,8 @@ export default async function AccessPage() {
   if (!state) redirect("/");
   const mail = emailConfig();
   const trouble = await emailTroubleFor(state.event.organizationId);
+  // The club's word for who runs it — organizer or organiser (`golf-terms.ts`).
+  const { organizer, organizers } = await golfTermsForEvent(session.eventId);
 
   return (
     <>
@@ -30,7 +33,7 @@ export default async function AccessPage() {
             screen-metadata.ts. */}
         <h1 className="page-title">Access &amp; staff</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Organizers get full admin access. Players get read-only leaderboard/stats plus score entry for their own
+          {organizers.charAt(0).toUpperCase() + organizers.slice(1)} get full admin access. Players get read-only leaderboard/stats plus score entry for their own
           matches.
         </p>
       </div>
@@ -83,6 +86,7 @@ export default async function AccessPage() {
 
       <AccessClient
         accounts={state.accounts.map((a) => ({ id: a.id, name: a.name, email: a.email, role: a.role }))}
+        organizer={organizer}
       />
     </>
   );

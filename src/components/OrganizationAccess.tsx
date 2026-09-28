@@ -12,6 +12,7 @@ import type { PendingAsk } from "@/lib/services/join-requests";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import { roleName } from "@/lib/roles";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -55,14 +56,15 @@ const ORG_ROLE_LABEL: Record<string, string> = {
   member: "Member",
   guest: "Guest",
 };
-const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
-
 export function OrganizationAccess({
   report,
   canEdit,
   asks,
   seats,
+  organizer = "organizer",
 }: {
+  /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
+  organizer?: string;
   report: AccessReport;
   canEdit: boolean;
   /** People waiting to be let in. Empty for almost every club, almost always. */
@@ -426,7 +428,7 @@ export function OrganizationAccess({
                               className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}
                               title={a.source === "organization" ? "Inherited from organization role" : "Granted on this tournament"}
                             >
-                              {EVENT_ROLE_LABEL[a.role] ?? a.role}
+                              {roleName(a.role, organizer)}
                               {a.source === "organization" ? ` · ${from}` : ""}
                             </span>
                           ) : (

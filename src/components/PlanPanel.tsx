@@ -1,5 +1,6 @@
 import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upgradeBenefits, retentionNotice, retentionSummary, type Plan, type LimitResult, type PricingOverrides } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
+import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import type { OrgLimits } from "@/lib/services/limits";
 import { Icon } from "./Icon";
 
@@ -26,10 +27,13 @@ export function PlanPanel({
   overrides,
   currency,
   locale,
+  terms = golfTermsFor("us"),
 }: {
   planKey: string;
   standing?: OrgLimits;
   overrides?: PricingOverrides;
+  /** The club's golf words — the staff line says organizer or organiser. */
+  terms?: Record<GolfTerm, string>;
   /** The club's own currency. Quoted in it where a plan has a price there, else USD. */
   currency?: string;
   /** The club's locale, which decides how the number is written. */
@@ -140,7 +144,7 @@ export function PlanPanel({
             <Icon name="cards" /> {usage(standing.activeEvents, "tournament running", "tournaments running")}
           </span>
           <span style={{ fontSize: 12.5 }}>
-            <Icon name="users-three" /> {usage(standing.staffSeats, "organizer", "organizers")}
+            <Icon name="users-three" /> {usage(standing.staffSeats, terms.organizer, terms.organizers)}
           </span>
           {/* Only claimed when it is true. `enforced` is false until a payment
               provider is attached, and until then nothing is refused — saying
