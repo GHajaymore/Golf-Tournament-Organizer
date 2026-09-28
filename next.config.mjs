@@ -95,6 +95,27 @@ const nextConfig = {
    * its own change — until then `font-hosts.test.ts`, not a CSP, is what keeps
    * an external font host out (see `layout.tsx`, which used to claim otherwise).
    */
+  /**
+   * THE ADDRESSES PEOPLE TYPE TO SIGN IN. Sign-in lives on the front page
+   * (`#signin`, `#signup` — see `LandingAuth`), so /login answered 404: nothing
+   * in the app links there, but it is the first thing a returning secretary
+   * types (walked 2026-09-28). Temporary rather than permanent, so the day a
+   * dedicated sign-in page exists nothing is cached against it.
+   *
+   * `/register` is matched EXACTLY — `/register/<token>` is a tournament's
+   * public entry form and must never be caught by this.
+   */
+  async redirects() {
+    return [
+      { source: "/login", destination: "/#signin", permanent: false },
+      { source: "/signin", destination: "/#signin", permanent: false },
+      { source: "/sign-in", destination: "/#signin", permanent: false },
+      { source: "/signup", destination: "/#signup", permanent: false },
+      { source: "/sign-up", destination: "/#signup", permanent: false },
+      { source: "/register", destination: "/#signup", permanent: false },
+    ];
+  },
+
   async headers() {
     return [
       {
