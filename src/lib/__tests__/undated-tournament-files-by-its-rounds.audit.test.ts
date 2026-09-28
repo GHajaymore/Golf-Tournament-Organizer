@@ -88,7 +88,10 @@ describe("a tournament's dates on Events", () => {
     const row = (await clubEventsFor(WHO)).find((r) => r.eventId === undated);
     expect(row, "the tournament is not on the member's Events at all").toBeTruthy();
     expect(row!.startOn, "filed under No dates yet with dated rounds").toBe("2026-09-05");
-    expect(row!.dates).toMatch(/5 Sep.*19 Sep/);
+    // Earliest round first, in THIS club's order: the fixture's club has the
+    // default US locale, so "Sat, Sep 5 – Sat, Sep 19". This said /5 Sep.*19 Sep/,
+    // which was the day-first order `shortDate` wrongly gave every club.
+    expect(row!.dates).toMatch(/Sep 5.*Sep 19/);
   });
 
   it("keeps the tournament's own dates where they are set (the control)", async () => {
