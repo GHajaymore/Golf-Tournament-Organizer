@@ -62,6 +62,8 @@ interface Props {
   yards?: number[];
   strokeIndex?: number[];
   netMode?: boolean;
+  /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
+  voiceEntry?: boolean;
   /**
    * The player's own strokes, for a round that is scored from a card rather
    * than played against somebody.
@@ -611,6 +613,7 @@ export function PlayClient(props: Props) {
               cardQueue.push(next);
             }}
             meId="me"
+            showVoice={props.voiceEntry ?? true}
           />
 
           {/* Where the card is — the same words the signed-in card uses. */}

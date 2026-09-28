@@ -119,10 +119,11 @@ export function HoleByHoleCard({
   /**
    * Whether to offer the microphone at all.
    *
-   * The player's card lets them choose spoken or typed entry and that choice
-   * holds across both views — Ajay's model of 2026-09-21 — so this is how the
-   * hole-by-hole view honours "typed". Defaults TRUE so the organizer's caller,
-   * which offers no such choice, behaves exactly as it did.
+   * The organizer's "Voice entry" setting (Play settings), carried by every
+   * PLAYER caller — `PlayerCard`, `GroupScoring` and `/play`'s `PlayClient` —
+   * since 2026-09-27; before that nothing passed it and the setting was never
+   * read. Defaults TRUE so the organizer's own entry screen, which the setting
+   * does not govern, behaves exactly as it did.
    *
    * It hides the mic and nothing else: the pad and the steppers always render.
    * They are how a misheard "four" for "five" gets fixed, which the mic's own

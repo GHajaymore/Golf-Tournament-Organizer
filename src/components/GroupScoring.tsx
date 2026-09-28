@@ -44,7 +44,10 @@ export function GroupScoring({
   partners,
   holding,
   startHole = 1,
+  showVoice = true,
 }: {
+  /** The organizer's "Voice entry" setting — off, no microphone. */
+  showVoice?: boolean;
   stageId: string;
   holes: number;
   pars: number[];
@@ -112,6 +115,7 @@ export function GroupScoring({
         onSet={setHole}
         meId={me.id}
         startHole={startHole}
+        showVoice={showVoice}
       />
 
       {/* Where each partner's card has got to — the same words the player's

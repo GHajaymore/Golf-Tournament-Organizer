@@ -3941,6 +3941,43 @@ describe("club convention vs published allowance", () => {
   });
 });
 
+describe("the organizer's Voice entry setting reaches the player's card", () => {
+  /**
+   * "Let scores be dictated out loud instead of typed" was saved, templated and
+   * cloned — and read by no microphone, so a club that switched it off still
+   * handed every player one. Found 2026-09-27 checking the landing's voice
+   * claim against the code. The CONTROL is the same card with it on: without
+   * it, a card that never renders a mic at all would pass the "off" case.
+   */
+  const card = async (voiceEntry: boolean) => {
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    return render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(null)}
+        voiceEntry={voiceEntry}
+      />,
+    );
+  };
+
+  // Icons are sprite references (`#i-regular-microphone`), so the word is the
+  // marker; the mic's accessible name is the second one.
+  it("on: the card offers a microphone", async () => {
+    const html = await card(true);
+    expect(html).toContain("microphone");
+    expect(html).toContain("Say your score for hole 1");
+  });
+
+  it("off: no microphone anywhere on the card", async () => {
+    const html = await card(false);
+    expect(html).not.toContain("microphone");
+    expect(html).not.toContain("Say your score");
+    expect(html).not.toContain("Say the card");
+  });
+});
+
 describe("the player's own card opens on what is already there", () => {
   /**
    * The regression this exists for was a data-loss bug, not a cosmetic one.
