@@ -123,6 +123,10 @@ ${landingTokens("light", "    ")}
 
 /* ── nav ── */
 .thq .nav { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--ground) 60%, transparent); backdrop-filter: saturate(1.6) blur(16px); -webkit-backdrop-filter: saturate(1.6) blur(16px); border-bottom: 1px solid transparent; transition: border-color .2s, background .2s; }
+/* The app's design-system .nav rule pads its bar sideways; here the .wrap inside
+   already carries the page gutter, so taking both doubled it on a phone and
+   pushed a 320px nav 14px off-screen. */
+.thq .nav { padding-left: 0; padding-right: 0; }
 .thq .nav.scrolled { border-bottom-color: var(--line); background: color-mix(in srgb, var(--ground) 84%, transparent); }
 .thq .nav-in { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 24px; }
 .thq .nav-links { display: flex; gap: 4px; font: 500 14px/1 var(--sans); color: var(--ink-soft); }
@@ -142,7 +146,9 @@ ${landingTokens("light", "    ")}
 .thq .nav-menu .menu-panel a:hover, .thq .nav-menu .menu-panel a[aria-current="page"] { background: var(--wash-2); color: var(--ink); }
 .thq .nav-menu .menu-panel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 @media (max-width: 420px) { .thq .nav-act .btn-ghost { display: none; } }
-@media (max-width: 360px) { .thq .nav-act .btn { padding: 0 12px; font-size: 13.5px; } .thq .nav-in { gap: 10px; } }
+/* 320px (iPhone SE): the logo keeps its brand step, so the room comes from the
+   buttons — the menu button made the row 14px too wide there. */
+@media (max-width: 360px) { .thq .nav-act { gap: 4px; } .thq .nav-act .btn { padding: 0 8px; font-size: 13.5px; } .thq .nav-in { gap: 6px; } }
 
 /* ── hero ── */
 .thq .hero { position: relative; padding: 96px 0 0; overflow: hidden; isolation: isolate; }
