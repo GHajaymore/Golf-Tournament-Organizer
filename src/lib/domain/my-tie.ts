@@ -28,6 +28,10 @@ export interface MyTie {
   waitingOn: string;
   /** The result as the organizer recorded it ("3&2"), when there is one. */
   result: string;
+  /** The tie's key in the draw — what a report of its result is filed under. */
+  key: string;
+  /** Who it is against, by Player id; "" when that seat is not decided. */
+  opponentId: string;
 }
 
 /**
@@ -88,7 +92,13 @@ export function myTie(
     const round = view.rounds[latest.roundIndex];
     const mine = latest.a.playerId === playerId ? "a" : "b";
     const other = mine === "a" ? latest.b : latest.a;
-    const base = { draw: label, round: round?.label ?? "", result: results[latest.key] ?? "" };
+    const base = {
+      draw: label,
+      round: round?.label ?? "",
+      result: results[latest.key] ?? "",
+      key: latest.key,
+      opponentId: other.playerId ?? "",
+    };
 
     if (view.champion?.playerId === playerId) {
       return { ...base, state: "champion", opponent: other.playerId ? other.name : "", waitingOn: "" };
@@ -111,6 +121,83 @@ export function myTie(
     return { ...base, state: "to-play", opponent: other.playerId ? other.name : "", waitingOn };
   }
   return null;
+}
+
+/** The tie with this key, in whichever draw holds it, or null. */
+export function tieByKey(
+  draws: { label: string; view: BracketView }[],
+  key: string,
+): { draw: string; round: string; match: BracketMatch } | null {
+  for (const { label, view } of draws) {
+    for (const rd of view.rounds) {
+      const match = rd.matches.find((m) => m.key === key);
+      if (match) return { draw: label, round: rd.label, match };
+    }
+  }
+  return null;
+}
+
+/**
+ * WHY A PLAYER'S KNOCKOUT REPORT IS REFUSED, or null when it may be filed
+ * (Ajay, 2026-09-28: "player may enter it but organizer/club needs to approve
+ * it").
+ *
+ * A report is only ever a request — staff approve it before the draw moves —
+ * but it still names a winner in front of the organizer, so it must come from
+ * one of the two players in the tie, name one of those two, and be for a tie
+ * that is actually waiting on a result.
+ */
+export function tieReportRefusal(input: {
+  tie: { match: BracketMatch } | null;
+  /** The reporter's Player rows in this event. */
+  reporterIds: ReadonlySet<string>;
+  winnerId: string;
+}): string | null {
+  const m = input.tie?.match;
+  if (!m) return "That tie isn't in the draw.";
+  if (!m.a.playerId || !m.b.playerId) return "Both players in that tie aren't known yet.";
+  if (!input.reporterIds.has(m.a.playerId) && !input.reporterIds.has(m.b.playerId)) {
+    return "You can only report a tie you are playing in.";
+  }
+  if (input.winnerId !== m.a.playerId && input.winnerId !== m.b.playerId) {
+    return "Choose who won the tie.";
+  }
+  if (m.winnerId) return "That tie already has a result. Ask the organizer if it needs changing.";
+  return null;
+}
+
+/**
+ * A REPORTED TIE THAT STILL NEEDS AN ANSWER, named off the draw — or null when
+ * the draw has moved on: the tie is gone, already has a result, or no longer
+ * holds the reported winner.
+ *
+ * The one reader of that question. The dashboard's review count and the
+ * Bracket screen's list both go through it, so the number and the list beneath
+ * it cannot disagree about what is waiting.
+ */
+export function openTieReport(
+  draws: { label: string; view: BracketView }[],
+  report: { key: string; winnerId: string },
+): { round: string; a: string; b: string; winner: string } | null {
+  const tie = tieByKey(draws, report.key);
+  const m = tie?.match;
+  if (!tie || !m || m.winnerId) return null;
+  const winner =
+    m.a.playerId === report.winnerId ? m.a.name : m.b.playerId === report.winnerId ? m.b.name : "";
+  if (!winner) return null;
+  return { round: tie.draw ? `${tie.draw} · ${tie.round}` : tie.round, a: m.a.name, b: m.b.name, winner };
+}
+
+/**
+ * What a player reads about a report waiting on the organizer — theirs or
+ * their opponent's. Nobody is named to themselves in the third person:
+ * "You won 3&2 — you reported it", "Bernadette won 3&2 — Bernadette reported it".
+ */
+export function tieReportSentence(r: { winnerName: string; result: string; reportedBy: string; byMe: boolean }): string {
+  const winner = r.winnerName || "Your opponent";
+  const margin = r.result ? ` ${r.result}` : "";
+  const by = r.byMe ? "you reported it" : `${r.reportedBy || "your opponent"} reported it`;
+  return `${winner} won${margin} — ${by}.`;
 }
 
 /**

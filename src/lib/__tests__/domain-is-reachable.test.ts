@@ -186,7 +186,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/quick-match.ts:matchNeedsCard",
   "lib/domain/round-expiry.ts:isExpired",
   "lib/domain/score-import.ts:isNetShape",
-  "lib/domain/score-payload.ts:cleanMargin",
   "lib/domain/score-payload.ts:cleanWinner",
   "lib/domain/score-posting.ts:decidePost",
   "lib/domain/score-posting.ts:postKey",

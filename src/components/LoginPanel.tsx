@@ -54,7 +54,17 @@ const SIGNUP_KINDS: Array<{ value: OrgKind; label: string; help: string }> = [
 export function LoginPanel({
   initialMode = "login",
   autoFocusFields = true,
-}: { initialMode?: Mode; autoFocusFields?: boolean } = {}) {
+  organizers = "organizers",
+}: {
+  initialMode?: Mode;
+  autoFocusFields?: boolean;
+  /**
+   * The visitor's word for the people who run events — "organisers" on the UK
+   * edition (`golf-terms.ts`). A client component cannot reach the landing's
+   * server-side dialect, so the page hands it in.
+   */
+  organizers?: string;
+} = {}) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [extra, setExtra] = useState<Extra>(null);
 
@@ -362,7 +372,7 @@ export function LoginPanel({
         sub={
           login
             ? "Log in to reach the tournaments you have access to."
-            : "For organizers running an event, and for players invited to one."
+            : `For ${organizers} running an event, and for players invited to one.`
         }
       />
 

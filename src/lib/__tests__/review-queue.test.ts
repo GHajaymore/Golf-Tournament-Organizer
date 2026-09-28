@@ -25,7 +25,7 @@ const pendingMatch = { complete: true, status: "pending" };
 
 describe("what is waiting for a sign-off", () => {
   it("counts finished matches and certified cards together", () => {
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       matches: [pendingMatch, pendingMatch, pendingMatch],
       cards: [
         { status: "certified" },
@@ -49,7 +49,7 @@ describe("what is waiting for a sign-off", () => {
      * however many certified cards were waiting. Thirty organizers' review
      * queues reported as empty while thirty cards sat in them.
      */
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       matches: [],
       cards: Array.from({ length: 30 }, () => ({ status: "certified" })),
       staffApproves: true,
@@ -63,7 +63,7 @@ describe("what is waiting for a sign-off", () => {
      * already carries the scar on the money side, where `matchSettled` is
      * satisfied by a single hole and was far too loose to release money by.
      */
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       matches: [
         { complete: false, status: "pending" },
         { complete: false, status: "pending" },
@@ -77,7 +77,7 @@ describe("what is waiting for a sign-off", () => {
 
   it("leaves a match alone once somebody has signed it off", () => {
     // The control for the test above: finished is necessary and not sufficient.
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       matches: [
         { complete: true, status: "confirmed" },
         { complete: true, status: "auto-confirmed" },
@@ -118,7 +118,7 @@ describe("which cards belong to the committee", () => {
      * done and will never go away.
      */
     expect(cardAwaitsReview("certified", false)).toBe(false);
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       matches: [pendingMatch, pendingMatch, pendingMatch],
       cards: [{ status: "certified" }, { status: "certified" }, { status: "certified" }, { status: "certified" }, { status: "certified" }],
       staffApproves: false,
@@ -143,6 +143,7 @@ describe("disputes are counted, and kept out of the sign-off queue", () => {
     cards: [{ status: "entered" }, { status: "certified" }, { status: "approved" }, { status: "disputed" }],
     matches: [],
     staffApproves: true,
+    knockoutReports: 0,
   };
 
   it("counts the disputed card, separately from the queue", () => {
@@ -152,7 +153,7 @@ describe("disputes are counted, and kept out of the sign-off queue", () => {
   });
 
   it("counts a disputed match result too", () => {
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       cards: [],
       matches: [
         { complete: true, status: "disputed" },
@@ -175,7 +176,7 @@ describe("disputes are counted, and kept out of the sign-off queue", () => {
     // Unreadable holes come back from the service as "disputed" so no queue
     // clears them. Nobody disputed them, and counting them would let one
     // corrupt row block finishing for ever.
-    const q = reviewQueue({
+    const q = reviewQueue({ knockoutReports: 0,
       cards: [],
       matches: [{ complete: false, status: "disputed", unreadable: true }],
       staffApproves: true,
@@ -184,10 +185,33 @@ describe("disputes are counted, and kept out of the sign-off queue", () => {
   });
 });
 
+describe("a knockout result a player reported (2026-09-28)", () => {
+  it("is in the queue whether or not the tournament reviews cards", () => {
+    // A reported tie never moves the draw on its own, so it is committee work
+    // even where `staffApproves` is false and cards and matches auto-confirm.
+    for (const staffApproves of [true, false]) {
+      const q = reviewQueue({ matches: [], cards: [], staffApproves, knockoutReports: 2 });
+      expect(q.knockouts, String(staffApproves)).toBe(2);
+      expect(q.total, String(staffApproves)).toBe(2);
+    }
+  });
+
+  it("is named for what it is under the number", () => {
+    expect(reviewQueueDetail({ matches: 0, cards: 0, knockouts: 1, total: 1, disputed: 0 })).toBe(
+      "1 knockout result to confirm",
+    );
+  });
+
+  it("CONTROL: none reported adds nothing", () => {
+    const q = reviewQueue({ matches: [], cards: [], staffApproves: true, knockoutReports: 0 });
+    expect(q.total).toBe(0);
+  });
+});
+
 describe("the line under the number", () => {
   it("names both sources rather than calling everything a score", () => {
     // The actual defect: "scores to confirm" over thirty-six match results.
-    const detail = reviewQueueDetail({ matches: 36, cards: 5, total: 41, disputed: 0 });
+    const detail = reviewQueueDetail({ matches: 36, cards: 5, total: 41, disputed: 0, knockouts: 0 });
     expect(detail).toContain("36 match results");
     expect(detail).toContain("5 cards");
     expect(detail, "a match result is not a score").not.toMatch(/\bscores\b/);
@@ -196,17 +220,17 @@ describe("the line under the number", () => {
   it("says only the half that exists", () => {
     // A round robin has no cards and a medal has no matches; "0 cards · 36
     // match results" is a queue reporting its own empty half.
-    expect(reviewQueueDetail({ matches: 36, cards: 0, total: 36, disputed: 0 })).toBe("36 match results to confirm");
-    expect(reviewQueueDetail({ matches: 0, cards: 5, total: 5, disputed: 0 })).toBe("5 cards to confirm");
+    expect(reviewQueueDetail({ matches: 36, cards: 0, total: 36, disputed: 0, knockouts: 0 })).toBe("36 match results to confirm");
+    expect(reviewQueueDetail({ matches: 0, cards: 5, total: 5, disputed: 0, knockouts: 0 })).toBe("5 cards to confirm");
   });
 
   it("counts one of each in the singular", () => {
-    expect(reviewQueueDetail({ matches: 1, cards: 1, total: 2, disputed: 0 })).toBe("1 card · 1 match result to confirm");
+    expect(reviewQueueDetail({ matches: 1, cards: 1, total: 2, disputed: 0, knockouts: 0 })).toBe("1 card · 1 match result to confirm");
   });
 
   it("says nothing is waiting rather than repeating a zero", () => {
     // The number above already reads 0. "0 to confirm" underneath it reads as
     // an error state rather than an empty one.
-    expect(reviewQueueDetail({ matches: 0, cards: 0, total: 0, disputed: 0 })).toBe("nothing waiting");
+    expect(reviewQueueDetail({ matches: 0, cards: 0, total: 0, disputed: 0, knockouts: 0 })).toBe("nothing waiting");
   });
 });

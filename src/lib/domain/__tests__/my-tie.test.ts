@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildBracket, type BracketView } from "../bracket";
-import { bracketDraws, myTie, myTieLine } from "../my-tie";
+import {
+  bracketDraws,
+  myTie,
+  myTieLine,
+  openTieReport,
+  tieByKey,
+  tieReportRefusal,
+  tieReportSentence,
+} from "../my-tie";
 import { yourCardNote } from "../your-card";
 import type { Player } from "../types";
 
@@ -94,5 +102,63 @@ describe("yourCardNote on a knockout", () => {
     expect(note).not.toMatch(/as soon as it’s in/);
     // Control: a plain match round keeps its own sentence.
     expect(yourCardNote({ side: null, holes: 18, round: true })).toMatch(/against your opponent/);
+  });
+});
+
+/**
+ * A PLAYER REPORTS THEIR TIE (2026-09-28). Who may, for whom, and what the
+ * organizer's list keeps. The same eight players: Ada (p1) meets Hal (p8).
+ */
+describe("reporting a tie", () => {
+  const ada = new Set(["p1"]);
+
+  it("lets a player in the tie name either of its two players", () => {
+    const tie = tieByKey(one(draw({})), "winners-0-0");
+    expect(tieReportRefusal({ tie, reporterIds: ada, winnerId: "p1" })).toBeNull();
+    expect(tieReportRefusal({ tie, reporterIds: ada, winnerId: "p8" })).toBeNull();
+  });
+
+  it("refuses somebody outside the tie", () => {
+    const tie = tieByKey(one(draw({})), "winners-0-0");
+    expect(tieReportRefusal({ tie, reporterIds: new Set(["p4"]), winnerId: "p1" })).toMatch(/you are playing in/);
+  });
+
+  it("refuses a winner from another tie", () => {
+    const tie = tieByKey(one(draw({})), "winners-0-0");
+    expect(tieReportRefusal({ tie, reporterIds: ada, winnerId: "p4" })).toMatch(/who won/);
+  });
+
+  it("refuses a tie whose other seat is still to be decided", () => {
+    // Ada is through; her semi waits on Dot v Eve.
+    const tie = tieByKey(one(draw({ "winners-0-0": "p1" })), "winners-1-0");
+    expect(tieReportRefusal({ tie, reporterIds: ada, winnerId: "p1" })).toMatch(/aren't known yet/);
+  });
+
+  it("refuses a tie that already has a result, and one the draw does not hold", () => {
+    const decided = tieByKey(one(draw({ "winners-0-0": "p1" })), "winners-0-0");
+    expect(tieReportRefusal({ tie: decided, reporterIds: ada, winnerId: "p1" })).toMatch(/already has a result/);
+    expect(tieReportRefusal({ tie: tieByKey(one(draw({})), "winners-9-9"), reporterIds: ada, winnerId: "p1" })).toMatch(
+      /isn't in the draw/,
+    );
+  });
+
+  it("keeps a report on the organizer's list only while the draw still waits on it", () => {
+    const open = openTieReport(one(draw({})), { key: "winners-0-0", winnerId: "p8" });
+    expect(open).toEqual({ round: "Quarterfinals", a: "Ada", b: "Hal", winner: "Hal" });
+    // Answered on the draw since, or naming somebody the tie no longer holds.
+    expect(openTieReport(one(draw({ "winners-0-0": "p1" })), { key: "winners-0-0", winnerId: "p8" })).toBeNull();
+    expect(openTieReport(one(draw({})), { key: "winners-0-0", winnerId: "p4" })).toBeNull();
+  });
+
+  it("names nobody to themselves in the third person", () => {
+    expect(tieReportSentence({ winnerName: "You", result: "3&2", reportedBy: "Ada", byMe: true })).toBe(
+      "You won 3&2 — you reported it.",
+    );
+    expect(tieReportSentence({ winnerName: "Hal", result: "", reportedBy: "Hal", byMe: false })).toBe(
+      "Hal won — Hal reported it.",
+    );
+    expect(tieReportSentence({ winnerName: "You", result: "1 up", reportedBy: "Hal", byMe: false })).toBe(
+      "You won 1 up — Hal reported it.",
+    );
   });
 });

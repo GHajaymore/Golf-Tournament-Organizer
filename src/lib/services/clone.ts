@@ -225,6 +225,8 @@ export const CLONE_IGNORED_RELATIONS = [
   "stages",
   "matches",
   "bracketWinners",
+  // A player's report of a tie in a draw that a copy does not have.
+  "bracketReports",
   "commentary",
   "scorecards",
   // What last year's rounds were played off, and the committee's decisions
