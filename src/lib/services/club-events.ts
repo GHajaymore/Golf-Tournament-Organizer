@@ -122,6 +122,12 @@ export interface ClubEventRow {
   progress: number | null;
   /** "18 of 32 places left", "Full — waiting list open", or "". */
   placesNote: string;
+  /**
+   * A new entry would join the waiting list. Carried so the Enter button can say
+   * so BEFORE the tap: on a full field it read "Enter this tournament" beside
+   * "Full — waiting list open" (walked 2026-09-28).
+   */
+  waitlistOnly: boolean;
 }
 
 /**
@@ -310,6 +316,10 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // passing it here is what made a waiting-list place read as "Closed".
     const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
     const today = todayIso();
+    // The club's own word, once, for the status line and the Enter button both
+    // — the status line said "organizer" to a Scottish club (walked 2026-09-28)
+    // while the button beside it, fed from the field below, said "organiser".
+    const organizer = golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer;
 
     return {
       band,
@@ -330,13 +340,14 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
        * Their own status is the one line on the card that is about them, so it
        * is its own field and the screen shows it whatever the band.
        */
-      yourStatus: waiting ? "You’re on the waiting list — the organizer will confirm your place." : "",
+      yourStatus: waiting ? `You’re on the waiting list — the ${organizer} will confirm your place.` : "",
       windowNote: entryWindowNote({ band, opens: event.regOpens, closes: event.regDeadline, today }),
       progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
       placesNote:
         band === "open" || band === "soon"
           ? placesNote(event.capacity, confirmedBy.get(event.id) ?? 0, status.waitlisting)
           : "",
+      waitlistOnly: status.waitlisting,
       eventId: event.id,
       name: event.name,
       /**
@@ -367,7 +378,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       entered,
       waiting,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
-      organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
+      organizer,
       canWithdraw:
         (entered || waiting) &&
         ownWithdrawalOpen({
