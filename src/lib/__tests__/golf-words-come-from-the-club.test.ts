@@ -88,6 +88,8 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
     file: "src/components/RegisterClient.tsx",
     banned: [/The organi[sz]er needs/, /by the organi[sz]er,/, /with the organi[sz]er for/],
   },
+  // The Events card's own status line, built on the server beside the button's word.
+  { file: "src/lib/services/club-events.ts", banned: [/the organi[sz]er will confirm/] },
   // THE GROUP WORDS. A tee sheet's summary and the casual-round clash notice.
   { file: "src/components/FoursomeMaker.tsx", banned: [/"twosome"/, /"threesome"/, /"foursome"/] },
   { file: "src/components/TournamentClashNotice.tsx", banned: [/your fourball/, /your foursome/] },

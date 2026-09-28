@@ -41,6 +41,7 @@ function row(i: number): ClubEventRow {
     yourStatus: "",
     progress: null,
     placesNote: "",
+    waitlistOnly: false,
   };
 }
 
@@ -78,6 +79,23 @@ describe("where this member stands", () => {
       <ClubEventsList events={[{ ...row(0), band: "open", yourStatus: waiting }]} openAction={open} />,
     );
     expect(out).toContain("waiting list");
+  });
+
+  it("a full field's button says it joins the waiting list, before the tap", () => {
+    // Walked 2026-09-28: "Enter this tournament" beside "Full — waiting list
+    // open". The reply after the tap was honest; the label before it was not.
+    const full = renderToStaticMarkup(
+      <ClubEventsList
+        events={[{ ...row(0), band: "open", placesNote: "Full — waiting list open", waitlistOnly: true }]}
+        openAction={open}
+      />,
+    );
+    expect(full).toContain("Join the waiting list");
+    expect(full).not.toContain("Enter this tournament");
+    // CONTROL: a field with room still offers entry.
+    const room = renderToStaticMarkup(<ClubEventsList events={[{ ...row(0), band: "open" }]} openAction={open} />);
+    expect(room).toContain("Enter this tournament");
+    expect(room).not.toContain("Join the waiting list");
   });
 
   it("says nothing about a member who is simply not entered", () => {

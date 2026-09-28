@@ -33,6 +33,7 @@ export function EnterButton({
   href,
   style,
   organizer = "organizer",
+  waitlistOnly = false,
 }: {
   eventId: string;
   /** The public form, kept as the way out when the one tap is refused. */
@@ -40,6 +41,8 @@ export function EnterButton({
   style?: React.CSSProperties;
   /** The club's word for who runs it — organizer or organiser (`golf-terms.ts`). */
   organizer?: string;
+  /** The field is full, so the tap joins the waiting list — and the label says so first. */
+  waitlistOnly?: boolean;
 }) {
   /**
    * NO `router.refresh()` HERE, deliberately.
@@ -93,7 +96,7 @@ export function EnterButton({
           })
         }
       >
-        {pending ? "Entering…" : "Enter this tournament"} <Icon name={pending ? "hourglass" : "arrow-right"} />
+        {pending ? "Entering…" : waitlistOnly ? "Join the waiting list" : "Enter this tournament"} <Icon name={pending ? "hourglass" : "arrow-right"} />
       </button>
       {error && (
         <span className="text-muted" style={{ fontSize: 12.5 }}>

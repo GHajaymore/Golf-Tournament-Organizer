@@ -324,7 +324,7 @@ export function ClubEventsList({
                 {(e.canEnter || e.canView || e.entered) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {e.canEnter && (
-                      <EnterButton eventId={e.eventId} href={e.registrationHref} organizer={e.organizer} style={{ flex: "1 1 140px" }} />
+                      <EnterButton eventId={e.eventId} href={e.registrationHref} organizer={e.organizer} waitlistOnly={e.waitlistOnly} style={{ flex: "1 1 140px" }} />
                     )}
                     {(e.canView || e.entered) && (
                       <form action={openAction} style={{ flex: "1 1 140px", display: "flex" }}>
@@ -342,7 +342,7 @@ export function ClubEventsList({
                 )}
 
                 {/* Taking a name off — until entries close (Ajay, 2026-09-26). */}
-                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} />}
+                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} waiting={e.waiting} />}
               </div>
             </article>
           )}

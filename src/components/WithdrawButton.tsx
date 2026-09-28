@@ -20,17 +20,47 @@ import { withdrawMyEntry } from "@/app/actions/enter";
  * NO `router.refresh()`, for the reason `EnterButton` gives: the action
  * revalidates the screens it changes, and this must render on its own in
  * `render.test.tsx`.
+ *
+ * SOMEBODY ON THE WAITING LIST HAS NO PLACE TO GIVE AWAY. Walked 2026-09-28:
+ * a member on the Am-Am's list was asked "If the field is full, your place goes
+ * to the next person on the waiting list" and offered "Keep my place" — neither
+ * is true of them. What they lose is their spot in the queue, so that is what
+ * they are told.
  */
-export function WithdrawButton({ eventId, eventName }: { eventId: string; eventName: string }) {
+export function withdrawWords(waiting: boolean): { consequence: string; keep: string; done: string } {
+  return waiting
+    ? {
+        consequence: "You’ll lose your spot in the queue.",
+        keep: "Stay on the list",
+        done: "You’ve come off the waiting list.",
+      }
+    : {
+        consequence: "If the field is full, your place goes to the next person on the waiting list.",
+        keep: "Keep my place",
+        done: "You’ve withdrawn. If there was a waiting list, your place has gone to the next person on it.",
+      };
+}
+
+export function WithdrawButton({
+  eventId,
+  eventName,
+  waiting = false,
+}: {
+  eventId: string;
+  eventName: string;
+  /** On the waiting list rather than in the field. */
+  waiting?: boolean;
+}) {
   const [asking, setAsking] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  const words = withdrawWords(waiting);
 
   if (done) {
     return (
       <span className="text-muted" style={{ fontSize: 13 }} role="status">
-        You&rsquo;ve withdrawn. If there was a waiting list, your place has gone to the next person on it.
+        {words.done}
       </span>
     );
   }
@@ -64,8 +94,8 @@ export function WithdrawButton({ eventId, eventName }: { eventId: string; eventN
       style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}
     >
       <span>
-        Take your name off <strong>{eventName}</strong>? If the field is full, your place goes to the next
-        person on the waiting list.
+        Take your name off {waiting ? "the waiting list for " : ""}
+        <strong>{eventName}</strong>? {words.consequence}
       </span>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button
@@ -91,7 +121,7 @@ export function WithdrawButton({ eventId, eventName }: { eventId: string; eventN
           style={{ flex: "1 1 140px" }}
           onClick={() => setAsking(false)}
         >
-          Keep my place
+          {words.keep}
         </button>
       </div>
       {error && (
