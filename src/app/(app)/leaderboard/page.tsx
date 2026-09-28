@@ -20,6 +20,7 @@ import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } fr
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { isMatch } from "@/lib/tournament-shape";
 import { boardIntro, boardFootnote, boardShowsHighlights, boardShowsCommentary } from "@/lib/domain/board-copy";
+import { unitIsNet } from "@/lib/domain/ranked-score";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
@@ -269,6 +270,9 @@ export default async function LeaderboardPage({
     isStroke: state.boardIsStroke,
     stableford: isStablefordRound(activeStage?.scoringBasis, activeStage?.format),
     casual: casualRound,
+    // Net to par on a net board — the board's own caption decides, as it
+    // does for the column itself (`toParOnBasis` via `unitIsNet`).
+    netToPar: unitIsNet(state.strokeUnitLabel),
   };
   const commentary = await prisma.commentary.findMany({
     where: { eventId: session.eventId },
