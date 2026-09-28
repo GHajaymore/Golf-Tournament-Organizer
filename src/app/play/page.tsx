@@ -176,6 +176,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           /* Whether a signed card then waits for a committee. A casual round is
              set to player confirmation because there is not one. */
           staffApproves={!allowsAutoConfirm(settings)}
+          voiceEntry={settings.voiceEntry}
         />
       );
     }

@@ -69,7 +69,16 @@ export function PlayerCard({
   partners = [],
   startHole = 1,
   pointsTable = null,
+  voiceEntry = true,
 }: {
+  /**
+   * The organizer's "Voice entry" setting (Play settings): "Let scores be
+   * dictated out loud instead of typed". Off, the card offers no microphone
+   * anywhere — "Say the card" and the hole view's mic both go — and the card
+   * is typed. It was saved, templated and never read until 2026-09-27, so a
+   * club that switched it off still handed every player a mic.
+   */
+  voiceEntry?: boolean;
   /**
    * The Stableford table this round is decided on, or null for a strokes
    * round. On a points round the card shows its POINTS — the one figure the
@@ -777,6 +786,7 @@ export function PlayerCard({
               partners={partners}
               startHole={startHole}
               holding={(s) => !savePartial && s.filter((v) => v != null).length < holes}
+              showVoice={voiceEntry}
             />
           ) : view === "hole" ? (
             <HoleByHoleCard
@@ -795,6 +805,7 @@ export function PlayerCard({
               onSet={(_pid, hole, value) => setHole(hole, value)}
               meId={playerId}
               startHole={startHole}
+              showVoice={voiceEntry}
             />
           ) : (
             <>
@@ -813,6 +824,8 @@ export function PlayerCard({
               toggle, a second toggle, a collapsible, a text box, a button and a
               paragraph.
             */}
+            {voiceEntry && (
+            <>
             <div
               style={{
                 display: "flex",
@@ -840,6 +853,8 @@ export function PlayerCard({
             {/* What the mic does, under the mic — one line, in one component
                 shared by all four of them. */}
             <MicNote style={{ marginBottom: 10 }} />
+            </>
+            )}
             <ScorecardTable
               holes={holes}
               pars={pars}
