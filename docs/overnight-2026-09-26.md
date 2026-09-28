@@ -152,7 +152,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | live |
 | #663 | "On now" on Events showed nothing to a member playing in five tournaments; the switcher now says which one has their card open; the landing's Club card promised "WHS posting" and its Free card "as many players as turn up" (items 69–71) | live |
 | #664 | Retire the team season engine no screen ever called (from a separate session; the week sheet's stroke table finding it surfaced is parked by Ajay) | live |
-| #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | pending |
+| #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | live |
+| #666 | **The TourneyHQ logo stands up**: one lockup everywhere, the mark the full height of the word, deeper orange on light screens (your choice); the new-round page opens on its header (item 74) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -894,6 +895,21 @@ the wrong thing about where they were:
     reads literal sizes, so it never saw this one. The chip now stops shrinking at 10px, and a new
     test computes it at every size the wordmark is set at. Found by the session redesigning the
     landing.
+74. **The TourneyHQ logo looked tiny, and faint in light mode.** Ajay, on the console sidebar:
+    "TourneyHQ and logo looks tiny on this screen … it should stand up." The mark's drawing
+    fills only about 70% of its box, and the box was sized to the wordmark. So the visible mark
+    was about a capital letter's height: 13px beside a 19px word in the sidebar. It was also
+    centred against three lines of text, and five screens built the pair by hand, three of them
+    inside a tinted tile. In light mode the orange "Tourney" measured 1.8:1 against the page.
+    Now:
+    - one lockup draws the mark and word everywhere, the mark standing the full height of the word;
+    - the tagline and club name sit beneath it, smaller;
+    - the sidebar uses the page-header size;
+    - in light mode only, "Tourney" is a deeper shade of the same orange (Ajay's choice), about
+      4:1 against the page, with the flag, ball and "HQ" unchanged.
+    Measured by the landing session across 11 screens, 7 widths and both modes. In the same pass,
+    the new-round page stopped opening scrolled past its own header, and long club names wrap in
+    the sidebar instead of being cut off.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
