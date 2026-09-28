@@ -93,8 +93,17 @@ export async function setExpenseEntry(entry: string): Promise<MoneyResult> {
 
 /** The club's default, for every tournament that has not chosen its own. */
 export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
-  const who = await requireOrganizer();
-  if (!who) return { ok: false, error: "An organizer sets how money is handled." };
+  /**
+   * NO TOURNAMENT REQUIRED — this is the club's default, and "Decide how money
+   * works" is step three of a new club's checklist, before any tournament
+   * exists. `requireOrganizer` demanded one, so a new club was told "An
+   * organizer sets how money is handled" at the step it had been sent to
+   * (walked 2026-09-28). The authority is the club check below, which is the
+   * one that matters and works with or without a tournament open.
+   */
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Not signed in." };
+  const who = { eventId: session.eventId, name: session.name || session.email };
   const clean = (mode ?? "").trim();
   if (clean !== "" && !isMoneyMode(clean)) return { ok: false, error: "Unknown money setting." };
 
@@ -113,7 +122,7 @@ export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
    * `org-access.ts` explains at length why "organizer of an event" was the
    * wrong reading. This was the one setter that did not ask it.
    */
-  const access = await organizationAccess(await getSession());
+  const access = await organizationAccess(session);
   if (!access) return { ok: false, error: "No organization found." };
   if (!access.canEdit) {
     return {
@@ -123,7 +132,11 @@ export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
   }
 
   await prisma.organization.update({ where: { id: access.organizationId }, data: { moneyMode: clean } });
-  await logAudit(who.eventId, "money.mode.club", `${who.name} set the club default to ${clean || "follow the kind"}`, { actor: who.name });
+  // The audit trail is per tournament; a club with none yet has nowhere to
+  // write the line, and nothing has been played under the old default.
+  if (who.eventId) {
+    await logAudit(who.eventId, "money.mode.club", `${who.name} set the club default to ${clean || "follow the kind"}`, { actor: who.name });
+  }
   refresh();
   return { ok: true };
 }
