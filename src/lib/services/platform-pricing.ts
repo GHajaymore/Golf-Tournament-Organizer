@@ -61,10 +61,25 @@ export const storedPricingOverrides = cache(async (): Promise<PricingOverrides> 
 export async function savePricingOverride(
   prices: Partial<Record<PlanKey, number>>,
 ): Promise<void> {
+  /**
+   * THE LOCAL PRICES IN THE ROW ARE KEPT.
+   *
+   * This call sets USD prices, and it rebuilt the whole row from them. That
+   * was harmless while a row held nothing else. Now a row can also carry
+   * `byCurrency`, so saving a dollar price would silently wipe every
+   * sterling, euro and rand price the owner had set, with nothing on screen
+   * saying so. The existing row is read first, and only the USD figures this
+   * call names are replaced.
+   */
+  const existing = await prisma.platformSetting.findUnique({ where: { key: PRICING_KEY } });
+  const kept = parsePricingOverrides(existing?.value).plans;
   const plans: PricingOverrides["plans"] = {};
+  for (const [key, entry] of Object.entries(kept)) {
+    if (entry?.byCurrency) plans[key as PlanKey] = { byCurrency: entry.byCurrency };
+  }
   for (const [key, monthly] of Object.entries(prices)) {
     if (typeof monthly === "number" && Number.isFinite(monthly) && monthly >= 0) {
-      plans[key as PlanKey] = { monthly };
+      plans[key as PlanKey] = { ...plans[key as PlanKey], monthly };
     }
   }
   // Round-trip through the parser so what we store is exactly what a reader

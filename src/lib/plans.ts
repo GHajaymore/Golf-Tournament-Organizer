@@ -33,6 +33,15 @@ export interface Plan {
   blurb: string;
   /** Monthly price in whole currency units. 0 = free. Display only for now. */
   priceMonthly: number;
+  /**
+   * The monthly price in every other `PLAN_CURRENCIES` entry, in whole units.
+   *
+   * SET, NOT CONVERTED (Ajay, 2026-09-27). A converted price is a number
+   * nobody chose: £38.61 this week and £39.20 next, moving with the exchange
+   * rate on a page a stranger reads. These are the prices a club in that
+   * country is quoted. USD stays `priceMonthly`, so nothing existing moves.
+   */
+  localMonthly: Record<Exclude<PlanCurrency, "USD">, number>;
   limits: {
     /** Tournaments that may be active (not completed) at once. null = unlimited. */
     activeEvents: number | null;
@@ -148,6 +157,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     name: "Free",
     blurb: "For a golfer running a casual round or a one-off, up to ten players.",
     priceMonthly: 0,
+    localMonthly: { GBP: 0, EUR: 0, CAD: 0, AUD: 0, NZD: 0, ZAR: 0 },
     limits: {
       activeEvents: 1,
       staffSeats: 1,
@@ -170,6 +180,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // `effectivePrice` without a code edit, which is why $12 is a starting
     // point rather than a commitment.
     priceMonthly: 49,
+    localMonthly: { GBP: 39, EUR: 45, CAD: 65, AUD: 75, NZD: 79, ZAR: 899 },
     limits: {
       // Unlimited tournaments and a season table are the point: a society runs
       // many events across a year, which is exactly the recurring customer a
@@ -203,6 +214,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // fee we don't charge and the free tier they don't have, never on "half
     // the price". See docs/handoff-2026-09-25.md.
     priceMonthly: 175,
+    localMonthly: { GBP: 139, EUR: 159, CAD: 239, AUD: 269, NZD: 289, ZAR: 3199 },
     limits: {
       activeEvents: null,
       staffSeats: 10,
@@ -228,6 +240,29 @@ export const DEFAULT_PLAN: PlanKey = "free";
  *  is per club and lives in `currencySymbol`. Quoted on the schema.org offer. */
 export const PLAN_CURRENCY = "USD";
 
+/**
+ * The currencies a plan has a SET price in. `PLAN_CURRENCY` is the first and
+ * the fallback.
+ *
+ * Deliberately not every code the app can format. A club's money may be in
+ * any currency (`money-format.ts`), but a plan may only be quoted where
+ * somebody chose a price, so a club in yen is quoted in dollars rather than in
+ * a converted figure nobody set.
+ */
+export const PLAN_CURRENCIES = ["USD", "GBP", "EUR", "CAD", "AUD", "NZD", "ZAR"] as const;
+export type PlanCurrency = (typeof PLAN_CURRENCIES)[number];
+
+/**
+ * A stored or typed currency as a plan currency: trimmed, upper-cased, and
+ * USD for anything without a price point. It never throws: a bad club row
+ * must not take a price off the settings screen, and dollars are a price that
+ * exists.
+ */
+export function planCurrency(raw: string | null | undefined): PlanCurrency {
+  const code = (raw ?? "").trim().toUpperCase();
+  return (PLAN_CURRENCIES as readonly string[]).includes(code) ? (code as PlanCurrency) : PLAN_CURRENCY;
+}
+
 /** Resolve a stored plan string, falling back to free for unknown values so a
  *  bad row can never lock someone out of their own tournaments. */
 export function planFor(key: string | null | undefined): Plan {
@@ -246,6 +281,11 @@ export function planFor(key: string | null | undefined): Plan {
  * — `overrides` is a parameter for exactly that reason.
  *
  * The shape is one JSON object, e.g. `{"plans":{"club":{"monthly":39}}}`.
+ * `monthly` is the USD price. A local price is overridden beside it, under
+ * `byCurrency`: `{"plans":{"club":{"monthly":175,"byCurrency":{"GBP":129}}}}`.
+ * A currency with no price point is ignored like an unknown plan, and so is
+ * USD there, because `monthly` already says it and two USD figures would
+ * be one too many.
  *
  * IT REFUSES TO THROW, precisely like `featureOverrides` below. A malformed
  * value, a string where a number belongs, a negative price, a plan key nothing
@@ -253,8 +293,27 @@ export function planFor(key: string | null | undefined): Plan {
  * default. A typo in a config value must never make the app quote a wrong price
  * or fail to render one, because the price is on a page a stranger reads.
  */
+export type LocalPlanCurrency = Exclude<PlanCurrency, "USD">;
+
+export interface PlanPriceOverride {
+  /** The USD monthly price. */
+  monthly?: number;
+  /** Monthly prices in the other plan currencies. */
+  byCurrency?: Partial<Record<LocalPlanCurrency, number>>;
+}
+
 export interface PricingOverrides {
-  plans: Partial<Record<PlanKey, { monthly?: number }>>;
+  plans: Partial<Record<PlanKey, PlanPriceOverride>>;
+}
+
+/** A price is a finite, non-negative number. "39", NaN, -1 and true are not. */
+function isPrice(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+/** Whether a code is a plan currency OTHER than USD, exactly as written. */
+function isLocalPlanCurrency(code: string): code is LocalPlanCurrency {
+  return code !== PLAN_CURRENCY && (PLAN_CURRENCIES as readonly string[]).includes(code);
 }
 
 export function parsePricingOverrides(stored: string | null | undefined): PricingOverrides {
@@ -277,11 +336,23 @@ export function parsePricingOverrides(stored: string | null | undefined): Pricin
     // `featureOverrides` drops an unknown feature key.
     if (!(key in PLANS)) continue;
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const entry: PlanPriceOverride = {};
     const monthly = (value as Record<string, unknown>).monthly;
-    // A price is a finite, non-negative number. "39", NaN, -1 and true are not.
-    if (typeof monthly === "number" && Number.isFinite(monthly) && monthly >= 0) {
-      out.plans[key as PlanKey] = { monthly };
+    if (isPrice(monthly)) entry.monthly = monthly;
+
+    const byCurrency = (value as Record<string, unknown>).byCurrency;
+    if (byCurrency && typeof byCurrency === "object" && !Array.isArray(byCurrency)) {
+      const local: Partial<Record<LocalPlanCurrency, number>> = {};
+      for (const [code, price] of Object.entries(byCurrency as Record<string, unknown>)) {
+        // The code as written, not normalised: a stored key is written by
+        // this parser, so "gbp" in the row is somebody's hand edit, and a
+        // hand edit that guesses the shape is ignored rather than trusted.
+        if (isLocalPlanCurrency(code) && isPrice(price)) local[code] = price;
+      }
+      if (Object.keys(local).length > 0) entry.byCurrency = local;
     }
+
+    if (entry.monthly !== undefined || entry.byCurrency) out.plans[key as PlanKey] = entry;
   }
   return out;
 }
@@ -301,14 +372,24 @@ export function pricingOverrides(): PricingOverrides {
  * finding, and the reason `retentionSummary` and `SEASON_LOCKED` are single
  * sources too. Every screen that shows a price goes through here.
  */
-export function effectivePrice(plan: Plan, overrides: PricingOverrides = pricingOverrides()): number {
-  const override = overrides.plans[plan.key]?.monthly;
+export function effectivePrice(
+  plan: Plan,
+  overrides: PricingOverrides = pricingOverrides(),
+  currency: string = PLAN_CURRENCY,
+): number {
+  const code = planCurrency(currency);
+  const entry = overrides.plans[plan.key];
   // Validated at the sink as well as in the parser: a caller other than
   // `parsePricingOverrides` (the owner console, later) could hand in NaN,
   // Infinity or a negative, and a price is a finite, non-negative number.
-  return typeof override === "number" && Number.isFinite(override) && override >= 0
-    ? override
-    : plan.priceMonthly;
+  if (code === PLAN_CURRENCY) {
+    return isPrice(entry?.monthly) ? entry.monthly : plan.priceMonthly;
+  }
+  // A USD override does NOT move a local price. The local prices were set,
+  // not converted, so there is no rate to carry a change across with. Each
+  // currency moves only when somebody sets it.
+  const local = entry?.byCurrency?.[code];
+  return isPrice(local) ? local : plan.localMonthly[code];
 }
 
 /**
@@ -330,8 +411,12 @@ export const ANNUAL_MONTHS_CHARGED = 10;
  * here, so the "$290/yr" on the pricing page and the one on the settings panel
  * are the same number.
  */
-export function effectiveAnnualPrice(plan: Plan, overrides: PricingOverrides = pricingOverrides()): number {
-  return effectivePrice(plan, overrides) * ANNUAL_MONTHS_CHARGED;
+export function effectiveAnnualPrice(
+  plan: Plan,
+  overrides: PricingOverrides = pricingOverrides(),
+  currency: string = PLAN_CURRENCY,
+): number {
+  return effectivePrice(plan, overrides, currency) * ANNUAL_MONTHS_CHARGED;
 }
 
 /**

@@ -293,7 +293,13 @@ export default async function OrganizationPage() {
       <SettingsSectionAnchor id="plan">
         {/* The SAME `standing` the Staff card above is drawn from, resolved
             once. Two calls would be two truths the moment one of them moved. */}
-        <PlanPanel planKey={org.subscription?.plan ?? "free"} standing={standing} overrides={await storedPricingOverrides()} />
+        <PlanPanel
+          planKey={org.subscription?.plan ?? "free"}
+          standing={standing}
+          overrides={await storedPricingOverrides()}
+          currency={org.currency}
+          locale={org.locale}
+        />
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
