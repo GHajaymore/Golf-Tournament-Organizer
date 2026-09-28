@@ -1357,7 +1357,7 @@ export default async function LoginPage() {
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" /><rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" /></svg>
               <h3>Your formats and prizes</h3>
-              <p>Sixteen formats — medal and Stableford, matchplay and four-ball, scrambles, brackets and cuts — each scored off its own published allowance. Add skins, sweeps, Nassau and prize splits named the way your club names them.</p>
+              <p>Sixteen formats — medal and Stableford, matchplay and four-ball, foursomes and scrambles — fifteen scored for you off each format&rsquo;s handicap allowance, plus one for the game your club invented. Run them as knockout brackets or with a cut, and add skins, sweeps, Nassau and prize splits named the way your club names them.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" /><path d="M16 8a3 3 0 0 1 0 6" /><path d="M18.5 20c0-2-.8-3.6-2.1-4.4" /></svg>
@@ -1526,7 +1526,7 @@ export default async function LoginPage() {
             </details>
             <details>
               <summary style={paperInk}>What formats and games can we run?<Chevron /></summary>
-              <div className="ans" style={paperSoft}><p><b style={paperInk}>Sixteen formats</b> — medal and Stableford, matchplay and four-ball, scrambles, brackets and cuts — each scored off its own published allowance. Layer <b style={paperInk}>skins, sweeps, Nassau and prize splits</b> on top: we work out every penny and keep the record, and never move the money.</p></div>
+              <div className="ans" style={paperSoft}><p><b style={paperInk}>Sixteen formats</b> — medal and Stableford, matchplay and four-ball, foursomes and scrambles. Fifteen are scored for you off each format&rsquo;s handicap allowance; the sixteenth is for a game your club invented, and you enter its result. Run any of them as a knockout bracket or with a cut, then layer <b style={paperInk}>skins, sweeps, Nassau and prize splits</b> on top: we work out every penny and keep the record, and never move the money.</p></div>
             </details>
             <details>
               <summary style={paperInk}>Do players need to download an app?<Chevron /></summary>

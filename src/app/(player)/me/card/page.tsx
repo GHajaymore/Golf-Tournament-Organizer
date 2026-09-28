@@ -327,6 +327,7 @@ export default async function PlayCardPage() {
             : "standard"
           : null
       }
+      voiceEntry={settings.voiceEntry}
       status={me.round.card?.status ?? "entered"}
       // Whether signing this card hands it to anybody. Under player
       // confirmation nothing approves a scorecard — `certifyCard` writes
