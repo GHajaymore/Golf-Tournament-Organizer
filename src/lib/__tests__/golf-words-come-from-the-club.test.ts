@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { readSource } from "./source";
+import { roleName } from "@/lib/roles";
+import { golfTermsFor } from "@/lib/domain/golf-terms";
+
+describe("a role is named in the club's words", () => {
+  it("the top role follows the register; the stored value never changes", () => {
+    expect(roleName("admin", golfTermsFor("us").organizer)).toBe("Organizer");
+    expect(roleName("admin", golfTermsFor("uk").organizer)).toBe("Organiser");
+    // CONTROL: the other roles have one spelling, and an unknown value is shown as stored.
+    expect(roleName("assistant", "organiser")).toBe("Assistant");
+    expect(roleName("player", "organiser")).toBe("Player");
+    expect(roleName("owner-ish", "organiser")).toBe("owner-ish");
+  });
+
+  it("defaults to the US word for a caller with no club", () => {
+    expect(roleName("admin")).toBe("Organizer");
+  });
+});
 
 /**
  * A SCREEN THAT HAS BEEN CONVERTED TO THE CLUB'S GOLF WORDS STAYS CONVERTED.
@@ -55,6 +72,16 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
     file: "src/components/DeniedNotice.tsx",
     banned: [/tournament&rsquo;s organi[sz]er/],
   },
+  // THE ROLE NAME. One label in every place a role is shown, spelled through
+  // `roleName` — a half-converted set would show a club both spellings.
+  { file: "src/components/Sidebar.tsx", banned: [/"Organi[sz]er"/, />Organi[sz]er</] },
+  { file: "src/components/MobileTabBar.tsx", banned: [/"Organi[sz]er"/, />Organi[sz]er</] },
+  { file: "src/components/AccessClient.tsx", banned: [/only Organi[sz]er/, /<b>Organi[sz]er<\/b>/] },
+  { file: "src/components/OrganizationAccess.tsx", banned: [/admin: "Organi[sz]er"/] },
+  { file: "src/lib/access-roles.ts", banned: [/"Organi[sz]er"/] },
+  { file: "src/app/(player)/layout.tsx", banned: [/\/> Organi[sz]er/] },
+  { file: "src/app/(app)/access/page.tsx", banned: [/Organi[sz]ers get full/] },
+  { file: "src/components/PlanPanel.tsx", banned: [/"organi[sz]er", "organi[sz]ers"/] },
 ];
 
 /**
@@ -69,6 +96,10 @@ const CALLERS: ReadonlyArray<{ file: string; tag: string }> = [
   { file: "src/app/(app)/messages/page.tsx", tag: "MessagesClient" },
   { file: "src/app/(player)/layout.tsx", tag: "DeniedNotice" },
   { file: "src/app/(app)/layout.tsx", tag: "DeniedNotice" },
+  { file: "src/app/(app)/layout.tsx", tag: "Sidebar" },
+  { file: "src/app/(app)/layout.tsx", tag: "MobileTabBar" },
+  { file: "src/app/(app)/access/page.tsx", tag: "AccessClient" },
+  { file: "src/app/(app)/organization/page.tsx", tag: "OrganizationAccess" },
 ];
 
 describe("every caller hands a converted component the club's word", () => {
@@ -87,7 +118,7 @@ describe("screens converted to the club's golf words", () => {
     const src = readSource(file);
 
     it(`${file} reads the club's terms`, () => {
-      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}/);
+      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}|roleName\(/);
     });
 
     for (const word of banned) {

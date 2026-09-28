@@ -179,6 +179,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
+  // The club's word for who runs it — organizer or organiser — for the role
+  // name in the sidebar, the phone tab bar and the refused-screen notice.
+  const organizer = (session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer;
   // Applied inline on the wrapper so the club's colours arrive with the
   // server-rendered HTML. Injected later, the first paint would flash the
   // default orange before settling — a visible flicker of the wrong brand.
@@ -228,6 +231,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         viewRole={session.viewRole}
         initials={initials}
         brand={brand}
+        organizer={organizer}
       />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <MobileTopBar />
@@ -245,7 +249,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* A refused visit says why — see `deniedLanding`. Suspense because it
               reads the search params, which a layout cannot. */}
           <Suspense fallback={null}>
-            <DeniedNotice organizer={(session.eventId ? await golfTermsForEvent(session.eventId) : golfTermsFor("us")).organizer} />
+            <DeniedNotice organizer={organizer} />
           </Suspense>
           {children}
         </main>
@@ -257,6 +261,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         viewRole={session.viewRole}
         initials={initials}
         brand={brand}
+        organizer={organizer}
       />
     </div>
     </OrgProfileProvider>

@@ -10,7 +10,8 @@ import { NOINDEX } from "@/lib/site";
 
 // Behind a session, and it lists the tournaments this person can reach.
 export const metadata = { title: "Choose a tournament", robots: NOINDEX };
-import { ROLE_LABEL } from "@/lib/roles";
+import { roleName } from "@/lib/roles";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
@@ -36,7 +37,7 @@ export default async function ChooseTournamentPage({
   const access = await accessibleEvents(session.email);
   const events = await prisma.event.findMany({
     where: { id: { in: access.map((a) => a.eventId) } },
-    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true } } },
+    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true, golfTerms: true } } },
     orderBy: { createdAt: "desc" },
   });
   // Null for anybody who runs no organization of their own, which is every
@@ -194,7 +195,8 @@ export default async function ChooseTournamentPage({
                       <Icon name="buildings" /> via {orgProfile(a.event.organization?.kind, a.event.organization?.country, a.event.organization?.communityNoun).noun}
                     </span>
                   )}
-                  <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{ROLE_LABEL[a.role] ?? a.role}</span>
+                  <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{/* Per row: the list can span clubs in two countries. */}
+                    {roleName(a.role, golfTermsFor(golfRegister(a.event.organization?.country, a.event.organization?.golfTerms)).organizer)}</span>
                   <Icon name="arrow-right" style={{ color: "var(--color-accent-300)" }} />
                 </div>
               </button>
