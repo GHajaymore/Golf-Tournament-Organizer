@@ -173,6 +173,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #683 | The Events card tells a waiting-list member the truth about their place (items 92–93) | live |
 | #684 | An entry awaiting approval is said as such, not as a waiting list (item 94) | live |
 | #685 | Recent changes says who approved an entry and who got a freed place (item 95) | live |
+| #686 | Every action written to the record has a heading; a forfeit is a result (item 96) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1113,6 +1114,24 @@ the wrong thing about where they were:
     check can fail. The member's own row on the player Board matches the organiser's
     leaderboard on all five boards that list him: place, figure and to-par. Two consecutive
     passes found nothing new, which is this run's stopping rule.
+
+Resumed at Ajay's "keep going … make it error free and professional":
+
+97. **A console-error sweep found the app clean, and two unbranded dead ends.** Every
+    sidebar screen was swept as the organiser on five tournament shapes (full, empty, 36-hole
+    cut, knockout, festival): 113 screens with zero console errors or warnings. Every
+    player screen was swept on six, plus every public board, entry form and public page. The
+    only entries were dev-server restarts and addresses I had guessed. The listener was
+    proven by those very 404s. Two things read as unprofessional:
+    - `/login`, `/signin` and `/signup` answered 404. Nothing links there, but it is what a
+      returning secretary types. They now land on the front page's sign-in panel, on the
+      right tab. `/register` is matched exactly, and a test fails if a rule could ever catch
+      a `/register/<token>` entry form.
+    - A wrong address showed Next's bare "404: This page could not be found.", and a failed
+      screen "Application error: a server-side exception has occurred". Both pages now carry
+      the brand and a way on. The 404 still answers with status 404. The error page offers
+      "Try again" and quotes the error's reference, never its message, which is server detail
+      and could name a person. A test turns red if the message is ever printed.
 
     Checked and fine: a member refused one-tap entry for a missing mobile is told why and given
     the entry form. That form is pre-filled for a signed-in member (an earlier "not pre-filled"
