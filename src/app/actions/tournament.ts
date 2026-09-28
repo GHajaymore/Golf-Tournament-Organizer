@@ -86,6 +86,7 @@ import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUN
 import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
@@ -3856,7 +3857,12 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
     prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
   ]);
   const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
-  const refusal = launchRefusal({ playingRounds, confirmed, dated: !!event?.dates.trim() });
+  const refusal = launchRefusal({
+    playingRounds,
+    confirmed,
+    dated: !!event?.dates.trim(),
+    missingCards: await roundsMissingCards(eventId),
+  });
   if (refusal) return { ok: false, error: refusal };
 
   // On launch, every non-staff account receives the Player role. Once registration

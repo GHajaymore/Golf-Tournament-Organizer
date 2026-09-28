@@ -32,6 +32,7 @@
 // repeated, for the reason lifecycle-state.ts gives beside it: launched means
 // NOT on this list, and two copies of that is two answers.
 import { PRE_LAUNCH_STATUSES } from "./lifecycle-state";
+import { missingCardsRefusal } from "./round-card-status";
 
 export interface LaunchFacts {
   /** Rounds the field actually plays. */
@@ -52,6 +53,13 @@ export interface LaunchFacts {
    * this refuses an EMPTY date, never an unsettled one.
    */
   dated: boolean;
+  /**
+   * Playing rounds whose format scores against a course card that the round
+   * does not have — see domain/round-card-status.ts. Required rather than
+   * optional, so a caller that forgets it fails to compile instead of offering
+   * a Launch button the action then refuses (Ajay, 2026-09-28).
+   */
+  missingCards: readonly { label: string; course: string }[];
 }
 
 /**
@@ -74,7 +82,13 @@ export function launchRefusal(facts: LaunchFacts): string | null {
     // "Tournament setup", which is no screen a newcomer can find.
     return "This tournament has no dates, so nobody can plan around it. Add them on Tournament details — mark them tentative if the committee hasn't fixed them yet — then launch.";
   }
-  return null;
+  /**
+   * A round the format cannot score. Score entry already refused it — on the
+   * first tee, which is the worst moment to find out. Only par and stroke
+   * index decide this; an unchecked card, missing distances or unrated tees
+   * are warnings elsewhere and never stop a launch.
+   */
+  return missingCardsRefusal(facts.missingCards);
 }
 
 export interface PlayFacts {

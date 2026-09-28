@@ -24,6 +24,7 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
@@ -466,12 +467,16 @@ export default async function DashboardPage() {
    * a reason the screen had already worked out and thrown away.
    */
   const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
+  // Read only when Launch is on offer — the same facts the action refuses on,
+  // so the button and the server cannot disagree about a round's card.
+  const missingCards = lifecycleAction?.kind === "launch" ? await roundsMissingCards(session.eventId) : [];
   const phaseBlock =
     lifecycleAction?.kind === "launch"
       ? launchRefusal({
           playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
           confirmed: state.confirmed.length,
           dated: !!state.event.dates.trim(),
+          missingCards,
         })
       : lifecycleAction?.to === "completed"
         ? finishRefusal({
