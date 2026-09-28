@@ -28,6 +28,7 @@ function row(i: number): ClubEventRow {
     canEnter: true,
     entered: false,
     waiting: false,
+    awaiting: false,
     registrationHref: "",
     organizer: "organizer",
     canWithdraw: false,

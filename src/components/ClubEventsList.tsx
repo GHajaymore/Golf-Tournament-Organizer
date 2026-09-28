@@ -342,7 +342,7 @@ export function ClubEventsList({
                 )}
 
                 {/* Taking a name off — until entries close (Ajay, 2026-09-26). */}
-                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} waiting={e.waiting} />}
+                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} waiting={e.waiting} awaiting={e.awaiting} />}
               </div>
             </article>
           )}

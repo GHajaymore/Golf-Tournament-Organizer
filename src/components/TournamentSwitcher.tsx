@@ -84,7 +84,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {current?.waiting ? "Waiting list" : "Watching · read-only"}
+              {current?.awaiting ? "Awaiting approval" : current?.waiting ? "Waiting list" : "Watching · read-only"}
             </span>
           )}
           {others.length > 0 && (

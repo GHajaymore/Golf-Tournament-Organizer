@@ -177,6 +177,16 @@ async function walk(label, user, eventId, expect) {
     if (expect.waiting && path !== "/me/board" && !text.includes("on the waiting list")) {
       fail(where, "somebody on the waiting list is not told so");
     }
+    /**
+     * AWAITING APPROVAL IS NOT A WAITING LIST (2026-09-28). A club that approves
+     * entries puts every one in front of a person, with the field wide open —
+     * and the card told them "You're on the waiting list", a queue they were
+     * never in. They are told what is actually happening, and never the other.
+     */
+    if (expect.awaiting && path !== "/me/board") {
+      if (text.includes("waiting list")) fail(where, "told somebody awaiting approval they are on a waiting list");
+      if (!text.includes("approv")) fail(where, "somebody awaiting approval is not told so");
+    }
     if (expect.noRound) {
       if (text.includes("first hole goes in")) fail(where, "promised a hole in a tournament with no round");
       if (text.includes("against your opponent")) fail(where, "named an opponent in a tournament with no round");
@@ -235,6 +245,13 @@ async function main() {
     noRound: true,
   });
   await walk("no-round/stranger", stranger, bare.id, { entered: false, mustSayNotEntered: true, noRound: true });
+
+  // An approve-mode tournament with room to spare: the entry waits on a person,
+  // not on a place.
+  const vetted = await makeEvent(org.id, "entries approved by the committee", { registrationApproval: "approve" });
+  const applicant = await makeMember(org.id, "applicant");
+  await enter(vetted.id, applicant, "pending");
+  await walk("approval/pending", applicant, vetted.id, { entered: true, rowStatus: "pending", awaiting: true, noRound: true });
 
   await walk("playing/confirmed", confirmed, playing.id, { entered: true, rowStatus: "confirmed" });
   await walk("playing/waiting", waitlisted, playing.id, {

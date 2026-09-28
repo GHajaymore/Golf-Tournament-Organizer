@@ -27,7 +27,18 @@ import { withdrawMyEntry } from "@/app/actions/enter";
  * is true of them. What they lose is their spot in the queue, so that is what
  * they are told.
  */
-export function withdrawWords(waiting: boolean): { consequence: string; keep: string; done: string } {
+export function withdrawWords(
+  waiting: boolean,
+  /** Within `waiting`: with the organizer to approve, which is no queue at all. */
+  awaiting = false,
+): { consequence: string; keep: string; done: string } {
+  if (waiting && awaiting) {
+    return {
+      consequence: "Your entry is withdrawn before it’s approved.",
+      keep: "Keep my entry",
+      done: "You’ve withdrawn your entry.",
+    };
+  }
   return waiting
     ? {
         consequence: "You’ll lose your spot in the queue.",
@@ -45,17 +56,20 @@ export function WithdrawButton({
   eventId,
   eventName,
   waiting = false,
+  awaiting = false,
 }: {
   eventId: string;
   eventName: string;
   /** On the waiting list rather than in the field. */
   waiting?: boolean;
+  /** Within `waiting`: with the organizer to approve rather than queuing. */
+  awaiting?: boolean;
 }) {
   const [asking, setAsking] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const words = withdrawWords(waiting);
+  const words = withdrawWords(waiting, awaiting);
 
   if (done) {
     return (
@@ -94,7 +108,7 @@ export function WithdrawButton({
       style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}
     >
       <span>
-        Take your name off {waiting ? "the waiting list for " : ""}
+        Take your name off {waiting && !awaiting ? "the waiting list for " : ""}
         <strong>{eventName}</strong>? {words.consequence}
       </span>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

@@ -81,6 +81,11 @@ export default async function PlayCardPage() {
               Your entry is confirmed. There&rsquo;s no round to play in this tournament yet, so
               there&rsquo;s no card to fill in — it appears here as soon as there is one.
             </>
+          ) : onTheList && myRow?.awaiting ? (
+            <>
+              Your entry is with the {terms.organizer} to approve, so there&rsquo;s no card yet. It appears
+              here once your entry is approved and there&rsquo;s a round to play.
+            </>
           ) : onTheList ? (
             <>
               You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The{" "}
