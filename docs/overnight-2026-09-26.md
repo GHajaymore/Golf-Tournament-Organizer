@@ -158,7 +158,8 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #668 | **Your local prices**: a club is quoted its own set price in GBP, EUR, CAD, AUD, NZD or ZAR, otherwise USD; the owner console lists them (from a separate session) | live |
 | #669 | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 75) | merged |
 | #670 | More of the player app in the club's golf words: Today, Enter, Messages, the refused-screen notice (item 76) | merged |
-| — | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | pending |
+| #671 | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | merged |
+| — | A UK club's own role reads "Organiser" on every screen at once (item 79) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -947,6 +948,14 @@ the wrong thing about where they were:
     The landing session's new comparison was checked the same way, row by row. Voice "hold the
     button", Free "no time limit" and an unqualified "public board" were corrected before
     anything shipped.
+79. **A UK club's own role is now "Organiser", everywhere at once.** Item 76 left the role
+    name alone because it was spelled out separately in six places, and converting it one
+    screen at a time would have shown a club both spellings. It now goes through one function,
+    fed the club's golf words. That covers the sidebar and phone menu (including "Viewing as"),
+    the Access screen, the club's access table, the tournament chooser (per row), the player
+    header and the plan panel's staff line. Nobody's actual role changes. On the seeded Scottish
+    club's Access screen: "Organiser" six times and "Organizer" none; switched to US wording,
+    the reverse.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and

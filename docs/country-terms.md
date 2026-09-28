@@ -97,12 +97,20 @@ passes `organizer=`.
 Measured: a member of the seeded GB club sent to `/me?denied=dashboard` reads "organiser";
 with the club's setting on `us`, "organizer"; setting restored.
 
+**The ROLE name**, converted in the third PR, everywhere at once through one function,
+`roleName(role, organizer)` in `roles.ts`. It covers:
+
+- the sidebar and the phone tab bar, including their "Viewing as" picker;
+- the Access screen (its radios, the only-one warning, the key, the intro);
+- the club's access table and the plan panel's staff line;
+- `/choose`, per row;
+- the player header's button.
+
+The stored `Account.role` is untouched. Measured on `/access` for the GB club: "Organiser"
+×6 and "Organizer" ×0, and the reverse on `us`.
+
 Still to convert:
 
-- **The ROLE name "Organizer"** (`roles.ts`, `MobileTabBar`, `access-roles.ts`, the
-  Access screen, the player header's button). It is one label used in a dozen places, so
-  it changes everywhere at once or not at all; half-converted, a club would read both
-  spellings of its own role.
 - The console's remaining organizer wording, tee sheet and draw screens ("group" words).
 - The landing, which is owned by the site session and keeps its own swap table.
 
