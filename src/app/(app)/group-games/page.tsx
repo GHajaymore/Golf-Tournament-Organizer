@@ -14,6 +14,7 @@ import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -64,6 +65,7 @@ export default async function GroupGamesPage({
    * bent to fit the other.
    */
   const casual = isMatch(state.event.shape);
+  const terms = await golfTermsForEvent(session.eventId);
 
   /**
    * WHY NO POT CAN RUN ON THIS ROUND, OR "" — asked ONCE, because three things
@@ -233,7 +235,7 @@ export default async function GroupGamesPage({
             </>
           ) : (
             <>
-              Games that are not the club&rsquo;s: a fourball&rsquo;s own skins, or a bet between
+              Games that are not the club&rsquo;s: a {terms.group}&rsquo;s own skins, or a bet between
               whoever wants in wherever they are playing. Anyone in a group can set up that
               group&rsquo;s game and anyone can start a side bet — neither touches the
               field&rsquo;s money, and the settle-up folds all of it into one number per player.

@@ -30,6 +30,7 @@ import { TheDraw } from "@/components/TheDraw";
 import { isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
 import { bracketResults } from "@/lib/services/bracket-results";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -61,6 +62,8 @@ export default async function PlayBoardPage({
    */
   const { round } = await searchParams;
   const state = withBoardRound(loaded, round);
+  // The club's own golf words — organizer or organiser (`golf-terms.ts`).
+  const terms = await golfTermsForEvent(session.eventId);
   const choices = leaderboardRounds(loaded.stages);
   const picker =
     choices.length > 1 ? (
@@ -80,7 +83,7 @@ export default async function PlayBoardPage({
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          The organizer hasn&rsquo;t published standings for this tournament yet.
+          The {terms.organizer} hasn&rsquo;t published standings for this tournament yet.
         </p>
         <WayForward
           links={[
@@ -221,7 +224,7 @@ export default async function PlayBoardPage({
                   ? NASSAU_NOTE
                   : points?.kind === "modified-stableford"
                     ? MOD_STABLEFORD_NOTE
-                    : "This round is scored a different way. Ask your organizer for the current standings."}
+                    : `This round is scored a different way. Ask your ${terms.organizer} for the current standings.`}
         </p>
         {points && (
           <div style={{ marginTop: 14 }}>
@@ -340,7 +343,7 @@ export default async function PlayBoardPage({
       {straightKnockout ? (
         drawSection ?? (
           <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-            The draw appears here as soon as your organizer makes it.
+            The draw appears here as soon as your {terms.organizer} makes it.
           </p>
         )
       ) : (

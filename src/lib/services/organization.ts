@@ -13,6 +13,7 @@ import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/
 import type { OrgKind } from "../domain/org-profile";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
+import { golfRegister, golfTermsFor, type GolfTerm } from "../domain/golf-terms";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -928,6 +929,19 @@ export async function formattingForEvent(eventId: string): Promise<Formatting> {
  */
 export async function currencyForEvent(eventId: string): Promise<string> {
   return (await formattingForEvent(eventId)).currency;
+}
+
+/**
+ * The golf words this tournament's club speaks — its own choice, else its
+ * country's, else US (`golf-terms.ts`). Beside `formattingForEvent` because it
+ * answers the same kind of question: how does THIS club say it.
+ */
+export async function golfTermsForEvent(eventId: string): Promise<Record<GolfTerm, string>> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { country: true, golfTerms: true } } },
+  });
+  return golfTermsFor(golfRegister(event?.organization?.country, event?.organization?.golfTerms));
 }
 
 export async function themeForEvent(eventId: string): Promise<ClubTheme> {

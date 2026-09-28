@@ -16,6 +16,7 @@ import { moneyFor } from "@/lib/services/expenses";
 import { moneyRulesVersion } from "@/lib/domain/money-rules-version";
 import { logAudit } from "@/lib/services/action-shared";
 import { canAddExpense, resolveExpenseEntry } from "@/lib/domain/expense-entry";
+import { golfRegister, golfTermsFor } from "@/lib/domain/golf-terms";
 
 /**
  * Shared-expense actions.
@@ -374,12 +375,13 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
    */
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { expenseEntry: true },
+    select: { expenseEntry: true, organization: { select: { country: true, golfTerms: true } } },
   });
   if (!canAddExpense({ entry: resolveExpenseEntry({ eventEntry: event?.expenseEntry }), isStaff })) {
+    const terms = golfTermsFor(golfRegister(event?.organization?.country, event?.organization?.golfTerms));
     return {
       ok: false,
-      error: "The organizers add the shared costs for this one — send them what you paid for.",
+      error: `The ${terms.organizers} add the shared costs for this one — send them what you paid for.`,
     };
   }
 

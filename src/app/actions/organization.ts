@@ -6,6 +6,7 @@ import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
 import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
+import { isGolfRegister } from "@/lib/domain/golf-terms";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { otherOrganizationNamed } from "@/lib/services/organization";
 import { refusalFor } from "@/lib/services/limits";
@@ -598,6 +599,30 @@ export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
   // Same reason as the two above: the layout resolves the profile once and
   // hands it to eleven components through OrgProfileProvider, so the tree has
   // to re-render rather than one path.
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Which golf the app speaks to this club — "us", "uk", or "" to follow the
+ * country (`golf-terms.ts`). The same shape and the same guard as the noun
+ * above: the country is the default, the organizer is the authority, and it
+ * changes words only.
+ */
+export async function saveOrganizationGolfTerms(terms: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  const value = (terms ?? "").trim().toLowerCase();
+  if (value !== "" && !isGolfRegister(value)) {
+    return { ok: false, error: "Pick one of the listed options." };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { golfTerms: value },
+  });
   revalidatePath("/", "layout");
   return { ok: true };
 }

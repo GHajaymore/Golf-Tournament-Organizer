@@ -28,9 +28,20 @@ const ISO_BY_NAME: Record<string, string> = {
   "united states of america": "US",
   usa: "US",
   "united kingdom": "GB",
+  // The home nations, as a club secretary writes them (2026-09-27). ISO has
+  // one code for all four, and a Scottish club typing "Scotland" is right
+  // about itself — it was coming back unrecognised, which the golf-terms
+  // register (`golf-terms.ts`) would have read as "no country".
+  "great britain": "GB",
+  england: "GB",
+  scotland: "GB",
+  wales: "GB",
+  "northern ireland": "GB",
   canada: "CA",
   australia: "AU",
   ireland: "IE",
+  "new zealand": "NZ",
+  "south africa": "ZA",
   "republic of korea": "KR",
   "costa rica": "CR",
   "dominican republic": "DO",

@@ -152,7 +152,11 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #662 | **Your decision 10**: the public board and the player's Board get the round picker (item 68) | live |
 | #663 | "On now" on Events showed nothing to a member playing in five tournaments; the switcher now says which one has their card open; the landing's Club card promised "WHS posting" and its Free card "as many players as turn up" (items 69–71) | live |
 | #664 | Retire the team season engine no screen ever called (from a separate session; the week sheet's stroke table finding it surfaced is parked by Ajay) | live |
-| #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | pending |
+| #665 | A switched-off feature said "On the paid plan" to clubs already on it; the wordmark's "HQ" was under the 10px floor (items 72–73) | live |
+| #666 | **Your logo answers**: one lockup everywhere, the mark stands as tall as the word, and the wordmark takes a deeper orange on light screens only | live |
+| #667 | The share picture that unfurls when someone posts a TourneyHQ link now wears the real lockup (from the landing session) | pending |
+| #668 | **Your local prices**: a club is quoted its own set price in GBP, EUR, CAD, AUD, NZD or ZAR, otherwise USD; the owner console lists them (from a separate session) | pending |
+| — | **Your "App too, from the club's country"**: a Golf words setting, and the first screens say buggy/fourball/organiser for a UK club (item 74) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -894,6 +898,14 @@ the wrong thing about where they were:
     reads literal sizes, so it never saw this one. The chip now stops shrinking at 10px, and a new
     test computes it at every size the wordmark is set at. Found by the session redesigning the
     landing.
+74. **The app speaks the club's golf.** A club's country now picks its golf words: a British,
+    Irish, Australian, New Zealand, South African or eurozone club reads buggy, fourball and
+    organiser, and everyone else reads cart, foursome and organizer. Club settings has a "Golf
+    words" choice to override it. Format names never change, because UK "foursomes" is a format
+    (alternate shot), not a group. Converted so far: the player's Board, Card and Money, and the
+    console's Group games; `docs/country-terms.md` lists what is left. Measured on the seeded
+    Scottish club: its Group games reads "a fourball's own skins", and switching the setting to
+    US reads "a foursome's".
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
