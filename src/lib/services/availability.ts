@@ -11,6 +11,7 @@ import {
 import { cleanIsoDate, relativeDay, shortDate } from "@/lib/domain/round-dates";
 import { roundLabel } from "@/lib/domain/round-label";
 import { todayIso } from "@/lib/deadline";
+import { formattingForEvent } from "@/lib/services/organization";
 
 /**
  * "Am I playing, and when?" — assembled once, for every screen that asks.
@@ -185,6 +186,8 @@ export async function availabilityFor(
   });
 
   const today = todayIso(now);
+  // The club's own date order — see `shortDate`.
+  const { locale } = await formattingForEvent(state.event.id);
   const rounds: AvailabilityRound[] = leagueRounds.map((r) => {
     const mine = explicit.find((e) => e.stageId === r.id && e.playerId === playerId);
     const chosen = mine && (mine.status === "in" || mine.status === "out") ? (mine.status as "in" | "out") : null;
@@ -195,13 +198,13 @@ export async function availabilityFor(
       stageId: r.id,
       label: roundLabel(state.stages, r.id),
       playedOn,
-      dateLabel: playedOn ? shortDate(playedOn) : "",
+      dateLabel: playedOn ? shortDate(playedOn, locale) : "",
       whenLabel: playedOn ? relativeDay(playedOn, today) : "",
       optDeadline,
       deadlineLabel: locked
         ? "Sign-up closed"
         : optDeadline
-          ? `Answer by ${shortDate(optDeadline)}`
+          ? `Answer by ${shortDate(optDeadline, locale)}`
           : "Open",
       status: effectiveStatus(mode, chosen),
       explicit: chosen !== null,

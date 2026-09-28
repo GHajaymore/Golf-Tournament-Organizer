@@ -9,6 +9,7 @@ import {
   type AttendanceMode,
 } from "../domain/attendance";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { formattingForEvent } from "./organization";
 import { roundLabel } from "../domain/round-label";
 
 /**
@@ -132,6 +133,8 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
     ]),
   );
 
+  // The club's own date order — see `shortDate`.
+  const { locale } = await formattingForEvent(state.event.id);
   const reportRounds: AttendanceReportRound[] = rounds.map((r) => {
     const summary = byStage.get(r.id)!;
     const playedOn = cleanIsoDate(r.playedOn);
@@ -139,7 +142,7 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
       stageId: r.id,
       label: roundLabel(state.stages, r.id),
       playedOn,
-      dateLabel: playedOn ? shortDate(playedOn) : "",
+      dateLabel: playedOn ? shortDate(playedOn, locale) : "",
       in: summary.in,
       out: summary.out,
       inByDefault: summary.inByDefault,

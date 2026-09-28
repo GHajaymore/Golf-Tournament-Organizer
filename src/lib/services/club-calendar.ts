@@ -8,6 +8,7 @@ import {
   type AttendanceMode,
 } from "@/lib/domain/attendance";
 import { cleanIsoDate, shortDate } from "@/lib/domain/round-dates";
+import { formattingForEvent } from "@/lib/services/organization";
 import { roundLabel } from "@/lib/domain/round-label";
 import type { Commitment } from "@/lib/domain/club-calendar";
 
@@ -86,6 +87,9 @@ export async function clubCommitmentsFor(
     // Only number the rounds when there is more than one to tell apart. A
     // single-round medal reads "Spring Medal", not "Spring Medal · Round 1".
     const numbered = playing.length > 1;
+    // Each tournament's own club's date order (`shortDate`): a member's
+    // calendar can hold clubs in two countries. One query per tournament.
+    const { locale } = await formattingForEvent(event.id);
 
     for (const stage of playing) {
       /**
@@ -139,7 +143,7 @@ export async function clubCommitmentsFor(
         stageId: stage.id,
         roundLabel: numbered ? roundLabel(event.stages, stage.id) : "",
         playedOn,
-        dateLabel: playedOn ? shortDate(playedOn) : "",
+        dateLabel: playedOn ? shortDate(playedOn, locale) : "",
         status,
         explicit,
         locked,

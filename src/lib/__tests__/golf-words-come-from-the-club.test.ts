@@ -82,6 +82,9 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
   { file: "src/app/(player)/layout.tsx", banned: [/\/> Organi[sz]er/] },
   { file: "src/app/(app)/access/page.tsx", banned: [/Organi[sz]ers get full/] },
   { file: "src/components/PlanPanel.tsx", banned: [/"organi[sz]er", "organi[sz]ers"/] },
+  // THE GROUP WORDS. A tee sheet's summary and the casual-round clash notice.
+  { file: "src/components/FoursomeMaker.tsx", banned: [/"twosome"/, /"threesome"/, /"foursome"/] },
+  { file: "src/components/TournamentClashNotice.tsx", banned: [/your fourball/, /your foursome/] },
 ];
 
 /**
@@ -89,7 +92,9 @@ const CONVERTED: ReadonlyArray<{ file: string; banned: readonly RegExp[] }> = [
  * prop does not fail — it quietly tells a Scottish club "organizer". Every
  * place that renders one of these must hand it the club's word.
  */
-const CALLERS: ReadonlyArray<{ file: string; tag: string }> = [
+const CALLERS: ReadonlyArray<{ file: string; tag: string; prop?: string }> = [
+  { file: "src/app/(app)/foursomes/page.tsx", tag: "FoursomeMaker", prop: "terms=" },
+  { file: "src/app/match/new/page.tsx", tag: "TournamentClashNotice", prop: "group=" },
   { file: "src/components/ClubEventsList.tsx", tag: "EnterButton" },
   { file: "src/app/(player)/me/page.tsx", tag: "EnterButton" },
   { file: "src/app/(player)/me/messages/page.tsx", tag: "MessagesClient" },
@@ -103,12 +108,12 @@ const CALLERS: ReadonlyArray<{ file: string; tag: string }> = [
 ];
 
 describe("every caller hands a converted component the club's word", () => {
-  for (const { file, tag } of CALLERS) {
-    it(`${file} passes organizer to <${tag}>`, () => {
+  for (const { file, tag, prop = "organizer=" } of CALLERS) {
+    it(`${file} passes ${prop.slice(0, -1)} to <${tag}>`, () => {
       const src = readSource(file);
       const uses = src.split(`<${tag}`).slice(1).map((rest) => rest.slice(0, rest.indexOf("/>")));
       expect(uses.length, `no <${tag}> in ${file}`).toBeGreaterThan(0);
-      for (const use of uses) expect(use).toContain("organizer=");
+      for (const use of uses) expect(use).toContain(prop);
     });
   }
 });
@@ -118,7 +123,7 @@ describe("screens converted to the club's golf words", () => {
     const src = readSource(file);
 
     it(`${file} reads the club's terms`, () => {
-      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}|roleName\(/);
+      expect(src).toMatch(/golfTermsForEvent\(|golfTermsFor\(|terms\.(organizer|organizers|cart|carts|group)|\{organizer\}|\{group\}|roleName\(/);
     });
 
     for (const word of banned) {

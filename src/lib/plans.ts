@@ -174,7 +174,9 @@ export const PLANS: Record<PlanKey, Plan> = {
   society: {
     key: "society",
     name: "Season",
-    blurb: "For a league or society running a full season — unlimited events, up to fifty a field.",
+    // "Society" is British; "league" and "golf group" are how the same people
+    // say it elsewhere. The landing reads this in every country's edition.
+    blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
     // The growth-engine rung between Free and Club — see the monetization
     // proposal. Priced here as the default; the number is configurable through
     // `effectivePrice` without a code edit, which is why $12 is a starting

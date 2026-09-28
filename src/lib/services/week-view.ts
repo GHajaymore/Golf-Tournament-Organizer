@@ -29,6 +29,7 @@ import {
   type WeekBasis,
 } from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { formattingForEvent } from "./organization";
 import { placesByValue } from "../domain/flight-places";
 
 /**
@@ -573,13 +574,16 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     )
   ).filter((g): g is NonNullable<typeof g> => g !== null);
 
+  // The club's own date order — "Sun 20 Sep" in Britain, "Sun, Sep 20" in the US.
+  const { locale } = await formattingForEvent(eventId);
+
   return {
     weeks: weeks.map((s, i) => ({
       stageId: s.id,
       label: `Week ${i + 1}`,
       // The date a member recognises the night by. A league is "Tuesday the
       // 19th" long before it is "week 4".
-      date: shortDate(cleanIsoDate(s.playedOn)),
+      date: shortDate(cleanIsoDate(s.playedOn), locale),
       format: s.format,
       holes: s.holes,
       // Asked the way THAT WEEK is scored, same as `played` above — and the
@@ -594,7 +598,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     })),
     stageId: stage.id,
     label: `Week ${idx + 1}`,
-    date: shortDate(cleanIsoDate(stage.playedOn)),
+    date: shortDate(cleanIsoDate(stage.playedOn), locale),
     format: stage.format,
     holes: stage.holes,
     results,

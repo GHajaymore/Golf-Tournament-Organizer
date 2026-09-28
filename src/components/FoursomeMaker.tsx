@@ -9,6 +9,7 @@ import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import { sheetOnScreen, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { Icon } from "./Icon";
+import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import {
   DRAW_ORDERS,
   groupBySides,
@@ -62,7 +63,10 @@ export function FoursomeMaker({
   rosterSize = 0,
   sides = [],
   savedGroups = [],
+  terms = golfTermsFor("us"),
 }: {
+  /** The club's golf words — what a group of four, three and two is called. */
+  terms?: Pick<Record<GolfTerm, string>, "group" | "groupOfThree" | "groupOfTwo">;
   /**
    * The SAVED sheet's groups — what the players were given. Shown whenever a
    * sheet exists and the organizer is not re-drawing; see `sheetOnScreen`.
@@ -197,7 +201,9 @@ export function FoursomeMaker({
   // Composition summary, e.g. "7 foursomes · 1 twosome".
   const sizes = groups.map((g) => g.playerIds.length);
   const counts = sizes.reduce<Record<number, number>>((acc, s) => ({ ...acc, [s]: (acc[s] ?? 0) + 1 }), {});
-  const sizeName: Record<number, string> = { 2: "twosome", 3: "threesome", 4: "foursome" };
+  // In the club's golf words: "7 foursomes · 1 twosome", or "7 fourballs ·
+  // 1 two-ball" for a UK club (`golf-terms.ts`).
+  const sizeName: Record<number, string> = { 2: terms.groupOfTwo, 3: terms.groupOfThree, 4: terms.group };
   const summary = Object.entries(counts)
     .sort((a, b) => Number(b[0]) - Number(a[0]))
     .map(([s, n]) => `${n} ${sizeName[Number(s)] ?? `${s}-ball`}${n > 1 ? "s" : ""}`)

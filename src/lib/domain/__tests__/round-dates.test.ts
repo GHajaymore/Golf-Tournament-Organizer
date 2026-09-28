@@ -112,11 +112,30 @@ describe("validation refuses to guess", () => {
 
 describe("how a date reads", () => {
   it("shows the weekday, because that is what a league is known by", () => {
-    expect(shortDate("2026-05-19")).toBe("Tue 19 May");
+    expect(shortDate("2026-05-19", "en-GB")).toBe("Tue 19 May");
+  });
+
+  /**
+   * THE ORDER IS THE CLUB'S. This used to assert "Tue 19 May" with no locale,
+   * under a default of en-US — so it pinned the defect: a US club read its
+   * league weeks day-first while its board said "Sep 27, 2026". Both orders
+   * are asserted now, and the pair must differ, so a shape that ignores the
+   * locale cannot pass either.
+   */
+  it("writes the day in the club's own order", () => {
+    const us = shortDate("2026-09-20", "en-US");
+    const uk = shortDate("2026-09-20", "en-GB");
+    expect(us).toBe("Sun, Sep 20");
+    expect(uk).toBe("Sun 20 Sept");
+    expect(us).not.toBe(uk);
+  });
+
+  it("falls back rather than breaking on a tag Intl refuses", () => {
+    expect(shortDate("2026-05-19", "not a locale")).toBe("Tue 19 May");
   });
 
   it("returns nothing for an unset date rather than 'Invalid Date'", () => {
-    expect(shortDate("")).toBe("");
-    expect(shortDate("rubbish")).toBe("");
+    expect(shortDate("", "en-US")).toBe("");
+    expect(shortDate("rubbish", "en-US")).toBe("");
   });
 });

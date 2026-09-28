@@ -98,25 +98,38 @@ export function weekdayOf(date: IsoDate): string {
 }
 
 /**
- * "Tue 19 May" — short, and never shows a year the reader already knows.
+ * "Tue 19 May" in Britain, "Tue, May 19" in the US — short, and never shows a
+ * year the reader already knows.
  *
- * NOTE THE ORDER, which is day-before-month and always has been. That is worth
- * saying out loud because `formatDeadline` rendered "Jun 1, 2026" on a screen
- * an organizer could reach in the same minute: one app, two conventions,
- * neither of them anybody's choice. The locale decides now.
+ * THE ORDER IS THE LOCALE'S. This used to hand-build day-before-month for
+ * every club and let the locale change only the month NAME, so a club in
+ * Indiana with its locale set to en-US read "Sun 20 Sep" across its league
+ * week, beside a public board and player screens that said "Sep 27, 2026".
+ * Found 2026-09-27 on the seeded club set up as a US one.
  *
- * The compact hand-built shape stays — a league week sheet has a column this
- * wide and the year is the one thing every reader already knows — so what the
- * locale changes here is the MONTH NAME. In English that is no change at all,
- * which is exactly why the hardcoded "en-US" survived this long; in Japanese
- * it is the difference between "May" and "5月".
+ * `locale` IS REQUIRED, deliberately. It defaulted to en-US, and half the
+ * callers never passed one — harmless only while the shape ignored the
+ * locale; with the order fixed, every one of them would have turned a British
+ * club's dates American. A missing club locale is now a type error rather
+ * than a quiet wrong date.
  */
-export function shortDate(date: IsoDate, locale: string = DEFAULT_LOCALE): string {
+export function shortDate(date: IsoDate, locale: string): string {
   if (!isIsoDate(date)) return "";
   const [y, m, d] = date.split("-").map(Number);
   const t = new Date(Date.UTC(y, m - 1, d, 12));
-  const wd = DAY_NAMES[t.getUTCDay()].slice(0, 3);
-  return `${wd} ${d} ${formatMonth(date, locale)}`;
+  try {
+    return new Intl.DateTimeFormat(locale || DEFAULT_LOCALE, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    })
+      .format(t)
+      .replace(/ | /g, " ");
+  } catch {
+    // A tag Intl refuses — checked on the way in, but never break a screen.
+    return `${DAY_NAMES[t.getUTCDay()].slice(0, 3)} ${d} ${formatMonth(date, DEFAULT_LOCALE)}`;
+  }
 }
 
 /**
