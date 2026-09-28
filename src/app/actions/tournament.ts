@@ -87,6 +87,10 @@ import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
+import { bracketDraws, tieByKey, tieReportRefusal } from "@/lib/domain/my-tie";
+// The boundary's one margin rule — a player's report and the console's result
+// box keep the same text.
+import { cleanMargin } from "@/lib/domain/score-payload";
 import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
@@ -3100,6 +3104,40 @@ export async function setBracketWinner(key: string, winnerId: string) {
   const eventId = await requireStaffEvent();
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
 
+  if (existing?.winnerId === winnerId) {
+    // Toggle off if the same slot is clicked again.
+    await prisma.bracketWinner.delete({ where: { id: existing.id } });
+    /**
+     * Clearing the last result re-opens the draw.
+     *
+     * Without this a frozen draw would be a one-way door: an organizer who
+     * recorded a result by mistake, undid it, and then fixed the qualifying
+     * scores would be stuck with a bracket seeded from the wrong standings and
+     * no way in the UI to say so. A bracket with no results has not started,
+     * so there is no draw to protect.
+     */
+    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
+    if (remaining === 0) {
+      await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
+    }
+  } else {
+    await recordBracketWinner(eventId, key, winnerId);
+  }
+  // Whatever a player reported for this tie, staff have now answered it
+  // themselves — a report left behind would ask them the same question again.
+  await prisma.bracketReport.deleteMany({ where: { eventId, key } });
+  await refresh();
+}
+
+/**
+ * THE ONE WRITE OF A KNOCKOUT RESULT — the console's click and a player's
+ * approved report both come through here, so the draw is frozen the same way
+ * whichever of them records the first result. Not a server action: it trusts
+ * its caller to have checked who may write.
+ */
+async function recordBracketWinner(eventId: string, key: string, winnerId: string, result?: string) {
+  const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
+
   /**
    * The first result is what makes the draw a draw.
    *
@@ -3129,37 +3167,124 @@ export async function setBracketWinner(key: string, winnerId: string) {
     }
   }
 
-  if (existing?.winnerId === winnerId) {
-    // Toggle off if the same slot is clicked again.
-    await prisma.bracketWinner.delete({ where: { id: existing.id } });
-    /**
-     * Clearing the last result re-opens the draw.
-     *
-     * Without this a frozen draw would be a one-way door: an organizer who
-     * recorded a result by mistake, undid it, and then fixed the qualifying
-     * scores would be stuck with a bracket seeded from the wrong standings and
-     * no way in the UI to say so. A bracket with no results has not started,
-     * so there is no draw to protect.
-     */
-    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
-    if (remaining === 0) {
-      await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
-    }
-  } else if (existing) {
-    await prisma.bracketWinner.update({ where: { id: existing.id }, data: { winnerId } });
+  const margin = result === undefined ? {} : { result: cleanMargin(result) };
+  if (existing) {
+    await prisma.bracketWinner.update({ where: { id: existing.id }, data: { winnerId, ...margin } });
   } else {
-    await prisma.bracketWinner.create({ data: { eventId, key, winnerId } });
+    await prisma.bracketWinner.create({ data: { eventId, key, winnerId, ...margin } });
   }
-  await refresh();
 }
 
 export async function setBracketResult(key: string, result: string) {
   const eventId = await requireStaffEvent();
   await prisma.bracketWinner.updateMany({
     where: { eventId, key },
-    data: { result: result.slice(0, 12) },
+    data: { result: cleanMargin(result) },
   });
   await refresh();
+}
+
+/**
+ * A PLAYER REPORTS THEIR KNOCKOUT TIE (Ajay, 2026-09-28: "player may enter it
+ * but organizer/club needs to approve it").
+ *
+ * This files a REQUEST, never a result: it writes a `BracketReport` row, which
+ * nothing that ranks, advances or crowns reads. Staff approve it on the Bracket
+ * screen and only then does the draw move. Either player may report, and a
+ * second report of the same tie replaces the first — the organizer sees one
+ * question per tie, with the latest answer.
+ */
+export async function reportBracketResult(
+  key: string,
+  winnerId: string,
+  result: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Your session expired. Sign in again." };
+  const eventId = session.eventId;
+  if (typeof key !== "string" || typeof winnerId !== "string") {
+    return { ok: false, error: "Choose who won the tie." };
+  }
+
+  // A draw nobody has launched is not being played yet — the same rule as a card.
+  const notStarted = await playRefusalFor(eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+
+  const [state, mine] = await Promise.all([loadEventState(eventId), myPlayerIds(eventId, session.email)]);
+  if (!state) return { ok: false, error: "That tournament isn't available." };
+  const tie = tieByKey(bracketDraws(state.brackets), key);
+  const refusal = tieReportRefusal({ tie, reporterIds: mine, winnerId });
+  if (refusal || !tie) return { ok: false, error: refusal ?? "That tie isn't in the draw." };
+
+  const m = tie.match;
+  const reporterId = mine.has(m.a.playerId!) ? m.a.playerId! : m.b.playerId!;
+  const reporter = m.a.playerId === reporterId ? m.a.name : m.b.name;
+  const winner = m.a.playerId === winnerId ? m.a.name : m.b.name;
+  const loser = m.a.playerId === winnerId ? m.b.name : m.a.name;
+  const margin = cleanMargin(result);
+  await prisma.bracketReport.upsert({
+    where: { eventId_key: { eventId, key } },
+    create: { eventId, key, winnerId, result: margin, reportedById: reporterId, reportedBy: reporter },
+    update: { winnerId, result: margin, reportedById: reporterId, reportedBy: reporter, createdAt: new Date() },
+  });
+  await logAudit(
+    eventId,
+    "knockout.report",
+    `${tie.round}: ${winner} beat ${loser}${margin ? ` ${margin}` : ""}, reported by ${reporter} for approval`,
+  );
+  await refresh();
+  return { ok: true };
+}
+
+/**
+ * Staff approve a player's report: the result is recorded exactly as if they
+ * had clicked the winner themselves, margin included.
+ *
+ * The tie is checked again rather than trusted. Between the report and the
+ * approval an organizer may have recorded a result by hand or re-seeded the
+ * draw, and a winner who is no longer in that tie must not be advanced out of it.
+ */
+export async function approveBracketReport(key: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const report = await prisma.bracketReport.findUnique({ where: { eventId_key: { eventId, key } } });
+  if (!report) return { ok: false, error: "That report has already been dealt with." };
+
+  const state = await loadEventState(eventId);
+  const tie = state ? tieByKey(bracketDraws(state.brackets), key) : null;
+  const m = tie?.match;
+  if (!m || (m.a.playerId !== report.winnerId && m.b.playerId !== report.winnerId)) {
+    await prisma.bracketReport.delete({ where: { id: report.id } });
+    await refresh();
+    return { ok: false, error: "The draw has changed since that was reported, so it was set aside. Record the tie on the draw." };
+  }
+  if (m.winnerId) {
+    await prisma.bracketReport.delete({ where: { id: report.id } });
+    await refresh();
+    return { ok: false, error: "That tie already has a result, so the report was set aside." };
+  }
+
+  await recordBracketWinner(eventId, key, report.winnerId, report.result);
+  await prisma.bracketReport.delete({ where: { id: report.id } });
+  const winner = m.a.playerId === report.winnerId ? m.a.name : m.b.name;
+  const loser = m.a.playerId === report.winnerId ? m.b.name : m.a.name;
+  await logAudit(
+    eventId,
+    "knockout.approve",
+    `${tie!.round}: ${winner} beat ${loser}${report.result ? ` ${report.result}` : ""} — approved, as reported by ${report.reportedBy}`,
+  );
+  await refresh();
+  return { ok: true };
+}
+
+/** Staff turn a player's report down; the tie stays waiting on a result. */
+export async function rejectBracketReport(key: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  const report = await prisma.bracketReport.findUnique({ where: { eventId_key: { eventId, key } } });
+  if (!report) return { ok: false, error: "That report has already been dealt with." };
+  await prisma.bracketReport.delete({ where: { id: report.id } });
+  await logAudit(eventId, "knockout.reject", `Turned down ${report.reportedBy}'s report of their tie; it stays open`);
+  await refresh();
+  return { ok: true };
 }
 
 /* ── Access control ───────────────────────────────────────────────────── */

@@ -7604,6 +7604,18 @@ describe("the sign-up password field", () => {
     const html = renderToStaticMarkup(<LoginPanel initialMode="login" autoFocusFields={false} />);
     expect(html).not.toMatch(HINT);
   });
+
+  it("speaks the visitor's English — organisers on the UK edition, organizers otherwise", () => {
+    // The landing above it said "Organisers" and this said "organizers", one
+    // inch apart, to the same UK visitor (2026-09-28).
+    const uk = renderToStaticMarkup(
+      <LoginPanel initialMode="signup" autoFocusFields={false} organizers="organisers" />,
+    );
+    expect(uk).toContain("For organisers running an event");
+    expect(uk).not.toContain("organizers");
+    // CONTROL: the default is the US word.
+    expect(signUp()).toContain("For organizers running an event");
+  });
 });
 
 /**

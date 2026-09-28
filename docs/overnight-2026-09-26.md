@@ -1332,6 +1332,18 @@ named. The deferred-register entry for this class is closed.
    club knockout played over weeks (players arrange their own matches) every result has to go
    through the secretary. Most club knockouts let the winner report it. Worth deciding before a
    club runs one — it is a permissions question, so not changed overnight.
+
+   **DECIDED 2026-09-28: "player may enter it but organizer/club needs to approve it". BUILT.**
+   - **Reporting:** either player in a tie can report it once both seats are known. They do it from
+     the tie card on Today: who won, plus an optional margin ("3&2").
+   - **Approving:** the report waits in a separate table (`BracketReport`), which nothing that
+     advances, crowns or counts results reads. Staff see it above the draw on the Bracket screen and
+     in the dashboard's "Awaiting review" count, and either approve it or turn it down.
+   - **What approval does:** it records the result through the same write as the console's own
+     click, so the first result freezes the draw the same way. An organizer who records the tie
+     directly also clears the report.
+   - **Evidence:** walked as the player at 393px and as the secretary at 1280px on the seeded club,
+     then checked against the database. Nine audit tests; five mutations each turned a test red.
 7. ~~A finished cut championship ranks players who missed the cut among those who made it.~~
    **DECIDED by Ajay on the morning of 2026-09-26: Completed closes the rounds. Built — item 34.**
 8. **Which jobs should an organizer be able to do mid-event without unlocking setup?** Since item

@@ -193,6 +193,11 @@ export interface MyRound {
    * every other round, and for a player the draw does not hold.
    */
   tie: MyTie | null;
+  /**
+   * A result reported for my tie and still waiting on the organizer — by me
+   * or by my opponent. Null when nothing is waiting.
+   */
+  tieReport: { winnerName: string; result: string; reportedBy: string; byMe: boolean } | null;
   /** Whether this round is a knockout at all — true even when `tie` is null. */
   knockout: boolean;
   /** My card for this round: the strokes themselves, how far round I am, and
@@ -363,6 +368,23 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   if (isKnockoutRound(stage.type)) {
     tie = myTie(bracketDraws(state.brackets), playerId, await bracketResults(state.event.id));
   }
+  // Only a tie still to play can have a report waiting; once the organizer has
+  // recorded it, the result above is the answer.
+  let tieReport: MyRound["tieReport"] = null;
+  if (tie?.state === "to-play" && tie.opponentId) {
+    const r = await prisma.bracketReport.findUnique({
+      where: { eventId_key: { eventId: state.event.id, key: tie.key } },
+      select: { winnerId: true, result: true, reportedBy: true, reportedById: true },
+    });
+    if (r) {
+      tieReport = {
+        winnerName: r.winnerId === playerId ? "You" : r.winnerId === tie.opponentId ? tie.opponent : "",
+        result: r.result,
+        reportedBy: r.reportedBy,
+        byMe: r.reportedById === playerId,
+      };
+    }
+  }
 
   const row = await prisma.scorecard.findFirst({
     where: { eventId: state.event.id, stageId: stage.id, playerId },
@@ -519,6 +541,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       offSheet: !!sheet && sheet.groups.length > 0 && !mine,
       matches: myMatches,
       tie,
+      tieReport,
       knockout: isKnockoutRound(stage.type),
       card,
     },

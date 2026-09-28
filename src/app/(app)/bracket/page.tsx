@@ -9,6 +9,8 @@ import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { isKnockoutRound } from "@/lib/stage-types";
+import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
+import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -29,6 +31,20 @@ export default async function BracketPage() {
   // only — offered to an assistant it was a Change button that always failed.
   // Entering results stays open to staff.
   const isAdmin = session.viewRole === "admin";
+
+  // Results the players in a tie have reported, for staff to approve. Named
+  // off the draw on screen, so the list and the bracket cannot disagree about
+  // who is in the tie; a report for a tie the draw no longer holds is left out
+  // here and set aside by `approveBracketReport` if anybody reaches it.
+  const draws = bracketDraws(state.brackets);
+  const reports: BracketReportRow[] = isStaff
+    ? (await prisma.bracketReport.findMany({ where: { eventId: session.eventId }, orderBy: { createdAt: "asc" } }))
+        .map((r) => {
+          const open = openTieReport(draws, r);
+          return open ? { key: r.key, ...open, result: r.result, reportedBy: r.reportedBy } : null;
+        })
+        .filter((r): r is BracketReportRow => r !== null)
+    : [];
 
   const mode: BracketMode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
   const { mainLabel, secondLabel } = drawBrackets([], mode);
@@ -105,6 +121,7 @@ export default async function BracketPage() {
   return (
     <>
       <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={isSetupLocked(state.event)} />
+      <BracketReports rows={reports} />
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
