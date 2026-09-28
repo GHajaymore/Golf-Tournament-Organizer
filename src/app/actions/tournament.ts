@@ -4205,6 +4205,14 @@ export async function approveSignup(playerId: string): Promise<{ ok: boolean; er
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const status = placementOnApproval(event?.capacity ?? 0, confirmedCount);
   await prisma.player.update({ where: { id: playerId }, data: { status } });
+  // On the record beside the entry itself — see FIELD_ACTIONS.
+  await logAudit(
+    eventId,
+    "approved",
+    status === "confirmed"
+      ? `${player.name}'s entry was approved.`
+      : `${player.name}'s entry was approved; the field is full, so they are on the waiting list.`,
+  );
   await refresh();
   return { ok: true };
 }
