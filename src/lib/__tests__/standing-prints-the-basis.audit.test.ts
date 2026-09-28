@@ -198,4 +198,23 @@ describe("a standing prints the figure the board is ranked on", () => {
     // Pinned in full: the gross reader would print `leads at +8 (net …)`.
     expect(leader!.text).toBe(`${lead.player.name} leads at ${netStr} (net ${lead.net}).`);
   });
+
+  it("names the GROSS total in brackets on a gross board (2026-09-28)", async () => {
+    /**
+     * The same round flipped to gross. A club championship is gross, and its
+     * leader line read "leads at −3 (net 125)" over a board of gross totals.
+     * On a gross board the low handicapper leads, on +2 and 74.
+     */
+    await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "gross" } });
+    try {
+      const state = await loadEventState(eventId);
+      const lead = state!.strokeStandings.filter((s) => s.ranked)[0];
+      expect(lead.gross, "the gross board must be led by the 74").toBe(74);
+      const leader = computeHighlights(state!).find((h) => h.title === "Leader");
+      expect(leader!.text).toBe(`${lead.player.name} leads at +2 (74).`);
+      expect(leader!.text, "no net figure on a gross board").not.toMatch(/net/);
+    } finally {
+      await prisma.stage.updateMany({ where: { eventId }, data: { scoringBasis: "net" } });
+    }
+  });
 });
