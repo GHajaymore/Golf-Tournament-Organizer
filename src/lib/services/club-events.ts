@@ -82,6 +82,11 @@ export interface ClubEventRow {
    * because a sentence is copy and this is a state three screens branch on.
    */
   waiting: boolean;
+  /**
+   * Within `waiting`: the entry is with a person to approve, not in a queue for
+   * a place. Words only — every rule reads `waiting`.
+   */
+  awaiting: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
@@ -211,6 +216,14 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const waitingIn = new Set(
     mine.filter((p) => p.status === "waitlisted" || p.status === "pending").map((p) => p.eventId),
   );
+  /**
+   * AWAITING APPROVAL, within `waiting`. Every RULE treats the two alike — no
+   * card, not a spectator, not offered the form again — but the WORDS may not:
+   * a club that approves entries puts each one in front of a person with the
+   * field wide open, and those members were told "You're on the waiting list",
+   * a queue they were never in (walked 2026-09-28).
+   */
+  const awaitingIn = new Set(mine.filter((p) => p.status === "pending").map((p) => p.eventId));
 
   /**
    * THE MEMBER'S OWN CARDS STILL WAITING ON THEM — `openCardOf` has the rule.
