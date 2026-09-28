@@ -28,6 +28,6 @@ describe("a tournament's days, read off its rounds", () => {
   });
 
   it("says nothing when no round is dated (the control — no invented date)", () => {
-    expect(roundSpanOf([r(""), r("tbc")])).toBe("");
+    expect(roundSpanOf([r(""), r("tbc")], "en-US")).toBe("");
   });
 });

@@ -23,7 +23,7 @@ import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
-import { brandForEvent } from "@/lib/services/organization";
+import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { holesPlayed } from "@/lib/domain/handicap";
 
@@ -195,6 +195,8 @@ export default async function FoursomesPage({
     : null;
   const course = cardForStage(courseForRound(roundCourse, state.event) ?? resolveCourse(state.event), stage);
   const brand = await brandForEvent(session.eventId);
+  // The club's own date order for the round tabs and the printed cards (`shortDate`).
+  const { locale } = await formattingForEvent(session.eventId);
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
   /**
    * The tee each player is on, for the card they carry out.
@@ -537,6 +539,8 @@ export default async function FoursomesPage({
         // The round's sides, so partners go out together — `groupBySides`.
         // Loaded above for the cards already; empty for a round with no sides.
         sides={teams.map((t) => t.members.map((m) => m.playerId))}
+        // "7 foursomes · 1 twosome", or "7 fourballs · 1 two-ball" for a UK club.
+        terms={await golfTermsForEvent(session.eventId)}
         standings={standings}
         holes={holes}
         stageId={stage?.id ?? ""}
@@ -547,7 +551,7 @@ export default async function FoursomesPage({
         published={stage?.teeSheetPublished ?? false}
         rounds={rounds.map((r) => ({
           id: r.id,
-          label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn) : ""),
+          label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn, locale) : ""),
         }))}
         activeRoundId={stage?.id ?? ""}
         // Only when the field above has actually been narrowed to a week. In a
@@ -572,7 +576,7 @@ export default async function FoursomesPage({
          * on the day and filed afterwards; the wrong date on it is wrong in the
          * one place it will be read later.
          */
-        dates={stage?.playedOn ? shortDate(stage.playedOn) : state.event.dates}
+        dates={stage?.playedOn ? shortDate(stage.playedOn, locale) : state.event.dates}
         roundLabel={roundLabel(rounds, stage?.id ?? "")}
         pars={course.pars}
         strokeIndex={course.strokeIndex}

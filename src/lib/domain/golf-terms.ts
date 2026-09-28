@@ -68,6 +68,9 @@ export const GOLF_TERMS = {
   /** The group of up to four who play together — NOT a format. */
   group: { us: "foursome", uk: "fourball" },
   groups: { us: "foursomes", uk: "fourballs" },
+  /** A group of three and of two — how a tee sheet names the odd sizes. */
+  groupOfThree: { us: "threesome", uk: "three-ball" },
+  groupOfTwo: { us: "twosome", uk: "two-ball" },
   /** The person running the event. */
   organizer: { us: "organizer", uk: "organiser" },
   organizers: { us: "organizers", uk: "organisers" },

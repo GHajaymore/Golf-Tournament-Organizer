@@ -26,7 +26,14 @@ import { Icon } from "./Icon";
  * Sunday — sending somebody who is late for their tee time to a fourball that
  * finished a week ago.
  */
-export function TournamentClashNotice({ clash }: { clash: TournamentClash }) {
+export function TournamentClashNotice({
+  clash,
+  group = "foursome",
+}: {
+  clash: TournamentClash;
+  /** That tournament's club's word for the group — foursome or fourball (`golf-terms.ts`). */
+  group?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -49,8 +56,8 @@ export function TournamentClashNotice({ clash }: { clash: TournamentClash }) {
         Play that round there: the card counts towards the standings, and a round set up here does
         not.
         {clash.hasMoneyGame
-          ? " The money is the club’s too — its pots are already running, and a second one here would split your fourball between two games."
-          : " Any pot you want inside your fourball belongs on that tournament’s Group games screen, where it settles with everything else."}
+          ? ` The money is the club’s too — its pots are already running, and a second one here would split your ${group} between two games.`
+          : ` Any pot you want inside your ${group} belongs on that tournament’s Group games screen, where it settles with everything else.`}
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button

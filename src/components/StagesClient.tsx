@@ -70,6 +70,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 export interface StageView {
@@ -668,6 +669,8 @@ function StageCard({
   /** False for a single-round tournament, which has no next round. */
   chainsRounds: boolean;
 }) {
+  // The club's own date order — see `shortDate`.
+  const { locale } = useFormatting();
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
@@ -1057,7 +1060,7 @@ function StageCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
               Round {stage.position + 1}
-              {stage.playedOn ? ` · ${shortDate(stage.playedOn)}` : ` · ${stage.type}`}
+              {stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`}
             </span>
             <span className="tag tag-neutral">
               {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
@@ -1314,7 +1317,7 @@ function StageCard({
           />
           {playedOn && (
             <span className="text-muted" style={{ fontSize: 11.5, marginTop: 3, display: "block" }}>
-              {shortDate(playedOn)}
+              {shortDate(playedOn, locale)}
             </span>
           )}
         </div>
@@ -1968,6 +1971,8 @@ export function StagesClient({
   /** Third-place views, by Bracket Stage id. */
   thirdPlaces?: Record<string, ThirdPlaceView>;
 }) {
+  // The club's own date order — see `shortDate`.
+  const { locale } = useFormatting();
   /**
    * Which round is open. One at a time, and none when there are several.
    *
@@ -2456,8 +2461,8 @@ export function StagesClient({
             {startDate && (
               <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5, lineHeight: 1.55 }}>
                 {interval === 0
-                  ? `All ${howMany} on ${shortDate(startDate)}.`
-                  : `${shortDate(startDate)}, then ${INTERVAL_OPTIONS.find((o) => o.days === interval)?.label.toLowerCase()} — last round ${shortDate(roundDates(startDate, howMany, interval)[howMany - 1])}.`}
+                  ? `All ${howMany} on ${shortDate(startDate, locale)}.`
+                  : `${shortDate(startDate, locale)}, then ${INTERVAL_OPTIONS.find((o) => o.days === interval)?.label.toLowerCase()} — last round ${shortDate(roundDates(startDate, howMany, interval)[howMany - 1], locale)}.`}
                 {" "}Any one of them can be moved later if it rains off.
               </p>
             )}

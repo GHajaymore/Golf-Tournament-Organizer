@@ -10,6 +10,7 @@ import { NOINDEX } from "@/lib/site";
 import { tournamentClashFor } from "@/lib/services/tournament-clash";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { TournamentClashNotice } from "@/components/TournamentClashNotice";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 export const metadata = { title: "Set up a round", robots: NOINDEX };
 
@@ -134,7 +135,8 @@ export default async function NewMatchPage() {
 
         {/* YOU ARE ALREADY PLAYING ONE OF THESE TODAY — see the component.
             Before the form, because afterwards it is a post-mortem. */}
-        {clash && <TournamentClashNotice clash={clash} />}
+        {/* In the clashing tournament's club's golf words: it is that club's round. */}
+        {clash && <TournamentClashNotice clash={clash} group={(await golfTermsForEvent(clash.eventId)).group} />}
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 24px", lineHeight: 1.6 }}>
           A match, a medal or a fourball — scored properly, with nothing to configure.
           Pick what you&rsquo;re playing and who&rsquo;s in it; everything else has an answer

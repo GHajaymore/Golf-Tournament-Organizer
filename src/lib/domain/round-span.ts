@@ -28,7 +28,7 @@ export function roundDaysOf(stages: readonly { playedOn: string; type: string }[
  * calendar's own short form (`shortDate`), so the two screens name a day the
  * same way.
  */
-export function roundSpanOf(stages: readonly { playedOn: string; type: string }[], locale?: string): string {
+export function roundSpanOf(stages: readonly { playedOn: string; type: string }[], locale: string): string {
   const days = roundDaysOf(stages);
   if (days.length === 0) return "";
   const first = shortDate(days[0], locale);

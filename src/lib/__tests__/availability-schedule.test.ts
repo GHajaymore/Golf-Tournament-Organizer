@@ -63,8 +63,10 @@ describe("calendar arithmetic", () => {
   it("formats a date without letting a timezone move it", () => {
     // The bug this guards: parsing "2026-05-19" as an instant renders it as the
     // 18th anywhere west of UTC, so a club sees Monday for a Tuesday round.
-    expect(shortDate("2026-05-19")).toBe("Tue 19 May");
-    expect(shortDate("2026-01-01")).toBe("Thu 1 Jan");
+    expect(shortDate("2026-05-19", "en-GB")).toBe("Tue 19 May");
+    expect(shortDate("2026-01-01", "en-GB")).toBe("Thu 1 Jan");
+    // West of UTC too, in the order a club there writes it.
+    expect(shortDate("2026-05-19", "en-US")).toBe("Tue, May 19");
   });
 });
 

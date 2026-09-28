@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { dateUndatedRounds } from "@/app/actions/tournament";
 import { weekdayOf, isIsoDate, shortDate, INTERVAL_OPTIONS } from "@/lib/domain/round-dates";
 import { Icon } from "./Icon";
+import { useFormatting } from "./CurrencyProvider";
 
 /**
  * DATE THE SEASON IN ONE GO — for a tournament whose rounds have no dates.
@@ -20,6 +21,8 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  // The club's own date order — see `shortDate`.
+  const { locale } = useFormatting();
 
   const go = () => {
     setError("");
@@ -80,7 +83,7 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
       </div>
       {isIsoDate(start) && every === 7 && (
         <span className="text-muted" style={{ fontSize: 12.5 }}>
-          Every {weekdayOf(start)}, starting {shortDate(start)}.
+          Every {weekdayOf(start)}, starting {shortDate(start, locale)}.
         </span>
       )}
       {note && (

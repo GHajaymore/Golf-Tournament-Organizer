@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { todayIso } from "../deadline";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
+import { formattingForEvent } from "./organization";
 import { isMatch } from "../tournament-shape";
 import { roundLabel } from "../domain/round-label";
 
@@ -107,7 +108,8 @@ export async function tournamentClashFor(
       // through `roundLabel`, the one counter, which does not count a cut as
       // a round.
       roundLabel: roundToday.description.trim() || roundLabel(event.stages, roundToday.id),
-      dateLabel: shortDate(today),
+      // In THAT tournament's club's date order (`shortDate`).
+      dateLabel: shortDate(today, (await formattingForEvent(event.id)).locale),
       teeSheetPublished: roundToday.teeSheetPublished,
       hasMoneyGame:
         event._count.skinsPots > 0 || event._count.contests > 0 || event._count.sideGames > 0,
