@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
+import { DistanceUnitProvider } from "./DistanceUnitProvider";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import type { CardBrand } from "@/components/ScorecardTable";
@@ -70,7 +71,8 @@ export interface EntryRound {
    * Empty arrays when no real course resolves: the card then renders hole
    * numbers only, rather than printing another course's par over it.
    */
-  card: { pars: number[]; yards: number[]; strokeIndex: number[] };
+  /** `distanceUnit` — what `yards` is measured in, for THIS round's course. */
+  card: { pars: number[]; yards: number[]; strokeIndex: number[]; distanceUnit?: string };
   stroke: {
     holes: number;
     stageId: string;
@@ -446,6 +448,7 @@ export function EntryModes({
           </Link>
         </div>
       ) : mode === "match" ? (
+        <DistanceUnitProvider unit={round.card.distanceUnit}>
         <ScoreEntryClient
           key={round.stageId}
           matches={round.matches}
@@ -463,7 +466,9 @@ export function EntryModes({
           openCourse={openCourse}
           courseLibrary={courseLibrary}
         />
+        </DistanceUnitProvider>
       ) : (
+        <DistanceUnitProvider unit={round.card.distanceUnit}>
         <StrokePlayEntry
           key={round.stageId}
           cardScanAvailable={cardScanAvailable}
@@ -487,6 +492,7 @@ export function EntryModes({
           courseName={round.venue?.name || courseName}
           venueIsHome={venueIsHome}
         />
+        </DistanceUnitProvider>
       )}
 
       {/**

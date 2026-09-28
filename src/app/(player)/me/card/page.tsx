@@ -13,6 +13,7 @@ import { meFor } from "@/lib/services/me";
 import { cardBrand, golfTermsForEvent } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
+import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { partnerCardsFor } from "@/lib/services/group-cards";
 import { roundCardFor } from "@/lib/services/round-card";
 import { teamStandings } from "@/lib/services/teams";
@@ -243,7 +244,7 @@ export default async function PlayCardPage() {
   // second venue was being shown the first course's par, yardage and stroke
   // index, and a stroke index is what decides where their shots fall.
   // One reading, shared with Today's tiles — see services/round-card.ts.
-  const { venue, known, card } = await roundCardFor(state, stage, holes);
+  const { venue, known, card, unit } = await roundCardFor(state, stage, holes);
 
   /**
    * Handicap strokes per hole, resolved on the SERVER.
@@ -303,7 +304,8 @@ export default async function PlayCardPage() {
   );
 
   return (
-    <>
+    // The card's distances in THIS course's unit — see DistanceUnitProvider.
+    <DistanceUnitProvider unit={unit}>
     <PlayerCard
       stageId={me.round.stageId}
       playerId={me.playerId}
@@ -402,6 +404,6 @@ export default async function PlayCardPage() {
         <Icon name="book-open" /> This tournament&rsquo;s rules
       </Link>
     </p>
-    </>
+    </DistanceUnitProvider>
   );
 }

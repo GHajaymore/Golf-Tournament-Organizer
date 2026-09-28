@@ -176,6 +176,28 @@ export function plainSpaces(text: string): string {
 }
 
 /**
+ * Which day this club's calendar week starts on: 0 for Sunday, 1 for Monday.
+ *
+ * Every month grid started on Sunday, so a British club's calendar read
+ * S M T W T F S where its members' diaries read M T W T F S S (the landing
+ * session, 2026-09-28). Most of the world starts on Monday (ISO 8601); the
+ * Sunday-first places are listed.
+ *
+ * A TABLE rather than `Intl.Locale#getWeekInfo`, deliberately. The grid is
+ * drawn on the server and again in the browser, and the two ship different ICU
+ * — `plainSpaces` above exists because they already disagreed once — while
+ * `getWeekInfo` is also missing from some browsers. A week that started on
+ * Monday in the HTML and Sunday after hydration would redraw every square.
+ */
+const SUNDAY_FIRST_REGIONS = new Set(["US", "CA", "MX", "BR", "IN", "JP", "KR", "TW", "HK", "PH", "IL", "ZA"]);
+
+export function firstDayOfWeek(locale: string = DEFAULT_LOCALE): 0 | 1 {
+  const region = (locale ?? "").split("-")[1]?.toUpperCase() ?? "";
+  if (!region) return 0; // no region: the old answer
+  return SUNDAY_FIRST_REGIONS.has(region) ? 0 : 1;
+}
+
+/**
  * A calendar day, written the way this club writes one.
  *
  * Takes an ISO `yyyy-mm-dd` and never a `Date`, and forces `timeZone: "UTC"`,

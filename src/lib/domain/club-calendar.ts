@@ -116,6 +116,8 @@ function byNameThenRound(a: Commitment, b: Commitment): number {
 export function buildClubCalendar(
   commitments: readonly Commitment[],
   todayIso: string,
+  /** 0 Sunday, 1 Monday — the club's, from `firstDayOfWeek`. */
+  weekStart: 0 | 1 = 0,
 ): ClubCalendar {
   const dated: Commitment[] = [];
   const undated: Commitment[] = [];
@@ -139,6 +141,7 @@ export function buildClubCalendar(
   const months: CommitmentMonth[] = monthGrids(
     dated.map((c) => c.playedOn),
     todayIso,
+    weekStart,
   ).map((m) => {
     let count = 0;
     let inCount = 0;

@@ -30,6 +30,13 @@ export interface StoredCourse {
   pars: string;
   yards: string;
   strokeIndex: string;
+  /**
+   * The two facts `resolveDistanceUnit` reads. Optional so a select written
+   * before they existed still type-checks; it then resolves by the club's
+   * country, which is what every card did before (as "Yards").
+   */
+  distanceUnit?: string;
+  sourceUrl?: string;
 }
 
 /** The event's own course fields — a preset name or a saved custom card. */
@@ -94,14 +101,14 @@ export function soleVenueCourse(event: EventCourseFields): StoredCourse | null {
  */
 export const COURSE_REF = {
   courseRef: {
-    select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+    select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true, distanceUnit: true, sourceUrl: true },
   },
   // The venues, for `soleVenueCourse`. Two at most in practice; one is the
   // only count that is read.
   courses: {
     select: {
       course: {
-        select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+        select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true, distanceUnit: true, sourceUrl: true },
       },
     },
   },
@@ -118,6 +125,14 @@ export interface ResolvedCourse {
   /** Where the answer came from — shown in the UI so an organizer can see
    *  whether a value is inherited or set on this row. */
   source: "match" | "round" | "event";
+  /**
+   * The course row's own unit and provenance, carried so the SAME walk that
+   * chose the card also answers what its distances are in — a second walk to
+   * find "which course was it" is how two screens would come to disagree.
+   * Absent for a hand-entered tournament card, which has no course row.
+   */
+  distanceUnit?: string;
+  sourceUrl?: string;
 }
 
 function fromStored(c: StoredCourse, source: ResolvedCourse["source"]): ResolvedCourse | null {
@@ -125,7 +140,7 @@ function fromStored(c: StoredCourse, source: ResolvedCourse["source"]): Resolved
   const yards = parseHoleArray(c.yards);
   const strokeIndex = parseHoleArray(c.strokeIndex);
   if (!pars || !yards || !strokeIndex) return null;
-  return { name: c.name, city: c.city, pars, yards, strokeIndex, source };
+  return { name: c.name, city: c.city, pars, yards, strokeIndex, source, distanceUnit: c.distanceUnit, sourceUrl: c.sourceUrl };
 }
 
 function fromEvent(event: EventCourseFields): ResolvedCourse | null {

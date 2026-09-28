@@ -6,6 +6,8 @@ import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
+import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
+import { distanceUnitFor } from "@/lib/services/round-card";
 import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
@@ -152,6 +154,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         : [];
 
       return (
+        // This card's distances in its own course's unit.
+        <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
         <PlayClient
           expiryNotice={expiry}
           stage="card"
@@ -178,6 +182,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           staffApproves={!allowsAutoConfirm(settings)}
           voiceEntry={settings.voiceEntry}
         />
+        </DistanceUnitProvider>
       );
     }
 
@@ -255,6 +260,9 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   }));
 
   return (
+    // This match's card in its own course's unit — a match can have a venue
+    // of its own, which is why it is asked of `playResolved` and not the round.
+    <DistanceUnitProvider unit={await distanceUnitFor(playResolved, event.organizationId)}>
     <PlayClient
       expiryNotice={expiry}
       stage="score"
@@ -292,5 +300,6 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       // organizer cannot be shown a different basis for one round.
       netMode={isNetBasis(stage?.scoringBasis ?? "")}
     />
+    </DistanceUnitProvider>
   );
 }
