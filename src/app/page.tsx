@@ -350,6 +350,27 @@ export default async function LandingPage() {
                   <figcaption><i />Real screen · the bracket, locked</figcaption>
                 </figure>
               </div>
+              {/* /me/calendar — ClubCalendar. Every claim below is what that
+                  screen does: rounds the member is entered in, across the club,
+                  and In/Out for league weeks still open to choose. */}
+              <div className="cell c6 split reveal">
+                <div className="split-copy">
+                  <div className="ic">{icon("calendar")}</div>
+                  <h3 className="h3">Every member&rsquo;s season, on one calendar</h3>
+                  <p>
+                    Every round a member is entered in, across all of the club&rsquo;s events, laid out on the days
+                    it&rsquo;s played — so a holiday or a work trip can be checked against the season in one look.
+                  </p>
+                  <p>
+                    Where a league lets players choose their weeks, they set In or Out right there, for every league
+                    at once — and the organizer&rsquo;s tee sheet is drawn from those answers.
+                  </p>
+                </div>
+                <figure className="shot-fig">
+                  {shot({ name: "crop-calendar", variant: d, width: 700, height: 951, className: "shot from-phone", alt: "A member's calendar for October: three Thursday league rounds marked on the month, and below it each week with an In / Out switch — in for two, out for one — with a legend for playing, not playing and closed." })}
+                  <figcaption><i />Real screen · your calendar</figcaption>
+                </figure>
+              </div>
             </div>
           </div>
         </section>
@@ -390,6 +411,7 @@ export default async function LandingPage() {
                 </figure>
               ))}
             </div>
+            <p className="fmt-hint" aria-hidden="true">Swipe for more formats →</p>
             <p className="real-note"><i />Real screens · the public board a club publishes, and the bracket its organizer runs</p>
           </div>
         </section>

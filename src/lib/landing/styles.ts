@@ -246,7 +246,13 @@ ${landingTokens("light", "    ")}
 .thq .fmt figcaption span { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
 .thq .formats .real-note { text-align: center; margin-top: 28px; }
 @media (max-width: 960px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 220px)); row-gap: 40px; } }
-@media (max-width: 440px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; row-gap: 32px; } .thq .fmt figcaption span { font-size: 12.5px; } }
+.thq .fmt-hint { display: none; }
+@media (max-width: 700px) {
+  .thq .fmt-rack { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; margin-inline: -16px; padding: 4px 16px 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .thq .fmt-rack::-webkit-scrollbar { display: none; }
+  .thq .fmt { flex: 0 0 min(72%, 280px); scroll-snap-align: start; }
+  .thq .fmt-hint { display: block; margin: 6px 0 0; text-align: right; font: 500 12px/1 var(--mono); color: var(--ink-faint); }
+}
 
 /* ── formats ticker ── */
 .thq .ticker { overflow: hidden; position: relative; padding: 8px 0; }
@@ -266,7 +272,12 @@ ${landingTokens("light", "    ")}
 .thq .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-a08); border: 1px solid var(--accent-a22); color: var(--brass); }
 .thq .cell .ic { margin-bottom: 4px; }
 .thq .cell p { color: var(--ink-soft); font-size: 15px; line-height: 1.55; max-width: 520px; }
-.thq .c4 { grid-column: span 4; } .thq .c3 { grid-column: span 3; } .thq .c2 { grid-column: span 2; }
+.thq .c4 { grid-column: span 4; } .thq .c3 { grid-column: span 3; } .thq .c2 { grid-column: span 2; } .thq .c6 { grid-column: 1 / -1; }
+/* A full-width card with its words beside its screen (the club calendar). */
+.thq .cell.split { grid-template-columns: minmax(0, 520px) minmax(0, 340px); justify-content: center; column-gap: 80px; align-items: center; }
+.thq .cell.split .split-copy { display: grid; gap: 12px; align-content: center; max-width: 560px; }
+.thq .cell.split .shot-fig { margin-top: 0; }
+@media (max-width: 700px) { .thq .cell.split { grid-template-columns: minmax(0, 1fr); row-gap: 16px; } }
 @media (max-width: 1000px) { .thq .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } .thq .c4, .thq .c3 { grid-column: span 2; } .thq .c2 { grid-column: span 1; } }
 @media (max-width: 640px) { .thq .bento { grid-template-columns: minmax(0, 1fr); } .thq .c4, .thq .c3, .thq .c2 { grid-column: span 1; } }
 @media (max-width: 360px) { .thq .cell, .thq .idx-col { padding: 20px; } }
@@ -631,6 +642,7 @@ __CMP_FRAMES__
 .thq .cta-card .h1 { font-size: clamp(34px, 5.6vw, 72px); }
 @media (max-width: 420px) { .thq .cta-card { padding: 64px 20px; } }
 .thq .anchor { display: block; position: relative; top: -84px; visibility: hidden; }
+@media (max-width: 700px) { .thq section[id] { scroll-margin-top: 40px; } }
 .thq .authpanel {
   /* The sign-in form is the app's own component (LoginPanel), drawn with the
      app's --color-* tokens and carrying its own card. On the front door its
