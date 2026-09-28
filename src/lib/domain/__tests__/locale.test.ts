@@ -8,8 +8,23 @@ import {
   formatDayRange,
   plainSpaces,
   isSupportedLocale,
+  usesTwentyFourHourClock,
   DEFAULT_LOCALE,
 } from "../locale";
+
+describe("a tee time, on the club's clock", () => {
+  it("is 24-hour where the club writes it so, 12-hour where it does not", () => {
+    expect(usesTwentyFourHourClock("en-GB")).toBe(true);
+    expect(usesTwentyFourHourClock("en-IE")).toBe(true);
+    expect(usesTwentyFourHourClock("de-DE")).toBe(true);
+    expect(usesTwentyFourHourClock("en-US")).toBe(false);
+    expect(usesTwentyFourHourClock("en-AU")).toBe(false);
+  });
+
+  it("keeps the old answer for a tag Intl cannot read", () => {
+    expect(usesTwentyFourHourClock("not a locale!!")).toBe(false);
+  });
+});
 
 /**
  * A CLUB'S DATES AND MONEY, WRITTEN THE WAY THAT CLUB WRITES THEM.

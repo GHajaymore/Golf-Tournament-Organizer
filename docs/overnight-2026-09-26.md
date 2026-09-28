@@ -175,6 +175,7 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #685 | Recent changes says who approved an entry and who got a freed place (item 95) | live |
 | #686 | Every action written to the record has a heading; a forfeit is a result (item 96) | live |
 | #687 | Sign-in addresses land on the sign-in panel; branded 404 and error pages (item 97) | live |
+| #679 | Landing phone rework: comparison and pricing side by side on phones, clean phone crops, no sideways scroll at 320px (from the landing session) | live |
 | — | **A new club couldn't get started** — fixed; the public entry form speaks the club's golf; a withdrawal says what was given up; Members form labels (items 86–88) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
@@ -1148,6 +1149,35 @@ Resumed at Ajay's "keep going … make it error free and professional":
       /faq, /play and /privacy. No sideways scroll, and exactly one `<h1>` each.
 
     Three consecutive clean passes: stopped here.
+
+98. **A club on the 24-hour clock got its tee sheet drawn in American time.** Resumed after
+    #679 merged. The draw wrote every tee time as "8:10 AM" whatever the club, so a Scottish
+    club's sheet read "8:10 AM" while its members' cards read "17:30". The time is stored on
+    the sheet as drawn, so it is now drawn on the club's own clock, decided by Intl's
+    `hourCycle` for the club's locale: en-GB, en-IE and de-DE give "08:10"; en-US and en-AU
+    keep "8:10 AM". Sheets already saved keep the text they were saved with. Measured on the
+    seeded club: Round 5 now reads 08:00, 08:10, 08:20 with no AM/PM on the screen. Pinned
+    in both clocks, with the tee sheet's call checked to pass the club's clock. Dropping the
+    24-hour branch turns it red.
+
+    Also checked this pass, all clean:
+    - The five console screens the earlier sweeps skipped because only some formats show
+      them in the sidebar: `/scoring`, `/qualification`, `/scorecard`, `/bracket`, `/teams`,
+      on all 11 tournaments. Three are old addresses that redirect; the real two are clean.
+    - A member's money against the arithmetic: the Four-Ball dinner of £410.05 splits 16 ways
+      (13 × £25.63 + 3 × £25.62). His £310.05 paid, less his share and one settled £25.63,
+      leaves £258.79, which is exactly what the settle-up handovers to him add up to.
+    - The League's two tee-sheet groups for him are two different rounds (the week played,
+      and next week's draft), not two answers to one question.
+
+    **Decision for Ajay (15): what unit is a course's distance in?** The scorecard's distance
+    row is labelled "Yards" for every club, and nothing records a unit. The app serves
+    Australia and New Zealand, Germany and Austria, France, Spain, China and Korea, most of
+    which measure courses in metres. A German club typing its card in metres reads them as
+    yards. It cannot be fixed by relabelling from the club's country, because a card from the
+    course catalogue may be in yards whatever the club. It needs a unit stored per course (set
+    on import or entry), or per club. Not built; it is a data-model choice, and every scoring
+    figure is unaffected, since nothing scores off distance.
 
     **Open for Ajay:** #679, the landing session's phone rework, is approved per the landing
     session. My permission check refused to merge it on an approval that came through another
