@@ -21,7 +21,7 @@ const SRC = join(process.cwd(), "src");
 const read = (...p: string[]) => readSource("src", ...p);
 
 /**
- * Every route says whether a search engine may keep it, and only two say yes.
+ * Every route says whether a search engine may keep it, and only three say yes.
  *
  * Swept from the filesystem rather than listed, for the reason the layout sweep
  * in `e2e/layout.spec.ts` gives: a hand-written list covered 14 of 22 routes
@@ -69,8 +69,12 @@ describe("nothing but the marketing pages invites indexing", () => {
    * The pages that exist to be found. Everything else is either credentialed by
    * a token in its URL or behind a session, and none of it benefits from being
    * in an index.
+   *
+   * `/faq` joined on 2026-09-27: every question the product answers, from the
+   * same module as the landing's eight. It describes the product and carries
+   * nobody's data.
    */
-  const INDEXABLE = new Set(["/", "/privacy"]);
+  const INDEXABLE = new Set(["/", "/privacy", "/faq"]);
 
   /** A page's own file, plus every layout above it up to src/app. */
   const chainFor = (pageFile: string) => {
@@ -111,7 +115,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     });
   }
 
-  it("the two marketing pages are left indexable on purpose", () => {
+  it("the marketing pages are left indexable on purpose", () => {
     // Asserted so the rule above cannot be satisfied by blanketing everything —
     // which would quietly delist the only pages the product wants found.
     for (const route of INDEXABLE) {
@@ -121,9 +125,9 @@ describe("nothing but the marketing pages invites indexing", () => {
     }
   });
 
-  it("robots.txt allows only those two, and names the sitemap", () => {
+  it("robots.txt allows only those, and names the sitemap", () => {
     const robots = stripComments(read("app", "robots.ts"));
-    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy"\]/);
+    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy", "\/faq"\]/);
     for (const p of ["/live/", "/register/", "/reset-password", "/play"]) {
       expect(robots, `robots.txt should disallow ${p}`).toContain(`"${p}"`);
     }
@@ -148,6 +152,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     // And each indexable page names its own.
     expect(stripComments(read("app", "page.tsx"))).toMatch(/canonical:\s*"\/"/);
     expect(stripComments(read("app", "privacy", "page.tsx"))).toMatch(/canonical:\s*"\/privacy"/);
+    expect(stripComments(read("app", "faq", "page.tsx"))).toMatch(/canonical:\s*"\/faq"/);
   });
 
   it("the sitemap lists only the marketing pages", () => {
@@ -159,6 +164,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     }
     expect(sitemap).toContain('siteUrl("/")');
     expect(sitemap).toContain('siteUrl("/privacy")');
+    expect(sitemap).toContain('siteUrl("/faq")');
   });
 });
 
