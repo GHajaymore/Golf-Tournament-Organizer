@@ -412,11 +412,7 @@ __CMP_FRAMES__
 .thq .idx-more label:has(input:checked) .when-closed, .thq .idx-more label:not(:has(input:checked)) .when-open { display: none; }
 
 /* ── how it compares ── */
-.thq .cmp-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1000px) { .thq .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.thq .cmp-cards .cell { gap: 10px; }
-.thq .cmp-cards .big { font: 600 40px/1 var(--sans); letter-spacing: -.04em; margin-bottom: 6px; }
-.thq .vs { margin-top: 56px; display: grid; justify-items: center; }
+.thq .vs { display: grid; justify-items: center; }
 .thq .vs > * { width: 100%; }
 .thq .vs .vs-tabs { width: auto; margin-bottom: 18px; }
 .thq .vs-set { display: none; }
@@ -487,11 +483,6 @@ __CMP_FRAMES__
   .thq .vs-table tbody tr + tr > * { border-top: 0; }
   .thq .vs-table tbody tr + tr { border-top: 1px solid var(--line); }
   .thq .vs-hint { display: none; }
-  .thq .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .thq .cmp-cards .cell { padding: 18px 16px; gap: 6px; }
-  .thq .cmp-cards .big { font-size: 28px; margin-bottom: 2px; }
-  .thq .cmp-cards .cell p { font-size: 13px; line-height: 1.45; }
-  .thq .cmp-cards .h3 { font-size: 15px; }
 }
 
 /* ── pricing ── */
@@ -632,11 +623,7 @@ __CMP_FRAMES__
 .thq .cta-card .lead { text-align: center; }
 .thq .cta-card .h1 { font-size: clamp(34px, 5.6vw, 72px); }
 @media (max-width: 420px) { .thq .cta-card { padding: 64px 20px; } }
-.thq .authsec { padding: 0 0 96px; }
 .thq .anchor { display: block; position: relative; top: -84px; visibility: hidden; }
-.thq .authwrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
-@media (max-width: 900px) { .thq .authwrap { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
-.thq .authcopy { display: grid; gap: 18px; }
 .thq .authpanel {
   /* The sign-in form is the app's own component (LoginPanel), drawn with the
      app's --color-* tokens and carrying its own card. On the front door its
@@ -670,8 +657,6 @@ __CMP_FRAMES__
 .thq .foot-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; }
 .thq .foot-base .ed-note { margin-top: 0; justify-content: flex-start; }
 .thq .cred { white-space: nowrap; }
-.thq .ajai { display: inline-flex; align-items: baseline; font-weight: 700; letter-spacing: -.01em; }
-.thq .ajai-labs { font-weight: 600; }
 
 /* ── reveal on scroll: only once JavaScript is there to reveal it ── */
 .thq-js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
@@ -688,7 +673,7 @@ __CMP_FRAMES__
 @media (min-width: 2200px) { .thq { --wrap: 1440px; font-size: 17px; } }
 @media (horizontal-viewport-segments: 2) {
   .thq .wrap { max-width: none; }
-  .thq .money, .thq .yours-head, .thq .aud-panel, .thq .faq, .thq .authwrap {
+  .thq .money, .thq .yours-head, .thq .aud-panel, .thq .faq {
     grid-template-columns: calc(env(viewport-segment-width 0 0) - 48px) calc(env(viewport-segment-width 1 0) - 48px);
     column-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0) + 48px);
   }

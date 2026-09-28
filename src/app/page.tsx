@@ -847,13 +847,6 @@ export default async function LandingPage() {
               <h2 className="h2">Side by side <span className="muted">with the names you know.</span></h2>
               <p className="lead">TourneyHQ next to the club platforms and the league and group apps closest to it — every figure from each company&rsquo;s own website.</p>
             </div>
-            <div className="cmp-cards">
-              <div className="cell reveal"><div className="big accent">{prices.zero}</div><h3 className="h3">A real free plan</h3><p>Up to {PLANS.free.limits.playersPerEvent} players, every format and the live board. It&rsquo;s free for good, not a trial.</p></div>
-              <div className="cell reveal"><div className="big">{prices.zero} setup</div><h3 className="h3">No setup fee</h3><p>There&rsquo;s nothing to pay to get started, on any plan.</p></div>
-              <div className="cell reveal"><div className="big">Public</div><h3 className="h3">Prices on the page</h3><p>Every plan&rsquo;s price is on this page. You don&rsquo;t have to ask for a quote.</p></div>
-              <div className="cell reveal"><div className="big accent">0%</div><h3 className="h3">Never touches the money</h3><p>Every skin, sweep and split is worked out and recorded. TourneyHQ never collects or holds it.</p></div>
-            </div>
-
             <div className="vs reveal">
               <div className="seg vs-tabs" role="radiogroup" aria-label="Compare TourneyHQ with">
                 {sets.map((set, i) => (
@@ -891,15 +884,15 @@ export default async function LandingPage() {
                         {ROW_LABELS.map((label, r) => (
                           <tr key={label}>
                             <th scope="row">{label}</th>
-                            <td className="hot" data-label="TourneyHQ">{ours[r]}</td>
-                            {set.products.map((p, c) => <td data-label={p.name} key={p.name}>{set.cells[r][c]}</td>)}
+                            <td className="hot">{ours[r]}</td>
+                            {set.products.map((p, c) => <td key={p.name}>{set.cells[r][c]}</td>)}
                           </tr>
                         ))}
                         <tr className="vs-srcrow">
                           <th scope="row">Source</th>
-                          <td className="hot" data-label="TourneyHQ">This page</td>
+                          <td className="hot">This page</td>
                           {set.products.map((p) => (
-                            <td data-label={p.name} key={p.name}>
+                            <td key={p.name}>
                               <a href={p.source.href} rel="nofollow noopener noreferrer" target="_blank">{p.source.label}</a>
                             </td>
                           ))}
