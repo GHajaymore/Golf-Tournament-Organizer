@@ -339,7 +339,7 @@ export default async function PlayTodayPage() {
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {myRow?.canEnter && (
-              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} style={{ flex: "1 1 160px" }} />
+              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} waitlistOnly={myRow.waitlistOnly} style={{ flex: "1 1 160px" }} />
             )}
             <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
               See the board <Icon name="arrow-right" />
