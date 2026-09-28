@@ -70,6 +70,27 @@ export const LOGO_SIZE = {
 } as const;
 
 /**
+ * HOW BIG THE MARK IS BESIDE THE WORDMARK — the lockup's one proportion.
+ *
+ * The flat mark's artwork fills about 70% of its 32-unit box (y 4.9 to 27.1),
+ * so a box the same number as the wordmark's font size drew a mark about the
+ * height of a capital letter. Every lockup did exactly that — the sidebar's
+ * 19px wordmark sat beside a 13px mark — and Ajay, 2026-09-27: "TourneyHQ and
+ * logo looks tiny on this screen … it should stand up."
+ *
+ * 1.45 puts the visible mark at the full height of the wordmark. The EMBLEM is
+ * a disc that fills its box, so it needs less: 1.27, the ratio the landing's
+ * display lockup was already drawn at (a 28px emblem beside a 22px wordmark).
+ * Every lockup goes through `<Lockup>`, which reads this — no screen tunes it.
+ */
+export const MARK_TO_WORDMARK = 1.45;
+export const EMBLEM_TO_WORDMARK = 1.27;
+
+export function markSizeFor(wordmark: number, emblem = false): number {
+  return Math.round(wordmark * (emblem ? EMBLEM_TO_WORDMARK : MARK_TO_WORDMARK));
+}
+
+/**
  * Explicit colours, for a renderer with no stylesheet.
  *
  * The mark normally takes its colours from `--logo-*`, which is what lets one

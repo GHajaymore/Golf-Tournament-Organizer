@@ -72,6 +72,15 @@
   --thq-orange-light: #f6a566;
   --thq-orange-deep: #d06f23;
   --thq-on-flag: #16181a;
+  /* THE WORDMARK ON A LIGHT GROUND (decided by Ajay 2026-09-27). The three
+     stops above measure 1.8, 2.3 and 3.1:1 on the light ground (#f4f2ee) —
+     the brand was faint in light mode. The same orange, deeper: 3.7, 4.5 and
+     5.5:1, hue unchanged at ~25°. For the WORDMARK ONLY — the flag, ball and
+     HQ chip keep their one colour on both grounds, as decided on 2026-09-18.
+     Read through `light-dark()` in .brand-mark, never set per club. */
+  --thq-word-light-1: #c4611a;
+  --thq-word-light-2: #b35512;
+  --thq-word-light-3: #9c4a0f;
 
   /* THE HAND-HUNG SCOREBOARD (design D, chosen 2026-09-19). A physical object
      on the page — a cream board in a green frame with white tiles — so, like
@@ -182,10 +191,18 @@ a.card:active, button.card:active, .card-hover:active {
    pale end of the old gradient was dropped: on the light ground it vanished
    into the page, and the wordmark has to read on both. */
 .brand-mark {
+  /* First line: the fallback for a browser without light-dark() — the
+     gradient as it always was. The second picks the deeper stops wherever the
+     surface's color-scheme resolves light (the app shell, player app and
+     public board all declare it from the club's appearance). */
   background: linear-gradient(115deg,
     var(--thq-orange-light) 0%,
     var(--thq-flag) 45%,
     var(--thq-orange-deep) 100%);
+  background: linear-gradient(115deg,
+    light-dark(var(--thq-word-light-1), var(--thq-orange-light)) 0%,
+    light-dark(var(--thq-word-light-2), var(--thq-flag)) 45%,
+    light-dark(var(--thq-word-light-3), var(--thq-orange-deep)) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

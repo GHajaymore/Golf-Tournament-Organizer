@@ -1,5 +1,5 @@
-import { Logo, LOGO_SIZE } from "./Logo";
-import { BrandMark } from "./BrandMark";
+import { LOGO_SIZE, markSizeFor } from "./Logo";
+import { Lockup } from "./Lockup";
 
 export interface Brand {
   name: string;
@@ -101,13 +101,20 @@ export function OrgBrand({
     );
   }
 
+  /**
+   * THE LOCKUP STANDS ON ITS OWN ROW, and the rest sits beneath it.
+   *
+   * The mark used to be centred against a three-line stack — wordmark,
+   * tagline, club name — so it floated small beside text of nearly equal
+   * weight and nothing read as the brand. Now the mark and wordmark share one
+   * row (`<Lockup>`), and the tagline and club name hang beneath, indented to
+   * start under the wordmark, smaller and muted.
+   */
+  const indent = markSizeFor(size) + Math.round(size * 0.35);
   return (
-    <>
-      <Logo size={size} style={{ flex: "none" }} />
-      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3, lineHeight: 1.15 }}>
-        {/* Sized from the same number as the mark beside it, so a caller that
-            shrinks one shrinks both. They used to drift apart. */}
-        <BrandMark size={size} />
+    <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4, lineHeight: 1.15 }}>
+      <Lockup size={size} />
+      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2, paddingLeft: indent }}>
         {tagline && (
           <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
             {TAGLINE}
@@ -130,20 +137,37 @@ export function OrgBrand({
               />
             )}
             <span
-              style={{
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "var(--color-text-muted)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              style={
+                tagline
+                  ? {
+                      // Where there is room (the placements that ask for the
+                      // tagline), a real club's name gets two lines rather than
+                      // "Braid Hollow Men's & L…" — measured in the 2026-09-27
+                      // logo audit. The phone header keeps one: a second line
+                      // there is a line of the round.
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                    }
+                  : {
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }
+              }
             >
               {brand.name}
             </span>
           </span>
         )}
       </span>
-    </>
+    </span>
   );
 }

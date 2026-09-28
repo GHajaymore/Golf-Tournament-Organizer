@@ -122,9 +122,77 @@ describe("the wordmark is written once too", () => {
     // The homepage used to re-point the wordmark's --color-accent* at its own
     // amber. The wordmark now reads the fixed --thq-* colours, so the homepage
     // renders exactly the lockup the app does — and must not re-skin it.
+    //
+    // Through `<Lockup>` since 2026-09-27, which draws BrandMark itself and
+    // takes no style for it — `markStyle` reaches the mark's stick and cup
+    // only. So the homepage cannot re-skin the wordmark even by accident.
     const landing = read("src/app/page.tsx");
-    expect(landing).toContain("<BrandMark");
+    expect(landing).toContain("<Lockup");
     expect(landing, "the homepage re-skins the wordmark again").not.toMatch(/<BrandMark[^>]*style=/);
+    expect(read("src/components/Lockup.tsx")).toContain("<BrandMark size={size} />");
+  });
+
+  it("assembles the mark and the wordmark in one place: <Lockup>", () => {
+    /**
+     * Five files built the pair by hand, each setting the mark's box to the
+     * wordmark's own number, so the mark came out the height of a capital
+     * letter beside it — "tiny", Ajay said of the console sidebar
+     * (2026-09-27). Three of them also put the mark in a tinted tile, a third
+     * treatment of "the logo". A file that draws BOTH is building a lockup,
+     * and the lockup is built once.
+     */
+    const offenders = allTsx("src")
+      .filter((f) => f !== "src/components/Lockup.tsx")
+      .filter((f) => {
+        const src = read(f);
+        return /<Logo[\s>]/.test(src) && /<BrandMark[\s>/]/.test(src);
+      });
+    expect(offenders, `mark and wordmark paired by hand in: ${offenders.join(", ")}`).toEqual([]);
+    expect(read("src/components/OrgBrand.tsx"), "OrgBrand builds its own pair again").toContain("<Lockup");
+  });
+
+  it("keeps the wordmark readable on the light ground, without touching the flag", async () => {
+    /**
+     * Ajay, 2026-09-27: deeper orange for the wordmark ONLY on a light ground.
+     * The dark-ground stops measured 1.8, 2.3 and 3.1:1 on #f4f2ee. Computed
+     * here against the real grounds rather than quoted, and the dark stops are
+     * checked unchanged so the fix cannot dim the dark mode it did not touch.
+     */
+    const { LIGHT_GROUND, DARK_GROUND } = await import("../themes");
+    const css = read("src/app/globals.css");
+    const hex = (name: string) => new RegExp(`--thq-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)?.[1] ?? "";
+    const lum = (h: string) => {
+      const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a: string, b: string) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    for (const stop of ["word-light-1", "word-light-2", "word-light-3"]) {
+      expect(hex(stop), `--thq-${stop} is not declared`).toMatch(/^#/);
+      expect(ratio(hex(stop), LIGHT_GROUND.bg), `--thq-${stop} on the light ground`).toBeGreaterThanOrEqual(3.5);
+    }
+    for (const stop of ["orange-light", "flag", "orange-deep"]) {
+      expect(ratio(hex(stop), DARK_GROUND.bg), `--thq-${stop} on the dark ground`).toBeGreaterThanOrEqual(5);
+    }
+    // Wired through light-dark() in the wordmark, and the flag keeps one colour.
+    const mark = css.slice(css.indexOf(".brand-mark {"), css.indexOf("}", css.indexOf(".brand-mark {")));
+    expect(mark).toContain("light-dark(var(--thq-word-light-1), var(--thq-orange-light))");
+    expect(read("src/components/Logo.tsx"), "the flag follows the ground now").not.toContain("word-light");
+    // And the landing declares its light scheme, or it would draw the dark stops on card stock.
+    expect(read("src/app/page.tsx")).toMatch(/prefers-color-scheme: light\) \{\s*\.thq \{[^}]*color-scheme: light/);
+  });
+
+  it("sizes the mark so it stands the full height of the wordmark", async () => {
+    // The flat mark's artwork spans 22.2 of its 32 units (y 4.9 to 27.1).
+    // At a box equal to the wordmark's size it stood ~0.69 of it.
+    const { markSizeFor, LOGO_SIZE } = await import("@/components/Logo");
+    const ARTWORK = (27.1 - 4.9) / 32;
+    for (const step of [LOGO_SIZE.sm, LOGO_SIZE.md, LOGO_SIZE.lg]) {
+      expect(markSizeFor(step) * ARTWORK, `${step}px wordmark`).toBeGreaterThanOrEqual(step * 0.98);
+    }
+    expect(read("src/components/Lockup.tsx")).toContain("markSizeFor(size, emblem)");
   });
 });
 

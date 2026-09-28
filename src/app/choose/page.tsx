@@ -11,8 +11,8 @@ import { NOINDEX } from "@/lib/site";
 // Behind a session, and it lists the tournaments this person can reach.
 export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { ROLE_LABEL } from "@/lib/roles";
-import { Logo, LOGO_SIZE } from "@/components/Logo";
-import { BrandMark } from "@/components/BrandMark";
+import { LOGO_SIZE } from "@/components/Logo";
+import { Lockup } from "@/components/Lockup";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -98,21 +98,9 @@ export default async function ChooseTournamentPage({
     >
       <div style={{ width: "min(640px, 100%)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 11,
-                background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-              }}
-            >
-              <Logo size={LOGO_SIZE.md} style={{ color: "var(--color-accent)" }} />
-            </div>
-            <BrandMark />
-          </div>
+          {/* The one lockup — not the mark in a tinted tile, which was a third
+              treatment of "the logo" beside the sidebar's and the landing's. */}
+          <Lockup size={LOGO_SIZE.md} />
           <form action={signOutAction}>
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
               <Icon name="sign-out" /> Sign out
