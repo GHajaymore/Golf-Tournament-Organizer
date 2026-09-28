@@ -17,7 +17,7 @@ import { Lockup } from "@/components/Lockup";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
-import { orgSetupFactsFor, organizationsForOrganizer } from "@/lib/services/organization";
+import { orgSetupFactsFor, organizationsFor, organizationsForOrganizer } from "@/lib/services/organization";
 import { myAsks } from "@/lib/services/join-requests";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { isMatch } from "@/lib/tournament-shape";
@@ -82,6 +82,21 @@ export default async function ChooseTournamentPage({
     redirect(safeNextPath(next) ?? homeFor(accounts[0].role));
   }
 
+  /**
+   * A MEMBER OF A CLUB THAT HAS NOT PUBLISHED ANYTHING YET is not a stranger.
+   *
+   * Walked 2026-09-28 as a plain member of a British society with no
+   * tournaments: this page told them "If an organizer has invited you …
+   * otherwise create your own", naming neither the society they belong to nor
+   * using its word, while `/me/events` said "Your club has not published any
+   * tournaments yet". Only clubs they belong to WITHOUT running them; an owner
+   * or admin already gets the setup checklist below, which is their answer.
+   */
+  const joined = accounts.length === 0
+    ? (await organizationsFor(session.email)).filter((m) => m.role !== "owner" && m.role !== "admin")
+    : [];
+  const club = joined[0]?.organization ?? null;
+
   return (
     <div
       style={{
@@ -114,10 +129,19 @@ export default async function ChooseTournamentPage({
           {accounts.length === 0 ? "Welcome to TourneyHQ" : "Which tournament?"}
         </h1>
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 28px" }}>
-          {accounts.length === 0
-            ? "Your account is ready. If an organizer has invited you to a tournament, it appears here as soon as they add your email — otherwise create your own below."
-            : `You have access to ${accounts.length} tournament${accounts.length === 1 ? "" : "s"}.`}
+          {accounts.length > 0
+            ? `You have access to ${accounts.length} tournament${accounts.length === 1 ? "" : "s"}.`
+            : club
+              ? `You're a member of ${club.name}, which hasn't published a tournament yet. When it does, it appears here and on Events, and you can enter from there.`
+              : `Your account is ready. If an organizer has invited you to a tournament, it appears here as soon as they add your email — otherwise create your own below.`}
         </p>
+        {club && (
+          <p style={{ margin: "-12px 0 28px" }}>
+            <Link href="/me/events" className="btn btn-secondary">
+              <Icon name="calendar-check" /> See your events
+            </Link>
+          </p>
+        )}
 
         {/* The organization checklist lives HERE, and this is the only place
             it can. Every screen in the (app) shell goes through
