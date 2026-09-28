@@ -335,6 +335,10 @@ export function LoginPanel({
               border: "none",
               cursor: "pointer",
               padding: "7px 10px",
+              // The platform minimum: this was 30px tall, measured on the
+              // landing at every width (2026-09-28). See touch.spec's
+              // signed-out sweep, which is what now measures this form.
+              minHeight: 44,
               borderRadius: 8,
               fontSize: 13,
               fontWeight: mode === m ? 600 : 500,
@@ -426,10 +430,16 @@ export function LoginPanel({
                 style={{
                   background: "none",
                   border: "none",
-                  padding: 0,
                   cursor: "pointer",
                   fontSize: 11.5,
                   color: "var(--color-accent-400)",
+                  // A 44px target around 12px of text: the negative margin
+                  // gives the space back so the label row does not grow. It
+                  // was a 40x12 button.
+                  minHeight: 44,
+                  minWidth: 44,
+                  padding: "0 6px",
+                  margin: "-16px -6px",
                 }}
               >
                 Forgot?
@@ -621,7 +631,7 @@ function PasswordInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        style={{ paddingRight: 38 }}
+        style={{ paddingRight: 46 }}
       />
       <button
         type="button"
@@ -629,11 +639,12 @@ function PasswordInput({
         aria-label={shown ? "Hide password" : "Show password"}
         style={{
           position: "absolute",
-          right: 4,
+          right: 0,
           top: "50%",
           transform: "translateY(-50%)",
-          width: 28,
-          height: 28,
+          // 44x44, the platform minimum; it was 28x28.
+          width: 44,
+          height: 44,
           display: "grid",
           placeItems: "center",
           background: "none",
@@ -657,7 +668,8 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
       style={{
         background: "none",
         border: "none",
-        padding: 0,
+        padding: "0 8px",
+        minHeight: 44,
         cursor: "pointer",
         color: "color-mix(in srgb, var(--color-text) 58%, transparent)",
         fontSize: 12.5,

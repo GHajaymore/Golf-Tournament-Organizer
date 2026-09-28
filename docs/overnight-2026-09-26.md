@@ -161,7 +161,10 @@ says. Every fix has a test that was watched going red with the fix removed.
 | #671 | The organizer's Voice entry switch never did anything; now it does. The landing stops overstating its sixteen formats (items 77–78) | merged |
 | #672 | A UK club's own role reads "Organiser" on every screen at once (item 79) | merged |
 | #673 | A second tap on a listening mic stops it, on every screen that has one (item 80) | merged |
-| — | A US club's dates in US order everywhere; the tee sheet's group words follow the club (item 81) | pending |
+| #674 | A US club's dates in US order everywhere; the tee sheet's group words follow the club (item 81) | live |
+| #675 | **Your landing redesign, ported to the real site**: country editions, real captures, the sourced comparison, /faq (from the landing session) | live |
+| #676 | Landing refinement: readable phone-width crops, the phone hero, stacked comparison on phones (from the landing session) | merging |
+| — | The landing's sign-in form clears the 44px touch minimum (item 82) | pending |
 
 ## The non-golfer runs a tournament (from scratch)
 
@@ -991,6 +994,12 @@ the wrong thing about where they were:
     two-ball" for a UK club. The casual-round notice now says "your foursome" to a US club,
     where it had said "fourball" to everyone. The Season plan's blurb names "league, society
     or golf group".
+82. **The sign-in form on the landing was too small to tap.** The Log in and Sign up tabs were
+    30px tall, "Forgot?" was a 40×12 button and the password eye was 28×28, all under the 44px
+    minimum. The landing session measured them on the live page at four widths. No test had
+    ever measured this form, because the touch tests sign in first and the form only appears
+    when you are signed out. All four targets are now 44px, and a signed-out test measures the
+    form at every width.
 
 Checked and left alone: a knockout's dates reading "2026-09-05 onwards" is the organizer's own
 text, printed as typed. "Copy one of yours" offers the six newest tournaments on purpose, and
