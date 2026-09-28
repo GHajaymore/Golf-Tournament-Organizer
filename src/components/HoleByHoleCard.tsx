@@ -5,7 +5,7 @@ import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
-import { startDictation } from "@/lib/dictation";
+import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 
@@ -133,6 +133,7 @@ export function HoleByHoleCard({
   showVoice?: boolean;
 }) {
   const [listening, setListening] = useState(false);
+  const dictationRef = useRef<Dictation | null>(null);
   const [heard, setHeard] = useState("");
   // Open where the card has got to.
   //
@@ -195,7 +196,14 @@ export function HoleByHoleCard({
    * a misheard "four" for "five" is seen and fixed with the stepper.
    */
   const listen = () => {
-    if (listening) return;
+    // A second tap stops it. The ring said "listening" and the tap did
+    // nothing, so the only way to stop the mic was to wait for it to give up.
+    if (listening) {
+      dictationRef.current?.stop();
+      dictationRef.current = null;
+      setListening(false);
+      return;
+    }
     setHeard("");
     const started = startDictation({
       onTranscript: (transcript) => {
@@ -215,6 +223,7 @@ export function HoleByHoleCard({
       onError: () => setHeard("Didn’t catch that. Try again, or tap the scores in."),
       onEnd: () => setListening(false),
     });
+    dictationRef.current = started;
     if (started) setListening(true);
     else setHeard("This browser can’t listen. Tap the scores in instead.");
   };
