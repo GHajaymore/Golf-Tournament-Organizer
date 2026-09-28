@@ -85,6 +85,34 @@ export function weekBasis(
   return "net";
 }
 
+/** Whether this FORMAT is scored in Stableford points (standard or modified). */
+export function isStablefordFormat(format: string | null | undefined): boolean {
+  const engine = lookupFormat((format ?? "").trim())?.engine;
+  return engine === "stableford" || engine === "modified-stableford";
+}
+
+/**
+ * THE BASIS A ROUND IS STORED WITH — every write of `Stage.scoringBasis` goes
+ * through this (Ajay, 2026-09-28: "go with what other professional clubs would
+ * do").
+ *
+ * Clubs play Stableford off handicap. A scratch competition is played as stroke
+ * play, not as Stableford — so a Stableford round is always NET, and "gross" is
+ * neither offered nor stored for one. The points engine has always allocated
+ * strokes on a Stableford round whatever the basis said, so this changes no
+ * result: it stops the app storing, and printing, "Gross" over a round it scores
+ * off handicap (report decision 9).
+ *
+ * Existing rows are not rewritten — that would be a write to live events for a
+ * label. A screen showing a stored basis asks `isStablefordFormat` first and
+ * says "off handicap" for one, which is the truth about it.
+ */
+export function basisFor(format: string | null | undefined, requested: string | null | undefined): string {
+  if (isStablefordFormat(format)) return "net";
+  const b = (requested ?? "").trim().toLowerCase();
+  return ["gross", "net", "both", "stableford"].includes(b) ? b : "gross";
+}
+
 /**
  * Whether this round is a Stableford one — the same question `weekBasis` asks,
  * for the screens that want a boolean rather than the basis.

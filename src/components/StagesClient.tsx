@@ -55,7 +55,7 @@ import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
 import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
 import { RoundClosedControl } from "@/components/RoundClosedControl";
-import { isStablefordRound, individualTieBreak } from "@/lib/domain/week-basis";
+import { isStablefordRound, individualTieBreak, isStablefordFormat } from "@/lib/domain/week-basis";
 export interface ThirdPlaceView {
   on: boolean;
   problem: string;
@@ -927,13 +927,18 @@ function StageCard({
    * it.
    */
   customizeParts.push(
-    basis === "net"
-      ? "Net scoring"
-      : basis === "stableford"
-        ? "Stableford"
-        : basis === "gross"
-          ? "Gross scoring"
-          : "Gross + net",
+    // A Stableford round is off handicap whatever was stored — `basisFor`
+    // (2026-09-28). It printed "Gross scoring" over a round scored off
+    // handicap, which is report decision 9.
+    isStablefordFormat(format)
+      ? "Off handicap"
+      : basis === "net"
+        ? "Net scoring"
+        : basis === "stableford"
+          ? "Stableford"
+          : basis === "gross"
+            ? "Gross scoring"
+            : "Gross + net",
   );
 
   /**
@@ -1611,17 +1616,28 @@ function StageCard({
                   </p>
                 </FieldInfo>
               </label>
-              <div className="seg" style={{ width: "100%" }}>
-                {/* The choosable three. A round still HOLDING the legacy
-                    `stableford` basis shows none of these checked, and the
-                    summary line above still names it — see `BASIS_OPTIONS`. */}
-                {BASIS_CHOICES.map((o) => (
-                  <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                    <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending || locked} onChange={() => commitBasis(o.key)} />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
+              {isStablefordFormat(format) ? (
+                /* STABLEFORD IS PLAYED OFF HANDICAP — the way clubs run it
+                   (Ajay, 2026-09-28). A scratch competition is stroke play, so
+                   there is nothing to choose here, and a picker offering
+                   "Gross" would be offering a result the engine never gave. */
+                <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 0", lineHeight: 1.5 }}>
+                  Off handicap — points are worked out after each player&rsquo;s strokes, as club
+                  Stableford competitions are played. For a scratch competition, choose Stroke Play.
+                </p>
+              ) : (
+                <div className="seg" style={{ width: "100%" }}>
+                  {/* The choosable three. A round still HOLDING the legacy
+                      `stableford` basis shows none of these checked, and the
+                      summary line above still names it — see `BASIS_OPTIONS`. */}
+                  {BASIS_CHOICES.map((o) => (
+                    <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending || locked} onChange={() => commitBasis(o.key)} />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Only where the format offers a choice at all — which is the

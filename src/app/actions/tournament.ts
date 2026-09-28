@@ -86,6 +86,7 @@ import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUN
 import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { isPlayKind } from "@/lib/domain/play-kind";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
@@ -1608,12 +1609,17 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
 export async function setStageScoringBasis(stageId: string, basis: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const value = ["gross", "net", "both", "stableford"].includes(basis) ? basis : "gross";
-  if (!force) {
-    const current = await prisma.stage.findFirst({
-      where: { id: stageId, eventId },
-      select: { scoringBasis: true },
-    });
+  const current = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { scoringBasis: true, format: true },
+  });
+  // A Stableford round is always net — `basisFor` has the ruling. A caller
+  // asking for gross on one gets net, because this is a public endpoint and the
+  // picker no longer offers it.
+  const value = basisFor(current?.format, basis);
+  // No "this re-scores N cards" on a Stableford round: its points were always
+  // worked out off handicap, so moving a stored "gross" to net changes nothing.
+  if (!force && !isStablefordFormat(current?.format)) {
     // Only when it actually changes — see `setStageHoles`.
     if (current && current.scoringBasis !== value) {
       const cards = await enteredCardCount(eventId, stageId);
@@ -1690,7 +1696,13 @@ export async function setStageFormat(stageId: string, format: string, force = fa
     if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
   }
   const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
-  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { format: value } });
+  // A round becoming Stableford becomes net with it — `basisFor`. Its current
+  // basis is kept for every other format.
+  const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } });
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { format: value, scoringBasis: basisFor(value, before?.scoringBasis) },
+  });
   await refresh();
   return { ok: true as const };
 }
@@ -1982,7 +1994,6 @@ export async function addStage(
       type: stageType,
       description: STAGE_DESCRIPTIONS[stageType] ?? "",
       deadline: "",
-      scoringBasis: "gross",
       /**
        * A BACKSTOP, not a choice. Both screens that add a round now require a
        * format, so in practice `opts.format` below always wins; this is what a
@@ -2020,6 +2031,9 @@ export async function addStage(
   // Only honoured when the app can actually run it, so a stale or hand-crafted
   // value cannot create rounds with nowhere to enter a card.
   if (opts.format && isPlayable(opts.format)) common.format = opts.format;
+  // The basis follows the format it ended up with — a Stableford round is net,
+  // anything else opens on gross.
+  const scoringBasis = basisFor(common.format, "gross");
   const holes = Number(opts.holes);
   if (holes === 9 || holes === 18) (common as { holes?: number }).holes = holes;
 
@@ -2036,7 +2050,7 @@ export async function addStage(
   let firstId: string | undefined;
   for (let i = 0; i < howMany; i += 1) {
     const created = await prisma.stage.create({
-      data: { ...common, position: position + i, playedOn: dates[i] ?? "" },
+      data: { ...common, scoringBasis, position: position + i, playedOn: dates[i] ?? "" },
     });
     if (i === 0) firstId = created.id;
   }
@@ -3349,6 +3363,9 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
       data: {
         ...round,
         eventId: created.id,
+        // A copy of a Stableford round stored "gross" before the ruling comes
+        // out net — `basisFor`. Every other round keeps its basis.
+        scoringBasis: basisFor(s.format, s.scoringBasis),
         // Always in the past on a copy.
         deadline: "",
         /**
@@ -3633,7 +3650,7 @@ export async function createEvent(
         type: r.type,
         format: r.format,
         holes: r.holes,
-        scoringBasis: r.scoringBasis,
+        scoringBasis: basisFor(r.format, r.scoringBasis),
       })),
     });
 
