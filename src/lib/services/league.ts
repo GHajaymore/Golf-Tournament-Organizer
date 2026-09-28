@@ -462,10 +462,12 @@ export async function leaguePlayoffs(
  * THE TABLE A LEAGUE ACTUALLY CARES ABOUT: where the clubs stand after N
  * weeks.
  *
- * `season.ts` says the same thing about the SIDE that plays — "a league is one
- * event with many rounds, so until now nothing could answer 'where do we stand
- * after six weeks'". This is that question one level up, for the club rather
- * than the pair.
+ * It is the ONLY table that ranks sides across weeks. A pair is drawn afresh
+ * for each round (every `Team` a screen creates carries its round's
+ * `stageId`; the development database held no stage-less team on that day), so no identity survives from one week to the next for a
+ * pair-level season to be kept on. The club does survive, because the club
+ * is a flight. `domain/season.ts` was a pair-level season engine that no
+ * screen ever called, and it was retired on 2026-09-27 for that reason.
  *
  * Every round, added together. A club that has not met anybody yet sits on
  * nothing rather than being absent, because a league table with a missing team

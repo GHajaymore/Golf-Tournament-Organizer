@@ -67,11 +67,8 @@ import {
   teamProblems,
   type TeamView,
 } from "@/lib/services/teams";
-import {
-  seasonStandings,
-  seasonTotals,
-  type RoundStanding,
-} from "@/lib/domain/season";
+import { orderClubs, type ClubRecord, type HeadToHead } from "@/lib/domain/league-order";
+import { placesByValue } from "@/lib/domain/flight-places";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 
@@ -1191,182 +1188,118 @@ describe("forfeits, at every field size", () => {
 });
 
 /**
- * Season standings, swept.
+ * The interclub league table, swept.
  *
- * The combination that matters is not "many teams" — it is a side that
- * MISSED a week. A league where nobody misses a week does not exist, and the
- * absence is the case where the arithmetic goes wrong quietly: counted as a
- * gross of zero it puts the absentee top of a net table, counted as zero
- * points it ranks them below a side that played worse but turned up.
+ * This block used to sweep `domain/season.ts`, a team-season engine that no
+ * screen ever called and that was retired on 2026-09-27. The table that
+ * DOES rank sides across weeks is the interclub league: clubs are flights,
+ * `leagueTable` totals their meeting points, `orderClubs` orders them, and
+ * `LeagueTable` prints the places `placesByValue` gives. So the invariants
+ * worth keeping from that sweep are pointed here.
  *
- * Round counts start at ZERO, because a league's board is looked at before
- * the first week is played, and at ONE, because the season table and the
- * round table must agree when there has only been one round.
+ * The combination that matters is still a club that MISSED a week. Points
+ * count upward, so a raw total already costs an absentee the week it missed.
+ * The fault to catch is somebody "fixing" that into an average, which would
+ * hand the league to whoever played their best week and then stopped. So the
+ * fixture's absentee has the BEST points per meeting and a LOWER total than
+ * the club that turned up every week. Only an order on the total puts the
+ * two the right way round.
+ *
+ * Week counts start at ZERO because a league's table is looked at before the
+ * first meeting. Every club is listed then, all level on nothing.
  */
-describe("season standings, at every team count and round count", () => {
-  const ROUND_COUNTS = [0, 1, 2, 3, 6];
-  const BASES = ["net", "stableford"];
+describe("interclub league table, at every club count and week count", () => {
+  const WEEK_COUNTS = [0, 1, 2, 3, 6];
+  // win-percentage divides by meetings played, and a club yet to play has
+  // played none. Head-to-head over an empty record decides nothing. Both are
+  // in the chain so that the sort is exercised on the rows that could break it.
+  const CHAIN = ["win-percentage", "head-to-head"] as const;
+  const NO_MEETINGS: HeadToHead = new Map();
 
   /**
-   * One round of standings. Team index 0 sits out the LAST round, so every
-   * multi-round case carries an absence.
+   * Club 0 wins every meeting it plays (2 points each) and sits out the last
+   * week. Club 1 plays every week and halves one of them, so it is BEHIND
+   * club 0 per meeting and AHEAD of it on the total. The others score on
+   * `i % 3`, so that real ties on points turn up at every size.
    */
-  const roundFor = (teams: Player[], roundIndex: number, lastRound: number): RoundStanding[] =>
-    teams.map((t, i) => {
-      const absent = i === 0 && roundIndex === lastRound && lastRound > 0;
+  const clubsFor = (n: number, weeks: number): ClubRecord[] =>
+    Array.from({ length: n }, (_, i) => {
+      const played = i === 0 && weeks > 0 ? weeks - 1 : weeks;
+      const perWeek = i === 0 ? 2 : i === 1 ? 2 : i % 3;
+      const points = i === 1 && weeks > 0 ? perWeek * played - 1 : perWeek * played;
+      const won = i <= 1 ? Math.max(0, played - (i === 1 ? 1 : 0)) : i % 3 === 2 ? played : 0;
       return {
-        teamId: t.id,
-        name: `Side ${i + 1}`,
-        members: [t.name],
-        // Deliberately NOT distinct per team: ties are the point, and a
-        // league board pays money against a placing, so a tie must read as
-        // one rather than being broken by sort order. Sides 2 upwards still
-        // tie on `i % 3`.
-        //
-        // THE SIDE THAT SITS OUT IS THE WORST SCORER, and that is the whole
-        // point of it. It used to be the best (net 70 of 70/71/72), which
-        // made the fault this sweep should catch invisible: a season ranked
-        // on a raw ascending SUM puts a side that played five weeks above one
-        // that played six, and if the absentee is also the best golfer it ends
-        // up on top for the right reason and the wrong one at once. At 76 it
-        // can only reach the top by being credited for the week it missed.
-        gross: absent ? 0 : 72 + (i === 0 ? 6 : i % 3),
-        net: absent ? 0 : 70 + (i === 0 ? 6 : i % 3),
-        points: absent ? 0 : 30 - (i % 3),
-        played: absent ? 0 : 18,
-        toPar: absent ? 0 : i % 3,
+        clubId: `c${i + 1}`,
+        name: `Club ${i + 1}`,
+        points,
+        played,
+        won,
+        holesWon: 0,
+        holesLost: 0,
       };
     });
 
-  for (const basis of BASES) {
-    for (const roundCount of ROUND_COUNTS) {
-      for (const n of FIELD_SIZES) {
-        it(`${basis}: ${n} side(s) over ${roundCount} round(s)`, () => {
-          const teams = field(n);
-          const rounds = Array.from({ length: roundCount }, (_, r) =>
-            roundFor(teams, r, roundCount - 1),
-          );
-          const table = seasonStandings(rounds, basis);
+  for (const weeks of WEEK_COUNTS) {
+    for (const n of FIELD_SIZES) {
+      it(`${n} club(s) over ${weeks} week(s)`, () => {
+        const clubs = clubsFor(n, weeks);
+        const table = orderClubs(clubs, [...CHAIN], NO_MEETINGS);
 
-          // Every side that appeared in any round appears exactly once. A
-          // side missing from the season table is a side whose season did
-          // not count.
-          const expected = roundCount === 0 ? 0 : n;
-          expect(table).toHaveLength(expected);
-          expect(new Set(table.map((r) => r.teamId)).size).toBe(expected);
+        // Every club appears exactly once. A league table with a club missing
+        // reads as a bug on a clubhouse screen.
+        expect(table).toHaveLength(n);
+        expect(new Set(table.map((r) => r.clubId)).size).toBe(n);
 
-          for (const row of table) {
-            finite(row.points, "points");
-            finite(row.gross, "gross");
-            finite(row.net, "net");
-            finite(row.toPar, "toPar");
-            // Never credited more rounds than were played.
-            expect(row.roundsPlayed).toBeLessThanOrEqual(roundCount);
-            expect(row.roundsPlayed).toBeGreaterThanOrEqual(0);
-          }
+        // The rows come through the sort unchanged, so a club that missed a
+        // week still says so beside its total rather than being given a
+        // meeting it never played.
+        if (weeks > 1) {
+          const sat = table.find((r) => r.clubId === "c1");
+          expect(sat?.played, "the club that missed a week").toBe(weeks - 1);
+        }
 
-          if (expected === 0) return;
+        // The order does not depend on the order the clubs were read in. A
+        // comparator that returns NaN — a win-percentage over no meetings,
+        // for one — gives an order that does.
+        const reversed = orderClubs([...clubs].reverse(), [...CHAIN], NO_MEETINGS);
+        expect(reversed.map((r) => r.clubId)).toEqual(table.map((r) => r.clubId));
 
-          // THE ABSENCE IS VISIBLE, NOT SILENT. With more than one round the
-          // first side sat one out, so its round count must be short of the
-          // others — otherwise two totals over different numbers of weeks
-          // would be compared as though they were the same.
-          if (roundCount > 1) {
-            const sat = table.find((r) => r.teamId === teams[0].id);
-            expect(sat, "the side that missed a week vanished").toBeTruthy();
-            expect(sat?.roundsPlayed).toBe(roundCount - 1);
-          }
+        // THE ORDER IS RIGHT, not merely complete: most points first, and
+        // never a club above one with more points.
+        for (let i = 1; i < table.length; i += 1) {
+          const above = table[i - 1];
+          const below = table[i];
+          expect(
+            above.points,
+            `${above.clubId} (${above.points} pts over ${above.played}) placed above ${below.clubId} (${below.points} over ${below.played})`,
+          ).toBeGreaterThanOrEqual(below.points);
+        }
 
-          // Ranks: first is 1, never decreasing, never beyond the field, and
-          // when a rank DOES increase it jumps to this row's position — the
-          // competition rule that makes two twelfths be followed by a
-          // fourteenth rather than a thirteenth.
-          expect(table[0].rank).toBe(1);
-          table.forEach((row, i) => {
-            expect(row.rank).toBeGreaterThanOrEqual(1);
-            expect(row.rank).toBeLessThanOrEqual(table.length);
-            if (i === 0) return;
-            const prev = table[i - 1].rank;
-            expect(row.rank).toBeGreaterThanOrEqual(prev);
-            if (row.rank !== prev) expect(row.rank).toBe(i + 1);
-          });
+        // Turning up counts. The club that played every week is ahead of the
+        // one with the better rate that missed a week.
+        if (n >= 2 && weeks > 1) {
+          const at = (id: string) => table.findIndex((r) => r.clubId === id);
+          expect(at("c2"), "the absentee was ranked on its rate, not its total").toBeLessThan(at("c1"));
+        }
 
-          // A side with no rounds at all is never top. Only reachable when
-          // every round was missed, which for one round and one side is
-          // exactly the board an organiser sees before anybody has played.
-          const unplayed = table.filter((r) => r.roundsPlayed === 0);
-          for (const u of unplayed) {
-            const anyPlayed = table.some((r) => r.roundsPlayed > 0);
-            if (anyPlayed) expect(u.rank).toBeGreaterThan(1);
-          }
-
-          /**
-           * THE ORDER IS RIGHT, not merely contiguous.
-           *
-           * Everything above checks the SHAPE of the table — everybody
-           * present, nothing NaN, ranks that skip properly after a tie. None
-           * of it checks who is above whom, so this sweep passed the exact
-           * fault it exists to catch: net and gross ranked on a raw ascending
-           * sum, where missing a week lowers your total and wins you the
-           * league.
-           *
-           * Lower-is-better orders on the per-round average. Stableford
-           * deliberately keeps the sum, because counting upwards already
-           * rewards turning up, and averaging there would hand the season to
-           * whoever played their best week and stopped. Both are asserted so
-           * that neither gets "tidied" into the other.
-           */
-          const played = table.filter((r) => r.roundsPlayed > 0);
-          for (let i = 1; i < played.length; i += 1) {
-            const above = played[i - 1];
-            const below = played[i];
-            const where = `${above.teamId} (${above.roundsPlayed} rds) placed above ${below.teamId} (${below.roundsPlayed} rds)`;
-            if (basis === "stableford") {
-              expect(above.points, where).toBeGreaterThanOrEqual(below.points);
-            } else {
-              // Epsilon because these are divisions, not sums.
-              expect(above.netPerRound, where).toBeLessThanOrEqual(below.netPerRound + 1e-9);
-            }
-          }
-
-          // The stated total reconciles with the rows printed above it.
-          const totals = seasonTotals(table);
-          expect(totals.teams).toBe(table.length);
-          expect(totals.points).toBe(table.reduce((s, r) => s + r.points, 0));
-          expect(totals.roundsPlayed).toBeLessThanOrEqual(roundCount);
+        // The places the screen prints. Everybody is placed, first is 1, a
+        // tie on points shares a place, and the next place skips: T2, T2, 4.
+        const places = placesByValue(table, (r) => r.points, () => true);
+        expect(places.every((p) => p !== null)).toBe(true);
+        if (n > 0) expect(places[0]).toBe(1);
+        places.forEach((p, i) => {
+          if (i === 0) return;
+          const prev = places[i - 1] as number;
+          if (table[i].points === table[i - 1].points) expect(p, `row ${i} did not share a tie`).toBe(prev);
+          else expect(p, `row ${i} did not skip past the tie`).toBe(i + 1);
         });
-      }
+      });
     }
   }
 
-  it("gives an empty table for a league nobody has entered", () => {
-    for (const basis of BASES) {
-      expect(seasonStandings([], basis)).toEqual([]);
-      expect(seasonTotals([])).toEqual({ teams: 0, roundsPlayed: 0, points: 0 });
-    }
-  });
-
-  it("keeps a side that was renamed mid-season as one side", () => {
-    // Renaming is not creating. Keyed on the name this would be two rows,
-    // each with half a season — the same fault that had a tournament
-    // scoring against another course's card.
-    const base = {
-      teamId: "t1",
-      members: ["A"],
-      gross: 72,
-      net: 70,
-      points: 30,
-      played: 18,
-      toPar: 0,
-    };
-    const table = seasonStandings(
-      [[{ ...base, name: "Old Name" }], [{ ...base, name: "New Name" }]],
-      "net",
-    );
-    expect(table).toHaveLength(1);
-    expect(table[0].roundsPlayed).toBe(2);
-    // Reads as it stands now, not as it was in week one.
-    expect(table[0].name).toBe("New Name");
+  it("gives an empty table for a league with no clubs", () => {
+    expect(orderClubs([], [...CHAIN], NO_MEETINGS)).toEqual([]);
+    expect(placesByValue([] as ClubRecord[], (r) => r.points, () => true)).toEqual([]);
   });
 });
 
