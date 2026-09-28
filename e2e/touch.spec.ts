@@ -166,6 +166,45 @@ test("even an at-desk screen stays tappable on a phone", async ({ page }) => {
 });
 
 /**
+ * THE SIGNED-OUT SIGN-IN FORM, which every other test here cannot see.
+ *
+ * This file signs in as the organizer before measuring anything, so the one
+ * form a stranger meets first — Log in / Sign up on the landing — was never
+ * measured. On 2026-09-28 the landing session measured it by hand at 1440,
+ * 1024, 390 and 320: the tabs were 30px tall, "Forgot?" a 40x12 button and the
+ * password eye 28x28. It is not the console, so there is no desk density to
+ * protect: the floor applies at every pointer.
+ */
+test.describe("signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the landing's sign-in form clears the touch minimum", async ({ page }) => {
+    const res = await page.goto("/");
+    expect(res?.status(), "the landing did not render").toBeLessThan(400);
+    const tabs = page.getByRole("tablist", { name: "Log in or sign up" });
+    await expect(tabs, "the sign-in form is not on the landing").toBeVisible();
+
+    const small = await page.evaluate(() => {
+      const root = document.querySelector('[role=tablist][aria-label="Log in or sign up"]')?.parentElement;
+      if (!root) return ["no form root"];
+      return [...root.querySelectorAll<HTMLElement>("button")]
+        .filter((b) => b.getBoundingClientRect().width > 0)
+        .filter((b) => {
+          const r = b.getBoundingClientRect();
+          return r.height < 44 || r.width < 24;
+        })
+        .map((b) => `${(b.textContent || b.getAttribute("aria-label") || "").trim()} ${Math.round(b.getBoundingClientRect().width)}x${Math.round(b.getBoundingClientRect().height)}`);
+    });
+    // The control: the form's own buttons were found at all.
+    const count = await page.evaluate(
+      () => document.querySelector('[role=tablist][aria-label="Log in or sign up"]')?.parentElement?.querySelectorAll("button").length ?? 0,
+    );
+    expect(count, "measured no buttons — the sweep would pass on nothing").toBeGreaterThanOrEqual(4);
+    expect(small, `sub-44px targets in the sign-in form: ${JSON.stringify(small)}`).toEqual([]);
+  });
+});
+
+/**
  * AND THE SCREENS THAT ARE IN NO SIDEBAR AT ALL.
  *
  * The sweep above reads `routesForTier("on-course")`, which reads the tier off
