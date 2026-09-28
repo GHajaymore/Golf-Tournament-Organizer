@@ -229,7 +229,15 @@ describe("a link to another screen's section lands on it", () => {
       const page = pageFor(route);
       expect(page, `no page renders /${route}`).not.toBeNull();
       const src = readSource(page!);
+      // /faq renders each question as id={`q-${item.id}`}, built at runtime, so a
+      // link to one question (the landing's store buttons) is checked against
+      // the FAQ's own data: what follows "q-" must be a real question's id.
+      const faqQuestion =
+        src.includes("id={`q-${item.id}`}") &&
+        id.startsWith("q-") &&
+        readSource(join("src", "lib", "landing", "faq.tsx")).includes(`id: "${id.slice(2)}"`);
       const anchored =
+        faqQuestion ||
         new RegExp(`<SettingsSectionAnchor id="${id}"`).test(src) ||
         new RegExp(`<section id="${id}"`).test(src) ||
         new RegExp(`id="${id}"`).test(src);
