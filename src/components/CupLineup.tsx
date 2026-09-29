@@ -149,6 +149,8 @@ function SessionLineup({
       </select>
     ));
   const ready = a.every(Boolean) && b.every(Boolean);
+  // Nobody left to pick on one side: say so, rather than offer empty pickers.
+  const full = teams.some((t) => t.players.filter((p) => !busy.has(p.id)).length < session.sideSize);
 
   return (
     <section className="card elev-sm" aria-label={`${session.name} lineup`}>
@@ -173,6 +175,11 @@ function SessionLineup({
           </li>
         ))}
       </ul>
+      {full ? (
+        <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+          Everyone who can play in this session has a match. Remove one to change the lineup.
+        </p>
+      ) : (
       <form
         style={{ display: "grid", gap: 8 }}
         onSubmit={(e) => {
@@ -197,6 +204,7 @@ function SessionLineup({
           </button>
         </div>
       </form>
+      )}
     </section>
   );
 }

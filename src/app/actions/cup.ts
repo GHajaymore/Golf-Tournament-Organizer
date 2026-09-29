@@ -99,7 +99,7 @@ export async function addCupMatch(stageId: string, teamAPlayers: string[], teamB
   // Nobody plays twice in one session.
   const existing = await prisma.match.findMany({
     where: { eventId, stageId: stage.id },
-    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true },
+    select: { round: true, playerAId: true, playerBId: true, teamAId: true, teamBId: true },
   });
   const sideIds = existing.flatMap((m) => [m.teamAId, m.teamBId]).filter((id): id is string => !!id);
   const members = sideIds.length
@@ -111,7 +111,9 @@ export async function addCupMatch(stageId: string, teamAPlayers: string[], teamB
 
   // The carrier's name is a label only (`matchCarrierGroup` finds it by round).
   const groupId = await matchCarrierGroup(eventId, stage.id, `${stage.format} — cup session`);
-  const round = existing.length + 1;
+  // After the last match in the lineup, however many were removed before — a
+  // count would reuse a number and slot the new match above older ones.
+  const round = existing.reduce((max, m) => Math.max(max, m.round), 0) + 1;
   const holes = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
   const nameOf = (ids: string[]) => ids.map((id) => byId.get(id)!.name).join(" & ");
 

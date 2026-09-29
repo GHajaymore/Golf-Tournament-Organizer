@@ -29,7 +29,10 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
       <h2 id="cup-score" className="card-kicker" style={{ margin: 0 }}>
         The cup
       </h2>
+      {/* `keep-grid`: phones stack inline grids (globals.css), and a cup score
+          stacked into one column is a list, not a scoreboard. */}
       <div
+        className="keep-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
@@ -65,6 +68,7 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
               {s.matches.map((m) => (
                 <li
                   key={m.id}
+                  className="keep-grid"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",

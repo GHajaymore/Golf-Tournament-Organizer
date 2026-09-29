@@ -170,4 +170,20 @@ describe("the score", () => {
     expect(await removeCupMatch(ms[1].id)).toEqual({ ok: true });
     expect(await prisma.match.count({ where: { stageId: f.singles } })).toBe(1);
   });
+
+  it("a match added after a removal goes to the end of the lineup, not above older ones", async () => {
+    const f = await seed();
+    await addCupMatch(f.singles, [f.e[0]], [f.u[0]]);
+    await addCupMatch(f.singles, [f.e[1]], [f.u[1]]);
+    await addCupMatch(f.singles, [f.e[2]], [f.u[2]]);
+    const first = await prisma.match.findFirst({ where: { stageId: f.singles }, orderBy: { round: "asc" } });
+    await removeCupMatch(first!.id);
+    await addCupMatch(f.singles, [f.e[3]], [f.u[3]]);
+    const b = await board(f.eventId);
+    expect(b.sessions[1].matches.map((m) => m.a[0])).toEqual([`${TAG} E2`, `${TAG} E3`, `${TAG} E4`]);
+    // The numbers themselves stay distinct — a count would reuse 3, and the
+    // order above would then rest on a tie-break by id.
+    const rounds = (await prisma.match.findMany({ where: { stageId: f.singles }, select: { round: true } })).map((m) => m.round);
+    expect(new Set(rounds).size).toBe(rounds.length);
+  });
 });
