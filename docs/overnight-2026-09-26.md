@@ -1273,21 +1273,20 @@ The original note behind item 34, kept for the reasoning:
   (−2). Both are right, and both are headed "To par". Relabelling a board column touches the
   ranking display that three checks pin, so I have not changed it: should the board say "Net to
   par" on a net round?
-- A league's week screen for a week not yet played does not list who has said they are playing;
-  the tee sheet does. Whether members should see it there too is your call.
-- **The create form files every organizer as an "outing".** It asks "Who's running this? — club,
-  society or company", and whatever is typed becomes a personal outing. So the newcomer who typed
-  "Riverside Golf Society" was then told "Setting up your outing", "Name your outing" (they just
-  had) and "your outing's logo". Sign-up asks which kind it is and this form does not. The kind
-  isn't only a word: it switches the shared-costs ledger and the shared roster. So I have not
-  guessed it from the name. Should this form ask, as sign-up does?
-- **"Overall result: Stroke play" on a Stableford tournament.** The launch dialog and Tournament
-  details name the tournament-level choice between stroke and match, which is correct for how it
-  is ranked, but it reads wrong for a Stableford competition. Only the wording; it is the field
-  you ruled on on 20 September, so it's yours.
-- **"5 of 6 ties decided" on a knockout of eight.** It counts ties that can be played now, so the
-  final is left out until the second semi is played. That is deliberate and correct, but a golfer
-  may read it as one tie left when two are. "5 of 7" would count the whole draw; your call.
+- ~~A league's week screen for a week not yet played does not list who has said they are
+  playing.~~ **Done (2026-09-28, "go with your recommendation").** A week not yet played now
+  says "Playing this week (N)" with the names alphabetically: everyone not out on an opt-out
+  week, only those who put their name down on an opt-in week. If nobody has, it says so.
+- ~~**The create form files every organizer as an "outing".**~~ **Done (2026-09-28).** Once a
+  name is typed, the form asks "Which is it?" (club, society, or company or one-off day), as
+  sign-up does. The kind is taken on the same terms as the name: only while the organization is
+  still unnamed, and never in a way that would hide a members list it already has. A club or
+  society is told up front that it adds its members before its first tournament. That is the
+  existing club-first rule, now said before the click rather than after.
+- ~~**"Overall result: Stroke play" on a Stableford tournament.**~~ **Done (#699).** It now
+  reads "Stableford points".
+- ~~**"5 of 6 ties decided" on a knockout of eight.**~~ **Done (#699).** It now counts the
+  whole draw, "5 of 7".
 
 ### New features Ajay approved, 2026-09-28 ("go ahead with your recommendations")
 

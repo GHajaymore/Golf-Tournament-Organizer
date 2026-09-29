@@ -10,7 +10,7 @@ import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
-import type { OrgKind } from "../domain/org-profile";
+import { isOrgKind, orgProfile, type OrgKind } from "../domain/org-profile";
 import type { OrgSetupFacts } from "../domain/org-setup";
 import { logoSrc } from "../domain/logo-upload";
 import { golfRegister, golfTermsFor, type GolfTerm } from "../domain/golf-terms";
@@ -147,12 +147,35 @@ async function nameIfStillUnnamed(
   orgName: string | undefined,
   displayName: string,
   email: string,
+  /**
+   * AND WHAT KIND OF OUTFIT IT IS, asked beside the name (Ajay, 2026-09-28,
+   * left to my recommendation). The form filed every organizer as an
+   * "outing": whatever was typed became a `personal` organization, so a
+   * newcomer who typed "Riverside Golf Society" was then told "Name your
+   * outing" and "your outing's logo" — and the kind is not only a word: it
+   * decides what setup asks for and what money defaults to. Sign-up asks it;
+   * this form now does too, on exactly the terms the name is taken on.
+   */
+  orgKind?: string,
 ): Promise<void> {
   const wanted = (orgName ?? "").trim();
   if (!wanted) return;
   if (!(await wouldTakeThisName(organizationId, userId, displayName, email))) return;
 
-  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+  const kind = (orgKind ?? "").trim();
+  let kindData: { kind?: string } = {};
+  if (isOrgKind(kind)) {
+    const current = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { country: true, communityNoun: true },
+    });
+    // Never hide somebody's members list on the way through a create form —
+    // `saveOrganizationKind` asks first for that, and this form cannot.
+    const keepsRoster = orgProfile(kind, current?.country, current?.communityNoun).sharedRoster;
+    const members = keepsRoster ? 0 : await prisma.member.count({ where: { organizationId } });
+    if (keepsRoster || members === 0) kindData = { kind };
+  }
+  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted, ...kindData } });
 }
 
 /**
@@ -415,6 +438,8 @@ export async function organizationForNewEvent(
    * is exactly what every caller got before the question existed.
    */
   preferredOrganizationId?: string | null,
+  /** The kind picked beside the name — see `nameIfStillUnnamed`. */
+  orgKind?: string,
 ): Promise<string> {
   const user = await prisma.user.findUnique({ where: { email } });
 
@@ -425,12 +450,19 @@ export async function organizationForNewEvent(
       // appears only when somebody runs more than one organization, so a new
       // secretary comes through the fallback and a club-and-society organizer
       // through the chosen id — and the field is offered on whichever they see.
-      await nameIfStillUnnamed(existing, user.id, orgName, displayName, email);
+      await nameIfStillUnnamed(existing, user.id, orgName, displayName, email, orgKind);
       return existing;
     }
   }
 
-  return createOrganizationWithOwner({ email, displayName, orgName });
+  const kind = (orgKind ?? "").trim();
+  return createOrganizationWithOwner({
+    email,
+    displayName,
+    orgName,
+    // Only with a name: the pair is one answer, as it is for an existing one.
+    ...((orgName ?? "").trim() && isOrgKind(kind) ? { kind } : {}),
+  });
 }
 
 /**

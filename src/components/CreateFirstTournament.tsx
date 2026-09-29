@@ -8,7 +8,7 @@ import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
 import { sinceWords } from "@/lib/domain/since";
 import { Icon } from "./Icon";
-import { orgProfile } from "@/lib/domain/org-profile";
+import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
@@ -132,6 +132,9 @@ export function CreateFirstTournament({
   const fid = useId();
   const router = useRouter();
   const [orgName, setOrgName] = useState("");
+  // Asked beside the name — see the field. Starts on what the outfit already
+  // is, so an organizer who signed up as a club is not re-asked into a change.
+  const [kindChoice, setKindChoice] = useState(isOrgKind(orgKind) ? orgKind : "personal");
   /** Whatever the action refused with, shown rather than swallowed. */
   const [refusal, setRefusal] = useState("");
   /**
@@ -220,10 +223,15 @@ export function CreateFirstTournament({
         orgName,
         organizationId || undefined,
         confirmedClubName,
+        orgName.trim() ? kindChoice : undefined,
       );
       if (!res?.ok) setRefusal(res?.error ?? "That could not be created.");
       if (res?.clubExists) setSameName(true);
       if (res?.ok) router.push("/dashboard");
+      // The outfit may have just been named and given its kind on the way to
+      // a refusal (a society's members list comes first): refresh, so the
+      // screen shows the setup it is now waiting on.
+      else if (!res?.clubExists && orgName.trim()) router.refresh();
     });
   };
 
@@ -453,6 +461,40 @@ export function CreateFirstTournament({
               ? `It goes on every scorecard, the console header and the public leaderboard. Change it later on ${outfit.settingsLabel}.`
               : `Leave blank to run it under your own name. You can set this later on ${outfit.settingsLabel}.`}
           </p>
+          {/* AND WHAT IT IS (2026-09-28). Without this every name typed here
+              became an "outing" — "Riverside Golf Society" was then told "Name
+              your outing". Shown once a name is typed, because the two are one
+              answer, and worded by the same profiles the settings screen's
+              picker uses. */}
+          {orgName.trim() && (
+            <fieldset style={{ border: "none", padding: 0, margin: "10px 0 0" }}>
+              <legend style={{ fontSize: 13, marginBottom: 6 }}>Which is it?</legend>
+              <div className="seg" role="radiogroup" aria-label="What kind of outfit runs it">
+                {ORG_KINDS.map((k) => (
+                  <label key={k} className="seg-opt">
+                    <input
+                      type="radio"
+                      name={`${fid}-org-kind`}
+                      checked={kindChoice === k}
+                      onChange={() => setKindChoice(k)}
+                    />
+                    {orgProfile(k, orgCountry, orgNoun).label}
+                  </label>
+                ))}
+              </div>
+              {/* Said BEFORE the click. A club or society adds its members
+                  before its first tournament (the club-first rule), so this
+                  choice leads to that list rather than straight to the
+                  tournament — and a refusal nobody was warned about reads as
+                  the form failing. */}
+              {orgProfile(kindChoice, orgCountry, orgNoun).sharedRoster && (
+                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+                  A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list, and adds it before its first
+                  tournament — every field is drawn from it. If yours is empty you&rsquo;ll be asked for it next.
+                </p>
+              )}
+            </fieldset>
+          )}
         </div>
       )}
       {/* Said before the tournament exists, not after it finishes. A club that

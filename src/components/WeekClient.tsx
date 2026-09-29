@@ -313,11 +313,28 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
           </p>
         </div>
       ) : view.empty ? (
-        <div className="card elev-sm">
+        <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="text-muted" style={{ fontSize: 13 }}>
             No scores are in for {view.label.toLowerCase()} yet. Once cards are entered, the night&rsquo;s
             results, the table and the skins all appear here.
           </span>
+          {/* WHO IS PLAYING, before the night (2026-09-28). The tee sheet knew
+              and this screen — the one members open — did not. Names of those
+              in only; who is out is theirs to say. */}
+          {view.attendance && (
+            <div>
+              <span className="card-title" style={{ fontSize: 14 }}>
+                {view.attendance.playing.length > 0
+                  ? `Playing this week (${view.attendance.playing.length})`
+                  : "Nobody has said they're playing yet"}
+              </span>
+              {view.attendance.playing.length > 0 && (
+                <p style={{ margin: "4px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+                  {view.attendance.playing.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <>
