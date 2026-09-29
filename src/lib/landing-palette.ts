@@ -57,13 +57,18 @@ const HUE = {
    * its name, `lacquer` — it is the DARK surface, and every reader of this
    * module already knows it by that name.
    */
-  lacquer: 40,
-  /** Card stock: the cream the light page is built on, and the band on the dark one. */
-  cream: 48,
+  lacquer: 240,
+  /**
+   * The light page. It was card-stock cream; on 2026-09-29 Ajay chose a neutral
+   * white ("the website can have its own best colour combinations"): the app's
+   * screens carry their own warm grounds, and on white they read as the product
+   * rather than blending into the page. The key keeps its name.
+   */
+  cream: 240,
   /** Warm neutral text, a few degrees off the cream so it never reads as a tint of it. */
-  ink: 60,
+  ink: 240,
   /** Cool neutral text for the dark ground — the app's own ink on its own ground. */
-  inkCool: 45,
+  inkCool: 240,
   /**
    * "No" and "partly" in the comparison table: a red and an amber, solved like
    * every other foreground. MEANING, not identity — they mark a cell, never a
@@ -209,15 +214,15 @@ const LACQUER: LandingSurface = {
   inkHue: HUE.inkCool,
   away: "lighter",
   // The app's own dark ground and card, near enough to read as one product.
-  page: { saturation: 0.04, lightness: 0.05 },
-  raised: { saturation: 0.04, lightness: 0.095 },
-  inset: { saturation: 0.04, lightness: 0.075 },
+  page: { saturation: 0.06, lightness: 0.045 },
+  raised: { saturation: 0.05, lightness: 0.09 },
+  inset: { saturation: 0.05, lightness: 0.07 },
   // The leaderboard card is the raised surface at 52%, so the hero's grid and
   // glow read through it. Graded as if it were opaque, which is the safe
   // direction: composited over the page it can only end up darker than this,
   // and darker is more contrast for light text.
-  panel: { saturation: 0.04, lightness: 0.095, alpha: 0x85 },
-  ink: { saturation: 0.18, lightness: 0.94 },
+  panel: { saturation: 0.05, lightness: 0.09, alpha: 0x85 },
+  ink: { saturation: 0.05, lightness: 0.96 },
   inkSoft: { saturation: 0.06, lightness: 0.66 },
   inkFaint: { saturation: 0.04, lightness: 0.52 },
   // Accent TEXT and accent FILL are different weights, the way the app's own
@@ -261,17 +266,17 @@ const CREAM: LandingSurface = {
   hue: HUE.cream,
   inkHue: HUE.ink,
   away: "darker",
-  page: { saturation: 0.2, lightness: 0.955 },
-  raised: { saturation: 0.17, lightness: 0.915 },
-  inset: { saturation: 0.15, lightness: 0.885 },
+  page: { saturation: 0, lightness: 1 },
+  raised: { saturation: 0.06, lightness: 0.957 },
+  inset: { saturation: 0.06, lightness: 0.925 },
   // On paper a card sits ABOVE the page rather than below it — the one
   // relationship that inverts between the two grounds, and the same call
   // `LIGHT_GROUND` makes in themes.ts. Nearly white, and warm rather than
   // clinical.
-  panel: { saturation: 1, lightness: 0.984 },
-  ink: { saturation: 0.05, lightness: 0.05 },
-  inkSoft: { saturation: 0.04, lightness: 0.3 },
-  inkFaint: { saturation: 0.03, lightness: 0.42 },
+  panel: { saturation: 0, lightness: 1 },
+  ink: { saturation: 0.1, lightness: 0.04 },
+  inkSoft: { saturation: 0.05, lightness: 0.34 },
+  inkFaint: { saturation: 0.05, lightness: 0.44 },
   accent: { saturation: 0.82, lightness: 0.4 },
   // Deep enough to carry a link on the form card as well as a white label on
   // the fill, so the one orange works both ways on the light page.
