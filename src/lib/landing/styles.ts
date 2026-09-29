@@ -564,7 +564,7 @@ __CMP_FRAMES__
     // One rule per frame of the comparison slider: shown when its mode AND its
     // tab are the checked ones. Generated so the frame list lives in one place.
     [
-      ...["today", "board", "card", "money", "console"].map((k) => ["ap", k] as const),
+      ...["card"].map((k) => ["ap", k] as const),
       ...["championship", "coastal", "azalea"].map((k) => ["col", k] as const),
     ]
       .map(
@@ -577,12 +577,14 @@ __CMP_FRAMES__
     "__SHOW_FRAMES__",
     // The showcase's frames, one per tab, the same way.
     [
-      "teesheet", "bracket", "week", "board", "card", "calendar", "events",
+      "cup", "week", "calendar", "events",
     ]
       .map((k) => `.thq .show:has(input[name="show"][value="${k}"]:checked) .show-f[data-f="${k}"] { display: grid; }`)
       .join("\n"),
   );
 
 /** The comparison slider's frames, in the order its tabs show them. Read by the page. */
-export const COMPARE_APPEARANCE = ["card", "today", "board", "money", "console"] as const;
+// Light vs dark shows ONE screen, the full card — the one screen the page shows
+// nowhere else (Ajay, 2026-09-29: "use a unique screen for the slider").
+export const COMPARE_APPEARANCE = ["card"] as const;
 export const COMPARE_COLOURS = ["championship", "coastal", "azalea"] as const;

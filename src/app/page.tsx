@@ -102,10 +102,10 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
     alt: "My card, by hole: hole 12, par 3, score buttons from Ace to +3 and a microphone to say it.",
   },
   {
-    time: "11:42", who: "org", h: "The board has been live all morning.",
-    p: "On your phone, every player's, and a public link for the clubhouse screen — overall or by flight.",
-    screen: { name: "day-console", by: "d", ...PHONE }, cap: "Organizer · the live leaderboard",
-    alt: "The organizer's live leaderboard on a phone: the leader named, the field with flight, holes played and gross.",
+    time: "11:42", who: "pl", h: "Their own line first on the board.",
+    p: "Where they stand as every card comes in — and the column says whether it's strokes, points or match play.",
+    screen: { name: "phone-board", by: "d", ...PHONE }, cap: "Player · the board",
+    alt: "The player's Board: their own position first, then the field ranked by net strokes.",
   },
   {
     time: "12:30", who: "org", h: "A knockout result comes in from the course.",
@@ -121,13 +121,10 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
   },
 ];
 
-/** The showcase: the rest of the app, by tab — none of these screens appears in "The round". */
+/** The showcase: the rest of the app, by tab — none of these screens appears anywhere else on the page. */
 const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; desk?: boolean; alt: string }> = [
-  { key: "teesheet", side: "org", title: "Tee sheet", sub: "Six groups, handicaps and averages", desk: true, screen: { name: "desk-teesheet", by: "d", w: 1600, h: 1000 }, alt: "The tee sheet on a laptop: six groups with tee times, handicaps and group averages, and printable scorecards below." },
-  { key: "bracket", side: "org", title: "Bracket manager", sub: "Quarterfinals to champion", desk: true, screen: { name: "desk-bracket", by: "d", w: 1600, h: 1000 }, alt: "The bracket manager on a laptop: a result to approve above the draw, quarterfinals with results such as 4&3 and 2&1." },
+  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state." },
   { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE }, alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and 3 still to come." },
-  { key: "board", side: "pl", title: "The board", sub: "Their own line first", screen: { name: "phone-board", by: "d", ...PHONE }, alt: "The player's Board: their own position first, then the field ranked by net strokes." },
-  { key: "card", side: "pl", title: "The full card", sub: "Gross, net, certify", screen: { name: "phone-card", by: "d", ...PHONE }, alt: "The player's full card: yards, par, stroke index, their scores, and a Certify my card button." },
   { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE }, alt: "A member's calendar: the month's league rounds, each with an In / Out switch." },
   { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", w: 600, h: 800 }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
 ];
@@ -140,11 +137,7 @@ const FORMAT_BOARDS = [
 ] as const;
 
 const APPEARANCE_LABEL: Record<(typeof COMPARE_APPEARANCE)[number], string> = {
-  today: "Today",
-  board: "Board",
   card: "My card",
-  money: "Money",
-  console: "Console",
 };
 
 const COLOUR_LABEL: Record<(typeof COMPARE_COLOURS)[number], readonly [string, string]> = {
@@ -260,7 +253,7 @@ export default async function LandingPage() {
                 {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, priority: true, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
               </div>
               <div className="phone">
-                {lightShot({ name: "hero-phone", variant: d, width: 600, height: 1298, priority: true, alt: "A player's Today screen on a phone: their card so far, and the leaders." })}
+                {lightShot({ name: "hero-live", variant: d, width: 600, height: 1298, priority: true, alt: "The public live board on a phone: the round, and the field ranked by net strokes, the leader highlighted." })}
               </div>
             </div>
             <p className="real">
@@ -613,11 +606,6 @@ export default async function LandingPage() {
                 <label className="tab"><input className="sr" type="radio" name="cmp-mode" value="ap" defaultChecked />Light vs dark</label>
                 <label className="tab"><input className="sr" type="radio" name="cmp-mode" value="col" />Club colors</label>
               </div>
-              <div className="seg cmp-tabs" data-set="ap" role="radiogroup" aria-label="Screen to compare">
-                {COMPARE_APPEARANCE.map((k, i) => (
-                  <label className="tab" key={k}><input className="sr" type="radio" name="cmp-ap" value={k} defaultChecked={i === 0} />{APPEARANCE_LABEL[k]}</label>
-                ))}
-              </div>
               <div className="seg cmp-tabs" data-set="col" role="radiogroup" aria-label="Color pair to compare">
                 {COMPARE_COLOURS.map((k, i) => (
                   <label className="tab" key={k}><input className="sr" type="radio" name="cmp-col" value={k} defaultChecked={i === 0} />{COLOUR_LABEL[k][0]}</label>
@@ -644,13 +632,11 @@ export default async function LandingPage() {
                 );
               })}
               {COMPARE_APPEARANCE.map((k) => {
-                const isWindow = k === "console";
-                const variant = k === "money" ? cur : d;
-                const name = isWindow ? "hero-console" : `phone-${k}`;
-                const [w, hgt] = isWindow ? [1600, 1000] : [600, 1298];
+                const name = `phone-${k}`;
+                const [variant, w, hgt] = [d, 600, 1298];
                 return (
                   <div className="cmp-f" data-f={`ap-${k}`} key={`ap-${k}`}>
-                    <div className={`cmp-frame ${isWindow ? "window" : "phone"}`}>
+                    <div className="cmp-frame phone">
                       <div className="cmp-view">
                         {fixedShot(shotSrc(name, variant, "light"), w, hgt, `${APPEARANCE_LABEL[k]}, in the light appearance.`)}
                         {fixedShot(shotSrc(name, variant, "dark"), w, hgt, "The same screen, in the dark appearance.", "cmp-b")}
