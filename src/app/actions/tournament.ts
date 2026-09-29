@@ -3603,6 +3603,12 @@ export async function createEvent(
    * when it is present.
    */
   confirmedClubName?: boolean,
+  /**
+   * What kind of outfit is running it — club, community or personal — asked
+   * beside "Who's running this?" (2026-09-28). Applied only where the name is,
+   * and never so as to hide a members list; see `nameIfStillUnnamed`.
+   */
+  orgKind?: string,
 ): Promise<{ ok: boolean; error?: string; clubExists?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -3675,6 +3681,7 @@ export async function createEvent(
     session.name,
     orgName,
     chosenOrganizationId,
+    typeof orgKind === "string" ? orgKind : undefined,
   );
   /**
    * THE CLUB IS NAMED BEFORE ITS FIRST TOURNAMENT EXISTS.

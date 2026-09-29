@@ -69,7 +69,14 @@ const partialCard = (who: string, holes: number) =>
     },
   });
 
-const attendanceOf = async () => (await weekViewFor(eventId))?.attendance ?? null;
+/** The COUNTS — what these cells are about. The names are asserted separately below. */
+const attendanceOf = async () => {
+  const a = (await weekViewFor(eventId))?.attendance ?? null;
+  if (!a) return null;
+  const { playing: _names, ...counts } = a;
+  return counts;
+};
+const playingOf = async () => (await weekViewFor(eventId))?.attendance?.playing ?? null;
 
 beforeAll(async () => {
   await cleanup();
@@ -202,6 +209,23 @@ describe("a card from somebody who was not expected", () => {
     await mark("dee", "out");
     await card("dee");
     expect(await attendanceOf()).toEqual({ expected: 3, returned: 0, out: 1 });
+  });
+});
+
+describe("who is playing, by name, before the night (2026-09-28)", () => {
+  it("lists everybody in on an opt-out week, and nobody who said they are out", async () => {
+    await mark("dee", "out");
+    const names = await playingOf();
+    expect(names).toEqual([`${TAG} ann`, `${TAG} bea`, `${TAG} cal`]);
+    expect(names, "an opt-out is theirs to say, not the league's to read").not.toContain(`${TAG} dee`);
+  });
+
+  it("on an opt-in week, only those who put their name down", async () => {
+    await setMode("opt-in");
+    await mark("bea", "in");
+    await mark("ann", "in");
+    // Alphabetical, not the order they answered in.
+    expect(await playingOf()).toEqual([`${TAG} ann`, `${TAG} bea`]);
   });
 });
 

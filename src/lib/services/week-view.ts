@@ -158,7 +158,19 @@ export interface WeekView {
    * were in for is two cards outstanding and somebody to ring; sixteen rows on
    * a week sixteen were in for is done. The sheet looked identical either way.
    */
-  attendance: { expected: number; returned: number; out: number } | null;
+  attendance: {
+    expected: number;
+    returned: number;
+    out: number;
+    /**
+     * WHO IS PLAYING, by name — for a week not yet played (Ajay, 2026-09-28,
+     * left to my recommendation). The tee sheet knew and the week screen did
+     * not, so a member checking whether their usual four were going had to
+     * ask the organizer. Only the names of those IN: who has said they cannot
+     * play is theirs to say, not a list for the whole league to read.
+     */
+    playing: string[];
+  } | null;
   /**
    * Whether the night's gross/net results table has rows.
    *
@@ -507,6 +519,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       expected: resolved.in,
       returned: scored.filter((r) => inIds.has(r.playerId) && r.complete).length,
       out: resolved.out,
+      playing: state.confirmed
+        .filter((p) => inIds.has(p.id))
+        .map((p) => p.name)
+        .sort((a, b) => a.localeCompare(b)),
     };
   }
 
