@@ -168,7 +168,9 @@ test("deleting an announcement takes two taps, not one", async ({ page }) => {
   const posts = page.locator(".card", { hasText: "Round 2 tee times are up" });
   await expect(posts.first()).toBeVisible();
 
-  const del = posts.first().locator('button[title="Delete"]');
+  // By accessible name, which now says WHICH post ("Delete “Round 2 tee times
+  // are up”") — the bare title="Delete" this used to match was the defect.
+  const del = posts.first().getByRole("button", { name: /^Delete “/ });
   await expect(del).toBeVisible();
   await del.click();
 
