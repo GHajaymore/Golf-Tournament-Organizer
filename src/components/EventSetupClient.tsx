@@ -10,6 +10,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { StickySave } from "./StickySave";
 import { TournamentJourney } from "./TournamentJourney";
+import { overallResultLabel } from "@/lib/domain/overall-result";
 
 interface EventForm {
   name: string;
@@ -67,12 +68,15 @@ export function EventSetupClient({
   courses,
   isMatch = false,
   hasBracket = true,
+  roundFormats = [],
   setup = null,
   status = "draft",
   scored = false,
   locale = DEFAULT_LOCALE,
   locked = false,
 }: {
+  /** The playing rounds' formats, so the summary can say "Stableford points" (`overallResultLabel`). */
+  roundFormats?: string[];
   /**
    * Setup is locked. `saveEvent` and `applyManualCount` refuse a locked
    * tournament by THROWING, so "Save event" on a live tournament took the page
@@ -381,7 +385,7 @@ export function EventSetupClient({
      * the question under one name and then summarised the answer under the
      * old one, a few inches apart.
      */
-    { k: "Overall result", v: f.format === "stroke" ? "Stroke play" : "Match play" },
+    { k: "Overall result", v: overallResultLabel(f.format, roundFormats) },
     { k: "Course", v: f.courseMode === "open" ? "Players choose" : f.course || "—" },
     { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
     {
