@@ -40,6 +40,14 @@ self.addEventListener("push", (event) => {
     renotify: Boolean(data.tag),
     data: { url: data.url || "/me" },
   };
+  // URGENT — play suspended (Rule 5.7). A web page cannot choose the sound a
+  // locked phone makes, but it can ask for a long buzz, never be silent, and
+  // stay on screen until the player has seen it.
+  if (data.urgent) {
+    options.vibrate = [700, 250, 700, 250, 700, 250, 700];
+    options.requireInteraction = true;
+    options.silent = false;
+  }
   event.waitUntil(self.registration.showNotification(title, options));
 });
 

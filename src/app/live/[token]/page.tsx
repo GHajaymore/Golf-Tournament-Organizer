@@ -23,6 +23,9 @@ import { LiveRefresh } from "@/components/LiveRefresh";
 import { RoundPicker } from "@/components/RoundPicker";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
+import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
+import { playStatusOf } from "@/lib/domain/play-status";
+import { golfTermsForEvent } from "@/lib/services/organization";
 
 /**
  * The public read-only leaderboard.
@@ -166,6 +169,13 @@ export default async function PublicLeaderboardPage({
               should not read as chrome. */}
           <OrgBrand brand={board.brand} size={LOGO_SIZE.lg} tagline />
         </div>
+
+        {/* Read off the event row above, which is uncached, so a suspension
+            shows on the next refresh rather than after the board's cache. */}
+        <PlaySuspendedBanner
+          status={playStatusOf(event)}
+          organizer={(await golfTermsForEvent(event.id)).organizer}
+        />
 
         <header style={{ marginBottom: 22 }}>
           <div

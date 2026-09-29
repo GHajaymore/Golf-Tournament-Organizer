@@ -1144,6 +1144,14 @@ model Event {
   cupPointsToWin        Float   @default(0)
   cupHolderGroupId      String  @default("")
   /**
+   * PLAY IS SUSPENDED — set by the organizer, cleared on resume (2026-09-28).
+   * Rule 5.7: the committee may stop play, most often for lightning, and every
+   * player must stop. Null while play is on. The note says why ("Lightning in
+   * the area"); it is shown on every player screen and the public board.
+   */
+  playSuspendedAt       DateTime?
+  playSuspendedNote     String  @default("")
+  /**
    * Registration asks for a mobile number and refuses without one.
    * Off by default and deliberately per-tournament. A phone number is not
    * needed to run a competition — email is identity here and the app reaches

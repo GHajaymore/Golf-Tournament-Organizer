@@ -190,6 +190,9 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "the self-destruct clock on a casual round, and the one field here where copying it would DELETE something. A copy is made from the Tournaments list, which is a tournament act — so inheriting an expiry would hand a brand-new tournament a deletion date it never asked for, and the sweep would remove it overnight with its field and its cards in it. Written by createMatch and nothing else; a copy is not a casual round however casual the thing it was copied from",
   cupHolderGroupId:
     "a flight id of the original tournament, and a copy has no flights yet — carrying it would name a holder that does not exist. The organizer names this year's holder once the teams are drawn",
+  playSuspendedAt:
+    "a storm on the day of the original. A copy has not been played at all, and inheriting a suspension would open the new tournament with every player told to stop",
+  playSuspendedNote: "travels with playSuspendedAt",
   bracketDraw:
     "last year's draw, made from last year's qualifiers — it holds player ids that belong to the original's field and do not exist in the copy, so carrying it would seed the new knockout with a bracket full of players who are not in the tournament. bracketMode IS carried, because the SHAPE of the knockout is how the club runs it; who was in it is not",
 };

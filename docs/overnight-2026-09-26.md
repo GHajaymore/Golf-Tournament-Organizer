@@ -1289,6 +1289,29 @@ The original note behind item 34, kept for the reasoning:
   final is left out until the second semi is played. That is deliberate and correct, but a golfer
   may read it as one tie left when two are. "5 of 7" would count the whole draw; your call.
 
+### New features Ajay approved, 2026-09-28 ("go ahead with your recommendations")
+
+- **Suspend play, with an alarm (Rule 5.7).** BUILT.
+  - **Organizer:** a "Suspend play" button on the dashboard of a live tournament, with an
+    optional reason. While suspended it shows "Play is suspended since …" and a "Resume play"
+    button.
+  - **Every confirmed player** gets an urgent push, which asks for a long vibration and stays on
+    screen. A red banner shows on every player screen and on the public board.
+  - **An open player screen** sounds a four-second hi-lo siren and vibrates when it sees the
+    suspension happen. It does not sound on a screen opened after the fact.
+  - **The limit, stated plainly:** a web page cannot choose the sound a locked phone makes. That
+    is the notification's own sound. The native app could carry a custom one later.
+- **Trip team cup (Ryder Cup style).** Next, as its own PR. Research found most of the golf
+  already exists: team four-ball and foursomes matches, 1/½ points, and "club v club" meetings.
+  What's missing is singles credited to a team, one cup total across sessions of mixed formats,
+  points-to-win, captains picking lineups, and the big scoreboard.
+- **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from
+  Reports or the tee sheet, for all carts or selected ones. Each tag carries:
+  - the names of the two cart buddies;
+  - the starting hole;
+  - the round code;
+  - the club's name and logo.
+
 ## Accessibility — every console control named
 
 A screen reader announces a form box by its label. Most of the console's boxes had a caption on

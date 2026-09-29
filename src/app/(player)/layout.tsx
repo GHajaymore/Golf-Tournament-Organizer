@@ -27,6 +27,9 @@ import { Icon } from "@/components/Icon";
 import { TournamentSwitcher } from "@/components/TournamentSwitcher";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { switcherFor } from "@/lib/domain/tournament-switcher";
+import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
+import { SuspensionAlarm } from "@/components/SuspensionAlarm";
+import { playStatusOf } from "@/lib/domain/play-status";
 
 /**
  * The player's app.
@@ -95,7 +98,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const gateEvent = session.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { name: true, status: true, accessGated: true },
+        select: { name: true, status: true, accessGated: true, playSuspendedAt: true, playSuspendedNote: true },
       })
     : null;
   const shut = gateEvent ? playerAppShut(gateEvent, isStaff) : false;
@@ -262,6 +265,11 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             <Suspense fallback={null}>
               <DeniedNotice organizer={organizer} />
             </Suspense>
+            {/* Above everything, on every screen: a player scoring on the 14th
+                is looking at their card, not at Today. */}
+            <PlaySuspendedBanner status={playStatusOf(gateEvent)} organizer={organizer} />
+            {/* The siren when it happens while the screen is open. */}
+            {session.eventId && <SuspensionAlarm suspended={playStatusOf(gateEvent).suspended} />}
             {children}
           </>
         )}
