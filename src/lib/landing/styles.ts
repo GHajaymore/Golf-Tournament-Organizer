@@ -497,6 +497,9 @@ __CMP_FRAMES__
      gets) are .text-muted, which the app sets for its own dark ground: left
      alone it painted the app's pale dark-mode grey on this white card, and read as blank. */
   --color-text-muted: var(--ink-soft);
+  /* The same for a sign-in error (TourneyHQv2 measured 3.38:1, and a near-black
+     error box): the page's own danger, solved to text contrast, on a light wash. */
+  --color-danger: var(--danger); --color-danger-bg: color-mix(in srgb, var(--danger) 9%, var(--card));
   width: min(460px, 100%); margin: 0 auto; text-align: left;
 }
 .thq .store-block { display: grid; gap: 12px; margin-top: 36px; justify-items: center; }
@@ -560,6 +563,13 @@ __CMP_FRAMES__
    rhythm tightens. Nothing is hidden: every step, line and screen is still
    there, one swipe apart. */
 .thq a.lockup svg { margin-left: -9px; }
+.thq .only-narrow { display: none; }
+.thq .twin img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
+@media (max-width: 700px) {
+  .thq .only-wide { display: none !important; }
+  .thq .only-narrow { display: block; }
+  .thq figcaption .only-narrow { display: inline; }
+}
 @media (max-width: 1000px) {
   .thq .steps { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 calc(-1 * max(20px, env(safe-area-inset-left))); padding: 2px max(20px, env(safe-area-inset-left)) 6px; scroll-padding-inline: max(20px, env(safe-area-inset-left)); }
   .thq .steps::-webkit-scrollbar { display: none; }
@@ -577,8 +587,11 @@ __CMP_FRAMES__
   /* The first screen shows the product: a tighter hero lets the live board rise into view. */
   .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
   .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }
-  .thq .hero .ctas .btn { padding-left: 18px; padding-right: 18px; font-size: 15px; }
-  .thq .proof { margin-top: 24px; padding-top: 16px; } .thq .stage { margin-top: 28px; }
+  .thq .hero .ctas .btn { padding-left: 14px; padding-right: 14px; font-size: 15px; }
+  /* The live board straight after the buttons; the proof line follows it. */
+  .thq .hero .wrap { display: flex; flex-direction: column; }
+  .thq .hero .stage { order: 1; margin-top: 28px; } .thq .hero .proof { order: 2; margin-top: 28px; padding-top: 16px; } .thq .hero .real { order: 3; }
+  .thq .hero .ctas { flex-wrap: nowrap; } .thq .hero .ctas .btn { flex: none; }
   .thq .sec, .thq .why { padding: 64px 0; }
   .thq .shead { margin-bottom: 28px; }
   .thq .glance-col ul { grid-template-columns: minmax(0, 1fr); }
@@ -586,6 +599,17 @@ __CMP_FRAMES__
   .thq .fx-grid .f small { margin-bottom: 6px; }
   .thq .fx:has(input[name="fx"][value="competition"]:checked, input[name="fx"][value="day"]:checked, input[name="fx"][value="player"]:checked, input[name="fx"][value="money"]:checked) .f small { display: none; }
 }
+/* Desktop round: the steps carried small type in 620px bands, five and a half
+   screens of mostly white. Larger words, shorter bands; the pinned phone still
+   turns over at each one. */
+@media (min-width: 1001px) {
+  .thq .step { min-height: min(58vh, 500px); }
+  .thq .step h3 { font-size: clamp(28px, 2.5vw, 38px); line-height: 1.12; letter-spacing: -.03em; max-width: 600px; }
+  .thq .step p { font-size: 18px; line-height: 1.6; max-width: 540px; }
+  .thq .step ul { font-size: 16px; }
+}
+/* The two hero buttons need 380px on one row (measured); narrower phones stack them. */
+@media (max-width: 379px) { .thq .hero .ctas { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) {
   .thq-js .reveal { opacity: 1; transform: none; transition: none; }
   .thq-js .marq-track { animation: none; }
