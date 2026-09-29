@@ -120,7 +120,15 @@ export function paceOfPlay(opts: {
     const dueIn = new Date(tee.getTime() + perHole * holes * 60_000);
     if (g.thru >= holes) return { ...base, state: "finished", behind: 0, dueIn };
     const elapsed = (now.getTime() - tee.getTime()) / 60_000;
-    if (elapsed < 0) return { ...base, state: "not-started", behind: 0, dueIn };
+    // Before the tee time AND nothing on the cards is a group waiting to go.
+    // Holes on a card mean they are out there, whatever the sheet says — the
+    // time was written wrong, or they went early — and "Off at 17:30" beside
+    // "Thru 4" is the panel contradicting itself (walked 2026-09-29).
+    if (elapsed < 0) {
+      return g.thru > 0
+        ? { ...base, state: "on-pace", behind: 0, dueIn }
+        : { ...base, state: "not-started", behind: 0, dueIn };
+    }
     // Long past its finishing time with cards still short is not slow play —
     // nobody is out there. It is cards not handed in, and saying "400 minutes
     // behind" at nine at night would bury the groups actually on the course.

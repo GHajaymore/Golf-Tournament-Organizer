@@ -1638,6 +1638,170 @@ export async function seed() {
       });
     }
 
+    /* ============================== 6b. a back-nine shotgun, pins and pace == */
+
+    /**
+     * THE STATES NOTHING HERE COULD REACH, and each of them hid a defect
+     * (2026-09-29).
+     *
+     * Every round in this club was played from the 1st tee on the front nine
+     * or the full eighteen, so a back-nine round — holes 10-18, stored at
+     * indexes 0-8 — had never been rendered, and every screen numbered it 1-9
+     * (#707, #710, #712). No round carried a pin sheet or a time allowed, so
+     * the pin row and the pace panel were only ever seen empty. And a shotgun
+     * start, where the "starting on hole" line and the card's opening hole
+     * matter most, did not exist.
+     *
+     * So: a live nine-hole Stableford over Braid Hollow's BACK nine, a shotgun
+     * at half five, pins set on every green, four hours allowed. The signed-in
+     * player's four goes off the 12th (position 3) and is four holes in, so
+     * Today, the card and the tee sheet all have a back-nine number to get
+     * right — and "Finish my card" points at the 16th.
+     */
+    const backNine = await makeEvent("backnine", "Monday Back Nine — Shotgun Stableford", {
+      status: "live",
+      shape: "single",
+      format: "stroke",
+      sideStyle: "individual",
+      dates: dayOffset(0),
+      course: `${MARK}-Braid Hollow — Championship Course`,
+      courseId: home.id,
+      defaultTeeId: homeTee("White").id,
+      leaderboardVisibility: "public",
+      moneyMode: "none",
+      capacity: 24,
+      launchedAt: new Date(),
+    });
+    await prisma.eventCourse.create({ data: { eventId: backNine.id, courseId: home.id } });
+    const backField = await enter(backNine, [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]);
+    // Positions on the nine's card: 3 is the 12th, 1 the 10th, 6 the 15th.
+    const shotgun = [
+      { name: "Group 1", startHole: 3, players: backField.slice(0, 4) },
+      { name: "Group 2", startHole: 1, players: backField.slice(4, 8) },
+      { name: "Group 3", startHole: 6, players: backField.slice(8, 12) },
+    ];
+    /**
+     * The shotgun went off an hour and a quarter before the seed ran, on the
+     * seeding machine's clock — so the pace panel, which measures on the
+     * viewer's clock, shows a round actually under way at whatever hour this
+     * is walked. A fixed "17:30" read as not-started all afternoon.
+     */
+    const offAt = new Date(Date.now() - 75 * 60_000);
+    const shotgunTime = `${String(offAt.getHours()).padStart(2, "0")}:${String(offAt.getMinutes()).padStart(2, "0")}`;
+    const backRound = await prisma.stage.create({
+      data: {
+        eventId: backNine.id,
+        position: 0,
+        description: "Back nine",
+        type: "Stroke Play Round",
+        format: "Stableford",
+        holes: 9,
+        nine: "back",
+        courseId: home.id,
+        teeId: homeTee("White").id,
+        scoringBasis: "net",
+        handicapAllowance: 95,
+        playedOn: dayOffset(0),
+        teeSheet: JSON.stringify({
+          savedAt: new Date().toISOString(),
+          startType: "shotgun",
+          groups: shotgun.map((g) => ({ name: g.name, startHole: g.startHole, time: shotgunTime, playerIds: g.players.map((p) => p.id) })),
+        }),
+        teeSheetPublished: true,
+        // Where the holes are cut tonight, in the round's own order (10-18).
+        pinSheet: JSON.stringify([
+          { on: 22, side: "R", off: 6 },
+          { on: 15, side: "C", off: 0 },
+          { on: 30, side: "L", off: 4 },
+          { on: 12, side: "R", off: 5 },
+          { on: 26, side: "C", off: 0 },
+          { on: 18, side: "L", off: 7 },
+          { on: 9, side: "R", off: 3 },
+          { on: 24, side: "L", off: 5 },
+          { on: 20, side: "C", off: 0 },
+        ]),
+        paceMinutes: 240,
+      },
+    });
+    const PARS_BACK = PARS_18.slice(9);
+    const backRand = rng(177);
+    for (const g of shotgun) {
+      // How far each four has got, counted from its own starting hole: the
+      // signed-in player's is four holes in, the 10th tee's is done, the 15th's
+      // has two holes on the card.
+      const played = g.startHole === 3 ? 4 : g.startHole === 1 ? 9 : 2;
+      for (const p of g.players) {
+        const full = cardFor(PARS_BACK, backRand, p.handicap);
+        const strokes = full.map((s, idx) => {
+          const k = (idx - (g.startHole - 1) + 9) % 9; // holes since this group's start
+          return k < played ? s : null;
+        });
+        await prisma.scorecard.create({
+          data: { eventId: backNine.id, stageId: backRound.id, playerId: p.id, strokes: JSON.stringify(strokes), status: "entered" },
+        });
+      }
+    }
+
+    /**
+     * A TOURNAMENT WHOSE CARD WAS TYPED IN, with no course row behind it.
+     *
+     * Every other tournament here points at a stored course, so the fallback
+     * every reader takes when there is none — the event's own hand-entered
+     * pars and stroke index — was never walked. The player's card read that
+     * card UN-narrowed: a nine-hole round took its dots off an eighteen-hole
+     * index sliced to nine (1,3,5,…,17), which is the fault `cardForStage`
+     * exists to prevent (fixed in #707). A charity day is exactly who types a
+     * card in by hand.
+     */
+    const charity = await makeEvent("charity", "Hospice Charity Day — Card Typed In", {
+      status: "live",
+      shape: "single",
+      format: "stroke",
+      sideStyle: "individual",
+      dates: dayOffset(0),
+      course: "Glenbervie Farm Course (card entered by hand)",
+      customPars: JSON.stringify(PARS_18),
+      customYards: JSON.stringify(YARDS_18),
+      customStrokeIndex: JSON.stringify(SI_18),
+      leaderboardVisibility: "public",
+      moneyMode: "none",
+      capacity: 40,
+      launchedAt: new Date(),
+    });
+    const charityField = await enter(charity, [0, 2, 4, 6, 8, 10, 12, 14], { teeByPreference: false });
+    const charityRound = await prisma.stage.create({
+      data: {
+        eventId: charity.id,
+        position: 0,
+        description: "Front nine",
+        type: "Stroke Play Round",
+        format: "Stroke Play",
+        holes: 9,
+        nine: "front",
+        scoringBasis: "net",
+        handicapAllowance: 95,
+        playedOn: dayOffset(0),
+        teeSheet: teeSheetFor(charityField, 13 * 60),
+        teeSheetPublished: true,
+      },
+    });
+    const charRand = rng(191);
+    for (const [i, p] of charityField.entries()) {
+      const full = cardFor(PARS_18.slice(0, 9), charRand, p.handicap);
+      await prisma.scorecard.create({
+        data: {
+          eventId: charity.id,
+          stageId: charityRound.id,
+          playerId: p.id,
+          // The signed-in player is five holes in; everybody else is done.
+          strokes: JSON.stringify(i === 0 ? full.map((s, h) => (h < 5 ? s : null)) : full),
+          status: i === 0 ? "entered" : "approved",
+          approvedBy: i === 0 ? "" : organizer.name,
+          approvedAt: i === 0 ? null : new Date(),
+        },
+      });
+    }
+
     /* ======================================= 7. two still taking entries == */
 
     /**
