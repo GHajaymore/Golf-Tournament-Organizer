@@ -14,7 +14,7 @@ import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { COMPARE_APPEARANCE, COMPARE_COLOURS, LANDING_CSS } from "@/lib/landing/styles";
-import { COMPARED_ON, ROW_LABELS, atAGlance, compareSets, ourCells } from "@/lib/landing/compare";
+import { COMPARED_ON, ROW_LABELS, atAGlance, compareSets, ourCells, plansCompared } from "@/lib/landing/compare";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -42,26 +42,6 @@ const STORE_LINKS = {
   ios: process.env.TOURNEYHQ_IOS_URL ?? "",
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
-
-/** The plans in the order the page shows them. */
-const PLAN_ORDER = ["free", "society", "club"] as const;
-
-/** The phone's plan table: [row, one cell per plan], all read from PLANS. */
-function planRows(): [string, React.ReactNode[]][] {
-  const yes = <span className="pg-yes">{icon("check")}<span className="sr">Included</span></span>;
-  const no = <span className="pg-no" aria-label="Not included">—</span>;
-  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
-  const each = <T,>(f: (p: (typeof PLANS)[(typeof PLAN_ORDER)[number]]) => T) => PLAN_ORDER.map((k) => f(PLANS[k]));
-  return [
-    ["Players in a field", each((p) => count(p.limits.playersPerEvent, "One"))],
-    ["Tournaments at once", each((p) => count(p.limits.activeEvents, "One"))],
-    ["Organizers", each((p) => count(p.limits.staffSeats, "One"))],
-    ["Every format, the live board, the money", each(() => yes)],
-    ["The season table across the weeks", each((p) => (p.features.seasonStandings ? yes : no))],
-    ["Results kept for good", each((p) => (p.retentionHours === null ? yes : no))],
-    ["Your club's branding, ours removed", each((p) => (p.features.whiteLabel ? yes : no))],
-  ];
-}
 
 /** A screen by name: an edition's capture ("d"), the club's currency ("cur"), or one file for everyone. */
 type Screen = { name: string; by: "d" | "cur" | "one"; w: number; h: number };
@@ -189,6 +169,7 @@ export default async function LandingPage() {
   const ctx = { prices, email: contactEmail };
   const sets = compareSets(prices);
   const ours = ourCells(prices);
+  const plans = plansCompared(prices);
   const glance = atAGlance();
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
@@ -382,7 +363,61 @@ export default async function LandingPage() {
                   </label>
                 ))}
               </div>
-              {sets.map((set) => (
+              {sets.map((set) => set.key === "club" ? (
+                <div className="vs-set" data-set="club" key="club" id="plans-compared">
+                  <p className="vs-intro">{set.intro} Every plan is its own column.</p>
+                  <p className="pc-cue" aria-hidden="true">Swipe to compare every plan {icon("arrow", "i")}</p>
+                  <div className="pc-scroll" tabIndex={0} role="region" aria-label="TourneyHQ's plans beside Golf Genius's and BlueGolf TM's">
+                    <table className="pc">
+                      <caption className="sr">Every plan of TourneyHQ, Golf Genius and BlueGolf TM, side by side</caption>
+                      <colgroup>
+                        <col className="pc-lab" />
+                        {plans.groups.flatMap((g) => g.tiers.map((t) => <col key={`${g.name}-${t}`} className={g.ours ? "hot" : undefined} />))}
+                      </colgroup>
+                      <thead>
+                        <tr className="pc-groups">
+                          <td className="pc-corner" rowSpan={2} />
+                          {plans.groups.map((g, i) => (
+                            <th scope="colgroup" colSpan={g.tiers.length} key={g.name} className={[g.ours ? "hot" : "", i > 0 ? "edge" : ""].join(" ").trim() || undefined}>
+                              <span>{g.name}</span>
+                            </th>
+                          ))}
+                        </tr>
+                        <tr className="pc-tiers">
+                          {plans.groups.flatMap((g, gi) => g.tiers.map((t, ti) => (
+                            <th scope="col" key={`${g.name}-${t}`} className={[g.ours ? "hot" : "", gi > 0 && ti === 0 ? "edge" : ""].join(" ").trim() || undefined}>{t}</th>
+                          )))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {plans.rows.map((row) => {
+                          let col = 0;
+                          return (
+                            <tr key={row.label}>
+                              <th scope="row">{row.label}</th>
+                              {row.cells.map((cell, i) => {
+                                // Columns 0-2 are TourneyHQ's; 3 and 5 start Golf Genius and BlueGolf.
+                                const cls = [col < 3 ? "hot" : "", col === 3 || col === 5 ? "edge" : ""].join(" ").trim() || undefined;
+                                col += cell.span ?? 1;
+                                return <td key={i} colSpan={cell.span} className={cls}>{cell.node}</td>;
+                              })}
+                            </tr>
+                          );
+                        })}
+                        <tr className="vs-srcrow">
+                          <th scope="row">Source</th>
+                          <td className="hot" colSpan={3}>This page</td>
+                          {plans.groups.filter((g) => g.source).map((g) => (
+                            <td key={g.name} colSpan={g.tiers.length} className="edge">
+                              <a href={g.source!.href} rel="nofollow noopener noreferrer" target="_blank">{g.source!.label}</a>
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
                 <div className="vs-set" data-set={set.key} key={set.key}>
                   <p className="vs-intro">{set.intro}</p>
                   {/* Phones only: TourneyHQ beside one competitor, chosen here. */}
@@ -725,24 +760,7 @@ export default async function LandingPage() {
                 </ul>
               </div>
             </div>
-            {/* Phones only: what each plan includes, in the same three columns. */}
-            <table className="plan-grid">
-              <caption className="sr">What each plan includes, side by side</caption>
-              <thead className="sr">
-                <tr>
-                  <th scope="col">Feature</th>
-                  {PLAN_ORDER.map((k) => <th scope="col" key={k}>{PLANS[k].name}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {planRows().map(([label, cells]) => (
-                  <tr key={label}>
-                    <th scope="row">{label}</th>
-                    {cells.map((c, i) => <td key={PLAN_ORDER[i]} className={PLAN_ORDER[i] === "society" ? "hot" : undefined}>{c}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <a className="tier-compare" href="#plans-compared">Every plan, line by line, beside Golf Genius and BlueGolf TM {icon("arrow", "i")}</a>
             <p className="tier-note">Paid plans are arranged with us directly — nothing is charged through the app.</p>
             <div className="ultimate">
               <span className="ic">{icon("globe")}</span>
