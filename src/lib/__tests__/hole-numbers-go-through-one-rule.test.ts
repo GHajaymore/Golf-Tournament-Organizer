@@ -17,10 +17,18 @@ import { readSource } from "./source";
  */
 
 const RAW_HOLE = [
-  /\{\s*(i|hole|c\.i|idx|h)\s*\+\s*1\s*\}/, // JSX: {i + 1}
+  // JSX: {i + 1}. Not `${i + 1}` inside a template — "Match ${i + 1}" numbers
+  // matches, and a hole in a template is caught by the next pattern.
+  /(?<!\$)\{\s*(i|hole|c\.i|idx|h)\s*\+\s*1\s*\}/,
   /[Hh]ole \$\{\s*(i|hole|c\.i|idx|h)\s*\+\s*1\s*\}/, // template: `Hole ${i + 1}`
+  /\bn:\s*(i|hole|idx|h)\s*\+\s*1\b/, // a tile's number: { n: i + 1 } — Today's hole strip
 ];
 
+/**
+ * Pages too, not only components: Today builds its own hole tiles inline and
+ * printed `n: i + 1` there, which a components-only sweep never read (found
+ * the day after #710).
+ */
 function components(dir = "src/components", out: string[] = []): string[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const rel = `${dir}/${e.name}`;
@@ -34,10 +42,10 @@ function components(dir = "src/components", out: string[] = []): string[] {
 const drawsACard = (src: string) => /pars\[(i|hole|c\.i)\]/.test(src);
 
 describe("hole numbers on a card go through one rule", () => {
-  const cards = components().filter((f) => drawsACard(readSource(f)));
+  const cards = [...components(), ...components("src/app")].filter((f) => drawsACard(readSource(f)));
 
   it("CONTROL: finds the components that draw a card", () => {
-    for (const known of ["ScorecardTable.tsx", "HoleByHoleCard.tsx", "TeeSheetPrint.tsx", "PlayClient.tsx", "CardConflict.tsx"]) {
+    for (const known of ["ScorecardTable.tsx", "HoleByHoleCard.tsx", "TeeSheetPrint.tsx", "PlayClient.tsx", "CardConflict.tsx", "(player)/me/page.tsx"]) {
       expect(cards.some((f) => f.endsWith(known)), `${known} not recognised as drawing a card`).toBe(true);
     }
   });
@@ -45,7 +53,9 @@ describe("hole numbers on a card go through one rule", () => {
   it("CONTROL: the raw spelling is caught when it is there", () => {
     expect(RAW_HOLE.some((re) => re.test("<th>{i + 1}</th>"))).toBe(true);
     expect(RAW_HOLE.some((re) => re.test("aria-label={`Hole ${hole + 1}`}"))).toBe(true);
+    expect(RAW_HOLE.some((re) => re.test("tiles={s.map((x, i) => ({ n: i + 1 }))}"))).toBe(true);
     expect(RAW_HOLE.some((re) => re.test("{holeNumber(i, firstHole)}"))).toBe(false);
+    expect(RAW_HOLE.some((re) => re.test("`Match ${i + 1} — `"))).toBe(false);
   });
 
   it("no card prints a hole as its index plus one", () => {

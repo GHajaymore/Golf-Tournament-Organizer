@@ -958,7 +958,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-a"
         aria-pressed={holes[i] === "A"}
-        aria-label={`Hole ${holeNumber(i, firstHole)}to ${active.aName}`}
+        aria-label={`Hole ${holeNumber(i, firstHole)} to ${active.aName}`}
         onClick={() => setHole(i, "A")}
       >
         {aInitials}
@@ -967,7 +967,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-h"
         aria-pressed={holes[i] === "H"}
-        aria-label={`Hole ${holeNumber(i, firstHole)}halved`}
+        aria-label={`Hole ${holeNumber(i, firstHole)} halved`}
         onClick={() => setHole(i, "H")}
       >
         ½
@@ -976,7 +976,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-b"
         aria-pressed={holes[i] === "B"}
-        aria-label={`Hole ${holeNumber(i, firstHole)}to ${active.bName}`}
+        aria-label={`Hole ${holeNumber(i, firstHole)} to ${active.bName}`}
         onClick={() => setHole(i, "B")}
       >
         {bInitials}
