@@ -582,6 +582,16 @@ export async function seed() {
       await prisma.player.update({ where: { id: p.id }, data: { groupId: flights[f].id } });
     }
 
+    /**
+     * TWO PAIRING REQUESTS ("can I play with…"), both kept together in the
+     * published sheet below — `teeSheetFor` deals the field in fours in entry
+     * order, so each pair sits inside one four-ball, which is what a draw that
+     * honoured them produces. Without these the Tee sheet's requests card only
+     * ever showed its empty state (asked for by the website session, 2026-09-28).
+     */
+    await prisma.player.update({ where: { id: medalField[1].id }, data: { playWith: [medalField[2].id] } });
+    await prisma.player.update({ where: { id: medalField[6].id }, data: { playWith: [medalField[5].id] } });
+
     const medalRound = await prisma.stage.create({
       data: {
         eventId: medal.id,
