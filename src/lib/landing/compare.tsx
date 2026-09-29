@@ -108,21 +108,8 @@ export function compareSets(prices: LandingPrices): CompareSet[] {
         { name: "Golf Genius", source: { href: "https://golfgenius.com/products/tm", label: "golfgenius.com/products/tm" } },
         { name: "BlueGolf TM", source: { href: "https://tm.bluegolf.com/pricing", label: "tm.bluegolf.com/pricing" } },
       ],
-      cells: [
-        ["Private clubs, public courses, resorts and associations", "Private clubs, public courses and resorts"],
-        // The like-for-like a club compares on: what the season costs for live scoring
-        // on players' phones — every TourneyHQ plan, TM Premium only (row 5, same source).
-        [<>TM Club {usd(1425)} a year<br />TM Premium {usd(4275)} a year<span className="vs-note">Live scoring on players' phones comes with TM Premium.</span></>, <>{usd(495)} to {usd(2495)} a year</>],
-        [mk("no", <>{usd(200)} or {usd(500)}, one-time</>), mk("no", <>{usd(99)} to {usd(499)}, one-time</>)],
-        [mk("na", "None listed"), mk("na", "None listed")],
-        [mk("part", "TM Premium only"), mk("part", "Priced by the number of tournaments scored live (1, 10, 25 or all)")],
-        [mk("na", "Not listed"), mk("na", "Not listed")],
-        [mk("yes", "Yes; live TV leaderboards on Premium"), mk("yes", "Yes, online and on clubhouse TVs")],
-        [mk("yes", "A full library of formats"), mk("yes", "All popular formats, plus a custom builder")],
-        [mk("yes", "League management and season-long competitions"), mk("yes", "Leagues with season standings")],
-        [mk("yes", "Full integration with GHIN"), mk("yes", "Integrated with WHS, including score posting")],
-        [mk("part", "Online registration and payment processing on TM Premium"), mk("part", "Registration with built-in payments, on every plan except the base Club plan")],
-      ],
+      // The club platforms are compared plan by plan: see plansCompared() below.
+      cells: [],
     },
     {
       key: "apps",
@@ -171,6 +158,147 @@ export function atAGlance(): { further: string[] } {
       "Native App Store and Google Play apps — TourneyHQ installs from the browser today.",
       "Collecting entry fees online — TourneyHQ records who has paid instead.",
       `Squabbit's free plan has no player limit; TourneyHQ Free is up to ${PLANS.free.limits.playersPerEvent}.`,
+    ],
+  };
+}
+
+/**
+ * PLANS COMPARED — every plan its own column (Ajay, 2026-09-29).
+ *
+ * The product-by-product table put TourneyHQ's three prices in one cell beside
+ * Golf Genius's two, and read as if Golf Genius's entry tier matched ours. It
+ * does not: "live scoring on players' phones" is TM Premium only on their own
+ * page, and on every TourneyHQ plan. So each TIER is a column, grouped under
+ * its provider, and each row says what that tier includes.
+ *
+ * The rules of this file hold, and one more:
+ *  - TourneyHQ's cells are read from PLANS and the owner's prices, never typed.
+ *  - A competitor cell names a tier only where their page ties it to one.
+ *    Where their page lists a feature for the product, the cell SPANS their
+ *    tiers; where it says nothing, "Not listed". Never a guess.
+ *  - Prices per year on every side. No "cheaper" anywhere: like for like, our
+ *    Club tier is above TM Club, and the table shows it.
+ */
+export interface PlanGroup {
+  name: string;
+  ours?: boolean;
+  source?: { href: string; label: string };
+  /** One column per tier, in order. */
+  tiers: string[];
+}
+/** A cell, spanning `span` tier columns (default 1). */
+export interface PlanCell {
+  node: ReactNode;
+  span?: number;
+}
+export interface PlanRow {
+  label: string;
+  cells: PlanCell[];
+}
+
+export function plansCompared(prices: LandingPrices): { groups: PlanGroup[]; rows: PlanRow[] } {
+  const usd = prices.usd;
+  const tiers = [PLANS.free, PLANS.society, PLANS.club];
+  const each = (f: (p: (typeof tiers)[number]) => ReactNode): PlanCell[] => tiers.map((p) => ({ node: f(p) }));
+  const all = (node: ReactNode): PlanCell[] => [{ node, span: 3 }];
+  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
+  const has = (on: boolean) => (on ? mk("yes", "Yes") : mk("no", "No"));
+  const gg = (node: ReactNode): PlanCell => ({ node, span: 2 });
+  const notListed = mk("na", "Not listed");
+  const [genius, blue] = compareSets(prices)[0].products;
+  return {
+    groups: [
+      { name: "TourneyHQ", ours: true, tiers: tiers.map((p) => p.name) },
+      { name: "Golf Genius", source: genius.source, tiers: ["TM Club", "TM Premium"] },
+      { name: "BlueGolf TM", source: blue.source, tiers: ["All plans"] },
+    ],
+    rows: [
+      {
+        label: "Built for",
+        cells: [
+          ...all("Clubs, courses and resorts, plus societies, leagues and one-off outings"),
+          gg("Private clubs, public courses, resorts and associations"),
+          { node: "Private clubs, public courses and resorts" },
+        ],
+      },
+      {
+        label: "Price per year",
+        cells: [
+          { node: <b>{prices.zero}</b> },
+          // Yearly is the like-for-like; monthly stays open — a league running one
+          // summer season pays by the month (Ajay, 2026-09-29).
+          { node: <><b>{prices.society.yearly}</b><span className="vs-note">or {prices.society.monthly} a month</span></> },
+          { node: <><b>{prices.club.yearly}</b><span className="vs-note">or {prices.club.monthly} a month</span></> },
+          { node: <b>{usd(1425)}</b> },
+          { node: <b>{usd(4275)}</b> },
+          { node: <><b>{usd(495)} to {usd(2495)}</b>, by the number of tournaments scored live (1, 10, 25 or all)</> },
+        ],
+      },
+      {
+        label: "Setup fee",
+        cells: [
+          ...all(mk("yes", "None")),
+          gg(mk("no", <>{usd(200)} or {usd(500)}, one-time</>)),
+          { node: mk("no", <>{usd(99)} to {usd(499)}, one-time</>) },
+        ],
+      },
+      { label: "Players in one tournament", cells: [...each((p) => count(p.limits.playersPerEvent, "One")), gg(notListed), { node: notListed }] },
+      { label: "Tournaments at once", cells: [...each((p) => count(p.limits.activeEvents, "One")), gg(notListed), { node: notListed }] },
+      { label: "Organizer seats", cells: [...each((p) => count(p.limits.staffSeats, "One")), gg(notListed), { node: notListed }] },
+      {
+        label: "Results kept",
+        cells: [...each((p) => (p.retentionHours === null ? "For good" : `${p.retentionHours} hours after it ends`)), gg(notListed), { node: notListed }],
+      },
+      {
+        label: "Live scoring on players' phones",
+        cells: [
+          ...all(mk("yes", "On every plan")),
+          { node: mk("no", "No: TM Premium only") },
+          { node: mk("yes", "Yes") },
+          { node: mk("part", "Priced by the number of tournaments scored live") },
+        ],
+      },
+      {
+        label: "Players enter scores by voice",
+        cells: [...all(mk("yes", "Yes: a player taps the mic and says the hole's score, or reads out the whole card")), gg(notListed), { node: notListed }],
+      },
+      {
+        label: "Live leaderboard",
+        cells: [
+          ...all(mk("yes", "Yes, including a public board with no login, when you publish it")),
+          gg(mk("yes", "Yes; live TV leaderboards on Premium")),
+          { node: mk("yes", "Yes, online and on clubhouse TVs") },
+        ],
+      },
+      {
+        label: "Formats",
+        cells: [
+          ...all(mk("yes", "16 formats (15 scored automatically, plus ‘Other’ for a club’s own)")),
+          gg(mk("yes", "A full library of formats")),
+          { node: mk("yes", "All popular formats, plus a custom builder") },
+        ],
+      },
+      {
+        label: "Season standings and leagues",
+        cells: [
+          ...each((p) => has(p.features.seasonStandings)),
+          gg(mk("yes", "League management and season-long competitions")),
+          { node: mk("yes", "Leagues with season standings") },
+        ],
+      },
+      { label: "Your club's branding in place of ours", cells: [...each((p) => has(p.features.whiteLabel)), gg(notListed), { node: notListed }] },
+      {
+        label: "Handicap service link (WHS / GHIN)",
+        cells: [...all(mk("no", "No")), gg(mk("yes", "Full integration with GHIN")), { node: mk("yes", "Integrated with WHS, including score posting") }],
+      },
+      {
+        label: "Entry fees and payments",
+        cells: [
+          ...all(mk("part", "Records who has paid; never collects or holds the money")),
+          gg(mk("part", "Online registration and payment processing on TM Premium")),
+          { node: mk("part", "Registration with built-in payments, on every plan except the base Club plan") },
+        ],
+      },
     ],
   };
 }

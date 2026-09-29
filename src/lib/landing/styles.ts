@@ -255,7 +255,44 @@ ${landingTokens("dark", "  ")}
 .thq .vs-mk.no { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 .thq .vs-mk.part { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .thq .vs-mk.na { background: var(--wash-2); color: var(--ink-faint); }
-.thq .vs-table .vs-note { display: block; margin-top: 6px; font-size: .9em; color: var(--ink-faint); }
+/* ── plans compared: every tier its own column (2026-09-29) ──
+   The row labels stay put while the plans slide under them; on a phone each
+   swipe lands on a column. The table lives in its own scroller, so the page
+   itself never scrolls sideways. */
+.thq .vs-note { display: block; margin-top: 4px; font-size: .88em; font-weight: 400; color: var(--ink-faint); }
+.thq .pc-cue { display: none; }
+.thq #plans-compared { scroll-margin-top: 88px; }
+.thq .pc-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); scroll-snap-type: x proximity; scroll-padding-left: 190px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.thq .pc-scroll:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 3px; }
+.thq .pc { width: 100%; min-width: 1060px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 14.5px; line-height: 1.45; }
+.thq .pc col.pc-lab { width: 190px; }
+.thq .pc th, .thq .pc td { text-align: left; vertical-align: top; padding: 14px 16px; border-top: 1px solid var(--line); }
+.thq .pc thead th, .thq .pc thead td { border-top: 0; }
+.thq .pc .edge { border-left: 1px solid var(--line-2); }
+.thq .pc .pc-groups th { font: 700 17px/1.2 var(--sans); letter-spacing: -.01em; padding: 20px 16px 4px; color: var(--ink); }
+.thq .pc .pc-groups th > span { position: sticky; left: 206px; }
+.thq .pc .pc-tiers th { font: 600 12px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); padding: 4px 16px 14px; scroll-snap-align: start; }
+.thq .pc thead .hot { color: var(--brass); }
+.thq .pc tbody th { font: 500 12px/1.45 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.thq .pc td { color: var(--ink-soft); }
+.thq .pc td b { color: var(--ink); font-weight: 650; font-size: 1.12em; }
+.thq .pc .hot { background: var(--accent-a12); }
+.thq .pc td.hot { color: var(--ink); }
+.thq .pc tbody th, .thq .pc .pc-corner { position: sticky; left: 0; z-index: 2; background: var(--card); box-shadow: 1px 0 0 var(--line); }
+.thq .tier-compare { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 14px; font-weight: 600; color: var(--brass); }
+.thq .tier-compare .i { width: 16px; height: 16px; }
+@media (max-width: 760px) {
+  .thq .pc-cue { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--brass); }
+  .thq .pc-cue .i { width: 14px; height: 14px; }
+  .thq .pc-scroll { margin-left: calc(-1 * max(20px, env(safe-area-inset-left))); margin-right: calc(-1 * max(20px, env(safe-area-inset-right))); border-radius: 0; border-left: 0; border-right: 0; scroll-snap-type: x mandatory; scroll-padding-left: 112px; }
+  .thq .pc { min-width: calc(112px + 6 * 148px); font-size: 13px; line-height: 1.4; }
+  .thq .pc col.pc-lab { width: 112px; }
+  .thq .pc th, .thq .pc td { padding: 10px 12px; }
+  .thq .pc tbody th { font-size: 10.5px; letter-spacing: .05em; }
+  .thq .pc .pc-groups th { font-size: 15px; padding: 14px 12px 2px; }
+  .thq .pc .pc-groups th > span { left: 124px; }
+  .thq .pc .pc-tiers th { font-size: 11px; padding: 2px 12px 10px; }
+}
 .thq .vs-srcrow td { font: 500 12px/1.4 var(--mono); color: var(--ink-faint); overflow-wrap: anywhere; }
 .thq .vs-srcrow a:hover { color: var(--brass); }
 .thq .glance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 18px; }
@@ -437,7 +474,6 @@ __CMP_FRAMES__
 .thq .ultimate h3 { font: 650 17px/1.3 var(--sans); }
 .thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
 .thq .metered { margin-top: 18px; font-size: 13.5px; color: var(--ink-faint); max-width: 820px; }
-.thq .plan-grid { display: none; }
 @media (max-width: 1000px) { .thq .tiers { gap: 10px; } .thq .tier { padding: 24px 18px; } .thq .price b { font-size: 42px; } .thq .tier .btn .long { display: none; } .thq .tier .btn .short { display: inline; } }
 @media (max-width: 700px) {
   .thq .tiers { gap: 8px; }
@@ -452,15 +488,6 @@ __CMP_FRAMES__
   .thq .tier .btn { min-height: 44px; padding: 0 6px; font-size: 13px; }
   .thq .tier .btn .long { display: none; }
   .thq .tier .btn .short { display: inline; }
-  .thq .plan-grid { display: block; width: 100%; margin-top: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); overflow: hidden; border-collapse: separate; }
-  .thq .plan-grid tbody { display: block; }
-  .thq .plan-grid tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; padding: 0 0 12px; }
-  .thq .plan-grid tr + tr { border-top: 1px solid var(--line); }
-  .thq .plan-grid th { grid-column: 1 / -1; text-align: center; padding: 12px 12px 8px; font: 600 11px/1.35 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
-  .thq .plan-grid td { display: grid; place-items: center; text-align: center; font: 600 13.5px/1.3 var(--sans); min-height: 24px; }
-  .thq .plan-grid td.hot { color: var(--brass); }
-  .thq .plan-grid .pg-yes .i { width: 18px; height: 18px; color: var(--flag); stroke-width: 2.4; }
-  .thq .plan-grid .pg-no { color: var(--ink-faint); }
   .thq .ultimate { grid-template-columns: minmax(0, 1fr); }
   .thq .ultimate .ic { display: none; }
 }
