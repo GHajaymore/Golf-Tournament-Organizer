@@ -229,7 +229,10 @@ export default async function LandingPage() {
 
       <main id="top">
         {/* ═══════════ HERO ═══════════ */}
-        <section className="hero" aria-labelledby="hero-h">
+        {/* The one bold moment (Ajay, 2026-09-29: "go ahead" with a black hero
+            on a white page): the hero is a dark band, so the product screens
+            are framed on black and everything below reads on white. */}
+        <section className="hero band" aria-labelledby="hero-h">
           <div className="wrap">
             <span className="label" style={{ marginBottom: 26 }}>Golf tournament &amp; league management</span>
             <div className="hero-top">
@@ -254,7 +257,7 @@ export default async function LandingPage() {
             </div>
             <div className="stage">
               <div className="desk">
-                {lightShot({ name: "hero-console", variant: d, width: 1600, height: 1000, priority: true, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
+                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, priority: true, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
               </div>
               <div className="phone">
                 {lightShot({ name: "hero-phone", variant: d, width: 600, height: 1298, priority: true, alt: "A player's Today screen on a phone: their card so far, and the leaders." })}
@@ -568,7 +571,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Green fees", "Carts", "Caddies", "Dinner", "Lodging", "Evenly", "By shares", "Exact amounts", "By percent"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 700, height: 419, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
+                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 700, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
               </div>
               <div className="mcard reveal">
                 <h3 className="h3">Prize money, from the board.</h3>

@@ -93,7 +93,13 @@ ${landingTokens("dark", "  ")}
 
 /* ── header ── */
 .thq .hdr { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--ground) 84%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid transparent; transition: border-color .2s; }
-.thq .hdr.scrolled { border-bottom-color: var(--line); }
+.thq .hdr.scrolled { border-bottom-color: var(--line-2); }
+/* The dark header is solid: see-through, it showed the white page beneath it
+   as grey against the black hero. */
+.thq .hdr.band { background: var(--ground); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* The hero runs on under the dark header; the formats marquee closes it. */
+.thq .hero.band { padding-bottom: 0; }
+.thq .hero.band .marq { border-bottom: 0; }
 .thq .hdr-in { display: flex; align-items: center; height: 72px; gap: 28px; }
 .thq .lockup { display: inline-flex; align-items: center; min-height: 44px; flex: none; }
 .thq .hnav { display: flex; align-items: center; gap: 2px; margin-right: auto; font: 500 15px/1 var(--sans); color: var(--ink-soft); }
@@ -169,7 +175,7 @@ ${landingTokens("dark", "  ")}
 
 /* ── the round: one Saturday, both sides ── */
 .thq .round { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 96px; }
-.thq .step { min-height: 72vh; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; border-top: 1px solid var(--line); }
+.thq .step { min-height: min(72vh, 620px); display: flex; flex-direction: column; justify-content: center; padding: 40px 0; border-top: 1px solid var(--line); }
 .thq-js .step { opacity: .32; transition: opacity .35s; }
 .thq-js .step.on { opacity: 1; }
 .thq .step-t { display: flex; align-items: center; gap: 16px; }
@@ -432,7 +438,7 @@ __CMP_FRAMES__
 .thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
 .thq .metered { margin-top: 18px; font-size: 13.5px; color: var(--ink-faint); max-width: 820px; }
 .thq .plan-grid { display: none; }
-@media (max-width: 1000px) { .thq .tiers { gap: 10px; } .thq .tier { padding: 24px 18px; } .thq .price b { font-size: 42px; } }
+@media (max-width: 1000px) { .thq .tiers { gap: 10px; } .thq .tier { padding: 24px 18px; } .thq .price b { font-size: 42px; } .thq .tier .btn .long { display: none; } .thq .tier .btn .short { display: inline; } }
 @media (max-width: 700px) {
   .thq .tiers { gap: 8px; }
   .thq .tier { padding: 16px 8px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }

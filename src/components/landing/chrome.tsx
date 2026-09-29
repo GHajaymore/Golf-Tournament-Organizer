@@ -102,7 +102,7 @@ export function landingNav(at: "home" | "faq") {
     ["/faq", "FAQ"],
   ];
   return (
-    <header className="hdr">
+    <header className="hdr band">
       <div className="wrap hdr-in">
         <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
           <Lockup size={LOGO_SIZE.lg} />
