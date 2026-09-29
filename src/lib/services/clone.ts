@@ -357,6 +357,9 @@ export const CLONED_STAGE_FIELDS = [
   "handicapAllowance",
   "allowanceWeights",
   "countBest",
+  // The club's pace policy — the time it allows for a round — is the same next
+  // year unless somebody changes it.
+  "paceMinutes",
 ] as const;
 
 /** Round fields the copy must set for itself, each for a stated reason. */
@@ -377,6 +380,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   optDeadline: "a date, like the others",
   teeSheet: "last year's draw, made from last year's field",
   teeSheetPublished: "belongs to the tee sheet that was not copied",
+  pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
   matches: "results and pairings are never copied",
   carriers:
     "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",

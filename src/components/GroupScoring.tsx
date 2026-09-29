@@ -4,6 +4,7 @@ import { HoleByHoleCard, type CardPlayer } from "@/components/HoleByHoleCard";
 import { saveScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
 import { cardRevision, type SyncStatus } from "@/lib/domain/pending-card";
+import type { PinSheet } from "@/lib/domain/pin-sheet";
 
 export interface GroupPartner {
   id: string;
@@ -45,7 +46,10 @@ export function GroupScoring({
   holding,
   startHole = 1,
   showVoice = true,
+  pins = [],
 }: {
+  /** The round's pin sheet, passed through to the hole card. */
+  pins?: PinSheet;
   /** The organizer's "Voice entry" setting — off, no microphone. */
   showVoice?: boolean;
   stageId: string;
@@ -116,6 +120,7 @@ export function GroupScoring({
         meId={me.id}
         startHole={startHole}
         showVoice={showVoice}
+        pins={pins}
       />
 
       {/* Where each partner's card has got to — the same words the player's

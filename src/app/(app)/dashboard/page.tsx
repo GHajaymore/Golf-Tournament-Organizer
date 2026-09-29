@@ -44,6 +44,8 @@ import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
 import { CasualRoundPanel } from "@/components/CasualRoundPanel";
 import { PlayStatusControl } from "@/components/PlayStatusControl";
+import { PaceOfPlay } from "@/components/PaceOfPlay";
+import { paceRoundsFor } from "@/lib/services/pace";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -788,6 +790,12 @@ export default async function DashboardPage() {
           note={event.playSuspendedNote}
           since={event.playSuspendedAt ? event.playSuspendedAt.toISOString() : ""}
         />
+      )}
+
+      {/* PACE OF PLAY — a round played today, with timed groups on its sheet.
+          The panel itself decides "today" on the committee's own clock. */}
+      {isStaff && !matchEvent && isLaunched(event.status) && !isFinished(event.status) && (
+        <PaceOfPlay rounds={await paceRoundsFor(event.id)} />
       )}
 
       {/* A MATCH HAS NO LIFECYCLE TO RUN, so it is not offered one.

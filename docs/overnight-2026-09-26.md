@@ -1278,7 +1278,7 @@ The original note behind item 34, kept for the reasoning:
   says "Playing this week (N)" with the names alphabetically: everyone not out on an opt-out
   week, only those who put their name down on an opt-in week. If nobody has, it says so.
 - ~~**The create form files every organizer as an "outing".**~~ **Done (2026-09-28).** Once a
-  name is typed, the form asks "Which is it?" (club, society, or company or one-off day), as
+  name is typed, the form asks "Which is it?" (Golf club, Society or league, or Personal), as
   sign-up does. The kind is taken on the same terms as the name: only while the organization is
   still unnamed, and never in a way that would hide a members list it already has. A club or
   society is told up front that it adds its members before its first tournament. That is the
@@ -1327,6 +1327,32 @@ The original note behind item 34, kept for the reasoning:
   - **Getting started:** a template "Four-Ball, foursomes & singles — team cup". The seeded
     club has a part-played Autumn Cup.
   - **Not in this version:** captains entering their own lineups (they are read-only today).
+- **Pin sheet (hole locations).** BUILT, 2026-09-28 ("go ahead with your recommendations as a golf
+  pro").
+  - **Committee:** a Round day panel on the Tee sheet screen, per round. For each hole it takes
+    paces on from the front of the green, the side (L, C or R) and paces in from that side, in
+    the notation golfers read ("22 / 6R").
+  - **Printed cards:** a Pin row under S.I.
+  - **Players:** "Pin 22 / 6R" on each hole of their phone card.
+  - **Limits:** anything outside a real green (more than 60 paces on or 30 from a side) is
+    refused, and the refusal names the hole.
+  - **Records:** setting a pin sheet is logged under Recent changes. It is not copied when a
+    tournament is copied, because holes move every round.
+- **Pace of play.** BUILT, same day.
+  - **Where:** a panel on the committee's dashboard, for a round dated today with times on its
+    tee sheet. Each group is measured against its own tee time.
+  - **Time allowed:** set per round on the same Round day panel (default 4h 15m for a
+    four-ball). Three-balls and two-balls are allowed proportionally less (3h 44m and 3h 11m).
+  - **What each group shows:** on pace, "N min behind", or out of position (10 minutes or
+    more, in red, named in a summary line). It also shows its due-in time.
+  - **Honest measurement:** a group is only called late once the time for the hole it is on
+    has run out, and its furthest card vouches for the group. After three holes' time with
+    nothing entered it reads "No scores yet". Ninety minutes past its due-in time with holes
+    missing, it reads "chase the cards" rather than "400 min behind".
+  - **Clock:** worked out on the committee's device, which is the course's clock. No time zone
+    is stored or needed.
+- **Charity extras:** already there. The float records entry fees, sponsors and raffle as
+  money in, so nothing new was built.
 - **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from
   Reports or the tee sheet, for all carts or selected ones. Each tag carries:
   - the names of the two cart buddies;
