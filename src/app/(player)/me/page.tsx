@@ -40,6 +40,7 @@ import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { isFinished } from "@/lib/domain/lifecycle-state";
+import { firstHoleOf, holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 import { playWithFor } from "@/lib/services/pairing";
 import { PlayWithPicker } from "@/components/PlayWithPicker";
 
@@ -154,6 +155,8 @@ export default async function PlayTodayPage() {
   /** The round's pars, for marking the tiles — the card page's own reading. */
   const roundStage = round ? (state.stages.find((s) => s.id === round.stageId) ?? null) : null;
   const roundCard = await roundCardFor(state, roundStage, holes);
+  /** 10 on a back nine, so the tiles and "Finish my card · hole N" read the course's holes. */
+  const todayFirstHole = roundCard.known ? firstHoleOf(roundCard.card) : 1;
 
   /**
    * THE LEADERS BOARD, from the Board tab's own rows and under its own two
@@ -400,7 +403,8 @@ export default async function PlayTodayPage() {
           })}
           total={standing?.scoreText || "–"}
           tiles={strokes.map((s, i) => ({
-            n: i + 1,
+            // The course's number — 10-18 on a back nine (`firstHoleOf`).
+            n: holeNumber(i, todayFirstHole),
             stroke: s ?? null,
             // No real card, no mark: a score is never called a birdie
             // against a placeholder par.
@@ -414,7 +418,7 @@ export default async function PlayTodayPage() {
                   label: !card
                     ? "Start my card"
                     : cardState.action === "Finish my card" && next !== null
-                      ? `${cardState.action} · hole ${next}`
+                      ? `${cardState.action} · hole ${startHoleNumber(next, todayFirstHole)}`
                       : cardState.action,
                 }
               : null
