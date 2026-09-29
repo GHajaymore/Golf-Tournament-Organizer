@@ -45,6 +45,7 @@ import { Icon } from "@/components/Icon";
 import { CasualRoundPanel } from "@/components/CasualRoundPanel";
 import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
+import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
 
 /**
@@ -594,7 +595,7 @@ export default async function DashboardPage() {
     select: { id: true },
   });
   const myIds = new Set(myPlayerRows.map((r) => r.id));
-  let publishedSheet: { roundLabel: string; sheet: TeeSheet; mine: string | null } | null = null;
+  let publishedSheet: { roundLabel: string; sheet: TeeSheet; mine: string | null; firstHole: number } | null = null;
   {
     const rounds = state.playRounds;
     for (let i = rounds.length - 1; i >= 0; i -= 1) {
@@ -607,7 +608,8 @@ export default async function DashboardPage() {
         const g = groupForPlayer(sheet, id);
         if (g) { mine = g.name; break; }
       }
-      publishedSheet = { roundLabel: roundLabel(rounds, r.id), sheet, mine };
+      // `firstHole`: the 12th rather than "Hole 3" on a back-nine shotgun.
+      publishedSheet = { roundLabel: roundLabel(rounds, r.id), sheet, mine, firstHole: firstHoleForRound(r) };
       break;
     }
   }
@@ -664,7 +666,7 @@ export default async function DashboardPage() {
               <p style={{ fontSize: 13, margin: "4px 0 0", fontWeight: 600 }}>
                 {(() => {
                   const g = publishedSheet!.sheet.groups.find((x) => x.name === publishedSheet!.mine)!;
-                  return `You're in ${g.name} — hole ${g.startHole}${g.half ?? ""} at ${g.time}.`;
+                  return `You're in ${g.name} — hole ${startHoleNumber(g.startHole, publishedSheet!.firstHole)}${g.half ?? ""} at ${g.time}.`;
                 })()}
               </p>
             )}
@@ -681,7 +683,7 @@ export default async function DashboardPage() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{g.name}</span>
-                  <span className="text-muted">Hole {g.startHole}{g.half ?? ""} · {g.time}</span>
+                  <span className="text-muted">Hole {startHoleNumber(g.startHole, publishedSheet!.firstHole)}{g.half ?? ""} · {g.time}</span>
                 </div>
                 {g.playerIds.map((id) => (
                   <div key={id} style={{ fontSize: 12.5, padding: "1px 0" }}>

@@ -49,6 +49,7 @@ import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
 import { ConfirmButton } from "./ConfirmButton";
 import { startDictation, type Dictation } from "@/lib/dictation";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -178,6 +179,8 @@ export interface EntryMatch {
   strokeIndex?: number[];
   /** Venue name, shown so whoever is entering can see which card is in use. */
   courseName?: string;
+  /** The course's number for this card's first hole — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   /** The venue set on this match itself, if any. Null means it inherits from
    *  the round, and then the event — which the picker must show as such. */
   courseId?: string | null;
@@ -280,7 +283,10 @@ export function ScoreEntryClient({
   venues = [],
   openCourse = false,
   courseLibrary = [],
+  firstHole: firstHoleProp = 1,
 }: {
+  /** The course's number for the first hole on the round's card — 10 on a back nine. */
+  firstHole?: number;
   matches: EntryMatch[];
   /** The round's format. Only match play can be written down three ways. */
   format?: string;
@@ -620,6 +626,8 @@ export function ScoreEntryClient({
   const pars = active?.pars?.length ? active.pars : parsProp;
   const yards = active?.yards?.length ? active.yards : yardsProp;
   const strokeIndex = active?.strokeIndex?.length ? active.strokeIndex : strokeIndexProp;
+  // The course's number for the first hole of THIS match's card — 10 on a back nine.
+  const firstHole = active?.pars?.length ? active.firstHole ?? 1 : firstHoleProp;
   // `NO_HOLES`, not a fresh `[]`. The fallback allocated a new array on every
   // render, so `resolveMatch` re-ran on every render of a screen that is used
   // hole by hole on a phone — the standing lint warning, and it was right.
@@ -950,7 +958,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-a"
         aria-pressed={holes[i] === "A"}
-        aria-label={`Hole ${i + 1} to ${active.aName}`}
+        aria-label={`Hole ${holeNumber(i, firstHole)}to ${active.aName}`}
         onClick={() => setHole(i, "A")}
       >
         {aInitials}
@@ -959,7 +967,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-h"
         aria-pressed={holes[i] === "H"}
-        aria-label={`Hole ${i + 1} halved`}
+        aria-label={`Hole ${holeNumber(i, firstHole)}halved`}
         onClick={() => setHole(i, "H")}
       >
         ½
@@ -968,7 +976,7 @@ export function ScoreEntryClient({
         type="button"
         className="is-b"
         aria-pressed={holes[i] === "B"}
-        aria-label={`Hole ${i + 1} to ${active.bName}`}
+        aria-label={`Hole ${holeNumber(i, firstHole)}to ${active.bName}`}
         onClick={() => setHole(i, "B")}
       >
         {bInitials}
@@ -1493,9 +1501,9 @@ export function ScoreEntryClient({
 
                             The same two colours as the buttons, so the
                             association is learned once. */}
-                        {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
+                        {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{holeNumber(i, firstHole)}</th>))}
                         {isEighteen && <th className="sc-tot">Out</th>}
-                        {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
+                        {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{holeNumber(i, firstHole)}</th>))}
                         {isEighteen && <th className="sc-tot">In</th>}
                       </tr>
                     </thead>
@@ -1618,9 +1626,9 @@ export function ScoreEntryClient({
                       {/* Tinted by who won it — the same wash as the
                           hole-results card, so one card can be read across
                           rather than one hole at a time. */}
-                      {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
+                      {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{holeNumber(i, firstHole)}</th>))}
                       {isEighteen && <th className="sc-tot">Out</th>}
-                      {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
+                      {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{holeNumber(i, firstHole)}</th>))}
                       {isEighteen && <th className="sc-tot">In</th>}
                       {/* The player rows have always emitted a gross total.
                           The header never declared it, so every column in the
@@ -1731,6 +1739,7 @@ export function ScoreEntryClient({
                               shots={given[i]}
                               who={name}
                               shotsFor={label}
+                              firstHole={firstHole}
                               onSet={(v) => applyStroke(slot, i, v)}
                             />
                           ))}
@@ -1744,6 +1753,7 @@ export function ScoreEntryClient({
                               shots={given[i]}
                               who={name}
                               shotsFor={label}
+                              firstHole={firstHole}
                               onSet={(v) => applyStroke(slot, i, v)}
                             />
                           ))}

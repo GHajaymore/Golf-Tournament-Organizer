@@ -2,6 +2,7 @@
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { Fragment, useState } from "react";
 import { Icon } from "./Icon";
+import { holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 
 export interface PrintGroup {
   name: string;
@@ -111,7 +112,10 @@ export function TeeSheetPrint({
   teamRound = null,
   sides = [],
   pins = [],
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the card — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   groups: PrintGroup[];
   clubName: string;
   /** The club's logo, printed beside its name. Empty for a club that has not
@@ -426,7 +430,7 @@ export function TeeSheetPrint({
                 {roundLabel} — {g.name}
               </span>
               <span>
-                Hole {g.startHole}
+                Hole {startHoleNumber(g.startHole, firstHole)}
                 {g.half ?? ""} · {g.time}
               </span>
             </div>
@@ -461,7 +465,7 @@ export function TeeSheetPrint({
                   <th>Hole</th>
                   {cols.map((c) =>
                     c.kind === "hole" ? (
-                      <th key={`h${c.i}`}>{c.i + 1}</th>
+                      <th key={`h${c.i}`}>{holeNumber(c.i, firstHole)}</th>
                     ) : (
                       <th key={c.label} className="tot">
                         {c.label}

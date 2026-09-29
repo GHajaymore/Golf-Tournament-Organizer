@@ -6,6 +6,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { parseTeeSheet, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { roundLabel } from "@/lib/domain/round-label";
 import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
+import { firstHoleForRound } from "@/lib/domain/hole-number";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -104,7 +105,7 @@ export async function saveTeeSheet(
       prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
       prisma.stage.findMany({
         where: { eventId: session.eventId },
-        select: { id: true, type: true },
+        select: { id: true, type: true, holes: true, nine: true },
         orderBy: { position: "asc" },
       }),
     ]);
@@ -116,6 +117,7 @@ export async function saveTeeSheet(
       firstPublish: !stage.teeSheetPublished,
       roundLabel: roundLabel(stages, stageId),
       eventName: event?.name ?? "",
+      firstHole: firstHoleForRound(stages.find((s) => s.id === stageId)),
     });
   }
 
@@ -149,7 +151,7 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
         prisma.event.findUnique({ where: { id: session.eventId }, select: { name: true } }),
         prisma.stage.findMany({
           where: { eventId: session.eventId },
-          select: { id: true, type: true },
+          select: { id: true, type: true, holes: true, nine: true },
           orderBy: { position: "asc" },
         }),
       ]);
@@ -161,6 +163,7 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
         firstPublish: true,
         roundLabel: roundLabel(stages, stageId),
         eventName: event?.name ?? "",
+        firstHole: firstHoleForRound(stages.find((s) => s.id === stageId)),
       });
     }
   }

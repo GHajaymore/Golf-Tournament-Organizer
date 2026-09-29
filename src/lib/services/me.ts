@@ -17,6 +17,7 @@ import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
 import type { HoleResult } from "@/lib/domain/types";
 import { holesPlayed } from "../domain/handicap";
 import { isStablefordRound } from "../domain/week-basis";
+import { firstHoleForRound, startHoleNumber } from "../domain/hole-number";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -159,7 +160,12 @@ export interface MyRound {
    */
   venue: string;
   /** The tee group I am in, if a sheet has been drawn. */
-  group: { name: string; time: string; startHole: number; partners: string[] } | null;
+  /**
+   * `startHole` is a POSITION on the round's card (it drives which hole the
+   * card opens on); `startHoleNumber` is what to print — the 12th, not "3", on
+   * a back nine.
+   */
+  group: { name: string; time: string; startHole: number; startHoleNumber: number; partners: string[] } | null;
   /**
    * The tee sheet is OUT and I am not on it — somebody entered after the draw.
    *
@@ -316,6 +322,8 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         name: mine.name,
         time: mine.time,
         startHole: mine.startHole,
+        // The course's number for it — the 12th, not "3", on a back nine.
+        startHoleNumber: startHoleNumber(mine.startHole, firstHoleForRound(stage)),
         partners: mine.playerIds
           .filter((id) => id !== playerId)
           .map((id) => state.confirmed.find((p) => p.id === id)?.name)
