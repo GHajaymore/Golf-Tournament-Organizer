@@ -29,7 +29,7 @@ const { createEvent, addStage, setStageFormat, importCsvSignups } = await import
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
-  await prisma.organization.deleteMany({ where: { name: { contains: TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.user.deleteMany({ where: { email: EMAIL } });
 }
 

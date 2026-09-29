@@ -40,7 +40,7 @@ const WHO = ["new", "old", "paid", "held", "cap", "fresh"];
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
-  await prisma.organization.deleteMany({ where: { name: { contains: TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.user.deleteMany({ where: { email: { in: WHO.map(emailFor) } } });
 }
 
