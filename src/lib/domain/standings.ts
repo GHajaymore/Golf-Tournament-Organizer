@@ -280,8 +280,11 @@ function headToHead(
  *
  * Returns null for a match with no result yet — not "H", which means played
  * and level.
+ *
+ * EXPORTED for the head-to-head record (2026-09-28), which must count a
+ * meeting exactly as the table that meeting was part of counted it.
  */
-function decidedOutcome(
+export function decidedOutcome(
   m: Match,
   matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
 ): "A" | "B" | "H" | null {

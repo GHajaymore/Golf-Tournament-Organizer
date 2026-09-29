@@ -1351,6 +1351,19 @@ The original note behind item 34, kept for the reasoning:
     missing, it reads "chase the cards" rather than "400 min behind".
   - **Clock:** worked out on the committee's device, which is the course's clock. No time zone
     is stored or needed.
+- **Head-to-head records.** BUILT, same day.
+  - **Committee:** a Match record on each member's history screen — every member they have met in
+    a match here, "Leads 2–1" with Won / Lost / Halved, and the last meeting with its margin and
+    where it was.
+  - **Players:** before a knockout tie, their card says "You've met before: you lead 2–1. Last
+    time: won 3&2 in the Summer Matchplay" (or "in Round 1 of this one" when it was this
+    tournament's group stage). Nothing is shown when they have never met.
+  - **How meetings count:** each is counted exactly as its own tournament's table counted it —
+    the forfeit, the all-square countback that tournament set, and the knockout's recorded
+    winner — read from both places a result lives (a match's holes, a knockout's seats).
+  - **What doesn't count:** side matches (four-balls, team pairs), casual quick matches,
+    unfinished matches, and guests with no member record (they can't be followed from one
+    tournament to the next).
 - **Charity extras:** already there. The float records entry fees, sponsors and raffle as
   money in, so nothing new was built.
 - **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from
