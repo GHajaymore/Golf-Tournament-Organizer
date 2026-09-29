@@ -1289,6 +1289,20 @@ The original note behind item 34, kept for the reasoning:
   final is left out until the second semi is played. That is deliberate and correct, but a golfer
   may read it as one tie left when two are. "5 of 7" would count the whole draw; your call.
 
+  **DECIDED 2026-09-28 ("rest — go with your recommendation"). BUILT in one PR:**
+  - **Knockouts:** progress counts the whole draw, excluding byes. A draw of n players is n−1
+    ties, so this now reads "5 of 7", and a draw not yet made counts nothing.
+  - **Stableford wording:** the "Overall result" reads "Stableford points" when every playing
+    round is Stableford. One function supplies the words to both summaries.
+  - **Format description:** its first sentence now sits under the Format select, and the full
+    text stays in the ⓘ ("keep most of it in the information button").
+  - **Reports:** it has the leaderboard's round picker, while the dashboard stays on the current
+    round.
+  - **Prizes DONE before anyone chose:** already fixed. The checklist takes its tick from the
+    setup flow, which counts only a real money answer.
+  - **Still to come:** the create form asking club, society or outing; the league week showing
+    who's playing.
+
 ### New features Ajay approved, 2026-09-28 ("go ahead with your recommendations")
 
 - **Suspend play, with an alarm (Rule 5.7).** BUILT.
