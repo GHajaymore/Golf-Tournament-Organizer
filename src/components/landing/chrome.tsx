@@ -167,43 +167,31 @@ export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
   return (
     <footer>
       <div className="wrap">
-        <div className="foot-grid">
-          <div>
+        {/* One row: the mark and what it is, then every link on one line. It
+            was four columns, two of them holding a single link each. */}
+        <div className="foot-top">
+          <div className="foot-brand">
             <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
               <Lockup size={LOGO_SIZE.md} emblem markStyle={FLAG_MARK_STYLE} />
             </a>
-            <p>From Registration to Recognition. Golf tournament and league management for clubs, golf groups and everyone who plays.</p>
+            <p>Golf tournament and league management for clubs, leagues and golf groups — from registration to recognition.</p>
           </div>
-          <div>
-            <h4>Product</h4>
-            <ul>
-              <li><a href={`${home}#features`}>Features</a></li>
-              <li><a href={`${home}#how`}>How it works</a></li>
-              <li><a href={`${home}#for`}>Who it&rsquo;s for</a></li>
-              <li><a href={`${home}#compare`}>Compare</a></li>
-              <li><a href={`${home}#pricing`}>Pricing</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4>Help</h4>
-            <ul>
-              <li><a href="/faq">FAQ</a></li>
-              {contactEmail ? <li><a href={`mailto:${contactEmail}`}>Contact</a></li> : null}
-            </ul>
-          </div>
-          <div>
-            <h4>Legal</h4>
-            <ul>
-              <li><a href="/privacy">Privacy</a></li>
-            </ul>
-          </div>
+          <nav className="foot-nav" aria-label="Footer">
+            <a href={`${home}#features`}>Features</a>
+            <a href={`${home}#how`}>How it works</a>
+            <a href={`${home}#for`}>Who it&rsquo;s for</a>
+            <a href={`${home}#compare`}>Compare</a>
+            <a href={`${home}#pricing`}>Pricing</a>
+            <a href="/faq">FAQ</a>
+            {contactEmail ? <a href={`mailto:${contactEmail}`}>Contact</a> : null}
+            <a href="/privacy">Privacy</a>
+          </nav>
         </div>
         <div className="foot-base">
           <span>
             &copy; {new Date().getFullYear()} TourneyHQ &middot; <span className="cred">an AjAi Labs creation</span>
           </span>
           <span className="ed-note">{editionNoteNode}</span>
-          <span>TourneyHQ works out the money. It never holds it.</span>
         </div>
       </div>
     </footer>

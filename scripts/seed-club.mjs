@@ -885,25 +885,45 @@ export async function seed() {
       });
     }
     const survived = [...r1Totals].sort((a, b) => a.total - b.total).slice(0, 16);
-    for (const { p } of survived) {
+    for (const s of survived) {
+      const r2 = cardFor(PARS_18, champRand, s.p.handicap);
+      s.r2 = r2;
       await prisma.scorecard.create({
         data: {
           eventId: champs.id,
           stageId: champR2.id,
-          playerId: p.id,
-          strokes: JSON.stringify(cardFor(PARS_18, champRand, p.handicap)),
+          playerId: s.p.id,
+          strokes: JSON.stringify(r2),
           status: "approved",
           approvedBy: organizer.name,
           approvedAt: new Date(Date.now() - 34 * 864e5),
         },
       });
     }
+    /**
+     * THE FINAL STANDINGS, which is who the prizes go to. They were awarded in
+     * ROUND ONE order (`survived`), so the finished championship's prize list
+     * named its 4th, 2nd and 1st as Champion, Runner-up and Third — read off
+     * /prizes by the landing session on 2026-09-28. Ranked here on the 36-hole
+     * total, level totals split by the usual card countback on the final round
+     * (last 9, 6, 3, then the 18th), which is how the board splits them.
+     */
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+    const back = (card, n) => sum(card.slice(card.length - n));
+    const finalOrder = [...survived].sort(
+      (a, b) =>
+        a.total + sum(a.r2) - (b.total + sum(b.r2)) ||
+        back(a.r2, 9) - back(b.r2, 9) ||
+        back(a.r2, 6) - back(b.r2, 6) ||
+        back(a.r2, 3) - back(b.r2, 3) ||
+        back(a.r2, 1) - back(b.r2, 1),
+    );
 
     await prisma.prize.createMany({
       data: [
-        { eventId: champs.id, position: 1, category: `${MARK} Club Champion`, detail: "The Hollow Salver", amount: 250, winnerId: survived[0].p.id },
-        { eventId: champs.id, position: 2, category: `${MARK} Runner-up`, amount: 120, winnerId: survived[1].p.id },
-        { eventId: champs.id, position: 3, category: `${MARK} Third`, amount: 60, winnerId: survived[2].p.id },
+        { eventId: champs.id, position: 1, category: `${MARK} Club Champion`, detail: "The Hollow Salver", amount: 250, winnerId: finalOrder[0].p.id },
+        { eventId: champs.id, position: 2, category: `${MARK} Runner-up`, amount: 120, winnerId: finalOrder[1].p.id },
+        { eventId: champs.id, position: 3, category: `${MARK} Third`, amount: 60, winnerId: finalOrder[2].p.id },
         { eventId: champs.id, position: 0, category: `${MARK} Best gross round`, detail: "Round 2", amount: 40 },
       ],
     });
