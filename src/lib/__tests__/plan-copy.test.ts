@@ -69,6 +69,16 @@ describe("what a club gets for its money is actually said", () => {
     }
   });
 
+  it("the season table is pitched as what it gates — across separate tournaments", () => {
+    // `seasonStandings` gates `seriesTable` and nothing else. A league played
+    // as ONE tournament has its own week-by-week table on every plan, so a
+    // pitch that sells "where your teams stand after six weeks" sells a free
+    // club something it already has.
+    const line = upgradeBenefits("free").find((b) => /season table/i.test(b)) ?? "";
+    expect(line).toMatch(/across separate tournaments/i);
+    expect(line).not.toMatch(/after (six|\d+) weeks/i);
+  });
+
   it("the metered features are pitched as coming, not as included", () => {
     const pitch = upgradeBenefits("free").join(" ");
     for (const f of METERED_FEATURES) {
