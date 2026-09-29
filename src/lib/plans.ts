@@ -74,12 +74,14 @@ export interface Plan {
     whiteLabel: boolean;
 
     /**
-     * The season table: where the teams stand after N weeks of one league.
+     * The season table ACROSS SEPARATE TOURNAMENTS — the `/series` order of
+     * merit, gated in `seriesTable` and nowhere else.
      *
-     * Priced on the paid tier because it is what makes a LEAGUE a league
-     * rather than six unrelated evenings, and a league is a recurring
-     * customer by definition. A club running a Thursday night season is
-     * exactly who a subscription is for.
+     * It was written as "where the teams stand after N weeks of one league",
+     * and that is NOT what it gates: a league run as one tournament keeps its
+     * own week-by-week table (`LeagueSection`, the week sheet) on every plan.
+     * Whether that should be paid too is a pricing question for Ajay, raised
+     * 2026-09-29; until he answers, the copy sells only what is gated.
      *
      * Unlike the three below it costs nothing per use — it is arithmetic over
      * rounds already computed, with no carrier or model bill behind it. So it
@@ -831,8 +833,12 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push("Your own branding on every screen, with ours removed.");
   }
   if (!plan.features.seasonStandings) {
+    // ACROSS SEPARATE TOURNAMENTS, because that is all the flag gates: a
+    // league run as one tournament keeps its own week-by-week table on every
+    // plan (`LeagueSection`, the week sheet), so "where your teams stand after
+    // six weeks" — this line's old words — sold a free club what it already had.
     out.push(
-      "The season table — where your teams stand after six weeks, not just after last night. It is what makes a league a league rather than six unrelated evenings.",
+      "The season table across separate tournaments — points, best-of and a qualifying minimum, adding up a season of medals and cups into one order of merit.",
     );
   }
   if (plan.key === "free") {
