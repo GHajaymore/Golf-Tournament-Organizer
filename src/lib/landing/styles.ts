@@ -255,6 +255,7 @@ ${landingTokens("dark", "  ")}
 .thq .vs-mk.no { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 .thq .vs-mk.part { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .thq .vs-mk.na { background: var(--wash-2); color: var(--ink-faint); }
+.thq .vs-table .vs-note { display: block; margin-top: 6px; font-size: .9em; color: var(--ink-faint); }
 .thq .vs-srcrow td { font: 500 12px/1.4 var(--mono); color: var(--ink-faint); overflow-wrap: anywhere; }
 .thq .vs-srcrow a:hover { color: var(--brass); }
 .thq .glance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 18px; }

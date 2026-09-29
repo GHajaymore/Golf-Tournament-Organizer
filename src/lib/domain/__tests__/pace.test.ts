@@ -51,6 +51,13 @@ describe("is a group keeping up", () => {
     expect(r.behind).toBe(0);
   });
 
+  it("a group with holes on its card has started, even before the time on the sheet", () => {
+    // Off early, or the sheet's time was wrong: it is not "Off at 8:00" with four holes played.
+    const r = one(4, at(7, 55));
+    expect(r.state).toBe("on-pace");
+    expect(r.behind).toBe(0);
+  });
+
   it("on the first hole, within the time allowed for it, it is on pace", () => {
     expect(one(0, at(8, 14)).state).toBe("on-pace");
   });
