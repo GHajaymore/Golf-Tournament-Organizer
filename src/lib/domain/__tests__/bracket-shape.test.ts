@@ -197,40 +197,47 @@ describe("how much of a knockout has been played", () => {
    */
   const q = field(8);
 
-  it("counts only the ties that can actually be played", () => {
-    // Nothing decided: the semis and the final exist in the draw with nobody
-    // in them, and counting those would say 0 of 7 on the first morning.
+  it("counts the whole draw: eight players are seven ties (2026-09-28)", () => {
+    // Ajay's call: "5 of 6 ties decided" read as one left when the second
+    // semi AND the final were. A knockout of n players is n − 1 ties.
     const fresh = buildBracket("winners", q, {});
-    expect(knockoutProgress(fresh)).toEqual({ decided: 0, total: 4 });
+    expect(knockoutProgress(fresh)).toEqual({ decided: 0, total: 7 });
   });
 
   it("moves as ties are decided", () => {
     const one = buildBracket("winners", q, { "winners-0-0": "p1" });
-    expect(knockoutProgress(one)).toEqual({ decided: 1, total: 4 });
+    expect(knockoutProgress(one)).toEqual({ decided: 1, total: 7 });
   });
 
-  it("counts the next round once its ties have players in them", () => {
-    /**
-     * THE CASE THAT MAKES THE FRACTION HONEST. With the whole first round in,
-     * a semi-final exists AND has two players, so it is a tie that can be
-     * played — 4 of 6, not 4 of 4 (which would read as finished) and not 4 of
-     * 7 (which counts a final nobody can play yet).
-     */
+  it("is not finished until the final is played", () => {
+    // The whole first round in reads 4 of 7 — never 4 of 4, which says done.
     const full = buildBracket("winners", q, {
       "winners-0-0": "p1",
       "winners-0-1": "p4",
       "winners-0-2": "p3",
       "winners-0-3": "p2",
     });
-    expect(knockoutProgress(full)).toEqual({ decided: 4, total: 6 });
+    expect(knockoutProgress(full)).toEqual({ decided: 4, total: 7 });
+  });
+
+  it("does not count a first-round bye, which nobody plays", () => {
+    // Six players in a draw of eight: two byes, so five ties (n − 1), not seven.
+    expect(knockoutProgress(buildBracket("winners", field(6), {})).total).toBe(5);
+  });
+
+  it("counts nothing in a draw nobody is in yet", () => {
+    // Qualifying still on: every seat TBD. Not "0 of 3" from the later rounds.
+    const undrawn = buildBracket("winners", q.map((p) => ({ ...p, id: "" }) as typeof p), {});
+    const blank = { ...undrawn, rounds: undrawn.rounds.map((r) => ({ ...r, matches: r.matches.map((m) => ({ ...m, a: { ...m.a, playerId: null }, b: { ...m.b, playerId: null } })) })) };
+    expect(knockoutProgress(blank)).toEqual({ decided: 0, total: 0 });
   });
 
   it("adds the plate's ties to the main bracket's", () => {
     // A club running a consolation is playing those ties too, and the screen
-    // shows both brackets.
+    // shows both brackets: two draws of four, three ties each.
     const a = buildBracket("winners", field(4), { "winners-0-0": "p1" });
     const b = buildBracket("consolation", field(4), {});
-    expect(knockoutProgress(a, b)).toEqual({ decided: 1, total: 4 });
+    expect(knockoutProgress(a, b)).toEqual({ decided: 1, total: 6 });
   });
 
   it("says nothing is drawn rather than dividing by zero", () => {

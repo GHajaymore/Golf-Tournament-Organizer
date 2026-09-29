@@ -1,7 +1,9 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { hasKnockoutStage } from "@/lib/stage-types";
 import { requireScreen } from "@/lib/page-helpers";
-import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { loadEventState, standingRows, withBoardRound } from "@/lib/services/tournament";
+import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
+import { RoundPicker } from "@/components/RoundPicker";
 import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
@@ -45,10 +47,26 @@ import { AttendanceReport } from "@/components/AttendanceReport";
  */
 export const generateMetadata = () => screenMetadataForEvent("/reports");
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ round?: string }>;
+}) {
   const session = await requireScreen("reports");
-  const state = await loadEventState(session.eventId);
-  if (!state) redirect("/");
+  const loaded = await loadEventState(session.eventId);
+  if (!loaded) redirect("/");
+  /**
+   * WHICH ROUND THE SHEET IS FOR — the picked one, or the board's own (Ajay,
+   * 2026-09-28: "add to Reports; keep the dashboard on the current round").
+   *
+   * A committee exporting Round 1's results after Round 2 has started had no
+   * way to: this printed and exported the board's round only. The same
+   * `withBoardRound` and `RoundPicker` the console leaderboard uses, so the
+   * sheet and the board cannot mean different rounds by the same picker.
+   */
+  const { round } = await searchParams;
+  const state = withBoardRound(loaded, round);
+  const choices = leaderboardRounds(loaded.stages);
   const brand = await brandForEvent(session.eventId);
 
   const { event } = state;
@@ -313,6 +331,19 @@ export default async function ReportsPage() {
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Download standings and results, or print a snapshot.
         </p>
+        {choices.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              Showing
+            </span>
+            <RoundPicker
+              rounds={choices}
+              activeStageId={state.boardStage?.id ?? ""}
+              label="Which round the report and its exports are for"
+              style={{ minWidth: 0, maxWidth: "100%" }}
+            />
+          </div>
+        )}
       </div>
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} icon="ph ph-users-three" />

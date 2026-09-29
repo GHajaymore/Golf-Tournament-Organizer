@@ -17,6 +17,8 @@ export interface LifecycleSummary {
   dates: string;
   course: string;
   format: string;
+  /** The overall result in words — `overallResultLabel`, e.g. "Stableford points". */
+  overall: string;
   players: number;
   flights: number;
   rounds: number;
@@ -271,7 +273,7 @@ export function LifecycleBar({
                    * Same name as the control on Tournament details that sets
                    * it, so there is one name for one thing.
                    */
-                  ["Overall result", summary.format === "stroke" ? "Stroke play" : "Match play"],
+                  ["Overall result", summary.overall],
                   ["Registered players", String(summary.players)],
                   ["Flights", String(summary.flights)],
                   ["Rounds", String(summary.rounds)],

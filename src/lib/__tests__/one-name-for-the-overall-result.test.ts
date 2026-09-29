@@ -41,12 +41,15 @@ function sourceFiles(dir = "src", out: string[] = []): string[] {
 }
 
 /**
- * The rendered pair, e.g. `? "Stroke play" : "Match play"`. Matched on the two
- * USER-FACING strings rather than on `event.format`, because the defect is
- * what a person reads — a screen that resolves the value elsewhere and prints
- * this pair has exactly the same problem.
+ * Where the value is PRINTED. Since 2026-09-28 the words come from one
+ * function, `overallResultLabel` ("Stableford points" on an all-Stableford
+ * tournament), so a renderer is a file that prints its result — a summary row
+ * built from it, or the `summary.overall` it was handed — or one still
+ * spelling the old inline pair `? "Stroke play" : "Match play"`, which the
+ * second test below forbids outright.
  */
-const RENDERS_THE_PAIR = /"Stroke play"\s*:\s*"Match play"/;
+const RENDERS_THE_PAIR =
+  /"Stroke play"\s*:\s*"Match play"|summary\.overall|v: overallResultLabel\(/;
 
 /** The label this must be filed under, wherever it is printed. */
 const ONE_NAME = "Overall result";
@@ -68,6 +71,14 @@ describe("the event's coarse scoring answer has one name", () => {
     expect(FILES.length, "the sweep matched nothing — it is looking at nothing").toBeGreaterThan(0);
     expect(FILES.some((f) => f.includes("EventSetupClient"))).toBe(true);
     expect(FILES.some((f) => f.includes("LifecycleBar"))).toBe(true);
+  });
+
+  it("is worded in one place — no screen spells the pair for itself", () => {
+    // A screen writing its own `? "Stroke play" : "Match play"` would say
+    // "Stroke play" over a Stableford tournament that the function calls
+    // "Stableford points" — two names for one answer again.
+    const own = FILES.filter((f) => /"Stroke play"\s*:\s*"Match play"/.test(readSource(f)));
+    expect(own).toEqual([]);
   });
 
   for (const file of FILES) {

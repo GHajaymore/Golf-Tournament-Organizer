@@ -50,19 +50,32 @@ export interface BracketView {
  * knowable about it is whether somebody has been advanced. That is also the
  * honest word — a knockout tie is either over or not.
  *
- * A match with an empty slot is NOT counted in the total. The later rounds of
- * every bracket exist from the moment it is drawn, with nobody in them, so
- * counting them would make a semi-final read "2 of 7" on the day it is played
- * and leave the fraction stuck below 1 until the final is over. What a club
- * means by "how much of this is done" is the ties that CAN be played.
+ * THE WHOLE DRAW, BYES EXCEPTED (Ajay, 2026-09-28, left to my
+ * recommendation). This used to count only ties whose two seats were filled,
+ * so a knockout of eight with its semi-finals half done read "5 of 6 ties
+ * decided" — and a golfer reads that as one tie left, when the second semi
+ * AND the final are. A draw of n players is n − 1 ties, and a knockout is not
+ * over until its final is played, so the fraction staying below 1 until then
+ * is the truth, not a defect.
+ *
+ * A FIRST-ROUND BYE is not a tie: one seat is filled and the other never will
+ * be, so nobody plays it. Every later-round tie is counted, filled or not —
+ * its seats are waiting on results, not empty for good.
  */
 export function knockoutProgress(...views: BracketView[]): { decided: number; total: number } {
   let decided = 0;
   let total = 0;
   for (const view of views) {
-    for (const round of view.rounds) {
+    // A draw nobody is in yet — qualifying still being played — has no ties,
+    // not a set of later rounds waiting on an empty first one.
+    const drawn = (view.rounds[0]?.matches ?? []).some((m) => m.a.playerId || m.b.playerId);
+    if (!drawn) continue;
+    for (const [r, round] of view.rounds.entries()) {
       for (const m of round.matches) {
-        if (!m.a.playerId || !m.b.playerId) continue;
+        const seated = [m.a.playerId, m.b.playerId].filter(Boolean).length;
+        // Round one: only a tie with both players (a bye, or an empty slot of
+        // an undrawn bracket, is never played). Later rounds: every tie.
+        if (r === 0 && seated < 2) continue;
         total += 1;
         if (m.winnerId) decided += 1;
       }

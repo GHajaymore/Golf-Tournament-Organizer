@@ -16,7 +16,7 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor } from "@/lib/formats";
+import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor, formatTagline } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
@@ -1144,6 +1144,16 @@ function StageCard({
               ))}
             </optgroup>
           </select>
+          {/* WHAT THIS FORMAT IS, in one line under the choice (Ajay,
+              2026-09-28: "keep most of it in the information button"). The
+              first sentence only — "Partners play one ball, alternating
+              shots…" — is what a newcomer needs while choosing; the full
+              description and the round notes stay behind the ⓘ. */}
+          {activeFormat && (
+            <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.45 }}>
+              {formatTagline(activeFormat.desc)}
+            </p>
+          )}
           {/* Beside the control that caused it, not in a toast that has gone
               by the time the organizer decides. The COUNT is the decision:
               "re-score 37 cards" is a different question from "change the
@@ -1404,6 +1414,8 @@ function StageCard({
       {expanded && formatInfoOpen && (
         <div className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
           <p style={{ margin: 0 }}>{description}</p>
+          {/* The whole description here; its first sentence also sits under
+              the Format select. */}
           {activeFormat && (
             <p style={{ margin: 0 }}>
               <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}

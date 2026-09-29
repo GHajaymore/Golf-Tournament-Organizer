@@ -1077,6 +1077,20 @@ describe("rounds and format", () => {
     expect(html).not.toContain("Carry forward");
   });
 
+  it("says what the chosen format is in one line under the Format select (2026-09-28)", async () => {
+    // Ajay: "keep most of it in the information button". The first sentence
+    // shows without opening anything; the rest is only in the ⓘ panel, which
+    // renders nothing until it is opened.
+    const { GOLF_FORMATS, formatTagline } = await import("@/lib/formats");
+    const desc = GOLF_FORMATS.find((f) => f.name === "Skins")!.desc;
+    const html = render(<StagesClient {...base} stages={[stage({ format: "Skins" })]} chainsRounds={false} />);
+    const esc = (s: string) => renderToStaticMarkup(<>{s}</>);
+    expect(html).toContain(esc(formatTagline(desc)));
+    const rest = desc.slice(formatTagline(desc).length).trim();
+    expect(rest.length, "fixture: the description must have more than one sentence").toBeGreaterThan(0);
+    expect(html).not.toContain(esc(rest));
+  });
+
   describe("where a round is played", () => {
     const HOME = { id: "home", name: "Braid Hollow" };
     const AWAY = { id: "away", name: "Ardmore Wee Nine" };
@@ -7019,7 +7033,7 @@ describe("the organization roles read as Commissioner", () => {
 
 describe("the lifecycle button names the phase, not the link", () => {
   const summary = {
-    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",
+    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
   const bar = async (status: string, resultsIn = 0) => {
@@ -7069,7 +7083,7 @@ describe("the lifecycle button names the phase, not the link", () => {
  */
 describe("a draft that is already being played", () => {
   const summary = {
-    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",
+    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",
     players: 33, flights: 8, rounds: 4,
   };
   const bar = async (status: string, resultsIn: number, isAdmin = true) => {
