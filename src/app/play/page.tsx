@@ -4,6 +4,7 @@ import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
+import { firstHoleOf } from "@/lib/domain/hole-number";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
@@ -170,6 +171,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           pars={roundCard?.pars ?? []}
           yards={roundCard?.yards ?? []}
           strokeIndex={roundCard?.strokeIndex ?? []}
+          firstHole={firstHoleOf(roundCard)}
           card={entered}
           /* How the round is scored, so the card reports the figure it is won
              on. A Stableford showed gross and to-par — the two numbers the
@@ -296,6 +298,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       pars={playCard?.pars ?? []}
       yards={playCard?.yards ?? []}
       strokeIndex={playCard?.strokeIndex ?? []}
+      firstHole={firstHoleOf(playCard)}
       // The same predicate the console and the server use, so a player and an
       // organizer cannot be shown a different basis for one round.
       netMode={isNetBasis(stage?.scoringBasis ?? "")}
