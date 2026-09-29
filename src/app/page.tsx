@@ -78,9 +78,9 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
   {
     time: "06:30", who: "org", h: "The tee sheet is drawn from who's in.",
     p: "Groups by handicap, standings or sides — then yours to adjust. Publish it, and the day is set.",
-    ul: ["One tee, split tees or a shotgun", "Opt in, opt out, or captains send the list"],
+    ul: ["One tee, split tees or a shotgun", "Opt in, opt out, or captains send the list", "Pairing requests kept together — not on a draw by position"],
     screen: { name: "day-teesheet", by: "d", ...PHONE }, cap: "Organizer · the tee sheet",
-    alt: "The organizer's published tee sheet: Group 1 off hole 1 at 08:10, each player's handicap and the group average.",
+    alt: "The organizer's tee sheet: two pairing requests above the published draw, and the pair who asked together in Group 1, off hole 1 at 08:10.",
   },
   {
     time: "06:31", who: "pl", h: "Every player has their tee time.",
