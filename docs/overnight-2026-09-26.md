@@ -1418,6 +1418,32 @@ every other week. The seeded club has no back-nine round, which is why no walk e
   - the pin editor rows read 10–18;
   - score entry reads 10–18, with "Hole 10, par 4" for a screen reader.
 
+## The seeded club now reaches the states that hid those defects (2026-09-29)
+
+Ajay asked what to pick up next. My recommendation was the fixture, because every defect found in
+two days came from a state `seed-club.mjs` could not build. It now seeds two more tournaments:
+
+- **Monday Back Nine — Shotgun Stableford.**
+  - Nine holes over Braid Hollow's back nine, a shotgun, pins on every green, and 4h allowed.
+  - The signed-in player's group goes off the 12th and is four holes in.
+  - The shotgun time is set 75 minutes before the seed runs, so the pace panel shows a live
+    round at any hour.
+- **Hospice Charity Day — Card Typed In.** A hand-entered eighteen-hole card with no course row,
+  played as a front-nine round. This is the fallback every reader takes when there is no
+  course.
+
+Walked, with every figure checked by hand:
+- **Today:** "starting on hole 12", tiles 10–18, "Finish my card · hole 16".
+- **The card:** opens on the 16th with its pin, "9 paces on, 3 from the right".
+- **The tee sheet:** starts on the 12th, 10th and 15th, with pin rows 10–18.
+- **The typed-in card:** re-ranks its nine's stroke index 3,6,9,1,5,2,8,4,7. The player's card and
+  the committee's score entry both put Séamus's four shots on holes 1, 4, 6 and 8.
+- **Pace:** 9 and 36 minutes behind against 8 and 35 worked by hand a minute earlier.
+
+**One defect found and fixed:** the pace panel said "Off at 17:30" beside "Thru 4" for a group
+with holes on its card before its tee time. A group with scores has started, whatever the sheet
+says, and it now reads "On pace".
+
 ## Accessibility — every console control named
 
 A screen reader announces a form box by its label. Most of the console's boxes had a caption on
