@@ -16,7 +16,10 @@ import { LoginPanel } from "@/components/LoginPanel";
  * `initialMode` take effect on a second click without LoginPanel needing to
  * reconcile a prop against internal tab state.
  */
-export function LandingAuth({ defaultMode = "login" }: { defaultMode?: "login" | "signup" } = {}) {
+export function LandingAuth({
+  defaultMode = "login",
+  organizers = "organizers",
+}: { defaultMode?: "login" | "signup"; organizers?: string } = {}) {
   // Where no link said otherwise: the closing section asks the visitor to set
   // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
@@ -35,5 +38,7 @@ export function LandingAuth({ defaultMode = "login" }: { defaultMode?: "login" |
   // No autofocus: an autofocused input scrolls itself into view on mount, which
   // would land a first-time visitor halfway down the page at the login box
   // instead of the top of the hero.
-  return <LoginPanel key={mode} initialMode={mode} autoFocusFields={false} />;
+  // The edition's word (UK "organisers"): the page's server-side dialect swap
+  // cannot reach inside this client component, so the word is passed in.
+  return <LoginPanel key={mode} initialMode={mode} autoFocusFields={false} organizers={organizers} />;
 }

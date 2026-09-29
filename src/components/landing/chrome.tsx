@@ -15,16 +15,6 @@ import { EditionSwitch } from "./EditionSwitch";
  * British visitor's footer.
  */
 
-/**
- * The mark's own stick and cup, answering to this page's ground. The pennant
- * and ball are TourneyHQ's fixed orange and green (decided 2026-09-18) and are
- * deliberately not set here; `brand-consistency.test.ts` holds that.
- */
-export const FLAG_MARK_STYLE = {
-  "--logo-stick": "currentColor",
-  "--logo-cup": "transparent",
-} as React.CSSProperties;
-
 /** The contact address, in the one place it is written. */
 export const CONTACT_EMAIL = "hello@tourneyhq.club";
 
@@ -96,40 +86,59 @@ export function icon(id: string, className = "i") {
  */
 export function landingNav(at: "home" | "faq") {
   const home = at === "home" ? "" : "/";
+  // The product menu: every part of the page, with what it shows.
+  const product: Array<[string, string, string, string]> = [
+    [`${home}#round`, "01", "One Saturday, both sides", "The draw, the cards, the board, the money"],
+    [`${home}#why`, "02", "Why it's different", "Voice scoring, round codes, the settle-up"],
+    [`${home}#features`, "03", "Every feature", "The real app by screen, and the whole list"],
+    [`${home}#formats`, "16", "Formats", "Stroke play to Chapman, one leaderboard"],
+    [`${home}#money`, "04", "The money", "Outing costs split, prize money awarded"],
+    [`${home}#yours`, "05", "Make it yours", "Your colors on every screen"],
+  ];
   // One list for the desktop row and the phone menu, so they cannot disagree.
   const links: Array<[string, string]> = [
-    [`${home}#features`, "Features"],
-    [`${home}#how`, "How it works"],
-    [`${home}#for`, "Who it’s for"],
     [`${home}#compare`, "Compare"],
     [`${home}#pricing`, "Pricing"],
     ["/faq", "FAQ"],
   ];
   return (
-    <header className="nav">
-      <div className="wrap nav-in">
+    <header className="hdr band">
+      <div className="wrap hdr-in">
         <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
-          {/* The display treatment with the emblem — marketing surfaces only
-              (decided 2026-09-24) — at the lockup's standard md step. */}
-          <Lockup size={LOGO_SIZE.md} emblem markStyle={FLAG_MARK_STYLE} />
+          <Lockup size={LOGO_SIZE.lg} />
         </a>
-        <nav className="nav-links" aria-label="Sections">
+        <nav className="hnav" aria-label="Sections">
+          {/* A native disclosure: opens by click or keyboard, needs no script. */}
+          <details className="dd">
+            <summary>Product<span className="chev" aria-hidden="true" /></summary>
+            <div className="dd-panel">
+              {product.map(([href, n, title, sub]) => (
+                <a key={href} href={href}>
+                  <span className="n">{n}</span>
+                  <span><b>{title}</b><span>{sub}</span></span>
+                </a>
+              ))}
+            </div>
+          </details>
           {links.map(([href, label]) => (
             <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>
           ))}
         </nav>
-        <div className="nav-act">
-          <a className="btn btn-ghost" href={`${home}#signin`}>Sign in</a>
-          <a className="btn btn-solid" href={`${home}#signup`}>Start free</a>
-          {/* On a phone or tablet the row above is hidden; the same links
-              live here, in a native disclosure that needs no script. */}
+        <div className="hact">
+          {/* Players have their own door: a round code needs no account. */}
+          <a className="play" href="/play">Playing today? <u>Enter code</u></a>
+          <a className="si" href={`${home}#signin`}>Sign in</a>
+          <a className="btn sm" href={`${home}#signup`}>Start free</a>
           <details className="nav-menu">
             <summary aria-label="Menu">{icon("menu")}</summary>
             <nav className="menu-panel" aria-label="Sections">
+              <a className="menu-cta" href={`${home}#signup`}>Start free</a>
+              {product.map(([href, , title]) => <a key={href} href={href}>{title}</a>)}
               {links.map(([href, label]) => (
                 <a key={href} href={href} aria-current={at === "faq" && href === "/faq" ? "page" : undefined}>{label}</a>
               ))}
               <hr />
+              <a href="/play">Playing today? Enter your code</a>
               <a href={`${home}#signin`}>Sign in</a>
             </nav>
           </details>
@@ -164,33 +173,46 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
 
 export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
+  const col = (title: string, items: Array<[string, string]>) => (
+    <div>
+      <h4>{title}</h4>
+      <ul>{items.map(([href, label]) => <li key={label}><a href={href}>{label}</a></li>)}</ul>
+    </div>
+  );
   return (
-    <footer>
+    <footer className="ftr band">
       <div className="wrap">
-        {/* One row: the mark and what it is, then every link on one line. It
-            was four columns, two of them holding a single link each. */}
-        <div className="foot-top">
-          <div className="foot-brand">
+        <div className="ftr-top">
+          <div>
             <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
-              <Lockup size={LOGO_SIZE.md} emblem markStyle={FLAG_MARK_STYLE} />
+              <Lockup size={LOGO_SIZE.lg} />
             </a>
             <p>Golf tournament and league management for clubs, leagues and golf groups — from registration to recognition.</p>
           </div>
-          <nav className="foot-nav" aria-label="Footer">
-            <a href={`${home}#features`}>Features</a>
-            <a href={`${home}#how`}>How it works</a>
-            <a href={`${home}#for`}>Who it&rsquo;s for</a>
-            <a href={`${home}#compare`}>Compare</a>
-            <a href={`${home}#pricing`}>Pricing</a>
-            <a href="/faq">FAQ</a>
-            {contactEmail ? <a href={`mailto:${contactEmail}`}>Contact</a> : null}
-            <a href="/privacy">Privacy</a>
-          </nav>
+          {col("Product", [
+            [`${home}#round`, "One Saturday, both sides"],
+            [`${home}#features`, "Every feature"],
+            [`${home}#formats`, "Formats"],
+            [`${home}#money`, "The money"],
+            [`${home}#pricing`, "Pricing"],
+          ])}
+          {col("Compare", [
+            [`${home}#why`, "Why it's different"],
+            [`${home}#compare`, "The usual way"],
+            [`${home}#compare`, "Club platforms"],
+            [`${home}#compare`, "League & group apps"],
+          ])}
+          {col("Help", [
+            ["/faq", "FAQ"],
+            ["/faq#q-stores", "Install on your phone"],
+            ["/play", "Enter a round code"],
+            ...(contactEmail ? [[`mailto:${contactEmail}`, "Contact"] as [string, string]] : []),
+            ["/privacy", "Privacy"],
+          ])}
         </div>
-        <div className="foot-base">
-          <span>
-            &copy; {new Date().getFullYear()} TourneyHQ &middot; <span className="cred">an AjAi Labs creation</span>
-          </span>
+        <div className="ftr-base">
+          <span>&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>
+          <span>Every screen on this site is an unedited capture of the app, on invented demo data.</span>
           <span className="ed-note">{editionNoteNode}</span>
         </div>
       </div>
