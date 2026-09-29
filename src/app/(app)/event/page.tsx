@@ -25,6 +25,7 @@ import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { soleVenueCourse } from "@/lib/services/course-resolution";
+import { fieldCapFor } from "@/lib/services/limits";
 
 
 export const metadata = screenMetadata("/event");
@@ -287,6 +288,7 @@ export default async function EventPage({
         scored={cardsIn > 0}
         locale={fmt.locale}
         locked={locked}
+        fieldCap={await fieldCapFor(e.organizationId)}
         initial={{
           name: e.name, playKind: e.playKind, startOn: e.startOn, endOn: e.endOn, dates: e.dates, datesTentative: e.datesTentative,
           format: e.format, course: e.course || inheritedVenue?.name || "", city: e.city || inheritedVenue?.city || "",

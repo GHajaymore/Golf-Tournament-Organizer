@@ -105,7 +105,7 @@ export function CreateFirstTournament({
    * and where an extra field would be pure friction. Somebody who runs a club
    * AND a society was never asked at all, and always got the club.
    */
-  organizations?: Array<{ id: string; name: string; kind: string; plan: string }>;
+  organizations?: Array<{ id: string; name: string; kind: string; plan: string; termsApply?: boolean }>;
   /**
    * Outfits this person has asked to join, and how those asks ended.
    *
@@ -185,8 +185,12 @@ export function CreateFirstTournament({
    * there is no organization yet, where "free" is correct: the one about to be
    * created starts there.
    */
-  const activePlan = organizations.find((o) => o.id === organizationId)?.plan ?? plan;
-  const retention = retentionNotice(activePlan);
+  const activeOrg = organizations.find((o) => o.id === organizationId);
+  const activePlan = activeOrg?.plan ?? plan;
+  // A club that predates the published terms is grandfathered and is not told
+  // its tournament will be deleted, because it will not be. With no
+  // organization yet, the one about to be created starts on the terms.
+  const retention = retentionNotice(activePlan, activeOrg ? activeOrg.termsApply === true : true);
   const planName = planFor(activePlan).name;
 
   const submit = (confirmedClubName = false) => {

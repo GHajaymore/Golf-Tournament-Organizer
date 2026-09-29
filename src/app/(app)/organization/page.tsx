@@ -296,6 +296,7 @@ export default async function OrganizationPage() {
             once. Two calls would be two truths the moment one of them moved. */}
         <PlanPanel
           planKey={org.subscription?.plan ?? "free"}
+          termsApply={org.subscription?.planTermsApply === true}
           standing={standing}
           overrides={await storedPricingOverrides()}
           currency={org.currency}

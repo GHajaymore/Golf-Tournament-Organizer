@@ -74,7 +74,14 @@ export function EventSetupClient({
   scored = false,
   locale = DEFAULT_LOCALE,
   locked = false,
+  fieldCap = null,
 }: {
+  /**
+   * The plan's field cap where one is enforced (`fieldCapFor`) — ten on Free
+   * for a club on the published terms, null otherwise. The save stores at most
+   * this, so the field says so rather than handing back a smaller number.
+   */
+  fieldCap?: number | null;
   /** The playing rounds' formats, so the summary can say "Stableford points" (`overallResultLabel`). */
   roundFormats?: string[];
   /**
@@ -728,9 +735,14 @@ export function EventSetupClient({
                 <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
               </div>
               {f.capacity > 0 && (
-                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
+                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} max={fieldCap ?? undefined} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
               )}
             </div>
+            {fieldCap !== null && (
+              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                Your plan holds up to {fieldCap} players, so an open field or anything larger is saved as {fieldCap}.
+              </p>
+            )}
           </div>
         </div>
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Where the field size comes from</span>

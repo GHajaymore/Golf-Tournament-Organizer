@@ -1805,15 +1805,16 @@ describe("settings screens", () => {
     const html = render(<CreateFirstTournament first plan="free" />);
     expect(html).toContain("How is it played?");
     expect(html).toContain("A single round");
-    // Was "permanently deleted" — the notice said so and nothing did it.
-    // Matched without the apostrophe: this is rendered HTML, where it arrives
-    // escaped as &#x27; and an assertion on the raw character never fires.
-    expect(html).toContain("guarantee that a finished tournament is kept");
+    // Blunt again since 2026-09-29, because completing now really deletes a
+    // Free tournament — see plan-copy.test.ts for the wiring that licenses it.
+    // No organization yet means the one about to be created, which is new and
+    // so on the published terms.
+    expect(html).toContain("deleted when you mark it Completed");
   });
 
   it("omits the retention notice on a plan that keeps data", () => {
     const html = render(<CreateFirstTournament first plan="club" />);
-    expect(html).not.toContain("guarantee that a finished tournament is kept");
+    expect(html).not.toContain("deleted when you mark it Completed");
   });
 
   /**
@@ -1829,15 +1830,15 @@ describe("settings screens", () => {
    * they pick.
    */
   describe("the retention warning follows the organization, not a default", () => {
-    const org = (over: Record<string, string> = {}) => ({
-      id: "o1", name: "zz-Fairway Society", kind: "community", plan: "club", ...over,
-    });
+    const org = (over: Record<string, string | boolean> = {}) => ({
+      id: "o1", name: "zz-Fairway Society", kind: "community", plan: "club", termsApply: true, ...over,
+    }) as { id: string; name: string; kind: string; plan: string; termsApply: boolean };
 
     it("says nothing when the organization it is for keeps its results", () => {
       // `plan` is deliberately the WRONG answer here: it is the fallback for
       // somebody with no organization at all, and must lose to a real one.
       const html = render(<CreateFirstTournament first plan="free" organizations={[org()]} />);
-      expect(html).not.toContain("guarantee that a finished tournament is kept");
+      expect(html).not.toContain("deleted when you mark it Completed");
     });
 
     it("and still warns when it does not", () => {
@@ -1846,7 +1847,16 @@ describe("settings screens", () => {
       const html = render(
         <CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />,
       );
-      expect(html).toContain("guarantee that a finished tournament is kept");
+      expect(html).toContain("deleted when you mark it Completed");
+    });
+
+    it("says nothing to a Free club that predates the terms, because nothing of its is deleted", () => {
+      // Grandfathered (Ajay, 2026-09-29: new clubs only). Warning it would be
+      // the promise-without-a-deletion this notice spent months undoing.
+      const html = render(
+        <CreateFirstTournament first plan="club" organizations={[org({ plan: "free", termsApply: false })]} />,
+      );
+      expect(html).not.toContain("deleted when you mark it Completed");
     });
 
     it("names the plan it is talking about", () => {

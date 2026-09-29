@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { stripComments } from "./source";
+import { stripComments, readSource } from "./source";
 import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, type FeatureKey } from "@/lib/plans";
 
 /**
@@ -81,21 +81,30 @@ describe("what a club gets for its money is actually said", () => {
     }
   });
 
-  it("states free's retention term, without promising a deletion nobody built", () => {
+  it("states free's term bluntly — and only because something now deletes", () => {
     /**
-     * This asked for "48 hours" and got it, for a sentence that also said the
-     * data was permanently deleted at that point. Nothing has ever deleted
-     * anything — `dueForPurge` has no caller outside its own test file.
+     * THE PROMISE MAY NOT OUTRUN THE IMPLEMENTATION, in both directions.
      *
-     * The hours are the plan's POLICY and stay in `PLANS`; what could not stay
-     * is a public sentence asserting the policy is enforced. The relation
-     * between the two is guarded in retention.test.ts, which relaxes by itself
-     * the day something purges.
+     * For months this pinned the soft wording ("doesn't guarantee"), because
+     * the sentence it replaced promised a 48-hour deletion that nothing
+     * performed. On 2026-09-29 Ajay decided a Free tournament is deleted the
+     * moment it is completed, and `setEventStatus` does it. So the notice says
+     * so — and this asserts the deleter is WIRED in the same breath, so the
+     * blunt sentence cannot outlive the code again.
      */
     const notice = retentionNotice("free");
     expect(notice, "free must state its retention term").toBeTruthy();
-    expect(notice!).toMatch(/guarantee/i);
-    expect(notice!, "must not claim a deletion that does not happen").not.toMatch(/deleted/i);
+    expect(notice!).toMatch(/deleted when you mark it Completed/i);
+    expect(notice!, "the club must be told how to keep what it wants").toMatch(/Reports/);
+
+    const actions = readSource("src/app/actions/tournament.ts");
+    const body = actions.slice(actions.indexOf("export async function setEventStatus("));
+    const status = body.slice(0, body.indexOf("\nexport ", 10));
+    expect(status, "completing no longer asks whether it deletes").toMatch(/await wipesOnCloseFor\(eventId\)/);
+    expect(status, "completing no longer deletes").toMatch(/prisma\.event\.delete\(/);
+
+    // A grandfathered club is not told a deletion that will not happen to it.
+    expect(retentionNotice("free", false)).toBeNull();
     // And the paid tier must not claim a limit it does not have.
     expect(retentionNotice("club")).toBeNull();
   });

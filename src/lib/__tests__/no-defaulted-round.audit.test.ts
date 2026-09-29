@@ -59,7 +59,29 @@ async function roundsOf(name: string) {
   });
 }
 
-beforeAll(scrub);
+/**
+ * An organizer whose club PREDATES the published terms (2026-09-29), as every
+ * club in production does — so its Free plan limits nothing. Without this,
+ * `createEvent` makes a new club on the terms, and its one-tournament-at-a-time
+ * limit refuses this file's second tournament, which is a test of the limit
+ * and not of what a new tournament holds.
+ */
+async function grandfatheredOrganizer() {
+  const user = await prisma.user.create({ data: { email: EMAIL, name: session.name } });
+  await prisma.organization.create({
+    data: {
+      name: `${TAG} organizer`,
+      kind: "personal",
+      subscription: { create: { plan: "free", planTermsApply: false } },
+      members: { create: { userId: user.id, role: "owner" } },
+    },
+  });
+}
+
+beforeAll(async () => {
+  await scrub();
+  await grandfatheredOrganizer();
+});
 afterAll(async () => {
   await scrub();
   await prisma.$disconnect();

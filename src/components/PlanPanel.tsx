@@ -18,11 +18,13 @@ import { Icon } from "./Icon";
  * refused something it thought it had bought.
  *
  * The retention line is deliberately the loudest thing on the panel. Free
- * keeps results 48 hours, and that is the one fact a club has to know BEFORE
- * it runs an event rather than after the results are gone.
+ * deletes a tournament as it is completed (for a club on the published terms),
+ * and that is the one fact a club has to know BEFORE it runs an event rather
+ * than after the results are gone.
  */
 export function PlanPanel({
   planKey,
+  termsApply = false,
   standing,
   overrides,
   currency,
@@ -30,6 +32,11 @@ export function PlanPanel({
   terms = golfTermsFor("us"),
 }: {
   planKey: string;
+  /**
+   * Whether this club is held to the published terms. A club that predates
+   * them is grandfathered: nothing of its is deleted, so it is not warned.
+   */
+  termsApply?: boolean;
   standing?: OrgLimits;
   overrides?: PricingOverrides;
   /** The club's golf words — the staff line says organizer or organiser. */
@@ -43,7 +50,7 @@ export function PlanPanel({
   const quoteIn = planCurrency(currency);
   const price = (amount: number) => wholeMoney(amount, quoteIn, locale);
   const benefits = upgradeBenefits(planKey);
-  const retention = retentionNotice(planKey);
+  const retention = retentionNotice(planKey, termsApply);
 
   /**
    * WHERE THIS CLUB ACTUALLY STANDS — the half this panel described and never
@@ -119,7 +126,7 @@ export function PlanPanel({
           }}
         >
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-danger)" }}>
-            <Icon name="clock-countdown" /> Results are not kept
+            <Icon name="clock-countdown" /> Deleted when completed
           </span>
           <p style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}>{retention}</p>
         </div>

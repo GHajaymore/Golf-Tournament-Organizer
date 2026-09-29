@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
 import { STATUS_META } from "@/lib/format";
 import {
@@ -10,6 +11,7 @@ import {
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
+import { WIPE_ON_CLOSE } from "@/lib/domain/close-terms";
 import { Icon } from "./Icon";
 
 export interface LifecycleSummary {
@@ -31,7 +33,14 @@ export function LifecycleBar({
   summary,
   resultsIn = 0,
   blockedReason,
+  deletesOnComplete = false,
 }: {
+  /**
+   * Completing this tournament deletes it — the Free plan's terms for a club
+   * created on them (`wipesOnCloseFor`). The button then asks first, with the
+   * way to Reports in front of the organizer.
+   */
+  deletesOnComplete?: boolean;
   status: string;
   isAdmin: boolean;
   configUnlocked: boolean;
@@ -56,6 +65,7 @@ export function LifecycleBar({
   blockedReason?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pending, startTransition] = useTransition();
   /**
    * What the server said when it refused.
@@ -149,9 +159,15 @@ export function LifecycleBar({
                 }
                 const to = action.to;
                 if (!to) return;
+                if (to === "completed" && deletesOnComplete) {
+                  setConfirmingDelete(true);
+                  return;
+                }
                 startTransition(async () => {
                   const res = await setEventStatus(to);
-                  if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                  // The server asks too — it is the one that knows for certain.
+                  if (res?.needsDeleteConfirm) setConfirmingDelete(true);
+                  else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
                 });
               }}
             >
@@ -212,6 +228,46 @@ export function LifecycleBar({
           returns Launch for exactly the tournaments this banner used to fire
           on, so the button in the card above IS this button — offering it
           twice was the duplication, not the placement. */}
+
+      {confirmingDelete && (
+        <div className="dialog-backdrop" onClick={() => setConfirmingDelete(false)}>
+          <div
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="complete-delete-title"
+            aria-describedby="complete-delete-body"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="dialog-title" id="complete-delete-title">Complete and delete “{summary.name}”?</div>
+            <div className="dialog-body" id="complete-delete-body">
+              {WIPE_ON_CLOSE}
+            </div>
+            <div className="dialog-actions">
+              <Link className="btn btn-secondary" href="/reports">
+                <Icon name="download-simple" /> Go to Reports
+              </Link>
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirmingDelete(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    // On success the action deletes and redirects, so nothing
+                    // after it runs; a refusal (a disputed card) comes back here.
+                    const res = await setEventStatus("completed", true);
+                    setConfirmingDelete(false);
+                    if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                  })
+                }
+              >
+                <Icon name="trash" /> Complete and delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirming && (
         <div className="dialog-backdrop" onClick={() => setConfirming(false)}>
