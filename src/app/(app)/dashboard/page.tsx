@@ -25,7 +25,7 @@ import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
-import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
+import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
@@ -781,7 +781,7 @@ export default async function DashboardPage() {
 
       {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
           always while it is suspended, so the way back is never hidden. */}
-      {isStaff && !matchEvent && (event.status === "live" || !!event.playSuspendedAt) && (
+      {isStaff && !matchEvent && ((isLaunched(event.status) && !isFinished(event.status)) || !!event.playSuspendedAt) && (
         <PlayStatusControl
           suspended={!!event.playSuspendedAt}
           note={event.playSuspendedNote}

@@ -1,8 +1,9 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { resumePlay, suspendPlay } from "@/app/actions/play-status";
 import { MAX_SUSPEND_NOTE } from "@/lib/domain/play-status";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * The organizer's half of "play suspended" (Rule 5.7): one button to stop the
@@ -13,25 +14,24 @@ import { Icon } from "./Icon";
 export function PlayStatusControl({ suspended, note, since }: { suspended: boolean; note: string; since: string }) {
   const [open, setOpen] = useState(false);
   const [why, setWhy] = useState("");
-  const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const r = await fn();
-      if (!r.ok) setError(r.error ?? "That didn't save. Try again.");
-      else setOpen(false);
-    });
-  };
+  const { pending, error, run } = useAction();
+  const close = () => setOpen(false);
+  /**
+   * The time on the ORGANIZER'S clock, so only in the browser. Formatted on
+   * the server it would be the server's zone (UTC in production) and then a
+   * different string after hydration.
+   */
+  const [at, setAt] = useState("");
+  useEffect(() => {
+    setAt(since ? new Date(since).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "");
+  }, [since]);
 
   if (suspended) {
-    const at = since ? new Date(since).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     return (
       <section
         role="alert"
         className="card"
-        style={{ marginBottom: 20, borderColor: "var(--color-danger)", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}
+        style={{ marginBottom: 20, borderColor: "var(--color-danger)", display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}
       >
         <div style={{ minWidth: 0 }}>
           <strong style={{ color: "var(--color-danger)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -41,7 +41,7 @@ export function PlayStatusControl({ suspended, note, since }: { suspended: boole
             {note ? `${note}. ` : ""}Every player has been told to stop, on their phone and on the public board.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay)}>
+        <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(resumePlay, close)}>
           {pending ? "Resuming…" : "Resume play"}
         </button>
         {error && <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)", flexBasis: "100%" }}>{error}</p>}
@@ -65,7 +65,7 @@ export function PlayStatusControl({ suspended, note, since }: { suspended: boole
       style={{ marginBottom: 20, display: "grid", gap: 10, borderColor: "var(--color-danger)" }}
       onSubmit={(e) => {
         e.preventDefault();
-        run(() => suspendPlay(why));
+        run(() => suspendPlay(why), close);
       }}
     >
       <strong>Suspend play for the whole field?</strong>
