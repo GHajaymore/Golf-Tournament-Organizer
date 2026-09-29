@@ -2,6 +2,28 @@ import { Logo, LOGO_SIZE, markSizeFor } from "./Logo";
 import { BrandMark } from "./BrandMark";
 
 /**
+ * The space you SEE between the mark and the wordmark, as a share of the
+ * wordmark's size: about 12px at LOGO_SIZE.lg.
+ *
+ * It used to be the CSS gap itself (size × 0.35), but the gap starts where the
+ * mark's 32-unit box ends, and the flat mark's artwork ends at x 25.8 — about a
+ * fifth of the box is empty on the right. At lg that added 8px of air to a 10px
+ * gap, and the pair read as two things placed side by side (2026-09-29, "fix
+ * the logo… designed better to suit all screens"). So the gap is now what is
+ * left of the visible space after the mark's own air.
+ */
+const LOCKUP_VISIBLE_GAP = 0.42;
+/** The empty share of the mark's box to the right of its artwork. */
+const MARK_RIGHT_AIR = (32 - 25.8) / 32;
+/** The emblem's disc and ring run almost to the box edge (r 15 + half the 1.1 ring). */
+const EMBLEM_RIGHT_AIR = (32 - 31.55) / 32;
+
+export function lockupGap(size: number, emblem = false): number {
+  const mark = markSizeFor(size, emblem);
+  return Math.max(2, Math.round(size * LOCKUP_VISIBLE_GAP - mark * (emblem ? EMBLEM_RIGHT_AIR : MARK_RIGHT_AIR)));
+}
+
+/**
  * THE TOURNEYHQ LOCKUP: the mark and the wordmark, stitched at one proportion.
  *
  * Every place that shows "the logo" draws it through here. The pair used to be
@@ -31,7 +53,7 @@ export function Lockup({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: Math.round(size * 0.35),
+        gap: lockupGap(size, emblem),
         minWidth: 0,
         flex: "none",
       }}
