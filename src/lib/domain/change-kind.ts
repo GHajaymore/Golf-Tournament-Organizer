@@ -23,6 +23,8 @@ export type ChangeKind = "Field" | "Scores & results" | "Rounds" | "Money" | "Se
  */
 export const FIELD_ACTIONS = [
   "entered", "registered", "added", "removed", "withdrawn", "resize-field", "approved", "promoted",
+  // Who asked to be drawn with whom — a fact about the field the draw reads.
+  "pairing-request",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];

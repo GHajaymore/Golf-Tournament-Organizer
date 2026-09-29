@@ -26,6 +26,8 @@ import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
+import { PairingRequests } from "@/components/PairingRequests";
 
 export const metadata = screenMetadata("/foursomes");
 
@@ -173,6 +175,30 @@ export default async function FoursomesPage({
       decidedBy: r.decidedBy,
     }));
   }
+
+  /**
+   * PAIRING REQUESTS for this round's field — each request once, whichever of
+   * the two made it; the clusters the draw keeps together; and any the saved
+   * sheet splits because they came in after it was drawn.
+   */
+  const requestRows = await prisma.player.findMany({
+    where: { eventId: session.eventId, status: "confirmed" },
+    select: { id: true, playWith: true },
+  });
+  const fieldIds = field.map((p) => p.id);
+  const requestClustersNow = requestClusters(requestPairs(requestRows), fieldIds);
+  const inField = new Set(fieldIds);
+  const seenPair = new Set<string>();
+  const requestList = requestPairs(requestRows)
+    .filter(([a, b]) => inField.has(a) && inField.has(b))
+    .filter(([a, b]) => {
+      const key = [a, b].sort().join("|");
+      if (seenPair.has(key)) return false;
+      seenPair.add(key);
+      return true;
+    })
+    .map(([a, b]) => ({ a, b }));
+  const splitOnSheet = savedSheet ? splitRequests(savedSheet.groups, requestClustersNow) : [];
 
   // Only meaningful once a sheet has actually gone out: an unpublished draft
   // being out of step with the field is just a draft.
@@ -534,7 +560,15 @@ export default async function FoursomesPage({
           </p>
         </div>
       )}
+      {stage && field.length > 1 && (
+        <PairingRequests
+          field={field.map((p) => ({ id: p.id, name: p.name }))}
+          pairs={requestList}
+          splitOnSheet={splitOnSheet}
+        />
+      )}
       <FoursomeMaker
+        requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.
         // Loaded above for the cards already; empty for a round with no sides.

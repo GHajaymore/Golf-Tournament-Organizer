@@ -37,6 +37,9 @@ import { standingLabels } from "@/lib/domain/standing-labels";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
 import { golfTermsForEvent } from "@/lib/services/organization";
+import { isFinished } from "@/lib/domain/lifecycle-state";
+import { playWithFor } from "@/lib/services/pairing";
+import { PlayWithPicker } from "@/components/PlayWithPicker";
 
 /**
  * Today — the player's home.
@@ -103,6 +106,16 @@ export default async function PlayTodayPage() {
 
   const round = me.round;
   const card = round?.card ?? null;
+  /**
+   * The pairing-request card, while there is still a draw to ask of: entered,
+   * no group on a published sheet yet, nothing on the card, and the tournament
+   * not over. Null otherwise, and for a field of one.
+   */
+  const playWithData =
+    me.playerId && !round?.group && !card?.filled && !isFinished(state.event.status)
+      ? await playWithFor(session.eventId, me.playerId)
+      : null;
+  const playWith = playWithData && playWithData.others.length > 0 ? playWithData : null;
   /**
    * Whether a committee is going to look at this card, from the round's own
    * setting. `cardStanding` carries the whole reason; the short version is
@@ -692,6 +705,12 @@ export default async function PlayTodayPage() {
             {terms.organizer} adds you to a group — check back here, or ask them for your time.
           </p>
         </section>
+      )}
+
+      {/* A pairing request, while there is still a draw to ask of — no group
+          on a published sheet yet, and nothing on the card. */}
+      {playWith && (
+        <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />
       )}
 
       {/* Opt in to tee-time push alerts. Self-hiding: it renders nothing where

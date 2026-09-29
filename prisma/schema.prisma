@@ -1414,6 +1414,14 @@ model Player {
 
   groupId String?
 
+  /**
+   * Players in this event this entrant asked to be drawn with — "can I play
+   * with Bea?". Ids of Player rows in the SAME event; a request for somebody
+   * who has since left is ignored where it is read. Honoured by the tee sheet
+   * draw where it can be — see lib/domain/pairing-requests.ts.
+   */
+  playWith       String[]          @default([])
+
   event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   group           Group?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
   // Removing someone from the roster must not delete tournaments they played
