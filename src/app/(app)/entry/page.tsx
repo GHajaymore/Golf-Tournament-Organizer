@@ -37,6 +37,7 @@ import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
+import { firstHoleOf } from "@/lib/domain/hole-number";
 
 export const metadata = screenMetadata("/entry");
 
@@ -342,6 +343,7 @@ export default async function EntryPage() {
           strokeIndex={teamStrokeIndex}
           note={teamEntryNote(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis)}
           holes={holeCount}
+          firstHole={firstHoleOf(teamCard)}
         />
       </>
     );
@@ -676,6 +678,9 @@ export default async function EntryPage() {
             yards: card?.yards,
             strokeIndex: card?.strokeIndex,
             courseName: card?.name,
+            // The course's number for this match's first hole — 10 when the
+            // pairing plays the back nine, which may not be the round's nine.
+            firstHole: firstHoleOf(card),
           };
         });
 
@@ -747,6 +752,8 @@ export default async function EntryPage() {
           yards: roundCard?.yards ?? [],
           strokeIndex: roundCard?.strokeIndex ?? [],
           distanceUnit,
+          // 10 on a back-nine round, so the grid heads its columns 10-18.
+          firstHole: firstHoleOf(roundCard),
         },
         stroke: {
           holes: holeCount,

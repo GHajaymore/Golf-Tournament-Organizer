@@ -47,9 +47,12 @@ export function GroupScoring({
   startHole = 1,
   showVoice = true,
   pins = [],
+  firstHole = 1,
 }: {
   /** The round's pin sheet, passed through to the hole card. */
   pins?: PinSheet;
+  /** The course's number for the first hole on the card — 10 on a back nine. */
+  firstHole?: number;
   /** The organizer's "Voice entry" setting — off, no microphone. */
   showVoice?: boolean;
   stageId: string;
@@ -121,6 +124,7 @@ export function GroupScoring({
         startHole={startHole}
         showVoice={showVoice}
         pins={pins}
+        firstHole={firstHole}
       />
 
       {/* Where each partner's card has got to — the same words the player's

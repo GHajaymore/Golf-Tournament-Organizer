@@ -3,6 +3,7 @@ import { indexLabel } from "@/lib/domain/handicap-label";
 import { useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
 import { ScoreCell } from "@/components/ScorecardTable";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 export interface TeamCardRow {
   /** Empty where the side shares one ball. */
@@ -60,7 +61,10 @@ export function TeamEntryClient({
   strokeIndex,
   note,
   holes,
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the round's card — 10 on a back nine. */
+  firstHole?: number;
   round: string;
   teams: TeamEntryRow[];
   pars: number[];
@@ -177,6 +181,7 @@ export function TeamEntryClient({
               <ScoreCell
                 key={i}
                 hole={i}
+                firstHole={firstHole}
                 value={values[i] ?? null}
                 par={pars[i]}
                 who={c.playerId ? c.playerName : t.teamName}
@@ -207,9 +212,9 @@ export function TeamEntryClient({
                     <thead>
                       <tr>
                         <th>Hole</th>
-                        {front.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {front.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
                         {isEighteen && <th className="sc-tot">Out</th>}
-                        {back.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {back.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
                         {isEighteen && <th className="sc-tot">In</th>}
                         <th className="sc-tot">Tot</th>
                       </tr>

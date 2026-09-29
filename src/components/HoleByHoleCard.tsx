@@ -10,6 +10,7 @@ import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { pinLong, pinShort, type PinSheet } from "@/lib/domain/pin-sheet";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -103,9 +104,12 @@ export function HoleByHoleCard({
   startHole = 1,
   showVoice = true,
   pins = [],
+  firstHole = 1,
 }: {
   /** The round's pin sheet, one entry per hole of the card. Empty for none. */
   pins?: PinSheet;
+  /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   players: CardPlayer[];
   cards: Record<string, (number | null)[]>;
   pars: number[];
@@ -280,7 +284,7 @@ export function HoleByHoleCard({
               type="button"
               className="hole-nav-btn"
               onClick={() => go(i)}
-              aria-label={`Hole ${i + 1}${done ? ", complete" : part ? ", partly scored" : ", not scored"}`}
+              aria-label={`Hole ${holeNumber(i, firstHole)}${done ? ", complete" : part ? ", partly scored" : ", not scored"}`}
               aria-current={here ? "true" : undefined}
               style={{
                 flex: "1 0 auto",
@@ -300,7 +304,7 @@ export function HoleByHoleCard({
                 color: "var(--color-text)",
               }}
             >
-              {i + 1}
+              {holeNumber(i, firstHole)}
             </button>
           );
         })}
@@ -318,7 +322,7 @@ export function HoleByHoleCard({
               Hole
             </div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 54, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-              {hole + 1}
+              {holeNumber(hole, firstHole)}
             </div>
           </div>
           <div style={{ textAlign: "right", fontSize: 13.5, lineHeight: 1.7, color: "var(--color-neutral-400)" }}>
@@ -346,7 +350,7 @@ export function HoleByHoleCard({
               className="btn btn-secondary"
               onClick={listen}
               aria-pressed={listening}
-              aria-label={solo ? `Say your score for hole ${hole + 1}` : `Say the scores for hole ${hole + 1}`}
+              aria-label={solo ? `Say your score for hole ${holeNumber(hole, firstHole)}` : `Say the scores for hole ${holeNumber(hole, firstHole)}`}
               style={{
                 width: 48,
                 height: 48,
@@ -382,6 +386,7 @@ export function HoleByHoleCard({
           <SoloPad
             player={players[0]}
             hole={hole}
+            firstHole={firstHole}
             par={par}
             value={strokesOf(players[0].id)[hole] ?? null}
             onPick={(v) => set(players[0].id, v)}
@@ -435,7 +440,7 @@ export function HoleByHoleCard({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    aria-label={`One fewer stroke for ${p.name} on hole ${hole + 1}`}
+                    aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
                     onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
                     style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
                   >
@@ -443,7 +448,7 @@ export function HoleByHoleCard({
                   </button>
                   <span
                     className={`sc-score${scoreMark(value, par)}`}
-                    aria-label={`${p.name}, hole ${hole + 1}${value == null ? ", not scored" : `, ${value} strokes`}`}
+                    aria-label={`${p.name}, hole ${holeNumber(hole, firstHole)}${value == null ? ", not scored" : `, ${value} strokes`}`}
                     style={{
                       // `.sc-score` is `width: 100%` for the grid cells it was
                       // written for; in this row that took 193 of 311px and
@@ -467,7 +472,7 @@ export function HoleByHoleCard({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    aria-label={`One more stroke for ${p.name} on hole ${hole + 1}`}
+                    aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
                     onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
                     style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
                   >
@@ -499,9 +504,12 @@ function SoloPad({
   par,
   value,
   onPick,
+  firstHole = 1,
 }: {
   player: CardPlayer;
   hole: number;
+  /** The course's number for index 0 — 10 on a back nine. */
+  firstHole?: number;
   par: number | undefined;
   value: number | null;
   onPick: (v: number | null) => void;
@@ -564,7 +572,7 @@ function SoloPad({
           inputMode="numeric"
           value={value ?? ""}
           onChange={(e) => onPick(parseStroke(e.target.value))}
-          aria-label={`Strokes on hole ${hole + 1}`}
+          aria-label={`Strokes on hole ${holeNumber(hole, firstHole)}`}
           style={{ width: 76, minHeight: 44, textAlign: "center", fontSize: 17, fontVariantNumeric: "tabular-nums" }}
         />
       </div>

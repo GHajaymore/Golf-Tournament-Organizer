@@ -72,9 +72,12 @@ export function PlayerCard({
   pointsTable = null,
   voiceEntry = true,
   pins = [],
+  firstHole = 1,
 }: {
   /** Where the holes are cut today — the committee's pin sheet. Empty for none. */
   pins?: PinSheet;
+  /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   /**
    * The organizer's "Voice entry" setting (Play settings): "Let scores be
    * dictated out loud instead of typed". Off, the card offers no microphone
@@ -679,6 +682,7 @@ export function PlayerCard({
             courseName={courseName}
             venueIsHome={venueIsHome}
             pointsTable={pointsTable}
+            firstHole={firstHole}
           />
         </>
       ) : (
@@ -800,6 +804,7 @@ export function PlayerCard({
               holding={(s) => !savePartial && s.filter((v) => v != null).length < holes}
               showVoice={voiceEntry}
               pins={pins}
+              firstHole={firstHole}
             />
           ) : view === "hole" ? (
             <HoleByHoleCard
@@ -820,6 +825,7 @@ export function PlayerCard({
               startHole={startHole}
               showVoice={voiceEntry}
               pins={pins}
+              firstHole={firstHole}
             />
           ) : (
             <>
@@ -883,6 +889,7 @@ export function PlayerCard({
               venueIsHome={venueIsHome}
               onSet={setHole}
               pointsTable={pointsTable}
+              firstHole={firstHole}
             />
             </>
           )}
@@ -913,6 +920,7 @@ export function PlayerCard({
                 mine={chooser.mine}
                 theirs={chooser.theirs}
                 pars={pars}
+                firstHole={firstHole}
                 busy={pending}
                 onKeepMine={chooser.onKeepMine}
                 onTakeTheirs={chooser.onTakeTheirs}

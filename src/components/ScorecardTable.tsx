@@ -4,6 +4,7 @@ import { cardHeading } from "@/lib/domain/card-heading";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
 import { useDistanceWords } from "./DistanceUnitProvider";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -72,9 +73,12 @@ export function ScoreCell({
   who = "",
   shotsFor = "",
   onSet,
+  firstHole = 1,
 }: {
-  /** Zero-based, as the arrays are. The label says `hole + 1`. */
+  /** Zero-based, as the arrays are. The label says the course's number for it. */
   hole: number;
+  /** The course's number for index 0 — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   value: number | null;
   par?: number;
   /**
@@ -106,7 +110,7 @@ export function ScoreCell({
    * whose card it is. A grid with two rows in it has to say which row, or a
    * screen reader hears eighteen identical boxes twice over.
    */
-  const label = `${who ? `${who}, hole` : "Hole"} ${hole + 1}${par ? `, par ${par}` : ""}`;
+  const label = `${who ? `${who}, hole` : "Hole"} ${holeNumber(hole, firstHole)}${par ? `, par ${par}` : ""}`;
   const mark = scoreMark(value, par);
 
   const dots =
@@ -248,9 +252,12 @@ export function ScorecardTable({
   courseName = "",
   venueIsHome = false,
   pointsTable = null,
+  firstHole = 1,
 }: {
   /** The Stableford table this round is decided on, or null — see `cardPoints`. */
   pointsTable?: PointsTable | null;
+  /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   holes: number;
   pars: number[];
   yards?: number[];
@@ -358,6 +365,7 @@ export function ScorecardTable({
         par={pars[i]}
         shots={shotsPerHole[i] ?? 0}
         net={netHole}
+        firstHole={firstHole}
         onSet={onSet ? (v) => onSet(i, v) : undefined}
       />
     );
@@ -463,9 +471,9 @@ export function ScorecardTable({
           <thead>
             <tr>
               <th>Hole</th>
-              {front.map((i) => (<th key={i}>{i + 1}</th>))}
+              {front.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
               {isEighteen && <th className="sc-tot">Out</th>}
-              {back.map((i) => (<th key={i}>{i + 1}</th>))}
+              {back.map((i) => (<th key={i}>{holeNumber(i, firstHole)}</th>))}
               {isEighteen && <th className="sc-tot">In</th>}
               <th className="sc-tot">Tot</th>
             </tr>
