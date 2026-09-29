@@ -135,6 +135,7 @@ ${landingTokens("dark", "  ")}
 
 /* ── hero ── */
 .thq .hero { padding: 80px 0 0; overflow: hidden; }
+.thq .hero .kicker { margin-bottom: 26px; }
 .thq .hero-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 40px; align-items: end; }
 .thq .hero-side { padding-bottom: 12px; display: grid; gap: 24px; }
 .thq .hero-side p { color: var(--ink-soft); font-size: 18.5px; line-height: 1.55; }
@@ -214,17 +215,17 @@ ${landingTokens("dark", "  ")}
 @media (max-width: 900px) { .thq .why { padding: 88px 0; } .thq .reason { grid-template-columns: 44px minmax(0, 1fr); gap: 10px 14px; } .thq .reason p { grid-column: 2; } }
 
 /* ── side by side: the usual way ── */
-.thq .usual { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--card); }
-.thq .usual .col + .col { border-left: 1px solid var(--line); }
-.thq .usual .hd { display: flex; justify-content: space-between; align-items: center; padding: 24px 30px; border-bottom: 1px solid var(--line); }
-.thq .usual .hd b { font: 700 21px/1 var(--sans); letter-spacing: -.02em; }
-.thq .usual .it { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; padding: 18px 30px; border-bottom: 1px solid var(--line); font-size: 16px; }
-.thq .usual .it:last-child { border-bottom: 0; }
-.thq .usual .it i { font: 500 12px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-style: normal; padding-top: 2px; }
-.thq .usual .before { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--line-2); }
-.thq .usual .col.now { background: var(--ground); }
-.thq .usual .col.now .hd b { color: var(--brass); }
-@media (max-width: 900px) { .thq .usual { grid-template-columns: minmax(0, 1fr); } .thq .usual .col + .col { border-left: 0; border-top: 1px solid var(--line); } .thq .usual .it { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 14px 20px; } .thq .usual .hd { padding: 18px 20px; } }
+.thq .usual { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--card); }
+.thq .u-hd, .thq .u-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; padding: 18px 30px; border-bottom: 1px solid var(--line); }
+.thq .u-hd { padding-top: 22px; padding-bottom: 20px; }
+.thq .u-hd b { font: 700 19px/1 var(--sans); letter-spacing: -.02em; }
+.thq .u-hd b.now { color: var(--brass); }
+.thq .u-row:last-child { border-bottom: 0; }
+.thq .u-row i { font: 500 12px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-style: normal; padding-top: 3px; }
+.thq .u-row .before { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: var(--line-2); }
+.thq .u-row .after { color: var(--ink); font-weight: 550; }
+.thq .usual .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 900px) { .thq .u-hd { display: none; } .thq .u-row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 16px 20px; } .thq .u-row .before { font-size: 14.5px; } .thq .u-row .after::before { content: "→ "; color: var(--brass); font-weight: 700; } }
 
 /* ── side by side: the names you know ── */
 .thq .vs { margin-top: 110px; }
@@ -256,11 +257,11 @@ ${landingTokens("dark", "  ")}
 .thq .vs-mk.na { background: var(--wash-2); color: var(--ink-faint); }
 .thq .vs-srcrow td { font: 500 12px/1.4 var(--mono); color: var(--ink-faint); overflow-wrap: anywhere; }
 .thq .vs-srcrow a:hover { color: var(--brass); }
-.thq .glance { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+.thq .glance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 18px; }
 .thq .glance-col { padding: 26px 28px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
 .thq .glance-col.further { background: transparent; }
 .thq .glance-col h3 { font: 700 18px/1.2 var(--sans); margin-bottom: 14px; }
-.thq .glance-col ul { display: grid; gap: 10px; }
+.thq .glance-col ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 32px; }
 .thq .glance-col li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: 15px; color: var(--ink-soft); }
 .thq .glance-col li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 3px; stroke-width: 2.2; }
 .thq .glance-col li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); margin: 9px 0 0 5px; }
@@ -366,8 +367,6 @@ __SHOW_FRAMES__
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
 .thq .mcard .well { margin-top: auto; border-radius: 14px; overflow: hidden; }
-.thq .never { margin-top: 64px; font: 750 clamp(30px, 4vw, 56px)/1 var(--sans); letter-spacing: -.045em; }
-.thq .never span { color: var(--ink-faint); }
 @media (max-width: 900px) { .thq .money-cols { grid-template-columns: minmax(0, 1fr); } .thq .mcard { padding: 24px; } }
 
 /* ── make it yours: the drag-to-compare slider ── */
@@ -494,6 +493,10 @@ __CMP_FRAMES__
   --color-accent: var(--brass-ui); --color-accent-300: var(--brass-hi); --color-accent-400: var(--brass-hi); --color-accent-600: var(--brass);
   --color-accent-2: var(--brass); --color-accent-2-300: var(--brass-hi); --color-on-accent: var(--on-accent);
   --color-text: var(--ink); --color-surface: var(--ground-2);
+  /* The helper lines ("At least 10 characters", what each kind of organizer
+     gets) are .text-muted, which the app sets for its own dark ground: left
+     alone it painted the app's pale dark-mode grey on this white card, and read as blank. */
+  --color-text-muted: var(--ink-soft);
   width: min(460px, 100%); margin: 0 auto; text-align: left;
 }
 .thq .store-block { display: grid; gap: 12px; margin-top: 36px; justify-items: center; }
@@ -550,6 +553,39 @@ __CMP_FRAMES__
 /* ── reveal on scroll: only once JavaScript is there to reveal it ── */
 .thq-js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
 .thq-js .reveal.seen { opacity: 1; transform: none; }
+/* ── the phone pass (2026-09-29, "make it really crisp and rich looking") ──
+   The page ran to 39 phone screens: seven full-height phones stacked in "The
+   round", deep section gaps and a tall header. The round becomes a swipeable
+   day, each step a card with its real screen rising from the foot, and the
+   rhythm tightens. Nothing is hidden: every step, line and screen is still
+   there, one swipe apart. */
+.thq a.lockup svg { margin-left: -9px; }
+@media (max-width: 1000px) {
+  .thq .steps { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 calc(-1 * max(20px, env(safe-area-inset-left))); padding: 2px max(20px, env(safe-area-inset-left)) 6px; scroll-padding-inline: max(20px, env(safe-area-inset-left)); }
+  .thq .steps::-webkit-scrollbar { display: none; }
+  .thq .steps:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 4px; }
+  .thq .step { flex: 0 0 min(86%, 380px); scroll-snap-align: start; padding: 24px 22px 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); justify-content: flex-start; overflow: hidden; }
+  .thq .step-t b { font-size: 40px; }
+  .thq .step h3 { margin: 16px 0 8px; font-size: 22px; }
+  .thq .step p { font-size: 15px; }
+  .thq .step ul { margin-top: 12px; font-size: 14px; gap: 4px; }
+  .thq .step .inl { width: 76%; height: 330px; margin: auto auto 0; padding-top: 22px; box-sizing: content-box; overflow: hidden; }
+}
+@media (max-width: 760px) {
+  .thq .hdr-in { height: 60px; }
+  .thq .vs-table thead { top: 60px; }
+  /* The first screen shows the product: a tighter hero lets the live board rise into view. */
+  .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
+  .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }
+  .thq .hero .ctas .btn { padding-left: 18px; padding-right: 18px; font-size: 15px; }
+  .thq .proof { margin-top: 24px; padding-top: 16px; } .thq .stage { margin-top: 28px; }
+  .thq .sec, .thq .why { padding: 64px 0; }
+  .thq .shead { margin-bottom: 28px; }
+  .thq .glance-col ul { grid-template-columns: minmax(0, 1fr); }
+  .thq .fx-grid .f { padding: 14px 18px 15px; }
+  .thq .fx-grid .f small { margin-bottom: 6px; }
+  .thq .fx:has(input[name="fx"][value="competition"]:checked, input[name="fx"][value="day"]:checked, input[name="fx"][value="player"]:checked, input[name="fx"][value="money"]:checked) .f small { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .thq-js .reveal { opacity: 1; transform: none; transition: none; }
   .thq-js .marq-track { animation: none; }

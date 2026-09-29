@@ -147,17 +147,16 @@ export function compareSets(prices: LandingPrices): CompareSet[] {
   ];
 }
 
-/** An honest summary: what sets TourneyHQ apart, and where the others go further. */
-export function atAGlance(): { apart: string[]; further: string[] } {
+/**
+ * Where the others go further — the concessions, beside the comparison.
+ *
+ * It had a twin list, "what sets TourneyHQ apart", until 2026-09-29; every line
+ * of it restated one of the page's five reasons, so a phone reader met the same
+ * claims three times. The wins live in the reasons now; this keeps the part a
+ * club most needs to trust the rest: what TourneyHQ does not do.
+ */
+export function atAGlance(): { further: string[] } {
   return {
-    // Each claim says whom it is measured against. Only voice is claimed
-    // against all five, because only voice is listed by none of them.
-    apart: [
-      "Players enter their scores by voice — none of the five lists that.",
-      "Unlike the club platforms: a free plan, no setup fee, and live scoring on every plan.",
-      "Every skin, pot and shared cost worked out exactly, down to the smallest coin — and never held.",
-      "Your country's golf words and set local prices, with a switch to US $ and US terms.",
-    ],
     further: [
       "Links to a handicap service: Golf Genius (GHIN), BlueGolf and Squabbit (WHS).",
       "Native App Store and Google Play apps — TourneyHQ installs from the browser today.",

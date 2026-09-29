@@ -115,7 +115,7 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
   },
   {
     time: "14:00", who: "pl", h: "Everyone knows what they're owed.",
-    p: "Skins, pots and the shared costs in one settle-up — the fewest handovers. TourneyHQ never holds a penny.",
+    p: "Skins, pots and the shared costs in one settle-up — the fewest handovers.",
     screen: { name: "phone-money", by: "cur", ...PHONE }, cap: "Player · Money",
     alt: "A player's Money screen: what they're owed, and the fewest handovers that make everyone square.",
   },
@@ -227,7 +227,7 @@ export default async function LandingPage() {
             are framed on black and everything below reads on white. */}
         <section className="hero band" aria-labelledby="hero-h">
           <div className="wrap">
-            <span className="label" style={{ marginBottom: 26 }}>Golf tournament &amp; league management</span>
+            <span className="label kicker">Golf tournament &amp; league management</span>
             <div className="hero-top">
               <h1 className="h1" id="hero-h">From registration<br />to <span className="o">recognition.</span></h1>
               <div className="hero-side">
@@ -284,10 +284,10 @@ export default async function LandingPage() {
                 <span className="label">The round</span>
                 <h2 className="h2" id="round-h">One Saturday, both sides of it.</h2>
               </div>
-              <p>What you do as the organizer and what your players see, in the order it happens. Scroll — the phone keeps up.</p>
+              <p>What you do as the organizer and what your players see, in the order it happens.</p>
             </div>
             <div className="round">
-              <div className="steps">
+              <div className="steps" role="region" aria-label="The round, step by step" tabIndex={0}>
                 {DAY.map((s) => (
                   <article className="step" key={s.time} data-cap={s.cap}>
                     <div className="step-t">
@@ -347,28 +347,21 @@ export default async function LandingPage() {
               <p>How most events are run today, and how the same day runs here.</p>
             </div>
             <div className="usual reveal">
-              <div className="col">
-                <div className="hd"><b>The usual way</b><span className="label">Before</span></div>
-                {[
-                  ["The field", "A spreadsheet of names and handicaps"],
-                  ["Who's in", "A group chat, counted by hand"],
-                  ["The draw", "Pairings worked out on paper"],
-                  ["The scores", "Paper cards, typed up afterwards"],
-                  ["The board", "Posted when somebody gets to it"],
-                  ["The money", "A notes app, a cash envelope and IOUs"],
-                ].map(([k, v]) => <div className="it" key={k}><i>{k}</i><span className="before">{v}</span></div>)}
-              </div>
-              <div className="col now">
-                <div className="hd"><b>With TourneyHQ</b><span className="label">After</span></div>
-                {[
-                  ["The field", "Registration with open and close dates, and a waiting list"],
-                  ["Who's in", "Opt in or out on their phone — or captains send the list"],
-                  ["The draw", "Drawn from who's in, by handicap, standings or sides"],
-                  ["The scores", "Entered on the course — tapped or said out loud"],
-                  ["The board", "Live on every phone and a public link, as cards come in"],
-                  ["The money", "One settle-up in the fewest handovers — never held"],
-                ].map(([k, v]) => <div className="it" key={k}><i>{k}</i><span>{v}</span></div>)}
-              </div>
+              <div className="u-hd" aria-hidden="true"><span /><b>The usual way</b><b className="now">With TourneyHQ</b></div>
+              {[
+                ["The field", "A spreadsheet of names and handicaps", "Registration with open and close dates, and a waiting list"],
+                ["Who's in", "A group chat, counted by hand", "Opt in or out on their phone — or captains send the list"],
+                ["The draw", "Pairings worked out on paper", "Drawn from who's in, by handicap, standings or sides"],
+                ["The scores", "Paper cards, typed up afterwards", "Entered on the course — tapped or said out loud"],
+                ["The board", "Posted when somebody gets to it", "Live on every phone and a public link, as cards come in"],
+                ["The money", "A notes app, a cash envelope and IOUs", "One settle-up, in the fewest handovers"],
+              ].map(([k, before, after]) => (
+                <div className="u-row" key={k}>
+                  <i>{k}</i>
+                  <span className="before"><span className="sr">The usual way: </span>{before}</span>
+                  <span className="after"><span className="sr">With TourneyHQ: </span>{after}</span>
+                </div>
+              ))}
             </div>
 
             <div className="vs reveal">
@@ -436,10 +429,6 @@ export default async function LandingPage() {
                   others go further. A comparison that only lists wins is one a
                   club will not trust. */}
               <div className="glance">
-                <div className="glance-col">
-                  <h3>What sets TourneyHQ apart</h3>
-                  <ul>{glance.apart.map((t) => <li key={t}>{icon("check")}<span>{t}</span></li>)}</ul>
-                </div>
                 <div className="glance-col further">
                   <h3>Where others go further</h3>
                   <ul>{glance.further.map((t) => <li key={t}><span className="dot" aria-hidden="true" /><span>{t}</span></li>)}</ul>
@@ -575,7 +564,6 @@ export default async function LandingPage() {
                 <div className="well">{lightShot({ name: "crop-prizes", variant: d, width: 1200, height: 613, alt: "Prizes & payouts: a total purse, four prize lines with three awarded — Club Champion to the winner, then runner-up and third." })}</div>
               </div>
             </div>
-            <p className="never">Every penny worked out. <span>Not one held.</span></p>
           </div>
         </section>
 
