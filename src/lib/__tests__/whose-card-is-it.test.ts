@@ -29,8 +29,9 @@ describe("the two functions that read alike", () => {
     const drawn = STAGE_TYPES.filter((t) => generatesPairings(t));
     const against = STAGE_TYPES.filter((t) => isHeadToHead(t));
     expect(drawn).toEqual(["Round Robin"]);
-    // Three types pit somebody against somebody; one of them draws the pairings.
-    expect(against).toEqual(["Round Robin", "Single Match Stage", "Bracket Stage"]);
+    // Four types pit somebody against somebody; one of them draws the pairings.
+    // A cup's Team Session is head to head with a picked lineup (2026-09-28).
+    expect(against).toEqual(["Round Robin", "Single Match Stage", "Bracket Stage", "Team Session"]);
     expect(against.length).toBeGreaterThan(drawn.length);
   });
 

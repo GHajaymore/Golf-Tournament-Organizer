@@ -21,6 +21,8 @@ import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { RoundPicker } from "@/components/RoundPicker";
+import { cupBoard } from "@/lib/services/cup";
+import { CupScoreboard } from "@/components/CupScoreboard";
 import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
 import { playStatusOf } from "@/lib/domain/play-status";
 import { golfTermsForEvent } from "@/lib/services/organization";
@@ -142,6 +144,7 @@ export default async function PublicLeaderboardPage({
       : "";
   const board = await liveBoard(event.id, picked);
   if (!board) notFound();
+  const cup = await cupBoard(event.id);
 
   return (
     <div
@@ -227,6 +230,10 @@ export default async function PublicLeaderboardPage({
             </div>
           )}
         </header>
+
+        {/* A TEAM CUP'S SCORE FIRST — the figure everybody following the trip
+            opened this link for. The round's own board stays below it. */}
+        {cup.ok && <CupScoreboard board={cup.board} />}
 
         {board.straightKnockout ? (
           /* A knockout from the first tee: the draw IS the board. Its

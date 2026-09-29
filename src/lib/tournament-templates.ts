@@ -446,6 +446,36 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
     rounds: [{ type: "Stroke Play Round", format: "Scramble", scoringBasis: "net", holes: 18 }],
   },
   {
+    key: "team-cup",
+    // Led by the first session's format, as every template name is
+    // (`format-names.test.ts`) — and the whole list is the honest description.
+    name: "Four-Ball, foursomes & singles — team cup",
+    /**
+     * THE GOLF TRIP (2026-09-28). Two teams, three sessions — four-balls,
+     * foursomes, singles — every match a point, one running score. The teams
+     * are the tournament's two flights; the lineups are picked on the Team cup
+     * screen. Net, because a trip's players are every standard.
+     */
+    blurb:
+      "Two teams and three sessions — four-balls, foursomes and singles. Every match is a point; first to more than half wins the cup.",
+    settings: {
+      leaderboardVisibility: "public",
+      scoreEntryBy: "players",
+      scoreEntryWindow: "during",
+      voiceEntry: true,
+      playerAccess: "both",
+      scoreApproval: "players",
+      attestBy: "marker",
+      attendanceMode: "everyone",
+      teePolicy: "own",
+    },
+    rounds: [
+      { type: "Team Session", format: "Four-Ball", scoringBasis: "net", holes: 18, description: "Four-balls" },
+      { type: "Team Session", format: "Foursomes", scoringBasis: "net", holes: 18, description: "Foursomes" },
+      { type: "Team Session", format: "Match Play", scoringBasis: "net", holes: 18, description: "Singles" },
+    ],
+  },
+  {
     key: "custom",
     name: "Set it up yourself",
     blurb: "The plain defaults. Set everything yourself.",

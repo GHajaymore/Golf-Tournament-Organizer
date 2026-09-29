@@ -2363,6 +2363,7 @@ describe("score entry lands on the right card without asking", () => {
     bHandicap: 12,
     groupName: "Flight 1",
     round: 1,
+    label: "Flight 1 · Round 1",
     holes: new Array(18).fill(null),
     status: "pending",
     aStrokes: new Array(18).fill(null),

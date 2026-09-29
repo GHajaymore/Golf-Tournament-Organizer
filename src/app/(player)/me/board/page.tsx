@@ -31,6 +31,8 @@ import { isKnockoutRound } from "@/lib/stage-types";
 import { drawnDraws } from "@/lib/domain/my-tie";
 import { bracketResults } from "@/lib/services/bracket-results";
 import { golfTermsForEvent } from "@/lib/services/organization";
+import { cupBoard } from "@/lib/services/cup";
+import { CupScoreboard } from "@/components/CupScoreboard";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -85,6 +87,28 @@ export default async function PlayBoardPage({
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           The {terms.organizer} hasn&rsquo;t published standings for this tournament yet.
         </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "Back to today", icon: "flag" },
+            { href: "/me/card", label: "My card", icon: "cards" },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  /**
+   * A TEAM CUP'S BOARD IS THE CUP (2026-09-28): the running score and every
+   * session's matches, the same component the console and /live show. The
+   * individual rankings underneath a cup are not a competition anybody on the
+   * trip is playing.
+   */
+  const cup = await cupBoard(session.eventId);
+  if (cup.ok) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
+        <CupScoreboard board={cup.board} />
         <WayForward
           links={[
             { href: "/me", label: "Back to today", icon: "flag" },

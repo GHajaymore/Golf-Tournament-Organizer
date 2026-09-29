@@ -61,6 +61,7 @@ export const STAGE_TYPES = [
   "Stroke Play Round",
   "Single Match Stage",
   "Bracket Stage",
+  "Team Session",
 ] as const;
 
 export type StageTypeKey = (typeof STAGE_TYPES)[number];
@@ -180,6 +181,28 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     isPlayingRound: true,
     chainsMatchPoints: false,
     seededFromQualifiers: true,
+    headToHead: true,
+  },
+  {
+    /**
+     * A SESSION OF A TEAM CUP (2026-09-28) — the Ryder Cup shape: two teams,
+     * a lineup of matches the captains pick, every match a point. Four-balls,
+     * foursomes or singles, by the round's format.
+     *
+     * Head-to-head, and the scheduler draws nothing: the LINEUP is the draw,
+     * made on the Team cup screen. Its matches feed the cup score, not the
+     * individual match-points standings, so a player's singles win is a point
+     * for their team and not a line in a round-robin table.
+     */
+    key: "Team Session",
+    label: "Team session",
+    blurb: "Two teams, a lineup of matches, a point each — a Ryder Cup session.",
+    description: "A session of the team cup: the captains' lineup, every match worth a point.",
+    icon: "ph ph-users-four",
+    generatesPairings: false,
+    isPlayingRound: true,
+    chainsMatchPoints: false,
+    seededFromQualifiers: false,
     headToHead: true,
   },
 ];
@@ -324,6 +347,10 @@ export function addRoundConsequence(type: string): string {
     return "One match, head to head — the two go out and play it.";
   }
   if (generatesPairings(type)) return "Draws a full set of pairings once flights are generated.";
+  // A cup session: head to head, and the lineup is picked, not drawn.
+  if (isHeadToHead(type)) {
+    return "No pairings are drawn — you pick the lineup of matches on the Team cup screen, each worth a point.";
+  }
   return "No pairings are drawn — the field returns cards.";
 }
 

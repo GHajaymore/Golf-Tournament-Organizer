@@ -82,6 +82,9 @@ describe("role boundaries", () => {
     expect(allowed.sort()).toEqual(
       [
         "bracket",
+        // The team cup's score is what the whole trip watches (2026-09-28);
+        // its lineup controls are staff-only in the actions, not by screen.
+        "cup",
         "dashboard",
         "entry",
         "group-games",
@@ -135,7 +138,7 @@ describe("sidebar matches the guards", () => {
     // ...and "My round" only for someone who is actually in the field, which
     // is a fact about the person rather than about the tournament — an
     // organizer who does not play would only reach a screen saying so.
-    const CONDITIONAL = ["teams", "bracket", "week", "me"];
+    const CONDITIONAL = ["teams", "bracket", "cup", "week", "me"];
     for (const role of ROLES) {
       const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
