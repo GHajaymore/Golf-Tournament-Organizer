@@ -130,6 +130,22 @@ const onWeekday = (dow, weeksAfterLast) => {
 };
 
 /**
+ * The Festival of Formats' days: one round a day from twenty days back,
+ * stepping over Thursdays. It runs eleven days, so on consecutive days it
+ * always crossed the league's night and put the same members down for two
+ * events at once on the player's calendar.
+ */
+const festivalDays = (n) => {
+  const days = [];
+  for (let d = -20; days.length < n; d++) {
+    const t = new Date();
+    t.setDate(t.getDate() + d);
+    if (t.getDay() !== 4) days.push(d);
+  }
+  return days;
+};
+
+/**
  * A seeded generator, so two runs produce the same club.
  *
  * Scores that move between runs make "did that number change because of my
@@ -1773,12 +1789,19 @@ export async function seed() {
      * exists to prevent (fixed in #707). A charity day is exactly who types a
      * card in by hand.
      */
+    // LAST FRIDAY, not today. Seeded for today it put the signed-in player in
+    // four events on one day (the medal, the cup, the back nine and this),
+    // which no member does (site session, 2026-09-29). The back nine has to be
+    // today — pace and the live hole numbering are only drawn for a round
+    // played today — and an evening nine after a day's golf is plausible;
+    // a charity day on top of it is not.
+    const charityDay = onWeekday(5, 0);
     const charity = await makeEvent("charity", "Hospice Charity Day — Front Nine Medal", {
       status: "live",
       shape: "single",
       format: "stroke",
       sideStyle: "individual",
-      dates: dayOffset(0),
+      dates: dayOffset(charityDay),
       course: "Glenbervie Farm Course (card entered by hand)",
       customPars: JSON.stringify(PARS_18),
       customYards: JSON.stringify(YARDS_18),
@@ -1786,7 +1809,8 @@ export async function seed() {
       leaderboardVisibility: "public",
       moneyMode: "none",
       capacity: 40,
-      launchedAt: new Date(),
+      // Launched the week before it was played, not after it.
+      launchedAt: new Date(Date.now() + (charityDay - 7) * 864e5),
     });
     const charityField = await enter(charity, [0, 2, 4, 6, 8, 10, 12, 14], { teeByPreference: false });
     const charityRound = await prisma.stage.create({
@@ -1800,7 +1824,7 @@ export async function seed() {
         nine: "front",
         scoringBasis: "net",
         handicapAllowance: 95,
-        playedOn: dayOffset(0),
+        playedOn: dayOffset(charityDay),
         teeSheet: teeSheetFor(charityField, 13 * 60),
         teeSheetPublished: true,
       },
@@ -1813,7 +1837,9 @@ export async function seed() {
           eventId: charity.id,
           stageId: charityRound.id,
           playerId: p.id,
-          // The signed-in player is five holes in; everybody else is done.
+          // The signed-in player's card stops five holes in — never finished
+          // on the day, which is the state a hand-entered card is walked in;
+          // everybody else's is done and approved.
           strokes: JSON.stringify(i === 0 ? full.map((s, h) => (h < 5 ? s : null)) : full),
           status: i === 0 ? "entered" : "approved",
           approvedBy: i === 0 ? "" : organizer.name,
@@ -1953,7 +1979,7 @@ export async function seed() {
       status: "completed",
       shape: "series",
       format: "stroke",
-      dates: dayOffset(-20),
+      dates: `${dayOffset(-20)} onwards`,
       course: `${MARK}-Braid Hollow — Championship Course`,
       courseId: home.id,
       defaultTeeId: homeTee("White").id,
@@ -2004,6 +2030,7 @@ export async function seed() {
     ];
 
     const festRand = rng(131);
+    const festDays = festivalDays(TOUR.length);
     for (const [i, t] of TOUR.entries()) {
       const round = await prisma.stage.create({
         data: {
@@ -2016,7 +2043,7 @@ export async function seed() {
           courseId: home.id,
           teeId: homeTee("White").id,
           scoringBasis: t.basis,
-          playedOn: dayOffset(-20 + i),
+          playedOn: dayOffset(festDays[i]),
           teeSheet: teeSheetFor(festField),
           teeSheetPublished: true,
         },
