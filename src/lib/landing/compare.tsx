@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { PLANS } from "@/lib/plans";
+import { PLANS, retentionSummary } from "@/lib/plans";
+import { GOLF_FORMATS, SCORED_FORMAT_NAMES } from "@/lib/formats";
 import type { LandingPrices } from "./pricing";
 
 /**
@@ -26,6 +27,11 @@ import type { LandingPrices } from "./pricing";
  */
 
 export const COMPARED_ON = "28 September 2026";
+
+/** The format count, from the formats themselves, so a new one updates the comparison. */
+const FORMATS_LINE = `${GOLF_FORMATS.length} formats (${SCORED_FORMAT_NAMES.length} scored automatically, plus ‘Other’ for a club’s own)`;
+/** "results kept for good" → "Kept for good": the app’s own words, never a promise it retired. */
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export type Mark = "yes" | "no" | "part" | "na";
 
@@ -90,7 +96,7 @@ export function ourCells(prices: LandingPrices): ReactNode[] {
     mk("yes", "On every plan, including Free"),
     mk("yes", "Yes: a player taps the mic and says the hole's score, or reads out the whole card"),
     mk("yes", "Yes, including a public board with no login, when you publish it"),
-    mk("yes", "16 formats (15 scored automatically, plus ‘Other’ for a club’s own)"),
+    mk("yes", FORMATS_LINE),
     mk("yes", `Season standings across separate tournaments (${PLANS.society.name} plan and up)`),
     mk("no", "No"),
     mk("part", "Records who has paid; never collects or holds the money"),
@@ -247,7 +253,7 @@ export function plansCompared(prices: LandingPrices): { groups: PlanGroup[]; row
       { label: "Organizer seats", cells: [...each((p) => count(p.limits.staffSeats, "One")), gg(notListed), { node: notListed }] },
       {
         label: "Results kept",
-        cells: [...each((p) => (p.retentionHours === null ? "For good" : `${p.retentionHours} hours after it ends`)), gg(notListed), { node: notListed }],
+        cells: [...each((p) => sentence(retentionSummary(p).replace(/^results /, ""))), gg(notListed), { node: notListed }],
       },
       {
         label: "Live scoring on players' phones",
@@ -273,7 +279,7 @@ export function plansCompared(prices: LandingPrices): { groups: PlanGroup[]; row
       {
         label: "Formats",
         cells: [
-          ...all(mk("yes", "16 formats (15 scored automatically, plus ‘Other’ for a club’s own)")),
+          ...all(mk("yes", FORMATS_LINE)),
           gg(mk("yes", "A full library of formats")),
           { node: mk("yes", "All popular formats, plus a custom builder") },
         ],
