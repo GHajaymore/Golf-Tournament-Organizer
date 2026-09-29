@@ -135,6 +135,10 @@ export function AnnouncementsClient({
                 type="button"
                 className="btn btn-icon"
                 title={a.pinned ? "Unpin" : "Pin"}
+                // Named with the post it acts on: a list of posts read aloud
+                // was "Pin, Delete, Pin, Delete" with no way to tell whose.
+                aria-label={`${a.pinned ? "Unpin" : "Pin"} “${a.title}”`}
+                aria-pressed={a.pinned}
                 disabled={pending}
                 onClick={() => startTransition(() => toggleAnnouncementPin(a.id, !a.pinned))}
               >
@@ -148,7 +152,7 @@ export function AnnouncementsClient({
                   Same shape as the money ledger's Remove, and for the same
                   reason. */}
               <ConfirmButton
-                title="Delete"
+                title={`Delete “${a.title}”`}
                 confirmLabel="Delete it"
                 disabled={pending}
                 onConfirm={() => startTransition(() => removeAnnouncement(a.id))}
