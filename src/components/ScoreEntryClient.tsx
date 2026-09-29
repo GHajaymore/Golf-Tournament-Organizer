@@ -157,6 +157,8 @@ export interface EntryMatch {
   bHandicap: number;
   groupName: string;
   round: number;
+  /** What the match is called on this screen: "Flight 1 · Round 5", or "Match 3" in a team cup. */
+  label: string;
   holes: HoleResult[];
   status: string;
   aStrokes: (number | null)[];
@@ -1096,7 +1098,7 @@ export function ScoreEntryClient({
                     {m.aName} v {m.bName}
                   </span>
                   <span className="match-row-meta">
-                    {m.groupName} · Round {m.round}
+                    {m.label}
                   </span>
                 </span>
                 <span className={`tag ${st.tagClass}`}>{st.tag}</span>
@@ -1132,7 +1134,7 @@ export function ScoreEntryClient({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div className="text-muted" style={{ fontSize: 12 }}>
-                {active.groupName} · Round {active.round}
+                {active.label}
               </div>
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
                 {active.aName} <span className="text-muted" style={{ fontSize: 13 }}>vs</span> {active.bName}

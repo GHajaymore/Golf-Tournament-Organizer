@@ -565,6 +565,20 @@ export default async function EntryPage() {
         }
       }
 
+      /**
+       * A TEAM CUP'S MATCHES ARE "MATCH 1, 2, 3" OF THEIR SESSION. The
+       * flight-and-round label ("Flight 1 · Round 5") describes a round robin's
+       * draw; a cup lineup has neither (2026-09-28). Numbered across the whole
+       * session before `mine` filters it, so a player sees their match's real
+       * number, not "Match 1".
+       */
+      const cupSession = stage.type === "Team Session";
+      const sessionOrder = new Map(
+        state.matches
+          .filter((m) => m.stageId === stage.id)
+          .sort((a, b) => a.round - b.round)
+          .map((m, n) => [m.id, n + 1] as const),
+      );
       const stageMatches = state.matches
         .filter((m) => m.stageId === stage.id)
         .filter(mine)
@@ -632,6 +646,9 @@ export default async function EntryPage() {
             bHandicap: state.matchHandicapFor(m.playerBId, m.id),
             groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
             round: m.round,
+            label: cupSession
+              ? `Match ${sessionOrder.get(m.id) ?? m.round}`
+              : `Flight ${(groupById.get(m.groupId) ?? 0) + 1} · Round ${m.round}`,
             // Who conceded, so the screen can say so and offer to undo it.
             // Stored on the match and read by `resolveMatch`; until now no
             // screen carried it, so no screen could show or clear one.

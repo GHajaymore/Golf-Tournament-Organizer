@@ -1301,10 +1301,19 @@ The original note behind item 34, kept for the reasoning:
     suspension happen. It does not sound on a screen opened after the fact.
   - **The limit, stated plainly:** a web page cannot choose the sound a locked phone makes. That
     is the notification's own sound. The native app could carry a custom one later.
-- **Trip team cup (Ryder Cup style).** Next, as its own PR. Research found most of the golf
-  already exists: team four-ball and foursomes matches, 1/½ points, and "club v club" meetings.
-  What's missing is singles credited to a team, one cup total across sessions of mixed formats,
-  points-to-win, captains picking lineups, and the big scoreboard.
+- **Trip team cup (Ryder Cup style).** BUILT.
+  - **Set-up:** two teams, which are the tournament's two flights, and a new round type called
+    "Team session", one per session: four-balls, foursomes, or singles.
+  - **Scoring:** every match is a point and a halve is half each. The score counts decided
+    matches only. The target is more than half the points (14½ of 28) unless it is set, and a
+    named holder keeps the cup on a tie.
+  - **Organizer:** the lineups are entered on a new Team cup screen. Each side must come from
+    the right team, nobody plays twice in a session, and only unplayed matches can be removed.
+  - **Everyone else:** the same scoreboard appears on the player's Board and on /live. Score
+    entry calls the matches "Match 1, 2, 3".
+  - **Getting started:** a template "Four-Ball, foursomes & singles — team cup". The seeded
+    club has a part-played Autumn Cup.
+  - **Not in this version:** captains entering their own lineups (they are read-only today).
 - **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from
   Reports or the tee sheet, for all carts or selected ones. Each tag carries:
   - the names of the two cart buddies;

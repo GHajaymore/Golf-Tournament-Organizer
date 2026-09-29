@@ -71,6 +71,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         where: { eventId: event.id, type: { in: [...KNOCKOUT_STAGE_TYPES] } },
       })
     : 0;
+  // A team cup's screen, only where there is a cup session.
+  const cupRounds = event
+    ? await prisma.stage.count({ where: { eventId: event.id, type: "Team Session" } })
+    : 0;
   // Screens the tournament governs (leaderboard, score entry) are filtered out
   // of the sidebar here rather than shown and then bounced.
   // "This week" earns a slot once there is more than one round to be a week
@@ -162,6 +166,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
+    hasCup: cupRounds > 0,
     isLeague: playingRounds > 1,
     isPlayerToo: ownEntries > 0,
     isMatch: isMatch(event?.shape),

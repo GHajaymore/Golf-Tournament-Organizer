@@ -394,6 +394,7 @@ export const NAV: NavSection[] = [
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
       { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },
+      { key: "cup", label: "Team cup", href: "/cup", icon: "ph ph-flag-pennant", tier: "on-course" },
       { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check", tier: "on-course" },
     ],
   },
@@ -503,6 +504,8 @@ export function navForRole(
   opts: {
     hasTeamRound?: boolean;
     hasKnockout?: boolean;
+    /** The tournament has a Team Session — a team cup. */
+    hasCup?: boolean;
     isLeague?: boolean;
     /**
      * This staff member is also in the field.
@@ -668,6 +671,8 @@ export function navForRole(
     // the sidebar link never was, so every tournament carried a permanent
     // door to an empty screen.
     if (key === "bracket" && !opts.hasKnockout) return false;
+    // A team cup screen only where there is a cup session to show.
+    if (key === "cup" && !opts.hasCup) return false;
     // "This week" only means something where there are weeks. A one-day medal
     // has a single round, and a link reading "This week" next to it would be
     // a second name for the leaderboard — the kind of duplicate door that

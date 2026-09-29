@@ -2845,7 +2845,17 @@ function highlightsOf(state: EventState): Highlight[] {
           : lead.toParShown > 0
             ? `+${lead.toParShown}`
             : `${lead.toParShown}`;
-      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
+      /**
+       * And the TOTAL in brackets on the same basis. It always said "(net …)",
+       * so a 36-hole GROSS championship read "leads at −3 (net 125)" over a
+       * board of gross totals — a figure the competition is not played on
+       * (walked on the seeded championship, 2026-09-28). Net board → the net
+       * total; gross board → the gross one, and nothing where the gross is
+       * already the headline figure because there is no par.
+       */
+      const netBoard = unitIsNet(state.strokeUnitLabel);
+      const total = netBoard ? ` (net ${lead.net})` : lead.parKnown ? ` (${lead.gross})` : "";
+      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par}${total}.` });
     }
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.

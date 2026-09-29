@@ -115,6 +115,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // panel renders for staff only, so merging it into a player-visible screen
   // did not hand a player the preview.
   bracket: ["admin", "assistant", "player"],
+  // The cup score is the thing the whole field is watching; only staff set
+  // the lineups on it (the actions check that, not this screen rule).
+  cup: ["admin", "assistant", "player"],
   announcements: ["admin", "assistant"],
   // Everyone. A conversation nobody but staff can reach is the Announcements
   // screen, which already exists — this one is for the field.
