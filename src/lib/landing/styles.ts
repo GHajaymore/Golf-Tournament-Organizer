@@ -599,6 +599,15 @@ __CMP_FRAMES__
   .thq .fx-grid .f small { margin-bottom: 6px; }
   .thq .fx:has(input[name="fx"][value="competition"]:checked, input[name="fx"][value="day"]:checked, input[name="fx"][value="player"]:checked, input[name="fx"][value="money"]:checked) .f small { display: none; }
 }
+/* Desktop round: the steps carried small type in 620px bands, five and a half
+   screens of mostly white. Larger words, shorter bands; the pinned phone still
+   turns over at each one. */
+@media (min-width: 1001px) {
+  .thq .step { min-height: min(58vh, 500px); }
+  .thq .step h3 { font-size: clamp(28px, 2.5vw, 38px); line-height: 1.12; letter-spacing: -.03em; max-width: 600px; }
+  .thq .step p { font-size: 18px; line-height: 1.6; max-width: 540px; }
+  .thq .step ul { font-size: 16px; }
+}
 /* The two hero buttons need 380px on one row (measured); narrower phones stack them. */
 @media (max-width: 379px) { .thq .hero .ctas { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) {
