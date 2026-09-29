@@ -1351,6 +1351,18 @@ The original note behind item 34, kept for the reasoning:
     missing, it reads "chase the cards" rather than "400 min behind".
   - **Clock:** worked out on the committee's device, which is the course's clock. No time zone
     is stored or needed.
+- **Pairing requests ("can I play with Bea?").** BUILT, same day.
+  - **Committee:** a Pairing requests card on the Tee sheet screen lists every request and takes
+    new ones from the desk or the phone.
+  - **Players:** "Who would you like to play with?" on Today (up to three), while they are not yet
+    in a published group.
+  - **The draw:** after a random, balanced or seeded draw, requests are kept together by swapping
+    players, so every group keeps its size. They are not applied to a draw by position, which is
+    competitive, or to a team round, where partners already play together. The screen says which.
+  - **When it can't:** a cluster of requests bigger than a group is named rather than forced
+    into a five-ball. A saved sheet that splits a request which came in after it was drawn
+    gets a warning.
+  - **Records:** logged under Recent changes as a field change.
 - **Charity extras:** already there. The float records entry fees, sponsors and raffle as
   money in, so nothing new was built.
 - **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from
