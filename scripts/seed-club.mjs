@@ -114,6 +114,22 @@ const dayOffset = (n) => {
 };
 
 /**
+ * Days from today to a given weekday, counted from the most recent one STRICTLY
+ * BEFORE today: `onWeekday(4, 0)` is last Thursday, `onWeekday(4, 1)` the
+ * Thursday after it. (0 = Sunday … 6 = Saturday.)
+ *
+ * The Thursday league was dated with fixed offsets from the seed day — played
+ * weeks 28/21/14/7 days back, the rest 3/10/17 ahead — so seeded on a Tuesday
+ * its weeks fell on Tuesdays and Fridays, and "Thursday Evening League, Fri
+ * 2 Oct" is the first thing a golfer reads (found by the site session,
+ * 2026-09-29). A named day has to BE that day, whichever day the seed runs.
+ */
+const onWeekday = (dow, weeksAfterLast) => {
+  const back = (new Date().getDay() - dow + 7) % 7 || 7;
+  return -back + 7 * weeksAfterLast;
+};
+
+/**
  * A seeded generator, so two runs produce the same club.
  *
  * Scores that move between runs make "did that number change because of my
@@ -1203,7 +1219,8 @@ export async function seed() {
     const leagueField = await enter(league, Array.from({ length: 20 }, (_, i) => i));
 
     const weeks = [];
-    for (const [i, offset] of [-28, -21, -14, -7, 3, 10, 17].entries()) {
+    // Four Thursdays played, three to come — on Thursdays, whatever day this runs.
+    for (const [i, offset] of [-3, -2, -1, 0, 1, 2, 3].map((w) => onWeekday(4, w)).entries()) {
       weeks.push(
         await prisma.stage.create({
           data: {
@@ -1582,7 +1599,7 @@ export async function seed() {
       shape: "single",
       format: "stroke",
       sideStyle: "individual",
-      dates: dayOffset(-1),
+      dates: dayOffset(onWeekday(3, 0)),
       course: `${MARK}-Ardmore Wee Nine`,
       courseId: away.id,
       defaultTeeId: awayTee.id,
@@ -1615,7 +1632,7 @@ export async function seed() {
         teeId: awayTee.id,
         scoringBasis: "net",
         handicapAllowance: 95,
-        playedOn: dayOffset(-1),
+        playedOn: dayOffset(onWeekday(3, 0)),
         teeSheet: teeSheetFor(twilightField, 18 * 60),
         teeSheetPublished: true,
       },
@@ -1658,7 +1675,10 @@ export async function seed() {
      * Today, the card and the tee sheet all have a back-nine number to get
      * right — and "Finish my card" points at the 16th.
      */
-    const backNine = await makeEvent("backnine", "Monday Back Nine — Shotgun Stableford", {
+    // Named like a club's own fixture and with no weekday in it: it is seeded
+    // for TODAY, and "Monday Back Nine" on a Tuesday is the league's mistake
+    // again (2026-09-29).
+    const backNine = await makeEvent("backnine", "Evening Back Nine — Shotgun Stableford", {
       status: "live",
       shape: "single",
       format: "stroke",
@@ -1753,7 +1773,7 @@ export async function seed() {
      * exists to prevent (fixed in #707). A charity day is exactly who types a
      * card in by hand.
      */
-    const charity = await makeEvent("charity", "Hospice Charity Day — Card Typed In", {
+    const charity = await makeEvent("charity", "Hospice Charity Day — Front Nine Medal", {
       status: "live",
       shape: "single",
       format: "stroke",
