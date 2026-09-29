@@ -16,6 +16,7 @@ import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseStrokesTranscript } from "@/lib/domain/stroke";
 import { ConfirmButton } from "./ConfirmButton";
 import { GroupScoring, type GroupPartner } from "./GroupScoring";
+import type { PinSheet } from "@/lib/domain/pin-sheet";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
@@ -70,7 +71,10 @@ export function PlayerCard({
   startHole = 1,
   pointsTable = null,
   voiceEntry = true,
+  pins = [],
 }: {
+  /** Where the holes are cut today — the committee's pin sheet. Empty for none. */
+  pins?: PinSheet;
   /**
    * The organizer's "Voice entry" setting (Play settings): "Let scores be
    * dictated out loud instead of typed". Off, the card offers no microphone
@@ -795,6 +799,7 @@ export function PlayerCard({
               startHole={startHole}
               holding={(s) => !savePartial && s.filter((v) => v != null).length < holes}
               showVoice={voiceEntry}
+              pins={pins}
             />
           ) : view === "hole" ? (
             <HoleByHoleCard
@@ -814,6 +819,7 @@ export function PlayerCard({
               meId={playerId}
               startHole={startHole}
               showVoice={voiceEntry}
+              pins={pins}
             />
           ) : (
             <>

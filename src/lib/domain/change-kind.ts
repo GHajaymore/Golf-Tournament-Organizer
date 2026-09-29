@@ -33,7 +33,11 @@ const SCORE_ACTIONS = [
   // `every-change-has-a-heading.test.ts`, 2026-09-28.
   "match.forfeit", "match.forfeit.undo",
 ];
-const ROUND_ACTIONS = ["round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed"];
+const ROUND_ACTIONS = [
+  "round-closed", "cut-applied", "regenerate-flights", "play-suspended", "play-resumed",
+  // Round-day set-up: where the holes are cut, and the time allowed.
+  "pin-sheet", "pace-set",
+];
 const SETTINGS_ACTIONS = ["rotate-share-token", "rotate-registration-token", "league-settings", "round-codes-on"];
 
 export function changeKind(action: string): ChangeKind {

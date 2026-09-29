@@ -26,6 +26,8 @@ import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { parsePinSheet, pinShort } from "@/lib/domain/pin-sheet";
+import { RoundDaySetup } from "@/components/RoundDaySetup";
 
 export const metadata = screenMetadata("/foursomes");
 
@@ -420,6 +422,9 @@ export default async function FoursomesPage({
     };
   });
 
+  /** Where the holes are cut for this round — the editor below, and a row on every printed card. */
+  const pinSheet = stage ? parsePinSheet(stage.pinSheet, holes) : [];
+
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,
     startHole: g.startHole,
@@ -583,7 +588,21 @@ export default async function FoursomesPage({
         holes={holes}
         teamRound={teamRound}
         sides={sides}
+        pins={pinSheet.map(pinShort)}
       />
+      {stage && (
+        <RoundDaySetup
+          // Re-mounted per round, so switching rounds never shows the last
+          // round's pins in the editor.
+          key={stage.id}
+          stageId={stage.id}
+          roundLabel={roundLabel(rounds, stage.id)}
+          holes={holes}
+          pars={course.pars}
+          sheet={pinSheet}
+          paceMinutes={stage.paceMinutes}
+        />
+      )}
     </>
   );
 }

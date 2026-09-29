@@ -22,6 +22,7 @@ import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
+import { parsePinSheet } from "@/lib/domain/pin-sheet";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -335,6 +336,8 @@ export default async function PlayCardPage() {
           : null
       }
       voiceEntry={settings.voiceEntry}
+      // Where the committee cut the holes for this round, shown on each hole.
+      pins={stage ? parsePinSheet(stage.pinSheet, holes) : []}
       status={me.round.card?.status ?? "entered"}
       // Whether signing this card hands it to anybody. Under player
       // confirmation nothing approves a scorecard — `certifyCard` writes
