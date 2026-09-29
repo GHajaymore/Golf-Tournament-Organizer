@@ -608,6 +608,23 @@ __CMP_FRAMES__
   .thq .step p { font-size: 18px; line-height: 1.6; max-width: 540px; }
   .thq .step ul { font-size: 16px; }
 }
+/* The comparison on a phone (2026-09-29): every row and word stays; the air between
+   them goes. Row labels sit tight on their cells, cells lose a line of padding,
+   and the concessions and the legal note set a size down. */
+@media (max-width: 700px) {
+  .thq .vs-table tbody th { padding: 12px 12px 2px; }
+  .thq .vs-table td { padding: 4px 12px 11px; line-height: 1.36; }
+  .thq .vs-table .vs-srcrow td { padding-bottom: 12px; }
+  .thq .u-row { padding: 13px 18px; gap: 2px; }
+  .thq .u-row .before { font-size: 13.5px; }
+  .thq .u-row .after { font-size: 15.5px; line-height: 1.4; }
+  .thq .glance-col { padding: 20px 18px; }
+  .thq .glance-col h3 { margin-bottom: 10px; }
+  .thq .glance-col li { font-size: 14px; }
+  .thq .glance-col ul { gap: 7px; }
+  .thq .vs-legal { font-size: 12px; line-height: 1.5; }
+  .thq .vs { margin-top: 56px; }
+}
 /* The two hero buttons need 380px on one row (measured); narrower phones stack them. */
 @media (max-width: 379px) { .thq .hero .ctas { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) {
