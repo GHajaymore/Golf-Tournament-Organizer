@@ -4,6 +4,8 @@ import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { loadRoster, memberHistory } from "@/lib/services/roster";
 import { indexLabel } from "@/lib/domain/handicap-label";
+import { meetingsFor } from "@/lib/services/head-to-head";
+import { recordAgainst, recordLine, recordVerdict } from "@/lib/domain/head-to-head";
 
 /**
  * `Player.status` in words. Its stored values are `confirmed | waitlisted |
@@ -78,6 +80,13 @@ export default async function MemberHistoryPage({
    */
   const selected = members.find((m) => m.id === params.member) ?? null;
   const history = selected ? await memberHistory(organizationId, selected.id) : [];
+  /**
+   * HEAD-TO-HEAD (2026-09-28) — this member's record against everybody they
+   * have met in a match here, each meeting counted exactly as that
+   * tournament's own table counted it (`meetingsFor`).
+   */
+  const records = selected && history.length ? recordAgainst(selected.id, await meetingsFor(organizationId, selected.id)) : [];
+  const nameOfMember = new Map(members.map((m) => [m.id, m.name]));
 
   return (
     <>
@@ -167,6 +176,60 @@ export default async function MemberHistoryPage({
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {selected && history.length > 0 && (
+        <section className="card" style={{ marginTop: 16 }} aria-labelledby="match-record">
+          <h2 id="match-record" style={{ marginTop: 0, fontSize: 16 }}>
+            Match record
+          </h2>
+          {records.length === 0 ? (
+            <p className="text-muted" style={{ margin: 0 }}>
+              No finished matches against another member yet. Match play, knockouts and team-cup singles count
+              here; medals and team four-balls do not.
+            </p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Against</th>
+                    <th>Record</th>
+                    <th>Last met</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((r) => {
+                    const last = r.meetings[0];
+                    const lastWon = last.winner === selected.id;
+                    return (
+                      <tr key={r.opponentId}>
+                        <td>
+                          <Link href={`/member?member=${encodeURIComponent(r.opponentId)}`}>
+                            {nameOfMember.get(r.opponentId) ?? "A former member"}
+                          </Link>
+                        </td>
+                        <td>
+                          <strong>{recordVerdict(r)}</strong>
+                          <div className="text-muted" style={{ fontSize: 12 }}>
+                            {recordLine(r)}
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 13 }}>
+                          {last.winner === null ? "Halved" : lastWon ? "Won" : "Lost"}
+                          {last.margin && last.margin !== "AS" ? ` ${last.margin}` : ""}
+                          <div className="text-muted" style={{ fontSize: 12 }}>
+                            {[last.eventName, last.where].filter(Boolean).join(" · ")}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
     </>

@@ -30,6 +30,31 @@ export function PairingRequests({
   // Alphabetical for the pickers — a field arrives in seed order, which nobody
   // scans for a name.
   const byName = [...field].sort((x, y) => x.name.localeCompare(y.name));
+  /**
+   * The form opens on a tap. Open by default it put an empty card and two
+   * selects above the draw, and on a phone the groups — what the organizer
+   * came to this screen for — fell below the fold (found by the website
+   * session re-shooting the tee sheet, 2026-09-28).
+   */
+  const [adding, setAdding] = useState(false);
+
+  if (pairs.length === 0 && splitOnSheet.length === 0 && !adding) {
+    return (
+      <section
+        className="card elev-sm"
+        style={{ marginBottom: 16, display: "flex", flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px" }}
+        aria-labelledby="pairing-requests"
+      >
+        <span id="pairing-requests" style={{ flex: 1, minWidth: 0, fontSize: 14 }}>
+          <Icon name="users-three" /> <strong>Pairing requests</strong>{" "}
+          <span className="text-muted">— none yet. The draw keeps requests together where it can.</span>
+        </span>
+        <button type="button" className="btn btn-ghost" onClick={() => setAdding(true)}>
+          Add a request
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="card elev-sm" style={{ marginBottom: 16, gap: 10 }} aria-labelledby="pairing-requests">
@@ -38,8 +63,8 @@ export function PairingRequests({
           <Icon name="users-three" /> Pairing requests
         </h2>
         <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
-          Who asked to play with whom. The draw keeps them together where it can — not on a draw by position,
-          which is competitive. Players can ask from their phone too.
+          The draw keeps these together where it can (not on a draw by position). Players can ask from their
+          phone.
         </p>
       </div>
 
@@ -74,6 +99,13 @@ export function PairingRequests({
         </ul>
       )}
 
+      {!adding ? (
+        <div>
+          <button type="button" className="btn btn-ghost" onClick={() => setAdding(true)}>
+            Add a request
+          </button>
+        </div>
+      ) : (
       <form
         style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}
         onSubmit={(e) => {
@@ -111,7 +143,11 @@ export function PairingRequests({
         <button type="submit" className="btn btn-secondary" disabled={pending || !a || !b}>
           Add request
         </button>
+        <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => setAdding(false)}>
+          Done
+        </button>
       </form>
+      )}
       {error && (
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
           {error}

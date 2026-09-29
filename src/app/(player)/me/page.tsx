@@ -20,6 +20,8 @@ import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote } from "@/lib/domain/your-card";
 import { myTieLine } from "@/lib/domain/my-tie";
+import { recordBetween } from "@/lib/services/head-to-head";
+import { yourHistory } from "@/lib/domain/head-to-head";
 import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
@@ -106,6 +108,11 @@ export default async function PlayTodayPage() {
 
   const round = me.round;
   const card = round?.card ?? null;
+  /** This player's record against the opponent in the tie they are about to play. */
+  const tieHistory =
+    me.playerId && round?.tie?.state === "to-play" && round.tie.opponentId
+      ? await recordBetween(state.event.organizationId, me.playerId, round.tie.opponentId)
+      : null;
   /**
    * The pairing-request card, while there is still a draw to ask of: entered,
    * no group on a published sheet yet, nothing on the card, and the tournament
@@ -547,6 +554,13 @@ export default async function PlayTodayPage() {
               <p style={{ margin: "4px 0 0", fontFamily: "var(--font-heading)", fontSize: 20, lineHeight: 1.25 }}>
                 {myTieLine(round.tie)}
               </p>
+              {/* HEAD-TO-HEAD — what every golfer asks about the draw. Only
+                  before the tie, and only when they have met in a match here. */}
+              {tieHistory && (
+                <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5 }}>
+                  {yourHistory(tieHistory, state.event.id)}
+                </p>
+              )}
               {/* Both players known and no result yet: either may report it,
                   and the organizer approves before the draw moves. */}
               {round.tie.state === "to-play" && round.tie.opponentId && me.playerId && (
