@@ -256,7 +256,7 @@ describe("the sign-in form, re-pointed at the landing palette, can be read", asy
   }
 
   it("found the re-pointing at all", () => {
-    for (const t of ["color-accent", "color-accent-2", "color-on-accent", "color-text", "color-text-muted", "color-surface", "color-accent-400"]) {
+    for (const t of ["color-accent", "color-accent-2", "color-on-accent", "color-text", "color-text-muted", "color-danger", "color-surface", "color-accent-400"]) {
       expect(mapping[t], `--${t} is no longer re-pointed on the landing`).toBeTruthy();
     }
   });
@@ -265,6 +265,7 @@ describe("the sign-in form, re-pointed at the landing palette, can be read", asy
   const PAIRS: Array<[string, string, number, string]> = [
     ["color-text", "color-surface", 4.5, "labels and body text on the form's card"],
     ["color-text-muted", "color-surface", 4.5, "the helper lines: the password rule, what each kind of organizer gets"],
+    ["color-danger", "color-surface", 4.5, "a sign-in error: wrong email or password"],
     ["color-accent", "color-surface", 4.5, "links and the focus ring on the card"],
     ["color-accent-2", "color-surface", 4.5, "the secondary links (Forgot?, the round-code prompt)"],
     ["color-on-accent", "color-accent", 4.5, "the Log in / Sign up button's label"],
