@@ -10,6 +10,14 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked } from "@/lib/services/action-shared";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { TEAM_SESSION as CUP_SESSION } from "@/lib/services/cup";
+
+/**
+ * A team cup session's sides and matches are its LINEUP, set on the Team cup
+ * screen. The draw and generator here would replace them with an
+ * every-side-plays-every-side round robin, so they refuse (2026-09-28).
+ */
+const CUP_SESSION_REFUSAL = "This is a team cup session — set its lineup on the Team cup screen.";
 
 export interface TeamResult {
   ok: boolean;
@@ -269,6 +277,7 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   if (!stage) return { ok: false, error: "Round not found." };
+  if (stage.type === CUP_SESSION) return { ok: false, error: CUP_SESSION_REFUSAL };
   if (!needsTeams(stage.format)) {
     return { ok: false, error: `${stage.format} is played by individuals — use the flight generator.` };
   }
@@ -392,8 +401,9 @@ export async function autoDrawTeams(
   if (league) return { ok: false, error: league };
   await assertUnlocked(eventId, "change teams");
 
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true, type: true } });
   if (!stage) return { ok: false, error: "Round not found." };
+  if (stage.type === CUP_SESSION) return { ok: false, error: CUP_SESSION_REFUSAL };
   if (!needsTeams(stage.format)) {
     return { ok: false, error: `${stage.format} is played by individuals, not teams.` };
   }

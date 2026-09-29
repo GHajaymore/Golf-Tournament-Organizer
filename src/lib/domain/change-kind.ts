@@ -43,7 +43,8 @@ export function changeKind(action: string): ChangeKind {
   // "knockout." — a player's report of their tie, and staff approving or
   // turning it down, are all about a result.
   if (SCORE_ACTIONS.includes(a) || a.startsWith("card.") || a.startsWith("knockout.")) return "Scores & results";
-  if (ROUND_ACTIONS.includes(a)) return "Rounds";
+  // "cup." — the team cup's target, holder and session lineups.
+  if (ROUND_ACTIONS.includes(a) || a.startsWith("cup.")) return "Rounds";
   if (SETTINGS_ACTIONS.includes(a)) return "Settings";
   return "Other";
 }

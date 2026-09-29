@@ -38,6 +38,9 @@ export const CLONED_EVENT_FIELDS = [
   "qualifyOverall",
   // A club that runs a plate every year wants the plate again.
   "bracketMode",
+  // Next year's cup is played to the same total. The HOLDER is not carried:
+  // it is a flight id of THIS tournament, which the copy does not have.
+  "cupPointsToWin",
   // A copy of last year's knockout is a knockout. Dropping this would silently
   // reopen every control the shape exists to hide.
   "shape",
@@ -185,6 +188,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "travels with registrationOpen: a closed copy has no entries to auto-confirm or approve, so it starts at the default and the organizer chooses when they open it",
   expiresAt:
     "the self-destruct clock on a casual round, and the one field here where copying it would DELETE something. A copy is made from the Tournaments list, which is a tournament act — so inheriting an expiry would hand a brand-new tournament a deletion date it never asked for, and the sweep would remove it overnight with its field and its cards in it. Written by createMatch and nothing else; a copy is not a casual round however casual the thing it was copied from",
+  cupHolderGroupId:
+    "a flight id of the original tournament, and a copy has no flights yet — carrying it would name a holder that does not exist. The organizer names this year's holder once the teams are drawn",
   bracketDraw:
     "last year's draw, made from last year's qualifiers — it holds player ids that belong to the original's field and do not exist in the copy, so carrying it would seed the new knockout with a bracket full of players who are not in the tournament. bracketMode IS carried, because the SHAPE of the knockout is how the club runs it; who was in it is not",
 };

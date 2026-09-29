@@ -1047,6 +1047,98 @@ export async function seed() {
       },
     });
 
+    /* ================================================== 3b. the team cup === */
+
+    /**
+     * A RYDER CUP WEEKEND, part-played (2026-09-28). Two teams — the event's
+     * two flights — and three sessions: Friday four-balls (both decided),
+     * Saturday foursomes (one decided, one on the course), Sunday singles
+     * (lined up, not started). Every state the cup board draws is here: a win,
+     * a halve, a match in play, and matches not yet begun. The Whites hold the
+     * cup, so a tie keeps it with them.
+     *
+     * The signed-in member (index 0) plays for the Blues, so /me/board shows
+     * the cup when this tournament is the one open.
+     */
+    const cup = await makeEvent("cup", "Autumn Cup — Blues v Whites", {
+      status: "live",
+      shape: "series",
+      format: "match",
+      dates: `${dayOffset(-2)} onwards`,
+      course: `${MARK}-Braid Hollow — Championship Course`,
+      courseId: home.id,
+      customPars: JSON.stringify(PARS_18),
+      customYards: JSON.stringify(YARDS_18),
+      customStrokeIndex: JSON.stringify(SI_18),
+      leaderboardVisibility: "public",
+      moneyMode: "none",
+      launchedAt: new Date(Date.now() - 3 * 864e5),
+    });
+    await prisma.eventCourse.create({ data: { eventId: cup.id, courseId: home.id } });
+    const cupField = await enter(cup, [0, 1, 2, 3, 4, 5, 6, 7]);
+    const blues = await prisma.group.create({ data: { eventId: cup.id, name: "Blues", position: 0 } });
+    const whites = await prisma.group.create({ data: { eventId: cup.id, name: "Whites", position: 1 } });
+    for (const [i, p] of cupField.entries()) {
+      await prisma.player.update({ where: { id: p.id }, data: { groupId: i < 4 ? blues.id : whites.id } });
+    }
+    await prisma.group.update({ where: { id: blues.id }, data: { captainId: cupField[0].id } });
+    await prisma.group.update({ where: { id: whites.id }, data: { captainId: cupField[4].id } });
+    await prisma.event.update({ where: { id: cup.id }, data: { cupHolderGroupId: whites.id } });
+
+    /** A match card from a string: A/B/H per hole, "-" for not played. */
+    const cupCard = (s) => JSON.stringify([...s.padEnd(18, "-")].map((c) => (c === "-" ? null : c)));
+    const [B1, B2, B3, B4, W1, W2, W3, W4] = cupField.map((p) => p.id);
+    const session = async (position, description, format, day) => {
+      const stage = await prisma.stage.create({
+        data: {
+          eventId: cup.id,
+          position,
+          description,
+          type: "Team Session",
+          format,
+          holes: 18,
+          courseId: home.id,
+          scoringBasis: "net",
+          handicapAllowance: format === "Foursomes" ? 50 : 90,
+          playedOn: dayOffset(day),
+        },
+      });
+      const carrier = await prisma.group.create({
+        data: { eventId: cup.id, stageId: stage.id, isCarrier: true, name: `${format} — cup session`, position: 10 + position },
+      });
+      return { stage, carrier };
+    };
+    let round = 0;
+    const pairMatch = async ({ stage, carrier }, blue, white, holes) => {
+      const side = async (ids, flight) =>
+        prisma.team.create({
+          data: {
+            eventId: cup.id,
+            stageId: stage.id,
+            name: ids.map((id) => cupField.find((p) => p.id === id).name).join(" & "),
+            clubGroupId: flight.id,
+            members: { create: ids.map((playerId, position) => ({ playerId, position })) },
+          },
+        });
+      const a = await side(blue, blues);
+      const b = await side(white, whites);
+      await prisma.match.create({
+        data: { eventId: cup.id, stageId: stage.id, groupId: carrier.id, round: ++round, playerAId: "", playerBId: "", teamAId: a.id, teamBId: b.id, holes },
+      });
+    };
+    const fri = await session(0, "Friday four-balls", "Four-Ball", -2);
+    await pairMatch(fri, [B1, B2], [W1, W2], cupCard("AA" + "H".repeat(15))); // Blues 2&1
+    await pairMatch(fri, [B3, B4], [W3, W4], cupCard("AB" + "H".repeat(16))); // halved
+    const sat = await session(1, "Saturday foursomes", "Foursomes", -1);
+    await pairMatch(sat, [B1, B3], [W1, W3], cupCard("BBB" + "H".repeat(13))); // Whites 3&2
+    await pairMatch(sat, [B2, B4], [W2, W4], cupCard("A" + "H".repeat(11))); // Blues 1 UP thru 12
+    const sun = await session(2, "Sunday singles", "Match Play", 0);
+    for (const [b, w] of [[B1, W1], [B2, W2], [B3, W3], [B4, W4]]) {
+      await prisma.match.create({
+        data: { eventId: cup.id, stageId: sun.stage.id, groupId: sun.carrier.id, round: ++round, playerAId: b, playerBId: w, holes: cupCard("") },
+      });
+    }
+
     /* ============================================== 4. the weekly league === */
 
     /**
@@ -1918,6 +2010,7 @@ export async function seed() {
         champs: champs.shareToken,
         twilight: twilight.shareToken,
         team: teamEvent.shareToken,
+        cup: cup.shareToken,
       },
       counts: { members: members.length, events: built.length },
     };

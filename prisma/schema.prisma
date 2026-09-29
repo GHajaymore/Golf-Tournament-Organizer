@@ -1136,6 +1136,14 @@ model Event {
   voiceEntry            Boolean @default(true)
   playerAccess          String  @default("email") // email | code | both
   /**
+   * A TEAM CUP (2026-09-28): two teams — the event's two flights — playing
+   * sessions of matches worth a point each. Points to win outright; 0 means
+   * "more than half of the points on offer". The holder, when named (a flight
+   * id), keeps the cup on a tie.
+   */
+  cupPointsToWin        Float   @default(0)
+  cupHolderGroupId      String  @default("")
+  /**
    * Registration asks for a mobile number and refuses without one.
    * Off by default and deliberately per-tournament. A phone number is not
    * needed to run a competition — email is identity here and the app reaches
