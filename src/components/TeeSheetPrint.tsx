@@ -110,6 +110,7 @@ export function TeeSheetPrint({
   holes,
   teamRound = null,
   sides = [],
+  pins = [],
 }: {
   groups: PrintGroup[];
   clubName: string;
@@ -125,6 +126,9 @@ export function TeeSheetPrint({
   holes: number;
   teamRound?: PrintTeamRound | null;
   sides?: PrintSide[];
+  /** The round's pin sheet in card notation ("22 / 6R"), one per hole; empty
+   *  strings for holes with no position. No pin sheet, no row. */
+  pins?: string[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const all = selected.size === 0;
@@ -497,6 +501,24 @@ export function TeeSheetPrint({
                   <th className="tot" />
                   <th className="tot" />
                 </tr>
+                {/* Where the hole is cut, when the committee has set a pin
+                    sheet — the line a player reads on the tee. */}
+                {pins.some(Boolean) && (
+                  <tr>
+                    <th>Pin</th>
+                    {cols.map((c) =>
+                      c.kind === "hole" ? (
+                        <th key={`pin${c.i}`} style={{ fontSize: "0.8em", whiteSpace: "nowrap" }}>
+                          {pins[c.i] ?? ""}
+                        </th>
+                      ) : (
+                        <th key={c.label} className="tot" />
+                      ),
+                    )}
+                    <th className="tot" />
+                    <th className="tot" />
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {blocks.map((b, bi) => {

@@ -1793,6 +1793,19 @@ model Stage {
    * Whether players may see it. Drafts stay the organizer's.
    */
   teeSheetPublished Boolean @default(false)
+  /**
+   * Where the hole is cut on each green for this round, as JSON — one entry
+   * per hole of the round's card, {on, side, off} or null. See
+   * lib/domain/pin-sheet.ts. Empty means no pin sheet, which is every round
+   * that existed before this field.
+   */
+  pinSheet          String  @default("")
+  /**
+   * Time allowed for eighteen holes as a four-ball, in minutes. Zero means the
+   * club default (4h 15). Smaller groups are allowed proportionally less — see
+   * lib/domain/pace.ts.
+   */
+  paceMinutes       Int     @default(0)
 
   event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)

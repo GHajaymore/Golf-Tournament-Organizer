@@ -9,6 +9,7 @@ import { MicNote } from "./MicNote";
 import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseHoleTranscript } from "@/lib/domain/score-entry-input";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
+import { pinLong, pinShort, type PinSheet } from "@/lib/domain/pin-sheet";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -101,7 +102,10 @@ export function HoleByHoleCard({
   meId,
   startHole = 1,
   showVoice = true,
+  pins = [],
 }: {
+  /** The round's pin sheet, one entry per hole of the card. Empty for none. */
+  pins?: PinSheet;
   players: CardPlayer[];
   cards: Record<string, (number | null)[]>;
   pars: number[];
@@ -321,6 +325,12 @@ export function HoleByHoleCard({
             <div>Par <strong style={{ color: "var(--color-text)", fontSize: 16 }}>{par ?? "—"}</strong></div>
             {yards[hole] != null && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
             {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
+            {/* Where the hole is cut today, from the committee's pin sheet. */}
+            {pins[hole] && (
+              <div aria-label={`Pin: ${pinLong(pins[hole])}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                Pin <strong style={{ color: "var(--color-text)" }}>{pinShort(pins[hole])}</strong>
+              </div>
+            )}
           </div>
         </div>
 
