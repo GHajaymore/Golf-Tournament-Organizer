@@ -84,7 +84,7 @@ ${landingTokens("light", "    ")}
 .thq .h1 { font: 600 clamp(34px, calc(8vw + 8px), 92px)/.96 var(--display); letter-spacing: -.035em; text-wrap: balance; }
 .thq .h2 { font: 600 clamp(32px, 4.2vw, 54px)/1.04 var(--sans); letter-spacing: -.04em; text-wrap: balance; }
 .thq .h3 { font: 600 19px/1.3 var(--sans); letter-spacing: -.015em; }
-.thq .lead { font-size: clamp(17px, 1.4vw, 19px); line-height: 1.6; color: var(--ink-soft); max-width: 620px; }
+.thq .lead { font-size: clamp(17px, 1.4vw, 19px); line-height: 1.6; color: var(--ink-soft); max-width: 620px; text-wrap: pretty; }
 .thq .accent { color: var(--brass); }
 .thq .grad { background: linear-gradient(100deg, var(--brass-hi) 0%, var(--brass-ui) 55%, color-mix(in srgb, var(--brass-ui) 78%, var(--ground)) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .thq .muted { color: var(--ink-soft); }
@@ -214,39 +214,25 @@ ${landingTokens("light", "    ")}
 .thq .screens-toggle button .i { width: 16px; height: 16px; }
 .thq .screens-toggle button[aria-pressed="true"] { background: var(--surface-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
 
-/* ── stats strip ── */
-.thq .strip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg-2); position: relative; z-index: 1; margin-top: 64px; }
-.thq .strip .wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.thq .strip .s { padding: 34px 24px; border-left: 1px solid var(--line); display: grid; gap: 8px; }
-.thq .strip .s:first-child { border-left: 0; padding-left: 0; }
-.thq .strip b { font: 600 clamp(32px, 3.4vw, 44px)/1 var(--sans); letter-spacing: -.04em; }
-.thq .strip span { font-size: 14px; color: var(--ink-soft); line-height: 1.45; }
-@media (max-width: 860px) { .thq .strip .wrap { grid-template-columns: 1fr 1fr; } .thq .strip .s:nth-child(3) { border-left: 0; padding-left: 0; } .thq .strip .s:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
-@media (max-width: 600px) { .thq .strip .s { padding: 26px 16px; } .thq .strip .s:nth-child(odd) { padding-left: 0; } }
-@media (max-width: 360px) { .thq .strip .wrap { grid-template-columns: minmax(0, 1fr); } .thq .strip .s { border-left: 0 !important; padding-left: 0 !important; border-bottom: 1px solid var(--line); } .thq .strip .s:last-child { border-bottom: 0; } }
-
-/* ── the scorecard motif ──
-   Ajay, 2026-09-28: "make it unique". The signature is golf's own paper: the
-   stats strip reads as a row of a scorecard — a hole number over each cell,
-   each figure boxed in the app's scoreboard face (Oswald, the same tiles the
-   player's Today screen uses), and the one that matters circled, the way a
-   birdie is marked on a card. Colours come from the palette tokens only. */
+/* ── the scoreboard face ── */
+/* The scoreboard face (Oswald, as on the player's Today screen), for the format titles. */
 .thq { --card-font: var(--font-board), "Arial Narrow", system-ui, sans-serif; }
-.thq .strip.card-row .wrap { counter-reset: hole; }
-.thq .strip.card-row .s { counter-increment: hole; gap: 12px; align-content: start; }
-.thq .strip.card-row .s::before { content: "Hole " counter(hole); font: 600 11px/1 var(--card-font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.thq .strip.card-row b { justify-self: start; font: 600 clamp(30px, 3.2vw, 40px)/1 var(--card-font); letter-spacing: 0; padding: .14em .34em .16em; border: 1.5px solid var(--line-3); border-radius: 4px; min-width: 1.6em; text-align: center; font-variant-numeric: tabular-nums; }
-.thq .strip.card-row b.accent { border-color: currentColor; border-radius: 999px; padding-inline: .42em; box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 4.5px var(--accent-a45); }
 
 /* ── formats gallery: four real boards, each titled like a scorecard header ── */
-.thq .fmt-rack { display: grid; grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: center; gap: 28px; margin-top: 8px; }
+.thq .fmt-rack { display: grid; grid-template-columns: repeat(3, minmax(0, 240px)); justify-content: center; gap: 40px; margin-top: 36px; }
 .thq .fmt { margin: 0; display: grid; gap: 16px; align-content: start; }
 .thq .fmt figcaption { display: grid; gap: 6px; text-align: center; }
 .thq .fmt figcaption b { font: 600 13px/1.2 var(--card-font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
 .thq .fmt figcaption span { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
 .thq .formats .real-note { text-align: center; margin-top: 28px; }
-@media (max-width: 960px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 220px)); row-gap: 40px; } }
-@media (max-width: 440px) { .thq .fmt-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; row-gap: 32px; } .thq .fmt figcaption span { font-size: 12.5px; } }
+@media (max-width: 960px) { .thq .fmt-rack { gap: 20px; } }
+.thq .fmt-hint { display: none; }
+@media (max-width: 700px) {
+  .thq .fmt-rack { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; margin-inline: -16px; padding: 4px 16px 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .thq .fmt-rack::-webkit-scrollbar { display: none; }
+  .thq .fmt { flex: 0 0 min(72%, 280px); scroll-snap-align: start; }
+  .thq .fmt-hint { display: block; margin: 6px 0 0; text-align: right; font: 500 12px/1 var(--mono); color: var(--ink-faint); }
+}
 
 /* ── formats ticker ── */
 .thq .ticker { overflow: hidden; position: relative; padding: 8px 0; }
@@ -266,7 +252,12 @@ ${landingTokens("light", "    ")}
 .thq .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-a08); border: 1px solid var(--accent-a22); color: var(--brass); }
 .thq .cell .ic { margin-bottom: 4px; }
 .thq .cell p { color: var(--ink-soft); font-size: 15px; line-height: 1.55; max-width: 520px; }
-.thq .c4 { grid-column: span 4; } .thq .c3 { grid-column: span 3; } .thq .c2 { grid-column: span 2; }
+.thq .c4 { grid-column: span 4; } .thq .c3 { grid-column: span 3; } .thq .c2 { grid-column: span 2; } .thq .c6 { grid-column: 1 / -1; }
+/* A full-width card with its words beside its screen (the club calendar). */
+.thq .cell.split { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); column-gap: 40px; align-items: center; }
+.thq .cell.split .split-copy { display: grid; gap: 12px; align-content: center; max-width: 560px; }
+.thq .cell.split .shot-fig { margin-top: 0; }
+@media (max-width: 1000px) { .thq .cell.split { grid-template-columns: minmax(0, 1fr); row-gap: 16px; } }
 @media (max-width: 1000px) { .thq .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } .thq .c4, .thq .c3 { grid-column: span 2; } .thq .c2 { grid-column: span 1; } }
 @media (max-width: 640px) { .thq .bento { grid-template-columns: minmax(0, 1fr); } .thq .c4, .thq .c3, .thq .c2 { grid-column: span 1; } }
 @media (max-width: 360px) { .thq .cell, .thq .idx-col { padding: 20px; } }
@@ -337,26 +328,18 @@ ${landingTokens("light", "    ")}
 .thq .feat p { font-size: 14.5px; color: var(--ink-soft); }
 .thq .feats.yours { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
 
-.thq .player-phones { display: grid; grid-template-columns: repeat(3, minmax(0, 230px)); justify-content: center; align-items: end; gap: 28px; margin-top: 56px; }
+.thq .player-phones { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); justify-content: center; align-items: end; gap: 40px; margin-top: 56px; }
 .thq .player-phones .phone:nth-child(2) { transform: translateY(-28px); }
 @media (max-width: 700px) {
-  .thq .player-phones { grid-template-columns: repeat(2, minmax(0, 170px)); gap: 16px; }
   .thq .player-phones .phone:nth-child(2) { transform: none; }
-  .thq .player-phones .phone:nth-child(3) { display: none; }
+  /* Two phones at 154px could not be read: a swipe row at a readable size, as the formats. */
+  .thq .player-phones { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; margin-inline: -16px; padding: 4px 16px 8px; scrollbar-width: none; }
+  .thq .player-phones::-webkit-scrollbar { display: none; }
+  .thq .player-phones .phone { flex: 0 0 min(72%, 280px); scroll-snap-align: start; }
 }
 
 /* ── desktop and phone ── */
 .thq .dp { display: grid; justify-items: center; gap: 22px; }
-.thq .dp-set { display: none; width: 100%; justify-items: center; gap: 22px; }
-.thq .dp:has(input[value="live"]:checked) .dp-set[data-dp="live"],
-.thq .dp:has(input[value="console"]:checked) .dp-set[data-dp="console"],
-.thq .dp:has(input[value="player"]:checked) .dp-set[data-dp="player"] { display: grid; }
-.thq .dp-stage { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 32px; align-items: end; }
-.thq .dp-window { border-radius: 14px; border-bottom: 1px solid var(--line-2); }
-.thq .dp-window img { display: block; width: 100%; height: auto; }
-.thq .dp-phone { width: 250px; }
-.thq .dp .real-note { margin-top: 0; }
-@media (max-width: 860px) { .thq .dp-stage { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 28px; } .thq .dp-phone { width: min(240px, 70vw); } }
 
 /* ── the money ── */
 .thq .money { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: center; }
@@ -376,6 +359,8 @@ ${landingTokens("light", "    ")}
 .thq .cmp-tabs { display: none; }
 .thq .compare:has(input[name="cmp-mode"][value="ap"]:checked) .cmp-tabs[data-set="ap"],
 .thq .compare:has(input[name="cmp-mode"][value="col"]:checked) .cmp-tabs[data-set="col"] { display: inline-flex; }
+/* One row of five on a phone: wrapped, it left "Console" alone on a second line. */
+@media (max-width: 480px) { .thq .cmp-tabs { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; } .thq .cmp-tabs .tab { flex: none; padding: 0 9px; font-size: 13px; } }
 .thq .cmp-f { display: none; justify-items: center; gap: 18px; width: 100%; }
 __CMP_FRAMES__
 .thq .cmp-frame.phone { width: min(300px, 78vw); }
@@ -412,6 +397,8 @@ __CMP_FRAMES__
 .thq .idx-col li .i { width: 15px; height: 15px; color: var(--flag); margin-top: 3px; stroke-width: 2.2; }
 .thq .idx-col li small { display: block; color: var(--ink-faint); font-size: 12.5px; margin-top: 1px; }
 .thq .idx-all:not(:has(.idx-more input:checked)) .idx-col li:nth-child(n+7) { display: none; }
+/* On a phone four groups of six is a screen and a half of list: three each until asked. */
+@media (max-width: 700px) { .thq .idx-all:not(:has(.idx-more input:checked)) .idx-col li:nth-child(n+4) { display: none; } }
 .thq .idx-more { display: flex; justify-content: center; margin-top: 24px; }
 .thq .idx-more label { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--wash); color: var(--ink); font: 600 14px/1 var(--sans); cursor: pointer; }
 .thq .idx-more label:hover { border-color: var(--brass-ui); color: var(--brass); }
@@ -503,7 +490,7 @@ __CMP_FRAMES__
 .thq .ed-note button:hover { border-color: var(--brass-ui); color: var(--brass); }
 .thq .tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
 @media (max-width: 1000px) { .thq .tiers { gap: 12px; } .thq .tier { padding: 24px 18px; } .thq .tier .price b { font-size: 38px; } }
-.thq .tier { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px 28px; display: grid; grid-template-rows: auto auto auto auto 1fr auto; gap: 18px; position: relative; }
+.thq .tier { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px 28px; display: grid; grid-template-rows: auto auto auto auto auto 1fr auto; gap: 18px; position: relative; }
 .thq .tier.hot { background: linear-gradient(180deg, color-mix(in srgb, var(--brass-ui) 10%, transparent), var(--surface) 45%); border-color: var(--accent-a45); box-shadow: 0 0 0 1px var(--accent-a22), 0 30px 70px -30px var(--accent-a45); }
 .thq .tier .badge { position: absolute; top: 18px; right: 18px; font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 9px; border-radius: 7px; }
 .thq .tier h3 { font: 600 18px/1 var(--sans); letter-spacing: -.01em; }
@@ -516,7 +503,8 @@ __CMP_FRAMES__
 .thq .tier li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 14.5px; line-height: 1.45; }
 .thq .tier li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 2px; stroke-width: 2.2; }
 .thq .tier .note { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
-.thq .tier .btn { width: 100%; }
+.thq .tier-note { margin: 14px auto 0; text-align: center; font-size: 13px; color: var(--ink-faint); }
+.thq .tier .btn { width: 100%; align-self: start; }
 @media (max-width: 420px) { .thq .price b { font-size: 42px; } .thq .tier { padding: 26px 20px; } }
 /* On a phone the plans stay side by side (Ajay, 2026-09-28): each card is its
    plan's head — name, price, button — and the table under them says what
@@ -605,6 +593,7 @@ __CMP_FRAMES__
 .thq .fq-body { padding: 40px 0 96px; }
 .thq .fq-body .faq { display: block; }
 .thq details.fq-group { border-top: 1px solid var(--line); scroll-margin-top: 140px; }
+.thq .fq-body details.q { scroll-margin-top: 150px; }
 .thq details.fq-group:first-child { border-top: 0; }
 .thq .fq-head { list-style: none; display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 18px 4px; cursor: pointer; }
 .thq .fq-head::-webkit-details-marker { display: none; }
@@ -631,6 +620,7 @@ __CMP_FRAMES__
 .thq .cta-card .h1 { font-size: clamp(34px, 5.6vw, 72px); }
 @media (max-width: 420px) { .thq .cta-card { padding: 64px 20px; } }
 .thq .anchor { display: block; position: relative; top: -84px; visibility: hidden; }
+@media (max-width: 700px) { .thq section[id] { scroll-margin-top: 40px; } }
 .thq .authpanel {
   /* The sign-in form is the app's own component (LoginPanel), drawn with the
      app's --color-* tokens and carrying its own card. On the front door its
@@ -647,21 +637,24 @@ __CMP_FRAMES__
 .thq .store > span { display: grid; gap: 3px; }
 .thq .store small { font: 500 11px/1 var(--sans); color: color-mix(in srgb, white 72%, transparent); letter-spacing: .01em; }
 .thq .store b { font: 600 17px/1 var(--sans); letter-spacing: -.02em; }
-.thq .store[aria-disabled="true"] { cursor: default; opacity: .78; }
 .thq a.store:hover { border-color: var(--ink); }
+.thq a.store.soon { opacity: .85; }
 .thq .stores-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; max-width: 460px; margin: 0 auto; }
 
 /* ── footer ── */
-.thq footer { border-top: 1px solid var(--line); padding: 56px 0 calc(40px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--ink-faint); }
-.thq .foot-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
-@media (max-width: 800px) { .thq .foot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .thq .foot-grid > div:first-child { grid-column: span 2; } }
-@media (max-width: 360px) { .thq .foot-grid { grid-template-columns: minmax(0, 1fr); } .thq .foot-grid > div:first-child { grid-column: auto; } }
-.thq .foot-grid h4 { font: 600 13px/1 var(--sans); color: var(--ink); margin-bottom: 10px; }
-.thq .foot-grid ul { list-style: none; display: grid; }
-.thq .foot-grid ul a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; color: var(--ink-faint); transition: color .15s; }
-.thq .foot-grid ul a:hover { color: var(--ink); }
-.thq .foot-grid p { margin-top: 12px; max-width: 300px; line-height: 1.55; }
-.thq .foot-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; }
+.thq footer { border-top: 1px solid var(--line); padding: 48px 0 calc(28px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--ink-faint); }
+.thq .foot-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px 48px; flex-wrap: wrap; }
+.thq .foot-brand { display: grid; gap: 12px; max-width: 440px; }
+.thq .foot-brand p { font-size: 14px; line-height: 1.55; color: var(--ink-faint); }
+.thq .foot-nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 2px; margin-right: -12px; }
+.thq .foot-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px; font-size: 14px; color: var(--ink-soft); transition: color .15s, background .15s; }
+.thq .foot-nav a:hover { color: var(--ink); background: var(--wash-2); }
+@media (max-width: 760px) {
+  .thq .foot-top { flex-direction: column; }
+  .thq .foot-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: calc(100% + 24px); margin: 0 -12px; }
+}
+.thq .foot-base { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; }
+@media (max-width: 760px) { .thq .foot-base { flex-direction: column; align-items: flex-start; } }
 .thq .foot-base .ed-note { margin-top: 0; justify-content: flex-start; }
 .thq .cred { white-space: nowrap; }
 
@@ -702,5 +695,5 @@ __CMP_FRAMES__
 );
 
 /** The comparison viewer's frames, in the order its tabs show them. Read by the page. */
-export const COMPARE_APPEARANCE = ["today", "board", "card", "money", "console"] as const;
+export const COMPARE_APPEARANCE = ["card", "today", "board", "money", "console"] as const;
 export const COMPARE_COLOURS = ["championship", "coastal", "azalea"] as const;

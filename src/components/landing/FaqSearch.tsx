@@ -48,7 +48,13 @@ export function FaqSearch({ total }: { total: number }) {
   useEffect(() => {
     const open = () => {
       const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-      if (target instanceof HTMLDetailsElement) target.open = true;
+      if (!target) return;
+      // A question lives inside its topic: open both, or a link to one
+      // question (the landing's store buttons) lands on a closed topic.
+      for (let el: Element | null = target; el; el = el.parentElement?.closest("details") ?? null) {
+        if (el instanceof HTMLDetailsElement) el.open = true;
+      }
+      target.scrollIntoView({ block: "start" });
     };
     open();
     window.addEventListener("hashchange", open);

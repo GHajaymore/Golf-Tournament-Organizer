@@ -16,8 +16,10 @@ import { LoginPanel } from "@/components/LoginPanel";
  * `initialMode` take effect on a second click without LoginPanel needing to
  * reconcile a prop against internal tab state.
  */
-export function LandingAuth() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+export function LandingAuth({ defaultMode = "login" }: { defaultMode?: "login" | "signup" } = {}) {
+  // Where no link said otherwise: the closing section asks the visitor to set
+  // up their first event, so it opens on sign-up (Ajay, 2026-09-28).
+  const [mode, setMode] = useState<"login" | "signup">(defaultMode);
 
   useEffect(() => {
     const sync = () => {
