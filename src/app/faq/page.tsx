@@ -52,9 +52,9 @@ export default async function FaqPage() {
       <main>
         <section className="fq-hero">
           <div className="wrap">
-            <span className="kick">Questions</span>
-            <h1 className="h1" style={{ fontSize: "clamp(42px, 5.6vw, 72px)" }}>
-              Everything organizers <span className="accent">ask us.</span>
+            <span className="label">Questions</span>
+            <h1 className="h1">
+              Everything organizers <span className="o">ask us.</span>
             </h1>
             <p className="lead">
               How the scoring works, what players need, how the money is handled and what it costs — answered plainly.
@@ -74,7 +74,7 @@ export default async function FaqPage() {
           </div>
         </nav>
 
-        <section className="paper fq-body">
+        <section className="fq-body">
           <div className="wrap">
             {FAQ.map((g) => (
               <details className="fq-group" id={g.id} key={g.id}>
@@ -105,7 +105,7 @@ export default async function FaqPage() {
                     <h2>Still have a question?</h2>
                     <p>Send it to us and we&rsquo;ll answer it.</p>
                   </div>
-                  <a className="btn btn-solid" href={`mailto:${contactEmail}`}>Email TourneyHQ</a>
+                  <a className="btn" href={`mailto:${contactEmail}`}>Email TourneyHQ</a>
                 </>
               ) : (
                 <>
@@ -113,7 +113,7 @@ export default async function FaqPage() {
                     <h2>The quickest answer is to try it.</h2>
                     <p>Free for up to ten players, with no card and no setup fee.</p>
                   </div>
-                  <Link className="btn btn-solid" href="/#signup">Start free</Link>
+                  <Link className="btn" href="/#signup">Start free</Link>
                 </>
               )}
             </div>

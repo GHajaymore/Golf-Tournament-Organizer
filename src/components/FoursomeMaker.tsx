@@ -12,6 +12,7 @@ import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
 import { usesTwentyFourHourClock } from "@/lib/domain/locale";
+import { honourRequests } from "@/lib/domain/pairing-requests";
 import {
   DRAW_ORDERS,
   groupBySides,
@@ -66,7 +67,13 @@ export function FoursomeMaker({
   sides = [],
   savedGroups = [],
   terms = golfTermsFor("us"),
+  requests = [],
 }: {
+  /**
+   * Players who asked to be drawn together, as clusters of ids in this round's
+   * field (`requestClusters`). Honoured after the draw where they can be.
+   */
+  requests?: string[][];
   /** The club's golf words — what a group of four, three and two is called. */
   terms?: Pick<Record<GolfTerm, string>, "group" | "groupOfThree" | "groupOfTwo">;
   /**
@@ -158,8 +165,9 @@ export function FoursomeMaker({
     [sides, byId],
   );
   const bySides = playingSides.length > 0;
+  const requestsApply = !bySides && algo !== "standings" && requests.length > 0;
 
-  const groups = useMemo(() => {
+  const drawn = useMemo(() => {
     let formed;
     if (bySides) {
       // Whole sides, never split. The rule above only decides their ORDER:
@@ -182,8 +190,17 @@ export function FoursomeMaker({
           ? groupByStandings(players, positionOf, size, (i) => `fs-${i}`)
           : formGroups(players, algo, { mode: "perFlight", value: size }, (i) => `fs-${i}`, rng);
     }
-    return orderGroups(formed, order, positionOf, rng);
-  }, [players, algo, order, size, rng, positionOf, bySides, playingSides]);
+    const ordered = orderGroups(formed, order, positionOf, rng);
+    // PAIRING REQUESTS, after the draw has decided everything else — never on
+    // a draw by position, which is competitive, and never over whole sides,
+    // which already decide who plays together. See `honourRequests`.
+    if (requestsApply) {
+      const res = honourRequests(ordered, requests);
+      return { groups: res.groups, kept: res.kept, split: res.split };
+    }
+    return { groups: ordered, kept: [] as string[][], split: [] as string[][] };
+  }, [players, algo, order, size, rng, positionOf, bySides, playingSides, requests, requestsApply]);
+  const groups = drawn.groups;
 
   // The club's clock — "08:10" for a club on the 24-hour clock, "8:10 AM" for
   // one on the 12-hour. The time is stored on the sheet as drawn here.
@@ -583,6 +600,24 @@ export function FoursomeMaker({
             </>
           )}
         </div>
+
+        {/* What the draw did with the pairing requests — kept, not kept, or
+            deliberately not applied — so nobody has to check the groups by
+            eye to find out whether Ann got her game with Bea. */}
+        {requests.length > 0 && (
+          <p role="status" className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.5 }}>
+            <Icon name="users-three" />{" "}
+            {!requestsApply
+              ? bySides
+                ? "Pairing requests don't apply here: partners already play together, side by side."
+                : "Pairing requests aren't applied to a draw by position — it's a competitive re-pairing."
+              : drawn.split.length === 0
+                ? `${drawn.kept.length} pairing ${drawn.kept.length === 1 ? "request" : "requests"} kept together.`
+                : `${drawn.kept.length} kept together. Could not fit in one group: ${drawn.split
+                    .map((c) => listNames(c.map((id) => byId.get(id)?.name ?? ""), 6))
+                    .join("; ")}.`}
+          </p>
+        )}
 
         {/* Why "Save sheet" is dead, when it is.
             Both save buttons carried `groups.length === 0` and said nothing, so

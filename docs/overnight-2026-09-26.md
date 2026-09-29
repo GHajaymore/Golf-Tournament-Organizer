@@ -1364,6 +1364,21 @@ The original note behind item 34, kept for the reasoning:
   - **What doesn't count:** side matches (four-balls, team pairs), casual quick matches,
     unfinished matches, and guests with no member record (they can't be followed from one
     tournament to the next).
+- **Pairing requests ("can I play with Bea?").** BUILT, same day.
+  - **Committee:** a Pairing requests card on the Tee sheet screen lists every request and takes
+    new ones from the desk or the phone.
+  - **Players:** "Who would you like to play with?" on Today (up to three), while they are not yet
+    in a published group.
+  - **The draw:** after a random, balanced or seeded draw, requests are kept together by swapping
+    players, so every group keeps its size. They are not applied to a draw by position, which is
+    competitive, or to a team round, where partners already play together. The screen says which.
+  - **When it can't:** a cluster of requests bigger than a group is named rather than forced
+    into a five-ball. A saved sheet that splits a request which came in after it was drawn
+    gets a warning.
+  - **Records:** logged under Recent changes as a field change.
+  - **After a walk by the website session (2026-09-28):** with no requests, the card collapses to
+    one line, so a phone's first screen shows the draw rather than an empty form. The seeded
+    club's medal now carries two requests, kept together in its published draw.
 - **Charity extras:** already there. The float records entry fees, sponsors and raffle as
   money in, so nothing new was built.
 - **Cart tags: PARKED by Ajay ("park it for future build").** These are printable tags from

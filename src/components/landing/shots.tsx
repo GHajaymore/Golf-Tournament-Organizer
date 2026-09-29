@@ -6,8 +6,8 @@ import Image from "next/image";
  * Every product image on the front door is an UNEDITED screenshot of the app
  * running on invented demo data (the `scripts/seed-club.mjs` club), captured
  * once as a US club and once as a UK one, in dark and in light. Nothing is
- * drawn. The dark twin shows by default; the light twin is display:none until
- * the page's switch asks for it, and lazy, so it is never downloaded before.
+ * drawn. The page is light, so a section shows the light twin (`lightShot`);
+ * the comparison slider shows both twins of the same screen on purpose.
  *
  * `unoptimized`: the files are already WebP at 2x their largest displayed size
  * (≤ 65 KB each), so a resizing pass would add a per-image cost and nothing
@@ -23,7 +23,7 @@ export interface ShotSpec {
   height: number;
   alt: string;
   className?: string;
-  /** The hero: fetched first, never lazy. Applies to the default (dark) twin only. */
+  /** The hero: fetched first, never lazy. */
   priority?: boolean;
 }
 
@@ -34,33 +34,27 @@ export function shotSrc(name: string, variant: string, appearance: "dark" | "lig
   return `/landing/${stem}.${variant}.webp`;
 }
 
-/** Both twins, as siblings, so the surrounding layout sees one image. */
-export function shot({ name, variant, width, height, alt, className = "", priority }: ShotSpec) {
-  return (
-    <>
-      <Image
-        className={`${className} is-dark`}
-        src={shotSrc(name, variant, "dark")}
-        width={width}
-        height={height}
-        alt={alt}
-        unoptimized
-        priority={priority}
-      />
-      <Image
-        className={`${className} is-light`}
-        src={shotSrc(name, variant, "light")}
-        width={width}
-        height={height}
-        alt={alt}
-        unoptimized
-        loading="lazy"
-      />
-    </>
-  );
-}
-
 /** One fixed file — a capture that does not follow the switch (the comparison viewer's own pair). */
 export function fixedShot(src: string, width: number, height: number, alt: string, className = "") {
   return <Image className={className} src={src} width={width} height={height} alt={alt} unoptimized loading="lazy" />;
+}
+
+/**
+ * The LIGHT capture alone. The page has been light since the 2026-09-29
+ * redesign, so a screen that illustrates a section shows its light twin only;
+ * the dark twins remain for the comparison slider, which shows both on purpose.
+ */
+export function lightShot({ name, variant, width, height, alt, className = "", priority }: ShotSpec) {
+  return (
+    <Image
+      className={className}
+      src={shotSrc(name, variant, "light")}
+      width={width}
+      height={height}
+      alt={alt}
+      unoptimized
+      priority={priority}
+      loading={priority ? undefined : "lazy"}
+    />
+  );
 }

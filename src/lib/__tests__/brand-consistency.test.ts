@@ -191,7 +191,10 @@ describe("the wordmark is written once too", () => {
     expect(mark).toContain("light-dark(var(--thq-word-light-1), var(--thq-orange-light))");
     expect(read("src/components/Logo.tsx"), "the flag follows the ground now").not.toContain("word-light");
     // And the landing declares its light scheme, or it would draw the dark stops on card stock.
-    expect(readLanding()).toMatch(/prefers-color-scheme: light\) \{\s*\.thq \{[^}]*color-scheme: light/);
+    // Light-first since the 2026-09-29 redesign (it followed the phone before): the page is
+    // light, and its dark bands declare their own dark scheme so the lockup follows them too.
+    expect(readLanding()).toMatch(/\.thq \{[^}]*color-scheme: light/);
+    expect(readLanding()).toMatch(/\.thq \.band \{[^}]*color-scheme: dark/);
   });
 
   it("sizes the mark so it stands the full height of the wordmark", async () => {
@@ -486,7 +489,10 @@ describe("the mark is the same colour in both renderings", () => {
     const palette = ["--brass", "--brass-ui", "--brass-hi", "--flag", "--under", "--paper-accent"];
 
     for (const mark of marks) {
-      const line = landing.match(new RegExp(`"${mark}":\\s*"([^"]+)"`));
+      // A JS style mapping (`"--logo-stick": "…"`) or, since the 2026-09-29 redesign, a CSS
+      // declaration in the landing stylesheet (`--logo-stick: …;`).
+      const line =
+        landing.match(new RegExp(`"${mark}":\\s*"([^"]+)"`)) ?? landing.match(new RegExp(`${mark}:\\s*([^;]+);`));
       expect(line, `${mark} is no longer mapped on the landing page`).not.toBeNull();
       const value = line![1];
       for (const p of palette) {
