@@ -80,7 +80,11 @@ export function ourCells(prices: LandingPrices): ReactNode[] {
     // PER YEAR, like every competitor price beside it (Ajay, 2026-09-29: monthly
     // beside their yearly "is misleading"). Like for like, Club is above TM Club,
     // so nothing here or near it may claim TourneyHQ is cheaper across the board.
-    <>Free · {PLANS.society.name} <b>{prices.society.yearly} a year</b> · {PLANS.club.name} <b>{prices.club.yearly} a year</b></>,
+    <>
+      Free · {PLANS.society.name} <b>{prices.society.yearly} a year</b> · {PLANS.club.name} <b>{prices.club.yearly} a year</b>
+      {/* Monthly stays open: a league running one summer season pays by the month. */}
+      <span className="vs-note">Or by the month: {prices.society.monthly} and {prices.club.monthly}.</span>
+    </>,
     mk("yes", "None"),
     mk("yes", `Yes, up to ${PLANS.free.limits.playersPerEvent} players, one tournament at a time. It's not a trial.`),
     mk("yes", "On every plan, including Free"),
