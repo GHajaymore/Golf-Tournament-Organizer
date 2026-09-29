@@ -77,7 +77,10 @@ export const ROW_LABELS = [
 export function ourCells(prices: LandingPrices): ReactNode[] {
   return [
     "Clubs, courses and resorts, plus societies, leagues and one-off outings",
-    <>Free · {PLANS.society.name} <b>{prices.society.monthly}/mo</b> · {PLANS.club.name} <b>{prices.club.monthly}/mo</b></>,
+    // PER YEAR, like every competitor price beside it (Ajay, 2026-09-29: monthly
+    // beside their yearly "is misleading"). Like for like, Club is above TM Club,
+    // so nothing here or near it may claim TourneyHQ is cheaper across the board.
+    <>Free · {PLANS.society.name} <b>{prices.society.yearly} a year</b> · {PLANS.club.name} <b>{prices.club.yearly} a year</b></>,
     mk("yes", "None"),
     mk("yes", `Yes, up to ${PLANS.free.limits.playersPerEvent} players, one tournament at a time. It's not a trial.`),
     mk("yes", "On every plan, including Free"),
@@ -103,7 +106,9 @@ export function compareSets(prices: LandingPrices): CompareSet[] {
       ],
       cells: [
         ["Private clubs, public courses, resorts and associations", "Private clubs, public courses and resorts"],
-        [<>TM Club {usd(1425)} a year<br />TM Premium {usd(4275)} a year</>, <>{usd(495)} to {usd(2495)} a year</>],
+        // The like-for-like a club compares on: what the season costs for live scoring
+        // on players' phones — every TourneyHQ plan, TM Premium only (row 5, same source).
+        [<>TM Club {usd(1425)} a year<br />TM Premium {usd(4275)} a year<span className="vs-note">Live scoring on players' phones comes with TM Premium.</span></>, <>{usd(495)} to {usd(2495)} a year</>],
         [mk("no", <>{usd(200)} or {usd(500)}, one-time</>), mk("no", <>{usd(99)} to {usd(499)}, one-time</>)],
         [mk("na", "None listed"), mk("na", "None listed")],
         [mk("part", "TM Premium only"), mk("part", "Priced by the number of tournaments scored live (1, 10, 25 or all)")],
