@@ -702,7 +702,7 @@ export default async function PlayTodayPage() {
             </span>
             <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.45 }}>
               {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
-              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHole}` : ""}
+              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
             </span>
           </span>
         </section>

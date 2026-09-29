@@ -29,6 +29,7 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
 import { PairingRequests } from "@/components/PairingRequests";
 import { parsePinSheet, pinShort } from "@/lib/domain/pin-sheet";
+import { firstHoleOf } from "@/lib/domain/hole-number";
 import { RoundDaySetup } from "@/components/RoundDaySetup";
 
 export const metadata = screenMetadata("/foursomes");
@@ -448,6 +449,9 @@ export default async function FoursomesPage({
     };
   });
 
+  /** The course's number for this card's first hole — 10 on a back nine, so the sheet says "Hole 12", not "Hole 3". */
+  const firstHole = firstHoleOf(course);
+
   /** Where the holes are cut for this round — the editor below, and a row on every printed card. */
   const pinSheet = stage ? parsePinSheet(stage.pinSheet, holes) : [];
 
@@ -573,6 +577,7 @@ export default async function FoursomesPage({
         />
       )}
       <FoursomeMaker
+        firstHole={firstHole}
         requests={requestClustersNow}
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed }))}
         // The round's sides, so partners go out together — `groupBySides`.
@@ -623,6 +628,7 @@ export default async function FoursomesPage({
         teamRound={teamRound}
         sides={sides}
         pins={pinSheet.map(pinShort)}
+        firstHole={firstHole}
       />
       {stage && (
         <RoundDaySetup
@@ -635,6 +641,7 @@ export default async function FoursomesPage({
           pars={course.pars}
           sheet={pinSheet}
           paceMinutes={stage.paceMinutes}
+          firstHole={firstHole}
         />
       )}
     </>

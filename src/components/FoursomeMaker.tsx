@@ -13,6 +13,7 @@ import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
 import { usesTwentyFourHourClock } from "@/lib/domain/locale";
 import { honourRequests } from "@/lib/domain/pairing-requests";
+import { startHoleNumber } from "@/lib/domain/hole-number";
 import {
   DRAW_ORDERS,
   groupBySides,
@@ -68,7 +69,10 @@ export function FoursomeMaker({
   savedGroups = [],
   terms = golfTermsFor("us"),
   requests = [],
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the round's card — 10 on a back nine. */
+  firstHole?: number;
   /**
    * Players who asked to be drawn together, as clusters of ids in this round's
    * field (`requestClusters`). Honoured after the draw where they can be.
@@ -733,7 +737,7 @@ export function FoursomeMaker({
               </div>
               <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
                 <Icon name="clock" style={{ marginRight: 4 }} />
-                {`Hole ${g.startHole}${g.half ?? ""} · ${g.time}`}
+                {`Hole ${startHoleNumber(g.startHole, firstHole)}${g.half ?? ""} · ${g.time}`}
               </div>
               {gp.map((p) => {
                 const pos = positionOf(p.id);

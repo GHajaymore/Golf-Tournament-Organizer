@@ -1,4 +1,5 @@
 "use client";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
  * Two versions of the same card, and a person to choose between them.
@@ -45,7 +46,10 @@ export function CardConflict({
   onTakeTheirs,
   kind = "conflict",
   busy = false,
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the card — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   mine: (number | null)[];
   theirs: (number | null)[];
   pars: number[];
@@ -151,7 +155,7 @@ export function CardConflict({
                   key={i}
                   style={{ padding: "5px 8px", textAlign: "center", fontSize: 11.5 }}
                 >
-                  {i + 1}
+                  {holeNumber(i, firstHole)}
                   {pars[i] ? (
                     <span className="text-muted" style={{ display: "block", fontWeight: 400 }}>
                       par {pars[i]}

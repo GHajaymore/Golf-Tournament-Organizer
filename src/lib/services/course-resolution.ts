@@ -312,6 +312,10 @@ export function applyNine<
   const si = slice(course.strokeIndex);
   return {
     ...course,
+    // The number the course itself gives the first hole played — see
+    // `firstHoleOf`. Stamped here because this is the one place that knows the
+    // card IS the back nine.
+    firstHole: half === "back" ? 10 : 1,
     name: `${course.name} (${nine === "back" ? "back" : "front"} nine)`,
     pars: slice(course.pars),
     yards: slice(course.yards),

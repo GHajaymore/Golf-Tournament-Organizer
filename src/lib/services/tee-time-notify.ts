@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { teeTimeNotices } from "@/lib/domain/tee-time-notice";
 import type { TeeSheet } from "@/lib/domain/tee-sheet";
 import { sendPushToEmails } from "@/lib/services/push";
+import { startHoleNumber } from "@/lib/domain/hole-number";
 
 /**
  * Turning a published tee sheet into a push to each affected player.
@@ -29,6 +30,8 @@ export async function notifyTeeTimesPublished(opts: {
   /** "Round 3", or "" for a one-round tournament. */
   roundLabel: string;
   eventName: string;
+  /** The course's number for the round's first hole — 10 on a back nine (`firstHoleForRound`). */
+  firstHole?: number;
 }): Promise<void> {
   try {
     const notices = teeTimeNotices(opts.previous, opts.next, opts.firstPublish);
@@ -48,7 +51,9 @@ export async function notifyTeeTimesPublished(opts: {
         const email = emailById.get(n.playerId);
         if (!email) return Promise.resolve();
         const when = n.time || "your tee time";
-        const hole = n.startHole > 1 ? ` from the ${ordinal(n.startHole)}` : "";
+        // A position on the card, said as the course's hole: "from the 12th"
+        // on a back-nine shotgun, not "from the 3rd".
+        const hole = n.startHole > 1 ? ` from the ${ordinal(startHoleNumber(n.startHole, opts.firstHole ?? 1))}` : "";
         const title = n.kind === "changed" ? "Your tee time has changed" : "Your tee time is set";
         const body = `${round}${when}${hole} · ${event}`;
         // One tag per stage per player collapses a quick correction into a

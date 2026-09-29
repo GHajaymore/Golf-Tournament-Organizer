@@ -1388,6 +1388,36 @@ The original note behind item 34, kept for the reasoning:
   - the round code;
   - the club's name and logo.
 
+## A nine played on the back nine is holes 10–18 (2026-09-29)
+
+Found while looking for the next thing to test. On a nine-hole round set to the back nine, the card
+data is holes 10–18, but every screen numbered it 1–9. A member on the 10th tee read "Hole 1".
+The printed card headed its columns 1–9 under a course name ending "(back nine)". A shotgun group
+told "starting on hole 3" was sent to the 3rd, not the 12th. Nothing is scored differently — this
+is the numbers people read. US leagues often alternate nines week to week, so they would hit it
+every other week. The seeded club has no back-nine round, which is why no walk ever saw it.
+
+- **Fixed everywhere a hole number is printed:**
+  - the player's hole card, hole strip, full card and conflict chooser;
+  - the committee's score entry (stroke, match and team grids);
+  - the printed card and the draw's start holes;
+  - the pin editor;
+  - Today's "starting on hole";
+  - the dashboard's "You're in…";
+  - the tee-time push ("from the 12th").
+- **One rule:** `applyNine`, the one place that knows a card is the back nine, stamps its first
+  hole. The screens that hold only a round use `firstHoleForRound`, and a test pins the two to
+  agree on every combination.
+- **A second fault on the same path:** when a tournament's card is hand-entered (no course row),
+  the player's card wasn't narrowed to the round's nine at all. It showed the front nine's pars
+  on a back-nine round, and on any nine it took stroke dots from an eighteen-hole index sliced
+  to nine. Every other reader already narrows both ways, and now this one does too.
+- **Walked** on the seeded club with its medal turned into a back-nine shotgun:
+  - the player's strip and card read 10–18;
+  - the tee sheet starts read 10, 12, 14, 16, 18 and 11;
+  - the pin editor rows read 10–18;
+  - score entry reads 10–18, with "Hole 10, par 4" for a screen reader.
+
 ## Accessibility — every console control named
 
 A screen reader announces a form box by its label. Most of the console's boxes had a caption on

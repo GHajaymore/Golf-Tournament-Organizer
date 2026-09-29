@@ -207,6 +207,24 @@ describe("the wordmark is written once too", () => {
     }
     expect(read("src/components/Lockup.tsx")).toContain("markSizeFor(size, emblem)");
   });
+
+  it("spaces the pair by what is SEEN, not by the mark's box", async () => {
+    /**
+     * The gap used to start at the edge of the mark's box, which is a fifth
+     * empty on the right — 18px of daylight between flag and "T" at lg, so
+     * the lockup read as two pieces (2026-09-29). The visible space, gap plus
+     * the mark's own air, is now the same share of the wordmark at every size.
+     */
+    const { lockupGap } = await import("@/components/Lockup");
+    // The flat mark's artwork ends at x 25.8 of its 32-unit box; the target is 0.42 of the wordmark.
+    const MARK_RIGHT_AIR = (32 - 25.8) / 32, LOCKUP_VISIBLE_GAP = 0.42;
+    const { LOGO_SIZE, markSizeFor } = await import("@/components/Logo");
+    for (const size of [LOGO_SIZE.sm, LOGO_SIZE.md, LOGO_SIZE.lg, LOGO_SIZE.share]) {
+      const seen = lockupGap(size) + markSizeFor(size) * MARK_RIGHT_AIR;
+      expect(Math.abs(seen - size * LOCKUP_VISIBLE_GAP), `visible gap at ${size}`).toBeLessThanOrEqual(1);
+    }
+    expect(read("src/components/Lockup.tsx")).toContain("gap: lockupGap(size, emblem)");
+  });
 });
 
 describe("colour comes from the theme, not from the component", () => {

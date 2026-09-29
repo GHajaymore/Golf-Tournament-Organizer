@@ -4,6 +4,7 @@ import { setPaceMinutes, setPinSheet } from "@/app/actions/round-day";
 import { MAX_PACES_OFF, MAX_PACES_ON, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, minutesPerHole } from "@/lib/domain/pace";
 import { useAction } from "./useAction";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
  * ROUND-DAY SET-UP on the tee sheet: where the holes are cut, and the time the
@@ -30,7 +31,10 @@ export function RoundDaySetup({
   pars,
   sheet,
   paceMinutes,
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the round's card — 10 on a back nine. */
+  firstHole?: number;
   stageId: string;
   roundLabel: string;
   holes: number;
@@ -126,13 +130,13 @@ export function RoundDaySetup({
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <th scope="row">{i + 1}</th>
+                  <th scope="row">{holeNumber(i, firstHole)}</th>
                   <td className="text-muted">{pars[i] ?? ""}</td>
                   <td>
                     <input
                       className="input"
                       inputMode="numeric"
-                      aria-label={`Hole ${i + 1}: paces on`}
+                      aria-label={`Hole ${holeNumber(i, firstHole)}: paces on`}
                       style={{ width: "3.2em", padding: "4px 6px" }}
                       maxLength={2}
                       value={r.on}
@@ -142,7 +146,7 @@ export function RoundDaySetup({
                   <td>
                     <select
                       className="input"
-                      aria-label={`Hole ${i + 1}: side`}
+                      aria-label={`Hole ${holeNumber(i, firstHole)}: side`}
                       // Room on the right for the chevron `select.input` draws there.
                       style={{ width: "4.2em", padding: "4px 24px 4px 8px" }}
                       value={r.side}
@@ -159,7 +163,7 @@ export function RoundDaySetup({
                     <input
                       className="input"
                       inputMode="numeric"
-                      aria-label={`Hole ${i + 1}: paces from the ${r.side === "L" ? "left" : "right"} edge`}
+                      aria-label={`Hole ${holeNumber(i, firstHole)}: paces from the ${r.side === "L" ? "left" : "right"} edge`}
                       style={{ width: "3.2em", padding: "4px 6px" }}
                       maxLength={2}
                       disabled={r.side === "C"}

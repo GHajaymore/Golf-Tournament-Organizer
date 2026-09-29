@@ -31,7 +31,15 @@ export async function roundCardFor(
     : null;
   const resolved = courseForRound(venue, state.event);
   const known = !!resolved || hasCourseData(state.event);
-  const card = resolved ? applyNine(resolved, cleanNine(stage?.nine), holes) : resolveCourse(state.event);
+  /**
+   * NARROWED EITHER WAY. The fallback — a tournament's own hand-entered card,
+   * with no course row — used to be handed on whole, so a nine-hole round read
+   * its first nine pars whatever nine it was played on, and the stroke dots
+   * came off an eighteen-hole index sliced to nine (1,3,5,…,17) — the fault
+   * `cardForStage` exists to prevent, and which every other reader of a round's
+   * card already avoids by narrowing both paths (2026-09-29).
+   */
+  const card = applyNine(resolved ?? resolveCourse(state.event), cleanNine(stage?.nine), holes);
   const unit = await distanceUnitFor(resolved, state.event.organizationId);
   return { venue, known, card, unit };
 }

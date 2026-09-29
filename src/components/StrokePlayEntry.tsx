@@ -84,7 +84,10 @@ export function StrokePlayEntry({
   format = "",
   courseName = "",
   venueIsHome = false,
+  firstHole = 1,
 }: {
+  /** The course's number for the first hole on the round's card — 10 on a back nine. */
+  firstHole?: number;
   players: StrokePlayer[];
   pars: number[];
   yards: number[];
@@ -555,6 +558,7 @@ export function StrokePlayEntry({
             yards={yards}
             strokeIndex={strokeIndex}
             holes={holes}
+            firstHole={firstHole}
             onSet={(pid, i, v) =>
               setCards((prev) => {
                 const next = [...(prev[pid] ?? new Array(holes).fill(null))];
@@ -578,6 +582,7 @@ export function StrokePlayEntry({
           brand={brand}
           courseName={courseName}
           venueIsHome={venueIsHome}
+          firstHole={firstHole}
           /* Which set THIS player is on. Resolved on the server through the
              tee policy and the flight, so a mixed field — championship,
              seniors, ladies off three sets — names the right one per card. */

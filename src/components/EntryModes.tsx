@@ -72,7 +72,8 @@ export interface EntryRound {
    * numbers only, rather than printing another course's par over it.
    */
   /** `distanceUnit` — what `yards` is measured in, for THIS round's course. */
-  card: { pars: number[]; yards: number[]; strokeIndex: number[]; distanceUnit?: string };
+  /** `firstHole` — the course's number for the card's first hole, 10 on a back nine. */
+  card: { pars: number[]; yards: number[]; strokeIndex: number[]; distanceUnit?: string; firstHole?: number };
   stroke: {
     holes: number;
     stageId: string;
@@ -458,6 +459,7 @@ export function EntryModes({
           pars={round.card.pars}
           yards={round.card.yards}
           strokeIndex={round.card.strokeIndex}
+          firstHole={round.card.firstHole}
           netMode={round.netMode}
           scoreInput={round.scoreInput}
           courseKnown={courseKnown}
@@ -480,6 +482,7 @@ export function EntryModes({
           pars={round.card.pars}
           yards={round.card.yards}
           strokeIndex={round.card.strokeIndex}
+          firstHole={round.card.firstHole}
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}
           cardsByPlayer={round.stroke.cardsByPlayer}
