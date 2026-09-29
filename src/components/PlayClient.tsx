@@ -12,6 +12,7 @@ import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole }
 import { toParText } from "@/lib/domain";
 import { boardKind } from "@/lib/formats";
 import { certifyPrompt } from "@/lib/domain/card-approval";
+import { holeNumber } from "@/lib/domain/hole-number";
 
 interface PlayMatch {
   id: string;
@@ -61,6 +62,8 @@ interface Props {
   pars?: number[];
   yards?: number[];
   strokeIndex?: number[];
+  /** The course's number for the card's first hole — 10 on a back nine (`firstHoleOf`). */
+  firstHole?: number;
   netMode?: boolean;
   /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
   voiceEntry?: boolean;
@@ -604,6 +607,7 @@ export function PlayClient(props: Props) {
             yards={props.yards ?? []}
             strokeIndex={props.strokeIndex ?? []}
             holes={holeCount}
+            firstHole={props.firstHole ?? 1}
             onSet={(_id, hole, value) => {
               const next = Array.from({ length: holeCount }, (_, i) => card[i] ?? null);
               next[hole] = value;
@@ -862,7 +866,7 @@ export function PlayClient(props: Props) {
                 }}
               >
                 <div className="text-muted" style={{ fontSize: 10, marginBottom: 4, textAlign: "center" }}>
-                  {i + 1}
+                  {holeNumber(i, props.firstHole ?? 1)}
                   {props.pars?.[i] ? ` · par ${props.pars[i]}` : ""}
                 </div>
                 <div style={{ display: "flex", gap: 3 }}>
