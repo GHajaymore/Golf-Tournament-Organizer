@@ -210,7 +210,6 @@ export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
             ["/privacy", "Privacy"],
           ])}
         </div>
-        <div className="ftr-word" aria-hidden="true">TourneyHQ</div>
         <div className="ftr-base">
           <span>&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>
           <span>Every screen on this site is an unedited capture of the app, on invented demo data.</span>
