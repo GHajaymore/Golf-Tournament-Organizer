@@ -125,4 +125,14 @@ describe("the public board's round picker", () => {
     // In both branches: the special boards and the standard one.
     expect(page.split("{picker}").length - 1).toBe(2);
   });
+
+  it("and Reports prints and exports the same picked round (2026-09-28)", () => {
+    // The sheet a committee files must be able to be Round 1's after Round 2
+    // has started — and must mean the same round the leaderboard's picker does.
+    const page = readSource("src", "app", "(app)", "reports", "page.tsx");
+    expect(page).toMatch(/const state = withBoardRound\(loaded, round\)/);
+    expect(page).toMatch(/<RoundPicker/);
+    // CONTROL: the board is still read off `state`, not the unpicked `loaded`.
+    expect(page).toMatch(/const activeStage = state\.boardStage/);
+  });
 });

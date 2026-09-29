@@ -507,6 +507,17 @@ export function lookupFormat(name: string): GolfFormat | undefined {
   return GOLF_FORMATS.find((f) => f.name.toLowerCase() === key);
 }
 
+/**
+ * A format in one line — the first sentence of its description (Ajay,
+ * 2026-09-28: "keep most of it in the information button"). Shown under the
+ * Format select so a newcomer knows what they picked; the full description
+ * stays behind the ⓘ.
+ */
+export function formatTagline(desc: string): string {
+  const first = desc.split(/(?<=[.!?])\s/)[0] ?? "";
+  return first.trim();
+}
+
 /** True when this name resolves to a real format rather than the fallback. */
 export function isKnownFormat(name: string): boolean {
   return lookupFormat(name) !== undefined;

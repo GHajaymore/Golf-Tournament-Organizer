@@ -26,6 +26,7 @@ import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
+import { overallResultLabel } from "@/lib/domain/overall-result";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
@@ -857,6 +858,10 @@ export default async function DashboardPage() {
             // for any tournament that holds its course as a venue only.
             course: event.course || attachedVenues.join(" · "),
             format: event.format,
+            overall: overallResultLabel(
+              event.format,
+              state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format),
+            ),
             players: state.confirmed.length,
             flights: state.groups.length,
             rounds: state.stages.length,

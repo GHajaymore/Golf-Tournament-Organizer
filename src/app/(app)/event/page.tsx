@@ -6,7 +6,7 @@ import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { strandedEntrantCount } from "@/lib/services/round-codes";
-import { hasKnockoutStage } from "@/lib/stage-types";
+import { hasKnockoutStage, isPlayingRound } from "@/lib/stage-types";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
@@ -254,6 +254,7 @@ export default async function EventPage({
         key={e.id}
         isMatch={matchEvent}
         hasBracket={hasKnockoutStage(state.stages)}
+        roundFormats={state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format)}
         setup={
           flow
             ? {
