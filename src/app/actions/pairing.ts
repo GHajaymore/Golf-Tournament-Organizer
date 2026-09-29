@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { myPlayerIds } from "@/lib/services/me";
 import { MAX_REQUESTS } from "@/lib/domain/pairing-requests";
 
@@ -18,6 +19,16 @@ import { MAX_REQUESTS } from "@/lib/domain/pairing-requests";
  * A request never moves anybody by itself — the draw reads it. So neither door
  * is behind the setup lock, and neither touches a standing.
  */
+
+/**
+ * Every screen, and the cached public board. A request changes no standing,
+ * but it writes a Player row, and the board caches the event's players — so it
+ * is retired rather than left to guess which fields it happens to read.
+ */
+function refresh(eventId: string) {
+  revalidatePath("/", "layout");
+  boardChanged(eventId);
+}
 
 export interface PairingResult {
   ok: boolean;
@@ -57,7 +68,7 @@ export async function setPairingRequest(playerId: string, withPlayerId: string, 
     "pairing-request",
     on ? `Pairing request: ${a.name} with ${b.name}` : `Pairing request removed: ${a.name} and ${b.name}`,
   );
-  revalidatePath("/", "layout");
+  refresh(session.eventId);
   return { ok: true };
 }
 
@@ -93,6 +104,6 @@ export async function setMyPlayWith(withPlayerIds: string[]): Promise<PairingRes
       ? `${session.name} asked to play with ${field.map((p) => p.name).join(", ")}`
       : `${session.name} withdrew their pairing request`,
   );
-  revalidatePath("/", "layout");
+  refresh(session.eventId);
   return { ok: true };
 }

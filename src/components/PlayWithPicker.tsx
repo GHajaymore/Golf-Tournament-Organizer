@@ -95,7 +95,7 @@ export function PlayWithPicker({
           </div>
         </>
       )}
-      {saved && (
+      {saved && !open && (
         <p role="status" className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Sent to the committee.
         </p>

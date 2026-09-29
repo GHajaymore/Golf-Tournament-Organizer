@@ -27,6 +27,9 @@ export function PairingRequests({
   const [b, setB] = useState("");
   const { pending, error, run } = useAction({ refresh: true });
   const nameOf = new Map(field.map((p) => [p.id, p.name]));
+  // Alphabetical for the pickers — a field arrives in seed order, which nobody
+  // scans for a name.
+  const byName = [...field].sort((x, y) => x.name.localeCompare(y.name));
 
   return (
     <section className="card elev-sm" style={{ marginBottom: 16, gap: 10 }} aria-labelledby="pairing-requests">
@@ -85,7 +88,7 @@ export function PairingRequests({
           Player
           <select className="input" value={a} onChange={(e) => setA(e.target.value)}>
             <option value="">Choose…</option>
-            {field.map((p) => (
+            {byName.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -96,7 +99,7 @@ export function PairingRequests({
           wants to play with
           <select className="input" value={b} onChange={(e) => setB(e.target.value)}>
             <option value="">Choose…</option>
-            {field
+            {byName
               .filter((p) => p.id !== a)
               .map((p) => (
                 <option key={p.id} value={p.id}>
