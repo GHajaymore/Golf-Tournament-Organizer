@@ -1675,7 +1675,10 @@ export async function seed() {
      * Today, the card and the tee sheet all have a back-nine number to get
      * right — and "Finish my card" points at the 16th.
      */
-    const backNine = await makeEvent("backnine", "Monday Back Nine — Shotgun Stableford", {
+    // Named like a club's own fixture and with no weekday in it: it is seeded
+    // for TODAY, and "Monday Back Nine" on a Tuesday is the league's mistake
+    // again (2026-09-29).
+    const backNine = await makeEvent("backnine", "Evening Back Nine — Shotgun Stableford", {
       status: "live",
       shape: "single",
       format: "stroke",
@@ -1770,7 +1773,7 @@ export async function seed() {
      * exists to prevent (fixed in #707). A charity day is exactly who types a
      * card in by hand.
      */
-    const charity = await makeEvent("charity", "Hospice Charity Day — Card Typed In", {
+    const charity = await makeEvent("charity", "Hospice Charity Day — Front Nine Medal", {
       status: "live",
       shape: "single",
       format: "stroke",
