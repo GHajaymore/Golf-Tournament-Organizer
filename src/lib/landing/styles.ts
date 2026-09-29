@@ -607,7 +607,8 @@ __CMP_FRAMES__
   .thq .step h3 { margin: 16px 0 8px; font-size: 22px; }
   .thq .step p { font-size: 15px; }
   .thq .step ul { margin-top: 12px; font-size: 14px; gap: 4px; }
-  .thq .step .inl { width: 76%; height: 330px; margin: auto auto 0; padding-top: 22px; box-sizing: content-box; overflow: hidden; }
+  /* The whole phone, never a slice of it (Ajay: "I dont like cut screens"). */
+  .thq .step .inl { width: min(62%, 230px); margin: auto auto 22px; padding-top: 22px; }
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }

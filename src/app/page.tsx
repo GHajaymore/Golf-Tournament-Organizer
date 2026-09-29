@@ -105,10 +105,10 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
 /* A desk capture shrunk to a phone is ~4px text, so a desk item can carry a
    twin: the same page captured at phone width, shown at 700px and below. */
 const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; desk?: boolean; alt: string; twin?: { screen: Screen; alt: string } }> = [
-  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state.", twin: { screen: { name: "cup-org-phone", by: "d", w: 600, h: 750 }, alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the first four-ball." } },
+  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state.", twin: { screen: { name: "cup-org-phone", by: "d", ...PHONE }, alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the four-balls as they stand." } },
   { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE }, alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and 3 still to come." },
   { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE }, alt: "A member's calendar: the month's league rounds, each with an In / Out switch." },
-  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", w: 600, h: 800 }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
+  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", ...PHONE }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
 ];
 
 /** The formats: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
@@ -233,7 +233,10 @@ export default async function LandingPage() {
             </div>
             <div className="stage">
               <div className="desk">
-                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, priority: true, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
+                {/* Lazy, not priority: phones hide the laptop, and a priority image is preloaded
+                    whether it shows or not (150 KB a phone never drew). On a laptop it is in view,
+                    so it loads at once anyway. */}
+                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
               </div>
               <div className="phone">
                 {lightShot({ name: "hero-live", variant: d, width: 600, height: 1298, priority: true, alt: "The public live board on a phone: the round, and the field ranked by net strokes, the leader highlighted." })}
@@ -516,7 +519,7 @@ export default async function LandingPage() {
                 {SHOWCASE.map((x) => (
                   <figure className="show-f" data-f={x.key} key={x.key}>
                     <div className={`${x.desk ? "desk" : "phone"}${x.twin ? " only-wide" : ""}`}>{screen(x.screen, x.alt)}</div>
-                    {x.twin ? <div className="twin only-narrow">{screen(x.twin.screen, x.twin.alt)}</div> : null}
+                    {x.twin ? <div className="phone only-narrow">{screen(x.twin.screen, x.twin.alt)}</div> : null}
                     <figcaption>
                       {x.twin ? <><span className="only-wide">{x.alt}</span><span className="only-narrow">{x.twin.alt}</span></> : x.alt}
                     </figcaption>
@@ -593,7 +596,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Green fees", "Carts", "Caddies", "Dinner", "Lodging", "Evenly", "By shares", "Exact amounts", "By percent"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 700, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
+                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 1890, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
               </div>
               <div className="mcard reveal">
                 <h3 className="h3">Prize money, from the board.</h3>
@@ -601,8 +604,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Total purse", "Flight winners", "Twos pot", "Skins with carries", "Nassau", "Birdie pot"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well only-wide">{lightShot({ name: "crop-prizes", variant: d, width: 1200, height: 613, alt: "Prizes & payouts: a total purse, four prize lines with three awarded — Club Champion to the winner, then runner-up and third." })}</div>
-                <div className="well twin only-narrow">{lightShot({ name: "prizes-org-phone", variant: d, width: 600, height: 359, alt: "Add a prize on the organizer's phone: start from top 3 overall, best gross & net, flight winners, a twos pot, or nearest the pin & longest drive." })}</div>
+                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1414, alt: "Add a prize on the organizer's phone: start from top 3 overall, best gross & net, flight winners, a twos pot, or nearest the pin & longest drive." })}</div>
               </div>
             </div>
           </div>
