@@ -63,6 +63,7 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
         { t: "Waiting list, one-tap member entry" },
         { t: "Weekly attendance, four ways", top: true },
         { t: "Tee sheet drawn from who's in", s: "by handicap, standings or sides — then editable", top: true },
+        { t: "Pairing requests", s: "players ask from their phone; the draw keeps them together where it can" },
         { t: "One tee, split tees or a shotgun" },
         { t: "Tee times pushed to players' phones", s: "for players who turned notifications on" },
         { t: "Print the tee sheet and the cards" },
