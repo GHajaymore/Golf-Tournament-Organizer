@@ -511,13 +511,6 @@ export function discountedPrice(price: number, percentOff: number): number {
 export const LIMIT_KEYS = ["activeEvents", "staffSeats", "playersPerEvent"] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 
-/** Plain-words label for each limit, for a refusal message and the console. */
-export const LIMIT_LABEL: Record<LimitKey, string> = {
-  activeEvents: "active tournaments",
-  staffSeats: "staff seats",
-  playersPerEvent: "players in a tournament",
-};
-
 /**
  * LIMITS ARE CONFIGURABLE WITHOUT A CODE EDIT, exactly like prices above.
  *
@@ -658,8 +651,29 @@ export function limitCheck(
     allowed: false,
     limit: max,
     current,
-    reason: `The ${plan.name} plan includes ${max} ${LIMIT_LABEL[limit]}. Upgrade to add more.`,
+    reason: limitRefusal(plan.name, limit, max),
   };
+}
+
+/**
+ * The refusal, in a sentence a secretary can act on.
+ *
+ * It read "The Par plan includes 1 active tournaments. Upgrade to add more."
+ * (walked 2026-09-30, trying to start a second tournament on Par): a plural
+ * over the number one, and only one of the two ways out. Finishing the
+ * tournament you have is the other, and on the free plan it is the usual one.
+ */
+export function limitRefusal(planName: string, limit: LimitKey, max: number): string {
+  const plan = `The ${planName} plan`;
+  if (limit === "activeEvents") {
+    return max === 1
+      ? `${plan} runs one tournament at a time. Complete or delete the one you have to start another, or upgrade to run as many as your season needs.`
+      : `${plan} runs up to ${max} tournaments at once. Complete or delete one to start another, or upgrade to run more.`;
+  }
+  if (limit === "staffSeats") {
+    return `${plan} includes ${max} staff ${max === 1 ? "seat" : "seats"}. Remove someone under Access & staff, or upgrade to bring more of your committee in.`;
+  }
+  return `${plan} holds up to ${max} ${max === 1 ? "player" : "players"} in a tournament. Upgrade for a bigger field.`;
 }
 
 /**

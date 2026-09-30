@@ -1,8 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+
+// RosterClient reads the router and imports server actions; neither is what
+// these cells are about.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/",
+}));
+vi.mock("@/app/actions/roster", () => ({}));
 import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
+import { RosterClient } from "@/components/RosterClient";
 
 /**
  * THE WORD HAS TO REACH THE SCREEN, not just the resolver.
@@ -96,6 +106,26 @@ describe("what the outfit calls itself reaches the screen too", () => {
     // never opened the setting is unchanged.
     expect(markup("US", money(), "")).toContain("the league&#x27;s currency");
     expect(markup("US", money(), undefined)).toContain("the league&#x27;s currency");
+  });
+});
+
+describe("the Members screen is headed with the sidebar's own section word", () => {
+  /**
+   * Walked 2026-09-30 as a new society: the sidebar read SOCIETY and the page
+   * under it read CLUB, hard-coded. Rendered through the real provider for
+   * each kind, so a hard-coded word cannot pass for any but one of them.
+   */
+  const kicker = (kind: string) =>
+    renderToStaticMarkup(
+      <OrgProfileProvider kind={kind}>
+        <RosterClient clubName="zz Heath" eventName="" fieldLocked={false} members={[]} fieldSize={0} unlinkedCount={0} />
+      </OrgProfileProvider>,
+    ).match(/class="page-kicker">([^<]*)</)?.[1];
+
+  it("says Society for a society, Club for a club, Outing for an outing", () => {
+    expect(kicker("community")).toBe("Society");
+    expect(kicker("club")).toBe("Club");
+    expect(kicker("personal")).toBe("Outing");
   });
 });
 

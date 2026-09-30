@@ -116,6 +116,38 @@ describe("flights follow what the rounds are, until somebody chooses", () => {
   });
 });
 
+describe("how the tournament is decided follows its first round, when that round has no opponents", () => {
+  const decided = async (id: string) => (await prisma.event.findUnique({ where: { id } }))!.format;
+
+  it("a blank tournament whose first round is a medal is decided on strokes", async () => {
+    // Walked 2026-09-30: the column default (match) survived the first stroke
+    // round, and the next screen said the rounds "cannot be scored as set".
+    const ev = await make("first-medal");
+    expect(await decided(ev.id), "the column default, which nobody chose").toBe("match");
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    expect(await decided(ev.id)).toBe("stroke");
+  });
+
+  it("a Stableford first round too — it has no opponents either", async () => {
+    const ev = await make("first-stableford");
+    await addStage("Stroke Play Round", { format: "Stableford" });
+    expect(await decided(ev.id)).toBe("stroke");
+  });
+
+  it("CONTROL: a head-to-head first round leaves the setting alone", async () => {
+    const ev = await make("first-matches");
+    await addStage("Round Robin", { format: "Match Play" });
+    expect(await decided(ev.id)).toBe("match");
+  });
+
+  it("CONTROL: only the FIRST round decides — a later stroke round changes nothing", async () => {
+    const ev = await make("later-medal");
+    await addStage("Round Robin", { format: "Match Play" });
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    expect(await decided(ev.id), "a match-play event with a medal round added later").toBe("match");
+  });
+});
+
 describe("a names-only list turns Round Codes on instead of being refused", () => {
   it("switches an email-only tournament to email and codes, and imports everybody", async () => {
     const ev = await make("names-only");

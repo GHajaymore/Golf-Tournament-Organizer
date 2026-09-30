@@ -9,6 +9,7 @@ import { rosterSelection } from "@/lib/domain/roster-selection";
 import { indexLabel, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import { PLANS } from "@/lib/plans";
 import {
   addMember,
   updateMember,
@@ -312,7 +313,9 @@ export function RosterClient({
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Club</div>
+        {/* The sidebar's own section word ("Society" for a society), not a
+            hard-coded "Club" under a sidebar that said otherwise. */}
+        <div className="page-kicker">{profile.groupLabel}</div>
         <h1 className="page-title">Members</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Everyone who plays at {clubName}. Tournaments draw their field from this list, so contact details
@@ -993,6 +996,15 @@ export function ImportSummary({
                 Ignored {result.unknownColumns.length === 1 ? "column" : "columns"}:{" "}
                 {result.unknownColumns.join(", ")}. Rename to a recognised heading and upload again to
                 bring {result.unknownColumns.length === 1 ? "it" : "them"} in.
+              </div>
+            )}
+            {(result.missingMobile ?? 0) > 0 && (
+              <div style={{ fontSize: 12.5, marginTop: 4 }}>
+                {result.missingMobile === 1
+                  ? "1 member has no mobile number yet"
+                  : `${result.missingMobile} members have no mobile number yet`}
+                , and every entrant in a {PLANS.free.name} tournament gives one. Add a phone column and
+                upload the file again — members already here are updated, not duplicated.
               </div>
             )}
           </>

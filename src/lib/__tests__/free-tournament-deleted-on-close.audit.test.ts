@@ -116,7 +116,10 @@ describe("a new Free club", () => {
   it("cannot run a second tournament at the same time", async () => {
     const { res, ev } = await tournament("new two");
     expect(res?.ok).toBe(false);
-    expect(res?.error).toMatch(/1 active tournament/);
+    // Says the rule and the way out (reworded 2026-09-30 from "includes 1
+    // active tournaments. Upgrade to add more.").
+    expect(res?.error).toMatch(/one tournament at a time/);
+    expect(res?.error).toMatch(/Complete or delete the one you have/);
     expect(ev).toBeNull();
   });
 

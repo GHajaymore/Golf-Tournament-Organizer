@@ -5,6 +5,7 @@ import { accessibleEvents } from "@/lib/services/access";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { isMatch } from "@/lib/tournament-shape";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 export const metadata = screenMetadata("/tournaments");
 
@@ -100,10 +101,24 @@ export default async function TournamentsPage() {
     isCasual: isMatch(ev.shape),
   }));
 
+  // The sidebar's section word for the organization it is describing — the
+  // one owning the open tournament — rather than "Club" to a society.
+  const openOrg = session.eventId
+    ? await prisma.event.findUnique({
+        where: { id: session.eventId },
+        select: { organization: { select: { kind: true, country: true, communityNoun: true } } },
+      })
+    : null;
+  const section = orgProfile(
+    openOrg?.organization?.kind,
+    openOrg?.organization?.country,
+    openOrg?.organization?.communityNoun,
+  ).groupLabel;
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Club</div>
+        <div className="page-kicker">{section}</div>
         <h1 className="page-title">Tournaments</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Every tournament you can reach. Switch between them, start a new one, or copy one you

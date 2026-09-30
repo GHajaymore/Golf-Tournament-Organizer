@@ -27,6 +27,19 @@ describe("plan limits", () => {
     expect(limitCheck("free", "activeEvents", 1).reason).toContain(`${PLANS.free.name} plan`);
   });
 
+  it("refuses in a sentence a secretary can act on (walked 2026-09-30)", () => {
+    // It read "includes 1 active tournaments. Upgrade to add more." — a plural
+    // over one, and only one way out.
+    const one = limitCheck("free", "activeEvents", 1).reason!;
+    expect(one).toContain("one tournament at a time");
+    expect(one).toContain("Complete or delete the one you have");
+    expect(one).not.toMatch(/\b1 active tournaments\b/);
+    // Every limit, at a cap of one, says its noun in the singular.
+    for (const [k, singular] of [["staffSeats", "1 staff seat."], ["playersPerEvent", "1 player in"]] as const) {
+      expect(limitCheck("free", k, 5, { enforce: true, plans: { free: { [k]: 1 } } }).reason, k).toContain(singular);
+    }
+  });
+
   it("gives Albatross no limit at all", () => {
     for (const k of ["activeEvents", "staffSeats", "playersPerEvent"] as const) {
       expect(limitCheck("enterprise", k, 100_000).allowed, k).toBe(true);

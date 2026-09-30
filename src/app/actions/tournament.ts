@@ -2140,6 +2140,27 @@ export async function addStage(
   // A medal's field divides by handicap unless somebody has chosen otherwise.
   await followFlightDefault(eventId, flightsBefore);
 
+  /**
+   * THE FIRST ROUND SETS HOW THE TOURNAMENT IS DECIDED, when it has no
+   * opponents — the rule `createEvent` applies to a template's rounds, here for
+   * "start from scratch", which creates none.
+   *
+   * Walked 2026-09-30 as a new society: create "Autumn Medal" as a single
+   * round, add its one stroke play round, and the very next screen read "These
+   * rounds cannot be scored as set … Set Scoring to Stroke play on Tournament
+   * details" — the column default, Match play, which nobody chose, contradicted
+   * by the only round anybody did. The app made the mistake and told the
+   * secretary to fix it.
+   *
+   * Only for a round with no opponents: that one cannot be ranked any other
+   * way, so stroke is the only answer and overriding is safe. A head-to-head
+   * first round leaves the event alone — match play or a stroke round robin
+   * are both real choices, and nothing here can tell which was meant.
+   */
+  if (!previous && !isHeadToHead(stageType) && ev?.format !== "stroke") {
+    await prisma.event.update({ where: { id: eventId }, data: { format: "stroke" } });
+  }
+
   // A new round of a code-using tournament needs a code, or it is a round
   // nobody without an account can enter. No-op when codes are off.
   await ensureRoundCodes(eventId);
