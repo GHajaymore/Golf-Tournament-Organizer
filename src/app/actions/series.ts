@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth";
 import { organizationIdForEvent } from "@/lib/services/roster";
 import { DEFAULT_POINTS_TABLE } from "@/lib/domain/series";
 import { isMatch } from "@/lib/tournament-shape";
+import { organizationAllows } from "@/lib/services/entitlements";
+import { SEASON_LOCKED } from "@/lib/plans";
 
 export interface SeriesResult {
   ok: boolean;
@@ -47,6 +49,11 @@ function parseTable(input: string): number[] | null {
 
 export async function createSeries(name: string): Promise<SeriesResult> {
   const organizationId = await requireOrg();
+  // A season exists to be added up, and the adding up is the paid part: a
+  // club without it was offered "Start a season", made one, and only then
+  // found the table locked (walked 2026-09-29). Seasons a club already has are
+  // left alone — editing and linking still work after a downgrade.
+  if (!(await organizationAllows(organizationId, "seasonStandings"))) return { ok: false, error: SEASON_LOCKED };
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Give the season a name." };
   const series = await prisma.series.create({

@@ -8,7 +8,7 @@ import { honoursBoard, championSuggestions } from "@/lib/services/honours";
 import { HonoursBoard } from "@/components/HonoursBoard";
 import { organizationIdForEvent } from "@/lib/services/roster";
 import { organizationAllows } from "@/lib/services/entitlements";
-import { HONOURS_LOCKED } from "@/lib/plans";
+import { HONOURS_LOCKED, SEASON_LOCKED } from "@/lib/plans";
 
 /**
  * Season-long standings — an order of merit across several tournaments.
@@ -34,6 +34,10 @@ export default async function SeriesPage({
   // The club's permanent record, beside the season it is running. Both are
   // history that outlives whichever tournament happens to be open.
   const honoursOn = await organizationAllows(organizationId, "honours");
+  // Asked of the CLUB, not read off a season's table: with no season yet there
+  // is no table to carry the answer, and a Par club was offered "Start a
+  // season" for a table it could never see.
+  const seasonsOn = await organizationAllows(organizationId, "seasonStandings");
   const board = await honoursBoard(organizationId);
   const pending = honoursOn && session.viewRole === "admin" ? await championSuggestions(organizationId) : [];
   const active = seasons.find((s) => s.id === params.id) ?? seasons[0] ?? null;
@@ -50,7 +54,7 @@ export default async function SeriesPage({
     <>
       <p className="kicker">Club</p>
       <h1 className="page-title">Season standings</h1>
-      {table && !table.allowed ? (
+      {!seasonsOn || (table && !table.allowed) ? (
         /* Locked rather than hidden, the same way a metered feature renders:
            a club that cannot see why a screen is empty cannot decide to pay
            for it. The standings are already withheld from the response by
@@ -60,7 +64,7 @@ export default async function SeriesPage({
             Season standings
           </span>
           <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-            {table.reason}
+            {table?.reason || SEASON_LOCKED}
           </p>
         </section>
       ) : (
