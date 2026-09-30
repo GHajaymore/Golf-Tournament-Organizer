@@ -73,7 +73,8 @@ import {
   roundHandicapOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { isTournamentShape } from "@/lib/tournament-shape";
+import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
+import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -401,6 +402,19 @@ export interface SignupResult {
   error?: string;
 }
 
+/**
+ * A CASUAL ROUND HOLDS AT MOST EIGHT (Ajay, 2026-09-08: "number of players
+ * 2–8"), and it is not a tournament — it counts against no allowance. Its
+ * creator is its organizer, so the field endpoints accepted them and a round
+ * could be grown past the size that keeps it casual (2026-09-30). Null to allow.
+ */
+async function casualRoundFull(event: { id: string; shape: string }, adding: number): Promise<string | null> {
+  if (!isMatch(event.shape)) return null;
+  const inField = await prisma.player.count({ where: { eventId: event.id, status: { not: "withdrawn" } } });
+  if (inField + adding <= QUICK_ROUND_MAX_PLAYERS) return null;
+  return `A casual round is for up to ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, set up a tournament.`;
+}
+
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
   const clean = input.name.trim();
@@ -422,6 +436,8 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   if (configurationLocked(event)) {
     return { ok: false, error: "Configuration is locked. Unlock the tournament to change the field." };
   }
+  const casualFull = await casualRoundFull(event, 1);
+  if (casualFull) return { ok: false, error: casualFull };
   /**
    * Asked of the tournament, not demanded of everybody — see `entryNeedsEmail`.
    *
@@ -773,6 +789,9 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         'Couldn\'t find a name column in the header row. Expected a header like: name, handicap, email, phone — or first name and last name in separate columns.',
     };
   }
+  // Before anything is written: a casual round cannot be imported past eight.
+  const casualFull = await casualRoundFull(event, table.rows.length);
+  if (casualFull) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: casualFull };
   const headerCols = table.columns;
   const emailIdx = headerCols.indexOf("email");
   /**
@@ -2065,8 +2084,14 @@ export async function addStage(
    */
   const ev = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { format: true },
+    select: { format: true, shape: true },
   });
+  // A CASUAL ROUND IS ONE ROUND (Ajay, 2026-09-08). Its creator — any member —
+  // is its organizer, so this endpoint accepted them, and a round that never
+  // counts as a tournament could be grown into one (2026-09-30).
+  if (isMatch(ev?.shape)) {
+    return { error: "A casual round is one round. For more than one, set up a tournament." };
+  }
   const previous = await prisma.stage.findFirst({
     where: { eventId },
     orderBy: { position: "desc" },

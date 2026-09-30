@@ -1506,7 +1506,8 @@ named. The deferred-register entry for this class is closed.
 | #739 | A new Par society, walked from sign-up: four fixes (below) |
 | #741 | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
 | #744 | A promotion takes a staff seat: "add as a player, then promote" went round the seat limit |
-| next | A member whose Par tournament was deleted is told so, not greeted as a brand-new account |
+| #745 | A member whose Par tournament was deleted is told so, not greeted as a brand-new account |
+| next | A casual round stays casual (one round, up to 8) at the server; the theme picker names its real default |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1579,6 +1580,14 @@ they had open redirected or showed an honest empty state — but they landed on 
 TourneyHQ — your account is ready", the greeting for somebody who has never used the app. It
 now says "Welcome back" and that the tournament they had open was closed and removed, with its
 cards and results.
+
+**"Tournaments at a time" swept the same way.** Both ways of making one (new, copy) ask the limit
+through one count, and a tournament's shape is never changed after it is made — so the count
+holds. The door was beside it: a casual round is not a tournament and counts against nothing,
+its creator (any member) is its organizer, and the round and field endpoints never asked what
+they were called on. A round meant to be one round of two to eight could be given more rounds
+and a bigger field. They now refuse on a casual round, in a sentence that says to set up a
+tournament instead.
 
 **A Birdie club at its limits, walked the same way, found nothing new**: the 50-player cap on
 the field with its reason beside it, no deletion warning, the season table and honours board
