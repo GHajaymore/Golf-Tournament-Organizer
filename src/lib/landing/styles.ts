@@ -641,6 +641,7 @@ __CMP_FRAMES__
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }
+  .thq .topics { top: 60px; }
   /* The first screen shows the product: a tighter hero lets the live board rise into view. */
   .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
   .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }
