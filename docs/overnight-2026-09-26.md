@@ -1500,7 +1500,8 @@ named. The deferred-register entry for this class is closed.
 | #727 | The Par wording says the whole term; the plan card names the tier and its cap |
 | #731 | A Nassau or a match bet is refused on a round with no match, since it could never settle (item 15) |
 | #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
-| next | Honours on Par: the board says it is locked rather than empty, and the write is refused |
+| #734 | Honours on Par: the board says it is locked rather than empty, and the write is refused |
+| next | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1533,6 +1534,11 @@ fix.
   board yet. Finished tournaments appear below", but a Par tournament is deleted as it completes.
   The board now says it comes with Birdie and above, and confirming a champion is refused
   (it had been writing a row nothing would show).
+- **A Par club was offered "Start a season" for a table it could never see.** The lock showed
+  only once a season existed, so the club found out after making one. It is now shown up front,
+  starting one is refused, and both locks name the tier ("Birdie and above") rather than "the
+  paid plan", which stopped being one plan when the ladder went to four. Walked through the
+  owner's "Put a club on a tier" on a built server: all four tiers set, and each one read back.
 
 Not walked end to end: a brand-new society has to name itself and add members before its
 first tournament (the setup gate, working as designed). The walk stopped there, and the Par

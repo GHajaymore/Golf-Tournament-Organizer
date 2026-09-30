@@ -1,6 +1,11 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
+
+/** The secretary, for the cells that go through `createSeries`. */
+const auth = vi.hoisted(() => ({ session: null as null | Record<string, string> }));
+vi.mock("@/lib/auth", () => ({ getSession: async () => auth.session }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 /**
  * The season table is a paid feature, and was given away.
@@ -25,6 +30,8 @@ const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-SEASON-GATE";
 
 const { seriesTable } = await import("@/lib/services/series");
+const { createSeries } = await import("@/app/actions/series");
+const { SEASON_LOCKED, PLANS } = await import("@/lib/plans");
 
 let organizationId = "";
 let seriesId = "";
@@ -68,6 +75,17 @@ beforeAll(async () => {
     data: { organizationId, name: `${TAG} Order of Merit` },
   });
   seriesId = series.id;
+
+  // An open tournament, because the season actions find the club through it.
+  const event = await prisma.event.create({
+    data: {
+      organizationId,
+      name: `${TAG} Monthly Medal`,
+      dates: "", course: "", city: "", address: "", regDeadline: "",
+      shareToken: `${TAG.toLowerCase()}-share`,
+    },
+  });
+  auth.session = { eventId: event.id, role: "admin", viewRole: "admin", email: "zz-season-gate@example.invalid", name: `${TAG} Secretary` };
 });
 
 afterAll(async () => {
@@ -88,7 +106,9 @@ describe("the season table is withheld from a plan that has not bought it", () =
     expect(table!.standings, "the numbers must not be in the response").toEqual([]);
     expect(table!.events).toEqual([]);
     // And it must say so in words a club can act on, rather than looking empty.
-    expect(table!.reason).toMatch(/paid plan/i);
+    expect(table!.reason).toBe(SEASON_LOCKED);
+    expect(SEASON_LOCKED).toContain(`${PLANS.society.name} and above`);
+    expect(PLANS.society.features.seasonStandings).toBe(true);
   });
 
   it("names the season even while withholding the table", async () => {
@@ -117,6 +137,24 @@ describe("the season table is withheld from a plan that has not bought it", () =
     // No finished events in this fixture, so the table is legitimately empty —
     // what changed is that it is now COMPUTED rather than withheld.
     expect(Array.isArray(table!.standings)).toBe(true);
+  });
+
+  it("refuses to START a season on a plan without the table — and writes nothing", async () => {
+    // "Start a season" was offered to Par clubs, and the lock appeared only
+    // once a season existed to be locked (walked 2026-09-29).
+    await setPlan(null);
+    const before = await prisma.series.count({ where: { organizationId } });
+    const r = await createSeries(`${TAG} Winter League`);
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe(SEASON_LOCKED);
+    expect(await prisma.series.count({ where: { organizationId } })).toBe(before);
+  });
+
+  it("CONTROL: starts one on a plan with the table", async () => {
+    await setPlan("society");
+    const r = await createSeries(`${TAG} Summer Series`);
+    expect(r.ok).toBe(true);
+    expect(await prisma.series.count({ where: { organizationId, name: `${TAG} Summer Series` } })).toBe(1);
   });
 
   it("is decided by the plan and nothing else", async () => {

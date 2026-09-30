@@ -734,7 +734,7 @@ export function retentionSummary(plan: Plan): string {
  * gated on `seasonStandings` was a service nothing called.
  */
 export const SEASON_LOCKED =
-  "The season table comes with the paid plan. Every tournament still has its own " +
+  `The season table comes with ${PLANS.society.name} and above. Every tournament still has its own ` +
   "board — this is the one that adds them up across the season.";
 
 /**
