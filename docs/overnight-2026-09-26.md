@@ -1467,6 +1467,62 @@ a member at phone width: Today, Board, My card, Events, Money, Calendar and the 
 all load, none scrolls sideways, no console errors — and one unnamed box (the round code), now
 named. The deferred-register entry for this class is closed.
 
+## The plan terms, and the night after (2026-09-29)
+
+### What you decided that day
+
+- **The Free plan's terms, for new clubs only.** 10 players, one tournament at a time, one
+  organizer. A Free tournament is deleted the moment it is marked Completed, after a confirm
+  that offers the upgrade and Reports first. Every club that existed before is grandfathered:
+  nothing of theirs is capped or deleted.
+- **Four tiers: Par, Birdie, Eagle, Albatross.** Albatross is "Let's talk": gated, with no
+  limits, but the multi-club engine an association needs is not built.
+- **Never gate the golf.** Every tier has all 16 formats, live scoring, the board and the money.
+  The honours board moved to Birdie and up; grandfathered clubs keep theirs. The paid extras
+  (texts, card photos, AI drafting) stay off, and go to Eagle first when you switch them on.
+- **Ask for the upgrade before deleting.** The rule itself doesn't change.
+- **A Par tournament closes on its own, 14 days after its golf begins**, and its rounds fall
+  within 7 days. You spotted the loophole in my first draft: a clock that entering a score
+  could push back. The clock is now stamped once and never moved.
+- **Several Par clubs per person: watched, not walled.** The owner console counts it.
+
+### Shipped
+
+| PR | What |
+|---|---|
+| #718 | The seeded club: every event on its own day |
+| #719 | The upgrade pitch sells the season table as what it is (across separate tournaments) |
+| #720 | Free terms for new clubs: the limits enforced; completing a Free tournament deletes it |
+| #722 | Four tiers; honours Birdie and up; the upgrade alert; Par closes on its own; the owner sets a club's tier |
+| #724 | Three loopholes: match play never started the clock; a manual count of 32 overran the cap; a casual round could be kept for ever |
+| #725 | The seeded scores a club secretary would believe (a medal led at −6 mid-round, a league night won on 38) |
+| #726 | Dialogs above the phone's bars; sign-out out of the header; Par keep shows the upgrade; prizes on a phone; trip money |
+| next | The Par wording says the whole term; the plan card names the tier and its cap |
+
+### What the overnight walk found (and why the tests had not)
+
+Every one of these was on a screen whose tests were green. Each test checked what it was
+written to check, and none of them looked here. Each now has a test that goes red without the
+fix.
+
+- **Every overlay dialog opened beneath the phone's top and tab bars.** The dialog had no
+  z-index. At 320px the Cancel button of the new complete-and-delete dialog sat under the tab
+  bar, which took the tap. The dialog test had only ever measured width; it now presses a
+  button and checks all four edges.
+- **The player's sign-out dialog was cut off at the top of every phone.** It rendered inside a
+  header whose blur effect made the header its frame. It now renders at the page's top level.
+- **/prizes on a phone hid the winner** off the right edge (reported by the website session).
+  Each prize is now one row with the winner in view.
+- **A new club's settings said "players are always unlimited"** under a plan card reading "Free".
+  Par is 10. The card now reads "Par · up to 10 players a tournament".
+- **The Par warning told half the term.** It said a tournament is deleted on Completed, not that
+  it also closes 14 days after play begins.
+
+Not walked end to end: a brand-new society has to name itself and add members before its
+first tournament (the setup gate, working as designed). The walk stopped there, and the Par
+limits beyond it are covered by database tests through the real actions: the cap, one at a
+time, the delete confirm, the 14-day close, the 7-day window, and the casual keep.
+
 ## Decisions needed from Ajay
 
 1. ~~A multi-round event whose LAST round is scored by hand hides every earlier round.~~
@@ -1645,5 +1701,14 @@ named. The deferred-register entry for this class is closed.
     is whether a new or pinned announcement should also send a phone alert to players who
     turned alerts on, the same way tee times do. That would be in-app and consistent with your
     non-email rule, but it is a behaviour change, so it waits for you.
+15. **A Nassau on a four-ball round never resolves.** Found overnight 2026-09-29 while seeding the
+    Invitational's trip money. A $5 Nassau on its four-ball round showed nothing at all on the
+    Money screen: the round's cards are stored per side (`TeamScorecard`), and the Nassau reads
+    individual cards. Players can start their own side bets, so a group could create exactly
+    this and never see it settle. It is money logic, so it was not changed overnight. The
+    choice: make the Nassau read a four-ball's individual cards, or refuse a Nassau on a round
+    that has none, with a sentence saying why.
+16. ~~Item 12 (limits published but not enforced)~~ **Decided 2026-09-29: enforced for new
+    clubs.** See the section above.
 
 ## Log
