@@ -375,7 +375,12 @@ export const FAQ: FaqGroup[] = [
       {
         id: "metered",
         q: "What about text alerts, reading a photographed card, or AI commentary?",
-        a: () => <p>All three are built and not switched on for anybody yet. They cost us per message and per call, and we won&rsquo;t bill for them until they&rsquo;re worth it.</p>,
+        a: () => (
+          <p>
+            All three are built and not switched on for anybody yet. They cost us per message and per call, so they
+            will come with {PLANS.club.name} first, once they&rsquo;re worth billing for.
+          </p>
+        ),
       },
       {
         id: "several-clubs",
@@ -384,7 +389,10 @@ export const FAQ: FaqGroup[] = [
           email ? (
             <p>Tell us how you work — <a href={`mailto:${email}`}>{email}</a> — and we&rsquo;ll scope it with you.</p>
           ) : (
-            <p>Each club runs on its own Club plan. Start free, and move each club up when it needs more.</p>
+            <p>
+              That is {PLANS.enterprise.name}, priced with each organization rather than published — our contact
+              address opens soon. Until then, each club can run on {PLANS.club.name}.
+            </p>
           ),
       },
     ],
