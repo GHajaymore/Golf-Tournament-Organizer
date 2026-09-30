@@ -11,7 +11,7 @@ import {
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
-import { WIPE_ON_CLOSE } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, LIFESPAN_DAYS } from "@/lib/domain/close-terms";
 import { Icon } from "./Icon";
 
 export interface LifecycleSummary {
@@ -35,6 +35,7 @@ export function LifecycleBar({
   blockedReason,
   deletesOnComplete = false,
   keepOffer,
+  closesOn,
 }: {
   /**
    * The upgrade that would keep it — "Birdie keeps every tournament for good —
@@ -43,6 +44,12 @@ export function LifecycleBar({
    * the club is told how to keep its results while it still can.
    */
   keepOffer?: string;
+  /**
+   * The day it closes on its own, once the daily sweep has seen its golf begin
+   * (`closesAt`, never moved). Undefined before then, when the rule is stated
+   * instead of a date.
+   */
+  closesOn?: string;
   /**
    * Completing this tournament deletes it — the Free plan's terms for a club
    * created on them (`wipesOnCloseFor`). The button then asks first, with the
@@ -200,6 +207,9 @@ export function LifecycleBar({
           <p role="note" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
             <span style={{ fontWeight: 600 }}>Completing this tournament deletes it.</span>{" "}
+            {closesOn
+              ? `If nobody does, it closes on ${closesOn} and is deleted then.`
+              : `If nobody does, it closes ${LIFESPAN_DAYS} days after its first round is played.`}{" "}
             {keepOffer}{" "}
             <Link href="/organization#plan">Upgrade to keep it</Link>
           </p>

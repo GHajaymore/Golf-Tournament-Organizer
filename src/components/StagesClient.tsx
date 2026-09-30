@@ -680,6 +680,7 @@ function StageCard({
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
   const [playedOn, setPlayedOn] = useState(stage.playedOn);
+  const [dateRefused, setDateRefused] = useState("");
   const [courseId, setCourseId] = useState<string | null>(stage.courseId);
   // "full" is a real answer for a 9-hole round now ("not fixed"), so it has to
   // survive here. Collapsing anything-but-back to "front" silently discarded
@@ -791,8 +792,18 @@ function StageCard({
   };
 
   const commitPlayedOn = (v: string) => {
+    const before = playedOn;
     setPlayedOn(v);
-    startTransition(() => setStagePlayedOn(stage.id, v));
+    setDateRefused("");
+    startTransition(async () => {
+      // Refused on the Par plan outside its seven-day window: the date goes
+      // back to what is stored, and the reason is said beside the field.
+      const res = await setStagePlayedOn(stage.id, v);
+      if (res && !res.ok) {
+        setPlayedOn(before);
+        setDateRefused(res.error ?? "That date could not be saved.");
+      }
+    });
   };
 
   const commitHoles = (v: number) => {
@@ -1333,6 +1344,11 @@ function StageCard({
           {playedOn && (
             <span className="text-muted" style={{ fontSize: 11.5, marginTop: 3, display: "block" }}>
               {shortDate(playedOn, locale)}
+            </span>
+          )}
+          {dateRefused && (
+            <span role="alert" style={{ fontSize: 12, marginTop: 4, display: "block", color: "var(--color-danger)" }}>
+              {dateRefused} <a href="/organization#plan">See plans</a>
             </span>
           )}
         </div>
@@ -2061,6 +2077,7 @@ export function StagesClient({
   const [bulkHoles, setBulkHoles] = useState(18);
   const [startDate, setStartDate] = useState("");
   const [interval, setInterval] = useState(7);
+  const [addRefused, setAddRefused] = useState("");
   const [pending, startTransition] = useTransition();
 
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
@@ -2416,13 +2433,19 @@ export function StagesClient({
               newType &&
               bulkFormat &&
               startTransition(async () => {
-                await addStage(newType, {
+                setAddRefused("");
+                const res = await addStage(newType, {
                   count: howMany,
                   format: bulkFormat || undefined,
                   holes: bulkHoles,
                   startDate: startDate || undefined,
                   intervalDays: interval,
                 });
+                // The Par plan's seven-day window, said beside the button.
+                if (res?.error) {
+                  setAddRefused(res.error);
+                  return;
+                }
                 setHowMany(1);
                 setStartDate("");
               })
@@ -2439,6 +2462,11 @@ export function StagesClient({
                 : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}
           </button>
         </div>
+        {addRefused && (
+          <p role="alert" style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+            {addRefused} <a href="/organization#plan">See plans</a>
+          </p>
+        )}
 
         {/* The consequence, stated before the click rather than discovered
             after it. Pairings are the thing an organizer is most often

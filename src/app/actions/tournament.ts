@@ -54,7 +54,7 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor, fieldCapFor, effectiveCapacity } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
-import { WIPE_ON_CLOSE } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
@@ -1554,8 +1554,32 @@ export async function setTournamentDates(
  * treated as empty rather than stored, so a bad value can never render as a
  * confidently wrong date on every player's phone.
  */
-export async function setStagePlayedOn(stageId: string, date: string) {
+/**
+ * A Par tournament's rounds fall within `ROUND_WINDOW_DAYS` (Ajay, 2026-09-29):
+ * the reason a date is refused, or null. Only where the Par terms apply — the
+ * same `wipesOnCloseFor` that decides whether completing deletes it — so a
+ * grandfathered club, a paid one and a held tournament date rounds freely.
+ */
+async function parRoundWindowRefusal(
+  eventId: string,
+  newDates: string[],
+  exceptStageId?: string,
+): Promise<string | null> {
+  const dated = newDates.filter(Boolean);
+  if (dated.length === 0 || !(await wipesOnCloseFor(eventId))) return null;
+  const others = (
+    await prisma.stage.findMany({
+      where: { eventId, ...(exceptStageId ? { id: { not: exceptStageId } } : {}) },
+      select: { playedOn: true },
+    })
+  ).map((s) => s.playedOn);
+  return roundWindowRefusal(dated[0], [...others, ...dated.slice(1)]);
+}
+
+export async function setStagePlayedOn(stageId: string, date: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  const refusal = await parRoundWindowRefusal(eventId, [cleanIsoDate(date)], stageId);
+  if (refusal) return { ok: false, error: refusal };
   /**
    * NOT behind the setup lock (2026-09-19). A date is not structure: it moves
    * no score, no draw and no flight, and the field's own help text promises
@@ -1569,6 +1593,7 @@ export async function setStagePlayedOn(stageId: string, date: string) {
     data: { playedOn: cleanIsoDate(date) },
   });
   await refresh();
+  return { ok: true };
 }
 
 /**
@@ -1579,7 +1604,10 @@ export async function setStagePlayedOn(stageId: string, date: string) {
  * never be touched. Only PLAYING rounds are dated: a cut is not a day anybody
  * turns up for.
  */
-export async function dateUndatedRounds(startDate: string, intervalDays: unknown): Promise<{ dated: number }> {
+export async function dateUndatedRounds(
+  startDate: string,
+  intervalDays: unknown,
+): Promise<{ dated: number; error?: string }> {
   const eventId = await requireStaffEvent();
   // Not behind the setup lock, for the reason on setStagePlayedOn: a live
   // league is exactly the one whose players are missing their calendar.
@@ -1599,6 +1627,9 @@ export async function dateUndatedRounds(startDate: string, intervalDays: unknown
     start,
     step,
   );
+  // Returned rather than thrown: Next strips a thrown message in production.
+  const refusal = await parRoundWindowRefusal(eventId, plan.map((p) => p.playedOn));
+  if (refusal) return { dated: 0, error: refusal };
   for (const p of plan) {
     await prisma.stage.updateMany({ where: { id: p.id, eventId }, data: { playedOn: p.playedOn } });
   }
@@ -1996,7 +2027,7 @@ export interface AddStageOptions {
 export async function addStage(
   type: string,
   countOrOpts: number | AddStageOptions = 1,
-): Promise<string | undefined> {
+): Promise<{ id?: string; error?: string }> {
   const eventId = await requireStaffEvent();
   // Not behind the lock: a live league adds next week's round as it goes, and
   // a championship adds a play-off round when the field finishes level. Adding
@@ -2090,6 +2121,11 @@ export async function addStage(
   const dates = start
     ? roundDates(start, howMany, Number(opts.intervalDays) || 0)
     : [];
+  // RETURNED, before a single round is created — not thrown, because Next
+  // strips a thrown server-action message in production and the organizer would
+  // read "an error occurred" instead of why.
+  const windowRefusal = await parRoundWindowRefusal(eventId, dates);
+  if (windowRefusal) return { error: windowRefusal };
 
   // Created one at a time rather than with createMany so the first round's id
   // can be returned — the screen scrolls to and opens the round it just made,
@@ -2109,7 +2145,7 @@ export async function addStage(
   await ensureRoundCodes(eventId);
 
   await refresh();
-  return firstId;
+  return { id: firstId };
 }
 
 export async function removeStage(stageId: string, force = false) {

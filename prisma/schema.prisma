@@ -1046,6 +1046,18 @@ model Event {
    */
   expiresAt        DateTime?
   /**
+   * WHEN A PAR TOURNAMENT CLOSES ON ITS OWN (Ajay, 2026-09-29): fourteen days
+   * after its golf began, then deleted exactly as completing it would be.
+   *
+   * Stamped ONCE, by the daily sweep, the first time it sees golf — a round
+   * whose date has come, or any recorded result — and NEVER moved after. That
+   * is the point of storing it: a clock recomputed from activity is one a club
+   * keeps alive by entering a score a week. Null on every tournament not held
+   * to the Par terms, and the delete re-checks the terms, the plan and any
+   * hold at the moment it runs, so an upgrade in between keeps the tournament.
+   */
+  closesAt         DateTime?
+  /**
    * Whether people play as individuals or as a side — asked once, at setup.
    * A DEFAULT, NEVER A CONSTRAINT. Nothing that scores a round may read this.
    * Team-ness is a property of each round's format, because it genuinely

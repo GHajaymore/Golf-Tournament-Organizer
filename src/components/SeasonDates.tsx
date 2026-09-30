@@ -30,6 +30,10 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
     startTransition(async () => {
       try {
         const res = await dateUndatedRounds(start, every);
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
         setNote(`${res.dated} ${res.dated === 1 ? "round" : "rounds"} dated. Players now see them on their calendar.`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't date the rounds.");
