@@ -1678,6 +1678,34 @@ describe("course library", () => {
     expect(html).not.toContain("specials above");
   });
 
+  it("on a phone, lists each prize with its winner in reach", async () => {
+    /**
+     * The winner was the table's LAST column and fell off the right edge at
+     * 390px — the one screen about who won never showed it (2026-09-29). The
+     * stacked rows carry the same controls, and each control says which prize
+     * it is for, because there is no column heading on a phone to say so.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(
+      <PrizesClient
+        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a" }]}
+        players={[{ id: "a", name: "Fumiko Shirakawa", place: 1 }]}
+      />,
+    );
+    expect(html).toContain('class="prize-narrow"');
+    expect(html).toContain('class="prize-row"');
+    // Both layouts name the winner picker for its prize — once each.
+    expect(html.split('aria-label="Winner of Club Champion"').length - 1).toBe(2);
+    expect(html.split('aria-label="Amount for Club Champion"').length - 1).toBe(2);
+  });
+
+  it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(<PrizesClient prizes={[]} players={[]} />);
+    expect(html).not.toContain('class="prize-narrow"');
+    expect(html).toContain("No prizes yet");
+  });
+
   it("says what an unverified card costs, once, and only when one exists", () => {
     // The badge showed the STATE on the row and left the stakes in a `title`.
     // The stakes are the whole reason the badge exists and are not obvious: a

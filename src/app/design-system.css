@@ -585,6 +585,23 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* Rows are frequently links or buttons in this app; make that legible. */
 .table tbody tr[data-clickable]:hover { cursor: pointer; }
 
+/* — prizes: a table on a wide screen, one prize a row on a phone — */
+.prize-narrow { display: none; list-style: none; margin: 0; padding: 0; }
+.prize-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 0; border-bottom: 1px solid var(--color-divider);
+}
+.prize-row:last-child { border-bottom: 0; }
+.prize-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+@media (max-width: 640px) {
+  .prize-wide { display: none; }
+  .prize-narrow { display: flex; flex-direction: column; }
+}
+/* An empty list keeps its message, which lives in the table. */
+@media (max-width: 640px) {
+  .prize-wide.is-empty { display: block; }
+}
+
 /* — dialog — */
 .dialog-backdrop {
   position: fixed; inset: 0; display: grid; place-items: center;
