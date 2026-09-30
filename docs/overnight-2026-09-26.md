@@ -1502,7 +1502,8 @@ named. The deferred-register entry for this class is closed.
 | #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
 | #734 | Honours on Par: the board says it is locked rather than empty, and the write is refused |
 | #736 | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
-| next | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
+| #737 | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
+| next | A new Par society, walked from sign-up: four fixes (below) |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1541,8 +1542,26 @@ fix.
   paid plan", which stopped being one plan when the ladder went to four. Walked through the
   owner's "Put a club on a tier" on a built server: all four tiers set, and each one read back.
 
-Not walked end to end: a brand-new society has to name itself and add members before its
-first tournament (the setup gate, working as designed). The walk stopped there, and the Par
+**Walked end to end on 2026-09-30** (sign-up to a refused second tournament, at 393px), and it
+found four more:
+
+- **A tournament started from scratch was set to Match play**, the database default. Its first
+  round, a medal, then read "These rounds cannot be scored as set". The first round now sets
+  Stroke play when it has no opponents; a match-play first round is left alone.
+- **Twelve members imported, and not a word about mobiles until Registration**, where all twelve
+  read "Needs a mobile number". The import now says how many have none and that uploading the
+  file again with a phone column fills them in.
+- **"The Par plan includes 1 active tournaments. Upgrade to add more."** Now: "The Par plan runs
+  one tournament at a time. Complete or delete the one you have to start another, or upgrade…"
+- **A society's Members, Tournaments and Season pages were headed "Club"** under a sidebar
+  reading "Society".
+
+What held: the 10-player cap (twelve added, ten confirmed, two waitlisted), the capacity field
+capped at 10 with the reason beside it, the dashboard's Par warning with the upgrade offer, and
+the one-tournament refusal.
+
+Earlier the same night it stopped short: a brand-new society has to name itself and add members
+before its first tournament (the setup gate, working as designed). The walk stopped there, and the Par
 limits beyond it are covered by database tests through the real actions: the cap, one at a
 time, the delete confirm, the 14-day close, the 7-day window, and the casual keep.
 

@@ -21,7 +21,7 @@ const standing = (over: boolean, enforced: boolean): OrgLimits => ({
   plan: "free",
   enforced,
   activeEvents: over
-    ? { allowed: false, limit: 1, current: 1, reason: "The Free plan includes 1 active tournaments. Upgrade to add more." }
+    ? { allowed: false, limit: 1, current: 1, reason: "The Par plan runs one tournament at a time. Complete or delete the one you have to start another, or upgrade to run as many as your season needs." }
     : { allowed: true, limit: 1, current: 0 },
   staffSeats: { allowed: true, limit: 1, current: 1 },
 });
