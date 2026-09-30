@@ -1,4 +1,4 @@
-import { keepsDataForever, PLANS } from "../plans";
+import { keepsDataForever, PLANS, PAR_ROUND_WINDOW_DAYS, PAR_LIFESPAN_DAYS } from "../plans";
 
 /**
  * DOES COMPLETING THIS TOURNAMENT DELETE IT?
@@ -54,8 +54,9 @@ export function wipesOnClose(input: CloseTermsInput, now: Date = new Date()): bo
  * counted from the LAST score, and a club entering one score a week would have
  * kept it alive for ever — activity must not buy time.
  */
-export const ROUND_WINDOW_DAYS = 7;
-export const LIFESPAN_DAYS = 14;
+// One source for both numbers: `retentionNotice` in plans.ts says them too.
+export const ROUND_WINDOW_DAYS = PAR_ROUND_WINDOW_DAYS;
+export const LIFESPAN_DAYS = PAR_LIFESPAN_DAYS;
 const DAY = 24 * 3600 * 1000;
 
 /**

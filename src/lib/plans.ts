@@ -280,6 +280,14 @@ export const PLANS: Record<PlanKey, Plan> = {
   },
 };
 
+/**
+ * The Par terms' two numbers, here rather than in `domain/close-terms.ts`
+ * (which re-exports them) because this file's own copy — `retentionNotice` —
+ * has to say them, and close-terms already imports this file.
+ */
+export const PAR_ROUND_WINDOW_DAYS = 7;
+export const PAR_LIFESPAN_DAYS = 14;
+
 /** The tiers with a published price, in ladder order — everything a price table shows. */
 export const PRICED_PLANS: Plan[] = Object.values(PLANS).filter((p) => !p.contactOnly);
 
@@ -694,7 +702,10 @@ export function retentionNotice(planKey: string, termsApply = true): string | nu
   if (!termsApply) return null;
   // Not opening with the plan's name: the screens that show this put "On the
   // <name> plan:" in front of it themselves.
-  return "Every tournament on this plan is deleted when you mark it Completed — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.";
+  // BOTH ways it goes (2026-09-29): the button, and the close that happens
+  // whether or not anybody presses it — a club must not learn of the second
+  // from the empty screen it leaves.
+  return `Every tournament on this plan is deleted when you mark it Completed, or ${PAR_LIFESPAN_DAYS} days after its first round is played — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.`;
 }
 
 /**

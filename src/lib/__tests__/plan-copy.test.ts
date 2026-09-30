@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { stripComments, readSource } from "./source";
-import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, type FeatureKey } from "@/lib/plans";
+import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, PAR_LIFESPAN_DAYS, type FeatureKey } from "@/lib/plans";
 
 /**
  * What a club gets for its money has to be SAID somewhere.
@@ -106,6 +106,9 @@ describe("what a club gets for its money is actually said", () => {
     const notice = retentionNotice("free");
     expect(notice, "free must state its retention term").toBeTruthy();
     expect(notice!).toMatch(/deleted when you mark it Completed/i);
+    // AND the close nobody has to press (2026-09-29): the sweep deletes a Par
+    // tournament this many days after its golf began, so the notice says so.
+    expect(notice!).toContain(`${PAR_LIFESPAN_DAYS} days after its first round is played`);
     expect(notice!, "the club must be told how to keep what it wants").toMatch(/Reports/);
 
     const actions = readSource("src/app/actions/tournament.ts");
