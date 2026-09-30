@@ -5949,6 +5949,23 @@ describe("club settings", () => {
   };
 
 
+  it("names the plan by its tier and states its real field cap", async () => {
+    /**
+     * The plan card printed the stored KEY capitalised ("Free", and "Society"
+     * for Birdie) over "players are always unlimited" — wrong on Par, which is
+     * ten a tournament (2026-09-29). The name and the cap come from PLANS.
+     */
+    const par = await club({ plan: "free" });
+    expect(par).toContain(">Par<");
+    expect(par).toContain("up to 10 players a tournament");
+    expect(par).not.toContain("always unlimited");
+    const birdie = await club({ plan: "society" });
+    expect(birdie).toContain(">Birdie<");
+    expect(birdie, "the stored key leaked onto the screen").not.toContain(">Society<");
+    // CONTROL: the uncapped tier says so.
+    expect(await club({ plan: "club" })).toContain("any size of field");
+  });
+
   it("names the screen for what the outfit actually is", async () => {
     /**
      * A solo organizer was shown "Club settings" — on a page whose own type

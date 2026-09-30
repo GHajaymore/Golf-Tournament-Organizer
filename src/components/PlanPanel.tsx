@@ -98,10 +98,13 @@ export function PlanPanel({
   };
 
   const limitLine = (p: Plan) => {
-    const events = p.limits.activeEvents === null ? "Unlimited tournaments" : `${p.limits.activeEvents} tournament at a time`;
+    // The field first: it is the headline difference between the tiers, and
+    // the line left it out entirely (2026-09-29).
+    const field = p.limits.playersPerEvent === null ? "Any size of field" : `Up to ${p.limits.playersPerEvent} players`;
+    const events = p.limits.activeEvents === null ? "unlimited tournaments" : `${p.limits.activeEvents} tournament at a time`;
     const seats = p.limits.staffSeats === null ? "unlimited organizers" : `${p.limits.staffSeats} organizer${p.limits.staffSeats === 1 ? "" : "s"}`;
     const keep = retentionSummary(p);
-    return `${events} · ${seats} · ${keep}`;
+    return `${field} · ${events} · ${seats} · ${keep}`;
   };
 
   return (

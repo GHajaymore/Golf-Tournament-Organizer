@@ -18,6 +18,7 @@ import {
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
 import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
+import { planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 
 /**
@@ -262,8 +263,16 @@ export function OrganizationClient(props: Props) {
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Plan</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, textTransform: "capitalize" }}>{props.plan}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>players are always unlimited</div>
+          {/* The tier's NAME and its real field cap (2026-09-29). This printed
+              the stored key ("free", "society") capitalised, and "players are
+              always unlimited" — true before 2026-09-25, and wrong on Par,
+              which is ten a tournament. */}
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{planFor(props.plan).name}</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            {planFor(props.plan).limits.playersPerEvent === null
+              ? "any size of field"
+              : `up to ${planFor(props.plan).limits.playersPerEvent} players a tournament`}
+          </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Tournaments</span>
