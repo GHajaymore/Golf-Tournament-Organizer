@@ -795,6 +795,17 @@ export function featureOverrides(stored: string | null | undefined): Partial<Rec
 }
 
 /**
+ * WHAT A TIER HAD BEFORE THE TERMS OF 2026-09-29, and a club that predates them
+ * keeps. Ajay moved the honours board off the free plan that day, and every
+ * club in production is on the free plan — so a flag flipped with nothing here
+ * would have emptied the honours board of every real club at once. New clubs
+ * (`planTermsApply`) get the ladder as written; everybody else keeps these.
+ */
+export const GRANDFATHERED_FEATURES: Partial<Record<PlanKey, FeatureKey[]>> = {
+  free: ["honours"],
+};
+
+/**
  * What this club may do, tier and exceptions together.
  *
  * The ONE answer. Callers ask this rather than reading `features` themselves,
@@ -814,17 +825,6 @@ export function featureAllowed(
   // A club that predates the terms keeps what its plan gave it before them.
   return !termsApply && (GRANDFATHERED_FEATURES[planFor(planKey).key] ?? []).includes(feature);
 }
-
-/**
- * WHAT A TIER HAD BEFORE THE TERMS OF 2026-09-29, and a club that predates them
- * keeps. Ajay moved the honours board off the free plan that day, and every
- * club in production is on the free plan — so a flag flipped with nothing here
- * would have emptied the honours board of every real club at once. New clubs
- * (`planTermsApply`) get the ladder as written; everybody else keeps these.
- */
-export const GRANDFATHERED_FEATURES: Partial<Record<PlanKey, FeatureKey[]>> = {
-  free: ["honours"],
-};
 
 /**
  * The features that cost money every time they are used, with the words shown
