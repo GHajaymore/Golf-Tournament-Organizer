@@ -514,7 +514,8 @@ __CMP_FRAMES__
   .thq .tier { padding: 16px 8px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }
   .thq .tier .for, .thq .tier ul, .thq .tier .note, .thq .tier .price-sub { display: none; }
   .thq .tier h3 { flex-direction: column-reverse; gap: 6px; font-size: 15px; }
-  .thq .tier .badge { font-size: 9.5px; padding: 4px 6px; }
+  /* Three narrow cards on a phone: the tagline badge wrapped to two cramped lines. */
+  .thq .tier .badge { display: none; }
   .thq .tier:not(.hot) h3::after { content: ""; height: 17.5px; }
   .thq .price { flex-direction: column; align-items: center; gap: 2px; }
   .thq .price b { font-size: clamp(22px, 7vw, 30px); }
