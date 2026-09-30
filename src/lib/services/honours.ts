@@ -59,10 +59,11 @@ export async function honoursBoard(organizationId: string) {
    * that will one day forget to — and this response is a list of every champion
    * the club has ever had.
    *
-   * ON FOR EVERY TIER TODAY. The gate exists so the ladder, when it is decided,
-   * is a boolean rather than a change to this file; `organizationAllows` reads
-   * the club's own overrides as well as its plan, so a club grandfathered into
-   * the board keeps it whatever its tier later says.
+   * OFF ON PAR, for clubs that joined under its terms (2026-09-29); on for every
+   * other tier. `organizationAllows` reads the club's own overrides and whether
+   * the terms apply as well as its plan, so a club grandfathered into the board
+   * keeps it whatever its tier later says. The screen shows `HONOURS_LOCKED`
+   * rather than an empty board, and `confirmChampion` refuses the write.
    *
    * EMPTY, not an error. A board with nothing on it is a state this screen
    * already renders — a club in its first season has one — so an unentitled

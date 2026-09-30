@@ -1500,6 +1500,7 @@ named. The deferred-register entry for this class is closed.
 | #727 | The Par wording says the whole term; the plan card names the tier and its cap |
 | #731 | A Nassau or a match bet is refused on a round with no match, since it could never settle (item 15) |
 | #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
+| next | Honours on Par: the board says it is locked rather than empty, and the write is refused |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1528,6 +1529,10 @@ fix.
   Par is 10. The card now reads "Par · up to 10 players a tournament".
 - **The Par warning told half the term.** It said a tournament is deleted on Completed, not that
   it also closes 14 days after play begins.
+- **A Par club's honours board promised names it could never show.** It read "Nothing on the
+  board yet. Finished tournaments appear below", but a Par tournament is deleted as it completes.
+  The board now says it comes with Birdie and above, and confirming a champion is refused
+  (it had been writing a row nothing would show).
 
 Not walked end to end: a brand-new society has to name itself and add members before its
 first tournament (the setup gate, working as designed). The walk stopped there, and the Par

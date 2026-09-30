@@ -23,10 +23,13 @@ export function HonoursBoard({
   board,
   pending,
   canEdit,
+  locked = "",
 }: {
   board: Array<{ year: number; entries: Array<HonoursEntry & { id: string; note: string }> }>;
   pending: PendingChampion[];
   canEdit: boolean;
+  /** Set when the club's plan has no board: why, in place of an empty one. */
+  locked?: string;
 }) {
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
@@ -56,6 +59,19 @@ export function HonoursBoard({
       else router.refresh();
     });
   };
+
+  // Locked, not empty: "Nothing on the board yet" promises names that a plan
+  // without the board will never show.
+  if (locked) {
+    return (
+      <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
+        <span className="card-title">Honours board</span>
+        <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+          {locked}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>

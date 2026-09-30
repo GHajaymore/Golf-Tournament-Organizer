@@ -5750,6 +5750,18 @@ describe("the honours board", () => {
     expect(await board([])).toContain("Nothing on the board yet");
   });
 
+  it("on a plan without the board, says why instead of promising names", async () => {
+    // "Nothing on the board yet. Finished tournaments appear below" was shown
+    // to Par clubs, whose tournaments are deleted as they complete — so
+    // nothing ever appeared below (2026-09-29).
+    const { HonoursBoard } = await import("@/components/HonoursBoard");
+    const { HONOURS_LOCKED } = await import("@/lib/plans");
+    const html = render(<HonoursBoard board={[]} pending={[]} canEdit locked={HONOURS_LOCKED} />);
+    expect(html).toContain("Birdie and above");
+    expect(html).not.toContain("Nothing on the board yet");
+    expect(html).not.toContain("appear below");
+  });
+
   it("calls the outfit what it is rather than calling everybody a club", async () => {
     /**
      * "Every champion this club has confirmed" was written out by hand, on a
