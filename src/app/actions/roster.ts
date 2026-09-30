@@ -12,8 +12,8 @@ import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
-import { organizationAllows } from "@/lib/services/entitlements";
-import { HONOURS_LOCKED } from "@/lib/plans";
+import { organizationAllows, planForOrganization } from "@/lib/services/entitlements";
+import { HONOURS_LOCKED, phoneRequiredFor } from "@/lib/plans";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
 import { effectiveCapacity } from "@/lib/services/limits";
@@ -163,6 +163,13 @@ export interface MemberImportResult {
   skippedInvalid: number;
   /** Header cells we didn't recognise, so the organizer can see what was ignored. */
   unknownColumns: string[];
+  /**
+   * Active members still without a mobile, counted only where the plan makes
+   * every entrant give one (Par). Said AT the import, because otherwise the
+   * first the secretary hears is on Registration, with every name blocked
+   * (walked 2026-09-30: twelve imported, twelve "Needs a mobile number").
+   */
+  missingMobile?: number;
   error?: string;
 }
 
@@ -292,7 +299,19 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
   }
 
   await refresh();
-  return { imported, updated, skippedDuplicates, skippedInvalid, unknownColumns };
+  // The plan's own rule, so a club that may switch the mobile off is not told
+  // it is missing anything.
+  const missingMobile = phoneRequiredFor(await planForOrganization(organizationId), false)
+    ? await prisma.member.count({ where: { organizationId, status: "active", phone: "" } })
+    : 0;
+  return {
+    imported,
+    updated,
+    skippedDuplicates,
+    skippedInvalid,
+    unknownColumns,
+    ...(missingMobile > 0 ? { missingMobile } : {}),
+  };
 }
 
 export async function updateMember(memberId: string, input: MemberInput): Promise<RosterResult> {

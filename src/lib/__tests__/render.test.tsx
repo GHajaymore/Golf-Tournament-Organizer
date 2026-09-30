@@ -2007,6 +2007,17 @@ describe("roster CSV import", () => {
     expect(html).toContain("130 updated");
   });
 
+  it("says at the import when members have no mobile, and how to fill them in", () => {
+    // Walked 2026-09-30: twelve imported on Par, and the first word about
+    // mobiles came on Registration with every one of them blocked.
+    const html = render(<ImportSummary result={result({ imported: 12, missingMobile: 12 })} onDismiss={() => {}} />);
+    expect(html).toContain("12 members have no mobile number yet");
+    expect(html).toContain("every entrant in a Par tournament gives one");
+    expect(html).toContain("upload the file again");
+    // CONTROL: a plan that lets the club choose is told nothing about it.
+    expect(render(<ImportSummary result={result({ imported: 12 })} onDismiss={() => {}} />)).not.toContain("mobile");
+  });
+
   it("says plainly when a file changed nothing", () => {
     const html = render(<ImportSummary result={result({ skippedDuplicates: 61 })} onDismiss={() => {}} />);
     expect(html).toContain("61 already up to date");

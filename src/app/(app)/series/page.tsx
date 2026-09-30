@@ -8,6 +8,7 @@ import { honoursBoard, championSuggestions } from "@/lib/services/honours";
 import { HonoursBoard } from "@/components/HonoursBoard";
 import { organizationIdForEvent } from "@/lib/services/roster";
 import { organizationAllows } from "@/lib/services/entitlements";
+import { orgProfile } from "@/lib/domain/org-profile";
 import { HONOURS_LOCKED, SEASON_LOCKED } from "@/lib/plans";
 
 /**
@@ -31,6 +32,12 @@ export default async function SeriesPage({
   if (!organizationId) redirect("/dashboard");
 
   const seasons = await seriesForOrg(organizationId);
+  // The sidebar's section word, from the same three fields the layout reads.
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { kind: true, country: true, communityNoun: true },
+  });
+  const section = orgProfile(org?.kind, org?.country, org?.communityNoun).groupLabel;
   // The club's permanent record, beside the season it is running. Both are
   // history that outlives whichever tournament happens to be open.
   const honoursOn = await organizationAllows(organizationId, "honours");
@@ -52,7 +59,7 @@ export default async function SeriesPage({
 
   return (
     <>
-      <p className="kicker">Club</p>
+      <p className="kicker">{section}</p>
       <h1 className="page-title">Season standings</h1>
       {!seasonsOn || (table && !table.allowed) ? (
         /* Locked rather than hidden, the same way a metered feature renders:
