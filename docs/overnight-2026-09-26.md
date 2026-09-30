@@ -1497,7 +1497,18 @@ named. The deferred-register entry for this class is closed.
 | #724 | Three loopholes: match play never started the clock; a manual count of 32 overran the cap; a casual round could be kept for ever |
 | #725 | The seeded scores a club secretary would believe (a medal led at −6 mid-round, a league night won on 38) |
 | #726 | Dialogs above the phone's bars; sign-out out of the header; Par keep shows the upgrade; prizes on a phone; trip money |
-| next | The Par wording says the whole term; the plan card names the tier and its cap |
+| #727 | The Par wording says the whole term; the plan card names the tier and its cap |
+| #731 | A Nassau or a match bet is refused on a round with no match, since it could never settle (item 15) |
+| #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
+
+The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
+seed). Each was CI-watched green here before being merged SHA-pinned.
+
+**One figure in #726's description is wrong.** It says the member's skins are +£65.29 and that
+they are owed £1,221.05. Both were measured on a branch cut before #725's card generator
+merged. On `main` it is two skins with no carry, +£8.82; the shared expenses (£1,155.76) were
+right. The landing captures read `main` and are correct. What changed as a result: seed figures
+are verified only on a branch that holds every merged seed change.
 
 ### What the overnight walk found (and why the tests had not)
 
