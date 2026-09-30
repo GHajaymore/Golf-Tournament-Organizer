@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { wipesOnClose, golfBeganAt, closesAtFrom, roundWindowRefusal, PLANS_THAT_DELETE } from "../close-terms";
+import { wipesOnClose, golfBeganAt, closesAtFrom, roundWindowRefusal, holesEntered, PLANS_THAT_DELETE } from "../close-terms";
+
+describe("what counts as golf having been played", () => {
+  it("any stroke on a card", () => {
+    expect(holesEntered("[4,null,null]")).toBe(true);
+    expect(holesEntered("[null,null]")).toBe(false);
+    expect(holesEntered("[]")).toBe(false);
+  });
+
+  it("any hole of a match — which is stored as a LETTER, not a number", () => {
+    // The loophole this closes: a digit test missed every match-play result.
+    expect(holesEntered('["A",null]')).toBe(true);
+    expect(holesEntered('[null,"H"]')).toBe(true);
+    expect(holesEntered('["B"]')).toBe(true);
+  });
+
+  it("never throws on a stored value it cannot read", () => {
+    expect(holesEntered("not json")).toBe(false);
+    expect(holesEntered('{"a":1}')).toBe(false);
+  });
+});
 
 /**
  * Which completions delete. The rule's every branch, each against the one

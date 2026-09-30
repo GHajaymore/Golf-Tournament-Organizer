@@ -78,6 +78,21 @@ export function golfBeganAt(
   return new Date(Math.min(...candidates.map((d) => d.getTime())));
 }
 
+/**
+ * Anything entered at all in a stored hole list — a stroke count, or a match
+ * hole's "A", "B" or "H". The first draft looked for a DIGIT, and a match
+ * stores its holes as letters, so a match-play Par tournament with undated
+ * rounds would never have started its clock: a loophole in the rule itself.
+ */
+export function holesEntered(json: string): boolean {
+  try {
+    const raw: unknown = JSON.parse(json);
+    return Array.isArray(raw) && raw.some((v) => v !== null && v !== "" && v !== undefined);
+  } catch {
+    return false;
+  }
+}
+
 export function closesAtFrom(began: Date): Date {
   return new Date(began.getTime() + LIFESPAN_DAYS * DAY);
 }
