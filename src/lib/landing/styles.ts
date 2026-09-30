@@ -339,6 +339,10 @@ ${landingTokens("dark", "  ")}
 
 /* ── the showcase: the real app, by tab ── */
 .thq .show { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; padding: 14px; border-radius: 26px; background: var(--card); border: 1px solid var(--line); }
+/* position: relative on every horizontal scroller: its .sr inputs are absolutely
+   positioned, and without a containing block inside the scroller they escape it and
+   widen the page on phones (the #723 bug, again here). */
+.thq .show-rail, .thq .steps { position: relative; }
 .thq .show-rail { display: grid; gap: 2px; align-content: start; padding: 8px; }
 .thq .show-rail .label { margin: 14px 10px 8px; }
 .thq .show-rail .label:first-child { margin-top: 6px; }
@@ -350,11 +354,32 @@ ${landingTokens("dark", "  ")}
 .thq .show-tab:has(input:checked) b { color: var(--ground); }
 .thq .show-tab:has(input:checked) span { color: color-mix(in srgb, var(--ground) 72%, var(--ink)); }
 .thq .show-tab:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
-.thq .show-view { position: relative; border-radius: 16px; background: var(--ground-2); min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 28px; }
-.thq .show-f { display: none; justify-items: center; gap: 16px; width: 100%; }
-.thq .show-f .phone { width: 320px; }
-.thq .show-f .desk { width: 100%; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-xl); }
-.thq .show-f figcaption { font-size: 14px; color: var(--ink-soft); text-align: center; max-width: 520px; }
+/* The stage (2026-09-29): a dark stage lit in the brand's orange, the real
+   screen upright in a phone, and numbered pins beside it — level with what each
+   note describes. Hovering a note lights its pin. The capture itself is never
+   drawn on. UPRIGHT and STILL on purpose: a 3D-rotated or floating image is
+   resampled every frame and its text goes soft (Ajay: "can't you see the
+   blurriness"); the depth comes from light and shadow, never from transforms. */
+.thq .show-view { position: relative; border-radius: 20px; min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 48px 40px;
+  background: radial-gradient(70% 70% at 28% 30%, color-mix(in srgb, var(--brass-ui) 26%, var(--ink)) 0%, var(--ink) 72%); }
+.thq .show-f { display: none; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 56px; width: 100%; max-width: 820px; }
+.thq .stage-phone { position: relative; width: 290px; justify-self: center; }
+.thq .stage-phone .phone { box-shadow: 0 50px 90px -24px rgba(0,0,0,.85), 0 20px 50px -18px color-mix(in srgb, var(--brass-ui) 55%, transparent), inset 0 0 0 1.5px rgba(255,255,255,.14); }
+.thq .stage-pins { position: absolute; top: 9px; bottom: 9px; right: -26px; width: 0; margin: 0; padding: 0; list-style: none; }
+.thq .stage-pins li { position: absolute; right: -14px; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font: 800 13px/1 var(--sans); color: var(--ink); background: var(--brass-hi); box-shadow: 0 0 0 5px color-mix(in srgb, var(--brass-hi) 22%, transparent); transition: transform .2s, box-shadow .2s; }
+.thq .stage-pins li::before { content: ""; position: absolute; right: 100%; top: 50%; width: 16px; height: 1.5px; background: color-mix(in srgb, var(--brass-hi) 70%, transparent); }
+.thq .stage-notes { color: color-mix(in srgb, var(--ground) 70%, transparent); }
+.thq .stage-notes ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; counter-reset: note; }
+.thq .stage-notes li { counter-increment: note; position: relative; padding-left: 54px; font-size: 15.5px; line-height: 1.5; cursor: default; }
+.thq .stage-notes li::before { content: counter(note); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  font: 800 15px/1 var(--sans); color: var(--brass-hi); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brass-hi) 60%, transparent); transition: background .2s, color .2s; }
+.thq .stage-notes b { display: block; color: var(--ground); font: 750 19px/1.25 var(--sans); letter-spacing: -.015em; margin-bottom: 3px; }
+.thq .stage-notes li:hover::before { background: var(--brass-hi); color: var(--ink); }
+.thq .show-f:has(.stage-notes li:nth-child(1):hover) .stage-pins li:nth-child(1),
+.thq .show-f:has(.stage-notes li:nth-child(2):hover) .stage-pins li:nth-child(2),
+.thq .show-f:has(.stage-notes li:nth-child(3):hover) .stage-pins li:nth-child(3) { transform: translateY(-50%) scale(1.25); box-shadow: 0 0 0 9px color-mix(in srgb, var(--brass-hi) 30%, transparent); }
+
 __SHOW_FRAMES__
 @media (max-width: 1000px) {
   .thq .show { grid-template-columns: minmax(0, 1fr); padding: 10px; }
@@ -362,8 +387,12 @@ __SHOW_FRAMES__
   .thq .show-rail .label { display: none; }
   .thq .show-tab span { display: none; }
   .thq .show-tab { border: 1px solid var(--line); border-radius: 999px; padding: 0 16px; min-height: 44px; align-content: center; }
-  .thq .show-view { min-height: 0; padding: 22px 12px; }
-  .thq .show-f .phone { width: min(290px, 78vw); }
+  .thq .show-view { min-height: 0; padding: 36px 20px 30px; }
+  .thq .show-f { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+  .thq .stage-phone { width: min(236px, 62vw); }
+  .thq .stage-pins { right: -20px; } .thq .stage-pins li { width: 26px; height: 26px; font-size: 12px; right: -12px; }
+  .thq .stage-notes li { padding-left: 48px; font-size: 14.5px; } .thq .stage-notes li::before { width: 32px; height: 32px; font-size: 13.5px; }
+  .thq .stage-notes b { font-size: 17px; }
 }
 
 /* ── formats: three real boards ── */
@@ -485,7 +514,8 @@ __CMP_FRAMES__
   .thq .tier { padding: 16px 8px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }
   .thq .tier .for, .thq .tier ul, .thq .tier .note, .thq .tier .price-sub { display: none; }
   .thq .tier h3 { flex-direction: column-reverse; gap: 6px; font-size: 15px; }
-  .thq .tier .badge { font-size: 9.5px; padding: 4px 6px; }
+  /* Three narrow cards on a phone: the tagline badge wrapped to two cramped lines. */
+  .thq .tier .badge { display: none; }
   .thq .tier:not(.hot) h3::after { content: ""; height: 17.5px; }
   .thq .price { flex-direction: column; align-items: center; gap: 2px; }
   .thq .price b { font-size: clamp(22px, 7vw, 30px); }
@@ -546,16 +576,17 @@ __CMP_FRAMES__
 .thq .stores-note { font-size: 14px; color: var(--ink-faint); max-width: 460px; }
 
 /* ── footer (a dark band) ── */
-.thq .ftr { padding: 96px 0 calc(40px + env(safe-area-inset-bottom)); }
-.thq .ftr-top { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, .6fr)); gap: 48px; }
-.thq .ftr-top p { color: var(--ink-soft); font-size: 15px; max-width: 340px; margin-top: 18px; }
-.thq .ftr h4 { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
-.thq .ftr ul { display: grid; font-size: 15px; }
-.thq .ftr ul a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); }
-.thq .ftr ul a:hover { color: var(--ink); }
-.thq .ftr-base { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink-faint); }
+/* The footer (2026-09-29, "too much"): the mark, the links a visitor looks for
+   at the bottom of a page, and one line of small print. The section links are in
+   the header's Product menu; the footer no longer repeats them. */
+.thq .ftr { padding: 48px 0 calc(28px + env(safe-area-inset-bottom)); }
+.thq .ftr-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 36px; }
+.thq .ftr-row nav ul { display: flex; flex-wrap: wrap; gap: 0 26px; list-style: none; margin: 0; padding: 0; }
+.thq .ftr-row nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); font: 550 15px/1 var(--sans); }
+.thq .ftr-row nav a:hover { color: var(--ink); }
+.thq .ftr-base { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 24px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-faint); }
 .thq .ftr-base .ed-note { margin-top: 0; }
-@media (max-width: 900px) { .thq .ftr { padding-top: 64px; } .thq .ftr-top { grid-template-columns: 1fr 1fr; gap: 36px 24px; } .thq .ftr-top > div:first-child { grid-column: 1 / -1; } .thq .ftr-base { flex-direction: column; align-items: flex-start; } }
+@media (max-width: 760px) { .thq .ftr-row { flex-direction: column; align-items: flex-start; gap: 8px; } .thq .ftr-row nav ul { gap: 0 20px; } .thq .ftr-base { flex-direction: column; align-items: flex-start; } }
 
 /* ── /faq ── */
 .thq .fq-hero { padding: 88px 0 48px; }
@@ -596,13 +627,6 @@ __CMP_FRAMES__
    rhythm tightens. Nothing is hidden: every step, line and screen is still
    there, one swipe apart. */
 .thq a.lockup svg { margin-left: -9px; }
-.thq .only-narrow { display: none; }
-.thq .twin img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
-@media (max-width: 700px) {
-  .thq .only-wide { display: none !important; }
-  .thq .only-narrow { display: block; }
-  .thq figcaption .only-narrow { display: inline; }
-}
 @media (max-width: 1000px) {
   .thq .steps { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 calc(-1 * max(20px, env(safe-area-inset-left))); padding: 2px max(20px, env(safe-area-inset-left)) 6px; scroll-padding-inline: max(20px, env(safe-area-inset-left)); }
   .thq .steps::-webkit-scrollbar { display: none; }
@@ -617,6 +641,7 @@ __CMP_FRAMES__
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }
+  .thq .topics { top: 60px; }
   /* The first screen shows the product: a tighter hero lets the live board rise into view. */
   .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
   .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }

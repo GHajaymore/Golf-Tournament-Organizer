@@ -368,6 +368,32 @@ test("the landing page has one main landmark and answers /favicon.ico", async ({
   expect([body[0], body[1], body[2], body[3]], "not an ICO header").toEqual([0, 0, 1, 0]);
 });
 
+/**
+ * The front door, measured as a visitor sees it after scrolling.
+ *
+ * `standaloneScreens()` walks the folders under src/app, so `/` itself — the
+ * landing page, the page most visitors see first — was never in the sideways
+ * sweep. Twice on 2026-09-29 an absolutely positioned screen-reader label
+ * escaped a horizontal scroller once its section had risen into view, and phones
+ * widened the page (621px, then 436px) and zoomed out. Every section is risen
+ * here before measuring.
+ */
+test.describe("signed out", () => {
+  // The front door is what a visitor who is NOT signed in sees; a signed-in
+  // session is sent on to the app.
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test("the front door does not scroll sideways once every section has risen", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".thq h1")).toHaveCount(1);
+  await page.evaluate(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("seen")));
+  await page.waitForTimeout(900);
+  const width = page.viewportSize()?.width ?? 0;
+  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(scrollWidth, `/: the page is ${scrollWidth}px in a ${width}px viewport`).toBeLessThanOrEqual(width + 1);
+  });
+});
+
 test("the public leaderboard fits a phone too", async ({ page }) => {
   // Outside the app shell and outside the auth guard, so it has its own
   // layout and its own chance to be wrong.
