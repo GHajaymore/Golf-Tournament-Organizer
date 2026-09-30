@@ -817,10 +817,12 @@ export async function seed() {
       data: medalField.slice(0, 16).map((p) => ({ potId: skins.id, playerId: p.id, confirmed: true })),
     });
 
-    // A derived pot and a Nassau, which are the two halves of the side-bet
-    // rules: a low-net pot may only be reported when the round is FINAL, and a
-    // Nassau's completed segments are correctly paid LIVE. Both on one round,
-    // so the difference is visible on one screen.
+    // A derived pot: a low-net pot may only be reported when the round is FINAL.
+    //
+    // There was a Nassau here too, and it never settled: a Nassau is three bets
+    // on a MATCH, and a medal has none. The screens never offer one on a
+    // stroke round, and since 2026-09-29 `saveSideGame` refuses it — so this
+    // was a state no club could reach, seeded straight into the database.
     const lowNet = await prisma.sideGame.create({
       data: {
         eventId: medal.id,
@@ -834,20 +836,6 @@ export async function seed() {
     await prisma.sideGameEntry.createMany({
       data: medalField.slice(0, 12).map((p) => ({ sideGameId: lowNet.id, playerId: p.id, confirmed: true })),
     });
-    const nassau = await prisma.sideGame.create({
-      data: {
-        eventId: medal.id,
-        stageId: medalRound.id,
-        kind: "nassau",
-        groupKey: "",
-        buyInCents: 1000,
-        createdBy: organizer.name,
-      },
-    });
-    await prisma.sideGameEntry.createMany({
-      data: medalField.slice(0, 4).map((p) => ({ sideGameId: nassau.id, playerId: p.id, confirmed: true })),
-    });
-
     const ctp = await prisma.contest.create({
       data: {
         eventId: medal.id,
@@ -1706,11 +1694,10 @@ export async function seed() {
     await prisma.skinsEntry.createMany({
       data: teamField.map((p) => ({ potId: teamSkins.id, playerId: p.id, confirmed: true })),
     });
-    // No Nassau here, deliberately: one was tried on this FOUR-BALL round and
-    // the Money screen showed nothing for it at all — the round's cards are
-    // stored per side (`TeamScorecard`), and the Nassau reads individual ones.
-    // Raised for Ajay in docs/overnight-2026-09-26.md rather than changed
-    // overnight, because it is money logic. The medal carries a working Nassau.
+    // No Nassau here, deliberately: a Nassau is three bets on a MATCH, and
+    // this four-ball is a stroke round with none, so one seeded here showed
+    // nothing at all. The screens never offer it on such a round, and
+    // `saveSideGame` now refuses it too (2026-09-29).
 
     /* ============================ 6. nine holes, Stableford, away course == */
 

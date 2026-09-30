@@ -1701,13 +1701,16 @@ time, the delete confirm, the 14-day close, the 7-day window, and the casual kee
     is whether a new or pinned announcement should also send a phone alert to players who
     turned alerts on, the same way tee times do. That would be in-app and consistent with your
     non-email rule, but it is a behaviour change, so it waits for you.
-15. **A Nassau on a four-ball round never resolves.** Found overnight 2026-09-29 while seeding the
-    Invitational's trip money. A $5 Nassau on its four-ball round showed nothing at all on the
-    Money screen: the round's cards are stored per side (`TeamScorecard`), and the Nassau reads
-    individual cards. Players can start their own side bets, so a group could create exactly
-    this and never see it settle. It is money logic, so it was not changed overnight. The
-    choice: make the Nassau read a four-ball's individual cards, or refuse a Nassau on a round
-    that has none, with a sentence saying why.
+15. ~~A Nassau on a four-ball round never resolves.~~ **Resolved 2026-09-29, and the first
+    diagnosis was wrong.** The Nassau doesn't read cards at all. It is three bets riding on the
+    round's MATCHES, and a stroke round (a medal, a four-ball played as stroke) has none. The
+    screens already only offer a Nassau on a head-to-head round, so no club could reach the dead
+    one. The seed wrote it straight into the database, on the medal as well as the Invitational.
+    Now the server refuses it too (`saveSideGame`, for a Nassau or "the match" on a round with no
+    matches), while still letting a stake already stranded there be switched off. The seed no
+    longer creates either. As a golf pro: in a stroke four-ball the group's Nassau is really a
+    match between players or pairs, and turning stroke cards into those matches is a new
+    feature. Say if you want it.
 16. ~~Item 12 (limits published but not enforced)~~ **Decided 2026-09-29: enforced for new
     clubs.** See the section above.
 

@@ -10,6 +10,7 @@ import { requirePotAccess } from "@/lib/services/game-access";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { logAudit } from "@/lib/services/action-shared";
+import { isHeadToHead } from "@/lib/stage-types";
 
 /**
  * The side bets the cards settle: low gross, low net, birdies, eagles, Nassau.
@@ -153,7 +154,7 @@ export async function saveSideGame(
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
-    select: { id: true, format: true },
+    select: { id: true, format: true, type: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
   /**
@@ -198,6 +199,28 @@ export async function saveSideGame(
    * caller written later.
    */
   const note = cents > 0 ? "" : (stakeNote ?? "").trim().slice(0, STAKE_NOTE_MAX);
+
+  /**
+   * A MATCH BET NEEDS A MATCH (2026-09-29). A Nassau is three bets on one
+   * match and "the match" is one; `nassauLedger` reads the round's matches, and
+   * a stroke round has none — a stake there is money in with nothing that can
+   * ever come out. The screen already hides both on such a round
+   * (`ContestsClient`, `isHeadToHead`); this is the same question asked where
+   * the bet is written, since a `"use server"` export is a public endpoint.
+   * Found when seed data put a Nassau on a medal and on a four-ball stroke
+   * round, and neither ever settled.
+   *
+   * Only TURNING ONE ON is refused. A stake already on a round whose format
+   * later changed must still be removable — the screen keeps that row visible
+   * for exactly this — so a zero stake with no note always goes through.
+   */
+  if (MATCH_BETS.has(kind) && !isHeadToHead(stage.type) && (cents > 0 || note)) {
+    return {
+      ok: false,
+      error:
+        "A Nassau and a match bet are bets on a match, and nobody in this round is playing a match — they could never be settled. Use low gross, low net, birdies or skins on a stroke round.",
+    };
+  }
 
   const game = await prisma.sideGame.upsert({
     where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
