@@ -52,7 +52,7 @@ import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/l
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
-import { refusalFor, fieldCapFor, effectiveCapacity } from "@/lib/services/limits";
+import { refusalFor, fieldCapFor, effectiveCapacity, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
 import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
@@ -3427,7 +3427,7 @@ export async function addAccount(name: string, email: string, role: string): Pro
   // event instead of at the club.
   if (next !== "player") {
     const orgId = await organizationIdForEvent(eventId);
-    const refusal = orgId ? await refusalFor(orgId, "staffSeats") : null;
+    const refusal = orgId ? await seatRefusalFor(orgId, cleanEmail) : null;
     if (refusal) return { ok: false, error: refusal };
   }
 
@@ -3464,6 +3464,14 @@ export async function setAccountRole(accountId: string, role: string): Promise<{
   if (!account) return { ok: false, error: "Account not found." };
   if (account.role === "admin" && next !== "admin" && !(await hasOtherAdmin(eventId, accountId))) {
     return { ok: false, error: "This is the only Organizer on this event — promote someone else first." };
+  }
+  // A PROMOTION takes a seat as surely as an addition does — see
+  // `seatRefusalFor`. Without this, "add as a player, then promote" was the way
+  // round the seat limit.
+  if (next !== "player" && account.role === "player") {
+    const orgId = await organizationIdForEvent(eventId);
+    const refusal = orgId ? await seatRefusalFor(orgId, account.email) : null;
+    if (refusal) return { ok: false, error: refusal };
   }
   await prisma.account.update({ where: { id: accountId }, data: { role: next } });
   await refresh();

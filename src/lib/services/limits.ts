@@ -174,6 +174,41 @@ export async function refusalFor(organizationId: string, limit: LimitKey): Promi
   return result.allowed ? null : (result.reason ?? "That would exceed your plan.");
 }
 
+/** Whether this person already holds a staff seat here, by the count's own rule. */
+async function holdsSeat(organizationId: string, email: string): Promise<boolean> {
+  const e = email.trim().toLowerCase();
+  if (!e) return false;
+  const [member, account] = await Promise.all([
+    prisma.organizationMember.findFirst({
+      where: { organizationId, role: { in: ["owner", "admin"] }, user: { email: { equals: e, mode: "insensitive" } } },
+      select: { id: true },
+    }),
+    prisma.account.findFirst({
+      where: { event: { organizationId }, role: { in: ["admin", "assistant"] }, email: { equals: e, mode: "insensitive" } },
+      select: { id: true },
+    }),
+  ]);
+  return !!member || !!account;
+}
+
+/**
+ * MAY THIS PERSON BE GIVEN STAFF RIGHTS? The one seat question, asked of every
+ * path that grants them — adding and PROMOTING, at the club and on an event.
+ *
+ * It was asked only when somebody was ADDED as staff (2026-09-30). Adding them
+ * as a player and then promoting them on Access & staff, or promoting a club
+ * Member to admin, took a seat with no check at all — a Par club's one
+ * organizer seat held as many as anybody cared to promote.
+ *
+ * And somebody who ALREADY holds a seat takes no new one — the count is
+ * deduplicated by email — so they are never refused: the club secretary made
+ * organizer of a second tournament was refused at the cap before this.
+ */
+export async function seatRefusalFor(organizationId: string, email: string): Promise<string | null> {
+  if (await holdsSeat(organizationId, email)) return null;
+  return refusalFor(organizationId, "staffSeats");
+}
+
 /**
  * The capacity an intake should actually use: the organizer's own capacity,
  * tightened to the tier's field cap when enforcement is on.
