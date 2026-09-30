@@ -190,7 +190,10 @@ export const PLANS: Record<PlanKey, Plan> = {
     // 2026-09-29), for clubs held to the terms — see `wipesOnClose`. It was
     // 48 hours, which nothing ever enforced.
     retentionHours: 0,
-    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    // Honours OFF from 2026-09-29 (Ajay): a Par tournament is deleted when it
+    // completes, so its honours board could only ever be empty. Clubs that
+    // predate the terms keep it — see `GRANDFATHERED_FEATURES`.
+    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: false, publicBoard: true },
   },
   society: {
     key: "society",
@@ -802,10 +805,26 @@ export function featureAllowed(
   planKey: string | null | undefined,
   overrides: string | null | undefined,
   feature: FeatureKey,
+  /** Whether the club is on the published terms; false (grandfathered) by default. */
+  termsApply = false,
 ): boolean {
   const exception = featureOverrides(overrides)[feature];
-  return exception ?? hasFeature(planKey, feature);
+  if (exception !== undefined) return exception;
+  if (hasFeature(planKey, feature)) return true;
+  // A club that predates the terms keeps what its plan gave it before them.
+  return !termsApply && (GRANDFATHERED_FEATURES[planFor(planKey).key] ?? []).includes(feature);
 }
+
+/**
+ * WHAT A TIER HAD BEFORE THE TERMS OF 2026-09-29, and a club that predates them
+ * keeps. Ajay moved the honours board off the free plan that day, and every
+ * club in production is on the free plan — so a flag flipped with nothing here
+ * would have emptied the honours board of every real club at once. New clubs
+ * (`planTermsApply`) get the ladder as written; everybody else keeps these.
+ */
+export const GRANDFATHERED_FEATURES: Partial<Record<PlanKey, FeatureKey[]>> = {
+  free: ["honours"],
+};
 
 /**
  * The features that cost money every time they are used, with the words shown
@@ -884,6 +903,9 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push(
       "The season table across separate tournaments — points, best-of and a qualifying minimum, adding up a season of medals and cups into one order of merit.",
     );
+  }
+  if (!plan.features.honours) {
+    out.push("The honours board — every champion the club has had, kept year after year.");
   }
   if (plan.key === "free") {
     out.push(

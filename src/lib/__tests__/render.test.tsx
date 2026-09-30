@@ -7094,6 +7094,47 @@ describe("the lifecycle button names the phase, not the link", () => {
  * against the functions — the functions have their own tests, and it was a
  * rendered screen that found this.
  */
+describe("a Par tournament is offered the upgrade before it is deleted", () => {
+  /**
+   * Ajay, 2026-09-29: "make sure to ask for upgrade before deleting (raise
+   * alert) but our rule won't change". So the offer is on the status card from
+   * the start, not only in the last dialog — and the control is a club whose
+   * tournament is NOT deleted, which must not be nagged.
+   */
+  const summary = {
+    name: "zz-Par Cup", dates: "", course: "", format: "Stroke Play", overall: "Net strokes",
+    players: 8, flights: 0, rounds: 1,
+  };
+  const offer = "Birdie keeps every tournament for good — $49 a month.";
+  const bar = async (deletes: boolean) => {
+    const { LifecycleBar } = await import("@/components/LifecycleBar");
+    return render(
+      <LifecycleBar
+        status="live"
+        isAdmin
+        configUnlocked={false}
+        summary={summary}
+        resultsIn={3}
+        deletesOnComplete={deletes}
+        keepOffer={deletes ? offer : undefined}
+      />,
+    );
+  };
+
+  it("says completing deletes it, and offers the plan that keeps it", async () => {
+    const html = await bar(true);
+    expect(html).toContain("Completing this tournament deletes it.");
+    expect(html).toContain(offer);
+    expect(html).toContain('href="/organization#plan"');
+  });
+
+  it("CONTROL: says nothing of the sort where completing keeps the tournament", async () => {
+    const html = await bar(false);
+    expect(html).not.toContain("Completing this tournament deletes it.");
+    expect(html).not.toContain("/organization#plan");
+  });
+});
+
 describe("a draft that is already being played", () => {
   const summary = {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play", overall: "Match play",

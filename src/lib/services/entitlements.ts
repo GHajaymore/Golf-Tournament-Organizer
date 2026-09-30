@@ -46,9 +46,10 @@ export async function organizationAllows(
 ): Promise<boolean> {
   const sub = await prisma.subscription.findUnique({
     where: { organizationId },
-    select: { plan: true, featureOverrides: true },
+    select: { plan: true, featureOverrides: true, planTermsApply: true },
   });
-  return featureAllowed(sub?.plan ?? DEFAULT_PLAN, sub?.featureOverrides, feature);
+  // No row is grandfathered, like a row that predates the terms.
+  return featureAllowed(sub?.plan ?? DEFAULT_PLAN, sub?.featureOverrides, feature, sub?.planTermsApply === true);
 }
 
 /** The plan key for the club that owns an event. */
