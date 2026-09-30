@@ -12,6 +12,7 @@ import { listDiscountCodes } from "@/lib/services/platform-discounts";
 import { OwnerPricing } from "@/components/OwnerPricing";
 import { OwnerLimits } from "@/components/OwnerLimits";
 import { OwnerClubPlan } from "@/components/OwnerClubPlan";
+import { peopleOwningSeveralParClubs } from "@/lib/services/close-terms";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
@@ -66,6 +67,7 @@ export default async function OwnerConsolePage() {
     orgsWithNoEvents,
     recentOrgs,
     liveEvents,
+    severalParClubs,
   ] = await Promise.all([
     prisma.organization.count(),
     prisma.subscription.groupBy({ by: ["plan"], _count: { _all: true } }),
@@ -91,6 +93,7 @@ export default async function OwnerConsolePage() {
       take: 12,
       select: { id: true, name: true, organization: { select: { name: true } } },
     }),
+    peopleOwningSeveralParClubs(),
   ]);
 
   // The owner's own price overrides, so the projected MRR here and the price
@@ -276,6 +279,13 @@ export default async function OwnerConsolePage() {
           </li>
           <li>
             <strong>{m.liveEvents.toLocaleString(DEFAULT_LOCALE)}</strong> tournament{m.liveEvents === 1 ? " is" : "s are"} live right now.
+          </li>
+          {/* Watched rather than walled (2026-09-29): one person running
+              several free Par clubs side by side. Near zero means no problem. */}
+          <li>
+            <strong>{severalParClubs.toLocaleString(DEFAULT_LOCALE)}</strong>{" "}
+            {severalParClubs === 1 ? "person owns" : "people own"} more than one free {PLANS.free.name} club
+            {severalParClubs === 0 ? " — nobody is splitting a group to stay free." : " — worth a look if this climbs."}
           </li>
         </ul>
       </div>

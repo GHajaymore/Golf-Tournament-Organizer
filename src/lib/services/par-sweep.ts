@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { golfBeganAt, closesAtFrom, PLANS_THAT_DELETE } from "../domain/close-terms";
+import { golfBeganAt, closesAtFrom, holesEntered, PLANS_THAT_DELETE } from "../domain/close-terms";
 
 /**
  * A PAR TOURNAMENT CLOSES ON ITS OWN — the half of the Par terms that holds
@@ -28,20 +28,22 @@ const onParTerms = {
   organization: { subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
 };
 
-/** Has anything been played? Any number on any card, any hole of any match, any tie won. */
+/** Has anything been played? Any card, any match hole or forfeit, any tie won or reported. */
 async function resultRecorded(eventId: string): Promise<boolean> {
-  const hasNumber = (json: string) => /\d/.test(json);
-  const [cards, teamCards, matches, ties] = await Promise.all([
+  const [cards, teamCards, matches, ties, reports] = await Promise.all([
     prisma.scorecard.findMany({ where: { eventId }, select: { strokes: true } }),
     prisma.teamScorecard.findMany({ where: { eventId }, select: { strokes: true } }),
-    prisma.match.findMany({ where: { eventId }, select: { holes: true } }),
+    prisma.match.findMany({ where: { eventId }, select: { holes: true, forfeitedBy: true } }),
     prisma.bracketWinner.count({ where: { eventId } }),
+    // A knockout result a player reported, even before anybody approves it.
+    prisma.bracketReport.count({ where: { eventId } }),
   ]);
   return (
     ties > 0 ||
-    cards.some((c) => hasNumber(c.strokes)) ||
-    teamCards.some((c) => hasNumber(c.strokes)) ||
-    matches.some((m) => hasNumber(m.holes))
+    reports > 0 ||
+    cards.some((c) => holesEntered(c.strokes)) ||
+    teamCards.some((c) => holesEntered(c.strokes)) ||
+    matches.some((m) => holesEntered(m.holes) || m.forfeitedBy !== "")
   );
 }
 

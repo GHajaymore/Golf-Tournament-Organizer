@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { wipesOnClose } from "../domain/close-terms";
+import { wipesOnClose, PLANS_THAT_DELETE } from "../domain/close-terms";
 import { PLANS, effectivePrice, planCurrency } from "../plans";
 import { wholeMoney } from "../domain/money-format";
 import { storedPricingOverrides } from "./platform-pricing";
@@ -20,6 +20,28 @@ export async function keepItOffer(organizationId: string): Promise<string> {
   const currency = planCurrency(org?.currency);
   const monthly = effectivePrice(keep, await storedPricingOverrides(), currency);
   return `${keep.name} keeps every tournament for good — ${wholeMoney(monthly, currency, org?.locale ?? undefined)} a month.`;
+}
+
+/**
+ * HOW MANY PEOPLE OWN MORE THAN ONE PAR CLUB — the one way round the Par terms
+ * left open on purpose (Ajay, 2026-09-29: watch it rather than wall it).
+ *
+ * Several free clubs give one person several ten-player, seven-day,
+ * deleted-in-a-fortnight events at once: nothing they could keep. A limit per
+ * PERSON is beaten by a second email address and would catch the honest
+ * organizer of two real groups, so the owner console counts it instead. If
+ * this number climbs, it is real, and that is the time to decide.
+ */
+export async function peopleOwningSeveralParClubs(): Promise<number> {
+  const owners = await prisma.organizationMember.groupBy({
+    by: ["userId"],
+    where: {
+      role: "owner",
+      organization: { subscription: { planTermsApply: true, plan: { in: PLANS_THAT_DELETE } } },
+    },
+    _count: { _all: true },
+  });
+  return owners.filter((o) => o._count._all > 1).length;
 }
 
 /**

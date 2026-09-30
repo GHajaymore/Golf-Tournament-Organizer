@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { notifyFieldChange } from "./field-notify";
 import { logAudit } from "./action-shared";
+import { fieldCapFor } from "./limits";
 
 /**
  * Keeping the field and the waitlist in step.
@@ -62,11 +63,20 @@ export function fieldLimitOf(event: {
 export async function drainWaitlist(eventId: string): Promise<number> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { capacity: true, playerCountMode: true, manualPlayerCount: true },
+    select: { capacity: true, playerCountMode: true, manualPlayerCount: true, organizationId: true },
   });
   if (!event) return 0;
 
-  const limit = fieldLimitOf(event);
+  /**
+   * AND NEVER PAST THE PLAN'S FIELD CAP. This is where waiting players become
+   * confirmed, so it is where the cap has to hold: `manualPlayerCount` defaults
+   * to 32 and nothing clamps it until somebody presses the manual-count
+   * button, so a Par tournament switched to a manual count in its settings
+   * would otherwise have promoted thirty-two into a field of ten.
+   */
+  const own = fieldLimitOf(event);
+  const cap = await fieldCapFor(event.organizationId);
+  const limit = cap === null ? own : own === null ? cap : Math.min(own, cap);
 
   const confirmed = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // An open field takes everyone waiting; a limited one takes what fits.

@@ -27,12 +27,15 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 const { stampParClocks, sweepClosedPar } = await import("@/lib/services/par-sweep");
 const { setStagePlayedOn } = await import("@/app/actions/tournament");
+const { drainWaitlist } = await import("@/lib/services/waitlist");
+const { keepRound } = await import("@/app/actions/round-expiry");
+const { peopleOwningSeveralParClubs } = await import("@/lib/services/close-terms");
 
 const DAY = 24 * 3600 * 1000;
 const NOW = new Date();
 const iso = (offsetDays: number) => new Date(NOW.getTime() + offsetDays * DAY).toISOString().slice(0, 10);
 const emailFor = (who: string) => `zz-audit-par-closes-${who}@example.invalid`;
-const WHO = ["par", "old", "birdie", "window", "window-old"];
+const WHO = ["par", "old", "birdie", "window", "window-old", "casual", "casual-old", "multi"];
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -153,6 +156,89 @@ describe("on the day it is deleted — unless something has changed", () => {
     expect(await exists(upgraded), "an upgraded club's tournament was deleted").toBe(true);
     expect(await exists(held), "a held tournament was deleted").toBe(true);
     expect(await exists(notYet), "a tournament was deleted before its day").toBe(true);
+  });
+});
+
+describe("the loopholes found in the sweep of 2026-09-29", () => {
+  it("a match-play result starts the clock — holes are letters, not numbers", async () => {
+    const ev = await tournament(orgs.par, "match only", [""]);
+    const [a, b] = await Promise.all(
+      ["Cy", "Di"].map((n, i) =>
+        prisma.player.create({ data: { eventId: ev.id, name: `${TAG} ${n}`, handicap: 10, seed: i + 1, status: "confirmed" } }),
+      ),
+    );
+    const group = await prisma.group.create({ data: { eventId: ev.id, stageId: ev.stages[0].id, name: `${TAG} group`, position: 0 } });
+    await prisma.match.create({
+      data: { eventId: ev.id, stageId: ev.stages[0].id, groupId: group.id, round: 1, playerAId: a.id, playerBId: b.id, holes: '["A","H",null]' },
+    });
+    await stampParClocks(NOW);
+    expect(await closesAt(ev.id), "a match-play Par tournament never started its clock").not.toBeNull();
+  });
+
+  it("a manual player count cannot promote a Par waiting list past ten", async () => {
+    const ev = await tournament(orgs.par, "manual count", []);
+    // What a Par organizer gets by switching to a manual count in settings:
+    // the schema's default of 32, never clamped.
+    await prisma.event.update({ where: { id: ev.id }, data: { capacity: 10, playerCountMode: "manual", manualPlayerCount: 32 } });
+    for (let i = 0; i < 14; i += 1) {
+      await prisma.player.create({ data: { eventId: ev.id, name: `${TAG} W${i}`, handicap: 10, seed: i + 1, status: "waitlisted" } });
+    }
+    await drainWaitlist(ev.id);
+    expect(await prisma.player.count({ where: { eventId: ev.id, status: "confirmed" } })).toBe(10);
+  });
+
+  it("CONTROL: a club that predates the terms takes its manual count", async () => {
+    const ev = await tournament(orgs.old, "old manual", []);
+    await prisma.event.update({ where: { id: ev.id }, data: { playerCountMode: "manual", manualPlayerCount: 12 } });
+    for (let i = 0; i < 14; i += 1) {
+      await prisma.player.create({ data: { eventId: ev.id, name: `${TAG} O${i}`, handicap: 10, seed: i + 1, status: "waitlisted" } });
+    }
+    await drainWaitlist(ev.id);
+    expect(await prisma.player.count({ where: { eventId: ev.id, status: "confirmed" } })).toBe(12);
+  });
+
+  /** A casual round, as `createMatch` makes one: shape match, 24 hours to live. */
+  async function casual(who: string, termsApply: boolean) {
+    session.email = emailFor(who);
+    const orgId = await club(who, "free", termsApply);
+    const ev = await prisma.event.create({
+      data: {
+        organizationId: orgId, name: `${TAG} ${who} round`, dates: "", course: "", city: "", address: "", regDeadline: "",
+        status: "live", shape: "match", shareToken: `${TAG}-${who}-${Date.now()}`, expiresAt: new Date(NOW.getTime() + DAY),
+      },
+    });
+    session.eventId = ev.id;
+    session.role = "admin";
+    return ev.id;
+  }
+
+  it("a Par casual round cannot be kept for ever — its 24 hours stand", async () => {
+    const id = await casual("casual", true);
+    const res = await keepRound();
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/kept for 24 hours/);
+    expect((await prisma.event.findUnique({ where: { id } }))?.expiresAt).not.toBeNull();
+  });
+
+  it("CONTROL: a club that predates the terms keeps its casual round", async () => {
+    const id = await casual("casual-old", false);
+    expect((await keepRound()).ok).toBe(true);
+    expect((await prisma.event.findUnique({ where: { id } }))?.expiresAt).toBeNull();
+  });
+
+  it("the owner console counts a person who owns two Par clubs", async () => {
+    const before = await peopleOwningSeveralParClubs();
+    const user = await prisma.user.create({ data: { email: emailFor("multi"), name: `${TAG} multi` } });
+    for (const n of ["one", "two"]) {
+      await prisma.organization.create({
+        data: {
+          name: `${TAG} multi ${n}`,
+          subscription: { create: { plan: "free", planTermsApply: true } },
+          members: { create: { userId: user.id, role: "owner" } },
+        },
+      });
+    }
+    expect(await peopleOwningSeveralParClubs()).toBe(before + 1);
   });
 });
 
