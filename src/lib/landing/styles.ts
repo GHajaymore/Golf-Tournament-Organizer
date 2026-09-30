@@ -465,7 +465,7 @@ __SHOW_FRAMES__
 
 /* ── the money (a dark band) ── */
 .thq .money-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.thq .mcard { background: var(--card); border-radius: 24px; padding: 34px; border: 1px solid var(--line); display: flex; flex-direction: column; }
+.thq .mcard { background: var(--card); border-radius: var(--r); padding: 34px; border: 1px solid var(--line); display: flex; flex-direction: column; }
 .thq .mcard p { color: var(--ink-soft); margin-top: 10px; font-size: 16px; }
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
@@ -520,7 +520,7 @@ __CMP_FRAMES__
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
 .thq .ed-note button:hover { border-color: var(--ink); }
 .thq .tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 34px; }
-.thq .tier { border-radius: 24px; padding: 34px; background: var(--card); border: 1px solid var(--line); display: grid; grid-template-rows: auto auto auto auto auto 1fr auto; gap: 16px; }
+.thq .tier { border-radius: var(--r); padding: 34px; background: var(--card); border: 1px solid var(--line); display: grid; grid-template-rows: auto auto auto auto auto 1fr auto; gap: 16px; }
 .thq .tier.hot { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .thq .tier h3 { display: flex; justify-content: space-between; align-items: center; font: 700 20px/1 var(--sans); }
 .thq .tier .badge { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 8px; border-radius: 6px; }
@@ -540,7 +540,7 @@ __CMP_FRAMES__
 .thq .tier .btn .short { display: none; }
 .thq .tier.hot .btn { background: var(--brass-ui); border-color: var(--brass-ui); color: var(--on-accent); }
 .thq .tier-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
-.thq .ultimate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 24px 28px; border-radius: 20px; border: 1px solid var(--line); }
+.thq .ultimate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 24px 28px; border-radius: var(--r); border: 1px solid var(--line); }
 .thq .ultimate .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--wash-2); display: grid; place-items: center; color: var(--brass); }
 .thq .ultimate h3 { font: 650 17px/1.3 var(--sans); }
 .thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
@@ -790,6 +790,18 @@ __CMP_FRAMES__
   /* The step cards' phone: its 80px-blur shadow, clipped by the card, drew as
      blocky grey tiles around the screenshot. A tight shadow draws cleanly. */
   .thq .step .inl.phone { box-shadow: 0 14px 24px -14px rgba(0,0,0,.5), inset 0 0 0 1.5px rgba(255,255,255,.12); }
+  /* Consistency pass (Ajay, 2026-09-30: "check for the styling consistency"),
+     measured across /, /faq and /privacy on a phone:
+     - the FAQ's closing card was a flat grey panel where every card on the
+       front page is white and lifted — now the same card;
+     - the closing section kept its 140px laptop spacing (every other section
+       is 64px on a phone), and the FAQ and privacy heads opened 88px down
+       where the front page opens at 28px;
+     - the fine print ran at five sizes, 12–14px; the notes are one size now. */
+  .thq .fq-cta { background: var(--card); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: var(--lift); padding: 26px 22px; }
+  .thq .close { padding: 64px 0; }
+  .thq .fq-hero { padding-top: 48px; }
+  .thq .tier-note, .thq .stores-note, .thq .metered, .thq .cx-key, .thq .lg-sec .lg-date { font-size: 13px; }
 }
 `
   .replace(
