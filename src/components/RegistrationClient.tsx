@@ -530,7 +530,7 @@ export function RegistrationClient({
                     />
                   </td>
                   <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
-                  {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
+                  {showFlight && <td>{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
                     {/* An unlabelled × at the end of a row of EDITABLE fields:
                         a thumb aiming at the phone cell lands on it. The bulk

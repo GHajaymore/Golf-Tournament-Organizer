@@ -353,7 +353,7 @@ export function LoginPanel({
               fontSize: 13,
               fontWeight: mode === m ? 600 : 500,
               fontFamily: "var(--font-heading)",
-              color: mode === m ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 58%, transparent)",
+              color: mode === m ? "var(--color-text)" : "var(--color-text-muted)",
               background: mode === m ? "var(--color-surface)" : "transparent",
               boxShadow:
                 mode === m
@@ -593,7 +593,7 @@ function Field({
           fontSize: 12,
           fontWeight: 500,
           marginBottom: 6,
-          color: "color-mix(in srgb, var(--color-text) 72%, transparent)",
+          color: "var(--color-text-muted)",
         }}
       >
         {label}
@@ -661,7 +661,7 @@ function PasswordInput({
           border: "none",
           borderRadius: 7,
           cursor: "pointer",
-          color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+          color: "var(--color-text-muted)",
         }}
       >
         <Icon name={shown ? "ph ph-eye-slash" : "ph ph-eye"} style={{ fontSize: 15 }} />
@@ -681,7 +681,7 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
         padding: "0 8px",
         minHeight: 44,
         cursor: "pointer",
-        color: "color-mix(in srgb, var(--color-text) 58%, transparent)",
+        color: "var(--color-text-muted)",
         fontSize: 12.5,
         display: "flex",
         alignItems: "center",

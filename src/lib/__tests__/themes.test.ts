@@ -411,6 +411,25 @@ describe("the light ground", () => {
    * labels, on both grounds — the same bar as SUNLIGHT_RATIO, and no longer
    * the 4.5 floor that let both read grey.
    */
+  /**
+   * AND THE ACCENT'S OWN WORDS, which "I still see inconsistency" was about:
+   * kickers, links and selected options in accent-300/400 read 5.5–6.7:1 on
+   * light, pale beside near-black. Accent TEXT is step 200, and a FILL that
+   * carries a label (the primary button, the match picker) is step 300 —
+   * measured over every accent AND secondary preset on both grounds.
+   */
+  for (const g of [LIGHT_GROUND, DARK_GROUND]) {
+    it(`accent text and labelled fills read crisp on the ${g.key} ground, every preset`, () => {
+      for (const p of [...THEME_PRESETS, ...SECONDARY_PRESETS]) {
+        const s = themeScale(p, g);
+        for (const bg of [g.bg, g.surface]) {
+          expect(contrastRatio(s[200], bg), `${p.key} accent-200 text on ${bg}`).toBeGreaterThanOrEqual(7);
+        }
+        expect(contrastRatio(g.onAccent, s[300]), `${p.key} label on its accent-300 fill`).toBeGreaterThanOrEqual(7);
+      }
+    });
+  }
+
   for (const g of [LIGHT_GROUND, DARK_GROUND]) {
     it(`reads crisp, not grey, for secondary text on the ${g.key} ground`, () => {
       const token = themeVarsFor(DEFAULT_CLUB_THEME, g)["--color-text-muted"];

@@ -382,7 +382,7 @@ export function FlightBoard({
               >
                 {!disabled && (
                   <Icon name="dots-six-vertical"
-                    style={{ fontSize: 13, color: "color-mix(in srgb, var(--color-text) 45%, transparent)" }}
+                    style={{ fontSize: 13, color: "var(--color-text-muted)" }}
                   />
                 )}
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
