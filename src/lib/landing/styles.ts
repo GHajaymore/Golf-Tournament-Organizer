@@ -61,6 +61,10 @@ ${landingTokens("dark", "  ")}
   background: var(--ground); color: var(--ink);
 }
 .thq :where(h1,h2,h3,h4,p,ul,ol,figure,dl,dd) { margin: 0; padding: 0; }
+/* The app's own caption rule (design-system.css: 11px, text at 55%) is written
+   for the app's dark ground; on this white page it painted the format boards'
+   titles near-white on white, 1.02:1, and nobody could read them. */
+.thq figcaption { font-size: inherit; margin-top: 0; color: inherit; }
 .thq ul { list-style: none; }
 .thq a { color: inherit; text-decoration: none; }
 .thq svg { display: block; flex: none; }
@@ -142,12 +146,17 @@ ${landingTokens("dark", "  ")}
 .thq .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
 .thq .proof { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--ink-soft); }
 .thq .proof b { color: var(--ink); font-weight: 650; }
-.thq .stage { position: relative; margin-top: 64px; height: 660px; }
-.thq .stage .desk { position: absolute; left: 230px; right: -200px; top: 0; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xl); }
-.thq .stage .phone { position: absolute; left: 0; top: 56px; width: 300px; }
+/* The laptop and the phone share one grid cell, so the stage is exactly as tall
+   as what it holds: the laptop screen is shown WHOLE inside the page width (it
+   once ran 200px off the right edge and 50px down over the line below it), and
+   the phone stands in front of its left edge, dropping below it. */
+.thq .stage { display: grid; margin-top: 64px; }
+.thq .stage > * { grid-area: 1 / 1; }
+.thq .stage .desk { margin-left: 20%; align-self: start; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xl); }
+.thq .stage .phone { position: relative; z-index: 1; align-self: start; width: min(300px, 26%); margin-top: 40px; }
 .thq .real { margin-top: 24px; font-size: 14px; color: var(--ink-faint); }
 .thq .real b { color: var(--ink-soft); font-weight: 600; }
-@media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { height: auto; margin-top: 44px; } .thq .stage .desk { display: none; } .thq .stage .phone { position: static; width: min(300px, 78%); margin: 0 auto; } }
+@media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } .thq .stage .desk { display: none; } .thq .stage .phone { width: min(300px, 78%); margin: 0 auto; } }
 @media (max-width: 760px) { .thq .hero { padding-top: 48px; } .thq .proof { gap: 6px 18px; margin-top: 32px; } }
 
 /* ── the phone: a physical object, dark on any ground ── */
@@ -183,7 +192,7 @@ ${landingTokens("dark", "  ")}
 .thq .step-t b { font: 600 60px/1 var(--mono); letter-spacing: -.05em; color: var(--brass); font-variant-numeric: tabular-nums; }
 .thq .who { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
 .thq .who.org { background: var(--ink); color: var(--ground); }
-.thq .who.pl { background: var(--accent-a12); color: var(--brass); }
+.thq .who.pl { background: var(--accent-a12); color: var(--brass-hi); }
 .thq .step h3 { margin: 22px 0 12px; max-width: 560px; }
 .thq .step p { color: var(--ink-soft); max-width: 520px; }
 .thq .step ul { margin-top: 18px; display: grid; gap: 8px; font-size: 15.5px; color: var(--ink-soft); }
@@ -267,6 +276,10 @@ ${landingTokens("dark", "  ")}
 .thq .cx thead .cx-lab { background: var(--ink); }
 .thq .cx .cx-us { position: sticky; left: 232px; z-index: 2; width: 150px; background: color-mix(in srgb, var(--brass-ui) 5%, var(--card)); box-shadow: inset 2px 0 0 var(--brass-ui), inset -2px 0 0 var(--brass-ui); }
 .thq .cx thead .cx-us { background: var(--brass-ui); color: var(--on-accent); box-shadow: none; }
+/* Faded to .72 like the others, the plan names fell to 3.6:1 on the orange. */
+.thq .cx thead .cx-us span:not(.sr) { opacity: 1; }
+/* One line on a laptop: wrapped, "Par · Birdie ·" left "Eagle" alone underneath. */
+@media (min-width: 761px) { .thq .cx thead .cx-us span:not(.sr) { letter-spacing: .03em; white-space: nowrap; } }
 .thq .cx tbody tr:last-child .cx-us { box-shadow: inset 2px 0 0 var(--brass-ui), inset -2px 0 0 var(--brass-ui), inset 0 -2px 0 var(--brass-ui); }
 .thq .cx td { font-size: 14px; color: var(--ink-soft); }
 .thq .cx td b { display: block; font: 750 15px/1.25 var(--sans); letter-spacing: -.01em; color: var(--ink); }
@@ -360,7 +373,9 @@ ${landingTokens("dark", "  ")}
    drawn on. UPRIGHT and STILL on purpose: a 3D-rotated or floating image is
    resampled every frame and its text goes soft (Ajay: "can't you see the
    blurriness"); the depth comes from light and shadow, never from transforms. */
-.thq .show-view { position: relative; border-radius: 20px; min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 48px 40px;
+/* The showcase is painted dark on the light page, so the orange its pins and
+   numbers use is the dark palette's (rust on black read at 2.5:1, black on rust at 3:1). */
+.thq .show-view { --brass-hi: var(--paper-accent); position: relative; border-radius: 20px; min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 48px 40px;
   background: radial-gradient(70% 70% at 28% 30%, color-mix(in srgb, var(--brass-ui) 26%, var(--ink)) 0%, var(--ink) 72%); }
 .thq .show-f { display: none; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 56px; width: 100%; max-width: 820px; }
 .thq .stage-phone { position: relative; width: 290px; justify-self: center; }
@@ -397,10 +412,12 @@ __SHOW_FRAMES__
 
 /* ── formats: three real boards ── */
 .thq .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 260px)); justify-content: center; gap: 48px; margin-top: 64px; }
-.thq .boards figure { display: grid; gap: 16px; }
+/* Packed to the top: stretched to the tallest caption, a figure handed the spare
+   height to its phone, and two of the three bezels grew a thick black chin. */
+.thq .boards figure { display: grid; gap: 16px; align-content: start; }
 .thq .boards figcaption { text-align: center; display: grid; gap: 4px; }
 .thq .boards figcaption b { font: 650 15.5px/1.3 var(--sans); }
-.thq .boards figcaption span { font-size: 14px; color: var(--ink-soft); }
+.thq .boards figcaption span { font-size: 14px; color: var(--ink-soft); text-wrap: balance; }
 @media (max-width: 900px) {
   .thq .boards { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; margin: 44px -20px 0; padding: 4px 20px 8px; scrollbar-width: none; }
   .thq .boards figure { flex: 0 0 min(74%, 280px); scroll-snap-align: start; }
@@ -410,7 +427,8 @@ __SHOW_FRAMES__
 .thq .fx { margin-top: 110px; }
 .thq .fx-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 22px; }
 .thq .fx-bar .chip { min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); display: inline-flex; align-items: center; gap: 6px; font: 600 14px/1 var(--sans); color: var(--ink-soft); cursor: pointer; }
-.thq .fx-bar .chip i { font: 500 12px/1 var(--mono); font-style: normal; opacity: .6; }
+.thq .fx-bar .chip i { font: 500 12px/1 var(--mono); font-style: normal; color: var(--ink-faint); }
+.thq .fx-bar .chip:has(input:checked) i { color: inherit; opacity: .72; }
 .thq .fx-bar .chip:has(input:checked) { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .thq .fx-bar .chip:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
 .thq .fx-search { margin-left: auto; position: relative; }
@@ -483,7 +501,7 @@ __CMP_FRAMES__
 .thq .per-y { display: none; }
 .thq #pricing:has(input[name="bill"][value="y"]:checked) .per-y { display: inline; }
 .thq #pricing:has(input[name="bill"][value="y"]:checked) .per-m { display: none; }
-.thq .bill em { font-style: normal; font: 600 11px/1 var(--mono); color: var(--flag); background: var(--flag-a); padding: 4px 7px; border-radius: 6px; }
+.thq .bill em { font-style: normal; font: 600 11px/1 var(--mono); color: var(--card); background: var(--flag); padding: 4px 7px; border-radius: 6px; }
 .thq .ed-note { font-size: 14px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 14px; }
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
 .thq .ed-note button:hover { border-color: var(--ink); }
@@ -601,7 +619,7 @@ __CMP_FRAMES__
 .thq .search svg { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--ink-faint); }
 .thq .search input { width: 100%; height: 54px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); padding: 0 20px 0 46px; font: 400 16px/1 var(--sans); color: var(--ink); }
 .thq .fq-count, .thq .fq-empty { font-size: 14px; color: var(--ink-faint); }
-.thq .topics { position: sticky; top: 72px; z-index: 20; background: color-mix(in srgb, var(--ground) 90%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.thq .topics { position: sticky; top: 72px; z-index: 20; background: var(--ground); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .thq .topics .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-top: 10px; padding-bottom: 10px; }
 .thq .topics a { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; font: 600 14px/1 var(--sans); color: var(--ink-soft); }
 .thq .topics a:hover { background: var(--wash); color: var(--ink); }
