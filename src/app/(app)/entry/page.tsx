@@ -108,7 +108,17 @@ export default async function EntryPage() {
       casualRound ? await organizationIdsForPlayer(session.email) : state.event.organizationId,
       session.eventId,
     );
+    /**
+     * The screen's own heading, over the prompt. This branch returned the
+     * prompt alone — no <h1> — which is the state every new club's first
+     * stroke round is in before its course is set, and a casual round with
+     * no course (walked 2026-09-30). The lifecycle sweep never reached it:
+     * its rounds are gross match play, which needs no card.
+     */
     return (
+      <>
+      <p className="kicker">Manage</p>
+      <h1 className="page-title">Score entry</h1>
       <CourseSetupPrompt
         eventCourse={state.event.course}
         eventCity={state.event.city}
@@ -123,6 +133,7 @@ export default async function EntryPage() {
           strokeIndex: c.strokeIndex,
         }))}
       />
+      </>
     );
   }
 

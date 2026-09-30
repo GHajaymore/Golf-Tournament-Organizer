@@ -7,6 +7,9 @@ import { getSession, type Session } from "./auth";
 import { canAccessScreen, landingScreenFor } from "./roles";
 import { signInUrlFor } from "./domain/safe-next";
 import { loadEventState, type EventState } from "./services/tournament";
+import { prisma } from "./db";
+import { screenAppliesToMatch } from "./nav";
+import { isMatch } from "./tournament-shape";
 
 /**
  * The sign-in URL, remembering where this request was trying to go.
@@ -95,6 +98,8 @@ export async function requireOrgScreen(
   if (session.eventId && !canAccessScreen(session.viewRole, key)) {
     redirect(deniedLanding(session.viewRole, key));
   }
+  // The club's screens are off a casual round's sidebar too — see below.
+  await refuseTournamentScreenOnCasualRound(session.eventId, key);
   const organizationId = await primaryOrganizationFor(session);
   if (!organizationId) redirect("/choose");
   return { session, organizationId };
@@ -120,10 +125,28 @@ export function deniedLanding(role: Session["viewRole"], key: string): string {
   return `${landingScreenFor(role)}?denied=${encodeURIComponent(key)}`;
 }
 
+/**
+ * A TOURNAMENT'S SCREEN, OPENED ON A CASUAL ROUND, goes back to the round.
+ *
+ * `TOURNAMENT_ONLY_SCREENS` took these out of a casual round's sidebar, and
+ * the sidebar was the only thing that read it: typing /event, /stages,
+ * /registration, /access or /prizes still opened a tournament's setup on a
+ * Sunday fourball (walked 2026-09-30). The host is the round's organizer, so
+ * the role check passes; what refuses is the round's SHAPE, asked of the same
+ * set the sidebar asks. Ajay, same day: a casual round is a quick competition
+ * at the course, and "for deeper planned rounds, there is always a free tier".
+ */
+async function refuseTournamentScreenOnCasualRound(eventId: string, key: string): Promise<void> {
+  if (!eventId || screenAppliesToMatch(key)) return;
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
+  if (isMatch(event?.shape)) redirect("/dashboard");
+}
+
 /** Guard a screen key against the current view-role. */
 export async function requireScreen(key: string): Promise<Session> {
   const session = await requireEventSession();
   if (!canAccessScreen(session.viewRole, key)) redirect(deniedLanding(session.viewRole, key));
+  await refuseTournamentScreenOnCasualRound(session.eventId, key);
   return session;
 }
 

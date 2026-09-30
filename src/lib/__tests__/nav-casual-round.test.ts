@@ -92,6 +92,36 @@ describe("what a casual round's sidebar offers", () => {
  * are real things a fourball does. They just do not need a registration desk
  * to do them.
  */
+describe("the screens the sidebar hides are closed to a typed URL too", () => {
+  /**
+   * Walked 2026-09-30: a casual round's host typed /event, /stages,
+   * /registration, /access and /prizes and each opened — the sidebar was the
+   * only reader of TOURNAMENT_ONLY_SCREENS. Both screen guards now ask the same
+   * set, so the sidebar and the door cannot disagree.
+   */
+  const helpers = () => readSource("src/lib/page-helpers.ts");
+  const body = (src: string, fn: string) => {
+    const start = src.indexOf(`export async function ${fn}(`);
+    expect(start, `${fn} not found`).toBeGreaterThan(-1);
+    const next = src.indexOf("export ", start + 1);
+    return src.slice(start, next === -1 ? undefined : next);
+  };
+
+  it("the refusal asks the sidebar's own set, and sends the host back to the round", () => {
+    const src = helpers();
+    const guard = src.slice(src.indexOf("async function refuseTournamentScreenOnCasualRound("));
+    expect(guard).toMatch(/screenAppliesToMatch\(key\)/);
+    expect(guard).toMatch(/isMatch\(/);
+    expect(guard).toMatch(/redirect\("\/dashboard"\)/);
+  });
+
+  for (const fn of ["requireScreen", "requireOrgScreen"]) {
+    it(`${fn} applies it`, () => {
+      expect(body(helpers(), fn)).toMatch(/refuseTournamentScreenOnCasualRound\(/);
+    });
+  }
+});
+
 describe("what replaces them", () => {
   const panel = () => readSource("src/components/CasualRoundPanel.tsx");
 

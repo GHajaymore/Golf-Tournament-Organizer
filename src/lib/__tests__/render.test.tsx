@@ -3217,6 +3217,17 @@ describe("course setup prompt", () => {
     expect(html).toContain("Set up this course");
     expect(html).toContain("fill it in by hand");
   });
+
+  it("with no course named, says so rather than quoting a placeholder (2026-09-30)", () => {
+    // It read "“This event” isn't one of the built-in courses".
+    const none = render(<CourseSetupPrompt eventCourse="" eventCity="" isStaff blocking />);
+    expect(none).toContain("No course has been set yet");
+    expect(none).not.toContain("This event");
+    // CONTROL: a named course is still quoted by its name.
+    const named = render(<CourseSetupPrompt eventCourse="Bushwood" eventCity="Chicago" isStaff blocking />);
+    expect(named).toContain("Bushwood");
+    expect(named).toContain("isn&rsquo;t one of the built-in courses".replace("&rsquo;", "’"));
+  });
 });
 
 describe("bulk score import", () => {

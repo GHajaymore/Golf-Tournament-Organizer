@@ -428,6 +428,14 @@ const PLAYER_ROUTES = [...new Set(
 const STAGES = [
   ["named-only", {}],
   ["one-round", { rounds: true, card: true }],
+  /**
+   * A ROUND AND NO COURSE YET — the state every new club's first medal is in
+   * for its first few minutes, and one this walk never built: every stage with
+   * a round also gave it a card. Score entry then shows the course-setup
+   * prompt, and that branch returned no <h1> at all (walked 2026-09-30, on a
+   * casual round with no course). Gross stroke play still needs the card.
+   */
+  ["round-no-course", { rounds: true }],
   ["round+field", { rounds: true, card: true, players: 3 }],
   ["flighted", { rounds: true, card: true, players: 3, flights: true }],
   ["scored", { rounds: true, card: true, players: 3, flights: true, cards: true }],
