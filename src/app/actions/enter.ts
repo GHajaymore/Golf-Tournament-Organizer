@@ -313,6 +313,7 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
       regDeadline: true,
       capacity: true,
       status: true,
+      organizationId: true,
     },
   });
   if (!event) return { ok: false, error: NOT_ENTERED };
@@ -333,7 +334,9 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
-    capacity: event.capacity,
+    // As the member's Events card asks it (`club-events.ts`), so the button
+    // they pressed and the answer they get read the same capacity.
+    capacity: await effectiveCapacity(event.organizationId, event.capacity),
     confirmedCount,
     override: event.registrationOverride,
   });

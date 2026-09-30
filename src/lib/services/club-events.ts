@@ -19,6 +19,8 @@ import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 import { openCardOf, type OpenCard } from "../domain/tournament-switcher";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
+import { fieldCapFor } from "./limits";
+import { capacityUnderCap } from "../plans";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -301,17 +303,26 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
    * says "there is something on it" — and hiding one that people are scoring
    * would be far worse than showing an empty one.
    */
+  /**
+   * THE FIELD CAP THE ENTRY ACTION APPLIES, per club — a list can span more
+   * than one. Reading the stored capacity alone, a club moved down to Par
+   * showed a member "Enter" on a field the action then waitlisted them from.
+   */
+  const orgIds = [...new Set(events.map((e) => e.organizationId))];
+  const caps = new Map(await Promise.all(orgIds.map(async (id) => [id, await fieldCapFor(id)] as const)));
+
   return events
     .filter((event) => event.status !== "draft" || hasResults.has(event.id))
     .map((event) => {
     // The tournament's own way of writing a date, then the club's — the same
     // resolution every other date on these cards goes through.
     const locale = resolveLocale(event.organization, event);
+    const capacity = capacityUnderCap(event.capacity, caps.get(event.organizationId) ?? null);
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,
       opens: event.regOpens,
-      capacity: event.capacity,
+      capacity,
       confirmedCount: confirmedBy.get(event.id) ?? 0,
       override: event.registrationOverride,
       locale,
@@ -364,7 +375,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       progress: band === "open" || band === "soon" ? entryProgress(event.regOpens, event.regDeadline, today) : null,
       placesNote:
         band === "open" || band === "soon"
-          ? placesNote(event.capacity, confirmedBy.get(event.id) ?? 0, status.waitlisting)
+          ? placesNote(capacity, confirmedBy.get(event.id) ?? 0, status.waitlisting)
           : "",
       waitlistOnly: status.waitlisting,
       eventId: event.id,
@@ -406,7 +417,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
           eventStatus: event.status,
           deadline: event.regDeadline,
           opens: event.regOpens,
-          capacity: event.capacity,
+          capacity,
           confirmedCount: confirmedBy.get(event.id) ?? 0,
           override: event.registrationOverride,
         }),
