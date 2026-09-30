@@ -44,9 +44,14 @@ describe("the prices come from the plans, not from a second copy", () => {
      * club arrives expecting the old one.
      */
     const offers = node("SoftwareApplication").offers as Array<Record<string, unknown>>;
-    expect(offers).toHaveLength(Object.keys(PLANS).length);
+    // Every PRICED plan. Albatross is "Let's talk": an Offer at "0" would tell
+    // a search engine the top tier is free.
+    const priced = Object.values(PLANS).filter((p) => !p.contactOnly);
+    expect(priced.length, "the control: some plan is priced").toBeGreaterThan(1);
+    expect(offers).toHaveLength(priced.length);
+    expect(offers.some((o) => o.name === PLANS.enterprise.name), "Albatross offered with a price").toBe(false);
 
-    for (const plan of Object.values(PLANS)) {
+    for (const plan of priced) {
       const offer = offers.find((o) => o.name === plan.name);
       expect(offer, `no offer for the ${plan.name} plan`).toBeTruthy();
       expect(offer!.price).toBe(String(plan.priceMonthly));

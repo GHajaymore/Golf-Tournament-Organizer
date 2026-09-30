@@ -1,4 +1,4 @@
-import { keepsDataForever } from "../plans";
+import { keepsDataForever, PLANS } from "../plans";
 
 /**
  * DOES COMPLETING THIS TOURNAMENT DELETE IT?
@@ -35,5 +35,5 @@ export function wipesOnClose(input: CloseTermsInput, now: Date = new Date()): bo
 
 /** What the organizer is told before they complete a tournament that this deletes. */
 export const WIPE_ON_CLOSE =
-  "On the Free plan, completing a tournament deletes it for good — entries, cards, results, prizes and money. " +
+  `On the free ${PLANS.free.name} plan, completing a tournament deletes it for good — entries, cards, results, prizes and money. ` +
   "Nobody can open it afterwards, not you and not the players. Download anything you want to keep from Reports first.";

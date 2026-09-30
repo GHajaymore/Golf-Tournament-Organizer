@@ -4,6 +4,7 @@ import type { TeamEntryMode } from "@/lib/domain/team-entry";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
+import { PLANS } from "@/lib/plans";
 import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlow } from "@/lib/domain/setup-flow";
@@ -1861,7 +1862,9 @@ describe("settings screens", () => {
 
     it("names the plan it is talking about", () => {
       const html = render(<CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />);
-      expect(html).toContain("On the Free plan");
+      // By its name, which is Par since 2026-09-29 — read from PLANS so a rename
+      // is not a test failure.
+      expect(html).toContain(`On the ${PLANS.free.name} plan`);
     });
   });
 

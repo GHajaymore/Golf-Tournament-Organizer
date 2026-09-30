@@ -23,7 +23,14 @@ describe("plan limits", () => {
   it("allows up to the limit and refuses past it", () => {
     expect(limitCheck("free", "activeEvents", 0).allowed).toBe(true);
     expect(limitCheck("free", "activeEvents", 1).allowed).toBe(false);
-    expect(limitCheck("free", "activeEvents", 1).reason).toMatch(/Free plan/);
+    // The refusal names the plan by its name — Par since 2026-09-29.
+    expect(limitCheck("free", "activeEvents", 1).reason).toContain(`${PLANS.free.name} plan`);
+  });
+
+  it("gives Albatross no limit at all", () => {
+    for (const k of ["activeEvents", "staffSeats", "playersPerEvent"] as const) {
+      expect(limitCheck("enterprise", k, 100_000).allowed, k).toBe(true);
+    }
   });
 
   it("treats null as unlimited", () => {

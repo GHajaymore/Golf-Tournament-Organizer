@@ -77,13 +77,18 @@ export function ownerMetrics(input: OwnerMetricsInput, overrides?: PricingOverri
   // subscription groupBy, because an org with NO subscription row is a free
   // club too, and counting only the "free" subscriptions undercounts them
   // (measured on the seeded database: 9 orgs, 6 free subscriptions).
+  //
+  // ALBATROSS IS PAID, priced by contract: its list price is 0 because there is
+  // no published one, so it counts as a paying club and adds nothing to the
+  // estimate rather than being mistaken for Free.
   const paidTiers: TierRow[] = input.orgsByPlan
     .map((r) => {
       const plan = planFor(r.plan);
-      const monthly = effectivePrice(plan, overrides);
-      return { plan: plan.key, name: plan.name, count: r.count, monthly, mrr: monthly * r.count };
+      const monthly = plan.contactOnly ? 0 : effectivePrice(plan, overrides);
+      return { plan: plan.key, name: plan.name, count: r.count, monthly, mrr: monthly * r.count, contract: !!plan.contactOnly };
     })
-    .filter((t) => t.monthly > 0);
+    .filter((t) => t.monthly > 0 || t.contract)
+    .map(({ contract: _contract, ...row }) => row);
 
   const estMrrMonthly = paidTiers.reduce((sum, t) => sum + t.mrr, 0);
   const paidOrgs = paidTiers.reduce((sum, t) => sum + t.count, 0);
