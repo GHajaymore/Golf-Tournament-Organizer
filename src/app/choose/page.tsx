@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
+import { cookies } from "next/headers";
+import { verify } from "@/lib/auth";
+import { chooseGreeting } from "@/lib/domain/choose-greeting";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { homeFor } from "@/lib/roles";
 import { safeNextPath } from "@/lib/domain/safe-next";
@@ -97,6 +100,21 @@ export default async function ChooseTournamentPage({
     : [];
   const club = joined[0]?.organization ?? null;
 
+  /**
+   * THE TOURNAMENT THEY HAD OPEN HAS GONE (walked 2026-09-30).
+   *
+   * A Par tournament is deleted when it completes, or fourteen days after its
+   * golf began, and the member playing in it arrived here the next morning to
+   * "Welcome to TourneyHQ — your account is ready", the greeting for somebody
+   * who has never used it. The signed cookie still names the tournament they
+   * had open; a valid id with no row behind it is a tournament that was
+   * removed, and that is the one thing worth telling them. Existence only —
+   * one they were merely taken out of still exists and is not described so.
+   */
+  const lastOpen = accounts.length === 0 ? verify((await cookies()).get("ng_active_event")?.value) : null;
+  const gone = lastOpen ? !(await prisma.event.findUnique({ where: { id: lastOpen }, select: { id: true } })) : false;
+  const greeting = chooseGreeting({ tournaments: accounts.length, lastOpenRemoved: gone, clubName: club?.name ?? null });
+
   return (
     <div
       style={{
@@ -126,14 +144,10 @@ export default async function ChooseTournamentPage({
 
         <div className="page-kicker">Signed in as {session.name}</div>
         <h1 style={{ fontSize: 32, margin: "8px 0 4px" }}>
-          {accounts.length === 0 ? "Welcome to TourneyHQ" : "Which tournament?"}
+          {greeting.title}
         </h1>
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 28px" }}>
-          {accounts.length > 0
-            ? `You have access to ${accounts.length} tournament${accounts.length === 1 ? "" : "s"}.`
-            : club
-              ? `You're a member of ${club.name}, which hasn't published a tournament yet. When it does, it appears here and on Events, and you can enter from there.`
-              : `Your account is ready. If an organizer has invited you to a tournament, it appears here as soon as they add your email — otherwise create your own below.`}
+          {greeting.line}
         </p>
         {club && (
           <p style={{ margin: "-12px 0 28px" }}>

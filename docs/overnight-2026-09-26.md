@@ -1505,7 +1505,8 @@ named. The deferred-register entry for this class is closed.
 | #737 | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
 | #739 | A new Par society, walked from sign-up: four fixes (below) |
 | #741 | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
-| next | A promotion takes a staff seat: "add as a player, then promote" went round the seat limit |
+| #744 | A promotion takes a staff seat: "add as a player, then promote" went round the seat limit |
+| next | A member whose Par tournament was deleted is told so, not greeted as a brand-new account |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1572,6 +1573,17 @@ them Assistant on Access & staff — or make a club Member an admin — and Par'
 held as many as anybody liked. Every path that grants staff rights now asks one question, by
 person, so somebody who already holds a seat (the secretary made organizer of a second
 tournament) is no longer refused one either.
+
+**A member, the morning after their Par tournament was deleted.** Nothing broke — every screen
+they had open redirected or showed an honest empty state — but they landed on "Welcome to
+TourneyHQ — your account is ready", the greeting for somebody who has never used the app. It
+now says "Welcome back" and that the tournament they had open was closed and removed, with its
+cards and results.
+
+**A Birdie club at its limits, walked the same way, found nothing new**: the 50-player cap on
+the field with its reason beside it, no deletion warning, the season table and honours board
+open, and a third assistant (the fourth seat) refused — by adding, and by promoting, with the
+refusal shown on screen and the role left as it was.
 
 What held: the 10-player cap (twelve added, ten confirmed, two waitlisted), the capacity field
 capped at 10 with the reason beside it, the dashboard's Par warning with the upgrade offer, and
