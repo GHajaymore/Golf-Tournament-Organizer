@@ -156,7 +156,11 @@ ${landingTokens("dark", "  ")}
 .thq .stage .phone { position: relative; z-index: 1; align-self: start; width: min(300px, 26%); margin-top: 40px; }
 .thq .real { margin-top: 24px; font-size: 14px; color: var(--ink-faint); }
 .thq .real b { color: var(--ink-soft); font-weight: 600; }
-@media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } .thq .stage .desk { display: none; } .thq .stage .phone { width: min(300px, 78%); margin: 0 auto; } }
+@media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } }
+/* A tablet keeps the pair: shown the phone alone, an iPad's hero was one small
+   screen on a wide empty stage. The phone grows a little so it still reads. */
+@media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: min(300px, 30%); } }
+@media (max-width: 760px) { .thq .stage .desk { display: none; } .thq .stage .phone { width: min(300px, 78%); margin: 0 auto; } }
 @media (max-width: 760px) { .thq .hero { padding-top: 48px; } .thq .proof { gap: 6px 18px; margin-top: 32px; } }
 
 /* ── the phone: a physical object, dark on any ground ── */
@@ -531,6 +535,10 @@ __CMP_FRAMES__
 .thq .ultimate h3 { font: 650 17px/1.3 var(--sans); }
 .thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
 .thq .metered { margin-top: 18px; font-size: 13.5px; color: var(--ink-faint); max-width: 820px; }
+/* Up to a small laptop the three cards are too narrow for "Birdie" and its
+   tagline on one line: the badge wrapped to two cramped lines beside the name
+   (seen at 810px, an iPad). The card's own first line says who it is for. */
+@media (max-width: 1000px) { .thq .tier .badge { display: none; } }
 @media (max-width: 1000px) { .thq .tiers { gap: 10px; } .thq .tier { padding: 24px 18px; } .thq .price b { font-size: 42px; } .thq .tier .btn .long { display: none; } .thq .tier .btn .short { display: inline; } }
 @media (max-width: 700px) {
   .thq .tiers { gap: 8px; }
