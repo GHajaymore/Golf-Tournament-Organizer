@@ -439,6 +439,8 @@ __SHOW_FRAMES__
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
 .thq .mcard .well { margin-top: auto; border-radius: 14px; overflow: hidden; }
+/* The trip money as the member sees it: the whole phone, not a slice of the list. */
+.thq .mcard .money-phone { width: min(300px, 82%); margin: auto auto 0; }
 @media (max-width: 900px) { .thq .money-cols { grid-template-columns: minmax(0, 1fr); } .thq .mcard { padding: 24px; } }
 
 /* ── make it yours: the drag-to-compare slider ── */
