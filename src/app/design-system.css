@@ -16,7 +16,8 @@
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
   /* Declared in both files, as --color-divider already is: globals.css carries
      the app's ground, and this file has to stand up on its own. */
-  --color-text-muted: color-mix(in srgb, #e9e9ed 68%, transparent);
+  /* 80%, as DARK_GROUND.mutedWeight — crisp, not grey (2026-09-30). */
+  --color-text-muted: color-mix(in srgb, #e9e9ed 80%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #232532);
   --color-warning: #e8a33c;
   --color-on-accent: #16181a;
@@ -27,7 +28,7 @@
   --color-neutral-200: #e4e7f5;
   --color-neutral-300: #cfd3e5;
   --color-neutral-400: #b2b6ca;
-  --color-neutral-500: #9397ab;
+  --color-neutral-500: #aaaec2; /* DARK_GROUND's, 7.2:1 on a card */
   --color-neutral-600: #75798c;
   --color-neutral-700: #595d6c;
   --color-neutral-800: #3f424d;

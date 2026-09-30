@@ -122,7 +122,9 @@
      step on the tournament journey was painted exactly like a done one, and
      `--color-surface-2` made `background` invalid, so a received message had
      no bubble at all while your own did. */
-  --color-text-muted: color-mix(in srgb, #e9e9ed 68%, transparent);
+  /* 80%, as DARK_GROUND.mutedWeight in themes.ts — crisp, not grey
+     (Ajay, 2026-09-30). The club's own theme restates it per ground. */
+  --color-text-muted: color-mix(in srgb, #e9e9ed 80%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #21231f);
 
   /* A distinct display face for headings, tournament names and big scores —
