@@ -4,6 +4,7 @@ import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { planForOrganization } from "./entitlements";
+import { effectiveCapacity } from "./limits";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
 import { resolveLocale } from "../domain/locale";
@@ -148,18 +149,27 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
   // The same open/closed/full judgement the organizer console shows, so the two
   // never disagree. A passed deadline or a manual close both come back as "not
   // accepting", which folds into the same null the console-side switch does.
+  /**
+   * THE CAPACITY THE ACTION WILL APPLY, not the stored one — the same reason
+   * `requirePhone` below goes through the plan. A club moved down to Par keeps
+   * the unlimited field it set on a higher tier; `register` caps it at ten
+   * (`effectiveCapacity`), and this page, reading the stored 0, said "Open for
+   * entries" to the eleventh person and then told them they were on the
+   * waitlist (walked 2026-09-30).
+   */
+  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
   const status = registrationStatus({
     eventStatus: event.status,
     deadline: event.regDeadline,
     opens: event.regOpens,
-    capacity: event.capacity,
+    capacity,
     confirmedCount,
     override: event.registrationOverride,
   });
   if (!status.acceptingEntries) return null;
 
   const brand = await brandForEvent(event.id);
-  const unlimited = event.capacity <= 0;
+  const unlimited = capacity <= 0;
 
   return {
     token,
@@ -170,7 +180,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     regDeadline: event.regDeadline,
     locale: resolveLocale(event.organization, event),
     waitlistOnly: status.waitlisting,
-    spotsLeft: unlimited ? null : Math.max(0, event.capacity - confirmedCount),
+    spotsLeft: unlimited ? null : Math.max(0, capacity - confirmedCount),
     approvalMode: approvalModeOf(event.registrationApproval),
     // Resolved through the plan, so the public form asks for exactly what the
     // action will insist on. Reading event.requirePhone straight through would

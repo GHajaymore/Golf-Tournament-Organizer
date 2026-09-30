@@ -1503,7 +1503,8 @@ named. The deferred-register entry for this class is closed.
 | #734 | Honours on Par: the board says it is locked rather than empty, and the write is refused |
 | #736 | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
 | #737 | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
-| next | A new Par society, walked from sign-up: four fixes (below) |
+| #739 | A new Par society, walked from sign-up: four fixes (below) |
+| next | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1555,6 +1556,14 @@ found four more:
   one tournament at a time. Complete or delete the one you have to start another, or upgrade…"
 - **A society's Members, Tournaments and Season pages were headed "Club"** under a sidebar
   reading "Society".
+
+**And a loophole the walk led to — a club MOVED DOWN to Par.** Its tournament keeps the
+unlimited field it set on the higher tier. Register, enter and the roster add all applied Par's
+ten; "Add someone new", the entry CSV import and approving a pending entry did not, and each
+confirmed an eleventh player. The public sign-up page, the member's Events card and the
+organizer's Registration screen said "Open for entries" over a full field. All seven now ask the
+plan for its cap; a Par tournament created on Par was never affected (its capacity is clamped at
+10 when it is made). This is the path a lapsed payment would take once billing exists.
 
 What held: the 10-player cap (twelve added, ten confirmed, two waitlisted), the capacity field
 capped at 10 with the reason beside it, the dashboard's Par warning with the upgrade offer, and
