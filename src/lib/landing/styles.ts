@@ -234,67 +234,6 @@ ${landingTokens("dark", "  ")}
 .thq .tab:hover { color: var(--ink); }
 .thq .tab:has(input:checked) { background: var(--ink); color: var(--ground); }
 .thq .tab:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
-.thq .vs .seg { margin-bottom: 22px; }
-.thq .vs-set { display: none; }
-.thq .vs:has(input[name="vs-set"][value="club"]:checked) .vs-set[data-set="club"],
-.thq .vs:has(input[name="vs-set"][value="apps"]:checked) .vs-set[data-set="apps"] { display: block; }
-.thq .vs-intro { color: var(--ink-soft); font-size: 15.5px; margin-bottom: 16px; }
-.thq .vs-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); -webkit-overflow-scrolling: touch; }
-.thq .vs-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; font-size: 15px; }
-.thq .vs-table[data-cols="4"] { min-width: 900px; }
-.thq .vs-table th, .thq .vs-table td { text-align: left; padding: 17px 20px; vertical-align: top; border-top: 1px solid var(--line); }
-.thq .vs-table thead th { border-top: 0; font: 700 17px/1.2 var(--sans); letter-spacing: -.01em; padding: 22px 20px; }
-.thq .vs-table thead th:first-child { width: 22%; }
-.thq .vs-table tbody th { font: 500 12px/1.45 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
-.thq .vs-table td { color: var(--ink-soft); }
-.thq .vs-table .hot { background: var(--accent-a12); color: var(--ink); }
-.thq .vs-table thead th.hot { color: var(--brass); }
-.thq .vs-table td b { color: var(--ink); font-weight: 600; }
-.thq .vs-mk { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; margin-right: 8px; font: 700 11px/1 var(--sans); vertical-align: -3px; }
-.thq .vs-mk.yes { background: var(--flag-a); color: var(--flag); }
-.thq .vs-mk.no { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-.thq .vs-mk.part { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
-.thq .vs-mk.na { background: var(--wash-2); color: var(--ink-faint); }
-/* ── plans compared: every tier its own column (2026-09-29) ──
-   The row labels stay put while the plans slide under them; on a phone each
-   swipe lands on a column. The table lives in its own scroller, so the page
-   itself never scrolls sideways. */
-.thq .vs-note { display: block; margin-top: 4px; font-size: .88em; font-weight: 400; color: var(--ink-faint); }
-.thq .pc-cue { display: none; }
-.thq #plans-compared { scroll-margin-top: 88px; }
-.thq .pc-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); scroll-snap-type: x proximity; scroll-padding-left: 190px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
-.thq .pc-scroll:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 3px; }
-.thq .pc { width: 100%; min-width: 1060px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 14.5px; line-height: 1.45; }
-.thq .pc col.pc-lab { width: 190px; }
-.thq .pc th, .thq .pc td { text-align: left; vertical-align: top; padding: 14px 16px; border-top: 1px solid var(--line); }
-.thq .pc thead th, .thq .pc thead td { border-top: 0; }
-.thq .pc .edge { border-left: 1px solid var(--line-2); }
-.thq .pc .pc-groups th { font: 700 17px/1.2 var(--sans); letter-spacing: -.01em; padding: 20px 16px 4px; color: var(--ink); }
-.thq .pc .pc-groups th > span { position: sticky; left: 206px; }
-.thq .pc .pc-tiers th { font: 600 12px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); padding: 4px 16px 14px; scroll-snap-align: start; }
-.thq .pc thead .hot { color: var(--brass); }
-.thq .pc tbody th { font: 500 12px/1.45 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-.thq .pc td { color: var(--ink-soft); }
-.thq .pc td b { color: var(--ink); font-weight: 650; font-size: 1.12em; }
-.thq .pc .hot { background: var(--accent-a12); }
-.thq .pc td.hot { color: var(--ink); }
-.thq .pc tbody th, .thq .pc .pc-corner { position: sticky; left: 0; z-index: 2; background: var(--card); box-shadow: 1px 0 0 var(--line); }
-.thq .tier-compare { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 14px; font-weight: 600; color: var(--brass); }
-.thq .tier-compare .i { width: 16px; height: 16px; }
-@media (max-width: 760px) {
-  .thq .pc-cue { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--brass); }
-  .thq .pc-cue .i { width: 14px; height: 14px; }
-  .thq .pc-scroll { margin-left: calc(-1 * max(20px, env(safe-area-inset-left))); margin-right: calc(-1 * max(20px, env(safe-area-inset-right))); border-radius: 0; border-left: 0; border-right: 0; scroll-snap-type: x mandatory; scroll-padding-left: 112px; }
-  .thq .pc { min-width: calc(112px + 6 * 148px); font-size: 13px; line-height: 1.4; }
-  .thq .pc col.pc-lab { width: 112px; }
-  .thq .pc th, .thq .pc td { padding: 10px 12px; }
-  .thq .pc tbody th { font-size: 10.5px; letter-spacing: .05em; }
-  .thq .pc .pc-groups th { font-size: 15px; padding: 14px 12px 2px; }
-  .thq .pc .pc-groups th > span { left: 124px; }
-  .thq .pc .pc-tiers th { font-size: 11px; padding: 2px 12px 10px; }
-}
-.thq .vs-srcrow td { font: 500 12px/1.4 var(--mono); color: var(--ink-faint); overflow-wrap: anywhere; }
-.thq .vs-srcrow a:hover { color: var(--brass); }
 .thq .glance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 18px; }
 .thq .glance-col { padding: 26px 28px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
 .thq .glance-col.further { background: transparent; }
@@ -304,32 +243,95 @@ ${landingTokens("dark", "  ")}
 .thq .glance-col li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 3px; stroke-width: 2.2; }
 .thq .glance-col li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); margin: 9px 0 0 5px; }
 .thq .vs-legal { margin-top: 20px; font-size: 13px; line-height: 1.55; color: var(--ink-faint); max-width: 900px; }
-.thq .vs-pick { display: none; }
 @media (max-width: 900px) { .thq .glance { grid-template-columns: minmax(0, 1fr); } .thq .vs { margin-top: 72px; } }
-/* On a phone: TourneyHQ beside one competitor, chosen with chips. */
-@media (max-width: 700px) {
-  .thq .vs-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
-  .thq .vs-pick-lead { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-right: 2px; }
-  .thq .vs-pick .chip { min-height: 44px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; border: 1px solid var(--line-2); background: var(--card); font: 600 13.5px/1 var(--sans); color: var(--ink-soft); cursor: pointer; }
-  .thq .vs-pick .chip:has(input:checked) { background: var(--ink); color: var(--ground); border-color: var(--ink); }
-  .thq .vs-set:has(.vs-pick input[value="0"]:checked) .vs-table tr > :nth-child(n+4),
-  .thq .vs-set:has(.vs-pick input[value="1"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(n+5)),
-  .thq .vs-set:has(.vs-pick input[value="2"]:checked) .vs-table tr > :is(:nth-child(3), :nth-child(4)) { display: none; }
-  .thq .vs-scroll { overflow: visible; }
-  .thq .vs-table, .thq .vs-table[data-cols="4"] { min-width: 0; table-layout: auto; display: block; }
-  .thq .vs-table thead, .thq .vs-table tbody { display: block; }
-  .thq .vs-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .thq .vs-table thead { position: sticky; top: 72px; z-index: 3; }
-  .thq .vs-table thead th { font-size: 14.5px; padding: 14px 12px 12px; background: var(--card); }
-  .thq .vs-table thead th:first-child { display: none; }
-  .thq .vs-table thead th:nth-child(2) { border-top-left-radius: var(--r); }
-  .thq .vs-table thead th:last-child { border-top-right-radius: var(--r); }
-  .thq .vs-table thead th.hot { background: color-mix(in srgb, var(--brass-ui) 12%, var(--card)); }
-  .thq .vs-table tbody th { grid-column: 1 / -1; padding: 14px 12px 4px; font-size: 11px; }
-  .thq .vs-table td { font-size: 13px; line-height: 1.42; padding: 6px 12px 14px; border-top: 0; }
-  .thq .vs-table tbody tr + tr { border-top: 1px solid var(--line); }
-  .thq .vs-table tbody th { border-top: 0; }
-  .thq .vs-table .vs-mk { width: 16px; height: 16px; margin-right: 6px; font-size: 10px; }
+
+/* ── side by side: TourneyHQ and five you know (2026-09-29) ──
+   One table, a column per company, a mark and a few words per cell, in the
+   "scoreboard" colours Ajay chose: a black header, TourneyHQ's column framed in
+   orange, solid marks. On a phone the feature names and TourneyHQ stay pinned
+   and the five rivals slide past two at a time, inside the table's own
+   scroller — the page itself never scrolls sideways. */
+.thq .cx-cue { display: none; }
+.thq .cx-scroll { overflow-x: auto; border: 1px solid var(--ink); border-radius: 18px; background: var(--card); overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.thq .cx-scroll:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 3px; }
+.thq .cx { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.thq .cx th, .thq .cx td { padding: 14px 10px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; background: var(--card); }
+.thq .cx thead th { border-top: 0; padding: 18px 10px 16px; background: var(--ink); color: var(--ground); scroll-snap-align: start; vertical-align: bottom; }
+.thq .cx thead th b { display: block; font: 700 15px/1.2 var(--sans); letter-spacing: -.01em; }
+.thq .cx thead th span:not(.sr) { display: block; margin-top: 5px; font: 500 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; opacity: .72; }
+.thq .cx .cx-lab { width: 232px; text-align: left; padding-left: 20px; position: sticky; left: 0; z-index: 2; font: 650 14.5px/1.3 var(--sans); color: var(--ink); }
+.thq .cx .cx-lab small { display: block; margin-top: 4px; font: 400 12.5px/1.4 var(--sans); color: var(--ink-faint); }
+.thq .cx thead .cx-lab { background: var(--ink); }
+.thq .cx .cx-us { position: sticky; left: 232px; z-index: 2; width: 150px; background: color-mix(in srgb, var(--brass-ui) 5%, var(--card)); box-shadow: inset 2px 0 0 var(--brass-ui), inset -2px 0 0 var(--brass-ui); }
+.thq .cx thead .cx-us { background: var(--brass-ui); color: var(--on-accent); box-shadow: none; }
+.thq .cx tbody tr:last-child .cx-us { box-shadow: inset 2px 0 0 var(--brass-ui), inset -2px 0 0 var(--brass-ui), inset 0 -2px 0 var(--brass-ui); }
+.thq .cx td { font-size: 14px; color: var(--ink-soft); }
+.thq .cx td b { display: block; font: 750 15px/1.25 var(--sans); letter-spacing: -.01em; color: var(--ink); }
+.thq .cx td small { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.3; color: var(--ink-soft); }
+.thq .cx-m { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font: 700 13px/1 var(--sans); vertical-align: middle; }
+.thq .cx-yes { background: var(--flag); color: var(--card); }
+.thq .cx-part { background: var(--warn); color: var(--card); }
+.thq .cx-no { color: var(--danger); box-shadow: inset 0 0 0 1.6px var(--danger); }
+.thq .cx-na { width: auto; font-weight: 400; color: var(--ink-faint); }
+.thq .cx .cx-src th, .thq .cx .cx-src td { font: 500 11.5px/1.35 var(--mono); color: var(--ink-faint); overflow-wrap: anywhere; }
+.thq .cx .cx-src a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
+.thq .cx .cx-src a:hover { color: var(--brass); }
+.thq .cx-key { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 14px 2px 0; font-size: 13px; color: var(--ink-faint); }
+.thq .cx-key > span { display: inline-flex; align-items: center; gap: 7px; }
+.thq .cx-key .cx-m { width: 18px; height: 18px; font-size: 10px; }
+@media (max-width: 760px) {
+  .thq .cx-cue { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font: 650 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--brass); }
+  .thq .cx-cue .i { width: 14px; height: 14px; }
+  .thq .cx-scroll { margin: 0 calc(-1 * max(20px, env(safe-area-inset-right))) 0 calc(-1 * max(20px, env(safe-area-inset-left))); border-radius: 0; border-left: 0; border-right: 0; scroll-snap-type: x mandatory; scroll-padding-left: 214px; }
+  .thq .cx { min-width: calc(118px + 96px + 5 * 88px); }
+  .thq .cx th, .thq .cx td { padding: 11px 5px; }
+  .thq .cx thead th { padding: 14px 4px 12px; }
+  .thq .cx thead th b { font-size: 12.5px; }
+  .thq .cx thead th span:not(.sr) { font-size: 8.5px; letter-spacing: .04em; }
+  .thq .cx .cx-lab { width: 118px; padding-left: 14px; font-size: 12.5px; }
+  .thq .cx .cx-lab small { font-size: 10.5px; }
+  .thq .cx .cx-us { left: 118px; width: 96px; }
+  .thq .cx td { font-size: 12.5px; }
+  .thq .cx td b { font-size: 12.5px; }
+  .thq .cx td small { font-size: 10px; }
+  .thq .cx-m { width: 22px; height: 22px; font-size: 12px; }
+}
+
+/* ── pricing: what changes from one plan to the next ── */
+.thq .tier-how { margin: 8px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-faint); }
+/* Narrow plan cards: the note below the cards says the same once, so each card drops it. */
+@media (max-width: 700px) { .thq .tier-how { display: none; } }
+/* The billing switch on the smallest phones: one row, not a stacked pill. */
+@media (max-width: 400px) { .thq .seg.bill { flex-wrap: nowrap; } .thq .seg.bill .tab { padding: 0 12px; font-size: 13.5px; } .thq .seg.bill em { font-size: 9.5px; padding: 3px 5px; } }
+.thq .tier.hot .tier-how { color: color-mix(in srgb, var(--ground) 70%, transparent); }
+.thq .cp { margin-top: 28px; }
+.thq .cp h3 { font: 750 22px/1.2 var(--sans); letter-spacing: -.02em; }
+.thq .cp-sub { color: var(--ink-soft); font-size: 15px; margin: 4px 0 16px; }
+.thq .cp-t { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.thq .cp-t td { hyphens: auto; }
+.thq .cp-t th, .thq .cp-t td { overflow-wrap: break-word; padding: 14px 12px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; font-size: 14.5px; color: var(--ink); }
+.thq .cp-t thead th { border-top: 0; padding: 18px 12px; font: 750 16px/1.2 var(--sans); background: var(--ink); color: var(--ground); }
+.thq .cp-t thead th:first-child { width: 34%; }
+.thq .cp-t thead th.hot { background: var(--brass-ui); color: var(--on-accent); }
+.thq .cp-t td.hot { background: color-mix(in srgb, var(--brass-ui) 5%, var(--card)); }
+.thq .cp-t tbody th { text-align: left; padding-left: 20px; font: 600 14.5px/1.35 var(--sans); }
+.thq .cp-t td b { display: block; font: 800 18px/1.15 var(--sans); letter-spacing: -.02em; }
+.thq .cp-t td small { display: block; font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+.thq .cp-m { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font: 700 13px/1 var(--sans); }
+.thq .cp-y { background: var(--flag); color: var(--card); }
+.thq .cp-x { color: var(--danger); box-shadow: inset 0 0 0 1.6px var(--danger); }
+.thq .cp-t tfoot td { hyphens: manual; border-top: 1px solid var(--line-2); padding: 18px 20px; text-align: left; font-size: 15px; color: var(--ink-soft); background: var(--ground-2); }
+.thq .cp-t tfoot b { color: var(--ink); }
+.thq .cp-t tfoot a { display: inline-flex; align-items: center; gap: 6px; color: var(--brass); font-weight: 650; white-space: nowrap; min-height: 44px; }
+.thq .cp-t tfoot a .i { width: 15px; height: 15px; }
+@media (max-width: 760px) {
+  .thq .cp-t th, .thq .cp-t td { padding: 11px 5px; font-size: 12.5px; }
+  .thq .cp-t thead th { font-size: 13.5px; padding: 14px 4px; }
+  .thq .cp-t thead th:first-child { width: 34%; }
+  .thq .cp-t tbody th { padding-left: 12px; font-size: 12px; hyphens: auto; }
+  .thq .cp-t td b { font-size: 14px; }
+  .thq .cp-t td small { font-size: 10.5px; }
+  .thq .cp-t tfoot td { font-size: 14px; padding: 14px; }
 }
 
 /* ── the showcase: the real app, by tab ── */
@@ -607,11 +609,11 @@ __CMP_FRAMES__
   .thq .step h3 { margin: 16px 0 8px; font-size: 22px; }
   .thq .step p { font-size: 15px; }
   .thq .step ul { margin-top: 12px; font-size: 14px; gap: 4px; }
-  .thq .step .inl { width: 76%; height: 330px; margin: auto auto 0; padding-top: 22px; box-sizing: content-box; overflow: hidden; }
+  /* The whole phone, never a slice of it (Ajay: "I dont like cut screens"). */
+  .thq .step .inl { width: min(62%, 230px); margin: auto auto 22px; padding-top: 22px; }
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }
-  .thq .vs-table thead { top: 60px; }
   /* The first screen shows the product: a tighter hero lets the live board rise into view. */
   .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
   .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }
@@ -640,9 +642,6 @@ __CMP_FRAMES__
    them goes. Row labels sit tight on their cells, cells lose a line of padding,
    and the concessions and the legal note set a size down. */
 @media (max-width: 700px) {
-  .thq .vs-table tbody th { padding: 12px 12px 2px; }
-  .thq .vs-table td { padding: 4px 12px 11px; line-height: 1.36; }
-  .thq .vs-table .vs-srcrow td { padding-bottom: 12px; }
   .thq .u-row { padding: 13px 18px; gap: 2px; }
   .thq .u-row .before { font-size: 13.5px; }
   .thq .u-row .after { font-size: 15.5px; line-height: 1.4; }

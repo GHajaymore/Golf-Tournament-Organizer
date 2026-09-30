@@ -3,18 +3,18 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, retentionNotice, retentionSummary } from "@/lib/plans";
+import { PLANS, phoneRequiredFor, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
-import { landingPrices } from "@/lib/landing/pricing";
+import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { COMPARE_APPEARANCE, COMPARE_COLOURS, LANDING_CSS } from "@/lib/landing/styles";
-import { COMPARED_ON, ROW_LABELS, atAGlance, compareSets, ourCells, plansCompared } from "@/lib/landing/compare";
+import { COMPARED_ON, RIVALS, compareRows, goFurther, type Cell } from "@/lib/landing/compare";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -42,6 +42,38 @@ const STORE_LINKS = {
   ios: process.env.TOURNEYHQ_IOS_URL ?? "",
   android: process.env.TOURNEYHQ_ANDROID_URL ?? "",
 };
+
+/** The plans, in the order the page shows them. */
+const PLAN_KEYS: PlanKey[] = ["free", "society", "club"];
+
+/**
+ * "Compare plans": only what DIFFERS between the plans, every cell read from
+ * PLANS. TourneyHQv2 read the code (2026-09-29): of the 69 feature lines only
+ * the order of merit (seasonStandings) and white-label are plan-gated; the rest
+ * is on every plan, which the table's footer says. The limits are the plans'
+ * published terms — the page never claims anyone is blocked at them.
+ */
+function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
+  const each = (f: (k: PlanKey) => React.ReactNode) => PLAN_KEYS.map(f);
+  const count = (n: number | null, one: string) => (n === null ? "No limit" : n === 1 ? one : `Up to ${n}`);
+  const has = (on: boolean, note?: string) =>
+    on ? <><span className="cp-m cp-y" aria-hidden="true">✓</span><span className="sr">Included</span>{note ? <small>{note}</small> : null}</>
+       : <><span className="cp-m cp-x" aria-hidden="true">✕</span><span className="sr">Not included</span></>;
+  return [
+    ["Price", [
+      <><b>{prices.zero}</b><small>free for good</small></>,
+      <><b>{prices.society.yearly} a year</b><small>or {prices.society.monthly} a month</small></>,
+      <><b>{prices.club.yearly} a year</b><small>or {prices.club.monthly} a month</small></>,
+    ]],
+    ["Players in one tournament", each((k) => count(PLANS[k].limits.playersPerEvent, "One"))],
+    ["Tournaments at once", each((k) => count(PLANS[k].limits.activeEvents, "One"))],
+    ["Organizers and assistants", each((k) => count(PLANS[k].limits.staffSeats, "One"))],
+    ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
+    ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false) ? "Always asked" : <>Your choice<small>per tournament</small></>))],
+    ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
+    ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],
+  ];
+}
 
 /** A screen by name: an edition's capture ("d"), the club's currency ("cur"), or one file for everyone. */
 type Screen = { name: string; by: "d" | "cur" | "one"; w: number; h: number };
@@ -105,10 +137,10 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
 /* A desk capture shrunk to a phone is ~4px text, so a desk item can carry a
    twin: the same page captured at phone width, shown at 700px and below. */
 const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; desk?: boolean; alt: string; twin?: { screen: Screen; alt: string } }> = [
-  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state.", twin: { screen: { name: "cup-org-phone", by: "d", w: 600, h: 750 }, alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the first four-ball." } },
+  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state.", twin: { screen: { name: "cup-org-phone", by: "d", ...PHONE }, alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the four-balls as they stand." } },
   { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE }, alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and 3 still to come." },
   { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE }, alt: "A member's calendar: the month's league rounds, each with an In / Out switch." },
-  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", w: 600, h: 800 }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
+  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", ...PHONE }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
 ];
 
 /** The formats: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
@@ -167,10 +199,7 @@ export default async function LandingPage() {
   const d = shown.shots;
   const cur = shown.currency.toLowerCase();
   const ctx = { prices, email: contactEmail };
-  const sets = compareSets(prices);
-  const ours = ourCells(prices);
-  const plans = plansCompared(prices);
-  const glance = atAGlance();
+  const rows = compareRows(prices);
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
@@ -181,6 +210,16 @@ export default async function LandingPage() {
     s.by === "one"
       ? fixedShot(`/landing/${s.name}.webp`, s.w, s.h, alt, className)
       : lightShot({ name: s.name, variant: s.by === "cur" ? cur : d, width: s.w, height: s.h, alt, className, priority });
+  const mark = (m: NonNullable<Cell["mark"]>) => (
+    <span className={`cx-m cx-${m}`} aria-hidden="true">{{ yes: "✓", part: "◐", no: "✕", na: "—" }[m]}</span>
+  );
+  const cell = (c: Cell) => (
+    <>
+      {c.value !== undefined ? <b>{c.value}</b> : null}
+      {c.mark ? <>{mark(c.mark)}<span className="sr">{{ yes: "Yes", part: "Partly", no: "No", na: "Not listed" }[c.mark]}</span></> : null}
+      {c.note ? <small>{c.note}</small> : null}
+    </>
+  );
   const tick = (text: React.ReactNode) => (
     <li>
       {icon("check")}
@@ -233,7 +272,10 @@ export default async function LandingPage() {
             </div>
             <div className="stage">
               <div className="desk">
-                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, priority: true, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
+                {/* Lazy, not priority: phones hide the laptop, and a priority image is preloaded
+                    whether it shows or not (150 KB a phone never drew). On a laptop it is in view,
+                    so it loads at once anyway. */}
+                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
               </div>
               <div className="phone">
                 {lightShot({ name: "hero-live", variant: d, width: 600, height: 1298, priority: true, alt: "The public live board on a phone: the round, and the field ranked by net strokes, the leader highlighted." })}
@@ -348,127 +390,51 @@ export default async function LandingPage() {
             </div>
 
             <div className="vs reveal">
-              <div className="shead" style={{ marginBottom: 32 }}>
+              <div className="shead" style={{ marginBottom: 28 }}>
                 <div>
-                  <span className="label">The names you know</span>
-                  <h3 className="h2" style={{ fontSize: "clamp(32px, 4vw, 56px)" }}>TourneyHQ next to them.</h3>
+                  <span className="label">Side by side</span>
+                  <h3 className="h2" style={{ fontSize: "clamp(32px, 4vw, 56px)" }}>TourneyHQ and five you know.</h3>
                 </div>
-                <p>Every figure from each company&rsquo;s own website, as of {COMPARED_ON}.</p>
+                <p>Two club platforms and three league apps, every cell from each company&rsquo;s own website as of {COMPARED_ON}.</p>
               </div>
-              <div className="seg" role="radiogroup" aria-label="Compare TourneyHQ with">
-                {sets.map((set, i) => (
-                  <label className="tab" key={set.key}>
-                    <input className="sr" type="radio" name="vs-set" value={set.key} defaultChecked={i === 0} />
-                    {set.tab}
-                  </label>
-                ))}
-              </div>
-              {sets.map((set) => set.key === "club" ? (
-                <div className="vs-set" data-set="club" key="club" id="plans-compared">
-                  <p className="vs-intro">{set.intro} Every plan is its own column.</p>
-                  <p className="pc-cue" aria-hidden="true">Swipe to compare every plan {icon("arrow", "i")}</p>
-                  <div className="pc-scroll" tabIndex={0} role="region" aria-label="TourneyHQ's plans beside Golf Genius's and BlueGolf TM's">
-                    <table className="pc">
-                      <caption className="sr">Every plan of TourneyHQ, Golf Genius and BlueGolf TM, side by side</caption>
-                      <colgroup>
-                        <col className="pc-lab" />
-                        {plans.groups.flatMap((g) => g.tiers.map((t) => <col key={`${g.name}-${t}`} className={g.ours ? "hot" : undefined} />))}
-                      </colgroup>
-                      <thead>
-                        <tr className="pc-groups">
-                          <td className="pc-corner" rowSpan={2} />
-                          {plans.groups.map((g, i) => (
-                            <th scope="colgroup" colSpan={g.tiers.length} key={g.name} className={[g.ours ? "hot" : "", i > 0 ? "edge" : ""].join(" ").trim() || undefined}>
-                              <span>{g.name}</span>
-                            </th>
-                          ))}
-                        </tr>
-                        <tr className="pc-tiers">
-                          {plans.groups.flatMap((g, gi) => g.tiers.map((t, ti) => (
-                            <th scope="col" key={`${g.name}-${t}`} className={[g.ours ? "hot" : "", gi > 0 && ti === 0 ? "edge" : ""].join(" ").trim() || undefined}>{t}</th>
-                          )))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {plans.rows.map((row) => {
-                          let col = 0;
-                          return (
-                            <tr key={row.label}>
-                              <th scope="row">{row.label}</th>
-                              {row.cells.map((cell, i) => {
-                                // Columns 0-2 are TourneyHQ's; 3 and 5 start Golf Genius and BlueGolf.
-                                const cls = [col < 3 ? "hot" : "", col === 3 || col === 5 ? "edge" : ""].join(" ").trim() || undefined;
-                                col += cell.span ?? 1;
-                                return <td key={i} colSpan={cell.span} className={cls}>{cell.node}</td>;
-                              })}
-                            </tr>
-                          );
-                        })}
-                        <tr className="vs-srcrow">
-                          <th scope="row">Source</th>
-                          <td className="hot" colSpan={3}>This page</td>
-                          {plans.groups.filter((g) => g.source).map((g) => (
-                            <td key={g.name} colSpan={g.tiers.length} className="edge">
-                              <a href={g.source!.href} rel="nofollow noopener noreferrer" target="_blank">{g.source!.label}</a>
-                            </td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="vs-set" data-set={set.key} key={set.key}>
-                  <p className="vs-intro">{set.intro}</p>
-                  {/* Phones only: TourneyHQ beside one competitor, chosen here. */}
-                  <div className="vs-pick" role="radiogroup" aria-label="Show TourneyHQ beside">
-                    <span className="vs-pick-lead" aria-hidden="true">TourneyHQ vs</span>
-                    {set.products.map((p, i) => (
-                      <label className="chip" key={p.name}>
-                        <input className="sr" type="radio" name={`vs-pick-${set.key}`} value={i} defaultChecked={i === 0} />
-                        {p.name}
-                      </label>
+              <p className="cx-cue" aria-hidden="true">Swipe to see all five {icon("arrow", "i")}</p>
+              <div className="cx-scroll" tabIndex={0} role="region" aria-label="TourneyHQ beside five golf platforms">
+                <table className="cx">
+                  <caption className="sr">TourneyHQ beside {RIVALS.map((r) => r.name).join(", ")}</caption>
+                  <thead>
+                    <tr>
+                      <th className="cx-lab" scope="col"><span className="sr">Feature</span></th>
+                      <th className="cx-us" scope="col"><b>TourneyHQ</b><span>{PLANS.free.name} · {PLANS.society.name} · {PLANS.club.name}</span></th>
+                      {RIVALS.map((r) => <th scope="col" key={r.name}><b>{r.name}</b><span>{r.kind}</span></th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.label}>
+                        <th className="cx-lab" scope="row">{row.label}<small>{row.detail}</small></th>
+                        <td className="cx-us">{cell(row.ours)}</td>
+                        {row.theirs.map((c, i) => <td key={RIVALS[i].name}>{cell(c)}</td>)}
+                      </tr>
                     ))}
-                  </div>
-                  <div className="vs-scroll" tabIndex={0} role="region" aria-label={`TourneyHQ and ${set.tab.toLowerCase()}, side by side`}>
-                    <table className="vs-table" data-cols={set.products.length + 1}>
-                      <caption className="sr">TourneyHQ, {set.products.map((p) => p.name).join(" and ")}, side by side</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col"><span className="sr">Feature</span></th>
-                          <th scope="col" className="hot">TourneyHQ</th>
-                          {set.products.map((p) => <th scope="col" key={p.name}>{p.name}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ROW_LABELS.map((label, r) => (
-                          <tr key={label}>
-                            <th scope="row">{label}</th>
-                            <td className="hot">{ours[r]}</td>
-                            {set.products.map((p, c) => <td key={p.name}>{set.cells[r][c]}</td>)}
-                          </tr>
-                        ))}
-                        <tr className="vs-srcrow">
-                          <th scope="row">Source</th>
-                          <td className="hot">This page</td>
-                          {set.products.map((p) => (
-                            <td key={p.name}>
-                              <a href={p.source.href} rel="nofollow noopener noreferrer" target="_blank">{p.source.label}</a>
-                            </td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-              {/* An honest summary: what sets TourneyHQ apart, and where the
-                  others go further. A comparison that only lists wins is one a
-                  club will not trust. */}
+                    <tr className="cx-src">
+                      <th className="cx-lab" scope="row">Source</th>
+                      <td className="cx-us">This page</td>
+                      {RIVALS.map((r) => (
+                        <td key={r.name}><a href={r.source.href} rel="nofollow noopener noreferrer" target="_blank">{r.source.label}</a></td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="cx-key">
+                <span>{mark("yes")} Yes</span><span>{mark("part")} Partly, or on some plans</span>
+                <span>{mark("no")} No</span><span>{mark("na")} Not listed on their website</span>
+              </p>
+              {/* Where the others go further — a comparison that only lists wins is one a club will not trust. */}
               <div className="glance">
                 <div className="glance-col further">
                   <h3>Where others go further</h3>
-                  <ul>{glance.further.map((t) => <li key={t}><span className="dot" aria-hidden="true" /><span>{t}</span></li>)}</ul>
+                  <ul>{goFurther().map((t) => <li key={t}><span className="dot" aria-hidden="true" /><span>{t}</span></li>)}</ul>
                 </div>
               </div>
               <p className="vs-legal">
@@ -516,7 +482,7 @@ export default async function LandingPage() {
                 {SHOWCASE.map((x) => (
                   <figure className="show-f" data-f={x.key} key={x.key}>
                     <div className={`${x.desk ? "desk" : "phone"}${x.twin ? " only-wide" : ""}`}>{screen(x.screen, x.alt)}</div>
-                    {x.twin ? <div className="twin only-narrow">{screen(x.twin.screen, x.twin.alt)}</div> : null}
+                    {x.twin ? <div className="phone only-narrow">{screen(x.twin.screen, x.twin.alt)}</div> : null}
                     <figcaption>
                       {x.twin ? <><span className="only-wide">{x.alt}</span><span className="only-narrow">{x.twin.alt}</span></> : x.alt}
                     </figcaption>
@@ -593,7 +559,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Green fees", "Carts", "Caddies", "Dinner", "Lodging", "Evenly", "By shares", "Exact amounts", "By percent"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 700, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
+                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 1890, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
               </div>
               <div className="mcard reveal">
                 <h3 className="h3">Prize money, from the board.</h3>
@@ -601,8 +567,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Total purse", "Flight winners", "Twos pot", "Skins with carries", "Nassau", "Birdie pot"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well only-wide">{lightShot({ name: "crop-prizes", variant: d, width: 1200, height: 613, alt: "Prizes & payouts: a total purse, four prize lines with three awarded — Club Champion to the winner, then runner-up and third." })}</div>
-                <div className="well twin only-narrow">{lightShot({ name: "prizes-org-phone", variant: d, width: 600, height: 359, alt: "Add a prize on the organizer's phone: start from top 3 overall, best gross & net, flight winners, a twos pot, or nearest the pin & longest drive." })}</div>
+                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1414, alt: "Add a prize on the organizer's phone: start from top 3 overall, best gross & net, flight winners, a twos pot, or nearest the pin & longest drive." })}</div>
               </div>
             </div>
           </div>
@@ -730,12 +695,13 @@ export default async function LandingPage() {
                   <span className="per-m">or {prices.society.yearly} a year — two months free</span>
                   <span className="per-y">two months free</span>
                 </div>
-                <a className="btn" href="#signup"><span className="long">Start free — upgrade anytime</span><span className="short">Start free</span></a>
+                <a className="btn" href="#signup"><span className="long">Choose {PLANS.society.name}</span><span className="short">Choose</span></a>
+                <p className="tier-how">Create your account and we move it to this plan. Nothing is charged online.</p>
                 <ul>
                   {tick(<>Up to {PLANS.society.limits.playersPerEvent} in a field</>)}
                   {tick("As many events as your season runs")}
                   {tick(<>Up to {PLANS.society.limits.staffSeats} organizers</>)}
-                  {tick("The season table across the weeks")}
+                  {tick("Order of merit across your tournaments")}
                   {tick(capitalise(retentionSummary(PLANS.society)))}
                 </ul>
               </div>
@@ -750,17 +716,46 @@ export default async function LandingPage() {
                   <span className="per-m">or {prices.club.yearly} a year — two months free</span>
                   <span className="per-y">two months free</span>
                 </div>
-                <a className="btn ghost" href="#signup"><span className="long">Start free — upgrade anytime</span><span className="short">Start free</span></a>
+                <a className="btn ghost" href="#signup"><span className="long">Choose {PLANS.club.name}</span><span className="short">Choose</span></a>
+                <p className="tier-how">Create your account and we move it to this plan. Nothing is charged online.</p>
                 <ul>
                   {tick("An unlimited field")}
                   {tick("As many tournaments as your season runs")}
                   {tick(<>Up to {PLANS.club.limits.staffSeats} organizers and assistants</>)}
                   {tick("Your club's branding, ours removed")}
-                  {tick(`Season table · ${retentionSummary(PLANS.club)}`)}
+                  {tick(`Order of merit · ${retentionSummary(PLANS.club)}`)}
                 </ul>
               </div>
             </div>
-            <a className="tier-compare" href="#plans-compared">Every plan, line by line, beside Golf Genius and BlueGolf TM {icon("arrow", "i")}</a>
+            <div className="cp reveal">
+              <h3>Compare plans</h3>
+              <p className="cp-sub">What changes from one plan to the next.</p>
+              <table className="cp-t">
+                <caption className="sr">What differs between TourneyHQ&rsquo;s plans</caption>
+                <thead>
+                  <tr>
+                    <th scope="col"><span className="sr">Plan</span></th>
+                    {PLAN_KEYS.map((k) => <th scope="col" key={k} className={k === "society" ? "hot" : undefined}>{PLANS[k].name}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {planDiff(prices).map(([label, cells]) => (
+                    <tr key={label}>
+                      <th scope="row">{label}</th>
+                      {cells.map((c, i) => <td key={PLAN_KEYS[i]} className={PLAN_KEYS[i] === "society" ? "hot" : undefined}>{c}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4}>
+                      <b>Everything else is on every plan, {PLANS.free.name} included</b> — live scoring, voice, round codes, every
+                      format, the golf money, the calendar and leagues. <a href="#all-features">See every feature {icon("arrow", "i")}</a>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
             <p className="tier-note">Paid plans are arranged with us directly — nothing is charged through the app.</p>
             <div className="ultimate">
               <span className="ic">{icon("globe")}</span>
