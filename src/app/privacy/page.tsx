@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
+import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
+import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
+import { inDialect } from "@/lib/landing/dialect";
+import { LANDING_CSS } from "@/lib/landing/styles";
+import { LandingEffects } from "@/components/LandingEffects";
+import { editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 
 /**
  * The privacy policy, reachable without an account.
@@ -12,9 +19,14 @@ import { privacyContact } from "@/lib/domain/privacy-contact";
  * about. It is also a hard requirement for the app stores.
  *
  * Every statement here is checked against what the code actually does. Where
- * something is not implemented it is not promised — the plan catalog carries a
- * retention figure that nothing enforces yet, so this page does not claim
- * data is deleted on a schedule.
+ * something is not implemented it is not promised. The deletion it describes is
+ * built (2026-09-29): `par-sweep` and the daily `/api/cron/expire-rounds`, for
+ * clubs on Par's terms — and its numbers and plan names are read from
+ * `plans.ts`, so this page cannot drift from the rule it states.
+ *
+ * Dressed as the front door since 2026-09-30: the footer's "Privacy" link had
+ * landed on the app's dark serif page, with no way back but a text link, and
+ * read as a different site. The words follow the visitor's edition as `/` does.
  */
 
 export const metadata: Metadata = {
@@ -30,14 +42,14 @@ export const metadata: Metadata = {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginTop: 32 }}>
-      <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>{title}</h2>
+    <section className="lg-sec">
+      <h2>{title}</h2>
       {children}
     </section>
   );
 }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
   /**
    * Resolved per render rather than at module load, so the address follows the
    * deployment's configuration rather than whatever was set when this module
@@ -45,23 +57,32 @@ export default function PrivacyPage() {
    * unset variable and an example one both land in the same branch below.
    */
   const contact = privacyContact(process.env.PRIVACY_CONTACT_EMAIL);
+  const [h, jar] = await Promise.all([headers(), cookies()]);
+  const { local, shown, overridden } = landingEdition(
+    h.get("x-vercel-ip-country"),
+    jar.get(US_OVERRIDE_COOKIE)?.value === "1",
+  );
+  const kept = [PLANS.society.name, PLANS.club.name, PLANS.enterprise.name];
 
-  return (
-    <main
-      style={{
-        maxWidth: 720,
-        margin: "0 auto",
-        padding: "48px 20px 80px",
-        fontFamily: "var(--font-body)",
-        lineHeight: 1.6,
-      }}
-    >
-      <p className="page-kicker">TourneyHQ</p>
-      <h1 style={{ fontSize: 30, margin: "4px 0 0", letterSpacing: "-0.02em" }}>Privacy</h1>
-      <p className="text-muted" style={{ marginTop: 10 }}>
-        What we collect, why, who else sees it, and how to have it removed. Written to describe what
-        the software actually does, not what sounds reassuring.
-      </p>
+  const page = (
+    <div className="thq" lang={shown.locale}>
+      <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
+      <LandingEffects />
+      {iconSprite()}
+      {landingNav("privacy")}
+
+      <main className="legal">
+      <section className="fq-hero">
+        <div className="wrap">
+          <span className="label">Privacy</span>
+          <h1 className="h1">What we keep, <span className="o">and why.</span></h1>
+          <p className="lead">
+            What we collect, why, who else sees it, and how to have it removed. Written to describe
+            what the software actually does, not what sounds reassuring.
+          </p>
+        </div>
+      </section>
+      <div className="wrap lg-body">
 
       <Section title="Who holds your data">
         <p>
@@ -103,7 +124,7 @@ export default function PrivacyPage() {
           <li>Email address and name</li>
           <li>A password, stored only as a hash — we cannot read it</li>
         </ul>
-        <p>About the club itself: its name, town or region, colours and logo.</p>
+        <p>About the club itself: its name, town or region, colors and logo.</p>
         <p>
           If an organizer opens self-service registration, whatever a person types into that form —
           typically the same name, contact details and handicap.
@@ -138,11 +159,6 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Our database provider</strong> — stores the tournament data described above.
-          </li>
-          <li>
-            <strong>unpkg (Cloudflare)</strong> — the icon stylesheet loads from this public CDN, so
-            your browser&rsquo;s IP address and user-agent reach it on each visit. It receives no
-            tournament data.
           </li>
           <li>
             <strong>Anthropic</strong> — only for the features your club switches on, and only when
@@ -189,8 +205,19 @@ export default function PrivacyPage() {
 
       <Section title="How long it is kept">
         <p>
-          Tournament data is kept until the club deletes it or asks us to. We do not currently delete
-          it automatically on a schedule, and this page will say so plainly until we do.
+          <strong>On {PLANS.free.name}, the free plan</strong>, a tournament is deleted for good — its
+          entries, cards, results and money — when its organizer marks it Completed, or{" "}
+          {PAR_LIFESPAN_DAYS} days after its first round is played, whichever comes first. This applies
+          to clubs that joined after the free plan&rsquo;s terms were introduced on 29 September 2026; a
+          free club that joined before then keeps its tournaments as the paid plans do.
+        </p>
+        <p>
+          <strong>On {kept.join(", ").replace(/, ([^,]*)$/, " and $1")}</strong>, tournament data is
+          kept until the club deletes it or asks us to.
+        </p>
+        <p>
+          A casual round is deleted 24 hours after it is set up unless its organizer keeps it. On{" "}
+          {PLANS.free.name}, for clubs that joined after those terms were introduced, it cannot be kept.
         </p>
         <p>An organizer can remove a player, or a member from the club roster, at any time.</p>
       </Section>
@@ -237,12 +264,23 @@ export default function PrivacyPage() {
           If this policy changes in a way that affects what is collected or who it is shared with, the
           date below changes and the change is described here rather than made quietly.
         </p>
-        <p className="text-muted" style={{ fontSize: 13 }}>Last updated 9 August 2026.</p>
+        <p>
+          <strong>30 September 2026:</strong> &ldquo;How long it is kept&rdquo; now describes the
+          deletion on the free plan, which is built and running; the icon stylesheet on a public CDN is
+          no longer listed, because the icons are now part of the page and nothing is fetched from it.
+        </p>
+        <p className="lg-date">Last updated 30 September 2026.</p>
       </Section>
 
-      <p style={{ marginTop: 40 }}>
+      <p className="lg-back">
         <Link href="/">Back to TourneyHQ</Link>
       </p>
-    </main>
+      </div>
+      </main>
+
+      {landingFooter("privacy", editionNote(local, overridden))}
+    </div>
   );
+
+  return inDialect(page, editionSwaps(shown));
 }

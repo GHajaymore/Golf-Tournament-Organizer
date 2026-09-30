@@ -578,7 +578,12 @@ __CMP_FRAMES__
      tokens are re-pointed for this panel only — never in globals.css. */
   --color-accent: var(--brass-ui); --color-accent-300: var(--brass-hi); --color-accent-400: var(--brass-hi); --color-accent-600: var(--brass);
   --color-accent-2: var(--brass); --color-accent-2-300: var(--brass-hi); --color-on-accent: var(--on-accent);
-  --color-text: var(--ink); --color-surface: var(--ground-2);
+  /* A white card, as every card on this page is: on the grey raised ground the
+     recessed fields sat grey on grey and the form read muddy against the white section. */
+  --color-text: var(--ink); --color-surface: var(--panel);
+  /* The page's type, not the app's serif: the panel's tabs and heading were the
+     only Fraunces on the front door. */
+  --font-heading: var(--sans); --font-heading-weight: 700;
   /* The helper lines ("At least 10 characters", what each kind of organizer
      gets) are .text-muted, which the app sets for its own dark ground: left
      alone it painted the app's pale dark-mode grey on this white card, and read as blank. */
@@ -638,6 +643,24 @@ __CMP_FRAMES__
 .thq .fq-cta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; margin-top: 56px; padding: 32px; border-radius: var(--r); background: var(--ground-2); }
 .thq .fq-cta h2 { font: 750 26px/1.1 var(--sans); letter-spacing: -.03em; }
 .thq .fq-cta p { color: var(--ink-soft); margin-top: 4px; }
+
+/* ── the privacy page: a policy set as reading, on the front door's chrome ── */
+.thq .legal .fq-hero { padding-bottom: 24px; }
+.thq .lg-body { padding-bottom: 120px; }
+/* One reading column, flush with the heading above it rather than centred under it. */
+.thq .lg-body > * { max-width: 760px; }
+.thq .lg-sec { padding-top: 36px; margin-top: 36px; border-top: 1px solid var(--line); }
+.thq .lg-sec:first-child { border-top: 0; margin-top: 0; }
+.thq .lg-sec h2 { font: 750 clamp(24px, 2.6vw, 30px)/1.15 var(--sans); letter-spacing: -.03em; margin-bottom: 14px; }
+.thq .lg-sec p, .thq .lg-sec li { color: var(--ink-soft); line-height: 1.65; }
+.thq .lg-sec p + p, .thq .lg-sec p + ul, .thq .lg-sec ul + p { margin-top: 12px; }
+.thq .lg-sec ul { list-style: disc; padding-left: 22px; margin-top: 10px; display: grid; gap: 6px; }
+.thq .lg-sec ul ul { list-style: circle; margin: 8px 0; }
+.thq .lg-sec li::marker { color: var(--brass); }
+.thq .lg-sec strong { color: var(--ink); font-weight: 650; }
+.thq .lg-sec a, .thq .lg-back a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--brass-ui); text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.thq .lg-sec .lg-date { font-size: 14px; color: var(--ink-faint); }
+.thq .lg-back { margin-top: 48px; font-weight: 600; }
 @media (max-width: 700px) { .thq details.fq-group > summary { grid-template-columns: minmax(0, 1fr) auto; } .thq .fq-n { display: none; } }
 
 /* ── reveal on scroll: only once JavaScript is there to reveal it ── */
