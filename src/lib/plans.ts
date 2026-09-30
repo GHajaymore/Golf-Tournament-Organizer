@@ -52,7 +52,8 @@ export interface Plan {
     playersPerEvent: number | null;
   };
   /**
-   * How long a finished tournament's data is kept, in hours. Null keeps it.
+   * How long a finished tournament's data is kept, in hours. Null keeps it;
+   * zero deletes it as it is completed (`wipesOnClose`, new clubs only).
    *
    * This is the free tier's real cost, and it is the kind of term that has to
    * be stated before someone runs an event rather than discovered afterwards:
@@ -167,10 +168,10 @@ export const PLANS: Record<PlanKey, Plan> = {
       // outgrows this in its first event, which is the point.
       playersPerEvent: 10,
     },
-    // Two days to export, then the results are gone. The single biggest reason
-    // to upgrade, and the single most important thing to say before anyone
-    // plays — one number, read by every surface that mentions it.
-    retentionHours: 48,
+    // ZERO: gone the moment the tournament is marked Completed (Ajay,
+    // 2026-09-29), for clubs held to the terms — see `wipesOnClose`. It was
+    // 48 hours, which nothing ever enforced.
+    retentionHours: 0,
     features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
   society: {
@@ -633,10 +634,20 @@ export function limitCheck(
  * the two is actually implemented, and will allow the blunt version back the
  * day something calls `dueForPurge`.
  */
-export function retentionNotice(planKey: string): string | null {
+export function retentionNotice(planKey: string, termsApply = true): string | null {
   const plan = planFor(planKey);
   if (plan.retentionHours === null) return null;
-  return "This plan doesn't guarantee that a finished tournament is kept. Export anything you want to hold on to, or upgrade and we'll keep it for you.";
+  /**
+   * NOW IT IS BUILT, AND IT IS BLUNT (Ajay, 2026-09-29): a Free tournament is
+   * deleted the moment it is marked Completed — `wipesOnClose`, called from
+   * `setEventStatus`. The history above is why the wording waited for the code.
+   *
+   * A club that predates the terms is grandfathered and nothing of its is
+   * deleted, so it is told nothing: a red box promising a deletion that will
+   * not happen is the exact untruth this function spent months undoing.
+   */
+  if (!termsApply) return null;
+  return "On the Free plan a tournament is deleted when you mark it Completed — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.";
 }
 
 /**
@@ -648,7 +659,7 @@ export function retentionNotice(planKey: string): string | null {
  * shared notice above had stopped. One reader, like `retentionNotice`.
  */
 export function retentionSummary(plan: Plan): string {
-  return plan.retentionHours === null ? "results kept for good" : "results not guaranteed to be kept";
+  return plan.retentionHours === null ? "results kept for good" : "deleted when the tournament closes";
 }
 
 /**

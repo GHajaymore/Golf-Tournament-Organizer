@@ -47,7 +47,8 @@ describe("nothing metered is on by default", () => {
     // The gating must not have quietly taken away what the free tier already
     // offered — every plan still has its limits and retention.
     expect(planFor("free").limits.playersPerEvent).toBe(10);
-    expect(planFor("free").retentionHours).toBe(48);
+    // Zero: deleted as it is completed (Ajay, 2026-09-29) — not "unlimited".
+    expect(planFor("free").retentionHours).toBe(0);
     expect(planFor("club").retentionHours).toBeNull();
   });
 });

@@ -67,7 +67,9 @@ import { golfRegister, golfTermsFor, type GolfTerm } from "../domain/golf-terms"
  */
 export async function organizationsForOrganizer(
   email: string,
-): Promise<Array<{ id: string; name: string; kind: string; country: string; communityNoun: string; plan: string }>> {
+): Promise<
+  Array<{ id: string; name: string; kind: string; country: string; communityNoun: string; plan: string; termsApply: boolean }>
+> {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return [];
   const rows = await prisma.organizationMember.findMany({
@@ -97,7 +99,7 @@ export async function organizationsForOrganizer(
           kind: true,
           country: true,
           communityNoun: true,
-          subscription: { select: { plan: true } },
+          subscription: { select: { plan: true, planTermsApply: true } },
         },
       },
     },
@@ -112,6 +114,8 @@ export async function organizationsForOrganizer(
     country: r.organization.country,
     communityNoun: r.organization.communityNoun,
     plan: r.organization.subscription?.plan ?? DEFAULT_PLAN,
+    // Grandfathered unless the row says otherwise — see `planTermsApply`.
+    termsApply: r.organization.subscription?.planTermsApply === true,
   }));
 }
 
@@ -554,7 +558,10 @@ export async function createOrganizationWithOwner(input: {
     data: {
       name: newOrganizationName(input.orgName, input.displayName, input.email),
       kind: input.kind ?? "personal",
-      subscription: { create: { plan: DEFAULT_PLAN, status: "active" } },
+      // HELD TO THE PUBLISHED TERMS from its first day — limits, and on Free the
+      // deletion of a tournament as it completes. Every club created before
+      // 2026-09-29 is grandfathered by the column's default instead.
+      subscription: { create: { plan: DEFAULT_PLAN, status: "active", planTermsApply: true } },
       members: { create: { userId: owner.id, role: "owner" } },
     },
   });

@@ -792,6 +792,19 @@ model Subscription {
    * belongs in `plans.ts`, where it can be read, tested and priced.
    */
   featureOverrides       String    @default("")
+  /**
+   * WHETHER THIS CLUB IS HELD TO ITS PLAN'S PUBLISHED TERMS — the limits, and
+   * on Free the deletion of a tournament the moment it is marked Completed.
+   *
+   * Ajay, 2026-09-29: the terms apply to NEW clubs only. Every club that
+   * existed before then is Free by default (billing was never live), so a rule
+   * keyed on the plan alone would have made its first act the deletion of real
+   * member events. The default is false, so every existing row is grandfathered
+   * by the migration itself. `createOrganizationWithOwner` sets true, and
+   * anything that forgets to leaves a club with more than it paid for, never
+   * less.
+   */
+  planTermsApply         Boolean   @default(false)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

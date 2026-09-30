@@ -29,7 +29,7 @@ const { createEvent, addStage, setStageFormat, importCsvSignups } = await import
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
-  await prisma.organization.deleteMany({ where: { name: { contains: TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.user.deleteMany({ where: { email: EMAIL } });
 }
 
@@ -43,7 +43,29 @@ async function make(name: string, template = "custom") {
 }
 const rule = async (id: string) => (await prisma.event.findUnique({ where: { id } }))!.formationRule;
 
-beforeAll(scrub);
+/**
+ * An organizer whose club PREDATES the published terms (2026-09-29), as every
+ * club in production does — so its Free plan limits nothing. Without this,
+ * `createEvent` makes a new club on the terms, and its one-tournament-at-a-time
+ * limit refuses this file's second tournament, which is a test of the limit
+ * and not of the defaults.
+ */
+async function grandfatheredOrganizer() {
+  const user = await prisma.user.create({ data: { email: EMAIL, name: session.name } });
+  await prisma.organization.create({
+    data: {
+      name: `${TAG} organizer`,
+      kind: "personal",
+      subscription: { create: { plan: "free", planTermsApply: false } },
+      members: { create: { userId: user.id, role: "owner" } },
+    },
+  });
+}
+
+beforeAll(async () => {
+  await scrub();
+  await grandfatheredOrganizer();
+});
 afterAll(async () => {
   await scrub();
   await prisma.$disconnect();

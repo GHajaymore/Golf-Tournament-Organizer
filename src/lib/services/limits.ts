@@ -113,7 +113,27 @@ export async function staffSeatCount(organizationId: string): Promise<number> {
 async function enforcementActive(organizationId: string): Promise<boolean> {
   if (enforcementEnabled(await storedLimitOverrides())) return true;
   const sub = await prisma.subscription.findUnique({ where: { organizationId } });
-  return !!sub && sub.provider.trim() !== "";
+  if (!sub) return false;
+  /**
+   * AND A CLUB CREATED ON THE PUBLISHED TERMS (Ajay, 2026-09-29): Free is 10
+   * players, one tournament at a time, one organizer, from its first day.
+   * Clubs that predate the terms keep `planTermsApply` false and are refused
+   * nothing, which is what "new clubs only" means.
+   */
+  return sub.planTermsApply || sub.provider.trim() !== "";
+}
+
+/**
+ * The field size this club's plan allows, or null for no cap (uncapped tier,
+ * or limits not enforced for it).
+ */
+export async function fieldCapFor(organizationId: string): Promise<number | null> {
+  if (!(await enforcementActive(organizationId))) return null;
+  const [sub, overrides] = await Promise.all([
+    prisma.subscription.findUnique({ where: { organizationId } }),
+    storedLimitOverrides(),
+  ]);
+  return effectiveLimit(planFor(sub?.plan ?? DEFAULT_PLAN), "playersPerEvent", overrides);
 }
 
 /** Where an organization stands, whether or not limits are being enforced. */
@@ -168,12 +188,5 @@ export async function effectiveCapacity(
   organizationId: string,
   organizerCapacity: number,
 ): Promise<number> {
-  if (!(await enforcementActive(organizationId))) return organizerCapacity;
-
-  const [sub, overrides] = await Promise.all([
-    prisma.subscription.findUnique({ where: { organizationId } }),
-    storedLimitOverrides(),
-  ]);
-  const cap = effectiveLimit(planFor(sub?.plan ?? DEFAULT_PLAN), "playersPerEvent", overrides);
-  return capacityUnderCap(organizerCapacity, cap);
+  return capacityUnderCap(organizerCapacity, await fieldCapFor(organizationId));
 }

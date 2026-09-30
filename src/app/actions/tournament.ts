@@ -52,7 +52,9 @@ import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/l
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
-import { refusalFor } from "@/lib/services/limits";
+import { refusalFor, fieldCapFor, effectiveCapacity } from "@/lib/services/limits";
+import { wipesOnCloseFor } from "@/lib/services/close-terms";
+import { WIPE_ON_CLOSE } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
@@ -81,7 +83,7 @@ import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
-import { phoneRequiredFor } from "@/lib/plans";
+import { phoneRequiredFor, capacityUnderCap } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
@@ -1057,7 +1059,15 @@ export async function saveEvent(data: {
       // toggle in EventSetupClient) — only clamp upward when the organizer has
       // actually set a positive fixed capacity, otherwise every save was
       // silently converting "open" into "capacity 1" the moment anyone hit Save.
-      capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
+      //
+      // Then held to the plan's field cap where one is enforced: on Free, "open"
+      // and anything above ten are stored as ten, so every intake, promotion
+      // and waitlist path — all of which read this column — stops at the cap
+      // without each having to be told (`fieldCapFor`).
+      capacity: capacityUnderCap(
+        data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
+        event ? await fieldCapFor(event.organizationId) : null,
+      ),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
       // `sideStyle` is no longer written. Tournament details stopped asking
       // "how do people play?" — see the note where that field stood — and the
@@ -1139,6 +1149,14 @@ export async function applyManualCount(target: number, force = false): Promise<R
   }
 
   const t = Math.max(0, Math.round(target));
+  // The plan's field cap, where one is enforced. Refused rather than clamped:
+  // this pads the field with placeholder players, and quietly making fewer
+  // than asked would leave the organizer counting names to find out why.
+  const owner = await prisma.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
+  const cap = owner ? await fieldCapFor(owner.organizationId) : null;
+  if (cap !== null && t > cap) {
+    return { ok: false, error: `Your plan holds up to ${cap} players in a tournament. Upgrade for a bigger field.` };
+  }
   const confirmed = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
     orderBy: { seed: "asc" },
@@ -3484,9 +3502,16 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     CLONED_EVENT_FIELDS.map((f) => [f, source[f]]),
   ) as Pick<typeof source, (typeof CLONED_EVENT_FIELDS)[number]>;
 
+  // The plan's field cap, where one is enforced — a copy of a 40-player
+  // event made in a Free club is a 10-player event (`fieldCapFor`).
+  const fieldCap = await fieldCapFor(source.organizationId);
+
   const created = await prisma.event.create({
     data: {
       ...carried,
+      capacity: capacityUnderCap(carried.capacity, fieldCap),
+      manualPlayerCount:
+        fieldCap === null ? carried.manualPlayerCount : Math.min(carried.manualPlayerCount, fieldCap),
       name: clean,
       // Dates and the registration deadline are the two things that are always
       // wrong on a copy, so they start empty rather than pointing at last year.
@@ -3725,7 +3750,8 @@ export async function createEvent(
     if (setup.blockedByClubSetup) return { ok: false, error: setup.blockedByClubSetup };
   }
 
-  // Plan limits bite only once billing is connected — see services/limits.ts.
+  // Plan limits bite once billing is connected, or from day one for a club
+  // created on the published terms — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
   const event = await prisma.event.create({
@@ -3737,7 +3763,9 @@ export async function createEvent(
       city: "",
       address: "",
       regDeadline: "",
-      capacity: 0, // open field by default
+      // Open field by default — or the plan's cap where one is enforced, so a
+      // Free club's tournament holds ten from the start.
+      capacity: await effectiveCapacity(organizationId, 0),
       status: "draft",
       shape,
       /**
@@ -3886,7 +3914,15 @@ export async function deleteEvent(eventId: string) {
   if (access?.role !== "admin") throw new Error("Only the organizer can delete a tournament");
 
   await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
+  await landAfterDeleting(session);
+}
 
+/**
+ * Where an organizer goes once the tournament they were in no longer exists —
+ * shared by `deleteEvent` and the Free plan's deletion on completion, so both
+ * leave them in the same place. Always redirects.
+ */
+async function landAfterDeleting(session: { email: string; eventId: string }): Promise<never> {
   /**
    * Re-anchor the ACTIVE EVENT, and nothing else.
    *
@@ -3951,7 +3987,11 @@ export async function deleteEvent(eventId: string) {
 
 const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
 
-export async function setEventStatus(status: string): Promise<{ ok: boolean; error?: string }> {
+export async function setEventStatus(
+  status: string,
+  /** Must be true to complete a tournament the Free plan deletes on completion. */
+  confirmDelete = false,
+): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
   const eventId = await requireAdminEvent();
   const s = STATUS_FLOW.includes(status) ? status : "draft";
   /**
@@ -3974,6 +4014,24 @@ export async function setEventStatus(status: string): Promise<{ ok: boolean; err
         })
       : null;
     if (refusal) return { ok: false, error: refusal };
+
+    /**
+     * ON THE FREE PLAN, COMPLETING IS DELETING (Ajay, 2026-09-29) — for a club
+     * held to the published terms; `wipesOnClose` says exactly which.
+     *
+     * Never without `confirmDelete`. The button asks first, with the download
+     * in front of the organizer, but this is a `"use server"` export and so a
+     * public endpoint: a caller that did not ask is refused with the question
+     * rather than trusted to have asked it. Checked after `finishRefusal`, so a
+     * tournament with cards still disputed is never deleted as "finished".
+     */
+    if (await wipesOnCloseFor(eventId)) {
+      if (!confirmDelete) return { ok: false, needsDeleteConfirm: true, error: WIPE_ON_CLOSE };
+      const session = await getSession();
+      if (!session) return { ok: false, error: "Not signed in." };
+      await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
+      await landAfterDeleting(session);
+    }
   }
   // Stamp the completion time, because on a free plan it starts the clock the
   // retention window runs on. Reopening a tournament clears it: a club that

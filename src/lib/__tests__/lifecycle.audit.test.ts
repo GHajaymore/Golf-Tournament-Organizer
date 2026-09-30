@@ -10,7 +10,6 @@ import {
   playNassau,
 } from "../domain";
 import { teamStandings, snakeDraw } from "../services/teams";
-import { retentionDecision } from "../retention";
 import { courseHandicapMap, holeStrokesReceived } from "../domain";
 import { chainIssues } from "../format-chain";
 import { staffSeatCount, activeEventCount } from "../services/limits";
@@ -313,58 +312,9 @@ describe("cross-cutting rules", () => {
     expect(issues.some((i) => i.kind === "cut-team-to-individual")).toBe(true);
   });
 
-  it("never selects a running tournament for deletion", () => {
-    expect(
-      retentionDecision({ id: eventId, status: "draft", completedAt: null, plan: "free" }).purge,
-    ).toBe(false);
-  });
-
-  it("selects a finished free tournament past its window", () => {
-    expect(
-      retentionDecision({
-        id: "x",
-        status: "completed",
-        completedAt: new Date(Date.now() - 60 * 3600e3),
-        plan: "free",
-      }).purge,
-    ).toBe(true);
-  });
-
-  it("never purges an event that is being held", async () => {
-    // The rule, asserted against a row this test controls. It used to look up
-    // one particular real tournament by name and assert on whatever it found —
-    // so it failed on any database that didn't happen to contain that row, and
-    // said nothing at all about the rule on the databases where it passed.
-    const held = await prisma.event.create({
-      data: {
-        organizationId: orgId,
-        name: `${TAG} held`,
-        dates: "",
-        course: "",
-        city: "",
-        address: "",
-        regDeadline: "",
-        shareToken: `${TAG}-held-${Date.now()}`,
-        status: "completed",
-        retainUntil: new Date(Date.now() + 365 * 24 * 3600e3),
-      },
-    });
-    try {
-      expect(
-        retentionDecision({
-          id: held.id,
-          status: "completed",
-          // Long past the free tier's window: the hold is the only thing
-          // standing between this tournament and deletion.
-          completedAt: new Date(Date.now() - 1000 * 3600e3),
-          plan: "free",
-          retainUntil: held.retainUntil,
-        }).purge,
-      ).toBe(false);
-    } finally {
-      await prisma.event.delete({ where: { id: held.id } });
-    }
-  });
+  // What completing may delete, and the hold that stops it, moved to
+  // `free-tournament-deleted-on-close.audit.test.ts` with `retention.ts`'s
+  // retirement (2026-09-29) — asserted there through the real action.
 
   it("counts a per-event organizer as a staff seat", async () => {
     // The seat rule that matters: per-event Accounts count, not just club
