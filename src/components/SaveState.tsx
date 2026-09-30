@@ -98,7 +98,7 @@ export function SaveState({ status, label = "Saved" }: { status: SaveStatus; lab
       )}
       {status === "saved" && (
         <>
-          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2)" }} /> {label}
+          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2-200)" }} /> {label}
         </>
       )}
     </span>

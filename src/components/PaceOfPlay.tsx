@@ -115,7 +115,7 @@ export function PaceOfPlay({ rounds }: { rounds: PaceRound[] }) {
                             r.state === "out-of-position"
                               ? "var(--color-danger)"
                               : r.state === "on-pace" || r.state === "finished"
-                                ? "var(--color-accent-2-300)"
+                                ? "var(--color-accent-2-200)"
                                 : undefined,
                         }}
                       >

@@ -522,7 +522,7 @@ export default async function PlayTodayPage() {
                     fontSize: 40,
                     lineHeight: 1,
                     fontVariantNumeric: "tabular-nums",
-                    color: standing.toPar < 0 ? "var(--color-accent-2-300)" : "var(--color-text)",
+                    color: standing.toPar < 0 ? "var(--color-accent-2-200)" : "var(--color-text)",
                   }}
                 >
                   {standing.scoreText || "–"}
@@ -541,7 +541,7 @@ export default async function PlayTodayPage() {
                   fontFamily: "var(--font-heading)",
                   fontSize: 22,
                   lineHeight: 1.2,
-                  color: m.ahead ? "var(--color-accent-2-300)" : "var(--color-text)",
+                  color: m.ahead ? "var(--color-accent-2-200)" : "var(--color-text)",
                 }}
               >
                 {m.state}

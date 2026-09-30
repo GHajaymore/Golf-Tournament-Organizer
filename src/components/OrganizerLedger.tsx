@@ -30,7 +30,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
   // which cannot say how many minor units a currency has.
   const { money } = useMoney();
   const tone = (cents: number) =>
-    cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
+    cents > 0 ? "var(--color-accent-2-200)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 
   const owed = view.standing.filter((s) => s.netCents > 0);
   const owing = view.standing.filter((s) => s.netCents < 0);

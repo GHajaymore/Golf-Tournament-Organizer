@@ -37,7 +37,7 @@ export function EventContextBar({
         flexWrap: "wrap",
       }}
     >
-      <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent)", fontSize: 15 }} />
+      <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent-200)", fontSize: 15 }} />
       <span style={{ fontWeight: 600, fontSize: 13 }}>{name || "Untitled tournament"}</span>
       <span className="text-muted" style={{ fontSize: 12 }}>
         {[dates, location].filter(Boolean).join(" · ")}

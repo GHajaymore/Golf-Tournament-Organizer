@@ -416,7 +416,7 @@ export function SkinsPotClient({
           </p>
 
           {r.provisional && (
-            <p style={{ fontSize: 12, margin: "0 0 10px", color: "var(--color-accent)" }}>
+            <p style={{ fontSize: 12, margin: "0 0 10px", color: "var(--color-accent-200)" }}>
               <Icon name="warning-circle" /> Provisional — some holes have no score yet.
             </p>
           )}
@@ -457,7 +457,7 @@ export function SkinsPotClient({
                               textAlign: "right",
                               fontVariantNumeric: "tabular-nums",
                               fontWeight: 500,
-                              color: s.netCents < 0 ? "var(--color-danger)" : "var(--color-accent-2)",
+                              color: s.netCents < 0 ? "var(--color-danger)" : "var(--color-accent-2-200)",
                             }}
                           >
                             {s.netCents > 0 ? "+" : ""}{money(s.netCents)}

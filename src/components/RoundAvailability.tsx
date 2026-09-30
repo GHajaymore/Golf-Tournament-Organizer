@@ -275,7 +275,7 @@ export function RoundAvailability({
                     {r.cells.map((c) => (
                       <td key={c.stageId} style={{ textAlign: "center" }}>
                         <Icon name={c.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
-                          style={{ color: c.status === "in" ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
+                          style={{ color: c.status === "in" ? "var(--color-accent-2-200)" : "var(--color-neutral-500)" }}
                           // The distinction the whole feature turns on: "in"
                           // and "in because nobody said otherwise" are
                           // different promises, and a captain counting heads

@@ -130,7 +130,7 @@ export function GroupingControls({
                 className="btn"
                 style={{
                   border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                  color: on ? "var(--color-accent-300)" : "var(--color-text)",
+                  color: on ? "var(--color-accent-200)" : "var(--color-text)",
                 }}
               >
                 <Icon name={r.icon} /> {r.label}
@@ -213,7 +213,7 @@ export function GroupingControls({
           <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
           <span>
             {block.problem}{" "}
-            <Link href={block.href} style={{ color: "var(--color-accent-300)" }}>
+            <Link href={block.href} style={{ color: "var(--color-accent-200)" }}>
               {block.linkLabel}
             </Link>
           </span>

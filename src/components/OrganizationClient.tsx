@@ -448,7 +448,7 @@ export function OrganizationClient(props: Props) {
                     title={BRAND_DISPLAY_HELP[k]}
                     style={{
                       border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                      color: on ? "var(--color-accent-300)" : "var(--color-text)",
+                      color: on ? "var(--color-accent-200)" : "var(--color-text)",
                     }}
                   >
                     {BRAND_DISPLAY_LABEL[k]}
@@ -491,7 +491,7 @@ export function OrganizationClient(props: Props) {
                     background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
                     // Step 300, matching OrgBrand: the letter sits on a tint of
                     // its own colour, where step 500 is 2.94:1 at worst.
-                    color: "var(--color-accent-300)",
+                    color: "var(--color-accent-200)",
                     fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 15,
                     fontWeight: 600,
                   }}
@@ -649,7 +649,7 @@ export function OrganizationClient(props: Props) {
                   background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
                   // As above — the same tile, re-implemented, as the comment
                   // over this card says.
-                  color: "var(--color-accent-300)",
+                  color: "var(--color-accent-200)",
                   fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 13,
                   fontWeight: 600,
                 }}

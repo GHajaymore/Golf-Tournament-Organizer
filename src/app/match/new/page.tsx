@@ -183,7 +183,7 @@ export default async function NewMatchPage() {
             exit is a trap. */}
         <p className="text-muted" style={{ fontSize: 12.5, marginTop: 18, lineHeight: 1.6 }}>
           <Icon name="users-three" /> Running something bigger — a field, flights, several rounds?{" "}
-          <Link href="/choose?stay=1" style={{ color: "var(--color-accent-300)" }}>
+          <Link href="/choose?stay=1" style={{ color: "var(--color-accent-200)" }}>
             Create a tournament instead
           </Link>
           .

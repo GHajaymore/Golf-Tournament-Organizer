@@ -223,7 +223,7 @@ export function LoginPanel({
             display: "grid",
             placeItems: "center",
             background: "color-mix(in srgb, var(--color-accent-2) 15%, transparent)",
-            color: "var(--color-accent-2-300)",
+            color: "var(--color-accent-2-200)",
           }}
         >
           <Icon name="envelope-simple" style={{ fontSize: 18 }} />
@@ -442,7 +442,7 @@ export function LoginPanel({
                   border: "none",
                   cursor: "pointer",
                   fontSize: 11.5,
-                  color: "var(--color-accent-400)",
+                  color: "var(--color-accent-200)",
                   // A 44px target around 12px of text: the negative margin
                   // gives the space back so the label row does not grow. It
                   // was a 40x12 button.
@@ -558,7 +558,7 @@ export function LoginPanel({
           fontSize: 13,
           fontWeight: 500,
           textDecoration: "none",
-          color: "var(--color-accent-300)",
+          color: "var(--color-accent-200)",
           background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
           boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent)",
         }}

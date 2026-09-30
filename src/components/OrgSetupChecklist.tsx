@@ -168,7 +168,7 @@ export function OrgSetupChecklist({
                     fontSize: 19,
                     marginTop: 1,
                     flex: "none",
-                    color: step.done ? "var(--color-accent-2)" : "var(--color-neutral-500)",
+                    color: step.done ? "var(--color-accent-2-200)" : "var(--color-neutral-500)",
                   }}
                   aria-hidden="true"
                 />

@@ -117,7 +117,7 @@ export function AttendanceReport({ report }: { report: Report }) {
                         // Solid for a stated answer, outlined for a default —
                         // the same vocabulary the calendar uses, so a member
                         // and a secretary read one language.
-                        color: c.status === "in" ? "var(--color-accent-2)" : "var(--color-text-muted)",
+                        color: c.status === "in" ? "var(--color-accent-2-200)" : "var(--color-text-muted)",
                         opacity: c.explicit ? 1 : 0.55,
                         fontWeight: c.explicit ? 700 : 400,
                       }}

@@ -426,6 +426,23 @@ describe("the light ground", () => {
           expect(contrastRatio(s[200], bg), `${p.key} accent-200 text on ${bg}`).toBeGreaterThanOrEqual(7);
         }
         expect(contrastRatio(g.onAccent, s[300]), `${p.key} label on its accent-300 fill`).toBeGreaterThanOrEqual(7);
+        // The initials chip and the bracket winner: step 100 on a 900 tint.
+        expect(contrastRatio(s[100], s[900]), `${p.key} accent-100 on its 900 tint`).toBeGreaterThanOrEqual(7);
+      }
+    });
+  }
+
+  /**
+   * AND THE WORDS THAT WARN. An error, a withdrawn player or an overdue card is
+   * the text a player most needs to read, and red (4.69:1 on a dark card) and
+   * amber (5.4 on its tinted badge) were the weakest words on the screen. Both
+   * read 7:1 on the page, the card and the danger tint they sit on.
+   */
+  for (const g of [LIGHT_GROUND, DARK_GROUND]) {
+    it(`red and amber words read crisp on the ${g.key} ground`, () => {
+      for (const bg of [g.bg, g.surface, g.dangerBg]) {
+        expect(contrastRatio(g.danger, bg), `danger on ${bg}`).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(g.warning, bg), `warning on ${bg}`).toBeGreaterThanOrEqual(7);
       }
     });
   }

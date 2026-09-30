@@ -157,6 +157,8 @@ export interface QualValues {
 
 /** Rotating per-round accent so a page of several round cards reads as distinct at a glance. */
 const ROUND_PALETTE = ["var(--color-accent)", "var(--color-accent-2)", "var(--color-accent-400)", "var(--color-accent-2-400)"];
+/** The round NUMBER in the same rotation, in the text steps, so it reads 7:1. */
+const ROUND_TEXT = ["var(--color-accent-200)", "var(--color-accent-2-200)", "var(--color-accent-100)", "var(--color-accent-2-100)"];
 
 /**
  * WHAT THE BASIS CAN SAY, and `stableford` is deliberately not offered.
@@ -1004,6 +1006,7 @@ function StageCard({
   // the differentiating (not the type icon, which repeats for every
   // Round Robin stage anyway).
   const roundColor = ROUND_PALETTE[stage.position % ROUND_PALETTE.length];
+  const roundText = ROUND_TEXT[stage.position % ROUND_TEXT.length];
 
   return (
     <div className="card elev-sm" style={{ gap: 14, borderLeft: `3px solid ${roundColor}` }}>
@@ -1043,7 +1046,7 @@ function StageCard({
             display: "grid",
             placeItems: "center",
             background: `color-mix(in srgb, ${roundColor} 18%, transparent)`,
-            color: roundColor,
+            color: roundText,
             fontFamily: "var(--font-heading)",
             fontWeight: 700,
             fontSize: 19,
@@ -1434,7 +1437,7 @@ function StageCard({
               the Format select. */}
           {activeFormat && (
             <p style={{ margin: 0 }}>
-              <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}
+              <b style={{ color: "var(--color-accent-200)" }}>{activeFormat.name}</b> — {activeFormat.desc}
             </p>
           )}
         </div>
@@ -1614,8 +1617,8 @@ function StageCard({
           }}
         >
           <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, flex: "none", color: "var(--color-text)" }}>
-            <Icon name={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-300)" }} />
-            <Icon name="sliders" style={{ color: "var(--color-accent-300)" }} />
+            <Icon name={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-200)" }} />
+            <Icon name="sliders" style={{ color: "var(--color-accent-200)" }} />
             Customize this round
           </span>
           {!customizeOpen && (
@@ -1829,7 +1832,7 @@ function StageCard({
                       screen would have picked for itself. A deadline set on
                       Round 6 that sends an organizer to Round 3 is a link that
                       changes the subject. */}
-                  <a href={`/foursomes?round=${stage.id}`} style={{ color: "var(--color-accent-300)" }}>
+                  <a href={`/foursomes?round=${stage.id}`} style={{ color: "var(--color-accent-200)" }}>
                     Set who is playing
                   </a>
                   .
@@ -2198,7 +2201,7 @@ export function StagesClient({
             border: "1px dashed var(--color-divider)",
           }}
         >
-          <Icon name="plus" style={{ fontSize: 16, color: "var(--color-accent)", flex: "none" }} />
+          <Icon name="plus" style={{ fontSize: 16, color: "var(--color-accent-200)", flex: "none" }} />
           <span style={{ minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Add a round</span>
             {/* Names what is behind it. "Add a round" alone hides the fact
@@ -2272,7 +2275,7 @@ export function StagesClient({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-200)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
@@ -2306,7 +2309,7 @@ export function StagesClient({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-200)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>

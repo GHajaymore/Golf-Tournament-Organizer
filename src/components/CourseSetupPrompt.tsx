@@ -191,7 +191,7 @@ export function CourseSetupPrompt({
         automatically, and the card below fills in. Open it to check.
       </p>
       {pasteSummaryText && (
-        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
+        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {pasteSummaryText}
         </p>
       )}

@@ -184,7 +184,7 @@ export function RoundTeamScoring({
           {/* Beside the control, because that is where the choice is made —
               not in a footnote and not in a title. */}
           {info.entryMode === "side-only" && info.sideOnlyCost && (
-            <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.6, color: "var(--color-accent)" }}>
+            <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.6, color: "var(--color-accent-200)" }}>
               <Icon name="warning-circle" /> {info.sideOnlyCost}
             </p>
           )}

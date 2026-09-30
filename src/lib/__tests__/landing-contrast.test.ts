@@ -270,6 +270,12 @@ describe("the sign-in form, re-pointed at the landing palette, can be read", asy
     ["color-accent-2", "color-surface", 4.5, "the secondary links (Forgot?, the round-code prompt)"],
     ["color-on-accent", "color-accent", 4.5, "the Log in / Sign up button's label"],
     ["color-on-accent", "color-accent-400", 4.5, "the button's label on hover"],
+    // Since 2026-09-30 the app draws accent words in step 200 and the primary
+    // button's fill in step 300 (hover 200), so those steps are graded too.
+    ["color-accent-200", "color-surface", 4.5, "accent words: links, Forgot?, the round-code prompt"],
+    ["color-accent-2-200", "color-surface", 4.5, "secondary accent words on the card"],
+    ["color-on-accent", "color-accent-300", 4.5, "the Log in / Sign up button's label at rest"],
+    ["color-on-accent", "color-accent-200", 4.5, "the button's label on hover (step 200)"],
   ];
 
   for (const ground of ["dark", "light"] as const) {

@@ -58,7 +58,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         style={{ marginBottom: 16, gap: 8, borderLeft: "3px solid var(--color-accent-2)" }}
       >
         <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
-          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2)" }} /> Setup is
+          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2-200)" }} /> Setup is
           done — all {flow.steps.length} parts
         </span>
         {/* NAMES THE SCREEN, NOT A BUTTON ON IT.
@@ -138,14 +138,14 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
         >
           {flow.steps.map((s, i) => {
             const here = s.href === href;
-            // The 300 steps, which are the TEXT steps. This is an 11px bold
-            // uppercase label, and the "Now" pill sits on a 12% tint of the
-            // accent — where step 500 measures 3.05:1 for the worst club
-            // palette, on both grounds. See accent-is-not-a-text-colour.test.ts.
+            // The 200 steps, which are the TEXT steps (7:1, themes.test). This
+            // is an 11px bold uppercase label, and the "Now" pill sits on a
+            // 12% tint of the accent — where step 500 measures 3.05:1 for the
+            // worst club palette. See accent-is-not-a-text-colour.test.ts.
             const tone = s.done
-              ? "var(--color-accent-2-300)"
+              ? "var(--color-accent-2-200)"
               : s.state === "current"
-                ? "var(--color-accent-300)"
+                ? "var(--color-accent-200)"
                 : "var(--color-neutral-500)";
             return (
               <li key={s.key} style={{ flex: "1 1 0", minWidth: 132 }}>
@@ -201,7 +201,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
               screen pointing back at Tournament details — and calling that
               "next" sends a reader looking forwards for it. */}
           <Icon name="check-circle" /> This part is done. Still to do:{" "}
-          <Link href={flow.current.href} style={{ color: "var(--color-accent-300)" }}>
+          <Link href={flow.current.href} style={{ color: "var(--color-accent-200)" }}>
             {flow.current.label}
           </Link>
           .

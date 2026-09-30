@@ -412,7 +412,7 @@ export function EventSetupClient({
         <div className="field">
           <label htmlFor={`${fid}-name`}>
             Tournament name{" "}
-            {!f.name.trim() && <span style={{ color: "var(--color-accent-300)" }}>· required to launch</span>}
+            {!f.name.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
           </label>
           <input
             id={`${fid}-name`}
@@ -453,7 +453,7 @@ export function EventSetupClient({
           <div className="field">
             <label htmlFor={`${fid}-start`}>
               Tournament dates{" "}
-              {!f.dates.trim() && <span style={{ color: "var(--color-accent-300)" }}>· required to launch</span>}
+              {!f.dates.trim() && <span style={{ color: "var(--color-accent-200)" }}>· required to launch</span>}
             </label>
             {/* `minWidth: 0` on the inputs, not just `flex: 1`.
                 A native date input's intrinsic minimum is its own chrome — the

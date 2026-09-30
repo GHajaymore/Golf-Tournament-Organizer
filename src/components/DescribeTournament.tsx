@@ -173,7 +173,7 @@ export function DescribeTournament({ available = true }: { available?: boolean }
       )}
 
       {done && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2)" }}>
+        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {done}
         </p>
       )}

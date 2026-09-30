@@ -235,7 +235,7 @@ export default async function ChooseTournamentPage({
                   )}
                   <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{/* Per row: the list can span clubs in two countries. */}
                     {roleName(a.role, golfTermsFor(golfRegister(a.event.organization?.country, a.event.organization?.golfTerms)).organizer)}</span>
-                  <Icon name="arrow-right" style={{ color: "var(--color-accent-300)" }} />
+                  <Icon name="arrow-right" style={{ color: "var(--color-accent-200)" }} />
                 </div>
               </button>
             </form>
@@ -294,7 +294,7 @@ export default async function ChooseTournamentPage({
               background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)",
             }}
           >
-            <Icon name="sword" style={{ color: "var(--color-accent-2)", fontSize: 18 }} />
+            <Icon name="sword" style={{ color: "var(--color-accent-2-200)", fontSize: 18 }} />
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
@@ -309,7 +309,7 @@ export default async function ChooseTournamentPage({
               needed.
             </div>
           </div>
-          <Icon name="arrow-right" style={{ color: "var(--color-accent-300)", marginLeft: "auto", flex: "none" }} />
+          <Icon name="arrow-right" style={{ color: "var(--color-accent-200)", marginLeft: "auto", flex: "none" }} />
         </Link>
 
         {/* Keyed on the count so the form remounts (and collapses) once the

@@ -747,7 +747,7 @@ export function CourseLibrary({
         </p>
       )}
       {notice && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-200)" }}>
           <Icon name="check-circle" /> {notice}
         </p>
       )}
@@ -826,7 +826,7 @@ export function CourseLibrary({
               style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}
             />
             {pasteNote && (
-              <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
+              <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
                 <Icon name="check-circle" /> {pasteNote}
               </p>
             )}

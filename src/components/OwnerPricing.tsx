@@ -109,7 +109,7 @@ export function OwnerPricing({
           {pending ? "Saving…" : "Save prices"}
         </button>
         {saved && (
-          <span style={{ fontSize: 13, color: "var(--color-accent-2-300)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontSize: 13, color: "var(--color-accent-2-200)", display: "inline-flex", alignItems: "center", gap: 5 }}>
             <Icon name="check-circle" /> Saved — live everywhere.
           </span>
         )}

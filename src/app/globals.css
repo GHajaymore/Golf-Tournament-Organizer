@@ -39,7 +39,7 @@
      white). The fallbacks are gone, and brand-consistency.test.ts fails if one
      comes back: a fallback on a token that exists is a second source of truth
      nobody would think to update. */
-  --color-danger: #e0665a;
+  --color-danger: #f19a91;
   --color-danger-bg: #2a1512;
 
   /* Caution, as distinct from error — and the same story one paragraph later.
@@ -47,7 +47,7 @@
      declared, so an expiring round code and a mis-photographed card spoke in
      ordinary body text. Emitted by themeVarsFor for both grounds, the light
      one taking a deep ochre. */
-  --color-warning: #e8a33c;
+  --color-warning: #f0b75e;
 
   /* Label colour on a filled accent. Three rules in design-system.css used to
      carry it as a fallback — `var(--color-on-accent, #16181a)` — so the
@@ -576,7 +576,7 @@ body {
 }
 .m-tab[aria-current="page"],
 .m-tab.m-active {
-  color: var(--color-accent);
+  color: var(--color-accent-200);
 }
 
 .m-drawer-backdrop {

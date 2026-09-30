@@ -64,7 +64,7 @@ function cardState(r: StandingRow, holes: number): string {
 /** Under par earns colour; level and over stay in text. */
 function scoreColour(toPar: number, isStableford: boolean): string {
   if (isStableford) return "var(--color-text)";
-  if (toPar < 0) return "var(--color-accent-2-300)";
+  if (toPar < 0) return "var(--color-accent-2-200)";
   return "var(--color-text)";
 }
 
@@ -164,13 +164,13 @@ export function PlayerLeaderboard({
             boxShadow: "inset 3px 0 0 var(--color-accent)",
           }}
         >
-          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-muted)" }}>
             You
           </span>
           <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
             {holdsPosition(you) ? placeText(you, shared) : "–"}
           </span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-neutral-400)" }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-text-muted)" }}>
             {isStroke ? cardState(you, holes) : you.record}
           </span>
           <span
@@ -263,7 +263,7 @@ export function PlayerLeaderboard({
                   minWidth: 34,
                   fontSize: leader ? 17 : 15,
                   fontWeight: leader ? 700 : 500,
-                  color: r.ranked ? "var(--color-text)" : "var(--color-neutral-400)",
+                  color: r.ranked ? "var(--color-text)" : "var(--color-text-muted)",
                 }}
               >
                 {holdsPosition(r) ? placeText(r, shared) : "–"}
@@ -288,7 +288,7 @@ export function PlayerLeaderboard({
                     display: "block",
                     fontSize: 12.5,
                     marginTop: 2,
-                    color: "var(--color-neutral-400)",
+                    color: "var(--color-text-muted)",
                   }}
                 >
                   {[
@@ -323,7 +323,7 @@ export function PlayerLeaderboard({
                   fontSize: leader ? 30 : 26,
                   fontWeight: 700,
                   letterSpacing: "-0.01em",
-                  color: started ? scoreColour(r.toPar, isStableford) : "var(--color-neutral-400)",
+                  color: started ? scoreColour(r.toPar, isStableford) : "var(--color-text-muted)",
                 }}
               >
                 {started ? score : "–"}
@@ -347,7 +347,7 @@ export function PlayerLeaderboard({
                     fontWeight: 700,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    color: "var(--color-accent-400)",
+                    color: "var(--color-accent-200)",
                   }}
                 >
                   Cut line

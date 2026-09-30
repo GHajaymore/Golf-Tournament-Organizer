@@ -248,13 +248,13 @@ export function TeamEntryClient({
                         <tr className="sc-ref">
                           <td>Shots</td>
                           {front.map((i) => (
-                            <td key={i} style={{ color: "var(--color-accent-400)", fontWeight: 700 }}>
+                            <td key={i} style={{ color: "var(--color-accent-200)", fontWeight: 700 }}>
                               {c.shots?.[i] ? "•".repeat(c.shots[i]) : ""}
                             </td>
                           ))}
                           {isEighteen && <td className="sc-tot">{totalOf(c.shots ?? [], 0, 9)}</td>}
                           {back.map((i) => (
-                            <td key={i} style={{ color: "var(--color-accent-400)", fontWeight: 700 }}>
+                            <td key={i} style={{ color: "var(--color-accent-200)", fontWeight: 700 }}>
                               {c.shots?.[i] ? "•".repeat(c.shots[i]) : ""}
                             </td>
                           ))}

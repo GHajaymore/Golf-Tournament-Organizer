@@ -39,8 +39,9 @@ import { useFormatting } from "./CurrencyProvider";
  */
 export const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
   in: {
-    background: "var(--color-accent-2)",
-    borderColor: "var(--color-accent-2)",
+    // Step 300: a fill that carries a label reads 7:1 on it (themes.test).
+    background: "var(--color-accent-2-300)",
+    borderColor: "var(--color-accent-2-300)",
     // The token the theme resolves against whichever ground is in force; a
     // literal here would be legible on one of the two and not the other.
     color: "var(--color-on-accent)",

@@ -122,7 +122,7 @@ export function MatchTiebreakControl({
                   fontVariantNumeric: "tabular-nums",
                   fontWeight: 700,
                   fontSize: 11,
-                  color: "var(--color-accent-300)",
+                  color: "var(--color-accent-200)",
                   width: 14,
                 }}
               >
@@ -189,7 +189,7 @@ export function MatchTiebreakControl({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500 }}>
-                  <Icon name="plus" style={{ fontSize: 11, color: "var(--color-accent-400)" }} />
+                  <Icon name="plus" style={{ fontSize: 11, color: "var(--color-accent-200)" }} />
                   {MATCH_TIEBREAK_LABELS[key]}
                 </div>
                 {/* The blurb was a `title`, so what "countback" actually does

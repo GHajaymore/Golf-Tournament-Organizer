@@ -206,7 +206,7 @@ export function EventSwitcher({
                               "Delete tournament" buttons to anyone reading by
                               name, and a "Confirm delete" that destroys a
                               tournament without saying which. */}
-                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-accent)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
+                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-accent-200)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
                             <Icon name="check" />
                           </button>
                           <button type="button" className="btn btn-icon" title={`Keep ${e.name || "this tournament"}`} aria-label={`Keep ${e.name || "this tournament"}`} onClick={() => setConfirmingId("")}>
@@ -317,7 +317,7 @@ export function EventSwitcher({
                       title={`Delete ${e.name || "this round"} for good`}
                       aria-label={`Delete ${e.name || "this round"} for good`}
                       disabled={pending}
-                      style={{ color: "var(--color-accent)" }}
+                      style={{ color: "var(--color-accent-200)" }}
                       onClick={() => startTransition(() => deleteEvent(e.id))}
                     >
                       <Icon name="check" />

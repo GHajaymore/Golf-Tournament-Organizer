@@ -220,7 +220,7 @@ export function RosterPicker({
                   )}
                   {/* Said BEFORE the tick — see `missingCount` above. */}
                   {c.missing && (
-                    <span style={{ display: "block", fontSize: 11, color: "var(--color-accent-300)" }}>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--color-accent-200)" }}>
                       {c.missing === "mobile" ? "Needs a mobile number" : "Needs an email address"}
                     </span>
                   )}
@@ -264,7 +264,7 @@ export function RosterPicker({
           {/* The mark follows the sentence. See `entered` above for the run
               this was written for. */}
           {entered ? (
-            <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} />
+            <Icon name="check-circle" style={{ color: "var(--color-accent-2-200)" }} />
           ) : (
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />
           )}{" "}

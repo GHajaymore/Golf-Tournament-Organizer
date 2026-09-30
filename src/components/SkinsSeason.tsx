@@ -67,7 +67,7 @@ export function SkinsSeason({ rows }: { rows: SkinsSeasonRowView[] }) {
                       r.netCents < 0
                         ? "var(--color-danger)"
                         : r.netCents > 0
-                          ? "var(--color-accent-2)"
+                          ? "var(--color-accent-2-200)"
                           : "inherit",
                   }}
                 >

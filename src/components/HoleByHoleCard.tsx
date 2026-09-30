@@ -414,7 +414,7 @@ export function HoleByHoleCard({
                       {shots > 0 && (
                         <span
                           title={`${shots} handicap ${shots === 1 ? "stroke" : "strokes"} on this hole`}
-                          style={{ marginLeft: 5, color: "var(--color-accent-400)", fontWeight: 700 }}
+                          style={{ marginLeft: 5, color: "var(--color-accent-200)", fontWeight: 700 }}
                         >
                           {"•".repeat(shots)}
                         </span>
@@ -518,7 +518,7 @@ function SoloPad({
   return (
     <>
       {shots > 0 && (
-        <p style={{ margin: "10px 0 0", fontSize: 12.5, color: "var(--color-accent-400)", fontWeight: 600 }}>
+        <p style={{ margin: "10px 0 0", fontSize: 12.5, color: "var(--color-accent-200)", fontWeight: 600 }}>
           {"•".repeat(shots)} {shots === 1 ? "1 shot" : `${shots} shots`} on this hole
         </p>
       )}

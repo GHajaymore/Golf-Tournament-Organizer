@@ -273,9 +273,11 @@ export const DARK_GROUND: Ground = {
   // Step 500 #9397ab → #aaaec2 on the same day: 5.48:1 on a card, now 7.20
   // (8.09 on the page). Still between 400 and 600, so the ramp stays ordered.
   neutrals: ["#f3f5fe", "#e4e7f5", "#cfd3e5", "#b2b6ca", "#aaaec2", "#75798c", "#595d6c", "#3f424d", "#292b31"],
-  danger: "#e0665a",
+  // Lifted 2026-09-30 to read crisp (7:1+ on page, card and its own tint):
+  // #e0665a was 4.69 on a card, #e8a33c 5.4 on a tinted badge.
+  danger: "#f19a91",
   dangerBg: "#2a1512",
-  warning: "#e8a33c",
+  warning: "#f0b75e",
   // Near-black on a light accent: the dark ramp puts step 500 in the upper
   // lightness range, so dark text is what clears the bar there.
   onAccent: "#16181a",
@@ -306,11 +308,13 @@ export const LIGHT_GROUND: Ground = {
   // The dark theme's salmon red only manages about 3:1 on white, so light mode
   // takes a deeper one. Error text is the last thing that should be hard to
   // read.
-  danger: "#b3261e",
+  // Deepened 2026-09-30 (#b3261e was 5.85:1 on the page): 7.44 page, 8.24 card.
+  danger: "#971f19",
   dangerBg: "#fdecea",
   // The dark ground's amber is a mid-tone and reads as a highlighter on paper;
   // the light ground takes a deep ochre, the same move `danger` makes above.
-  warning: "#8a5300",
+  // Deepened 2026-09-30 (#8a5300 was 5.66:1 on the page): 7.73 page, 8.57 card.
+  warning: "#6d4200",
   // Pure white on a light-mode accent, which the ramp keeps dark enough to
   // carry it. An off-white mixed from the page background measured 3.87:1.
   onAccent: "#ffffff",

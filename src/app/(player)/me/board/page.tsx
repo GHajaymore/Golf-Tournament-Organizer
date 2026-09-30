@@ -348,7 +348,7 @@ export default async function PlayBoardPage({
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: 0 }}>Board</h1>
         <Link
           href="/me/rules"
-          style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-300)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
+          style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-200)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
         >
           <Icon name="book-open" /> Rules
         </Link>

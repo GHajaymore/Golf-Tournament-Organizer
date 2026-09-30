@@ -582,7 +582,7 @@ export function RegistrationClient({
         >
           <Icon
             name="warning-circle"
-            style={{ color: "var(--color-accent)", fontSize: 18, marginTop: gaps.lines.length > 1 ? 1 : 0 }}
+            style={{ color: "var(--color-accent-200)", fontSize: 18, marginTop: gaps.lines.length > 1 ? 1 : 0 }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {gaps.lines.map((line) => (
@@ -675,7 +675,7 @@ export function RegistrationClient({
         <Icon name={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
           style={{
             fontSize: 16,
-            color: reg.acceptingEntries ? "var(--color-accent-400)" : "var(--color-danger)",
+            color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
           }}
         />
         <span style={{ fontSize: 12.5, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
@@ -790,7 +790,7 @@ export function RegistrationClient({
       >
         <Icon
           name="link"
-          style={{ fontSize: 16, flex: "none", color: event.registrationOpen ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
+          style={{ fontSize: 16, flex: "none", color: event.registrationOpen ? "var(--color-accent-2-200)" : "var(--color-neutral-500)" }}
         />
         <span style={{ minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Let players sign themselves up</span>
@@ -1038,7 +1038,7 @@ export function RegistrationClient({
           <div className="field"><label htmlFor={`${fid}-name`}>Player name</label><input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
-              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-300)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
+              <label htmlFor={`${fid}-email`}>Email <span style={{ color: "var(--color-accent-200)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
               <input id={`${fid}-email`} className="input" type="email" required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
             {/* SAID LIKE EMAIL IS, WHEN IT IS REQUIRED (2026-09-26). A free club
@@ -1048,7 +1048,7 @@ export function RegistrationClient({
                 beside it already says when it is required; now Phone does too,
                 and Add waits for it the same way. */}
             <div className="field">
-              <label htmlFor={`${fid}-phone`}>Mobile {phoneRequired && <span style={{ color: "var(--color-accent-300)" }}>· required</span>}</label>
+              <label htmlFor={`${fid}-phone`}>Mobile {phoneRequired && <span style={{ color: "var(--color-accent-200)" }}>· required</span>}</label>
               <input id={`${fid}-phone`} className="input" type="tel" required={phoneRequired} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" style={phoneRequired && !phone.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
           </div>
@@ -1143,7 +1143,7 @@ export function RegistrationClient({
                 </p>
               ) : (
                 <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-                  <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} /> Imported {importResult.imported}
+                  <Icon name="check-circle" style={{ color: "var(--color-accent-2-200)" }} /> Imported {importResult.imported}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
                   {importResult.codesTurnedOn && (
@@ -1167,7 +1167,7 @@ export function RegistrationClient({
           {pendingEntries.length > 0 && (
             <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Icon name="hourglass-medium" style={{ color: "var(--color-accent)" }} />
+                <Icon name="hourglass-medium" style={{ color: "var(--color-accent-200)" }} />
                 <span className="card-title" style={{ fontSize: 15 }}>Pending approval ({pendingEntries.length})</span>
               </div>
               <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>

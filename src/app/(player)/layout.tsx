@@ -195,7 +195,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
                   minWidth: 17,
                   height: 17,
                   borderRadius: 999,
-                  background: "var(--color-accent)",
+                  background: "var(--color-accent-300)",
                   color: "var(--color-on-accent)",
                   fontSize: 10.5,
                   fontWeight: 700,

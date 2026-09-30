@@ -25,7 +25,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
   const { money: fmt } = useMoney();
   const money = (cents: number) => `${cents > 0 ? "+" : ""}${fmt(cents)}`;
   const tone = (cents: number) =>
-    cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
+    cents > 0 ? "var(--color-accent-2-200)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 
   const played = view.rounds.filter((r) => r.final);
   /**

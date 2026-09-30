@@ -69,8 +69,8 @@ function SunBadge({
    * subject is legibility.
    *
    * `ground.text` and `ground.warning` are the right values because both are
-   * measured against their own ground — the warning amber is 7.35:1 on dark
-   * and 6.28:1 on light — so neither can be illegible whichever one is passed.
+   * measured against their own ground — the warning amber is 7:1 or better on
+   * both (themes.test) — so neither can be illegible whichever one is passed.
    *
    * Omitted for the ready-made scheme cards, which are ordinary page cards on
    * the page's surface and correctly take the page's tokens.
@@ -81,7 +81,7 @@ function SunBadge({
   const good = grade === "good";
   // Attention goes to DIM, which is the actionable state; "good" is a quiet
   // confirmation and does not need a colour of its own to shout with.
-  const fg = ground ? (good ? ground.text : ground.warning) : good ? "var(--color-accent-2)" : "var(--color-warning)";
+  const fg = ground ? (good ? ground.text : ground.warning) : good ? "var(--color-accent-2-200)" : "var(--color-warning)";
   // Works for both a literal hex and a `var(--…)`, so one expression covers
   // the swatch case and the page case.
   const tint = (pct: number) => `color-mix(in srgb, ${fg} ${pct}%, transparent)`;
@@ -494,7 +494,7 @@ export function ThemePicker({
                         borderRadius: 999,
                         whiteSpace: "nowrap",
                         color: "var(--color-on-accent)",
-                        background: "var(--color-accent)",
+                        background: "var(--color-accent-300)",
                       }}
                     >
                       <Icon name="ph-bold ph-star" style={{ fontSize: 11 }} aria-hidden />
@@ -773,13 +773,13 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
                 background: r.advancing ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)" : "transparent",
               }}
             >
-              <span style={{ color: "var(--color-accent-300)", fontWeight: 600, width: 16 }}>{r.pos}</span>
+              <span style={{ color: "var(--color-accent-200)", fontWeight: 600, width: 16 }}>{r.pos}</span>
               <span style={{ flex: 1 }}>{r.name}</span>
               <span
                 style={{
                   fontVariantNumeric: "tabular-nums",
                   fontWeight: 600,
-                  color: r.advancing ? "var(--color-accent-2-400)" : "var(--color-text)",
+                  color: r.advancing ? "var(--color-accent-2-200)" : "var(--color-text)",
                 }}
               >
                 {r.score}
@@ -795,7 +795,7 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
           <span
             style={{
               border: "1px solid var(--color-accent)",
-              color: "var(--color-accent)",
+              color: "var(--color-accent-200)",
               borderRadius: 8,
               padding: "6px 12px",
               fontSize: 13,

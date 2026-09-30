@@ -220,7 +220,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
           <tbody>
             {SAMPLE.map((r) => (
               <tr key={r.pos}>
-                <td style={{ color: "var(--color-accent-300)", fontWeight: 600 }}>{r.pos}</td>
+                <td style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>{r.pos}</td>
                 <td>{r.name}</td>
                 <td style={{ textAlign: "right" }}>{r.hcp}</td>
                 <td style={{ textAlign: "right" }}>{r.thru}</td>

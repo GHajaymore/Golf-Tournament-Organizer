@@ -19,7 +19,7 @@
   /* 80%, as DARK_GROUND.mutedWeight — crisp, not grey (2026-09-30). */
   --color-text-muted: color-mix(in srgb, #e9e9ed 80%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #232532);
-  --color-warning: #e8a33c;
+  --color-warning: #f0b75e;
   --color-on-accent: #16181a;
 
   /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
@@ -553,7 +553,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   font-size: 18px; margin-right: auto;
 }
 .nav a { color: inherit; text-decoration: none; font-size: 14px; }
-.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent-200); }
 
 /* — tables — */
 /* Tables are where this app is actually read — a leaderboard is the product.
@@ -901,7 +901,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   font-size: 13px;
   font-weight: 600;
 }
-.mode-opt[aria-pressed="true"] .mode-opt-head { color: var(--color-accent); }
+.mode-opt[aria-pressed="true"] .mode-opt-head { color: var(--color-accent-200); }
 
 .mode-opt-blurb {
   font-size: 11.5px;
@@ -968,7 +968,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 .field-info-btn:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
-.field-info-btn[aria-expanded="true"] { color: var(--color-accent); }
+.field-info-btn[aria-expanded="true"] { color: var(--color-accent-200); }
 
 .field-info-panel {
   position: absolute; z-index: 40; top: calc(100% + 6px); left: 50%;

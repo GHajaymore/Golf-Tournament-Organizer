@@ -931,7 +931,7 @@ export default async function DashboardPage() {
                   textAlign: "center",
                 }}
               >
-                <Icon name={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
+                <Icon name={a.icon} style={{ fontSize: 20, color: "var(--color-accent-200)" }} />
                 {/* The sidebar renames three of these on a casual round; this tile
                     has to agree with it or the reader hunts for a screen that is
                     not in the list. */}
@@ -1245,7 +1245,7 @@ export default async function DashboardPage() {
                   {isStaff && (
                     <>
                       {" · "}
-                      <Link href="/entry" style={{ color: "var(--color-accent)" }}>accept on {screenName("/entry")}</Link>
+                      <Link href="/entry" style={{ color: "var(--color-accent-200)" }}>accept on {screenName("/entry")}</Link>
                     </>
                   )}
                 </div>
@@ -1270,7 +1270,7 @@ export default async function DashboardPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
+                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />Winners</span>
                   {/* `plural`, because this card printed "1 matches" on the
                       demo tournament's consolation bracket — read off the
                       rendered screen on 2026-09-14. The stat card at the top
@@ -1280,7 +1280,7 @@ export default async function DashboardPage() {
                   <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="medal" style={{ color: "var(--color-accent)", marginRight: 6 }} />Consolation</span>
+                  <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />Consolation</span>
                   <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
               </div>

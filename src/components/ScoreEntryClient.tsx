@@ -127,8 +127,8 @@ export function defaultEntryMode(
  * so the association is learned once.
  */
 function holeMark(r: HoleResult, aLabel: string, bLabel: string): React.ReactNode {
-  if (r === "A") return <span style={{ color: "var(--color-accent)" }}>{aLabel}</span>;
-  if (r === "B") return <span style={{ color: "var(--color-accent-2)" }}>{bLabel}</span>;
+  if (r === "A") return <span style={{ color: "var(--color-accent-200)" }}>{aLabel}</span>;
+  if (r === "B") return <span style={{ color: "var(--color-accent-2-200)" }}>{bLabel}</span>;
   if (r === "H") return <span className="text-muted">½</span>;
   return null;
 }
@@ -1211,7 +1211,7 @@ export function ScoreEntryClient({
                 style={{
                   fontFamily: "var(--font-heading)",
                   fontSize: 22,
-                  color: resolution.complete ? "var(--color-accent-2-300)" : "var(--color-accent-200)",
+                  color: resolution.complete ? "var(--color-accent-2-200)" : "var(--color-accent-200)",
                 }}
               >
                 {statusBig}
@@ -1234,7 +1234,7 @@ export function ScoreEntryClient({
                       saveState === "failed"
                         ? "var(--color-danger)"
                         : saveState === "saved"
-                          ? "var(--color-accent-2)"
+                          ? "var(--color-accent-2-200)"
                           : "var(--color-neutral-500)",
                   }}
                 >
@@ -1465,7 +1465,7 @@ export function ScoreEntryClient({
                       type="button"
                       className="btn btn-secondary"
                       onClick={toggleListenHoles}
-                      style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                      style={listening === "holes" ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : undefined}
                     >
                       <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
                       {listening === "holes" ? "Listening…" : "Voice entry"}
@@ -1589,7 +1589,7 @@ export function ScoreEntryClient({
                     className="btn btn-icon"
                     onClick={toggleListenResult}
                     title="Dictate result"
-                    style={listening === "result" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                    style={listening === "result" ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : undefined}
                   >
                     <Icon name={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
                   </button>
@@ -1723,7 +1723,7 @@ export function ScoreEntryClient({
                               className="btn btn-secondary"
                               onClick={() => toggleListenStrokes(slot)}
                               title={`Dictate ${label}'s scores`}
-                              style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
+                              style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : {}) }}
                             >
                               <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
                               {listening === `hcp-${slot}` ? "Listening…" : "Voice"}
@@ -1805,7 +1805,7 @@ export function ScoreEntryClient({
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                <Icon name="seal-check" style={{ color: "var(--color-accent)" }} />
+                <Icon name="seal-check" style={{ color: "var(--color-accent-200)" }} />
                 <span className={`tag ${CONFIRM_META[activeStatus]?.tag ?? "tag-neutral"}`}>
                   {CONFIRM_META[activeStatus]?.label ?? activeStatus}
                 </span>

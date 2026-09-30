@@ -140,7 +140,7 @@ export function RegisterClient({
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
         <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
-          style={{ fontSize: 34, color: good ? "var(--color-accent-2-300)" : "var(--color-accent)" }}
+          style={{ fontSize: 34, color: good ? "var(--color-accent-2-200)" : "var(--color-accent-200)" }}
         />
         <h2 style={{ fontSize: 20, margin: 0, fontFamily: "var(--font-heading)" }}>{heading}</h2>
         <p className="text-muted" style={{ fontSize: 13.5, margin: 0, maxWidth: 340 }}>{detail}</p>
@@ -161,7 +161,7 @@ export function RegisterClient({
         style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}
       >
         <Icon name={waitlistOnly ? "ph ph-hourglass-medium" : "ph ph-door-open"}
-          style={{ fontSize: 18, color: waitlistOnly ? "var(--color-accent)" : "var(--color-accent-400)" }}
+          style={{ fontSize: 18, color: waitlistOnly ? "var(--color-accent-200)" : "var(--color-accent-200)" }}
         />
         <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
           {waitlistOnly ? (

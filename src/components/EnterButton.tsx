@@ -101,7 +101,7 @@ export function EnterButton({
       {error && (
         <span className="text-muted" style={{ fontSize: 12.5 }}>
           {error}{" "}
-          <Link href={href} style={{ color: "var(--color-accent-300)", fontWeight: 600 }}>
+          <Link href={href} style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>
             Use the entry form
           </Link>
         </span>
