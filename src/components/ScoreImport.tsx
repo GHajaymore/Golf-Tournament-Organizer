@@ -276,7 +276,7 @@ ${active.sampleRow}`}
       )}
       {result && (
         <div style={{ fontSize: 12.5 }}>
-          <p style={{ margin: 0, color: "var(--color-accent-2-400)" }}>
+          <p style={{ margin: 0, color: "var(--color-accent-2-200)" }}>
             <Icon name="check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}. They
             sit as pending until approved, the same as a typed card.
           </p>

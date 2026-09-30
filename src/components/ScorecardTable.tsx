@@ -125,7 +125,7 @@ export function ScoreCell({
           position: "absolute",
           top: 1,
           right: 3,
-          color: "var(--color-accent)",
+          color: "var(--color-accent-200)",
           fontSize: 11,
           lineHeight: 1,
           letterSpacing: -1,

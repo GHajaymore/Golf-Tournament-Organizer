@@ -191,7 +191,7 @@ export function CourseSetupPrompt({
         automatically, and the card below fills in. Open it to check.
       </p>
       {pasteSummaryText && (
-        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
+        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {pasteSummaryText}
         </p>
       )}
@@ -209,9 +209,18 @@ export function CourseSetupPrompt({
       <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 14px" }}>
         {blocking ? (
           <>
-            {"“"}{eventCourse || "This event"}{"”"} isn&rsquo;t one of the built-in courses, so there&rsquo;s no real par,
-            yardage, or handicap data for it yet — scoring (net, Stableford, tiebreakers) needs that before you can
-            enter results. Paste the card off the course&rsquo;s website, or fill it in by hand below.
+            {eventCourse ? (
+              <>
+                {"“"}{eventCourse}{"”"} isn&rsquo;t one of the built-in courses, so there&rsquo;s no real par,
+                yardage, or handicap data for it yet
+              </>
+            ) : (
+              // No course named at all. It said "“This event” isn't one of the
+              // built-in courses", quoting a placeholder as if it were a name.
+              <>No course has been set yet, so there&rsquo;s no par, yardage, or handicap data to score against</>
+            )}{" "}
+            — scoring (net, Stableford, tiebreakers) needs that before you can enter results. Find the course
+            below, paste its card off the course&rsquo;s website, or fill it in by hand.
           </>
         ) : (
           <>

@@ -730,7 +730,7 @@ export function MoneyClient({
             fontSize: 44,
             lineHeight: 1.1,
             fontVariantNumeric: "tabular-nums",
-            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-300)" : "var(--color-text)",
+            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-200)" : "var(--color-text)",
           }}
         >
           {money(Math.abs(view.netCents))}
@@ -794,7 +794,7 @@ export function MoneyClient({
                   style={{
                     fontVariantNumeric: "tabular-nums",
                     fontWeight: 600,
-                    color: c.yourCents > 0 ? "var(--color-accent-2-300)" : "var(--color-text)",
+                    color: c.yourCents > 0 ? "var(--color-accent-2-200)" : "var(--color-text)",
                   }}
                 >
                   {money(c.yourCents)}
@@ -971,7 +971,7 @@ export function MoneyClient({
                         style={{
                           fontVariantNumeric: "tabular-nums",
                           whiteSpace: "nowrap",
-                          color: l.cents > 0 ? "var(--color-accent-2-300)" : undefined,
+                          color: l.cents > 0 ? "var(--color-accent-2-200)" : undefined,
                         }}
                       >
                         {money(l.cents)}
@@ -985,7 +985,7 @@ export function MoneyClient({
               style={{
                 fontVariantNumeric: "tabular-nums",
                 fontWeight: 600,
-                color: unaccounted > 0 ? "var(--color-accent-2-300)" : "var(--color-text)",
+                color: unaccounted > 0 ? "var(--color-accent-2-200)" : "var(--color-text)",
               }}
             >
               {money(unaccounted)}
@@ -1366,7 +1366,7 @@ function ShareField({
             // The text step for the letters, step 500 for the ring above: 10px
             // initials in step 500 read 4.02:1 for the heather palette.
             color: c.payer
-              ? "var(--color-accent-300)"
+              ? "var(--color-accent-200)"
               : c.state === "off"
                 ? "var(--color-text-muted)"
                 : "var(--color-text)",

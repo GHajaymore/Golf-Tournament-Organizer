@@ -39,7 +39,7 @@ export function AnnouncementList({ items }: { items: AnnouncementItem[] }) {
           style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Icon name="megaphone" style={{ color: "var(--color-accent-300)" }} />
+            <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
             {a.pinned && (
               <span className="tag tag-accent">
                 <Icon name="push-pin" /> Pinned

@@ -76,6 +76,8 @@ describe("a casual round cannot be grown into a tournament", () => {
     as(casualId);
     const r = await addStage("Stroke Play Round", { format: "Stroke Play" });
     expect(r.error).toMatch(/casual round is one round/);
+    // And where to go instead: "there is always a free tier" (Ajay, 2026-09-30).
+    expect(r.error).toMatch(/free on Par/);
     expect(await prisma.stage.count({ where: { eventId: casualId } })).toBe(1);
   });
 
@@ -85,6 +87,7 @@ describe("a casual round cannot be grown into a tournament", () => {
     const one = await addSignup({ name: `${TAG} Ninth`, handicap: 10 });
     expect(one.ok).toBe(false);
     expect(one.error).toMatch(/up to 8 players/);
+    expect(one.error).toMatch(/free on Par/);
     const file = await importCsvSignups(`name,handicap\n${TAG} Tenth,12\n`);
     expect(file.error).toMatch(/up to 8 players/);
     expect(await prisma.player.count({ where: { eventId: casualId } })).toBe(8);

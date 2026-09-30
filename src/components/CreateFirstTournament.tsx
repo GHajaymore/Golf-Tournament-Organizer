@@ -693,7 +693,7 @@ export function CreateFirstTournament({
           "why can I not press that" and it is read after the press. */}
       {!pending && elsewhere.length > 0 && (
         <div style={{ fontSize: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-          <Icon name="warning-circle" style={{ color: "var(--color-accent)" }} />
+          <Icon name="warning-circle" style={{ color: "var(--color-accent-200)" }} />
           <span className="text-muted">
             Set up your {outfit.noun} first — it is answered once, and every tournament you run is built on
             it:

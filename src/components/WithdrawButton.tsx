@@ -90,7 +90,7 @@ export function WithdrawButton({
           padding: 0,
           background: "none",
           border: "none",
-          color: "var(--color-accent-300)",
+          color: "var(--color-accent-200)",
           cursor: "pointer",
           textDecoration: "underline",
         }}

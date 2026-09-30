@@ -221,7 +221,7 @@ export function CardImport({
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 30%, transparent)",
           }}
         >
-          <Icon name="check-circle" style={{ fontSize: 15, color: "var(--color-accent-2-400)" }} />
+          <Icon name="check-circle" style={{ fontSize: 15, color: "var(--color-accent-2-200)" }} />
           <span>
             Reads as <strong>par {card.totals.par}</strong>
             {holes === 18 && <> — out {card.totals.outPar}, in {card.totals.inPar}</>}
@@ -236,7 +236,7 @@ export function CardImport({
         </p>
       )}
       {saved && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-400)" }}>
+        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> Added, and marked unverified until someone checks it against the
           real card.
         </p>

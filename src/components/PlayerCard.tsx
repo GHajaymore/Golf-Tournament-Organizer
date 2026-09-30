@@ -945,7 +945,7 @@ export function PlayerCard({
                 card.status.tone === "warn"
                   ? "var(--color-danger)"
                   : card.status.tone === "idle"
-                    ? "var(--color-accent-2-300)"
+                    ? "var(--color-accent-2-200)"
                     : "var(--color-neutral-400)",
             }}
           >
@@ -1028,7 +1028,7 @@ export function PlayerCard({
             <RuleCite rule="scorecardCertification" />
           </p>
           {note && (
-            <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-accent-2-300)" }}>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-accent-2-200)" }}>
               <Icon name="check" /> {note}
             </p>
           )}
@@ -1067,7 +1067,7 @@ function Stat({
           fontSize: 21,
           lineHeight: 1.1,
           fontVariantNumeric: "tabular-nums",
-          color: tone === "good" ? "var(--color-accent-2-300)" : "var(--color-text)",
+          color: tone === "good" ? "var(--color-accent-2-200)" : "var(--color-text)",
         }}
       >
         {value}

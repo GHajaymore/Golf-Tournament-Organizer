@@ -338,7 +338,7 @@ export function TournamentJourney({
                                 ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent)"
                                 : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
                             color: done
-                              ? "var(--color-accent-2-300)"
+                              ? "var(--color-accent-2-200)"
                               : isNext
                                 ? "var(--color-accent-200)"
                                 : state === "todo"

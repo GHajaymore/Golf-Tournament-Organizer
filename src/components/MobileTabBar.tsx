@@ -130,7 +130,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-accent-800)", color: "var(--color-accent-100)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-accent-900)", color: "var(--color-accent-100)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600 }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>

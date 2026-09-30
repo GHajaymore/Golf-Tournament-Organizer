@@ -374,7 +374,7 @@ export default async function LeaderboardPage({
         >
           <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
             <b>Nothing here can be ranked.</b> {mismatch.message}{" "}
-            <Link href="/event" style={{ color: "var(--color-accent)" }}>
+            <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Tournament details
             </Link>
           </p>

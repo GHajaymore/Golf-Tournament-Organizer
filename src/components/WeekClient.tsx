@@ -155,7 +155,7 @@ function Movement({ change, isNew }: { change: number; isNew: boolean }) {
         whiteSpace: "nowrap",
         // Semantic, not the brand accent: this is good/bad news, and it has to
         // read as that on both grounds.
-        color: up ? "var(--color-accent-2)" : "var(--color-danger)",
+        color: up ? "var(--color-accent-2-200)" : "var(--color-danger)",
       }}
       aria-label={`${up ? "up" : "down"} ${Math.abs(change)} place${Math.abs(change) === 1 ? "" : "s"}`}
     >

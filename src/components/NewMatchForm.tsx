@@ -12,6 +12,7 @@ import {
   QUICK_MONEY_GAMES,
   STAKE_NOTE_MAX,
 } from "@/lib/domain/quick-match";
+import { PLANS } from "@/lib/plans";
 import { entryModesFor } from "@/lib/domain/match-entry";
 import { sharedBallRound } from "@/lib/domain/shared-ball";
 import { Icon } from "./Icon";
@@ -710,7 +711,7 @@ export function NewMatchForm({
           <p className="text-muted" style={{ fontSize: 11.5, margin: 0 }}>
             {exact
               ? `${chosen?.name} is ${headToHeadPhrase(sideSize)} — ${exact} players. Pick another round type for a bigger group.`
-              : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament.`}
+              : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament (free on ${PLANS.free.name}).`}
           </p>
         )}
       </div>

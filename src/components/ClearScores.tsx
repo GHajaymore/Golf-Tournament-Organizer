@@ -137,7 +137,7 @@ export function ClearScores({
         </p>
       )}
       {done !== null && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-400)" }}>
+        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> Cleared {done} card{done === 1 ? "" : "s"}.
         </p>
       )}

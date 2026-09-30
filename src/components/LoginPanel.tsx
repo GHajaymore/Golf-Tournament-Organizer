@@ -223,7 +223,7 @@ export function LoginPanel({
             display: "grid",
             placeItems: "center",
             background: "color-mix(in srgb, var(--color-accent-2) 15%, transparent)",
-            color: "var(--color-accent-2-300)",
+            color: "var(--color-accent-2-200)",
           }}
         >
           <Icon name="envelope-simple" style={{ fontSize: 18 }} />
@@ -353,7 +353,7 @@ export function LoginPanel({
               fontSize: 13,
               fontWeight: mode === m ? 600 : 500,
               fontFamily: "var(--font-heading)",
-              color: mode === m ? "var(--color-text)" : "color-mix(in srgb, var(--color-text) 58%, transparent)",
+              color: mode === m ? "var(--color-text)" : "var(--color-text-muted)",
               background: mode === m ? "var(--color-surface)" : "transparent",
               boxShadow:
                 mode === m
@@ -442,7 +442,7 @@ export function LoginPanel({
                   border: "none",
                   cursor: "pointer",
                   fontSize: 11.5,
-                  color: "var(--color-accent-400)",
+                  color: "var(--color-accent-200)",
                   // A 44px target around 12px of text: the negative margin
                   // gives the space back so the label row does not grow. It
                   // was a 40x12 button.
@@ -558,7 +558,7 @@ export function LoginPanel({
           fontSize: 13,
           fontWeight: 500,
           textDecoration: "none",
-          color: "var(--color-accent-300)",
+          color: "var(--color-accent-200)",
           background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
           boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent)",
         }}
@@ -593,7 +593,7 @@ function Field({
           fontSize: 12,
           fontWeight: 500,
           marginBottom: 6,
-          color: "color-mix(in srgb, var(--color-text) 72%, transparent)",
+          color: "var(--color-text-muted)",
         }}
       >
         {label}
@@ -661,7 +661,7 @@ function PasswordInput({
           border: "none",
           borderRadius: 7,
           cursor: "pointer",
-          color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+          color: "var(--color-text-muted)",
         }}
       >
         <Icon name={shown ? "ph ph-eye-slash" : "ph ph-eye"} style={{ fontSize: 15 }} />
@@ -681,7 +681,7 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
         padding: "0 8px",
         minHeight: 44,
         cursor: "pointer",
-        color: "color-mix(in srgb, var(--color-text) 58%, transparent)",
+        color: "var(--color-text-muted)",
         fontSize: 12.5,
         display: "flex",
         alignItems: "center",

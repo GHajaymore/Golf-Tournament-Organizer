@@ -47,7 +47,7 @@ type StatusFilter ="all" | "open" | "entered" | "soon" | "now" | "finished";
  * accent with the label colour solved to read on it.
  */
 const BAND_STYLE: Record<EventBand, { background: string; color: string }> = {
-  entered: { background: "var(--color-accent)", color: "var(--color-on-accent)" },
+  entered: { background: "var(--color-accent-300)", color: "var(--color-on-accent)" },
   /**
    * The member's own standing, like `entered`, but not yet a place — so it is
    * drawn as a tint of the accent rather than the filled accent. Loud enough to
@@ -56,11 +56,11 @@ const BAND_STYLE: Record<EventBand, { background: string; color: string }> = {
    */
   waiting: {
     background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
-    color: "var(--color-accent-300)",
+    color: "var(--color-accent-200)",
   },
-  open: { background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent-300)" },
+  open: { background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent-200)" },
   soon: { background: "color-mix(in srgb, var(--color-warning) 14%, transparent)", color: "var(--color-warning)" },
-  live: { background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)", color: "var(--color-accent-2-300)" },
+  live: { background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)", color: "var(--color-accent-2-200)" },
   finished: { background: "var(--color-surface-2)", color: "var(--color-text-muted)" },
   closed: { background: "var(--color-surface-2)", color: "var(--color-text-muted)" },
 };

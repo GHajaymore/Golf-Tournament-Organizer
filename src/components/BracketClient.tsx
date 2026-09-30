@@ -38,7 +38,7 @@ export function BracketBoard({
           width: "100%",
           padding: "9px 11px",
           border: "none",
-          background: isWinner ? "var(--color-accent-800)" : "transparent",
+          background: isWinner ? "var(--color-accent-900)" : "transparent",
           color: isWinner ? "var(--color-accent-100)" : "var(--color-text)",
           cursor: clickable ? "pointer" : "default",
           fontSize: 13,
@@ -87,7 +87,7 @@ export function BracketBoard({
         ))}
         <div style={{ flex: "none", width: 150, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
-          <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent)" }} />
+          <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent-200)" }} />
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
         </div>
       </div>

@@ -119,14 +119,14 @@ export function PushToggle() {
   if (state === "on") {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--color-text-muted)" }}>
-        <Icon name="megaphone" style={{ color: "var(--color-accent-300)" }} />
+        <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
         <span>Tee-time alerts are on.</span>
         <button
           type="button"
           onClick={disable}
           disabled={busy}
           className="btn-link"
-          style={{ fontSize: 12.5, padding: 0, background: "none", border: "none", color: "var(--color-accent-300)", cursor: "pointer", textDecoration: "underline" }}
+          style={{ fontSize: 12.5, padding: 0, background: "none", border: "none", color: "var(--color-accent-200)", cursor: "pointer", textDecoration: "underline" }}
         >
           {busy ? "…" : "Turn off"}
         </button>
@@ -136,7 +136,7 @@ export function PushToggle() {
 
   return (
     <div className="card elev-sm" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <Icon name="megaphone" style={{ color: "var(--color-accent-300)", fontSize: 20, flex: "none" }} />
+      <Icon name="megaphone" style={{ color: "var(--color-accent-200)", fontSize: 20, flex: "none" }} />
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
         <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.4 }}>

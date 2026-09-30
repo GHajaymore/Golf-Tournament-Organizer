@@ -198,7 +198,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
               width: 32,
               height: 32,
               borderRadius: "50%",
-              background: "var(--color-accent-800)",
+              background: "var(--color-accent-900)",
               color: "var(--color-accent-100)",
               display: "grid",
               placeItems: "center",

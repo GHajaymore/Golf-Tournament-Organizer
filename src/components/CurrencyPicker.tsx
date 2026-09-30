@@ -103,7 +103,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
         </p>
       )}
       {saved && !error && (
-        <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-accent-2-300)" }}>
+        <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-accent-2-200)" }}>
           Saved.
         </p>
       )}

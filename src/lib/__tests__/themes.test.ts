@@ -400,6 +400,69 @@ describe("the light ground", () => {
     }
   });
 
+  /**
+   * SECONDARY TEXT READS CRISP ON EITHER GROUND (Ajay, 2026-09-30).
+   *
+   * First the light ground — "if we are using lighter cream background why are
+   * we using gray text vs using black or darker font color?" — then, as a
+   * standing rule: "whatever the background color is the text/font colors
+   * match to look as crisper and sharp". So 7:1 on the page AND the card, for
+   * muted text (read from the token that ships) and the neutral-400/500
+   * labels, on both grounds — the same bar as SUNLIGHT_RATIO, and no longer
+   * the 4.5 floor that let both read grey.
+   */
+  /**
+   * AND THE ACCENT'S OWN WORDS, which "I still see inconsistency" was about:
+   * kickers, links and selected options in accent-300/400 read 5.5–6.7:1 on
+   * light, pale beside near-black. Accent TEXT is step 200, and a FILL that
+   * carries a label (the primary button, the match picker) is step 300 —
+   * measured over every accent AND secondary preset on both grounds.
+   */
+  for (const g of [LIGHT_GROUND, DARK_GROUND]) {
+    it(`accent text and labelled fills read crisp on the ${g.key} ground, every preset`, () => {
+      for (const p of [...THEME_PRESETS, ...SECONDARY_PRESETS]) {
+        const s = themeScale(p, g);
+        for (const bg of [g.bg, g.surface]) {
+          expect(contrastRatio(s[200], bg), `${p.key} accent-200 text on ${bg}`).toBeGreaterThanOrEqual(7);
+        }
+        expect(contrastRatio(g.onAccent, s[300]), `${p.key} label on its accent-300 fill`).toBeGreaterThanOrEqual(7);
+        // The initials chip and the bracket winner: step 100 on a 900 tint.
+        expect(contrastRatio(s[100], s[900]), `${p.key} accent-100 on its 900 tint`).toBeGreaterThanOrEqual(7);
+      }
+    });
+  }
+
+  /**
+   * AND THE WORDS THAT WARN. An error, a withdrawn player or an overdue card is
+   * the text a player most needs to read, and red (4.69:1 on a dark card) and
+   * amber (5.4 on its tinted badge) were the weakest words on the screen. Both
+   * read 7:1 on the page, the card and the danger tint they sit on.
+   */
+  for (const g of [LIGHT_GROUND, DARK_GROUND]) {
+    it(`red and amber words read crisp on the ${g.key} ground`, () => {
+      for (const bg of [g.bg, g.surface, g.dangerBg]) {
+        expect(contrastRatio(g.danger, bg), `danger on ${bg}`).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(g.warning, bg), `warning on ${bg}`).toBeGreaterThanOrEqual(7);
+      }
+    });
+  }
+
+  for (const g of [LIGHT_GROUND, DARK_GROUND]) {
+    it(`reads crisp, not grey, for secondary text on the ${g.key} ground`, () => {
+      const token = themeVarsFor(DEFAULT_CLUB_THEME, g)["--color-text-muted"];
+      const weight = parseFloat(token.split(" ").find((w) => w.includes("%"))!) / 100;
+      const over = (bg: string) => {
+        const [a, b] = [g.text, bg].map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
+        return "#" + a.map((v, i) => Math.round(v * weight + b[i] * (1 - weight)).toString(16).padStart(2, "0")).join("");
+      };
+      for (const bg of [g.bg, g.surface]) {
+        expect(contrastRatio(over(bg), bg), `muted text on ${bg}`).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(g.neutrals[3], bg), `neutral-400 on ${bg}`).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(g.neutrals[4], bg), `neutral-500 on ${bg}`).toBeGreaterThanOrEqual(7);
+      }
+    });
+  }
+
   it("resolves a ground from an appearance", () => {
     expect(groundFor("light")).toBe(LIGHT_GROUND);
     expect(groundFor("dark")).toBe(DARK_GROUND);

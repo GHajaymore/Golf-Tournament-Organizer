@@ -60,7 +60,7 @@ export function SetupChecklist({
           <Icon name={it.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
             style={{
               fontSize: 20,
-              color: it.done ? "var(--color-accent-2)" : "var(--color-neutral-500)",
+              color: it.done ? "var(--color-accent-2-200)" : "var(--color-neutral-500)",
               flex: "none",
             }}
           />

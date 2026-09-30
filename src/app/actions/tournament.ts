@@ -84,7 +84,7 @@ import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
-import { phoneRequiredFor, capacityUnderCap } from "@/lib/plans";
+import { phoneRequiredFor, capacityUnderCap, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { roundLabel } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
@@ -412,7 +412,7 @@ async function casualRoundFull(event: { id: string; shape: string }, adding: num
   if (!isMatch(event.shape)) return null;
   const inField = await prisma.player.count({ where: { eventId: event.id, status: { not: "withdrawn" } } });
   if (inField + adding <= QUICK_ROUND_MAX_PLAYERS) return null;
-  return `A casual round is for up to ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, set up a tournament.`;
+  return `A casual round is for up to ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, set up a tournament — it's free on ${PLANS.free.name}.`;
 }
 
 export async function addSignup(input: SignupInput): Promise<SignupResult> {
@@ -2090,7 +2090,7 @@ export async function addStage(
   // is its organizer, so this endpoint accepted them, and a round that never
   // counts as a tournament could be grown into one (2026-09-30).
   if (isMatch(ev?.shape)) {
-    return { error: "A casual round is one round. For more than one, set up a tournament." };
+    return { error: `A casual round is one round. For more than one, set up a tournament — it's free on ${PLANS.free.name}.` };
   }
   const previous = await prisma.stage.findFirst({
     where: { eventId },

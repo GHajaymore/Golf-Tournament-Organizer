@@ -187,7 +187,7 @@ export default async function PublicLeaderboardPage({
               fontWeight: 700,
               letterSpacing: "0.09em",
               textTransform: "uppercase",
-              color: "var(--color-accent-400)",
+              color: "var(--color-accent-200)",
             }}
           >
             <span

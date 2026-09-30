@@ -42,7 +42,7 @@ function RuleLink({ rule }: { rule: RuleRef }) {
       }}
     >
       <span style={{ fontSize: 14 }}>
-        <span style={{ color: "var(--color-accent-300)", marginRight: 6 }}>{rule.number}</span>
+        <span style={{ color: "var(--color-accent-200)", marginRight: 6 }}>{rule.number}</span>
         {rule.title}
       </span>
       <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />

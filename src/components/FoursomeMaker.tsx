@@ -360,7 +360,7 @@ export function FoursomeMaker({
             border: "1px dashed var(--color-divider)",
           }}
         >
-          <Icon name="shuffle" style={{ fontSize: 16, color: "var(--color-accent)", flex: "none" }} />
+          <Icon name="shuffle" style={{ fontSize: 16, color: "var(--color-accent-200)", flex: "none" }} />
           <span style={{ minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Re-draw this sheet</span>
             <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
@@ -423,7 +423,7 @@ export function FoursomeMaker({
                   className="btn"
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                    color: on ? "var(--color-accent-300)" : "var(--color-text)",
+                    color: on ? "var(--color-accent-200)" : "var(--color-text)",
                     opacity: off ? 0.45 : 1,
                   }}
                 >
@@ -466,7 +466,7 @@ export function FoursomeMaker({
                   className="btn"
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
-                    color: on ? "var(--color-accent-300)" : "var(--color-text)",
+                    color: on ? "var(--color-accent-200)" : "var(--color-text)",
                     opacity: off ? 0.45 : 1,
                   }}
                 >
@@ -657,7 +657,7 @@ export function FoursomeMaker({
               {saveBlock.href && (
                 <>
                   {" "}
-                  <a href={saveBlock.href} style={{ color: "var(--color-accent-300)" }}>
+                  <a href={saveBlock.href} style={{ color: "var(--color-accent-200)" }}>
                     {saveBlock.linkLabel}
                   </a>
                 </>

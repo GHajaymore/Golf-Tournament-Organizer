@@ -116,7 +116,7 @@ export function ClubHandicapPanel({
                 <span className="text-muted" style={{ fontSize: 12 }}>
                   Plays off <b>{currentHandicap}</b> today
                 </span>
-                <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent)" }}>
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>
                   {record.suggestion.handicap}
                 </span>
                 <span className="text-muted" style={{ fontSize: 11.5 }}>
@@ -145,7 +145,7 @@ export function ClubHandicapPanel({
               ) : (
                 // Shown, never offered. The association is the authority and the
                 // action refuses this too — hiding a button stops nobody.
-                <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent)", lineHeight: 1.6 }}>
+                <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-200)", lineHeight: 1.6 }}>
                   <Icon name="lock-simple" /> Their handicap comes from their association, so
                   TourneyHQ won&rsquo;t replace it. The record is here to read.
                 </p>
@@ -162,7 +162,7 @@ export function ClubHandicapPanel({
       )}
 
       {note && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-300)" }}>
+        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {note}
         </p>
       )}

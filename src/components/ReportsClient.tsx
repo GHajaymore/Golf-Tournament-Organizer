@@ -267,7 +267,7 @@ export function ReportsClient({
         <span className="card-title" style={{ fontSize: 15 }}>Exports</span>
         {exports.map((e) => (
           <div key={e.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--color-divider)" }}>
-            <Icon name={e.icon} style={{ color: "var(--color-accent)", fontSize: 20, width: 22 }} />
+            <Icon name={e.icon} style={{ color: "var(--color-accent-200)", fontSize: 20, width: 22 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{e.label}</div>
               <div className="text-muted" style={{ fontSize: 12 }}>{e.desc}</div>

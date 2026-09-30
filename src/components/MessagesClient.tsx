@@ -113,7 +113,7 @@ function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
       style={{ gap: 8, marginBottom: 12, borderLeft: "3px solid var(--color-accent)" }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Icon name="info" style={{ color: "var(--color-accent)", fontSize: 18 }} />
+        <Icon name="info" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
         <span className="card-title" style={{ fontSize: 14.5 }}>Before you start</span>
       </div>
       <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
@@ -267,7 +267,7 @@ export function MessagesClient({
           >
             <Icon name="arrow-left" /> Back
           </button>
-          <Icon name={KIND_ICON[view.kind] ?? "ph ph-chat-circle"} style={{ color: "var(--color-accent)" }} />
+          <Icon name={KIND_ICON[view.kind] ?? "ph ph-chat-circle"} style={{ color: "var(--color-accent-200)" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 600 }}>{view.title}</div>
             {/* The second line says what kind of audience this is — "Flight A"
@@ -292,7 +292,7 @@ export function MessagesClient({
               style={{
                 alignSelf: m.mine ? "flex-end" : "flex-start",
                 maxWidth: "78%",
-                background: m.mine ? "var(--color-accent)" : "var(--color-surface-2)",
+                background: m.mine ? "var(--color-accent-300)" : "var(--color-surface-2)",
                 color: m.mine ? "var(--color-on-accent)" : "var(--color-text)",
                 borderRadius: 12,
                 padding: "8px 11px",
@@ -417,7 +417,7 @@ export function MessagesClient({
             }}
           >
             <Icon name={KIND_ICON[t.kind] ?? "ph ph-chat-circle"}
-              style={{ fontSize: 20, color: "var(--color-accent)", width: 22, flex: "none" }}
+              style={{ fontSize: 20, color: "var(--color-accent-200)", width: 22, flex: "none" }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -437,7 +437,7 @@ export function MessagesClient({
               {t.unread > 0 && (
                 <span
                   style={{
-                    background: "var(--color-accent)",
+                    background: "var(--color-accent-300)",
                     color: "var(--color-on-accent)",
                     borderRadius: 999,
                     fontSize: 11,

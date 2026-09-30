@@ -117,7 +117,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
                 padding: "2px 8px",
                 borderRadius: 3,
                 border: "1px solid var(--color-divider)",
-                color: connected ? "var(--color-accent-2-300)" : "var(--color-neutral-400)",
+                color: connected ? "var(--color-accent-2-200)" : "var(--color-neutral-400)",
               }}
             >
               {STATUS_LABEL[view.handicap.status] ?? view.handicap.status}

@@ -85,7 +85,7 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
                 style={{ marginTop: 3 }}
               />
               <span style={{ minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: chosen ? "var(--color-accent-300)" : undefined }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: chosen ? "var(--color-accent-200)" : undefined }}>
                   {p.label}
                 </span>
                 <span className="text-muted" style={{ display: "block", fontSize: 12 }}>

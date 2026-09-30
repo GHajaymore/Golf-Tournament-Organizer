@@ -427,7 +427,7 @@ export function RosterClient({
         </p>
       )}
       {notice && (
-        <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-accent)" }}>
+        <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-accent-200)" }}>
           <Icon name="check-circle" /> {notice}
         </p>
       )}

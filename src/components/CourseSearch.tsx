@@ -217,7 +217,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
             fontSize: 12,
             margin: "8px 0 0",
             lineHeight: 1.5,
-            color: note.kind === "ok" ? "var(--color-accent-2-300)" : "var(--color-accent)",
+            color: note.kind === "ok" ? "var(--color-accent-2-200)" : "var(--color-accent-200)",
           }}
         >
           <Icon name={note.kind === "ok" ? "ph ph-check-circle" : "ph ph-warning-circle"} /> {note.text}

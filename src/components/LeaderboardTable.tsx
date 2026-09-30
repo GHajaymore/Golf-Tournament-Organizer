@@ -264,7 +264,11 @@ export function LeaderboardTable({
               <tr key={r.id} data-flip-key={r.id} style={rowStyle(r.advancing)}>
                 {/* No position where none was earned — but the card beside it
                     is still shown. That is the whole of "show, do not rank". */}
-                <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
+                {/* One text colour for every data cell (Ajay, 2026-09-30: "I
+                    still see inconsistency"): the position was a grey and the
+                    flight the muted tone, beside black names and scores. Only
+                    to-par keeps a colour, because it means something. */}
+                <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
                 <td style={{ fontWeight: 500 }}>
                   {r.name}
                   {/* On the page, not in a tooltip. A reader who finds someone
@@ -281,7 +285,7 @@ export function LeaderboardTable({
                     </div>
                   )}
                 </td>
-                {showFlight && <td className="text-muted">{r.flight}</td>}
+                {showFlight && <td>{r.flight}</td>}
                 {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
                 {!isStableford && (
@@ -334,11 +338,12 @@ export function LeaderboardTable({
               {/* A match player who has not teed off is `ranked` but not
                   `started`; no position until there is a result, matching the
                   hero on `/me`. See `holdsPosition`. */}
-              <td style={{ ...num, color: "var(--color-neutral-400)" }}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
+              {/* The same one colour as the stroke table above. */}
+              <td style={num}>{holdsPosition(r) ? placeText(r, shared) : "—"}</td>
               <td style={{ fontWeight: 500 }}>{r.name}</td>
-              {showFlight && <td className="text-muted">{r.flight}</td>}
+              {showFlight && <td>{r.flight}</td>}
               {compact ? (
-                <td className="text-muted" style={num}>{r.record}</td>
+                <td style={num}>{r.record}</td>
               ) : (
                 <>
                   <td style={{ textAlign: "center", ...num }}>{r.played}</td>

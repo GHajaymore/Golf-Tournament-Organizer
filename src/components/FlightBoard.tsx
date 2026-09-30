@@ -182,7 +182,7 @@ export function FlightBoard({
           }}
         >
           <Icon name={confirmed ? "ph ph-seal-check" : "ph ph-hand-grabbing"}
-            style={{ fontSize: 15, color: confirmed ? "var(--color-accent-2-400)" : "var(--color-accent-400)" }}
+            style={{ fontSize: 15, color: confirmed ? "var(--color-accent-2-200)" : "var(--color-accent-200)" }}
           />
           <span style={{ fontSize: 12.5, flex: 1, minWidth: 180, lineHeight: 1.45 }}>
             {confirmed
@@ -382,7 +382,7 @@ export function FlightBoard({
               >
                 {!disabled && (
                   <Icon name="dots-six-vertical"
-                    style={{ fontSize: 13, color: "color-mix(in srgb, var(--color-text) 45%, transparent)" }}
+                    style={{ fontSize: 13, color: "var(--color-text-muted)" }}
                   />
                 )}
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

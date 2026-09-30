@@ -84,7 +84,7 @@ export default async function ClubEventsPage() {
           color: "var(--color-text)",
         }}
       >
-        <Icon name="sword" style={{ color: "var(--color-accent-300)", fontSize: 20 }} />
+        <Icon name="sword" style={{ color: "var(--color-accent-200)", fontSize: 20 }} />
         <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>Play a casual round</span>
           <span className="text-muted" style={{ fontSize: 12.5 }}>
@@ -111,7 +111,7 @@ export default async function ClubEventsPage() {
           fontSize: 13.5,
         }}
       >
-        <Icon name="calendar-check" style={{ color: "var(--color-accent-300)", fontSize: 18 }} />
+        <Icon name="calendar-check" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           Your calendar
           <span className="text-muted" style={{ display: "block", fontSize: 12 }}>

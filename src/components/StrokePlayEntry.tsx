@@ -447,7 +447,7 @@ export function StrokePlayEntry({
                     t === "toPar"
                       ? "var(--color-accent-200)"
                       : t === "points"
-                        ? "var(--color-accent-2-300)"
+                        ? "var(--color-accent-2-200)"
                         : undefined,
                 }}
               >
@@ -471,7 +471,7 @@ export function StrokePlayEntry({
           type="button"
           className="btn btn-secondary"
           onClick={toggleListen}
-          style={listening ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+          style={listening ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : undefined}
         >
           <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
           {listening ? "Listening…" : "Voice entry"}
@@ -521,7 +521,7 @@ export function StrokePlayEntry({
             aria-pressed={view === v}
             style={
               view === v
-                ? { color: "var(--color-accent)", borderColor: "var(--color-accent)", fontSize: 12.5 }
+                ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
                 : { fontSize: 12.5 }
             }
           >

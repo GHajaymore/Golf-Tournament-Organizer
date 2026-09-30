@@ -64,7 +64,7 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
               {round.decisions.map((d, i) => (
                 <li key={i} className="text-muted">
                   {d.overrode ? (
-                    <b style={{ color: "var(--color-accent)" }}>
+                    <b style={{ color: "var(--color-accent-200)" }}>
                       {name(d.winner)} through — the committee overturned the result
                     </b>
                   ) : (

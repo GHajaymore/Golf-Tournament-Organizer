@@ -88,7 +88,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
             </span>
           )}
           {others.length > 0 && (
-            <span style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--color-accent-300)", fontWeight: 600 }}>
+            <span style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--color-accent-200)", fontWeight: 600 }}>
               Switch <Icon name="caret-down" />
             </span>
           )}

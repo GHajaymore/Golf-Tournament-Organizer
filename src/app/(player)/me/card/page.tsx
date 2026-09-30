@@ -405,7 +405,7 @@ export default async function PlayCardPage() {
     <p style={{ margin: "14px 0 0" }}>
       <Link
         href="/me/rules"
-        style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-300)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
+        style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-200)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
       >
         <Icon name="book-open" /> This tournament&rsquo;s rules
       </Link>

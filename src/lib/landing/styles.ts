@@ -584,8 +584,13 @@ __CMP_FRAMES__
      app's --color-* tokens and carrying its own card. On the front door its
      controls wear the page's orange like every other control here, so those
      tokens are re-pointed for this panel only — never in globals.css. */
-  --color-accent: var(--brass-ui); --color-accent-300: var(--brass-hi); --color-accent-400: var(--brass-hi); --color-accent-600: var(--brass);
+  --color-accent: var(--brass-ui); --color-accent-300: var(--brass-ui); --color-accent-400: var(--brass-hi); --color-accent-600: var(--brass);
   --color-accent-2: var(--brass); --color-accent-2-300: var(--brass-hi); --color-on-accent: var(--on-accent);
+  /* The app draws accent WORDS in step 200 and a labelled fill in step 300
+     (2026-09-30), so both are re-pointed: words in the page's accent-text
+     orange, the button in its fill orange (hover takes step 200, the
+     deeper text orange; pressed takes 400). */
+  --color-accent-200: var(--brass); --color-accent-2-200: var(--brass);
   /* A white card, as every card on this page is: on the grey raised ground the
      recessed fields sat grey on grey and the form read muddy against the white section. */
   --color-text: var(--ink); --color-surface: var(--panel);

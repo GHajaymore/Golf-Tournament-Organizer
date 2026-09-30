@@ -98,7 +98,7 @@ export default async function RulesPage() {
             >
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
                 <span style={{ fontSize: 15, fontWeight: 600 }}>
-                  <span style={{ color: "var(--color-accent-300)", marginRight: 7 }}>{r.number}</span>
+                  <span style={{ color: "var(--color-accent-200)", marginRight: 7 }}>{r.number}</span>
                   {r.title}
                 </span>
                 <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
@@ -225,7 +225,7 @@ function Tier({
             fontFamily: "var(--font-heading)",
             fontSize: 13,
             fontWeight: 700,
-            color: "var(--color-accent)",
+            color: "var(--color-accent-200)",
             fontVariantNumeric: "tabular-nums",
           }}
         >

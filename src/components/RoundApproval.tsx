@@ -75,7 +75,7 @@ export function RoundApproval({
       </div>
 
       {note && (
-        <p style={{ fontSize: 12.5, margin: "10px 0 0", color: "var(--color-accent-2-300)" }}>
+        <p style={{ fontSize: 12.5, margin: "10px 0 0", color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> {note}
         </p>
       )}

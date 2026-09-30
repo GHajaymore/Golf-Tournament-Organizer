@@ -39,7 +39,7 @@
      white). The fallbacks are gone, and brand-consistency.test.ts fails if one
      comes back: a fallback on a token that exists is a second source of truth
      nobody would think to update. */
-  --color-danger: #e0665a;
+  --color-danger: #f19a91;
   --color-danger-bg: #2a1512;
 
   /* Caution, as distinct from error — and the same story one paragraph later.
@@ -47,7 +47,7 @@
      declared, so an expiring round code and a mis-photographed card spoke in
      ordinary body text. Emitted by themeVarsFor for both grounds, the light
      one taking a deep ochre. */
-  --color-warning: #e8a33c;
+  --color-warning: #f0b75e;
 
   /* Label colour on a filled accent. Three rules in design-system.css used to
      carry it as a fallback — `var(--color-on-accent, #16181a)` — so the
@@ -122,7 +122,9 @@
      step on the tournament journey was painted exactly like a done one, and
      `--color-surface-2` made `background` invalid, so a received message had
      no bubble at all while your own did. */
-  --color-text-muted: color-mix(in srgb, #e9e9ed 68%, transparent);
+  /* 80%, as DARK_GROUND.mutedWeight in themes.ts — crisp, not grey
+     (Ajay, 2026-09-30). The club's own theme restates it per ground. */
+  --color-text-muted: color-mix(in srgb, #e9e9ed 80%, transparent);
   --color-surface-2: color-mix(in srgb, #e9e9ed 6%, #21231f);
 
   /* A distinct display face for headings, tournament names and big scores —
@@ -275,8 +277,11 @@ body {
   font-size: 13px;
   font-weight: 450;
   /* Resting nav links sit back; the page you are on comes forward. Every link
-     at full strength made the sidebar compete with the screen's content. */
-  color: color-mix(in srgb, var(--color-text) 72%, transparent);
+     at full strength made the sidebar compete with the screen's content.
+     The ONE muted token rather than a mix of its own: this was 72% while
+     --color-text-muted moved to 80%, and the sidebar read greyer than the
+     page beside it (Ajay, 2026-09-30: "I still see inconsistency"). */
+  color: var(--color-text-muted);
   text-decoration: none;
   cursor: pointer;
   border: none;
@@ -292,7 +297,9 @@ body {
 }
 .side-link[aria-current="page"] {
   background: color-mix(in srgb, var(--color-accent) 13%, transparent);
-  color: var(--color-accent-300);
+  /* Full text colour: the tint, the rail marker and the weight say "here".
+     accent-300 over that tint measured 5.68:1 on the light ground. */
+  color: var(--color-text);
   font-weight: 550;
 }
 /* A marker on the rail rather than a filled block: it reads as position in a
@@ -320,7 +327,10 @@ body {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--color-accent-400);
+  /* accent-200, not 400: 400 is solved to the 4.5 floor and read 5.5:1 on
+     the light ground, pale beside the near-black around it. 200 is 8.91:1 at
+     worst across every preset on both grounds (2026-09-30). */
+  color: var(--color-accent-200);
   margin: 0 0 2px;
 }
 /* The title of a console screen.
@@ -566,7 +576,7 @@ body {
 }
 .m-tab[aria-current="page"],
 .m-tab.m-active {
-  color: var(--color-accent);
+  color: var(--color-accent-200);
 }
 
 .m-drawer-backdrop {

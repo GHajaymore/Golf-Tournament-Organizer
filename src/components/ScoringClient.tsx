@@ -166,7 +166,7 @@ export function ScoringClient({
                   width: 20,
                   height: 20,
                   borderRadius: "50%",
-                  background: "var(--color-accent-800)",
+                  background: "var(--color-accent-900)",
                   color: "var(--color-accent-100)",
                   display: "grid",
                   placeItems: "center",

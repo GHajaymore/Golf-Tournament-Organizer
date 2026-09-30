@@ -211,6 +211,17 @@ export interface Ground {
   bg: string;
   surface: string;
   text: string;
+  /**
+   * How much of `text` muted text is, as a percentage — `--color-text-muted`.
+   *
+   * Per ground since 2026-09-30. It was one 68% for both, which clears the
+   * 4.5:1 floor everywhere and read GREY on paper: Ajay, looking at the light
+   * captures on the landing — "if we are using lighter cream background why
+   * are we using gray text vs using black or darker font color?" — chose
+   * darker. Light is 80%: 8.33:1 on the page, 8.95 on a card, 7.24 on the
+   * worst 16% accent tint across every preset. Dark is unchanged.
+   */
+  mutedWeight: number;
   /** Neutral ramp 100→900, in the order the tokens are numbered. */
   neutrals: string[];
   /** Error red and its tinted background, which also have to flip. */
@@ -254,10 +265,19 @@ export const DARK_GROUND: Ground = {
   bg: "#16181a",
   surface: "#21231f",
   text: "#e9e9ed",
-  neutrals: ["#f3f5fe", "#e4e7f5", "#cfd3e5", "#b2b6ca", "#9397ab", "#75798c", "#595d6c", "#3f424d", "#292b31"],
-  danger: "#e0665a",
+  // 80 as well, not the 68 both grounds shared: on a dark CARD 68% was 6.81:1,
+  // under SUNLIGHT_RATIO — and dark is what a phone outdoors resolves `auto`
+  // to. 80% is 9.71 on the page and 8.83 on a card. Ajay, 2026-09-30: whatever
+  // the ground, secondary text should read crisp and sharp, not merely pass.
+  mutedWeight: 80,
+  // Step 500 #9397ab → #aaaec2 on the same day: 5.48:1 on a card, now 7.20
+  // (8.09 on the page). Still between 400 and 600, so the ramp stays ordered.
+  neutrals: ["#f3f5fe", "#e4e7f5", "#cfd3e5", "#b2b6ca", "#aaaec2", "#75798c", "#595d6c", "#3f424d", "#292b31"],
+  // Lifted 2026-09-30 to read crisp (7:1+ on page, card and its own tint):
+  // #e0665a was 4.69 on a card, #e8a33c 5.4 on a tinted badge.
+  danger: "#f19a91",
   dangerBg: "#2a1512",
-  warning: "#e8a33c",
+  warning: "#f0b75e",
   // Near-black on a light accent: the dark ramp puts step 500 in the upper
   // lightness range, so dark text is what clears the bar there.
   onAccent: "#16181a",
@@ -268,6 +288,7 @@ export const LIGHT_GROUND: Ground = {
   bg: "#f4f2ee",
   surface: "#fffefb",
   text: "#1a1c1e",
+  mutedWeight: 80,
   // Darker through the middle than a straight reversal would give: neutral-500
   // carries muted labels and icons, and the dark ramp's mid greys are far too
   // pale to read on paper.
@@ -278,15 +299,22 @@ export const LIGHT_GROUND: Ground = {
   // `contrastFloors` never caught this because they govern the *solved* accent
   // steps; these neutrals are constants and were checked by eye. There is now a
   // test that measures them.
-  neutrals: ["#1f2126", "#2b2d33", "#3f424d", "#565a68", "#666a7a", "#9297a8", "#b8bccd", "#d7dae7", "#eceef7"],
+  //
+  // And darkened again on 2026-09-30, to near-black: 400 #565a68 → #454954
+  // (6.14 → 8.05:1) and 500 #666a7a → #4a4e5a (4.81 → 7.43:1), with Ajay's
+  // "darker font" — see `mutedWeight`. Still between 300 and 600, so the ramp
+  // stays monotonic.
+  neutrals: ["#1f2126", "#2b2d33", "#3f424d", "#454954", "#4a4e5a", "#9297a8", "#b8bccd", "#d7dae7", "#eceef7"],
   // The dark theme's salmon red only manages about 3:1 on white, so light mode
   // takes a deeper one. Error text is the last thing that should be hard to
   // read.
-  danger: "#b3261e",
+  // Deepened 2026-09-30 (#b3261e was 5.85:1 on the page): 7.44 page, 8.24 card.
+  danger: "#971f19",
   dangerBg: "#fdecea",
   // The dark ground's amber is a mid-tone and reads as a highlighter on paper;
   // the light ground takes a deep ochre, the same move `danger` makes above.
-  warning: "#8a5300",
+  // Deepened 2026-09-30 (#8a5300 was 5.66:1 on the page): 7.73 page, 8.57 card.
+  warning: "#6d4200",
   // Pure white on a light-mode accent, which the ramp keeps dark enough to
   // carry it. An off-white mixed from the page background measured 3.87:1.
   onAccent: "#ffffff",
@@ -882,7 +910,7 @@ export function varsForPresets(accentPreset: ThemePreset, secondaryPreset: Theme
     // selected option, and across every palette and tints up to 16% it read
     // 4.37:1 at worst on the dark ground and 4.07:1 on the light. 68% is the
     // first weight that clears both with margin — 4.92 and 4.83.
-    "--color-text-muted": `color-mix(in srgb, ${ground.text} 68%, transparent)`,
+    "--color-text-muted": `color-mix(in srgb, ${ground.text} ${ground.mutedWeight}%, transparent)`,
     "--color-surface-2": `color-mix(in srgb, ${ground.text} 6%, ${ground.surface})`,
   };
   STEPS.forEach((step, i) => {

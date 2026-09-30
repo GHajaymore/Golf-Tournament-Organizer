@@ -24,7 +24,7 @@ export function SetupLockBanner({ locked, isAdmin }: { locked: boolean; isAdmin:
         background: "color-mix(in srgb, var(--color-accent-900) 40%, transparent)",
       }}
     >
-      <Icon name="lock-simple" style={{ fontSize: 18, color: "var(--color-accent-300)" }} />
+      <Icon name="lock-simple" style={{ fontSize: 18, color: "var(--color-accent-200)" }} />
       <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ fontWeight: 500, fontSize: 14 }}>Setup locked</div>
         <div className="text-muted" style={{ fontSize: 12 }}>
