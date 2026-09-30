@@ -769,6 +769,28 @@ __CMP_FRAMES__
   .thq .pin .scr img { transition: none; }
 }
 @media (min-width: 1700px) { .thq { --wrap: 1360px; } }
+
+/* ── phones: the light sections, crisp and lifted (Ajay, 2026-09-30: "some
+   sections look flat on the mobile, especially the lighter background ones;
+   the text is not crisp or rich"; he chose this for phones only) ──
+   - Body text a deeper charcoal, a step heavier. At 16px on a phone the soft
+     grey at 400 read as washed out; darker and 450 reads as print. Bands keep
+     their own palette (they re-declare --ink-soft) and their weight.
+   - Section labels in the brand orange instead of grey.
+   - Cards on the light grounds lifted by a soft shadow, and the two grey
+     sections open from white, so a card sits on a surface rather than a flat
+     field. Depth from light and shadow only — nothing turned or moved. */
+@media (max-width: 760px) {
+  .thq { --ink-soft: color-mix(in srgb, var(--ink) 68%, var(--ink-faint)); --lift: 0 1px 2px rgba(0,0,0,.06), 0 18px 36px -20px rgba(0,0,0,.32); font-weight: 450; }
+  .thq .band { font-weight: 400; }
+  .thq .label { color: var(--brass); font-weight: 650; }
+  .thq .band .label { color: var(--ink-faint); font-weight: 500; }
+  .thq .usual, .thq .glance-col, .thq .cp-t, .thq .show, .thq .fx-grid, .thq .tier, .thq .ultimate, .thq .step { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .thq #features, .thq #pricing { background: linear-gradient(180deg, var(--ground) 0, var(--ground-2) 280px); }
+  /* The step cards' phone: its 80px-blur shadow, clipped by the card, drew as
+     blocky grey tiles around the screenshot. A tight shadow draws cleanly. */
+  .thq .step .inl.phone { box-shadow: 0 14px 24px -14px rgba(0,0,0,.5), inset 0 0 0 1.5px rgba(255,255,255,.12); }
+}
 `
   .replace(
     "__CMP_FRAMES__",
