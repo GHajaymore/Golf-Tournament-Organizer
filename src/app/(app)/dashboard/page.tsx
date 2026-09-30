@@ -47,7 +47,7 @@ import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
-import { wipesOnCloseFor, keepItOffer } from "@/lib/services/close-terms";
+import { wipesOnCloseFor, keepItOffer, casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { formatDay } from "@/lib/domain/locale";
 
 /**
@@ -353,7 +353,8 @@ export default async function DashboardPage() {
    * rather than "is this a match", because the sweep keys on the same column:
    * the screen and the deletion agree by reading one fact, not two.
    */
-  const expiry = expiryNotice(hoursLeft(event), isStaff);
+  const keepRefusal = hoursLeft(event) === null ? null : await casualKeepRefusalFor(event.id);
+  const expiry = expiryNotice(hoursLeft(event), isStaff, keepRefusal);
   /**
    * Null for anybody who runs no organization of their own — AND ON A CASUAL
    * ROUND, whoever they are.
@@ -636,7 +637,7 @@ export default async function DashboardPage() {
           with a deadline on it. A warning that something will be deleted is
           not useful below the fold, and the round it is about is short enough
           that there is nothing here it should be yielding to. */}
-      <RoundExpiryBanner notice={expiry} canKeep={isStaff} />
+      <RoundExpiryBanner notice={expiry} canKeep={isStaff} keepRefusal={keepRefusal} />
 
       {/* The ORGANIZATION checklist, above the per-tournament one below it.
           Two different things and deliberately two components: this one is

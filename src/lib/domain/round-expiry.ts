@@ -101,8 +101,19 @@ export function hoursLeft(
  * `hoursLeft` is still the right reading of the COLUMN, and stays for anything
  * that wants it. It is just not what the player should be told.
  */
-export function expiryNotice(hours: number | null, canKeep = true): string {
+export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: string | null = null): string {
   if (hours === null) return "";
+  /**
+   * AND NOBODY IS TOLD TO KEEP A ROUND THAT CANNOT BE KEPT (2026-09-29). On the
+   * Par terms a casual round keeps its 24 hours — `casualKeepRefusal` — so both
+   * remedies below would be instructions that fail when followed. The remedy
+   * that exists there is upgrading, and it is the one named.
+   */
+  if (keepRefusal) {
+    return hours <= 0
+      ? `This round has passed its day and will be deleted shortly. ${keepRefusal}`
+      : `This round is temporary — it's deleted about a day after it was set up. ${keepRefusal}`;
+  }
   /**
    * The way out, worded for whoever is reading it.
    *

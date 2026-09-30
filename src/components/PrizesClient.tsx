@@ -51,6 +51,73 @@ export function PrizesClient({
   const [amount, setAmount] = useState("");
   const [pending, startTransition] = useTransition();
 
+  /**
+   * A prize's amount, winner and remove — the same three controls in the table
+   * and in the phone's stacked rows, so the two layouts cannot drift. Named for
+   * the prize, because in the stacked rows there is no column heading to say
+   * which box is the amount and which list is the winner.
+   */
+  const controls = (p: PrizeRow, asCells = false) => {
+    const amountBox = (
+      <input
+        className="input"
+        type="number"
+        min={0}
+        defaultValue={p.amount || ""}
+        disabled={pending}
+        aria-label={`Amount for ${p.category}`}
+        style={{ width: asCells ? 100 : 84, textAlign: "right" }}
+        onBlur={(e) => {
+          const v = parseFloat(e.target.value);
+          if ((Number.isFinite(v) ? v : 0) !== p.amount) {
+            startTransition(() => updatePrize(p.id, { amount: Number.isFinite(v) ? v : 0 }));
+          }
+        }}
+      />
+    );
+    const winnerPick = (
+      <select
+        className="input"
+        value={p.winnerId ?? ""}
+        disabled={pending}
+        aria-label={`Winner of ${p.category}`}
+        style={asCells ? undefined : { flex: 1, minWidth: 0 }}
+        onChange={(e) => startTransition(() => setPrizeWinner(p.id, e.target.value))}
+      >
+        <option value="">— Not awarded —</option>
+        {players.map((pl) => (
+          <option key={pl.id} value={pl.id}>
+            {/* The finishing place where the player holds one, so the winner
+                reads first. Unranked players (no card, a manual round) show as
+                just their name. */}
+            {pl.place ? `${pl.place}. ${pl.name}` : pl.name}
+          </option>
+        ))}
+      </select>
+    );
+    const remove = (
+      <ConfirmButton
+        title="Remove prize"
+        confirmLabel="Remove it"
+        disabled={pending}
+        onConfirm={() => startTransition(() => removePrize(p.id))}
+      />
+    );
+    return asCells ? (
+      <>
+        <td style={{ textAlign: "right" }}>{amountBox}</td>
+        <td>{winnerPick}</td>
+        <td>{remove}</td>
+      </>
+    ) : (
+      <>
+        {amountBox}
+        {winnerPick}
+        {remove}
+      </>
+    );
+  };
+
   const purse = prizes.reduce((s, p) => s + p.amount, 0);
   const awarded = prizes.filter((p) => p.winnerId).length;
 
@@ -154,7 +221,26 @@ export function PrizesClient({
           at something no heading called that. */}
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Prizes</span>
-        <div className="table-scroll">
+        {/* ON A PHONE, ONE PRIZE A ROW (2026-09-29). The table put the WINNER
+            in its last column, and at 390px that column was off the right edge
+            — the one screen whose point is who won never showed it without a
+            sideways scroll, and the amount box took most of what was left. So
+            below 640px each prize is its name, then amount · winner · remove on
+            one line. The same controls, from one place, in both layouts. */}
+        {prizes.length > 0 && (
+          <ul className="prize-narrow" aria-label="Prizes">
+            {prizes.map((p) => (
+              <li key={p.id} className="prize-row">
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600 }}>{p.category}</span>
+                  {p.detail && <span className="text-muted"> — {p.detail}</span>}
+                </div>
+                <div className="prize-controls">{controls(p)}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={`table-scroll prize-wide${prizes.length === 0 ? " is-empty" : ""}`}>
           <table className="table">
             <thead>
               <tr>
@@ -170,48 +256,7 @@ export function PrizesClient({
                 <tr key={p.id}>
                   <td style={{ fontWeight: 500 }}>{p.category}</td>
                   <td className="text-muted">{p.detail || "—"}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <input
-                      className="input"
-                      type="number"
-                      min={0}
-                      defaultValue={p.amount || ""}
-                      disabled={pending}
-                      style={{ width: 100, textAlign: "right" }}
-                      onBlur={(e) => {
-                        const v = parseFloat(e.target.value);
-                        if ((Number.isFinite(v) ? v : 0) !== p.amount) {
-                          startTransition(() => updatePrize(p.id, { amount: Number.isFinite(v) ? v : 0 }));
-                        }
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      className="input"
-                      value={p.winnerId ?? ""}
-                      disabled={pending}
-                      onChange={(e) => startTransition(() => setPrizeWinner(p.id, e.target.value))}
-                    >
-                      <option value="">— Not awarded —</option>
-                      {players.map((pl) => (
-                        <option key={pl.id} value={pl.id}>
-                          {/* The finishing place where the player holds one, so
-                              the winner reads first. Unranked players (no card,
-                              a manual round) show as just their name. */}
-                          {pl.place ? `${pl.place}. ${pl.name}` : pl.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <ConfirmButton
-                      title="Remove prize"
-                      confirmLabel="Remove it"
-                      disabled={pending}
-                      onConfirm={() => startTransition(() => removePrize(p.id))}
-                    />
-                  </td>
+                  {controls(p, true)}
                 </tr>
               ))}
               {prizes.length === 0 && (

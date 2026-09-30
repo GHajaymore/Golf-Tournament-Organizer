@@ -116,6 +116,23 @@ export function roundWindowRefusal(date: string, otherDates: readonly string[]):
   );
 }
 
+/**
+ * WHY A CASUAL ROUND CANNOT BE KEPT, or null when it can.
+ *
+ * On the Par terms a casual round keeps its 24 hours (2026-09-29): one press
+ * to keep it for ever was a way round "Par keeps nothing", and a kept round
+ * could be grown into a whole tournament the sweep and the limit never count.
+ * The ONE answer, read by `keepRound` (the refusal), `expiryNotice` (the
+ * sentence) and the banner (the button), so the screen cannot offer a keep the
+ * action refuses.
+ */
+export function casualKeepRefusal(
+  sub: { plan: string; planTermsApply: boolean } | null | undefined,
+): string | null {
+  if (sub?.planTermsApply !== true || keepsDataForever(sub.plan)) return null;
+  return `On the free ${PLANS.free.name} plan a casual round is kept for 24 hours. Upgrade to ${PLANS.society.name} to keep it for good.`;
+}
+
 /** What the organizer is told before they complete a tournament that this deletes. */
 export const WIPE_ON_CLOSE =
   `On the free ${PLANS.free.name} plan, completing a tournament deletes it for good — entries, cards, results, prizes and money. ` +

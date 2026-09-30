@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHmac } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
@@ -58,6 +59,15 @@ async function fitsTheViewport(page: Page, box: Locator, what: string) {
     Math.round(rect!.x + rect!.width),
     `${what} runs past the right edge`,
   ).toBeLessThanOrEqual(width);
+
+  // And top to bottom (2026-09-29): a dialog taller than the screen puts its
+  // buttons where nobody can reach them — the width checks above cannot see it.
+  const height = page.viewportSize()?.height ?? 0;
+  expect(Math.round(rect!.y), `${what} starts above the top edge`).toBeGreaterThanOrEqual(0);
+  expect(
+    Math.round(rect!.y + rect!.height),
+    `${what} runs past the bottom edge`,
+  ).toBeLessThanOrEqual(height);
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth, `${what}: the page is ${scrollWidth}px in a ${width}px viewport`)
@@ -117,6 +127,81 @@ test.describe("the launch dialog", () => {
       // note on `status` in `fixture.mjs` for why it is "live" and not
       // "active", and what an invented status hid.
       await prisma.event.update({ where: { id: data.eventId }, data: { status: "live" } });
+      await prisma.$disconnect();
+    }
+  });
+});
+
+test.describe("the complete-and-delete dialog", () => {
+  test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
+
+  /**
+   * THE SECOND DIALOG IN `LifecycleBar` (2026-09-29): completing a tournament
+   * on the free Par plan deletes it, so the button asks first — the terms, the
+   * upgrade, and Go to Reports. It opens only for a club held to the Par terms,
+   * and only when completing is not refused, and the shared fixture is neither:
+   * its club has no plan row and its review queue holds a disputed card.
+   *
+   * So this builds its OWN throwaway tournament rather than bending the
+   * fixture: a Par club and an empty live tournament, the fixture's organizer
+   * made its admin, named off the fixture's club so the fixture's teardown
+   * sweeps it if this dies half way. The dialog is opened, measured, and
+   * CANCELLED — "Complete and delete" is never pressed — and everything is
+   * removed in a `finally`.
+   */
+  test(`complete and delete ${FITS}`, async ({ page, baseURL }) => {
+    const prisma = new PrismaClient();
+    let orgId = "";
+    try {
+      const fixture = await prisma.event.findUnique({
+        where: { id: data.eventId },
+        select: { organization: { select: { name: true } }, accounts: { where: { role: "admin" }, select: { email: true }, take: 1 } },
+      });
+      const org = await prisma.organization.create({
+        data: {
+          name: `${fixture!.organization.name} Par`,
+          kind: "club",
+          subscription: { create: { plan: "free", planTermsApply: true } },
+        },
+      });
+      orgId = org.id;
+      const event = await prisma.event.create({
+        data: {
+          organizationId: org.id,
+          // Long, like the fixture's: the name is in the dialog's title, and
+          // 320px is where a long one shows.
+          name: `${fixture!.organization.name} Par — Sunday Stableford for the Captain’s Prize`,
+          dates: "", course: "", city: "", address: "", regDeadline: "",
+          status: "live",
+          shape: "single",
+          shareToken: `${org.id}-par`,
+          accounts: { create: { name: "O. Ganizer", email: fixture!.accounts[0].email, role: "admin" } },
+        },
+      });
+
+      const secret = process.env.AUTH_SECRET ?? "dev-secret";
+      const signed = `${event.id}.${createHmac("sha256", secret).update(event.id).digest("base64url")}`;
+      await page.context().addCookies([{ name: "ng_active_event", value: signed, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
+
+      await page.goto("/dashboard");
+      await page.waitForLoadState("networkidle");
+      await page.getByRole("button", { name: /^complete tournament$/i }).first().click();
+
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(/complete and delete/i);
+      await expect(dialog).toContainText(/deletes it for good/i);
+      await fitsTheViewport(page, dialog, "the complete-and-delete dialog");
+
+      // Out the safe way, and the tournament is still there.
+      await dialog.getByRole("button", { name: /^cancel$/i }).click();
+      await expect(dialog).toBeHidden();
+      expect(await prisma.event.count({ where: { id: event.id } }), "cancelling deleted the tournament").toBe(1);
+    } finally {
+      if (orgId) {
+        await prisma.event.deleteMany({ where: { organizationId: orgId } });
+        await prisma.organization.deleteMany({ where: { id: orgId } });
+      }
       await prisma.$disconnect();
     }
   });

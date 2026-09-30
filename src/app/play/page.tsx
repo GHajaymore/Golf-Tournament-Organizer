@@ -15,6 +15,7 @@ import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { isHeadToHead } from "@/lib/stage-types";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
@@ -75,7 +76,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    * `expiryNotice` returns "" on null, so nothing mounts outside a casual
    * round.
    */
-  const expiry = expiryNotice(hoursLeft(event), false);
+  const keepRefusal = hoursLeft(event) === null ? null : await casualKeepRefusalFor(event.id);
+  const expiry = expiryNotice(hoursLeft(event), false, keepRefusal);
 
   if (!match) {
     /**

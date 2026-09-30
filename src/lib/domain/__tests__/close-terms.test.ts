@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { wipesOnClose, golfBeganAt, closesAtFrom, roundWindowRefusal, holesEntered, PLANS_THAT_DELETE } from "../close-terms";
+import { wipesOnClose, golfBeganAt, closesAtFrom, roundWindowRefusal, holesEntered, casualKeepRefusal, PLANS_THAT_DELETE } from "../close-terms";
+
+describe("whether a casual round may be kept", () => {
+  it("not on the Par terms", () => {
+    expect(casualKeepRefusal({ plan: "free", planTermsApply: true })).toMatch(/kept for 24 hours/);
+  });
+  it("yes for a club that predates them, a paying club, or a club with no row", () => {
+    expect(casualKeepRefusal({ plan: "free", planTermsApply: false })).toBeNull();
+    expect(casualKeepRefusal({ plan: "society", planTermsApply: true })).toBeNull();
+    expect(casualKeepRefusal(null)).toBeNull();
+  });
+});
 
 describe("what counts as golf having been played", () => {
   it("any stroke on a card", () => {

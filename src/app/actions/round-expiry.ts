@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { PLANS, keepsDataForever } from "@/lib/plans";
+import { casualKeepRefusal } from "@/lib/domain/close-terms";
 
 /**
  * Keeping a casual round that would otherwise be deleted.
@@ -66,13 +66,8 @@ export async function keepRound(): Promise<KeepRoundResult> {
    * nor the one-at-a-time limit counts. Its 24 hours are what closes both.
    * Grandfathered and paying clubs keep rounds exactly as before.
    */
-  const sub = event.organization.subscription;
-  if (sub?.planTermsApply === true && !keepsDataForever(sub.plan)) {
-    return {
-      ok: false,
-      error: `On the free ${PLANS.free.name} plan a casual round is kept for 24 hours. Upgrade to ${PLANS.society.name} to keep it for good.`,
-    };
-  }
+  const refusal = casualKeepRefusal(event.organization.subscription);
+  if (refusal) return { ok: false, error: refusal };
 
   await prisma.event.update({ where: { id: event.id }, data: { expiresAt: null } });
   revalidatePath("/", "layout");

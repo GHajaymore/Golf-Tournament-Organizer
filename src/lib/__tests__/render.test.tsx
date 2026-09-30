@@ -1678,6 +1678,34 @@ describe("course library", () => {
     expect(html).not.toContain("specials above");
   });
 
+  it("on a phone, lists each prize with its winner in reach", async () => {
+    /**
+     * The winner was the table's LAST column and fell off the right edge at
+     * 390px — the one screen about who won never showed it (2026-09-29). The
+     * stacked rows carry the same controls, and each control says which prize
+     * it is for, because there is no column heading on a phone to say so.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(
+      <PrizesClient
+        prizes={[{ id: "p1", category: "Club Champion", detail: "The Hollow Salver", amount: 250, winnerId: "a" }]}
+        players={[{ id: "a", name: "Fumiko Shirakawa", place: 1 }]}
+      />,
+    );
+    expect(html).toContain('class="prize-narrow"');
+    expect(html).toContain('class="prize-row"');
+    // Both layouts name the winner picker for its prize — once each.
+    expect(html.split('aria-label="Winner of Club Champion"').length - 1).toBe(2);
+    expect(html.split('aria-label="Amount for Club Champion"').length - 1).toBe(2);
+  });
+
+  it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(<PrizesClient prizes={[]} players={[]} />);
+    expect(html).not.toContain('class="prize-narrow"');
+    expect(html).toContain("No prizes yet");
+  });
+
   it("says what an unverified card costs, once, and only when one exists", () => {
     // The badge showed the STATE on the row and left the stakes in a `title`.
     // The stakes are the whole reason the badge exists and are not obvious: a
@@ -7094,6 +7122,31 @@ describe("the lifecycle button names the phase, not the link", () => {
  * against the functions — the functions have their own tests, and it was a
  * rendered screen that found this.
  */
+describe("a casual round the plan will not let anybody keep", () => {
+  /**
+   * The button `keepRound` would refuse is not drawn (2026-09-29): on the Par
+   * terms the round keeps its 24 hours, and a "Keep this round" that always
+   * says no is a control that lies. The control is the round that CAN be kept.
+   */
+  const notice = "This round is temporary — it's deleted about a day after it was set up.";
+  const banner = async (keepRefusal: string | null) => {
+    const { RoundExpiryBanner } = await import("@/components/RoundExpiryBanner");
+    return render(<RoundExpiryBanner notice={notice} canKeep keepRefusal={keepRefusal} />);
+  };
+
+  it("offers the plans, not the button, when the round cannot be kept", async () => {
+    const html = await banner("On the free Par plan a casual round is kept for 24 hours.");
+    expect(html).not.toContain("Keep this round");
+    expect(html).toContain('href="/organization#plan"');
+  });
+
+  it("CONTROL: still offers the button when it can", async () => {
+    const html = await banner(null);
+    expect(html).toContain("Keep this round");
+    expect(html).not.toContain("/organization#plan");
+  });
+});
+
 describe("a Par tournament is offered the upgrade before it is deleted", () => {
   /**
    * Ajay, 2026-09-29: "make sure to ask for upgrade before deleting (raise
