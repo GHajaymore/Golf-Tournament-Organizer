@@ -666,10 +666,20 @@ export async function seed() {
      * nineteen finished cards of twenty-four — a board that read LIVE over
      * results that looked final.
      *
-     * Rotated by sixteen so both pairing requests (1+2, 5+6) still share a
-     * four-ball, and the signed-in player's group is out on the course.
+     * Both pairing requests go off FIRST — 1+2 in Group 1, 5+6 in Group 2 —
+     * which is what a secretary honouring them does, and where the Tee
+     * sheet's requests card is read against the draw beneath it. The
+     * signed-in player (index 0) is in Group 5, out on the front nine.
      */
-    const medalDraw = [...medalField.slice(16), ...medalField.slice(0, 16)];
+    const medalDraw = [
+      ...medalField.slice(1, 9),
+      ...medalField.slice(16, 24),
+      medalField[0],
+      ...medalField.slice(9, 16),
+    ];
+    if (new Set(medalDraw).size !== medalField.length || medalDraw.length !== medalField.length) {
+      throw new Error(`medal draw lost or doubled a player: ${medalDraw.length} of ${medalField.length}`);
+    }
     const THRU_BY_GROUP = [18, 18, 14, 12, 9, 0];
     const medalThru = new Map(medalDraw.map((p, i) => [p.id, THRU_BY_GROUP[Math.floor(i / 4)] ?? 0]));
 
@@ -687,8 +697,8 @@ export async function seed() {
         scoringBasis: "net",
         handicapAllowance: 95,
         playedOn: dayOffset(0),
-        // Rotated so the signed-in player (index 0) is in the MIDDLE of the
-        // draw, on a card still being played, while the early groups are in.
+        // Ordered so the signed-in player (index 0) is late in the draw, on
+        // a card still being played, while the early groups are in.
         teeSheet: teeSheetFor(medalDraw),
         // Published, because the field is on the course. `me.ts` reads a tee
         // sheet only when it is published — a draft draw must not reach a
@@ -1157,7 +1167,7 @@ export async function seed() {
      * A RYDER CUP WEEKEND, part-played (2026-09-28). Two teams — the event's
      * two flights — and three sessions: Friday four-balls (both decided),
      * Saturday foursomes (one decided, one on the course), Sunday singles
-     * (lined up, not started). Every state the cup board draws is here: a win,
+     * (lined up for tomorrow, not started). Every state the cup board draws is here: a win,
      * a halve, a match in play, and matches not yet begun. The Whites hold the
      * cup, so a tie keeps it with them.
      *
@@ -1236,7 +1246,9 @@ export async function seed() {
     const sat = await session(1, "Saturday foursomes", "Foursomes", -1);
     await pairMatch(sat, [B1, B3], [W1, W3], cupCard("BBB" + "H".repeat(13))); // Whites 3&2
     await pairMatch(sat, [B2, B4], [W2, W4], cupCard("A" + "H".repeat(11))); // Blues 1 UP thru 12
-    const sun = await session(2, "Sunday singles", "Match Play", 0);
+    // Tomorrow, not today: a member's calendar already has the medal on it
+    // today, and three rounds in one day is nobody's fixture list (2026-09-29).
+    const sun = await session(2, "Sunday singles", "Match Play", 1);
     for (const [b, w] of [[B1, W1], [B2, W2], [B3, W3], [B4, W4]]) {
       await prisma.match.create({
         data: { eventId: cup.id, stageId: sun.stage.id, groupId: sun.carrier.id, round: ++round, playerAId: b, playerBId: w, holes: cupCard("") },
@@ -1788,10 +1800,11 @@ export async function seed() {
      * matter most, did not exist.
      *
      * So: a live nine-hole Stableford over Braid Hollow's BACK nine, a shotgun
-     * at half five, pins set on every green, four hours allowed. The signed-in
-     * player's four goes off the 12th (position 3) and is four holes in, so
-     * Today, the card and the tee sheet all have a back-nine number to get
-     * right — and "Finish my card" points at the 16th.
+     * at half five, pins set on every green, four hours allowed. Group 1 goes
+     * off the 12th (position 3) and is four holes in, so Today, the card and
+     * the tee sheet all have a back-nine number to get right — and "Finish my
+     * card" points at the 16th. That view is Group 1's, not the signed-in
+     * player's (who is in the medal): walk it signed in as member index 1.
      */
     // Named like a club's own fixture and with no weekday in it: it is seeded
     // for TODAY, and "Monday Back Nine" on a Tuesday is the league's mistake
@@ -1811,7 +1824,10 @@ export async function seed() {
       launchedAt: new Date(),
     });
     await prisma.eventCourse.create({ data: { eventId: backNine.id, courseId: home.id } });
-    const backField = await enter(backNine, [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]);
+    // NOT the signed-in player: they are on the course in today's medal, and
+    // nobody is four holes into a shotgun while fourteen into a medal. Their
+    // calendar showed both, live, at once (website session, 2026-09-29).
+    const backField = await enter(backNine, [1, 2, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]);
     // Positions on the nine's card: 3 is the 12th, 1 the 10th, 6 the 15th.
     const shotgun = [
       { name: "Group 1", startHole: 3, players: backField.slice(0, 4) },
@@ -1865,7 +1881,7 @@ export async function seed() {
     const backRand = rng(177);
     for (const g of shotgun) {
       // How far each four has got, counted from its own starting hole: the
-      // signed-in player's is four holes in, the 10th tee's is done, the 15th's
+      // 12th tee's is four holes in, the 10th tee's is done, the 15th's
       // has two holes on the card.
       const played = g.startHole === 3 ? 4 : g.startHole === 1 ? 9 : 2;
       for (const p of g.players) {
