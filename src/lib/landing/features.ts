@@ -1,4 +1,4 @@
-import { PLANS } from "@/lib/plans";
+import { PLANS, type FeatureKey, type PlanKey } from "@/lib/plans";
 
 /**
  * Every feature the front door lists, as data.
@@ -16,6 +16,25 @@ export interface Feature {
   s?: string;
   /** One of the dozen shown before "Show all". */
   top?: boolean;
+  /**
+   * The plan flag that gates this line, where one does. The plans that have it
+   * are DERIVED from PLANS (plansWith), never listed by hand, so the line and
+   * the pricing table cannot drift from what the app enforces.
+   */
+  plan?: FeatureKey;
+}
+
+const ORDER: PlanKey[] = ["free", "society", "club"];
+
+/** The plans a flag is on, in page order. */
+export function plansWith(flag: FeatureKey): PlanKey[] {
+  return ORDER.filter((k) => PLANS[k].features[flag]);
+}
+
+/** "Season and Club plans" — the names of the plans a flag is on. */
+function onPlans(flag: FeatureKey): string {
+  const names = plansWith(flag).map((k) => PLANS[k].name);
+  return `${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]} plan${names.length > 1 ? "s" : ""}`;
 }
 
 export interface FeatureGroup {
@@ -49,7 +68,8 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
         { t: "Players report their knockout result", s: "nothing moves on the draw until the organizer approves" },
         {
           t: "Order of merit across events",
-          s: `points, best-of, rounds to qualify — ${PLANS.society.name} and ${PLANS.club.name} plans`,
+          s: `points, best-of, rounds to qualify — ${onPlans("seasonStandings")}`,
+          plan: "seasonStandings",
         },
         { t: "Handicaps set per round", s: "and frozen once cards are in" },
         { t: "Scoring deadlines per round", s: "closed, closed early or extended" },
@@ -120,7 +140,7 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
         { t: "A record of recent changes" },
         { t: "Reports and CSV export" },
         { t: "Your colors, checked for sunlight" },
-        { t: `White-label on the ${PLANS.club.name} plan` },
+        { t: `White-label on the ${onPlans("whiteLabel")}`, plan: "whiteLabel" },
         { t: "Console controls named for screen readers" },
         { t: "The kitty and the organizer's ledger", s: "fees in, costs out — did it balance" },
         { t: "One-tap prize tables", s: "top 3, best gross & net, flights, twos, nearest the pin" },
