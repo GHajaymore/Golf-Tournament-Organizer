@@ -809,7 +809,8 @@ export default async function LandingPage() {
             </div>
             <p className="metered">
               Text alerts, reading a photographed card and drafted commentary are built and not switched on for
-              anybody yet — they cost per message and per call, and we won&rsquo;t bill for them until they&rsquo;re worth it.
+              anybody yet — they cost per message and per call, so they will come with {PLANS.club.name} first, once
+              they&rsquo;re worth billing for.
             </p>
           </div>
         </section>
