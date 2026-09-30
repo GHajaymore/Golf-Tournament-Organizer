@@ -145,20 +145,25 @@ describe("what the tiers say today", () => {
     }
   });
 
-  it("has not gated anything off while the tiers are undecided", () => {
+  it("follows the ladder Ajay decided, and nothing else", () => {
     /**
-     * Ajay, 2026-09-18: gate the features per tier, and make it dynamic — with
-     * the tiers themselves ("3-5 level tiered plan and the pricing and
-     * features") to be decided after the app is ready.
+     * This cell used to say "nothing gated off while the tiers are undecided",
+     * and was written to fail the day one was flipped — which is the moment to
+     * ask whether the ladder was decided or chosen by accident. It was decided
+     * on 2026-09-29 (Par / Birdie / Eagle / Albatross): the honours board moved
+     * to Birdie and up, because a Par tournament is deleted as it completes.
      *
-     * So the newly gateable capabilities are ON for everybody, and this cell is
-     * what says so out loud. It will fail the day somebody flips one, which is
-     * the moment to ask whether the ladder has actually been decided or whether
-     * a tier is being chosen by accident.
+     * Pinned exactly, so the NEXT flip fails here too and gets the same question.
      */
-    for (const key of ["honours"] as FeatureKey[]) {
-      expect(PLANS.free.features[key], `${key} was switched off before the tiers were decided`).toBe(true);
-      expect(PLANS.club.features[key], `${key} must not be off for a paying club`).toBe(true);
+    expect(PLANS.free.features.honours, "honours is Birdie and up").toBe(false);
+    for (const key of ["society", "club", "enterprise"] as const) {
+      expect(PLANS[key].features.honours, `${key} lost the honours board`).toBe(true);
     }
+    // And the club that predates the terms keeps what the free plan gave it.
+    expect(featureAllowed("free", "", "honours", false), "a grandfathered club lost its honours board").toBe(true);
+    expect(featureAllowed("free", "", "honours", true), "a new Par club has the honours board").toBe(false);
+    // Grandfathering keeps what WAS there, and gives nothing new.
+    expect(featureAllowed("free", "", "whiteLabel", false)).toBe(false);
+    expect(featureAllowed("free", "", "seasonStandings", false)).toBe(false);
   });
 });

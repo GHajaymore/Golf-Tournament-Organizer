@@ -1,4 +1,4 @@
-import { PLANS, effectivePrice, planCurrency, type PricingOverrides } from "@/lib/plans";
+import { PRICED_PLANS, effectivePrice, planCurrency, type PricingOverrides } from "@/lib/plans";
 
 /**
  * What the site tells a search engine about itself, in schema.org terms.
@@ -73,7 +73,9 @@ export function siteStructuredData({ origin, overrides, currency }: StructuredDa
         description:
           "Run a golf club's whole competition: flights, handicaps, brackets, live standings, " +
           "season tables and the settle-up at the end.",
-        offers: Object.values(PLANS).map((plan) => {
+        // Priced tiers only: a "Let's talk" tier has no price to index, and an
+        // Offer at "0" would tell a search engine Albatross is free.
+        offers: PRICED_PLANS.map((plan) => {
           // The configurable price, not `priceMonthly` raw, so the offer a
           // crawler indexes and the number on the page are the same one.
           const price = effectivePrice(plan, overrides, CURRENCY);

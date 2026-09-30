@@ -59,7 +59,10 @@ export function featureGroups({ localGolf }: { localGolf: boolean }): FeatureGro
         { t: "A different course per round" },
         { t: "Divisions off different tees" },
         { t: "Card certify, approve and dispute" },
-        { t: "Prizes and the honors board" },
+        { t: "Prizes and payouts" },
+        // Gated since 2026-09-29: a Par tournament is deleted as it completes,
+        // so its honors board could only ever be empty.
+        { t: "The honors board", s: `every champion, year after year — ${onPlans("honours")}`, plan: "honours" },
         { t: "Copy last year's, or a template" },
         { t: "Blind events", s: "standings hidden until you publish results" },
         { t: "Card confirmation rules", s: "a playing partner, the other side, or everyone" },

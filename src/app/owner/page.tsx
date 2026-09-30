@@ -4,13 +4,14 @@ import { getSession } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { prisma } from "@/lib/db";
 import { ownerMetrics } from "@/lib/domain/owner-metrics";
-import { PLANS, PLAN_CURRENCIES, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
+import { PLANS, PRICED_PLANS, PLAN_CURRENCIES, effectivePrice, effectiveLimit, enforcementEnabled, LIMIT_KEYS } from "@/lib/plans";
 import { wholeMoney } from "@/lib/domain/money-format";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { storedLimitOverrides } from "@/lib/services/platform-limits";
 import { listDiscountCodes } from "@/lib/services/platform-discounts";
 import { OwnerPricing } from "@/components/OwnerPricing";
 import { OwnerLimits } from "@/components/OwnerLimits";
+import { OwnerClubPlan } from "@/components/OwnerClubPlan";
 import { OwnerDiscounts } from "@/components/OwnerDiscounts";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { NOINDEX } from "@/lib/site";
@@ -108,7 +109,8 @@ export default async function OwnerConsolePage() {
     overrides,
   );
 
-  const tiers = Object.values(PLANS).map((p) => ({
+  // Priced tiers only — Albatross is "Let's talk" and has no price to set.
+  const tiers = PRICED_PLANS.map((p) => ({
     key: p.key,
     name: p.name,
     monthly: effectivePrice(p, overrides),
@@ -197,6 +199,7 @@ export default async function OwnerConsolePage() {
         ))}
       </div>
       <OwnerLimits tiers={limitTiers} enforce={enforcementEnabled(limitOverrides)} />
+      <OwnerClubPlan tiers={Object.values(PLANS).map((p) => ({ key: p.key, name: p.name, tagline: p.tagline }))} />
       <OwnerDiscounts codes={discounts} />
 
       {/* Tier mix */}

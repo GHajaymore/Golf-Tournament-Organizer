@@ -34,9 +34,10 @@ vi.mock("next/navigation", () => ({
 
 const { createEvent, setEventStatus, applyManualCount } = await import("@/app/actions/tournament");
 const { createOrganizationWithOwner } = await import("@/lib/services/organization");
+const { organizationAllows } = await import("@/lib/services/entitlements");
 
 const emailFor = (who: string) => `zz-audit-free-terms-${who}@example.invalid`;
-const WHO = ["new", "old", "paid", "held", "cap", "fresh"];
+const WHO = ["new", "old", "paid", "held", "cap", "fresh", "honours-new", "honours-old", "honours-birdie"];
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -141,6 +142,19 @@ describe("a new Free club", () => {
     expect(redirected, "the organizer is sent somewhere that still exists").toBe(true);
     expect(await exists(eventId)).toBe(false);
     expect(await prisma.player.count({ where: { eventId } })).toBe(0);
+  });
+});
+
+describe("the honours board is Birdie and up — for new clubs", () => {
+  it("a new Par club does not have it; a club that predates the terms keeps it", async () => {
+    // Every club in production is on the free plan, so this is the half that
+    // stops the ladder emptying every real club's board at once.
+    const newPar = await organizer("honours-new", "free", true);
+    const oldPar = await organizer("honours-old", "free", false);
+    const birdie = await organizer("honours-birdie", "society", true);
+    expect(await organizationAllows(newPar, "honours")).toBe(false);
+    expect(await organizationAllows(oldPar, "honours"), "a grandfathered club lost its honours board").toBe(true);
+    expect(await organizationAllows(birdie, "honours")).toBe(true);
   });
 });
 

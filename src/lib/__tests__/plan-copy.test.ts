@@ -58,6 +58,7 @@ describe("what a club gets for its money is actually said", () => {
       const words: Record<string, RegExp> = {
         whiteLabel: /branding/i,
         seasonStandings: /season table/i,
+        honours: /honours board/i,
       };
       const pattern = words[key];
       expect(

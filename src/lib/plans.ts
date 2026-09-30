@@ -24,13 +24,30 @@
  * (`effectiveLimit`), the same way prices are; the values here are defaults.
  */
 
-export type PlanKey = "free" | "society" | "club";
+/**
+ * FOUR TIERS (Ajay, 2026-09-29), named as scores that get rarer as they climb:
+ * Par, Birdie, Eagle, Albatross. The KEYS are older than the names and are
+ * what `Subscription.plan` stores, so they never change with a rename —
+ * `society` is Birdie and `enterprise` is Albatross.
+ */
+export type PlanKey = "free" | "society" | "club" | "enterprise";
 
 export interface Plan {
   key: PlanKey;
   name: string;
+  /**
+   * Who the tier is for, in a few words — said under the name wherever a plan
+   * is offered, so a golf name never leaves somebody guessing which is theirs.
+   */
+  tagline: string;
   /** Short line for pricing/upgrade surfaces. */
   blurb: string;
+  /**
+   * No published price: the tier is scoped with each customer ("Let's talk").
+   * `priceMonthly` is then 0 and must NEVER be shown as "Free" — every price
+   * reader checks this first.
+   */
+  contactOnly?: boolean;
   /** Monthly price in whole currency units. 0 = free. Display only for now. */
   priceMonthly: number;
   /**
@@ -157,7 +174,8 @@ export interface Plan {
 export const PLANS: Record<PlanKey, Plan> = {
   free: {
     key: "free",
-    name: "Free",
+    name: "Par",
+    tagline: "Casual rounds and one-off events",
     blurb: "For a golfer running a casual round or a one-off, up to ten players.",
     priceMonthly: 0,
     localMonthly: { GBP: 0, EUR: 0, CAD: 0, AUD: 0, NZD: 0, ZAR: 0 },
@@ -172,11 +190,15 @@ export const PLANS: Record<PlanKey, Plan> = {
     // 2026-09-29), for clubs held to the terms — see `wipesOnClose`. It was
     // 48 hours, which nothing ever enforced.
     retentionHours: 0,
-    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+    // Honours OFF from 2026-09-29 (Ajay): a Par tournament is deleted when it
+    // completes, so its honours board could only ever be empty. Clubs that
+    // predate the terms keep it — see `GRANDFATHERED_FEATURES`.
+    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false, honours: false, publicBoard: true },
   },
   society: {
     key: "society",
-    name: "Season",
+    name: "Birdie",
+    tagline: "Leagues and societies",
     // "Society" is British; "league" and "golf group" are how the same people
     // say it elsewhere. The landing reads this in every country's edition.
     blurb: "For a league, society or golf group running a full season — unlimited events, up to fifty a field.",
@@ -206,7 +228,8 @@ export const PLANS: Record<PlanKey, Plan> = {
   },
   club: {
     key: "club",
-    name: "Club",
+    name: "Eagle",
+    tagline: "Golf clubs",
     // No "WHS posting" (2026-09-27): it was printed on the public landing,
     // where "WHS" is not said (page.tsx, the handicap copy), and it was not
     // true — GHIN posting is a deliberate stub (integrations/ghin.ts).
@@ -236,7 +259,29 @@ export const PLANS: Record<PlanKey, Plan> = {
     // the switch move together.
     features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
   },
+  enterprise: {
+    key: "enterprise",
+    name: "Albatross",
+    tagline: "Associations and corporates",
+    blurb: "For an association, a multi-venue operator or a corporate golf program — scoped with you.",
+    // LET'S TALK, not free: no published price, and every price reader checks
+    // `contactOnly` before it would print this 0 as "Free".
+    contactOnly: true,
+    priceMonthly: 0,
+    localMonthly: { GBP: 0, EUR: 0, CAD: 0, AUD: 0, NZD: 0, ZAR: 0 },
+    // GATED, NOT BUILT (Ajay, 2026-09-29: "not build/supported yet"). What an
+    // Albatross customer gets TODAY is everything Eagle has with no limits at
+    // all; the multi-club engine an association actually needs does not exist
+    // (see the deferred register). The tier exists so a customer can be put on
+    // it and every gate answers for it, not because that engine is sold.
+    limits: { activeEvents: null, staffSeats: null, playersPerEvent: null },
+    retentionHours: null,
+    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false, honours: true, publicBoard: true },
+  },
 };
+
+/** The tiers with a published price, in ladder order — everything a price table shows. */
+export const PRICED_PLANS: Plan[] = Object.values(PLANS).filter((p) => !p.contactOnly);
 
 export const DEFAULT_PLAN: PlanKey = "free";
 
@@ -647,7 +692,9 @@ export function retentionNotice(planKey: string, termsApply = true): string | nu
    * not happen is the exact untruth this function spent months undoing.
    */
   if (!termsApply) return null;
-  return "On the Free plan a tournament is deleted when you mark it Completed — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.";
+  // Not opening with the plan's name: the screens that show this put "On the
+  // <name> plan:" in front of it themselves.
+  return "Every tournament on this plan is deleted when you mark it Completed — entries, cards, results and money. Download what you want to keep from Reports first, or upgrade and we'll keep it for you.";
 }
 
 /**
@@ -748,6 +795,17 @@ export function featureOverrides(stored: string | null | undefined): Partial<Rec
 }
 
 /**
+ * WHAT A TIER HAD BEFORE THE TERMS OF 2026-09-29, and a club that predates them
+ * keeps. Ajay moved the honours board off the free plan that day, and every
+ * club in production is on the free plan — so a flag flipped with nothing here
+ * would have emptied the honours board of every real club at once. New clubs
+ * (`planTermsApply`) get the ladder as written; everybody else keeps these.
+ */
+export const GRANDFATHERED_FEATURES: Partial<Record<PlanKey, FeatureKey[]>> = {
+  free: ["honours"],
+};
+
+/**
  * What this club may do, tier and exceptions together.
  *
  * The ONE answer. Callers ask this rather than reading `features` themselves,
@@ -758,9 +816,14 @@ export function featureAllowed(
   planKey: string | null | undefined,
   overrides: string | null | undefined,
   feature: FeatureKey,
+  /** Whether the club is on the published terms; false (grandfathered) by default. */
+  termsApply = false,
 ): boolean {
   const exception = featureOverrides(overrides)[feature];
-  return exception ?? hasFeature(planKey, feature);
+  if (exception !== undefined) return exception;
+  if (hasFeature(planKey, feature)) return true;
+  // A club that predates the terms keeps what its plan gave it before them.
+  return !termsApply && (GRANDFATHERED_FEATURES[planFor(planKey).key] ?? []).includes(feature);
 }
 
 /**
@@ -840,6 +903,9 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push(
       "The season table across separate tournaments — points, best-of and a qualifying minimum, adding up a season of medals and cups into one order of merit.",
     );
+  }
+  if (!plan.features.honours) {
+    out.push("The honours board — every champion the club has had, kept year after year.");
   }
   if (plan.key === "free") {
     out.push(

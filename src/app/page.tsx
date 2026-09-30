@@ -71,6 +71,7 @@ function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
     ["Results kept", each((k) => capitalise(retentionSummary(PLANS[k]).replace(/^results /, "")))],
     ["Players' mobile numbers", each((k) => (phoneRequiredFor(k, false) ? "Always asked" : <>Your choice<small>per tournament</small></>))],
     ["Order of merit across events", each((k) => has(PLANS[k].features.seasonStandings))],
+    ["The honors board", each((k) => has(PLANS[k].features.honours))],
     ["Your club's branding in place of ours", each((k) => has(PLANS[k].features.whiteLabel, "with your logo"))],
   ];
 }
@@ -685,7 +686,7 @@ export default async function LandingPage() {
                 <p className="note">{retentionNotice("free")}</p>
               </div>
               <div className="tier hot reveal">
-                <h3>{PLANS.society.name}<span className="badge">Leagues</span></h3>
+                <h3>{PLANS.society.name}<span className="badge">{PLANS.society.tagline}</span></h3>
                 <p className="for">{PLANS.society.blurb}</p>
                 <div className="price">
                   <b><span className="per-m">{prices.society.monthly}</span><span className="per-y">{prices.society.yearly}</span></b>
@@ -760,7 +761,7 @@ export default async function LandingPage() {
             <div className="ultimate">
               <span className="ic">{icon("globe")}</span>
               <div>
-                <h3>Associations &amp; corporates</h3>
+                <h3>{PLANS.enterprise.name} · {PLANS.enterprise.tagline}</h3>
                 {contactEmail ? (
                   <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
                 ) : (

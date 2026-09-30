@@ -103,8 +103,9 @@ export function OwnerLimits({
         <span style={{ fontSize: 13, lineHeight: 1.45 }}>
           <strong>Enforce these limits.</strong>{" "}
           <span className="text-muted">
-            Off by default. Turning it on immediately caps every club — one already over a limit keeps what
-            it has but can&rsquo;t add more until it upgrades. Leave it off while there is nowhere to upgrade to.
+            Off by default. Clubs created since 29 September 2026 are held to their tier&rsquo;s limits
+            whatever this says; turning it on extends them to every older club too — one already over a limit
+            keeps what it has but can&rsquo;t add more until it upgrades.
           </span>
         </span>
       </label>

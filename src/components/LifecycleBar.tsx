@@ -11,7 +11,7 @@ import {
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
-import { WIPE_ON_CLOSE } from "@/lib/domain/close-terms";
+import { WIPE_ON_CLOSE, LIFESPAN_DAYS } from "@/lib/domain/close-terms";
 import { Icon } from "./Icon";
 
 export interface LifecycleSummary {
@@ -34,7 +34,22 @@ export function LifecycleBar({
   resultsIn = 0,
   blockedReason,
   deletesOnComplete = false,
+  keepOffer,
+  closesOn,
 }: {
+  /**
+   * The upgrade that would keep it — "Birdie keeps every tournament for good —
+   * $49 a month." — asked BEFORE anything is deleted, on the card from the
+   * start and first in the dialog (Ajay, 2026-09-29). The rule does not change;
+   * the club is told how to keep its results while it still can.
+   */
+  keepOffer?: string;
+  /**
+   * The day it closes on its own, once the daily sweep has seen its golf begin
+   * (`closesAt`, never moved). Undefined before then, when the rule is stated
+   * instead of a date.
+   */
+  closesOn?: string;
   /**
    * Completing this tournament deletes it — the Free plan's terms for a club
    * created on them (`wipesOnCloseFor`). The button then asks first, with the
@@ -185,6 +200,20 @@ export function LifecycleBar({
             <span style={{ fontWeight: 600 }}>{mismatch.title}.</span> {mismatch.detail}
           </p>
         )}
+        {/* THE ALERT, from the start rather than at the last click: the free
+            plan deletes this tournament when it is completed, and the time to
+            decide to keep it is before then. */}
+        {deletesOnComplete && status !== "completed" && (
+          <p role="note" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+            <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
+            <span style={{ fontWeight: 600 }}>Completing this tournament deletes it.</span>{" "}
+            {closesOn
+              ? `If nobody does, it closes on ${closesOn} and is deleted then.`
+              : `If nobody does, it closes ${LIFESPAN_DAYS} days after its first round is played.`}{" "}
+            {keepOffer}{" "}
+            <Link href="/organization#plan">Upgrade to keep it</Link>
+          </p>
+        )}
         {isAdmin && isLaunched(status) && (
           <button
             type="button"
@@ -241,6 +270,21 @@ export function LifecycleBar({
           >
             <div className="dialog-title" id="complete-delete-title">Complete and delete “{summary.name}”?</div>
             <div className="dialog-body" id="complete-delete-body">
+              {/* The upgrade FIRST, before the terms and the delete button —
+                  asked before anything goes, never after. */}
+              {keepOffer && (
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    marginBottom: 10,
+                    borderRadius: "var(--radius-md)",
+                    background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>Want to keep it?</span> {keepOffer}{" "}
+                  <Link href="/organization#plan">Upgrade to keep it</Link>
+                </div>
+              )}
               {WIPE_ON_CLOSE}
             </div>
             <div className="dialog-actions">

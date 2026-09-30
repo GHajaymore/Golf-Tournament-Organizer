@@ -197,14 +197,17 @@ export function PlanPanel({
                       annual figure is derived (two months free) and follows the
                       same override. In the club's currency when a plan has a
                       set price there, never a converted one. */}
-                  {effectivePrice(p, overrides, quoteIn) === 0
-                    ? "Free"
-                    : `${price(effectivePrice(p, overrides, quoteIn))}/mo · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr`}
+                  {p.contactOnly
+                    ? "Let's talk"
+                    : effectivePrice(p, overrides, quoteIn) === 0
+                      ? "Free"
+                      : `${price(effectivePrice(p, overrides, quoteIn))}/mo · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr`}
                 </span>
                 {mine && (
                   <span className="tag" style={{ fontSize: 10 }}>You are here</span>
                 )}
               </div>
+              <p style={{ fontSize: 12, fontWeight: 500, margin: "2px 0 0" }}>{p.tagline}</p>
               <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
                 {p.blurb}
               </p>

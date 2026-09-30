@@ -47,7 +47,8 @@ import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
-import { wipesOnCloseFor } from "@/lib/services/close-terms";
+import { wipesOnCloseFor, keepItOffer } from "@/lib/services/close-terms";
+import { formatDay } from "@/lib/domain/locale";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -861,7 +862,13 @@ export default async function DashboardPage() {
           configUnlocked={event.configUnlocked}
           resultsIn={state.resultsIn}
           blockedReason={phaseBlock ?? undefined}
-          deletesOnComplete={isAdmin && (await wipesOnCloseFor(event.id))}
+          {...(isAdmin && (await wipesOnCloseFor(event.id))
+            ? {
+                deletesOnComplete: true,
+                keepOffer: await keepItOffer(event.organizationId),
+                closesOn: event.closesAt ? formatDay(event.closesAt.toISOString().slice(0, 10)) : undefined,
+              }
+            : {})}
           summary={{
             name: event.name,
             dates: event.dates,

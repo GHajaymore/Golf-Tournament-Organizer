@@ -202,8 +202,13 @@ describe("a tournament's money is all in one currency", () => {
    *
    * Listed rather than excluded so the exception stays one, and stays
    * explained.
+   *
+   * `keepItOffer` (2026-09-29) is the second: the price of upgrading, quoted
+   * before a Par tournament is deleted. That is the club's subscription — its
+   * own bill — in the club's currency, exactly as its plan panel quotes it;
+   * a tournament set to yen does not make the club's plan cost yen.
    */
-  const CLUB_OWN_BILL = ["src/app/actions/messaging.ts"];
+  const CLUB_OWN_BILL = ["src/app/actions/messaging.ts", "src/lib/services/close-terms.ts"];
 
   /** Only the resolver may ask an organization what currency it is in. */
   const RESOLVER = ["src/lib/services/organization.ts"];

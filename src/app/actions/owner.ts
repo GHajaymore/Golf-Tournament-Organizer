@@ -1,5 +1,6 @@
 "use server";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
 import { PLANS, LIMIT_KEYS, isValidPercentOff, type PlanKey, type LimitKey } from "@/lib/plans";
@@ -20,6 +21,46 @@ import { createDiscount, setDiscountActive } from "@/lib/services/platform-disco
 export interface OwnerActionResult {
   ok: boolean;
   error?: string;
+}
+
+/**
+ * PUT ONE CLUB ON A TIER — Par, Birdie, Eagle or Albatross.
+ *
+ * Nothing in the app could change a club's plan before this; it was a hand
+ * edit in the database, so Albatross could not be given to anybody without
+ * one. Found by the club's name, exactly (case aside), and refused when that
+ * name matches more than one club rather than guessing which was meant.
+ *
+ * Only `plan` moves. Whether the club is held to the published terms
+ * (`planTermsApply`) is a fact about when it joined and is never touched here —
+ * a grandfathered club moved to Par does not start losing tournaments.
+ */
+export async function setClubPlan(clubName: string, plan: string): Promise<OwnerActionResult & { club?: string }> {
+  const session = await getSession();
+  if (!session || !isOwner(session.email)) return { ok: false, error: "Not found." };
+  if (!(plan in PLANS)) return { ok: false, error: "Pick one of the four tiers." };
+  const name = clubName.trim();
+  if (!name) return { ok: false, error: "Type the club's name." };
+
+  const matches = await prisma.organization.findMany({
+    where: { name: { equals: name, mode: "insensitive" } },
+    select: { id: true, name: true },
+    take: 2,
+  });
+  if (matches.length === 0) return { ok: false, error: `No club is called “${name}”.` };
+  if (matches.length > 1) {
+    return { ok: false, error: `More than one club is called “${name}”, so nothing was changed.` };
+  }
+
+  const org = matches[0];
+  await prisma.subscription.upsert({
+    where: { organizationId: org.id },
+    update: { plan },
+    // No row is a club that predates the terms, so a new row keeps it so.
+    create: { organizationId: org.id, plan, planTermsApply: false },
+  });
+  revalidatePath("/owner");
+  return { ok: true, club: org.name };
 }
 
 /**

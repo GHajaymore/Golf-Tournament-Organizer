@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sweepExpiredRounds } from "@/lib/services/round-sweep";
+import { stampParClocks, sweepClosedPar } from "@/lib/services/par-sweep";
 
 /**
  * The scheduled sweep of expired casual rounds.
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
   }
 
   const result = await sweepExpiredRounds();
+  // And Par tournaments whose fourteen days are up: stamp first, so a
+  // tournament whose golf began today gets its clock rather than being missed.
+  const stamped = await stampParClocks();
+  const par = await sweepClosedPar();
 
   /**
    * A count and ids, never names.
@@ -47,5 +52,6 @@ export async function GET(request: Request) {
     ok: true,
     deleted: result.deleted,
     more: result.more,
+    par: { stamped, deleted: par.deleted, more: par.more },
   });
 }

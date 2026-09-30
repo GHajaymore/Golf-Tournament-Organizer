@@ -174,6 +174,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "a copy has no flights yet — inheriting the sign-off would mark an empty draw as finished, and lock it",
   retainUntil:
     "a hold is granted to one tournament for a reason; a copy inherits neither the reason nor the reprieve",
+  closesAt:
+    "a Par tournament's own closing day, stamped when ITS golf began; a copy has played nothing, and inheriting the date would have the sweep delete a tournament that never started",
   seriesId:
     "copying last season's Spring Medal to run this season's would silently enter the new tournament into the old order of merit — a corrupted league table nobody would trace back to a copy. Joining a season is one click; joining the wrong one is a bug",
   completedAt:

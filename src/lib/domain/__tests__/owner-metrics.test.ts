@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ownerMetrics } from "../owner-metrics";
-import { planFor, effectivePrice } from "../../plans";
+import { planFor, effectivePrice, PLANS } from "../../plans";
 
 /**
  * The metrics turn raw counts into the business. The dangerous line is revenue:
@@ -53,9 +53,19 @@ describe("owner metrics", () => {
 
   it("tier mix is dearest first and carries each plan's MRR", () => {
     const m = ownerMetrics(base);
-    expect(m.tierMix[0].name).toBe("Club");
+    expect(m.tierMix[0].plan).toBe("club");
+    expect(m.tierMix[0].name).toBe(PLANS.club.name);
     expect(m.tierMix[0].mrr).toBe(5 * clubPrice);
     expect(m.tierMix.find((t) => t.plan === "free")?.mrr).toBe(0);
+  });
+
+  it("counts an Albatross club as paying — by contract, so nothing in the estimate", () => {
+    // Its list price is 0 because there is no published price; read as a
+    // price, that would file a contracted customer under Free.
+    const m = ownerMetrics({ ...base, totalOrgs: 3, orgsByPlan: [{ plan: "enterprise", count: 2 }] });
+    expect(m.paidOrgs).toBe(2);
+    expect(m.freeOrgs).toBe(1);
+    expect(m.estMrrMonthly).toBe(0);
   });
 
   it("an unknown plan key is treated as free, never crashing", () => {
