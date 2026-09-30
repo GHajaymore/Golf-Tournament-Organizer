@@ -595,7 +595,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Green fees", "Carts", "Caddies", "Dinner", "Lodging", "Evenly", "By shares", "Exact amounts", "By percent"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "crop-expense", variant: d, width: 1170, height: 1890, alt: "One expense, the dinner and prize table, paid by two players and split sixteen ways." })}</div>
+                <div className="phone money-phone">{lightShot({ name: "money-expenses", variant: d, width: 600, height: 1298, alt: "A player's Money screen: five expenses from one golf weekend, each split its own way — dinner among 14, lodging by shares across 5, caddies among 4, carts among 8, green fees among all 16." })}</div>
               </div>
               <div className="mcard reveal">
                 <h3 className="h3">Prize money, from the board.</h3>
@@ -603,7 +603,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Total purse", "Flight winners", "Twos pot", "Skins with carries", "Nassau", "Birdie pot"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1414, alt: "Add a prize on the organizer's phone: start from top 3 overall, best gross & net, flight winners, a twos pot, or nearest the pin & longest drive." })}</div>
+                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1310, alt: "The organizer's prizes: Club Champion, 250, awarded to the winner; runner-up 120 and third 60 awarded in finishing order; best gross round not yet awarded." })}</div>
               </div>
             </div>
           </div>
@@ -800,14 +800,12 @@ export default async function LandingPage() {
                 {contactEmail ? (
                   <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
                 ) : (
-                  <p>Running several clubs, or a corporate golf program? The {PLANS.club.name} plan runs each club; start free and move up when you need to.</p>
+                  <p>Running several clubs, or a corporate golf program? {PLANS.enterprise.name} is priced with each organization rather than published — our contact address opens soon. Until then, each club can run on {PLANS.club.name}.</p>
                 )}
               </div>
               {contactEmail ? (
                 <a className="btn ghost sm" href={`mailto:${contactEmail}?subject=TourneyHQ%20for%20our%20organization`}>Talk to us</a>
-              ) : (
-                <a className="btn ghost sm" href="#signup">Start free</a>
-              )}
+              ) : null}
             </div>
             <p className="metered">
               Text alerts, reading a photographed card and drafted commentary are built and not switched on for
