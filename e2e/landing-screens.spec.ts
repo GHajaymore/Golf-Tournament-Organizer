@@ -8,9 +8,10 @@ import { expect, test } from "@playwright/test";
  * before any test (2026-09-29), which is what this file is here to end:
  *
  *  - SOFT: a capture exported at 600px drawn 302px wide on a 2x laptop has too
- *    few pixels, and the browser stretches it. Every image must carry at least
- *    two device pixels per CSS pixel (retina laptops), and at least the
- *    device's own ratio on a phone.
+ *    few pixels, and the browser stretches it. Every image must give the
+ *    screen at least its own pixel ratio, and — since the pre-sharpened
+ *    srcset copies of 2026-09-30 let a 1x screen take a smaller file — offer
+ *    a copy with at least two device pixels per CSS pixel for retina laptops.
  *  - CUT or STRETCHED: an image shown at a different shape from the capture is
  *    either cropped by its box or distorted. Shown and natural aspect must agree.
  *  - BLURRED BY MOTION: a screenshot turned in 3D, or floated by an animation,
@@ -38,8 +39,22 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(600);
 
-  const faults = await page.evaluate(() => {
-    const dpr = Math.max(2, window.devicePixelRatio);
+  const faults = await page.evaluate(async () => {
+    const dpr = window.devicePixelRatio;
+    /**
+     * The FILE's pixels. With a srcset, an <img>'s naturalWidth is not the file's
+     * width: the browser divides it by the density it picked, so a 1170px copy
+     * chosen for a 330px slot reports 330 — and a guard reading it measures its
+     * own `sizes`, not the picture (the first run of the srcset read "1.18x" for
+     * a 3.5x image). A bare Image of the chosen file reports what is really there.
+     */
+    const fileSize = (src: string) =>
+      new Promise<[number, number]>((resolve) => {
+        const probe = new Image();
+        probe.onload = () => resolve([probe.naturalWidth, probe.naturalHeight]);
+        probe.onerror = () => resolve([0, 0]);
+        probe.src = src;
+      });
     const out: string[] = [];
     const moving = (el: Element) => el.getAnimations().some((a) => a.playState === "running");
     const turned = (t: string) => {
@@ -54,9 +69,15 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       const box = img.getBoundingClientRect();
       if (box.width < 80 || !img.naturalWidth) continue; // hidden tabs, icons, not yet loaded
       const name = (img.currentSrc || img.src).split("/").pop();
-      const density = img.naturalWidth / box.width;
+      const [fileW, fileH] = await fileSize(img.currentSrc || img.src);
+      const density = fileW / box.width;
       if (density < dpr - 0.05) out.push(`${name}: soft — ${density.toFixed(2)} px per CSS px, needs ${dpr}`);
-      const natural = img.naturalHeight / img.naturalWidth;
+      // What a retina laptop would be given (2026-09-30): a srcset lets a 1x screen take a
+      // smaller copy, so the largest copy on offer must still carry 2x at this width.
+      const [srcW] = await fileSize(img.src);
+      const offered = Math.max(srcW, ...(img.srcset || "").split(",").map((c) => parseInt(c.trim().split(/\s+/)[1] || "0", 10)).filter((n) => n > 0));
+      if (offered / box.width < 1.95) out.push(`${name}: no 2x copy — largest ${offered}px for ${Math.round(box.width)} CSS px`);
+      const natural = fileH / fileW;
       const shown = box.height / box.width;
       if (Math.abs(natural - shown) / natural > 0.02) out.push(`${name}: cut or stretched — shown ${shown.toFixed(3)}, capture ${natural.toFixed(3)}`);
       for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) {

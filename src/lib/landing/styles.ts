@@ -153,14 +153,14 @@ ${landingTokens("dark", "  ")}
 .thq .stage { display: grid; margin-top: 64px; }
 .thq .stage > * { grid-area: 1 / 1; }
 .thq .stage .desk { margin-left: 20%; align-self: start; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xl); }
-.thq .stage .phone { position: relative; z-index: 1; align-self: start; width: min(300px, 26%); margin-top: 40px; }
+.thq .stage .phone { position: relative; z-index: 1; align-self: start; width: min(340px, 28%); margin-top: 40px; }
 .thq .real { margin-top: 24px; font-size: 14px; color: var(--ink-faint); }
 .thq .real b { color: var(--ink-soft); font-weight: 600; }
 @media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } }
 /* A tablet keeps the pair: shown the phone alone, an iPad's hero was one small
    screen on a wide empty stage. The phone grows a little so it still reads. */
-@media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: min(300px, 30%); } }
-@media (max-width: 760px) { .thq .stage .desk { display: none; } .thq .stage .phone { width: min(300px, 78%); margin: 0 auto; } }
+@media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: min(340px, 32%); } }
+@media (max-width: 760px) { .thq .stage .desk { display: none; } .thq .stage .phone { width: min(330px, 84%); margin: 0 auto; } }
 @media (max-width: 760px) { .thq .hero { padding-top: 48px; } .thq .proof { gap: 6px 18px; margin-top: 32px; } }
 
 /* ── the phone: a physical object, dark on any ground ── */
@@ -204,7 +204,7 @@ ${landingTokens("dark", "  ")}
 .thq .step li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brass-ui); margin-top: 10px; }
 .thq .step .inl { display: none; }
 .thq .pin { position: sticky; top: 108px; align-self: start; height: calc(100vh - 140px); max-height: 860px; display: grid; align-content: center; justify-items: center; gap: 18px; }
-.thq .pin .phone { width: 320px; }
+.thq .pin .phone { width: 340px; }
 .thq .pin .scr { position: relative; aspect-ratio: 600 / 1298; border-radius: 38px; overflow: hidden; background: var(--ground-2); }
 .thq .pin .scr img { position: absolute; inset: 0; border-radius: 0; opacity: 0; transition: opacity .45s ease; }
 .thq .pin .scr img.on { opacity: 1; }
@@ -382,7 +382,7 @@ ${landingTokens("dark", "  ")}
 .thq .show-view { --brass-hi: var(--paper-accent); position: relative; border-radius: 20px; min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 48px 40px;
   background: radial-gradient(70% 70% at 28% 30%, color-mix(in srgb, var(--brass-ui) 26%, var(--ink)) 0%, var(--ink) 72%); }
 .thq .show-f { display: none; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 56px; width: 100%; max-width: 820px; }
-.thq .stage-phone { position: relative; width: 290px; justify-self: center; }
+.thq .stage-phone { position: relative; width: 330px; justify-self: center; }
 .thq .stage-phone .phone { box-shadow: 0 50px 90px -24px rgba(0,0,0,.85), 0 20px 50px -18px color-mix(in srgb, var(--brass-ui) 55%, transparent), inset 0 0 0 1.5px rgba(255,255,255,.14); }
 .thq .stage-pins { position: absolute; top: 9px; bottom: 9px; right: -26px; width: 0; margin: 0; padding: 0; list-style: none; }
 .thq .stage-pins li { position: absolute; right: -14px; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
@@ -408,14 +408,15 @@ __SHOW_FRAMES__
   .thq .show-tab { border: 1px solid var(--line); border-radius: 999px; padding: 0 16px; min-height: 44px; align-content: center; }
   .thq .show-view { min-height: 0; padding: 36px 20px 30px; }
   .thq .show-f { grid-template-columns: minmax(0, 1fr); gap: 34px; }
-  .thq .stage-phone { width: min(236px, 62vw); }
+  .thq .stage-phone { width: min(290px, 70vw); }
   .thq .stage-pins { right: -20px; } .thq .stage-pins li { width: 26px; height: 26px; font-size: 12px; right: -12px; }
   .thq .stage-notes li { padding-left: 48px; font-size: 14.5px; } .thq .stage-notes li::before { width: 32px; height: 32px; font-size: 13.5px; }
   .thq .stage-notes b { font-size: 17px; }
 }
 
 /* ── formats: three real boards ── */
-.thq .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 260px)); justify-content: center; gap: 48px; margin-top: 64px; }
+/* Near a real phone's width: at 260px the boards' text reached the eye at 8-9px. */
+.thq .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 340px)); justify-content: center; gap: 40px; margin-top: 64px; }
 /* Packed to the top: stretched to the tallest caption, a figure handed the spare
    height to its phone, and two of the three bezels grew a thick black chin. */
 .thq .boards figure { display: grid; gap: 16px; align-content: start; }
@@ -424,7 +425,7 @@ __SHOW_FRAMES__
 .thq .boards figcaption span { font-size: 14px; color: var(--ink-soft); text-wrap: balance; }
 @media (max-width: 900px) {
   .thq .boards { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; margin: 44px -20px 0; padding: 4px 20px 8px; scrollbar-width: none; }
-  .thq .boards figure { flex: 0 0 min(74%, 280px); scroll-snap-align: start; }
+  .thq .boards figure { flex: 0 0 min(84%, 330px); scroll-snap-align: start; }
 }
 
 /* ── every feature ── */
@@ -465,7 +466,7 @@ __SHOW_FRAMES__
    an iPad the money cards stack to one column and the prizes card stretched to 680px, 1.72x. */
 .thq .mcard .well:has(img[src*="prizes-org-phone"]) { width: min(100%, 440px); margin-left: auto; margin-right: auto; }
 /* The trip money as the member sees it: the whole phone, not a slice of the list. */
-.thq .mcard .money-phone { width: min(300px, 82%); margin: auto auto 0; }
+.thq .mcard .money-phone { width: min(340px, 86%); margin: auto auto 0; }
 @media (max-width: 900px) { .thq .money-cols { grid-template-columns: minmax(0, 1fr); } .thq .mcard { padding: 24px; } }
 
 /* ── make it yours: the drag-to-compare slider ── */
@@ -696,7 +697,7 @@ __CMP_FRAMES__
   .thq .step p { font-size: 15px; }
   .thq .step ul { margin-top: 12px; font-size: 14px; gap: 4px; }
   /* The whole phone, never a slice of it (Ajay: "I dont like cut screens"). */
-  .thq .step .inl { width: min(62%, 230px); margin: auto auto 22px; padding-top: 22px; }
+  .thq .step .inl { width: min(84%, 300px); margin: auto auto 22px; padding-top: 22px; }
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }

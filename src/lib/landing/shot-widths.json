@@ -1,0 +1,364 @@
+{
+ "cup-org-phone.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "cup-org-phone.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-approve.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-approve.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-calendar.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-calendar.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-code": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-teesheet.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-teesheet.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-week.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "day-week.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-champs.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-champs.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-fourball.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-fourball.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-twilight.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "fmt-twilight.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "hero-console.uk": {
+  "w": 2400,
+  "v": [
+   1200
+  ]
+ },
+ "hero-console.us": {
+  "w": 2400,
+  "v": [
+   1200
+  ]
+ },
+ "hero-live.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "hero-live.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "money-expenses.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "money-expenses.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "panel-casual-events.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "panel-casual-events.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-board-light.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-board-light.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-card-dark.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-card-dark.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-card-light.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-card-light.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-hole-light.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-hole-light.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.aud": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.cad": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.eur": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.gbp": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.nzd": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.usd": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-money-light.zar": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-today-light.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "phone-today-light.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "prizes-org-phone.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "prizes-org-phone.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-azalea.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-azalea.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-championship.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-championship.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-coastal.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-coastal.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-tournament.uk": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ },
+ "theme-tournament.us": {
+  "w": 1170,
+  "v": [
+   480,
+   720
+  ]
+ }
+}
