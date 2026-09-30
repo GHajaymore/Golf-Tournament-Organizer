@@ -23,7 +23,7 @@ import { expect, test } from "@playwright/test";
  */
 test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
-test("every screenshot on the front door is sharp, whole and still", async ({ page }) => {
+async function sharpWholeStill(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".thq h1")).toHaveCount(1);
@@ -70,4 +70,21 @@ test("every screenshot on the front door is sharp, whole and still", async ({ pa
   });
 
   expect(faults, faults.join("\n")).toEqual([]);
+}
+
+test("every screenshot on the front door is sharp, whole and still", async ({ page }) => {
+  await sharpWholeStill(page);
+});
+
+/**
+ * And on a tablet, measured separately: an iPad sits between the phone and
+ * desktop layouts, so a section can stack to one column and stretch a
+ * phone-width capture past its natural size — the prizes card did, to 1.72x
+ * on an iPad at 2x, while the three projects above all passed (2026-09-30).
+ */
+test.describe("on an iPad", () => {
+  test.use({ viewport: { width: 810, height: 1080 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  test("every screenshot on the front door is sharp, whole and still", async ({ page }) => {
+    await sharpWholeStill(page);
+  });
 });
