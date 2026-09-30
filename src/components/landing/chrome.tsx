@@ -173,42 +173,25 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
 
 export function landingFooter(at: "home" | "faq", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
-  const col = (title: string, items: Array<[string, string]>) => (
-    <div>
-      <h4>{title}</h4>
-      <ul>{items.map(([href, label]) => <li key={label}><a href={href}>{label}</a></li>)}</ul>
-    </div>
-  );
+  const links: Array<[string, string]> = [
+    [`${home}#pricing`, "Pricing"],
+    [`${home}#compare`, "Compare"],
+    ["/faq", "FAQ"],
+    ["/play", "Enter a round code"],
+    ...(contactEmail ? [[`mailto:${contactEmail}`, "Contact"] as [string, string]] : []),
+    ["/privacy", "Privacy"],
+    [`${home}#signin`, "Sign in"],
+  ];
   return (
     <footer className="ftr band">
       <div className="wrap">
-        <div className="ftr-top">
-          <div>
-            <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
-              <Lockup size={LOGO_SIZE.lg} />
-            </a>
-            <p>Golf tournament and league management for clubs, leagues and golf groups — from registration to recognition.</p>
-          </div>
-          {col("Product", [
-            [`${home}#round`, "One Saturday, both sides"],
-            [`${home}#features`, "Every feature"],
-            [`${home}#formats`, "Formats"],
-            [`${home}#money`, "The money"],
-            [`${home}#pricing`, "Pricing"],
-          ])}
-          {col("Compare", [
-            [`${home}#why`, "Why it's different"],
-            [`${home}#compare`, "The usual way"],
-            [`${home}#compare`, "Club platforms"],
-            [`${home}#compare`, "League & group apps"],
-          ])}
-          {col("Help", [
-            ["/faq", "FAQ"],
-            ["/faq#q-stores", "Install on your phone"],
-            ["/play", "Enter a round code"],
-            ...(contactEmail ? [[`mailto:${contactEmail}`, "Contact"] as [string, string]] : []),
-            ["/privacy", "Privacy"],
-          ])}
+        <div className="ftr-row">
+          <a className="lockup" href={at === "home" ? "#top" : "/"} aria-label="TourneyHQ — home">
+            <Lockup size={LOGO_SIZE.lg} />
+          </a>
+          <nav aria-label="Footer">
+            <ul>{links.map(([href, label]) => <li key={label}><a href={href}>{label}</a></li>)}</ul>
+          </nav>
         </div>
         <div className="ftr-base">
           <span>&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>

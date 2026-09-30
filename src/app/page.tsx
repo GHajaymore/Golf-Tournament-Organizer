@@ -137,11 +137,42 @@ const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: s
 /** The showcase: the rest of the app, by tab — none of these screens appears anywhere else on the page. */
 /* A desk capture shrunk to a phone is ~4px text, so a desk item can carry a
    twin: the same page captured at phone width, shown at 700px and below. */
-const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; desk?: boolean; alt: string; twin?: { screen: Screen; alt: string } }> = [
-  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", desk: true, screen: { name: "desk-cup", by: "d", w: 1600, h: 1000 }, alt: "The team cup on a laptop: Blues 1½, Whites 1½, with the four-balls, foursomes and singles and each match's state.", twin: { screen: { name: "cup-org-phone", by: "d", ...PHONE }, alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the four-balls as they stand." } },
-  { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE }, alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and 3 still to come." },
-  { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE }, alt: "A member's calendar: the month's league rounds, each with an In / Out switch." },
-  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", ...PHONE }, alt: "The player's Events screen, starting with Play a casual round — just you and your group." },
+/**
+ * The showcase: one real phone screen per tab, staged. Each screen carries
+ * three notes that name what THAT screen shows, and a pin beside the phone,
+ * level with it (`y`, % down the screen). The pins sit outside the screen:
+ * the capture itself is untouched (Ajay, 2026-09-29: "rich", "innovative").
+ */
+type Note = { t: string; s: string; y: number };
+const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; alt: string; notes: Note[] }> = [
+  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", screen: { name: "cup-org-phone", by: "d", ...PHONE },
+    alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the four-balls as they stand.",
+    notes: [
+      { t: "The score, as it stands", s: "A point a match, half a point for a halve.", y: 45 },
+      { t: "What each side needs", s: "Worked out as each result comes in.", y: 59 },
+      { t: "Every match, as it stands", s: "Four-balls, foursomes and singles — 2&1, all square.", y: 77 },
+    ] },
+  { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE },
+    alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and three still to come.",
+    notes: [
+      { t: "Week by week", s: "Every night of the league, a tap apart.", y: 27 },
+      { t: "Who's returned a card", s: "And how many are still to come.", y: 52 },
+      { t: "The night's results", s: "Points and gross, as the cards come in.", y: 70 },
+    ] },
+  { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE },
+    alt: "A member's calendar: the month's league rounds, each with an In / Out switch.",
+    notes: [
+      { t: "Every round they're in", s: "Marked Playing, in date order.", y: 12 },
+      { t: "The month at a glance", s: "A dot on each day they play.", y: 45 },
+      { t: "In or Out, in a tap", s: "For each league week ahead.", y: 80 },
+    ] },
+  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", ...PHONE },
+    alt: "The player's Events screen, starting with Play a casual round — just you and your group — and the club's events.",
+    notes: [
+      { t: "A casual round", s: "Just you and your group — no tournament needed.", y: 31 },
+      { t: "Their calendar, one tap away", s: "Every round they're in, on its day.", y: 42 },
+      { t: "Every club event", s: "Entered, or entered in a tap.", y: 80 },
+    ] },
 ];
 
 /** The formats: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
@@ -482,10 +513,14 @@ export default async function LandingPage() {
               <div className="show-view">
                 {SHOWCASE.map((x) => (
                   <figure className="show-f" data-f={x.key} key={x.key}>
-                    <div className={`${x.desk ? "desk" : "phone"}${x.twin ? " only-wide" : ""}`}>{screen(x.screen, x.alt)}</div>
-                    {x.twin ? <div className="phone only-narrow">{screen(x.twin.screen, x.twin.alt)}</div> : null}
-                    <figcaption>
-                      {x.twin ? <><span className="only-wide">{x.alt}</span><span className="only-narrow">{x.twin.alt}</span></> : x.alt}
+                    <div className="stage-phone">
+                      <div className="phone">{screen(x.screen, x.alt)}</div>
+                      <ol className="stage-pins" aria-hidden="true">
+                        {x.notes.map((n, i) => <li key={n.t} style={{ top: `${n.y}%` }}>{i + 1}</li>)}
+                      </ol>
+                    </div>
+                    <figcaption className="stage-notes">
+                      <ol>{x.notes.map((n) => <li key={n.t}><b>{n.t}</b><span>{n.s}</span></li>)}</ol>
                     </figcaption>
                   </figure>
                 ))}
