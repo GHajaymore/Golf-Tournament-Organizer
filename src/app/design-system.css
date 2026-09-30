@@ -599,11 +599,24 @@ textarea.input { min-height: 90px; resize: vertical; }
   grid-template-columns: minmax(0, 1fr);
   padding: var(--space-4);
   background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  /* ABOVE THE PHONE'S OWN BARS (2026-09-29). This had no z-index at all, so
+     every dialog opened BENEATH the mobile top bar and tab bar (z-index 30)
+     and the menu drawer (41). The short dialogs got away with it — their
+     buttons sat clear of the tab bar — and the tall complete-and-delete dialog
+     did not: at 320px its Cancel was under the tab bar, which took the tap.
+     Found by e2e/dialog.spec.ts pressing Cancel, not by measuring width. */
+  z-index: 60;
 }
 .dialog {
   width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-4); border-radius: var(--radius-lg);
   background: var(--color-surface); box-shadow: var(--shadow-lg);
+  /* And never taller than the screen: a dialog whose buttons are below the
+     fold on a small phone is a dialog nobody can answer. It scrolls inside
+     itself instead. */
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .dialog-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
