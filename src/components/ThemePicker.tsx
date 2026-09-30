@@ -24,6 +24,7 @@ import {
   hueDistance,
   themeHue,
   DEFAULT_CLUB_THEME,
+  pairFor,
   type ThemePreset,
   type Appearance,
   type ClubTheme,
@@ -659,7 +660,7 @@ export function ThemePicker({
       {error && <p className="form-error">{error}</p>}
 
       {/* The button row wraps, because it holds up to three buttons and one of
-          them says "Back to default (Sunset + Fairway)" — 241px that will not
+          them says "Back to default (Tournament)" — a long label that will not
           break. On a phone the row pushed the page 4px wide, which the fixed
           tab bar then stretched to match. */}
       {!readOnly && (
@@ -694,7 +695,10 @@ export function ThemePicker({
               setError("");
             }}
           >
-            Back to default (Sunset + Fairway)
+            {/* Named from the defaults it restores. It said "Sunset + Fairway"
+                for a week after the default became Tournament (Verdigris +
+                Optic), so the button promised one look and applied another. */}
+            Back to default ({pairFor(DEFAULT_CLUB_THEME.accentKey, DEFAULT_CLUB_THEME.secondaryKey)?.name ?? "the app’s colours"})
           </button>
           {dirty && (
             <button

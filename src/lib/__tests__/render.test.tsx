@@ -1787,6 +1787,14 @@ describe("settings screens", () => {
     expect(html).toContain("Fairway");
   });
 
+  it("names the default it restores (2026-09-30)", () => {
+    // It read "Back to default (Sunset + Fairway)" and restored Tournament —
+    // Verdigris + Optic — since the default moved. Named from the defaults now.
+    const html = render(<ThemePicker theme={theme({ accentKey: "claret" })} readOnly={false} />);
+    expect(html).toContain("Back to default (Tournament)");
+    expect(html).not.toContain("Sunset + Fairway");
+  });
+
   it("renders every appearance option, and the preview in each", () => {
     for (const appearance of ["dark", "light", "auto"] as const) {
       const html = render(<ThemePicker theme={theme({ appearance })} readOnly={false} />);
