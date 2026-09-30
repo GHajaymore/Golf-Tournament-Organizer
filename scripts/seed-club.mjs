@@ -1513,13 +1513,27 @@ export async function seed() {
           });
         } else {
           for (const p of [a, b]) {
+            const card = cardFor(PARS_18, teamRand, p.handicap);
+            /**
+             * SÉAMUS EAGLES THE 9TH AND THE 14TH in the morning four-ball — the
+             * two par fives with the highest stroke index (13 and 12), where
+             * nobody in this field receives two shots, so a 3 is a skin on its
+             * own merits rather than an artefact. Asked for by the website
+             * session (2026-09-29) so the signed-in player's Money screen nets
+             * golf WINNINGS against the trip's costs; the skins engine still
+             * decides every other hole, carries included.
+             */
+            if (stage === fourBall && p.id === teamField[0].id) {
+              card[8] = 3;
+              card[13] = 3;
+            }
             await prisma.teamScorecard.create({
               data: {
                 eventId: teamEvent.id,
                 stageId: stage.id,
                 teamId: side.id,
                 playerId: p.id,
-                strokes: JSON.stringify(cardFor(PARS_18, teamRand, p.handicap)),
+                strokes: JSON.stringify(card),
               },
             });
           }
@@ -1603,17 +1617,67 @@ export async function seed() {
       });
     }
 
+    /**
+     * A WEEKEND'S MONEY, THE WAY A TRIP ACTUALLY RUNS (website session,
+     * 2026-09-29: "different expenses and different number of participants +
+     * golf together in one screen", Ajay's ask). It was one dinner split
+     * sixteen ways, so every row of the settle-up read the same $25.63 and the
+     * screen showed none of what makes the feature worth having. Now each bill
+     * has its own people, in each of the ways the app splits one:
+     *
+     *   green fees   evenly, all sixteen            paid by one member
+     *   carts        evenly, the eight who rode     exact participants
+     *   caddies      evenly, the four who took one
+     *   dinner       fourteen — two left before it  two payers on one bill
+     *   lodging      three rooms, by SHARES 1/1/1/1/2 (two doubles and a single)
+     *
+     * and the golf money beside it: net skins at £10 a head, carries included,
+     * so the net figure at the top of a player's Money screen is winnings and
+     * costs together.
+     */
+    const tripBill = async (
+      description,
+      cents,
+      category,
+      paidBy,
+      shares /* [player, weight][] */,
+    ) =>
+      prisma.expense.create({
+        data: {
+          eventId: teamEvent.id,
+          description: `${MARK} ${description}`,
+          amountCents: cents,
+          paidBy: paidBy.id,
+          category,
+          spentOn: dayOffset(-3),
+          createdBy: organizer.name,
+          shares: { create: shares.map(([p, weight]) => ({ playerId: p.id, weight })) },
+        },
+      });
+    // Descriptions carry no currency sign: the club's own currency is on every
+    // amount, and "16 × $85" on a £ club would contradict its own figure.
+    await tripBill("Green fees — sixteen players", 136000, "green-fee", teamField[2], teamField.map((p) => [p, 1]));
+    await tripBill("Carts", 32000, "cart", teamField[3], teamField.slice(0, 8).map((p) => [p, 1]));
+    await tripBill("Caddies", 24000, "caddie", teamField[8], teamField.slice(8, 12).map((p) => [p, 1]));
+    await tripBill("Lodging — three rooms", 120000, "lodging", teamField[0], [
+      [teamField[0], 1],
+      [teamField[1], 1],
+      [teamField[4], 1],
+      [teamField[5], 1],
+      [teamField[6], 2], // the single room, at twice a shared one
+    ]);
+
     const dinner = await prisma.expense.create({
       data: {
         eventId: teamEvent.id,
         description: `${MARK} dinner and prize table`,
-        // 41 across 16 does not divide either.
+        // 41 across 14 does not divide either — two left before dinner.
         amountCents: 41005,
         paidBy: teamField[0].id,
         category: "food",
         spentOn: dayOffset(-3),
         createdBy: organizer.name,
-        shares: { create: teamField.map((p) => ({ playerId: p.id, weight: 1 })) },
+        shares: { create: teamField.slice(0, 14).map((p) => ({ playerId: p.id, weight: 1 })) },
       },
     });
     // Two cards on one bill — the real multi-payer case, and it SUMS to the
@@ -1626,30 +1690,27 @@ export async function seed() {
         { expenseId: dinner.id, playerId: teamField[1].id, amountCents: 10000 },
       ],
     });
-    await prisma.settlement.create({
-      data: {
-        eventId: teamEvent.id,
-        fromPlayerId: teamField[7].id,
-        toPlayerId: teamField[0].id,
-        cents: 2563,
-        owedCents: 2563,
-        recordedBy: organizer.name,
-      },
-    });
+    // (The recorded part-settlement of $25.63 went with the even split it was
+    // a share of: against these bills it would be a payment of no amount
+    // anybody owed.)
     const teamSkins = await prisma.skinsPot.create({
       data: {
         eventId: teamEvent.id,
         stageId: fourBall.id,
-        net: false,
-        scope: "front",
+        net: true,
+        scope: "full",
         groupKey: "",
-        buyInCents: 0,
-        stakeNote: "a pint in the Hollow bar",
+        buyInCents: 1000,
       },
     });
     await prisma.skinsEntry.createMany({
       data: teamField.map((p) => ({ potId: teamSkins.id, playerId: p.id, confirmed: true })),
     });
+    // No Nassau here, deliberately: one was tried on this FOUR-BALL round and
+    // the Money screen showed nothing for it at all — the round's cards are
+    // stored per side (`TeamScorecard`), and the Nassau reads individual ones.
+    // Raised for Ajay in docs/overnight-2026-09-26.md rather than changed
+    // overnight, because it is money logic. The medal carries a working Nassau.
 
     /* ============================ 6. nine holes, Stableford, away course == */
 

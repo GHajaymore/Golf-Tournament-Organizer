@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { wipesOnClose, PLANS_THAT_DELETE } from "../domain/close-terms";
+import { wipesOnClose, casualKeepRefusal, PLANS_THAT_DELETE } from "../domain/close-terms";
 import { PLANS, effectivePrice, planCurrency } from "../plans";
 import { wholeMoney } from "../domain/money-format";
 import { storedPricingOverrides } from "./platform-pricing";
@@ -20,6 +20,15 @@ export async function keepItOffer(organizationId: string): Promise<string> {
   const currency = planCurrency(org?.currency);
   const monthly = effectivePrice(keep, await storedPricingOverrides(), currency);
   return `${keep.name} keeps every tournament for good — ${wholeMoney(monthly, currency, org?.locale ?? undefined)} a month.`;
+}
+
+/** Why this event's casual round cannot be kept, or null — `casualKeepRefusal` for its club. */
+export async function casualKeepRefusalFor(eventId: string): Promise<string | null> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { subscription: { select: { plan: true, planTermsApply: true } } } } },
+  });
+  return casualKeepRefusal(event?.organization.subscription);
 }
 
 /**

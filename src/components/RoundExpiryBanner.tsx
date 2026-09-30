@@ -20,7 +20,14 @@ import { Icon } from "./Icon";
 export function RoundExpiryBanner({
   notice,
   canKeep,
+  keepRefusal = null,
 }: {
+  /**
+   * Why this round cannot be kept at all — the Par terms (`casualKeepRefusal`).
+   * Then there is no button to offer anybody, and the notice already names the
+   * upgrade; the button that `keepRound` would refuse is not drawn.
+   */
+  keepRefusal?: string | null;
   /** Already-worded, from `expiryNotice`. Empty renders nothing. */
   notice: string;
   /**
@@ -77,7 +84,12 @@ export function RoundExpiryBanner({
           <div style={{ fontSize: 12, marginTop: 4, color: "var(--color-danger)" }}>{error}</div>
         )}
       </div>
-      {canKeep && (
+      {canKeep && keepRefusal && (
+        <a className="btn btn-secondary" href="/organization#plan" style={{ minHeight: 44, flex: "none" }}>
+          See plans
+        </a>
+      )}
+      {canKeep && !keepRefusal && (
         <button
           type="button"
           className="btn btn-primary"

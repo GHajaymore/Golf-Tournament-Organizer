@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { signOutAction } from "@/app/actions/auth";
 import { Icon } from "./Icon";
 
@@ -34,7 +35,15 @@ export function PlayerSignOut({ name }: { name: string }) {
         <Icon name="sign-out" style={{ fontSize: 17 }} />
       </button>
 
-      {asking && (
+      {/* PORTALED TO THE PAGE (2026-09-29). This button lives in the player
+          shell's header, and that header has `backdrop-filter`, which makes it
+          the containing block for any `position: fixed` inside it. So the
+          backdrop was fixed to the HEADER, not the screen, and the dialog was
+          centred on a 63px strip with its title cut off above the top edge —
+          on every player's phone. Found by dialog.spec's new top-edge check.
+          Rendered only once asked, which is always after hydration, so
+          `document` is there. */}
+      {asking && createPortal(
         <div className="dialog-backdrop" onClick={() => setAsking(false)}>
           {/* ANNOUNCED AS A DIALOG, WHICH IT WAS NOT.
               It looked modal and was semantically invisible: a backdrop and a
@@ -74,7 +83,8 @@ export function PlayerSignOut({ name }: { name: string }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

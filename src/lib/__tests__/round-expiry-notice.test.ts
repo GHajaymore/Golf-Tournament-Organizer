@@ -80,8 +80,11 @@ describe("where the warning renders", () => {
      */
     const me = readSource("src/app/(player)/me/page.tsx");
     expect(me).toMatch(/<RoundExpiryBanner/);
-    expect(me).toMatch(/expiryNotice\(hoursLeft\(state\.event\), isStaff\)/);
+    // Worded for the reader AND for whether the round can be kept at all.
+    expect(me).toMatch(/expiryNotice\(hoursLeft\(state\.event\), isStaff, keepRefusal\)/);
     expect(me).toMatch(/canKeep=\{isStaff\}/);
+    expect(me).toMatch(/keepRefusal=\{keepRefusal\}/);
+    expect(me).toMatch(/await casualKeepRefusalFor\(state\.event\.id\)/);
     expect(me).toMatch(/const isStaff = session\.role === "admin" \|\| session\.role === "assistant"/);
     const action = readSource("src/app/actions/round-expiry.ts");
     expect(action).toMatch(/session\.role !== "admin" && session\.role !== "assistant"/);
@@ -89,7 +92,49 @@ describe("where the warning renders", () => {
 
   it("is still on the console, worded for whoever can keep it", () => {
     const dash = readSource("src/app/(app)/dashboard/page.tsx");
-    expect(dash).toMatch(/expiryNotice\(hoursLeft\(event\), isStaff\)/);
+    expect(dash).toMatch(/expiryNotice\(hoursLeft\(event\), isStaff, keepRefusal\)/);
+    expect(dash).toMatch(/keepRefusal=\{keepRefusal\}/);
+    expect(dash).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+  });
+});
+
+/**
+ * AND NOBODY IS TOLD TO KEEP A ROUND THAT CANNOT BE KEPT (2026-09-29).
+ *
+ * On the Par terms a casual round keeps its 24 hours. Both remedies above —
+ * "Keep it" and "Ask whoever set it up to keep it" — are then instructions
+ * `keepRound` refuses when followed, so the one remedy that exists is named.
+ */
+describe("a round the plan will not let anybody keep", () => {
+  const refusal = "On the free Par plan a casual round is kept for 24 hours. Upgrade to Birdie to keep it for good.";
+
+  it("names the upgrade, to staff and player alike, and never the button", () => {
+    for (const canKeep of [true, false]) {
+      const s = expiryNotice(6, canKeep, refusal);
+      expect(s).toContain("Upgrade to Birdie");
+      expect(s).not.toContain("Keep it to hold on to");
+      expect(s).not.toContain("Ask whoever set it up");
+      // Still warned — the half that must never be hidden.
+      expect(s).toContain("deleted");
+    }
+    expect(expiryNotice(0, true, refusal)).toContain("passed its day");
+  });
+
+  it("CONTROL: with no refusal the wording is exactly as before", () => {
+    expect(expiryNotice(6, true, null)).toBe(expiryNotice(6, true));
+    expect(expiryNotice(6, false, null)).toBe(expiryNotice(6, false));
+  });
+
+  it("the play shell passes the same refusal", () => {
+    const page = readSource("src", "app", "play", "page.tsx");
+    expect(page).toMatch(/expiryNotice\(hoursLeft\(event\), false, keepRefusal\)/);
+    expect(page).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+  });
+
+  it("the refusal the screen shows is the one the action gives", () => {
+    // One rule, three readers: the sentence, the button, and the refusal.
+    const action = readSource("src/app/actions/round-expiry.ts");
+    expect(action).toMatch(/casualKeepRefusal\(event\.organization\.subscription\)/);
   });
 });
 
@@ -144,7 +189,7 @@ describe("the play shell tells a code-redeemed player too", () => {
     // `keepRound` is staff-only and the people on this surface are exactly the
     // ones who are not staff.
     const page = readSource("src", "app", "play", "page.tsx");
-    expect(page).toMatch(/expiryNotice\(hoursLeft\(event\), false\)/);
+    expect(page).toMatch(/expiryNotice\(hoursLeft\(event\), false, keepRefusal\)/);
     /**
      * EVERY surface, counted — not "it appears somewhere".
      *
