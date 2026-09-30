@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { postCommentary, deleteCommentary, suggestCommentary } from "@/app/actions/commentary";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { METERED_TIER } from "@/lib/plans";
 
 export interface CommentaryItem {
   id: string;
@@ -76,7 +77,7 @@ export function CommentaryPanel({
             </button>
             {!aiAvailable && (
               <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
-                Drafting comes with the paid plan — write your own line for now.
+                Drafting is coming with {METERED_TIER} — write your own line for now.
               </span>
             )}
             <div style={{ flex: 1 }} />

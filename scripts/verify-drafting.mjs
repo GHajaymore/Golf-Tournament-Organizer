@@ -110,6 +110,8 @@ async function main() {
       // every plan, and a club already paying was told it came with theirs.
       check("says it is not switched on yet", html, "Coming soon");
       check("does not claim a plan includes it", html, "On the paid plan", false);
+      // The tag names a tier now (2026-09-29), so the claim would read "On Eagle".
+      check("does not claim Eagle includes it", html, "On Eagle", false);
       // "above", because that is where the composer is. This panel sits below
       // it by design, so the old "below" sent a locked-out organizer to the
       // end of the page.

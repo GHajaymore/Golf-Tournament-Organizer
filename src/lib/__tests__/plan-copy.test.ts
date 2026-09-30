@@ -88,7 +88,7 @@ describe("what a club gets for its money is actually said", () => {
       // what it DOES and marked as not here yet.
       if (PLANS.club.features[f.key]) continue;
       expect(pitch.toLowerCase()).toContain(f.benefit.slice(0, 40).toLowerCase());
-      expect(pitch).toContain("coming with the paid plan");
+      expect(pitch).toContain("coming with Eagle");
     }
   });
 

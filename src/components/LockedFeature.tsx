@@ -9,10 +9,12 @@ import { Icon } from "./Icon";
  * A club already on Club read that it came with the plan it was paying for.
  * plan-copy.test.ts already requires these to be pitched as COMING; this is
  * the one surface that pitched them as included. When a plan turns one on,
- * the tag says so by itself.
+ * the tag says so by itself — naming the first tier that has it, since "the
+ * paid plan" stopped meaning one plan when the ladder went to four.
  */
 export function lockedTag(feature: FeatureKey): string {
-  return Object.values(PLANS).some((p) => p.features[feature]) ? "On the paid plan" : "Coming soon";
+  const first = Object.values(PLANS).find((p) => p.features[feature]);
+  return first ? `On ${first.name}` : "Coming soon";
 }
 
 /**
