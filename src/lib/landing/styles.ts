@@ -252,7 +252,10 @@ ${landingTokens("dark", "  ")}
    and the five rivals slide past two at a time, inside the table's own
    scroller — the page itself never scrolls sideways. */
 .thq .cx-cue { display: none; }
-.thq .cx-scroll { overflow-x: auto; border: 1px solid var(--ink); border-radius: 18px; background: var(--card); overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+/* position: relative makes the scroller the containing block of the screen-reader-only
+   labels (.sr, absolutely positioned) in its cells. Without it they escaped the
+   overflow to the page, and phones widened the layout viewport to 621px and zoomed out. */
+.thq .cx-scroll { position: relative; overflow-x: auto; border: 1px solid var(--ink); border-radius: 18px; background: var(--card); overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
 .thq .cx-scroll:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 3px; }
 .thq .cx { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .thq .cx th, .thq .cx td { padding: 14px 10px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; background: var(--card); }

@@ -205,6 +205,14 @@ for (const path of standaloneScreens()) {
     expect(new URL(page.url()).pathname, `${path} redirected away`).toBe(path);
     await expect(page.locator("#__next_error__")).toHaveCount(0);
 
+    // Measure the page as a reader sees it after scrolling: every section that
+    // rises in on scroll (`.reveal`) has risen. Before, its transform was a
+    // containing block that hid an overflow: the comparison table's screen-reader
+    // labels escaped their scroller once revealed, and phones widened the page to
+    // 621px and zoomed out (2026-09-29). A page with nothing to reveal is unchanged.
+    await page.evaluate(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("seen")));
+    await page.waitForTimeout(900);
+
     const width = page.viewportSize()?.width ?? 0;
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const offenders = await overflowing(page);
