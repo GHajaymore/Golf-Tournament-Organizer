@@ -1,5 +1,6 @@
 import { holesPlayed } from "./handicap";
 import { perPlayerPotRefusal } from "./shared-ball";
+import { PLANS } from "../plans";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -685,7 +686,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
   if (named.length > QUICK_ROUND_MAX_PLAYERS) {
     return {
       ok: false,
-      error: `That is more than ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, create a tournament.`,
+      error: `That is more than ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, create a tournament — it's free on ${PLANS.free.name}.`,
     };
   }
 

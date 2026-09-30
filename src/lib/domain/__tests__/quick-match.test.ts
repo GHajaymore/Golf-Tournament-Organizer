@@ -72,6 +72,18 @@ describe("planning a match", () => {
     expect(planMatch({ players: [{ name: "Alex" }, { name: "Sam" }], format: "Match Play" }).ok).toBe(true);
   });
 
+  it("refuses a ninth player and points at the free tournament instead (Ajay, 2026-09-30)", () => {
+    // A casual round is a quick competition at the course, two to eight; for
+    // anything planned "there is always a free tier".
+    const players = Array.from({ length: 9 }, (_, i) => ({ name: `Player ${i + 1}` }));
+    const r = planMatch({ players, format: "Stroke Play" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toContain("more than 8 players");
+      expect(r.error).toContain("free on Par");
+    }
+  });
+
   it("refuses one player, and says what is missing", () => {
     const r = planMatch({ players: [{ name: "Alex" }, { name: "  " }], format: "Match Play" });
     expect(r.ok).toBe(false);
