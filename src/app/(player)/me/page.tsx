@@ -26,6 +26,7 @@ import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
@@ -94,6 +95,8 @@ export default async function PlayTodayPage() {
    */
   const myRow = (await clubEventsFor(session.email)).find((r) => r.eventId === session.eventId) ?? null;
   const isStaff = session.role === "admin" || session.role === "assistant";
+  // Only a casual round has an expiry to keep; asked only then.
+  const keepRefusal = hoursLeft(state.event) === null ? null : await casualKeepRefusalFor(state.event.id);
   const watching = !me.playerId && isWatching(myRow, isStaff);
   /**
    * ON THE WAITING LIST — a third state, and until 2026-09-20 there were two.
@@ -277,7 +280,11 @@ export default async function PlayTodayPage() {
        * for every tournament, so nothing mounts outside a casual round.
        */}
       <div style={{ marginTop: 12 }}>
-        <RoundExpiryBanner notice={expiryNotice(hoursLeft(state.event), isStaff)} canKeep={isStaff} />
+        <RoundExpiryBanner
+          notice={expiryNotice(hoursLeft(state.event), isStaff, keepRefusal)}
+          canKeep={isStaff}
+          keepRefusal={keepRefusal}
+        />
       </div>
 
       {/**

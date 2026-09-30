@@ -7094,6 +7094,31 @@ describe("the lifecycle button names the phase, not the link", () => {
  * against the functions — the functions have their own tests, and it was a
  * rendered screen that found this.
  */
+describe("a casual round the plan will not let anybody keep", () => {
+  /**
+   * The button `keepRound` would refuse is not drawn (2026-09-29): on the Par
+   * terms the round keeps its 24 hours, and a "Keep this round" that always
+   * says no is a control that lies. The control is the round that CAN be kept.
+   */
+  const notice = "This round is temporary — it's deleted about a day after it was set up.";
+  const banner = async (keepRefusal: string | null) => {
+    const { RoundExpiryBanner } = await import("@/components/RoundExpiryBanner");
+    return render(<RoundExpiryBanner notice={notice} canKeep keepRefusal={keepRefusal} />);
+  };
+
+  it("offers the plans, not the button, when the round cannot be kept", async () => {
+    const html = await banner("On the free Par plan a casual round is kept for 24 hours.");
+    expect(html).not.toContain("Keep this round");
+    expect(html).toContain('href="/organization#plan"');
+  });
+
+  it("CONTROL: still offers the button when it can", async () => {
+    const html = await banner(null);
+    expect(html).toContain("Keep this round");
+    expect(html).not.toContain("/organization#plan");
+  });
+});
+
 describe("a Par tournament is offered the upgrade before it is deleted", () => {
   /**
    * Ajay, 2026-09-29: "make sure to ask for upgrade before deleting (raise
