@@ -5071,7 +5071,7 @@ describe("locked metered features", () => {
     // scorecard reader above is held to. It used to read "On the paid plan"
     // here and keep the useful half in a `title`, which never appears on a
     // phone and is not announced.
-    expect(html).toContain("Drafting comes with the paid plan");
+    expect(html).toContain("Drafting is coming with Eagle");
     expect(html).toContain("write your own line for now");
     expect(html).not.toContain("title=");
   });
@@ -5135,7 +5135,9 @@ describe("locked metered features", () => {
     const was = PLANS.club.features.aiAssist;
     PLANS.club.features.aiAssist = true;
     try {
-      expect(lockedTag("aiAssist")).toBe("On the paid plan");
+      // Named, not "the paid plan": with four tiers that told a Birdie club
+      // it had something only Eagle would get.
+      expect(lockedTag("aiAssist")).toBe(`On ${PLANS.club.name}`);
     } finally {
       PLANS.club.features.aiAssist = was;
     }

@@ -858,6 +858,13 @@ export function featureAllowed(
  * promise on the upgrade page and the message at the locked door cannot drift
  * apart — they are generated from the same rows.
  */
+/**
+ * The tier the metered three go to first, when they are switched on — Eagle,
+ * by Ajay's decision of 2026-09-29. The copy said "the paid plan", which with
+ * four tiers told a Birdie buyer they were getting them.
+ */
+export const METERED_TIER = PLANS.club.name;
+
 export const METERED_FEATURES: {
   key: FeatureKey;
   /** Short label, for the benefits list. */
@@ -873,7 +880,7 @@ export const METERED_FEATURES: {
     benefit:
       "Send a frost delay or a tee change as a text as well as in the app, to the players who asked for them.",
     locked:
-      "Text alerts aren't switched on yet. Your message still reaches everyone in the app — texting is coming with the paid plan, because every text costs the club money at the carrier.",
+      `Text alerts aren't switched on yet. Your message still reaches everyone in the app — texting is coming with ${METERED_TIER}, because every text costs the club money at the carrier.`,
   },
   {
     key: "cardScan",
@@ -881,7 +888,7 @@ export const METERED_FEATURES: {
     benefit:
       "Photograph a completed card and have the scores read off it for you to check, instead of typing eighteen numbers.",
     locked:
-      "Reading a photographed card isn't switched on yet. Enter the scores by hand for now — this is coming with the paid plan, because each card read costs money.",
+      `Reading a photographed card isn't switched on yet. Enter the scores by hand for now — this is coming with ${METERED_TIER}, because each card read costs money.`,
   },
   {
     key: "aiAssist",
@@ -889,7 +896,7 @@ export const METERED_FEATURES: {
     benefit:
       "AjAi writes a first draft of your leaderboard commentary, invitation, and round setup, ready for you to edit.",
     locked:
-      "AjAi drafting isn't switched on yet. Write it yourself for now — this is coming with the paid plan, because each draft costs money.",
+      `AjAi drafting isn't switched on yet. Write it yourself for now — this is coming with ${METERED_TIER}, because each draft costs money.`,
   },
 ];
 
@@ -941,7 +948,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
   // tier exists, but promising them as available today would be a lie until
   // the flags above are on.
   for (const f of METERED_FEATURES) {
-    if (!plan.features[f.key]) out.push(`${f.benefit} (coming with the paid plan.)`);
+    if (!plan.features[f.key]) out.push(`${f.benefit} (coming with ${METERED_TIER}.)`);
   }
 
   return out;

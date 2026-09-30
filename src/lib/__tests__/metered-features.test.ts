@@ -61,7 +61,9 @@ describe("the upgrade pitch", () => {
     for (const f of METERED_FEATURES) {
       expect(benefits, `${f.key} missing from the upgrade benefits`).toContain(f.benefit);
     }
-    expect(benefits).toContain("coming with the paid plan");
+    // Eagle, by Ajay's decision (2026-09-29) — not "the paid plan", which a
+    // Birdie buyer would read as theirs.
+    expect(benefits).toContain("coming with Eagle");
   });
 
   it("leads with what a free club actually loses today", () => {
@@ -79,7 +81,7 @@ describe("the upgrade pitch", () => {
     expect(benefits).not.toMatch(/branding/i);
     expect(benefits).not.toMatch(/as many tournaments/i);
     // But the metered ones are still listed — a paying club hasn't got them.
-    expect(benefits).toContain("coming with the paid plan");
+    expect(benefits).toContain("coming with Eagle");
   });
 
   it("says nothing at all once everything is on", () => {

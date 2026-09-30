@@ -1501,7 +1501,8 @@ named. The deferred-register entry for this class is closed.
 | #731 | A Nassau or a match bet is refused on a round with no match, since it could never settle (item 15) |
 | #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
 | #734 | Honours on Par: the board says it is locked rather than empty, and the write is refused |
-| next | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
+| #736 | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
+| next | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
