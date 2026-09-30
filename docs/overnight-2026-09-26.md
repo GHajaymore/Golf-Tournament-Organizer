@@ -1504,7 +1504,8 @@ named. The deferred-register entry for this class is closed.
 | #736 | Seasons on Par: locked before a season exists, not after; "Start a season" refused |
 | #737 | Texting, card reading and drafting say "coming with Eagle" (your decision), not "the paid plan" |
 | #739 | A new Par society, walked from sign-up: four fixes (below) |
-| next | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
+| #741 | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
+| next | A promotion takes a staff seat: "add as a player, then promote" went round the seat limit |
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
@@ -1564,6 +1565,13 @@ confirmed an eleventh player. The public sign-up page, the member's Events card 
 organizer's Registration screen said "Open for entries" over a full field. All seven now ask the
 plan for its cap; a Par tournament created on Par was never affected (its capacity is clamped at
 10 when it is made). This is the path a lapsed payment would take once billing exists.
+
+**And the staff seats had the same shape of gap.** The seat limit was checked when somebody was
+ADDED as staff, never when they were PROMOTED: add a person to a tournament as a player, then make
+them Assistant on Access & staff — or make a club Member an admin — and Par's one organizer seat
+held as many as anybody liked. Every path that grants staff rights now asks one question, by
+person, so somebody who already holds a seat (the secretary made organizer of a second
+tournament) is no longer refused one either.
 
 What held: the 10-player cap (twelve added, ten confirmed, two waitlisted), the capacity field
 capped at 10 with the reason beside it, the dashboard's Par warning with the upgrade offer, and

@@ -69,15 +69,31 @@ describe("limits are wired into every path that consumes one", () => {
     expect(tournament).toMatch(/refusalFor\(source\.organizationId, "activeEvents"\)/);
   });
 
-  it("counts per-event organizer roles against staff seats", () => {
-    // Without this the seat limit is bypassed by granting rights on each event
-    // rather than at the club.
-    expect(tournament).toMatch(/refusalFor\(orgId, "staffSeats"\)/);
-  });
-
-  it("checks before adding club staff", () => {
-    expect(organization).toMatch(/refusalFor\(org\.organizationId, "staffSeats"\)/);
-  });
+  /**
+   * EVERY PATH THAT GRANTS STAFF RIGHTS asks the seat question — adding AND
+   * promoting, on an event AND at the club. These pinned only the two ADD
+   * paths (`refusalFor(…, "staffSeats")`), and the promotions beside them went
+   * round the limit (2026-09-30). The behaviour is proved against real rows in
+   * a-promotion-takes-a-seat.audit.test.ts; this keeps a sixth path honest.
+   */
+  const join = read("src/app/actions/join.ts");
+  const body = (src: string, fn: string) => {
+    const start = src.indexOf(`export async function ${fn}(`);
+    expect(start, `${fn} not found`).toBeGreaterThan(-1);
+    const next = src.indexOf("export async function", start + 1);
+    return src.slice(start, next === -1 ? undefined : next);
+  };
+  for (const [src, fns] of [
+    [tournament, ["addAccount", "setAccountRole"]],
+    [organization, ["addOrganizationMember", "setOrganizationMemberRole"]],
+    [join, ["approveJoinRequest"]],
+  ] as const) {
+    for (const fn of fns) {
+      it(`${fn} asks the seat question`, () => {
+        expect(body(src, fn)).toMatch(/seatRefusalFor\(/);
+      });
+    }
+  }
 
   it("does not charge a seat for adding a player", () => {
     const addAccount = tournament.slice(tournament.indexOf("export async function addAccount"));

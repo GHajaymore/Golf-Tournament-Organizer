@@ -9,7 +9,7 @@ import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profil
 import { isGolfRegister } from "@/lib/domain/golf-terms";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { otherOrganizationNamed } from "@/lib/services/organization";
-import { refusalFor } from "@/lib/services/limits";
+import { seatRefusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
 } from "@/lib/themes";
@@ -89,13 +89,13 @@ export async function addOrganizationMember(email: string, name: string, roleInp
    * at its cap could not add the field it just took entries from.
    */
   const role = cleanOrgRole(roleInput);
-  if (role === "owner" || role === "admin") {
-    const refusal = await refusalFor(org.organizationId, "staffSeats");
-    if (refusal) return { ok: false, error: refusal };
-  }
-
   const cleanEmail = email.trim().toLowerCase();
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  if (role === "owner" || role === "admin") {
+    // By person, so somebody already holding a seat is not refused one.
+    const refusal = await seatRefusalFor(org.organizationId, cleanEmail);
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   const user = await prisma.user.upsert({
     where: { email: cleanEmail },
@@ -161,6 +161,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
 
   const member = await prisma.organizationMember.findFirst({
     where: { id: memberId, organizationId: org.organizationId },
+    include: { user: { select: { email: true } } },
   });
   if (!member) return { ok: false, error: "Staff member not found." };
 
@@ -169,6 +170,13 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   const next = cleanOrgRole(role);
   if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
     return { ok: false, error: "This is the only owner — make someone else an owner first." };
+  }
+  // Member or Guest to admin or owner takes a seat — the promotion that went
+  // round the limit (see `seatRefusalFor`).
+  const seatRoles = ["owner", "admin"];
+  if (seatRoles.includes(next) && !seatRoles.includes(member.role)) {
+    const refusal = await seatRefusalFor(org.organizationId, member.user.email);
+    if (refusal) return { ok: false, error: refusal };
   }
 
   await prisma.organizationMember.update({ where: { id: memberId }, data: { role: next } });

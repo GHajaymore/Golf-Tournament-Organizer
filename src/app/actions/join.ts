@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { refusalFor } from "@/lib/services/limits";
+import { seatRefusalFor } from "@/lib/services/limits";
 import { organizationAccess } from "@/lib/services/org-access";
 import { clubNameClash } from "@/lib/services/organization";
 import { sendJoinRequestEmail } from "@/lib/email";
@@ -156,7 +156,7 @@ export async function approveJoinRequest(requestId: string, role: string): Promi
 
   const granted = cleanGrant(role);
   if (granted === "admin") {
-    const refusal = await refusalFor(org.organizationId, "staffSeats");
+    const refusal = await seatRefusalFor(org.organizationId, ask.user.email);
     if (refusal) {
       const who = ask.user.name?.trim() || ask.user.email;
       return {
