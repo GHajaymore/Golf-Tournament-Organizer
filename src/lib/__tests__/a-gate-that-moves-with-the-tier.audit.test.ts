@@ -16,8 +16,13 @@ vi.mock("next/cache", () => ({
   revalidateTag: () => {},
   revalidatePath: () => {},
 }));
+/** The secretary, for the one cell that goes through a server action. */
+const auth = vi.hoisted(() => ({ session: null as null | Record<string, string> }));
+vi.mock("@/lib/auth", () => ({ getSession: async () => auth.session }));
 import { organizationAllows, entitlementForEvent } from "@/lib/services/entitlements";
 import { honoursBoard } from "@/lib/services/honours";
+import { confirmChampion } from "@/app/actions/roster";
+import { HONOURS_LOCKED, PLANS } from "@/lib/plans";
 import { liveBoard } from "@/lib/services/live-board";
 
 /**
@@ -141,6 +146,33 @@ describe("the honours board, gated at the sink", () => {
     // handed is a caller that will one day forget to.
     expect(board).toEqual([]);
     expect(await prisma.honoursEntry.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
+  it("refuses the WRITE too, so a name is never kept where it cannot be shown", async () => {
+    // Read-gated but write-open was the state until 2026-09-29: a club without
+    // the board could still confirm a champion into a row nothing would show.
+    auth.session = { eventId, role: "admin", viewRole: "admin", email: "zz-tiergate@example.invalid", name: `${TAG} Secretary` };
+    await setOverrides('{"honours":false}');
+    const refused = await confirmChampion(eventId);
+    expect(refused.ok).toBe(false);
+    expect("error" in refused && refused.error).toBe(HONOURS_LOCKED);
+    expect(await prisma.honoursEntry.count({ where: { organizationId: orgId } })).toBe(2);
+
+    // CONTROL: with the board on, the same call gets past the plan and is
+    // answered on the tournament instead (it has no results to crown anyone).
+    await setOverrides("");
+    const onPlan = await confirmChampion(eventId);
+    expect("error" in onPlan && onPlan.error).not.toBe(HONOURS_LOCKED);
+    auth.session = null;
+  });
+
+  it("names the tier it is on, from the plans themselves", () => {
+    // The copy says Birdie and above; the flags must agree, or the lock tells
+    // a club to buy a tier that would not give it the board either.
+    expect(HONOURS_LOCKED).toContain(`${PLANS.society.name} and above`);
+    expect(PLANS.society.features.honours).toBe(true);
+    expect(PLANS.club.features.honours).toBe(true);
+    expect(PLANS.free.features.honours).toBe(false);
   });
 
   it("comes straight back when the exception is lifted", async () => {

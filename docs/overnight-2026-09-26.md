@@ -1497,7 +1497,19 @@ named. The deferred-register entry for this class is closed.
 | #724 | Three loopholes: match play never started the clock; a manual count of 32 overran the cap; a casual round could be kept for ever |
 | #725 | The seeded scores a club secretary would believe (a medal led at −6 mid-round, a league night won on 38) |
 | #726 | Dialogs above the phone's bars; sign-out out of the header; Par keep shows the upgrade; prizes on a phone; trip money |
-| next | The Par wording says the whole term; the plan card names the tier and its cap |
+| #727 | The Par wording says the whole term; the plan card names the tier and its cap |
+| #731 | A Nassau or a match bet is refused on a round with no match, since it could never settle (item 15) |
+| #732 | Seed: the member plays one round today, not three; the medal's pairing requests go off first |
+| next | Honours on Par: the board says it is locked rather than empty, and the write is refused |
+
+The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
+seed). Each was CI-watched green here before being merged SHA-pinned.
+
+**One figure in #726's description is wrong.** It says the member's skins are +£65.29 and that
+they are owed £1,221.05. Both were measured on a branch cut before #725's card generator
+merged. On `main` it is two skins with no carry, +£8.82; the shared expenses (£1,155.76) were
+right. The landing captures read `main` and are correct. What changed as a result: seed figures
+are verified only on a branch that holds every merged seed change.
 
 ### What the overnight walk found (and why the tests had not)
 
@@ -1517,6 +1529,10 @@ fix.
   Par is 10. The card now reads "Par · up to 10 players a tournament".
 - **The Par warning told half the term.** It said a tournament is deleted on Completed, not that
   it also closes 14 days after play begins.
+- **A Par club's honours board promised names it could never show.** It read "Nothing on the
+  board yet. Finished tournaments appear below", but a Par tournament is deleted as it completes.
+  The board now says it comes with Birdie and above, and confirming a champion is refused
+  (it had been writing a row nothing would show).
 
 Not walked end to end: a brand-new society has to name itself and add members before its
 first tournament (the setup gate, working as designed). The walk stopped there, and the Par

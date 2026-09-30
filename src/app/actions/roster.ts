@@ -12,6 +12,8 @@ import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
+import { organizationAllows } from "@/lib/services/entitlements";
+import { HONOURS_LOCKED } from "@/lib/plans";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
 import { effectiveCapacity } from "@/lib/services/limits";
@@ -690,6 +692,11 @@ export async function confirmChampion(
   note = "",
 ): Promise<RosterResult & { championName?: string }> {
   const { organizationId } = await requireRosterOrg();
+
+  // The board is gated where it is read, so a row written here on a plan
+  // without it would be kept and never shown — refused instead, with the same
+  // words the screen uses.
+  if (!(await organizationAllows(organizationId, "honours"))) return { ok: false, error: HONOURS_LOCKED };
 
   const found = await championFor(organizationId, eventId);
   if (!found) return { ok: false, error: "Tournament not found." };

@@ -737,6 +737,19 @@ export const SEASON_LOCKED =
   "The season table comes with the paid plan. Every tournament still has its own " +
   "board — this is the one that adds them up across the season.";
 
+/**
+ * Shown in place of the honours board on a plan without it (2026-09-29: Par,
+ * for clubs that joined under its terms).
+ *
+ * The board used to say "Nothing on the board yet. Finished tournaments appear
+ * below to be confirmed", which is a promise no Par club can collect on: its
+ * tournaments are deleted as they complete, so nothing ever appears below. The
+ * tier is named from PLANS so a renamed tier cannot leave this saying the old one.
+ */
+export const HONOURS_LOCKED =
+  `The honours board comes with ${PLANS.society.name} and above. On ${PLANS.free.name} a ` +
+  "tournament is deleted when it is completed, so there would be no champions to keep on it.";
+
 /** Whether this plan keeps data indefinitely. */
 export function keepsDataForever(planKey: string): boolean {
   return planFor(planKey).retentionHours === null;

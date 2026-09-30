@@ -7,6 +7,8 @@ import { seriesForOrg, seriesTable } from "@/lib/services/series";
 import { honoursBoard, championSuggestions } from "@/lib/services/honours";
 import { HonoursBoard } from "@/components/HonoursBoard";
 import { organizationIdForEvent } from "@/lib/services/roster";
+import { organizationAllows } from "@/lib/services/entitlements";
+import { HONOURS_LOCKED } from "@/lib/plans";
 
 /**
  * Season-long standings — an order of merit across several tournaments.
@@ -31,8 +33,9 @@ export default async function SeriesPage({
   const seasons = await seriesForOrg(organizationId);
   // The club's permanent record, beside the season it is running. Both are
   // history that outlives whichever tournament happens to be open.
+  const honoursOn = await organizationAllows(organizationId, "honours");
   const board = await honoursBoard(organizationId);
-  const pending = session.viewRole === "admin" ? await championSuggestions(organizationId) : [];
+  const pending = honoursOn && session.viewRole === "admin" ? await championSuggestions(organizationId) : [];
   const active = seasons.find((s) => s.id === params.id) ?? seasons[0] ?? null;
   const table = active ? await seriesTable(active.id) : null;
 
@@ -75,7 +78,12 @@ export default async function SeriesPage({
       {/* The permanent record, under the season currently being played. Both
           are club history that outlives whichever tournament happens to be
           open, which is why they share a screen. */}
-      <HonoursBoard board={board} pending={pending} canEdit={session.viewRole === "admin"} />
+      <HonoursBoard
+        board={board}
+        pending={pending}
+        canEdit={session.viewRole === "admin"}
+        locked={honoursOn ? "" : HONOURS_LOCKED}
+      />
     </>
   );
 }
