@@ -266,13 +266,45 @@ const emailFor = (i) => `${MARK}-m${String(i).padStart(2, "0")}@example.invalid`
  * the GROSS board does not, and the two screens can be read against each
  * other, which is the whole reason this data exists.
  */
+/*
+ * AND THE SCORE FOLLOWS THE HANDICAP, or every net board is a fantasy
+ * (2026-09-29). The rows above topped out near +20 whatever the handicap, so a
+ * 24-index member shot a 20-handicapper's round and the public medal board led
+ * at -18 net with a Stableford night won on 47 points — the website session
+ * could not put either on the front page, and a club secretary would not
+ * believe them.
+ *
+ * So the card is built to a TOTAL: about the player's course handicap plus two
+ * or three over par, with a spread of a few shots either way — which is what a
+ * club field actually returns, so a medal is led at around -4 to -6 net and a
+ * Stableford night won in the high thirties. Better players make a birdie or
+ * two; nobody takes worse than a triple on a hole. Scaled to the holes played,
+ * so a nine is half a round.
+ */
 function cardFor(pars, rand, handicap) {
-  const row = handicap < 8 ? [0.14, 0.72, 0.92] : handicap < 18 ? [0.05, 0.45, 0.8] : [0.02, 0.25, 0.6];
-  return pars.map((par) => {
-    const r = rand();
-    const swing = r < row[0] ? -1 : r < row[1] ? 0 : r < row[2] ? 1 : 2;
-    return Math.max(2, par + swing);
-  });
+  const scale = pars.length / 18;
+  const spread = Math.round((rand() + rand() + rand() - 1.5) * 4);
+  let target = Math.round((handicap * 1.1 + 2) * scale + spread * Math.sqrt(scale));
+  const birdies = Math.max(
+    target < 0 ? -target : 0,
+    handicap < 5 ? 2 + Math.floor(rand() * 2) : handicap < 12 ? Math.floor(rand() * 2) + (rand() < 0.3 ? 1 : 0) : rand() < 0.25 ? 1 : 0,
+  );
+  const swings = pars.map(() => 0);
+  for (let b = 0; b < birdies; b += 1) {
+    const h = Math.floor(rand() * pars.length);
+    if (swings[h] === 0) swings[h] = -1;
+  }
+  let owed = target - swings.reduce((a, s) => a + s, 0);
+  let guard = 0;
+  while (owed > 0 && guard < 2000) {
+    guard += 1;
+    const h = Math.floor(rand() * pars.length);
+    if (swings[h] >= 0 && swings[h] < 3) {
+      swings[h] += 1;
+      owed -= 1;
+    }
+  }
+  return pars.map((par, h) => Math.max(2, par + swings[h]));
 }
 
 /**
@@ -624,6 +656,23 @@ export async function seed() {
     await prisma.player.update({ where: { id: medalField[1].id }, data: { playWith: [medalField[2].id] } });
     await prisma.player.update({ where: { id: medalField[6].id }, data: { playWith: [medalField[5].id] } });
 
+    /**
+     * THE DRAW, IN TEE-TIME ORDER — and how far each four-ball has got.
+     *
+     * A medal on its day is genuinely MID-ROUND (asked for by the website
+     * session, 2026-09-29, for the front page's live board): the first two
+     * groups are in, the middle of the field is out on the back nine, the
+     * later groups are on the front, and the last have not gone off. It was
+     * nineteen finished cards of twenty-four — a board that read LIVE over
+     * results that looked final.
+     *
+     * Rotated by sixteen so both pairing requests (1+2, 5+6) still share a
+     * four-ball, and the signed-in player's group is out on the course.
+     */
+    const medalDraw = [...medalField.slice(16), ...medalField.slice(0, 16)];
+    const THRU_BY_GROUP = [18, 18, 14, 12, 9, 0];
+    const medalThru = new Map(medalDraw.map((p, i) => [p.id, THRU_BY_GROUP[Math.floor(i / 4)] ?? 0]));
+
     const medalRound = await prisma.stage.create({
       data: {
         eventId: medal.id,
@@ -638,7 +687,9 @@ export async function seed() {
         scoringBasis: "net",
         handicapAllowance: 95,
         playedOn: dayOffset(0),
-        teeSheet: teeSheetFor(medalField),
+        // Rotated so the signed-in player (index 0) is in the MIDDLE of the
+        // draw, on a card still being played, while the early groups are in.
+        teeSheet: teeSheetFor(medalDraw),
         // Published, because the field is on the course. `me.ts` reads a tee
         // sheet only when it is published — a draft draw must not reach a
         // player's phone the moment an organizer saves it.
@@ -657,11 +708,14 @@ export async function seed() {
      */
     const medalRand = rng(11);
     for (const [i, p] of medalField.entries()) {
-      if (i >= 20) continue; // four still out there, no row at all
+      const thru = medalThru.get(p.id) ?? 0;
+      if (thru === 0) continue; // the last four-ball has not gone off: no row at all
       const full = cardFor(PARS_18, medalRand, p.handicap);
-      const strokes = i === 0 ? full.map((s, h) => (h < 11 ? s : null)) : full;
+      const strokes = full.map((s, h) => (h < thru ? s : null));
+      // A card still being played is only entered; a finished one is signed
+      // for, approved, or — once — disputed, which is what a committee sees.
       const status =
-        i === 0 ? "entered" : i % 7 === 3 ? "certified" : i % 7 === 5 ? "disputed" : "approved";
+        thru < 18 ? "entered" : i % 7 === 3 ? "certified" : i % 7 === 5 ? "disputed" : "approved";
       await prisma.scorecard.create({
         data: {
           eventId: medal.id,
