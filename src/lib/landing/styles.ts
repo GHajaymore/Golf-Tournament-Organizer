@@ -507,7 +507,7 @@ __CMP_FRAMES__
 .thq .cmp-legend { display: flex; align-items: center; gap: 14px; font: 600 13.5px/1.3 var(--sans); color: var(--ink-soft); }
 .thq .cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .thq .cmp-legend .i { width: 15px; height: 15px; }
-.thq .cmp-hint { font: 500 12px/1 var(--mono); color: var(--ink-faint); }
+.thq .cmp-hint { font: 500 12px/1 var(--mono); color: var(--ink-soft); }
 @media (max-width: 900px) { .thq .yours { grid-template-columns: minmax(0, 1fr); gap: 44px; } }
 
 /* ── pricing ── */
@@ -635,8 +635,17 @@ __CMP_FRAMES__
 .thq .ftr-row nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); font: 550 15px/1 var(--sans); }
 .thq .ftr-row nav a:hover { color: var(--ink); }
 .thq .ftr-base { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 24px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-faint); }
-.thq .ftr-base .ed-note { margin-top: 0; }
-@media (max-width: 760px) { .thq .ftr-row { flex-direction: column; align-items: flex-start; gap: 8px; } .thq .ftr-row nav ul { gap: 0 20px; } .thq .ftr-base { flex-direction: column; align-items: flex-start; } }
+.thq .ftr-base .ed-note { margin-top: 0; font-size: inherit; }
+/* Footer on a phone (Ajay, 2026-09-30: "it looks unprofessional"): the links
+   wrapped ragged with "Sign in" alone on its own line. Now the mark, then the
+   links in an even two-column grid, then the small print as one quiet block. */
+@media (max-width: 760px) {
+  .thq .ftr { padding-top: 40px; }
+  .thq .ftr-row { flex-direction: column; align-items: stretch; gap: 18px; }
+  .thq .ftr-row nav ul { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .thq .ftr-row nav a { min-height: 44px; font-size: 15.5px; }
+  .thq .ftr-base { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 18px; font-size: 12.5px; line-height: 1.5; }
+}
 
 /* ── /faq ── */
 .thq .fq-hero { padding: 88px 0 48px; }
@@ -766,9 +775,14 @@ __CMP_FRAMES__
       ...["card"].map((k) => ["ap", k] as const),
       ...["championship", "coastal", "azalea"].map((k) => ["col", k] as const),
     ]
-      .map(
-        ([mode, k]) =>
-          `.thq .compare:has(input[name="cmp-mode"][value="${mode}"]:checked):has(input[name="cmp-${mode}"][value="${k}"]:checked) .cmp-f[data-f="${mode}-${k}"] { display: grid; }`,
+      .map(([mode, k]) =>
+        // Light vs dark is ONE screen since 2026-09-29, so it has no tab row of its
+        // own: its frame shows on the mode alone. Requiring a "cmp-ap" tab that no
+        // longer exists hid the slider entirely — live from then until 2026-09-30,
+        // when Ajay asked for "one screen with a slider for dark vs light".
+        mode === "ap"
+          ? `.thq .compare:has(input[name="cmp-mode"][value="ap"]:checked) .cmp-f[data-f="ap-${k}"] { display: grid; }`
+          : `.thq .compare:has(input[name="cmp-mode"][value="${mode}"]:checked):has(input[name="cmp-${mode}"][value="${k}"]:checked) .cmp-f[data-f="${mode}-${k}"] { display: grid; }`,
       )
       .join("\n"),
   )

@@ -109,3 +109,26 @@ test.describe("on an iPad", () => {
     await sharpWholeStill(page);
   });
 });
+
+/**
+ * THE LIGHT-VS-DARK SLIDER SHOWS ITS SCREEN (2026-09-30). When it went to one
+ * screen its tab row was removed, but the rule that reveals the frame still
+ * waited on that tab, so the section showed two buttons over empty space — for
+ * a day, unnoticed, because every check above skips images that are hidden.
+ * Both appearances must be on screen, loaded, with the drag handle over them.
+ */
+test("the light-vs-dark slider shows the real screen, both appearances", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#yours").scrollIntoViewIfNeeded();
+  const frame = page.locator('.cmp-f[data-f="ap-card"]');
+  await expect(frame).toBeVisible();
+  await frame.locator("img").last().scrollIntoViewIfNeeded();
+  const shown = await frame.evaluate(async (f) => {
+    const imgs = [...f.querySelectorAll("img")];
+    await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
+    return imgs.map((i) => ({ src: (i.currentSrc || i.src).split("/").pop(), w: Math.round(i.getBoundingClientRect().width), loaded: i.complete && i.naturalWidth > 0 }));
+  });
+  expect(shown.map((i) => i.src).join(" "), "not one light and one dark capture").toMatch(/light.*dark/);
+  for (const i of shown) expect(i.loaded && i.w > 150, `${i.src} not shown (${i.w}px)`).toBe(true);
+  await expect(frame.locator(".cmp-range")).toBeVisible();
+});
