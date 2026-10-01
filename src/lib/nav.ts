@@ -71,6 +71,9 @@ export type NavTier = "on-course" | "at-desk";
  * shut them and the checklist had never been told. One set, two readers.
  */
 export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
+  // How the product works, for organizers. A casual round's host is one
+  // player on the first tee, and the round itself is the whole manual.
+  "guide",
   // The field's apparatus.
   "grouping",
   "foursomes",
@@ -485,6 +488,18 @@ export const NAV: NavSection[] = [
       // would only reach a screen telling them so.
       { key: "me", label: "My round", href: "/me", icon: "ph ph-golf", tier: "on-course" },
       { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open", tier: "on-course" },
+    ],
+  },
+  {
+    /**
+     * HELP (Ajay, 2026-10-01: "include it as part of the organizer view … a new
+     * submenu like documentations"). How the product works, for the people
+     * running it. Staff only: a player's help is the player app itself. The
+     * step-by-step user guide joins this section when it is written.
+     */
+    label: "Help",
+    items: [
+      { key: "guide", label: "How TourneyHQ works", href: "/guide", icon: "ph ph-map-trifold", tier: "at-desk" },
     ],
   },
 ];
