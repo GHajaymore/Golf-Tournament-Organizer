@@ -108,32 +108,42 @@ export const MIN_LANDING_HUE_SEPARATION = 24;
  * darkens or lightens exactly the tokens that were failing it and leaves every
  * other one alone.
  */
+/**
+ * EVERY WORD 7:1 (Ajay's standing rule, 2026-09-30: secondary text holds 7:1 on
+ * its actual background, "check if you really have a contrast text font color").
+ * The app's #747 raised its own tokens to 7:1; these are the front door's. The
+ * floors that were 4.5 (WCAG AA) and 6 are raised to 7 (AAA for normal text);
+ * the accent FILL stays a 3:1 component, and its label is graded on it.
+ */
 const FLOOR = {
   /** Headlines and the leader's name. Held well above AA because it is the page's loudest voice. */
   ink: 12,
   /** Ledes, body copy, the verbs. */
-  inkSoft: 6,
+  inkSoft: 7,
   /**
    * The faintest text there is, and the one that failed twice. It carries the
    * footer meta at 12.5px, so it is small body text and owes plain AA — there
    * is no large-text exemption to reach for.
    */
-  inkFaint: 4.5,
+  inkFaint: 7,
   /** Accent TEXT: the eyebrow, the step numbers, the feature icons. */
-  accent: 4.5,
+  accent: 7,
   /** "Live", "under par", the leader's position. Read as text, so text's bar. */
-  flag: 4.5,
+  flag: 7,
   /** The comparison table's ✕ and ◐ — glyphs a reader has to see, so text's bar. */
-  mark: 4.5,
+  mark: 7,
   /**
    * Accent FILL. Never a text colour on this page — `--brass-ui` and
    * `--brass-hi` appear only as `background:` — so these are judged as UI
    * components at WCAG 1.4.11's 3:1 and the label they carry is graded
    * separately, against the fill rather than against the page.
    */
-  fill: 3,
+  /* 7 since 2026-09-30, not WCAG's 3: white words sit ON this fill (the
+     orange band, the buttons, Birdie's column), and white on a 3:1 orange
+     read at 5.8:1. A fill 7:1 from the page carries its white label at 7:1. */
+  fill: 7,
   /** The button's own label, on the fill. */
-  onAccent: 4.5,
+  onAccent: 7,
 };
 
 /** A background. Nothing is solved against these, because they ARE the reference. */

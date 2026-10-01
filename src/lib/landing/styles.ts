@@ -204,7 +204,7 @@ ${landingTokens("dark", "  ")}
 .thq .step-t b { font: 600 60px/1 var(--mono); letter-spacing: -.05em; color: var(--brass); font-variant-numeric: tabular-nums; }
 .thq .who { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
 .thq .who.org { background: var(--ink); color: var(--ground); }
-.thq .who.pl { background: var(--accent-a12); color: var(--brass-hi); }
+.thq .who.pl { background: color-mix(in srgb, var(--brass-ui) 7%, transparent); color: var(--brass); }
 .thq .step h3 { margin: 22px 0 12px; max-width: 560px; }
 .thq .step p { color: var(--ink-soft); max-width: 520px; }
 .thq .step ul { margin-top: 18px; display: grid; gap: 8px; font-size: 15.5px; color: var(--ink-soft); }
@@ -251,7 +251,7 @@ ${landingTokens("dark", "  ")}
 /* ── side by side: the names you know ── */
 .thq .vs { margin-top: 110px; }
 .thq .seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; background: var(--wash-2); }
-.thq .tab { position: relative; min-height: 42px; padding: 0 18px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font: 600 14.5px/1.2 var(--sans); color: var(--ink-soft); cursor: pointer; }
+.thq .tab { position: relative; min-height: 42px; padding: 0 18px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font: 600 14.5px/1.2 var(--sans); color: var(--ink); cursor: pointer; }
 .thq .tab:hover { color: var(--ink); }
 .thq .tab:has(input:checked) { background: var(--ink); color: var(--ground); }
 .thq .tab:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
@@ -430,7 +430,7 @@ __SHOW_FRAMES__
 .thq .boards figure { display: grid; gap: 16px; align-content: start; }
 .thq .boards figcaption { text-align: center; display: grid; gap: 4px; }
 .thq .boards figcaption b { font: 650 15.5px/1.3 var(--sans); }
-.thq .boards figcaption span { font-size: 14px; color: var(--ink-soft); text-wrap: balance; }
+.thq .boards figcaption span { font-size: 14px; color: var(--ink); text-wrap: balance; }
 @media (max-width: 900px) {
   .thq .boards { display: flex; justify-content: flex-start; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; margin: 44px -20px 0; padding: 4px 20px 8px; scrollbar-width: none; }
   .thq .boards figure { flex: 0 0 min(84%, 330px); scroll-snap-align: start; }
@@ -504,10 +504,11 @@ __CMP_FRAMES__
 .thq .cmp-line i::after { right: 6px; border-left-color: var(--on-accent); }
 .thq .cmp-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; touch-action: pan-y; }
 .thq .cmp-view:focus-within .cmp-line i { outline: 2px solid var(--ink); outline-offset: 2px; }
-.thq .cmp-legend { display: flex; align-items: center; gap: 14px; font: 600 13.5px/1.3 var(--sans); color: var(--ink-soft); }
+/* Full ink: the legend sits in the phone's shadow, which greys the ground under it. */
+.thq .cmp-legend { display: flex; align-items: center; gap: 14px; font: 600 13.5px/1.3 var(--sans); color: var(--ink); }
 .thq .cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .thq .cmp-legend .i { width: 15px; height: 15px; }
-.thq .cmp-hint { font: 500 12px/1 var(--mono); color: var(--ink-soft); }
+.thq .cmp-hint { font: 500 12px/1 var(--mono); color: var(--ink); }
 @media (max-width: 900px) { .thq .yours { grid-template-columns: minmax(0, 1fr); gap: 44px; } }
 
 /* ── pricing ── */
@@ -640,11 +641,13 @@ __CMP_FRAMES__
    wrapped ragged with "Sign in" alone on its own line. Now the mark, then the
    links in an even two-column grid, then the small print as one quiet block. */
 @media (max-width: 760px) {
-  .thq .ftr { padding-top: 40px; }
-  .thq .ftr-row { flex-direction: column; align-items: stretch; gap: 18px; }
-  .thq .ftr-row nav ul { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
-  .thq .ftr-row nav a { min-height: 44px; font-size: 15.5px; }
-  .thq .ftr-base { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 18px; font-size: 12.5px; line-height: 1.5; }
+  /* Tighter (Ajay, 2026-09-30: "we still need to tighten the footer"): two rows
+     of three links, not three of two; the mark and the small print closer in. */
+  .thq .ftr { padding-top: 28px; }
+  .thq .ftr-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .thq .ftr-row nav ul { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0 12px; }
+  .thq .ftr-row nav a { min-height: 44px; font-size: 15px; }
+  .thq .ftr-base { flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; padding-top: 14px; font-size: 12.5px; line-height: 1.5; }
 }
 
 /* ── /faq ── */
