@@ -57,6 +57,8 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // The rules reference is for anyone in the tournament. A player querying how
   // a tie broke has as much reason to look it up as the organizer who set it.
   rules: ["admin", "assistant", "player"],
+  // How the product works — a guide for the people running it (Help section).
+  guide: ["admin", "assistant"],
   // The player shell — a player's whole app: where they stand, who they are out
   // with, their own card, and the rules in force. Open to staff as well, so an
   // organizer who is also in the field can use it to play rather than signing

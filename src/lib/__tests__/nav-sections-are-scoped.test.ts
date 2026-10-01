@@ -117,9 +117,12 @@ describe("a screen sits in the section that says what it changes", () => {
      * place a reader starts. They are a way into the player app and a
      * reference, so they come after the work rather than before it.
      */
-    const last = NAV[NAV.length - 1];
-    expect(last.label).toBe("For you");
-    expect(last.items.map((i) => i.key)).toEqual(["me", "rules"]);
+    // Help (2026-10-01) is reference too, so it may follow — and nothing else.
+    const labels = NAV.map((s) => s.label);
+    const mine = labels.indexOf("For you");
+    expect(mine, "no For you section").toBeGreaterThan(0);
+    expect(NAV[mine].items.map((i) => i.key)).toEqual(["me", "rules"]);
+    expect(labels.slice(mine + 1), "only Help may come after the personal entries").toEqual(["Help"]);
   });
 
   it("renders no empty heading element for the headingless section", () => {
