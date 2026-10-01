@@ -1507,7 +1507,30 @@ named. The deferred-register entry for this class is closed.
 | #741 | A club moved down to Par keeps its cap: three entry paths confirmed an 11th, three screens said "open" |
 | #744 | A promotion takes a staff seat: "add as a player, then promote" went round the seat limit |
 | #745 | A member whose Par tournament was deleted is told so, not greeted as a brand-new account |
-| next | A casual round stays casual (one round, up to 8) at the server; the theme picker names its real default |
+| #746 | A casual round stays casual (one round, up to 8) at the server; the theme picker names its real default |
+| #747 | Every word reads 7:1 on both grounds (your "are you sure … consistent?"); a casual round's limits point at free Par, and its host is kept off tournament-only screens |
+
+**#747, measured rather than eyeballed.** A Playwright scan of 60 renders measured every element that
+carries its own text against the background actually composited behind it. The renders were the
+console, player and public screens on the seeded club, light and dark.
+
+| | Findings under 7:1 |
+|---|---|
+| Before | 292 (48 groups) |
+| After | 0 |
+
+As a control, the same scan at 9:1 still reports dozens.
+
+The rules it settled:
+- accent words are step 200;
+- a fill carrying a label is step 300;
+- the initials chip is 100 on 900;
+- there is one muted grey;
+- red and amber are deepened.
+
+Each rule is pinned per preset in `themes.test`, and two source guards (`one-secondary-text-colour`,
+`accent-words-read-crisp`) refuse the old shapes. The scan covers the fixture's one theme; the
+arithmetic tests cover the other presets.
 
 The website session shipped #723, #728, #729 and #730 (the landing re-shot on the realistic
 seed). Each was CI-watched green here before being merged SHA-pinned.
