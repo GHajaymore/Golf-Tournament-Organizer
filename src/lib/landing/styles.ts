@@ -165,7 +165,15 @@ ${landingTokens("dark", "  ")}
 
 /* ── the phone: a physical object, dark on any ground ── */
 .thq .phone { border-radius: 46px; padding: 9px; background: black; box-shadow: 0 40px 80px -34px rgba(0,0,0,.55), inset 0 0 0 1.5px rgba(255,255,255,.12); }
-.thq .phone img { border-radius: 38px; width: 100%; }
+/* The screen's corners scale with the phone (Ajay, 2026-09-30: "the phone round
+   cards are cutting off the app including logo"). A fixed 38px corner on a
+   260px phone rounded away the app's logo at top-left and "Dashboard" at
+   bottom-left. Measured on every capture: the app reaches its corners at 13.3%
+   of the width on the organizer screens, so 11% shows them whole; the
+   calendar's page foot reaches 4%, so it gets its own. */
+.thq .phone { container-type: inline-size; }
+.thq .phone img { border-radius: min(38px, 11cqw); width: 100%; }
+.thq .phone img[src*="day-calendar"] { border-radius: min(14px, 3.5cqw); }
 .thq .phone.sm { border-radius: 32px; padding: 6px; }
 .thq .phone.sm img { border-radius: 27px; }
 
@@ -205,7 +213,7 @@ ${landingTokens("dark", "  ")}
 .thq .step .inl { display: none; }
 .thq .pin { position: sticky; top: 108px; align-self: start; height: calc(100vh - 140px); max-height: 860px; display: grid; align-content: center; justify-items: center; gap: 18px; }
 .thq .pin .phone { width: 340px; }
-.thq .pin .scr { position: relative; aspect-ratio: 600 / 1298; border-radius: 38px; overflow: hidden; background: var(--ground-2); }
+.thq .pin .scr { position: relative; aspect-ratio: 600 / 1298; border-radius: min(38px, 11cqw); overflow: hidden; background: var(--ground-2); }
 .thq .pin .scr img { position: absolute; inset: 0; border-radius: 0; opacity: 0; transition: opacity .45s ease; }
 .thq .pin .scr img.on { opacity: 1; }
 .thq .clock { display: flex; gap: 6px; }
