@@ -482,7 +482,7 @@ __SHOW_FRAMES__
 .thq .yours .facts { display: grid; gap: 22px; margin-top: 36px; }
 .thq .yours .facts > div { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; }
 .thq .yours .facts .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--wash-2); display: grid; place-items: center; color: var(--brass); }
-.thq .yours .facts h4 { font: 650 16.5px/1.3 var(--sans); }
+.thq .yours .facts h3 { font: 650 16.5px/1.3 var(--sans); }
 .thq .yours .facts p { color: var(--ink-soft); font-size: 15.5px; margin-top: 2px; }
 .thq .compare { display: grid; justify-items: center; gap: 16px; }
 .thq .cmp-tabs { display: none; }

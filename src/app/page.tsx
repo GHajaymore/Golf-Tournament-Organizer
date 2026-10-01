@@ -626,9 +626,9 @@ export default async function LandingPage() {
                 pairings, or your own, each checked for how it reads outdoors.
               </p>
               <div className="facts">
-                <div><span className="ic">{icon("sun")}</span><div><h4>Checked for sunlight</h4><p>A 7:1 outdoor bar on dark, the readable minimum on light — a warning, not a refusal.</p></div></div>
-                <div><span className="ic">{icon("moon")}</span><div><h4>Dark, light, or follow the phone</h4><p>Clubhouse at dusk indoors, paper-white in bright sun.</p></div></div>
-                <div><span className="ic">{icon("star")}</span><div><h4>Your logo, ours stepped back</h4><p>On the {PLANS.club.name} plan your mark leads, with TourneyHQ a small &ldquo;powered by&rdquo; line.</p></div></div>
+                <div><span className="ic">{icon("sun")}</span><div><h3>Checked for sunlight</h3><p>A 7:1 outdoor bar on dark, the readable minimum on light — a warning, not a refusal.</p></div></div>
+                <div><span className="ic">{icon("moon")}</span><div><h3>Dark, light, or follow the phone</h3><p>Clubhouse at dusk indoors, paper-white in bright sun.</p></div></div>
+                <div><span className="ic">{icon("star")}</span><div><h3>Your logo, ours stepped back</h3><p>On the {PLANS.club.name} plan your mark leads, with TourneyHQ a small &ldquo;powered by&rdquo; line.</p></div></div>
               </div>
             </div>
             <div className="compare" role="group" aria-label="The same real screen, compared">
@@ -894,7 +894,7 @@ function storeButton(store: "ios" | "android", url: string) {
   return live ? (
     <a className="store" href={url} rel="noopener">{inner}</a>
   ) : (
-    <Link className="store soon" href="/faq#q-stores" aria-label={`${name} — coming soon. How to install it from your browser today`}>{inner}</Link>
+    <Link className="store soon" href="/faq#q-stores" aria-label={`${lead} ${name}. How to install it from your browser today`}>{inner}</Link>
   );
 }
 
