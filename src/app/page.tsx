@@ -307,7 +307,7 @@ export default async function LandingPage() {
                 {/* Lazy, not priority: phones hide the laptop, and a priority image is preloaded
                     whether it shows or not (150 KB a phone never drew). On a laptop it is in view,
                     so it loads at once anyway. */}
-                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
+                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, sizes: "(max-width: 760px) 1px, 80vw", alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
               </div>
               <div className="phone">
                 {lightShot({ name: "hero-live", variant: d, width: 600, height: 1298, priority: true, alt: "The public live board on a phone: the round, and the field ranked by net strokes, the leader highlighted." })}
@@ -603,7 +603,7 @@ export default async function LandingPage() {
                 <div className="chips">
                   {["Total purse", "Flight winners", "Twos pot", "Skins with carries", "Nassau", "Birdie pot"].map((c) => <span key={c}>{c}</span>)}
                 </div>
-                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1310, alt: "The organizer's prizes: Club Champion, 250, awarded to the winner; runner-up 120 and third 60 awarded in finishing order; best gross round not yet awarded." })}</div>
+                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1310, sizes: "(max-width: 760px) 92vw, 440px", alt: "The organizer's prizes: Club Champion, 250, awarded to the winner; runner-up 120 and third 60 awarded in finishing order; best gross round not yet awarded." })}</div>
               </div>
             </div>
           </div>
