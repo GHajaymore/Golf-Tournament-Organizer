@@ -7774,6 +7774,19 @@ describe("the sign-up password field", () => {
     expect(signUp()).toMatch(HINT);
   });
 
+  it("states the rule ONCE — the hint, not the placeholder as well (Ajay, 2026-09-30)", () => {
+    const html = signUp();
+    const times = html.split(`At least ${MIN_PASSWORD_LENGTH} characters`).length - 1;
+    expect(times, "the password rule is printed more than once").toBe(1);
+  });
+
+  it("never leaves Create account grey and dead — pressing it early says what is missing", () => {
+    // signupMissing (its own test) supplies the words; here, the button must press.
+    const button = signUp().match(/<button type="submit"[^>]*>(?:(?!<\/button>).)*Create account/s)?.[0] ?? "";
+    expect(button, "no Create account button found").toContain("Create account");
+    expect(button).not.toMatch(/\sdisabled(=|\s|>)/);
+  });
+
   it("renders the sign-up form at all", () => {
     // Guards the test itself: an empty or login-mode render would make the
     // assertion above pass for the wrong reason.

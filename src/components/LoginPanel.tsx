@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
+import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
 import { Icon } from "./Icon";
 
@@ -114,6 +115,13 @@ export function LoginPanel({
   };
 
   const submitSignup = () => {
+    // The button always presses; pressing it early says what is still
+    // missing instead of sitting grey with no reason given.
+    const missing = signupMissing({ name, email, password, kind });
+    if (missing) {
+      setError(missing);
+      return;
+    }
     setError("");
     startTransition(async () => {
       const result = await signUp(name, email, password, kind, intendedNext());
@@ -296,7 +304,7 @@ export function LoginPanel({
             value={password}
             onChange={setPassword}
             autoComplete="new-password"
-            placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+            placeholder="Choose a password"
             autoFocus={autoFocusFields}
           />
         </Field>
@@ -461,7 +469,8 @@ export function LoginPanel({
             value={password}
             onChange={setPassword}
             autoComplete={login ? "current-password" : "new-password"}
-            placeholder={login ? "Your password" : `At least ${MIN_PASSWORD_LENGTH} characters`}
+            /* The rule is in the hint beneath; saying it here too printed it twice. */
+            placeholder={login ? "Your password" : "Choose a password"}
           />
         </Field>
 
@@ -527,11 +536,7 @@ export function LoginPanel({
           type="submit"
           className="btn btn-primary btn-block"
           style={{ marginTop: 2 }}
-          disabled={
-            pending ||
-            !email.trim() ||
-            (login ? !password : !name.trim() || password.length < MIN_PASSWORD_LENGTH || !kind)
-          }
+          disabled={pending || (login && (!email.trim() || !password))}
         >
           {pending
             ? login
