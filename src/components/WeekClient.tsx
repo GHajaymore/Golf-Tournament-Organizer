@@ -141,8 +141,9 @@ function Movement({ change, isNew }: { change: number; isNew: boolean }) {
   }
   if (change === 0) {
     return (
-      <span className="text-muted" style={{ fontSize: 12 }} aria-label="no change">
-        —
+      <span className="text-muted" style={{ fontSize: 12 }}>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">no change</span>
       </span>
     );
   }
@@ -157,6 +158,7 @@ function Movement({ change, isNew }: { change: number; isNew: boolean }) {
         // read as that on both grounds.
         color: up ? "var(--color-accent-2-200)" : "var(--color-danger)",
       }}
+      role="img"
       aria-label={`${up ? "up" : "down"} ${Math.abs(change)} place${Math.abs(change) === 1 ? "" : "s"}`}
     >
       <Icon name={up ? "ph-fill ph-caret-up" : "ph-fill ph-caret-down"} /> {Math.abs(change)}

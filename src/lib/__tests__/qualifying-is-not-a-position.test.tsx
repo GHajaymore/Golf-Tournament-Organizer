@@ -47,6 +47,14 @@ describe("the board prints the title it is given", () => {
     expect(html).not.toContain(">LEADERS<");
   });
 
+  it("gives each row a sentence a screen reader actually reads (2026-10-01)", () => {
+    // Every tile is aria-hidden, so the row's words must be real text. An
+    // aria-label on a role-less <div> is ignored, which left the row silent.
+    const html = renderToStaticMarkup(createElement(ScoreboardLeaders, { rows }));
+    expect(html).toContain('<span class="sr-only">Position T1, you, not started, 19.5</span>');
+    expect(html).not.toMatch(/<div class="sb-row"[^>]*aria-label=/);
+  });
+
   it("stays LEADERS when nothing says otherwise", () => {
     const html = renderToStaticMarkup(createElement(ScoreboardLeaders, { rows }));
     expect(html).toContain(">LEADERS<");

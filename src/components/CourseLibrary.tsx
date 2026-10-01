@@ -397,6 +397,8 @@ export function CourseLibrary({
                     {!c.verified && (
                       <span
                         className="tag tag-neutral"
+                        // A role, or the label below is ignored (aria-label-needs-a-role.test).
+                        role="note"
                         style={{ fontSize: 10.5, marginLeft: 8, verticalAlign: "middle" }}
                         title={
                           c.sourceUrl

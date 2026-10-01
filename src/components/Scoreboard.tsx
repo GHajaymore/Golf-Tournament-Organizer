@@ -55,7 +55,14 @@ export function ScoreboardLeaders({
           {rows.map((r) => (
             <li key={r.id}>
               {r.gap && <div className="sb-gap" aria-hidden="true" />}
-              <div className="sb-row" aria-label={`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}>
+              <div className="sb-row">
+                {/* What a screen reader says for the row. This was an aria-label
+                    on the <div>, which a reader ignores on an element with no
+                    role (Lighthouse aria-prohibited-attr, 2026-10-01) — and with
+                    every tile below aria-hidden, the row then read as nothing. */}
+                <span className="sr-only">
+                  {`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}
+                </span>
                 <span className="sb-tile" aria-hidden="true">{r.pos}</span>
                 {/* The NAME gives way, never "YOU". One string clipped from the
                     right, so a long surname — O'HALLORAN-WHYTE — took the marker
