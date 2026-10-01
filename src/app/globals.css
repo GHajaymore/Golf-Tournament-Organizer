@@ -322,6 +322,21 @@ body {
 }
 .side-link[aria-current="page"] i { opacity: 1; }
 
+/* Read aloud, not shown: words a screen reader needs where the screen shows
+   tiles instead (the scoreboard rows). An aria-label on a role-less element
+   is ignored, so this is the reliable way to give one its sentence. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .page-kicker {
   font-size: 10.5px;
   letter-spacing: 0.09em;

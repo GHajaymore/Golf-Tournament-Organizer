@@ -331,8 +331,13 @@ export function HoleByHoleCard({
             {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
             {/* Where the hole is cut today, from the committee's pin sheet. */}
             {pins[hole] && (
-              <div aria-label={`Pin: ${pinLong(pins[hole])}`} style={{ fontVariantNumeric: "tabular-nums" }}>
-                Pin <strong style={{ color: "var(--color-text)" }}>{pinShort(pins[hole])}</strong>
+              <div style={{ fontVariantNumeric: "tabular-nums" }}>
+                {/* The long form is read aloud; an aria-label here, on a
+                    role-less div, was ignored and the short code read instead. */}
+                <span aria-hidden="true">
+                  Pin <strong style={{ color: "var(--color-text)" }}>{pinShort(pins[hole])}</strong>
+                </span>
+                <span className="sr-only">{`Pin: ${pinLong(pins[hole])}`}</span>
               </div>
             )}
           </div>
@@ -448,6 +453,7 @@ export function HoleByHoleCard({
                   </button>
                   <span
                     className={`sc-score${scoreMark(value, par)}`}
+                    role="img"
                     aria-label={`${p.name}, hole ${holeNumber(hole, firstHole)}${value == null ? ", not scored" : `, ${value} strokes`}`}
                     style={{
                       // `.sc-score` is `width: 100%` for the grid cells it was

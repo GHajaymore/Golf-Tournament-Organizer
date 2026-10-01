@@ -7,6 +7,14 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3100,
       "autoPort": false
+    },
+    {
+      "name": "tourneyhq-built",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "start", "--port", "3102"],
+      "env": { "NEXT_DIST_DIR": ".next-ci", "AUTH_SECRET": "dev-secret" },
+      "port": 3102,
+      "autoPort": false
     }
   ]
 }

@@ -104,6 +104,7 @@ export function AttendanceReport({ report }: { report: Report }) {
                     }
                   >
                     <span
+                      role="img"
                       aria-label={
                         c.explicit
                           ? c.status === "in"

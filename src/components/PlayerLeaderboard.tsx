@@ -332,6 +332,7 @@ export function PlayerLeaderboard({
 
             {showCut && i === lastAdvancing && (
               <div
+                role="separator"
                 aria-label="Cut line"
                 style={{
                   display: "flex",

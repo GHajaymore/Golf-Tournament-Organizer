@@ -328,6 +328,7 @@ export function SeriesClient({
                         {s.position ?? (
                           <span
                             className="text-muted"
+                            role="img"
                             aria-label={
                               active && active.minEvents > 0
                                 ? `Not ranked — fewer than ${active.minEvents} rounds played`

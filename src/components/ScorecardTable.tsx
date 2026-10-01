@@ -140,6 +140,7 @@ export function ScoreCell({
       <td style={{ padding: 2, position: "relative" }}>
         <span
           className={`sc-score${mark}`}
+          role="img"
           aria-label={label}
           style={{
             display: "inline-flex",
@@ -159,6 +160,7 @@ export function ScoreCell({
         {net != null && (
           <span
             className="sc-net"
+            role="img"
             aria-label={`net ${net}`}
             style={{
               display: "block",
