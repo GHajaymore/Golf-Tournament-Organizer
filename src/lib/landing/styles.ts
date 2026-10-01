@@ -465,7 +465,7 @@ __SHOW_FRAMES__
 
 /* ── the money (a dark band) ── */
 .thq .money-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.thq .mcard { background: var(--card); border-radius: 24px; padding: 34px; border: 1px solid var(--line); display: flex; flex-direction: column; }
+.thq .mcard { background: var(--card); border-radius: var(--r); padding: 34px; border: 1px solid var(--line); display: flex; flex-direction: column; }
 .thq .mcard p { color: var(--ink-soft); margin-top: 10px; font-size: 16px; }
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
@@ -520,7 +520,7 @@ __CMP_FRAMES__
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
 .thq .ed-note button:hover { border-color: var(--ink); }
 .thq .tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 34px; }
-.thq .tier { border-radius: 24px; padding: 34px; background: var(--card); border: 1px solid var(--line); display: grid; grid-template-rows: auto auto auto auto auto 1fr auto; gap: 16px; }
+.thq .tier { border-radius: var(--r); padding: 34px; background: var(--card); border: 1px solid var(--line); display: grid; grid-template-rows: auto auto auto auto auto 1fr auto; gap: 16px; }
 .thq .tier.hot { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .thq .tier h3 { display: flex; justify-content: space-between; align-items: center; font: 700 20px/1 var(--sans); }
 .thq .tier .badge { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 8px; border-radius: 6px; }
@@ -540,7 +540,7 @@ __CMP_FRAMES__
 .thq .tier .btn .short { display: none; }
 .thq .tier.hot .btn { background: var(--brass-ui); border-color: var(--brass-ui); color: var(--on-accent); }
 .thq .tier-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
-.thq .ultimate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 24px 28px; border-radius: 20px; border: 1px solid var(--line); }
+.thq .ultimate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 24px 28px; border-radius: var(--r); border: 1px solid var(--line); }
 .thq .ultimate .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--wash-2); display: grid; place-items: center; color: var(--brass); }
 .thq .ultimate h3 { font: 650 17px/1.3 var(--sans); }
 .thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
@@ -769,6 +769,46 @@ __CMP_FRAMES__
   .thq .pin .scr img { transition: none; }
 }
 @media (min-width: 1700px) { .thq { --wrap: 1360px; } }
+
+/* ── the light sections, crisp and lifted (Ajay, 2026-09-30: "some sections
+   look flat on the mobile, especially the lighter background ones; the text is
+   not crisp or rich". Previewed on phones and approved there; then, after the
+   consistency pass, "go ahead" for every size so the site reads the same on a
+   phone, a tablet and a laptop) ──
+   - Body text a deeper charcoal, a step heavier. The soft grey at 400 read as
+     washed out; darker and 450 reads as print. Bands keep their own palette
+     (they re-declare --ink-soft) and their weight.
+   - Section labels in the brand orange instead of grey; band labels stay.
+   - Cards on the light grounds lifted by a soft shadow with a firmer edge, and
+     the two grey sections open from white, so a card sits on a surface rather
+     than a flat field. Depth from light and shadow only — nothing turned or moved. */
+.thq { --ink-soft: color-mix(in srgb, var(--ink) 68%, var(--ink-faint)); --lift: 0 1px 2px rgba(0,0,0,.06), 0 18px 36px -20px rgba(0,0,0,.32); font-weight: 450; }
+.thq .band { font-weight: 400; }
+.thq .label { color: var(--brass); font-weight: 650; }
+.thq .band .label { color: var(--ink-faint); font-weight: 500; }
+.thq .usual, .thq .glance-col, .thq .cp-t, .thq .show, .thq .fx-grid, .thq .tier, .thq .ultimate { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
+.thq #features, .thq #pricing { background: linear-gradient(180deg, var(--ground) 0, var(--ground-2) 280px); }
+/* The FAQ's closing card was a flat grey panel where every card on the front
+   page is white and lifted — now the same card. */
+.thq .fq-cta { background: var(--card); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: var(--lift); }
+
+/* Phones only: what exists only on a phone, or is spaced for one. */
+@media (max-width: 760px) {
+  /* The round's steps are cards only on a phone. */
+  .thq .step { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
+  /* The step cards' phone: its 80px-blur shadow, clipped by the card, drew as
+     blocky grey tiles around the screenshot. A tight shadow draws cleanly. */
+  .thq .step .inl.phone { box-shadow: 0 14px 24px -14px rgba(0,0,0,.5), inset 0 0 0 1.5px rgba(255,255,255,.12); }
+  /* Consistency pass (Ajay, 2026-09-30: "check for the styling consistency"),
+     measured across /, /faq and /privacy on a phone: the closing section kept
+     its 140px laptop spacing (every other section is 64px on a phone), the FAQ
+     and privacy heads opened 88px down where the front page opens at 28px, and
+     the fine print ran at five sizes, 12–14px — the notes are one size now. */
+  .thq .fq-cta { padding: 26px 22px; }
+  .thq .close { padding: 64px 0; }
+  .thq .fq-hero { padding-top: 48px; }
+  .thq .tier-note, .thq .stores-note, .thq .metered, .thq .cx-key, .thq .lg-sec .lg-date { font-size: 13px; }
+}
 `
   .replace(
     "__CMP_FRAMES__",
