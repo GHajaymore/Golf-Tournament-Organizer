@@ -5,6 +5,7 @@ import { privacyContact } from "@/lib/domain/privacy-contact";
 import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
+import { pageShareMeta } from "@/lib/landing/share-meta";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
@@ -29,15 +30,20 @@ import { editionNote, iconSprite, landingFooter, landingNav } from "@/components
  * read as a different site. The words follow the visitor's edition as `/` does.
  */
 
+const PRIVACY_DESCRIPTION =
+  "What TourneyHQ collects about organizers and players, why, who it is shared with, and how to have it removed.";
+
 export const metadata: Metadata = {
   // "Privacy", not "Privacy — TourneyHQ": the root layout now appends the
   // product with a template, and carrying it here too rendered
   // "Privacy — TourneyHQ · TourneyHQ".
   title: "Privacy",
-  description: "What TourneyHQ collects, why, who it is shared with, and how to have it removed.",
+  description: PRIVACY_DESCRIPTION,
   // Its own, because a canonical inherited from the root would tell a crawler
   // this page is a duplicate of the landing page.
   alternates: { canonical: "/privacy" },
+  // And its own link preview, or it is shared as the landing page (share-meta.ts).
+  ...pageShareMeta({ path: "/privacy", title: "Privacy", description: PRIVACY_DESCRIPTION }),
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

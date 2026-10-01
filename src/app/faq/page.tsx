@@ -6,18 +6,24 @@ import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/
 import { inDialect } from "@/lib/landing/dialect";
 import { landingPrices } from "@/lib/landing/pricing";
 import { FAQ, FAQ_COUNT } from "@/lib/landing/faq";
+import { faqStructuredData, scriptJson } from "@/lib/landing/faq-structured-data";
+import { pageShareMeta } from "@/lib/landing/share-meta";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FaqSearch } from "@/components/landing/FaqSearch";
 import { contactEmail, editionNote, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
 
+const FAQ_DESCRIPTION =
+  "How TourneyHQ scores every format, what players need, how the money is handled and what it costs — answered plainly.";
+
 export const metadata: Metadata = {
   // The root layout appends the product name with its title template.
   title: "Questions",
-  description:
-    "How TourneyHQ scores every format, what players need, how the money is handled and what it costs — answered plainly.",
+  description: FAQ_DESCRIPTION,
   // Its own, so a crawler does not read this page as a duplicate of the landing page.
   alternates: { canonical: "/faq" },
+  // And its own link preview, or it is shared as the landing page (share-meta.ts).
+  ...pageShareMeta({ path: "/faq", title: "Questions", description: FAQ_DESCRIPTION }),
 };
 
 /**
@@ -41,10 +47,18 @@ export default async function FaqPage() {
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
   const ctx = { prices: landingPrices(shown, overrides), email: contactEmail };
+  const swaps = editionSwaps(shown);
 
   const page = (
     <div className="thq" lang={shown.locale}>
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
+      {/* The questions and answers in schema.org terms, built from the same
+          list, prices and edition words as the page, so search shows what a
+          visitor opens. inDialect skips <script>, hence the swaps passed in. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: scriptJson(faqStructuredData(FAQ, ctx, swaps)) }}
+      />
       <LandingEffects />
       {iconSprite()}
       {landingNav("faq")}
@@ -125,5 +139,5 @@ export default async function FaqPage() {
     </div>
   );
 
-  return inDialect(page, editionSwaps(shown));
+  return inDialect(page, swaps);
 }
