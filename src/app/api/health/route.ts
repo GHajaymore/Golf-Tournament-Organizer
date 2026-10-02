@@ -18,8 +18,12 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/** Long enough for a cold pooled connection, short enough to call it down. */
-export const HEALTH_TIMEOUT_MS = 4000;
+/**
+ * Long enough for a cold pooled connection, short enough to call it down.
+ * Not exported: a route file may export only handlers and route config, and
+ * Next's generated types refuse anything else.
+ */
+const HEALTH_TIMEOUT_MS = 4000;
 
 const NO_STORE = { "Cache-Control": "no-store" };
 

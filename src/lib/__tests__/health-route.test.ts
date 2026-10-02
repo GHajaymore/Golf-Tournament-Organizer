@@ -13,7 +13,10 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 let answer: () => Promise<unknown> = async () => [];
 vi.mock("@/lib/db", () => ({ prisma: { $queryRaw: () => answer() } }));
 
-const { GET, HEALTH_TIMEOUT_MS } = await import("@/app/api/health/route");
+const { GET } = await import("@/app/api/health/route");
+
+/** Past any timeout a health check could sensibly use (the route's is 4 s). */
+const LONGER_THAN_ANY_TIMEOUT_MS = 60_000;
 
 describe("/api/health", () => {
   afterEach(() => vi.useRealTimers());
@@ -41,7 +44,7 @@ describe("/api/health", () => {
     vi.useFakeTimers();
     answer = () => new Promise(() => {});
     const pending = GET();
-    await vi.advanceTimersByTimeAsync(HEALTH_TIMEOUT_MS + 1);
+    await vi.advanceTimersByTimeAsync(LONGER_THAN_ANY_TIMEOUT_MS);
     expect((await pending).status).toBe(503);
   });
 });
