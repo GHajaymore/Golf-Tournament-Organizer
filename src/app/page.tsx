@@ -14,7 +14,7 @@ import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
 import { FAQ_COUNT, FORMAT_NAMES, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { COMPARE_APPEARANCE, COMPARE_COLOURS, LANDING_CSS } from "@/lib/landing/styles";
-import { COMPARED_ON, RIVALS, compareRows, goFurther, type Cell } from "@/lib/landing/compare";
+import { COMPARED_ON, RIVALS, compareRows, type Cell } from "@/lib/landing/compare";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
@@ -89,26 +89,26 @@ const PHONE = { w: 600, h: 1298 };
  */
 const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: string[]; screen: Screen; cap: string; alt: string }> = [
   {
-    time: "06:30", who: "org", h: "The tee sheet is drawn from who's in.",
-    p: "Groups by handicap, standings or sides — then yours to adjust. Publish it, and the day is set.",
+    time: "Thu 18:00", who: "org", h: "The draw goes out on Thursday.",
+    p: "The tee sheet is drawn from who's in — by handicap, standings or sides — then yours to adjust. Publish it, and every player has their group and tee time on their phone, pushed to it if they've turned notifications on.",
     ul: ["One tee, split tees or a shotgun", "Opt in, opt out, or captains send the list", "Pairing requests kept together — not on a draw by position"],
     screen: { name: "day-teesheet", by: "d", ...PHONE }, cap: "Organizer · the tee sheet",
     alt: "The organizer's tee sheet: two pairing requests above the published draw, and the pair who asked together in Group 1, off hole 1 at 08:10.",
   },
   {
-    time: "06:31", who: "pl", h: "Every player has their tee time.",
-    p: "On their Today screen: the round, the group, where they stand, and the club's pinned notice. Pushed to their phone if they've turned notifications on.",
-    screen: { name: "phone-today", by: "d", ...PHONE }, cap: "Player · Today",
-    alt: "A player's Today screen: the round, a pinned notice about preferred lies, their card so far and the leaders.",
-  },
-  {
-    time: "08:10", who: "pl", h: "Eight characters, and they're on their card.",
+    time: "08:05", who: "pl", h: "Eight characters, and they're on their card.",
     p: "A round code — no account, no app store, nothing to install.",
     screen: { name: "day-code", by: "one", ...PHONE }, cap: "Player · a round code",
     alt: "Enter your score: a box for the round code the organizer gave out.",
   },
   {
-    time: "08:14", who: "pl", h: "Tap the score — or say it.",
+    time: "10:20", who: "pl", h: "At the turn, their Today screen.",
+    p: "Their card through nine, where they stand, and the club's pinned notice for the day.",
+    screen: { name: "phone-today", by: "d", ...PHONE }, cap: "Player · Today",
+    alt: "A player's Today screen: the round, a pinned notice about preferred lies, their card so far and the leaders.",
+  },
+  {
+    time: "10:50", who: "pl", h: "Tap the score — or say it.",
     p: "“Four”, “par”, “bogey” — or the whole card read out in one go. It keeps saving without signal.",
     ul: ["Gross and net per hole, with the stroke dot", "One phone can keep the card for the group"],
     screen: { name: "phone-hole", by: "d", ...PHONE }, cap: "Player · My card",
@@ -384,7 +384,7 @@ export default async function LandingPage() {
             <div className="reasons">
               <div className="reason"><span className="n">01</span><h3>Say the score.</h3><p>Players read their scores out loud, hole by hole or the whole card. <b>None of the five platforms we compare lists voice scoring.</b></p></div>
               <div className="reason"><span className="n">02</span><h3>No app. No account.</h3><p>A round code puts a player on their card in eight characters. It installs from the browser if they want it on the home screen.</p></div>
-              <div className="reason"><span className="n">03</span><h3>Works out the money. Never holds it.</h3><p>Outing costs, skins, pots and side bets in one settle-up, in the fewest handovers. <b>Nothing is collected or moved.</b></p></div>
+              <div className="reason"><span className="n">03</span><h3>Works out the money. Never holds it.</h3><p>Outing costs, skins, pots and side bets in one settle-up, in the fewest handovers. <b>Nothing is collected or moved</b> — the money stays with your pro shop, treasurer or accounting system.</p></div>
               <div className="reason"><span className="n">04</span><h3>A real free plan. No setup fee.</h3><p>Up to {PLANS.free.limits.playersPerEvent} players, every format, the live board — free for good. <b>Both club platforms we compare charge a one-time setup fee and list no free plan.</b></p></div>
               <div className="reason"><span className="n">05</span><h3>Your country&rsquo;s golf.</h3><p>Carts or buggies, organizers or organisers, yards or metres, a Sunday or a Monday week — set by where the club is, with prices in its currency.</p></div>
             </div>
@@ -462,13 +462,6 @@ export default async function LandingPage() {
                 <span>{mark("yes")} Yes</span><span>{mark("part")} Partly, or on some plans</span>
                 <span>{mark("no")} No</span><span>{mark("na")} Not listed on their website</span>
               </p>
-              {/* Where the others go further — a comparison that only lists wins is one a club will not trust. */}
-              <div className="glance">
-                <div className="glance-col further">
-                  <h3>Where others go further</h3>
-                  <ul>{goFurther().map((t) => <li key={t}><span className="dot" aria-hidden="true" /><span>{t}</span></li>)}</ul>
-                </div>
-              </div>
               <p className="vs-legal">
                 Competitor information is from each company&rsquo;s own website as of {COMPARED_ON}. Golf Genius and
                 BlueGolf prices are for facilities in the US and Canada with up to 36 holes; every competitor price is
