@@ -35,5 +35,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "yearly",
       priority: 0.3,
     },
+    {
+      // The terms a club agrees to when it buys a plan (added 2026-10-02).
+      url: siteUrl("/terms"),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
   ];
 }

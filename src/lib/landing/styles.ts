@@ -648,6 +648,10 @@ __CMP_FRAMES__
 .thq .ftr-row nav a:hover { color: var(--ink); }
 .thq .ftr-base { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 24px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-faint); }
 .thq .ftr-base .ed-note { margin-top: 0; font-size: inherit; }
+.thq .ftr-legal { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
+.thq .ftr-legal .ftr-copy { white-space: nowrap; }
+.thq .ftr-legal a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-weight: 550; }
+.thq .ftr-legal a:hover { color: var(--ink); }
 /* Footer on a phone (Ajay, 2026-09-30: "it looks unprofessional"): the links
    wrapped ragged with "Sign in" alone on its own line. Now the mark, then the
    links in an even two-column grid, then the small print as one quiet block. */
