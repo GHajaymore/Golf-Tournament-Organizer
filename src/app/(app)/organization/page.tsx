@@ -20,6 +20,7 @@ import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
 import { PlanPanel } from "@/components/PlanPanel";
+import { billingEnabled } from "@/lib/services/billing";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
@@ -302,6 +303,12 @@ export default async function OrganizationPage() {
           currency={org.currency}
           locale={org.locale}
           terms={golfTermsFor(golfRegister(org.country, org.golfTerms))}
+          billing={{
+            enabled: billingEnabled(),
+            hasSubscription: Boolean(org.subscription?.providerSubscriptionId) && org.subscription?.status !== "canceled",
+            pastDue: org.subscription?.status === "past_due",
+            canEdit,
+          }}
         />
       </SettingsSectionAnchor>
 
