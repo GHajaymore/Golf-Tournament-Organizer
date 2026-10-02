@@ -546,6 +546,18 @@ export function LoginPanel({
               ? "Log in"
               : "Create account"}
         </button>
+
+        {/* WHAT CREATING AN ACCOUNT AGREES TO (2026-10-02), said beside the
+            button that does it — the one place it binds, and the one place a
+            person is looking. Sign-up only: logging in agrees to nothing new.
+            Links in a sentence, so they stay words rather than buttons. */}
+        {!login && (
+          <p className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.55, margin: 0, textAlign: "center" }}>
+            By creating an account you agree to the{" "}
+            <a href="/terms" style={{ color: "var(--color-accent-200)" }}>Terms</a> and the{" "}
+            <a href="/privacy" style={{ color: "var(--color-accent-200)" }}>Privacy policy</a>.
+          </p>
+        )}
       </form>
 
       {/* Players in a code-access tournament have no account at all — this is

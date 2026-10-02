@@ -7794,6 +7794,17 @@ describe("the sign-up password field", () => {
     expect(html).toContain("Create account");
   });
 
+  it("says what creating an account agrees to, with both documents linked — and only when signing up", () => {
+    const html = signUp();
+    expect(html).toMatch(/By creating an account you agree to the/);
+    expect(html).toContain('href="/terms"');
+    expect(html).toContain('href="/privacy"');
+    // Logging in agrees to nothing new, so the line is not there.
+    const login = renderToStaticMarkup(<LoginPanel initialMode="login" autoFocusFields={false} />);
+    expect(login).not.toMatch(/you agree to/);
+    expect(login).not.toContain('href="/terms"');
+  });
+
   it("keeps the requirement out of the log-in form", () => {
     // Logging in has no rule to state — the requirement belongs to a password
     // being CREATED, not to one already chosen.
