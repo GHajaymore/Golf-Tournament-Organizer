@@ -51,6 +51,15 @@ describe("buying a plan from the plan panel", () => {
     expect(panel("free", { enabled: true, hasSubscription: false, pastDue: false, canEdit: true })).toMatch(BUY);
   });
 
+  it("says where the card goes and how to stop, before the card is asked for", () => {
+    const body = panel("free", { enabled: true, hasSubscription: false, pastDue: false, canEdit: true });
+    expect(body).toMatch(/Stripe’s secure page — TourneyHQ never sees the card/);
+    expect(body).toMatch(/Renews until you cancel/);
+    // Only where something can be bought: the reassurance is about a purchase.
+    const off = panel("free", { enabled: false, hasSubscription: false, pastDue: false, canEdit: true });
+    expect(off).not.toMatch(/never sees the card/);
+  });
+
   it("a club already paying manages billing instead — no second checkout", () => {
     const body = panel("society", { enabled: true, hasSubscription: true, pastDue: false, canEdit: true });
     expect(body).toContain("Manage billing");
