@@ -32,9 +32,12 @@ export function PlanBilling({
   const outcome = params.get("billing");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  /** Which offer was pressed, so THAT button says it is opening — not all four. */
+  const [chosen, setChosen] = useState("");
 
-  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string }>) => {
+  const go = (fn: () => Promise<{ ok: true; url: string } | { ok: false; error: string }>, which = "") => {
     setError("");
+    setChosen(which);
     startTransition(async () => {
       const res = await fn();
       if (res.ok) window.location.assign(res.url);
@@ -70,7 +73,7 @@ export function PlanBilling({
         <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>Only a club owner or admin can change the plan.</p>
       ) : hasSubscription ? (
         <div>
-          <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => go(openBillingPortal)}>
+          <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => go(openBillingPortal, "portal")}>
             <Icon name="credit-card" /> {pending ? "Opening…" : "Manage billing"}
           </button>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5 }}>
@@ -79,18 +82,29 @@ export function PlanBilling({
         </div>
       ) : (
         offers.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {offers.map((o) => (
-              <button
-                key={`${o.plan}-${o.interval}`}
-                type="button"
-                className={o.interval === "year" ? "btn btn-primary" : "btn btn-secondary"}
-                disabled={pending}
-                onClick={() => go(() => startCheckout(o.plan, o.interval))}
-              >
-                {o.label}
-              </button>
-            ))}
+          <div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {offers.map((o) => {
+                const key = `${o.plan}-${o.interval}`;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={o.interval === "year" ? "btn btn-primary" : "btn btn-secondary"}
+                    disabled={pending}
+                    onClick={() => go(() => startCheckout(o.plan, o.interval), key)}
+                  >
+                    {pending && chosen === key ? "Opening checkout…" : o.label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* The same reassurance the paying club reads under Manage billing,
+                said BEFORE the card is asked for, which is when it is wanted. */}
+            <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5, lineHeight: 1.5 }}>
+              Paid on Stripe&rsquo;s secure page — TourneyHQ never sees the card. Renews until you cancel,
+              which you can do any time from here.
+            </p>
           </div>
         )
       )}
