@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { privacyContact } from "@/lib/domain/privacy-contact";
 import { PLANS, PAR_LIFESPAN_DAYS } from "@/lib/plans";
+import { RETAIN_AFTER_CANCEL_DAYS } from "@/lib/domain/billing";
 import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/edition";
 import { inDialect } from "@/lib/landing/dialect";
 import { pageShareMeta } from "@/lib/landing/share-meta";
@@ -139,7 +140,9 @@ export default async function PrivacyPage() {
 
       <Section title="What is not collected">
         <p>
-          No payment card details — TourneyHQ does not take payments. No location tracking. No
+          No payment card details. When a club pays for a plan it pays on Stripe&rsquo;s own page, and
+          the card goes to Stripe, never to us. Money in a tournament &mdash; entry fees, skins,
+          payouts &mdash; is worked out and recorded, never taken. No location tracking. No
           advertising identifiers, and no third-party analytics or advertising trackers.
         </p>
         <p>
@@ -165,6 +168,17 @@ export default async function PrivacyPage() {
           </li>
           <li>
             <strong>Our database provider</strong> — stores the tournament data described above.
+          </li>
+          <li>
+            <strong>Stripe</strong> — only when a club pays for a plan. Stripe receives the
+            club&rsquo;s name and the email address of the person who buys, and takes the payment.
+            No player&rsquo;s details are sent.
+          </li>
+          <li>
+            <strong>Sentry</strong> — error reports, where they are switched on. When a page fails on
+            our server, a report of the fault is sent: the address of the page, with any link token
+            and email address removed, and the technical details of the error. No cookies and no IP
+            address are included.
           </li>
           <li>
             <strong>Anthropic</strong> — only for the features your club switches on, and only when
@@ -219,7 +233,9 @@ export default async function PrivacyPage() {
         </p>
         <p>
           <strong>On {kept.join(", ").replace(/, ([^,]*)$/, " and $1")}</strong>, tournament data is
-          kept until the club deletes it or asks us to.
+          kept until the club deletes it or asks us to. When a paid plan ends, every tournament is
+          kept for {RETAIN_AFTER_CANCEL_DAYS} more days, and then the free plan&rsquo;s terms apply
+          &mdash; see the <Link href="/terms">terms</Link>.
         </p>
         <p>
           A casual round is deleted 24 hours after it is set up unless its organizer keeps it. On{" "}
@@ -271,11 +287,16 @@ export default async function PrivacyPage() {
           date below changes and the change is described here rather than made quietly.
         </p>
         <p>
+          <strong>2 October 2026:</strong> Stripe is listed, for clubs that pay for a plan, and
+          Sentry, for error reports; a paid plan that ends keeps its tournaments for{" "}
+          {RETAIN_AFTER_CANCEL_DAYS} days.
+        </p>
+        <p>
           <strong>30 September 2026:</strong> &ldquo;How long it is kept&rdquo; now describes the
           deletion on the free plan, which is built and running; the icon stylesheet on a public CDN is
           no longer listed, because the icons are now part of the page and nothing is fetched from it.
         </p>
-        <p className="lg-date">Last updated 30 September 2026.</p>
+        <p className="lg-date">Last updated 2 October 2026.</p>
       </Section>
 
       <p className="lg-back">

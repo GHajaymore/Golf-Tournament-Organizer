@@ -236,7 +236,7 @@ test("the measurement sees faint text and covered text, and passes good text", a
   expect(found.filter((f) => f.text.startsWith("zz-legible")), "misreads color() syntax").toEqual([]);
 });
 
-for (const path of ["/", "/faq", "/privacy"]) {
+for (const path of ["/", "/faq", "/privacy", "/terms"]) {
   test(`every word on ${path} is readable against what is behind it`, async ({ page }) => {
     await settle(page, path);
     const bad = await unreadableText(page);

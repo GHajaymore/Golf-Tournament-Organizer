@@ -72,9 +72,10 @@ describe("nothing but the marketing pages invites indexing", () => {
    *
    * `/faq` joined on 2026-09-27: every question the product answers, from the
    * same module as the landing's eight. It describes the product and carries
-   * nobody's data.
+   * nobody's data. `/terms` joined on 2026-10-02, for the same reason as
+   * `/privacy`: a club must be able to read what it agrees to before it signs in.
    */
-  const INDEXABLE = new Set(["/", "/privacy", "/faq"]);
+  const INDEXABLE = new Set(["/", "/privacy", "/faq", "/terms"]);
 
   /** A page's own file, plus every layout above it up to src/app. */
   const chainFor = (pageFile: string) => {
@@ -127,7 +128,7 @@ describe("nothing but the marketing pages invites indexing", () => {
 
   it("robots.txt allows only those, and names the sitemap", () => {
     const robots = stripComments(read("app", "robots.ts"));
-    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy", "\/faq"\]/);
+    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy", "\/faq", "\/terms"\]/);
     for (const p of ["/live/", "/register/", "/reset-password", "/play"]) {
       expect(robots, `robots.txt should disallow ${p}`).toContain(`"${p}"`);
     }
@@ -153,6 +154,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     expect(stripComments(read("app", "page.tsx"))).toMatch(/canonical:\s*"\/"/);
     expect(stripComments(read("app", "privacy", "page.tsx"))).toMatch(/canonical:\s*"\/privacy"/);
     expect(stripComments(read("app", "faq", "page.tsx"))).toMatch(/canonical:\s*"\/faq"/);
+    expect(stripComments(read("app", "terms", "page.tsx"))).toMatch(/canonical:\s*"\/terms"/);
   });
 
   it("the sitemap lists only the marketing pages", () => {
@@ -165,6 +167,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     expect(sitemap).toContain('siteUrl("/")');
     expect(sitemap).toContain('siteUrl("/privacy")');
     expect(sitemap).toContain('siteUrl("/faq")');
+    expect(sitemap).toContain('siteUrl("/terms")');
   });
 });
 

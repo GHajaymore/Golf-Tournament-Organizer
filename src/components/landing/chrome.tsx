@@ -84,7 +84,7 @@ export function icon(id: string, className = "i") {
  * The nav. On `/` the section links are in-page anchors; on `/faq` they lead
  * back to them. Sign-in and sign-up live on `/`, where the form is.
  */
-export function landingNav(at: "home" | "faq" | "privacy") {
+export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
   const product: Array<[string, string, string, string]> = [
@@ -171,7 +171,7 @@ export function editionNote(local: Edition, overridden: boolean): ReactNode {
   );
 }
 
-export function landingFooter(at: "home" | "faq" | "privacy", editionNoteNode: ReactNode) {
+export function landingFooter(at: "home" | "faq" | "privacy" | "terms", editionNoteNode: ReactNode) {
   const home = at === "home" ? "" : "/";
   const links: Array<[string, string]> = [
     [`${home}#pricing`, "Pricing"],
@@ -179,7 +179,6 @@ export function landingFooter(at: "home" | "faq" | "privacy", editionNoteNode: R
     ["/faq", "FAQ"],
     ["/play", "Enter a round code"],
     ...(contactEmail ? [[`mailto:${contactEmail}`, "Contact"] as [string, string]] : []),
-    ["/privacy", "Privacy"],
     [`${home}#signin`, "Sign in"],
   ];
   return (
@@ -194,7 +193,14 @@ export function landingFooter(at: "home" | "faq" | "privacy", editionNoteNode: R
           </nav>
         </div>
         <div className="ftr-base">
-          <span>&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>
+          {/* The legal links sit with the copyright, where a visitor looks for
+              them, so the nav above stays two tidy rows of three on a phone
+              (2026-10-02, when Terms joined Privacy). */}
+          <span className="ftr-legal">
+            <span className="ftr-copy">&copy; {new Date().getFullYear()} TourneyHQ &middot; Made by AjAi Labs</span>
+            <a href="/privacy" aria-current={at === "privacy" ? "page" : undefined}>Privacy</a>
+            <a href="/terms" aria-current={at === "terms" ? "page" : undefined}>Terms</a>
+          </span>
           <span>Every screen on this site is an unedited capture of the app, on invented demo data.</span>
           <span className="ed-note">{editionNoteNode}</span>
         </div>
