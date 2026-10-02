@@ -59,6 +59,8 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   rules: ["admin", "assistant", "player"],
   // How the product works — a guide for the people running it (Help section).
   guide: ["admin", "assistant"],
+  // The step-by-step organizer guide (Help section).
+  "guide-steps": ["admin", "assistant"],
   // The player shell — a player's whole app: where they stand, who they are out
   // with, their own card, and the rules in force. Open to staff as well, so an
   // organizer who is also in the field can use it to play rather than signing

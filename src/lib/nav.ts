@@ -74,6 +74,7 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
   // How the product works, for organizers. A casual round's host is one
   // player on the first tee, and the round itself is the whole manual.
   "guide",
+  "guide-steps",
   // The field's apparatus.
   "grouping",
   "foursomes",
@@ -500,6 +501,7 @@ export const NAV: NavSection[] = [
     label: "Help",
     items: [
       { key: "guide", label: "How TourneyHQ works", href: "/guide", icon: "ph ph-map-trifold", tier: "at-desk" },
+      { key: "guide-steps", label: "Step-by-step guide", href: "/guide/steps", icon: "ph ph-list-numbers", tier: "at-desk" },
     ],
   },
 ];
