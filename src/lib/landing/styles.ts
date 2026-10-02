@@ -820,6 +820,52 @@ __CMP_FRAMES__
   .thq .fq-hero { padding-top: 48px; }
   .thq .tier-note, .thq .stores-note, .thq .metered, .thq .cx-key, .thq .lg-sec .lg-date { font-size: 13px; }
 }
+/* READABLE ON A LAPTOP AT 100% (Ajay, 2026-10-02: "with the default rendering,
+   its hard to read and needs to zoom in"). Measured on the live page at
+   1366, 1536 and 1920: the page's own reading text was 17-18px, but the app
+   screens were drawn at 0.83-0.85 of the size they were captured, so the
+   app's text inside them landed at 9-11px, and the small print around them
+   (labels, table notes, plan notes, form hints) was 10.5-13px.
+   Two rules from here on, for any screen wider than a tablet:
+    - an app screen is shown at least as large as it was captured: a phone
+      at 390px of screen, the console at about its own 1200px;
+    - no page text is smaller than 13px. */
+@media (min-width: 1001px) {
+  .thq { --wrap: 1400px; }
+  .thq .pin .phone { width: clamp(340px, calc((100vh - 230px) / 2.1), 408px); }
+  .thq .boards { grid-template-columns: repeat(3, minmax(0, 404px)); }
+  .thq .phone.sm { padding: 7px; }
+  .thq .mcard .money-phone { width: min(408px, 90%); }
+  .thq .cmp-frame.phone { width: 408px; }
+  .thq .stage-phone { width: 408px; }
+}
+@media (min-width: 761px) {
+  .thq .label { font-size: 13px; }
+  .thq .who { font-size: 13px; }
+  .thq .real { font-size: 15px; }
+  .thq .pin .cap { font-size: 14px; }
+  .thq .vs-legal { font-size: 14.5px; }
+  .thq .cx thead th span:not(.sr) { font-size: 12px; }
+  .thq .cx .cx-us { width: 196px; }
+  .thq .cx .cx-lab small { font-size: 14px; }
+  .thq .cx td { font-size: 15px; }
+  .thq .cx td small { font-size: 13px; }
+  .thq .cx-key .cx-m { width: 20px; height: 20px; font-size: 12px; }
+  .thq .fx-bar .chip i { font-size: 13px; }
+  .thq .cmp-hint { font-size: 13px; }
+  .thq .tier .badge { font-size: 13px; }
+  .thq .seg.bill em { font-size: 13px; }
+  .thq .tier .note, .thq .tier-how { font-size: 14px; }
+  .thq .tier-note { font-size: 15px; }
+  .thq .metered { font-size: 15px; }
+  .thq .ed-note { font-size: 15px; }
+  .thq .u-row i, .thq .fx-grid .f small, .thq .topics a b, .thq .store small { font-size: 13px; }
+  .thq .cx .cx-src th, .thq .cx .cx-src td { font-size: 13px; }
+  .thq .cp-t td small { font-size: 13.5px; }
+  /* The sign-up form is the app's own LoginPanel, sized by inline styles for the
+     app; here, on the front door, its hints and question read at the floor. */
+  .thq .authpanel legend, .thq .authpanel .text-muted { font-size: 13.5px !important; }
+}
 `
   .replace(
     "__CMP_FRAMES__",

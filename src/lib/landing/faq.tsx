@@ -353,7 +353,7 @@ export const FAQ: FaqGroup[] = [
           <p>
             See the <Link href="/#compare">side-by-side on the home page</Link>: the club platforms Golf Genius and BlueGolf TM,
             and the league and group apps Squabbit, Golf GameBook and LeagueGolfer. Every figure there is from each
-            company&rsquo;s own website, dated, including where the others go further.
+            company&rsquo;s own website, dated.
           </p>
         ),
       },
