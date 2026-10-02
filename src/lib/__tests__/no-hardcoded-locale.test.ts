@@ -207,8 +207,16 @@ describe("a tournament's money is all in one currency", () => {
    * before a Par tournament is deleted. That is the club's subscription — its
    * own bill — in the club's currency, exactly as its plan panel quotes it;
    * a tournament set to yen does not make the club's plan cost yen.
+   *
+   * `startCheckout` (2026-10-02) is the third, and the plainest: the club
+   * PAYING for its plan through Stripe, charged in the same currency its plan
+   * panel quotes. Checkout must charge exactly what the panel showed.
    */
-  const CLUB_OWN_BILL = ["src/app/actions/messaging.ts", "src/lib/services/close-terms.ts"];
+  const CLUB_OWN_BILL = [
+    "src/app/actions/billing.ts",
+    "src/app/actions/messaging.ts",
+    "src/lib/services/close-terms.ts",
+  ];
 
   /** Only the resolver may ask an organization what currency it is in. */
   const RESOLVER = ["src/lib/services/organization.ts"];

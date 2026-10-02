@@ -2,7 +2,10 @@ import { PLANS, planFor, planCurrency, effectivePrice, effectiveAnnualPrice, upg
 import { wholeMoney } from "@/lib/domain/money-format";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import type { OrgLimits } from "@/lib/services/limits";
+import { Suspense } from "react";
+import { PURCHASABLE_PLANS } from "@/lib/domain/billing";
 import { Icon } from "./Icon";
+import { PlanBilling } from "./PlanBilling";
 
 /**
  * What this club is on, what it costs, and what it does not include.
@@ -30,6 +33,7 @@ export function PlanPanel({
   currency,
   locale,
   terms = golfTermsFor("us"),
+  billing,
 }: {
   planKey: string;
   /**
@@ -45,6 +49,8 @@ export function PlanPanel({
   currency?: string;
   /** The club's locale, which decides how the number is written. */
   locale?: string;
+  /** Online billing, when Stripe is configured. Absent or disabled: no buy buttons. */
+  billing?: { enabled: boolean; hasSubscription: boolean; pastDue: boolean; canEdit: boolean; heldUntil?: string };
 }) {
   const current = planFor(planKey);
   const quoteIn = planCurrency(currency);
@@ -233,12 +239,31 @@ export function PlanPanel({
         </div>
       )}
 
-      {/* No buy button, deliberately. TourneyHQ calculates and records money;
-          it never takes any. Whatever a club pays happens outside the app, and
-          a button here would imply otherwise. */}
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.55 }}>
-        Changing plan is arranged with us directly — nothing is charged through the app.
-      </p>
+      {/* BUYING A PLAN (2026-10-02). This is the club paying TourneyHQ for the
+          software — not golf money, which the app still never moves. With
+          billing switched on the buttons open Stripe's own hosted pages; with
+          it off, the panel says what it always said. */}
+      {billing?.enabled ? (
+        <Suspense fallback={null}>
+          <PlanBilling
+            offers={PURCHASABLE_PLANS.filter((k) => k !== current.key).flatMap((k) => {
+              const p = PLANS[k];
+              return [
+                { plan: k, interval: "year" as const, label: `${p.name} · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr` },
+                { plan: k, interval: "month" as const, label: `${p.name} · ${price(effectivePrice(p, overrides, quoteIn))}/mo` },
+              ];
+            })}
+            hasSubscription={billing.hasSubscription}
+            pastDue={billing.pastDue}
+            canEdit={billing.canEdit}
+            heldUntil={billing.heldUntil}
+          />
+        </Suspense>
+      ) : (
+        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.55 }}>
+          Changing plan is arranged with us directly — nothing is charged through the app.
+        </p>
+      )}
     </div>
   );
 }
