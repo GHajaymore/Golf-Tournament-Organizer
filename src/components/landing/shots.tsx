@@ -35,7 +35,7 @@ export interface ShotSpec {
 }
 
 /** A phone screen shown in a section: most of a phone's width, 340px elsewhere. */
-export const PHONE_SIZES = "(max-width: 760px) min(84vw, 330px), 340px";
+export const PHONE_SIZES = "(max-width: 760px) min(84vw, 330px), 408px";
 
 /** The sharp smaller copies of one file, largest last, as a srcset — or none. */
 export function srcSetFor(src: string): string | undefined {

@@ -23,8 +23,17 @@ import type { LandingPrices } from "./pricing";
  *    players and scoring with no app (checked 2026-09-29).
  *  - Their prices are theirs, in US dollars, never converted (`prices.usd`).
  *  - TourneyHQ's cells read their numbers from PLANS and the owner's prices.
- *  - Where they go further, the page says so, each company named only for its
- *    own point (`further`).
+ *  - The page names no rival advantage outside the table (Ajay, 2026-10-02: a
+ *    "where others go further" box read as promoting other apps). The table
+ *    itself stays complete and honest, marks and all.
+ *  - The handicap service row reads "Coming soon" for TourneyHQ (Ajay,
+ *    2026-10-02): the app already keeps each member's GHIN number and a
+ *    GHIN-only handicap policy; the live link to the service is next.
+ *  - No "entry fees paid online" row. TourneyHQ keeps collecting money out on
+ *    purpose (Ajay, 2026-10-02): a league, a group or a club runs its money
+ *    through its own organizers, pro shop POS or accounting, so TourneyHQ
+ *    records who has paid and works out who owes whom, and never takes a card.
+ *    It is a choice, not a gap, and is said in the reasons, not marked down here.
  * RE-CHECK EVERY CELL AND THE DATE before changing any of it, and have a
  * lawyer look at the named comparison.
  */
@@ -143,27 +152,8 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
     {
       label: "Handicap service link",
       detail: "Scores posted to GHIN or the WHS.",
-      ours: x(),
+      ours: v("Coming soon", "GHIN numbers kept per member today"),
       theirs: [y("GHIN"), y("WHS"), y("WHS"), na(), na()],
     },
-    {
-      label: "Entry fees paid online",
-      detail: "Players pay their entry by card.",
-      ours: p("records who has paid"),
-      theirs: [p("TM Premium"), p("not the base plan"), y("Stripe"), y("card payments"), p("treasury accounting")],
-    },
-  ];
-}
-
-/**
- * Where the others go further — each company named only for its own point, so a
- * reader of one column never meets another company's advantage by mistake.
- */
-export function goFurther(): string[] {
-  return [
-    "Golf Genius, BlueGolf and Squabbit link to a handicap service — GHIN or the WHS.",
-    "Squabbit and Golf GameBook take entry fees by card; TourneyHQ records who has paid.",
-    `Squabbit's free plan has no player limit; TourneyHQ's free plan, ${PLANS.free.name}, is up to ${PLANS.free.limits.playersPerEvent}.`,
-    "Golf GameBook and LeagueGolfer have their own mobile apps; TourneyHQ installs from the browser.",
   ];
 }
