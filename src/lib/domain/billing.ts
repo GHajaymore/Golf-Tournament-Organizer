@@ -98,12 +98,33 @@ export function clubStatusFor(stripeStatus: string): ClubBillingStatus | "pendin
   }
 }
 
+/**
+ * HOW LONG A CLUB'S TOURNAMENTS ARE KEPT AFTER ITS PAID PLAN ENDS (Ajay,
+ * 2026-10-02: "keep history for 30 days").
+ *
+ * A club that stops paying returns to Par, and Par's terms delete a
+ * tournament when it is completed or 14 days after golf begins. Without a
+ * hold, a lapsed customer's open events would start disappearing on the next
+ * sweep. So every tournament the club has is held for this many days from the
+ * day the subscription ENDED — the club's window to come back or export —
+ * after which the Par terms apply like any other Par club's.
+ */
+export const RETAIN_AFTER_CANCEL_DAYS = 30;
+
+/** The end of the hold that starts when a paid plan ends. */
+export function retainUntilAfter(ended: Date): Date {
+  return new Date(ended.getTime() + RETAIN_AFTER_CANCEL_DAYS * 24 * 60 * 60 * 1000);
+}
+
 /** The parts of a Stripe subscription this app reads. */
 export interface StripeSubscriptionLike {
   id: string;
   status: string;
   customer: string | { id: string };
   metadata?: Record<string, string> | null;
+  /** When it ended, in Unix seconds — the hold counts from here, not from when we heard. */
+  ended_at?: number | null;
+  canceled_at?: number | null;
   /** Stripe moved the period end onto the items in 2025; read either. */
   current_period_end?: number | null;
   items?: { data?: { current_period_end?: number | null }[] } | null;
@@ -118,11 +139,16 @@ export interface SubscriptionWrite {
   providerSubscriptionId: string;
   currentPeriodEnd: Date | null;
   /**
-   * Set false when a paid subscription ENDS, so the Par deletion rules never
-   * reach a club that paid. Limits still apply (a provider is attached), but a
-   * lapsed customer's history is kept. Undefined leaves the column as it is.
+   * Set when a paid subscription ENDS: the club is on Par's published terms
+   * from now on, like any club that signed up to them.
    */
-  planTermsApply?: false;
+  planTermsApply?: true;
+  /**
+   * Set when a paid subscription ENDS: hold every tournament the club has
+   * until at least this time, so the Par terms cannot delete any of it before
+   * `RETAIN_AFTER_CANCEL_DAYS` have passed. Only ever extends a hold.
+   */
+  retainEventsUntil?: Date;
 }
 
 /**
@@ -151,8 +177,24 @@ export function subscriptionWrite(sub: StripeSubscriptionLike): SubscriptionWrit
     currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
   };
 
-  // An ended subscription returns the club to Par, keeping its history.
-  if (status === "canceled") return { ...base, plan: "free", status, planTermsApply: false };
+  /**
+   * An ended subscription returns the club to Par, on Par's terms — with every
+   * tournament held for 30 days from the day it ENDED. Stripe's own end date,
+   * not the moment this event was processed, so a retried or replayed event
+   * cannot keep pushing the hold forward.
+   */
+  if (status === "canceled") {
+    const endedSeconds = sub.ended_at ?? sub.canceled_at ?? null;
+    const ended = endedSeconds ? new Date(endedSeconds * 1000) : null;
+    return {
+      ...base,
+      plan: "free",
+      status,
+      planTermsApply: true,
+      currentPeriodEnd: ended ?? base.currentPeriodEnd,
+      retainEventsUntil: retainUntilAfter(ended ?? new Date()),
+    };
+  }
   return { ...base, plan: planKey, status };
 }
 

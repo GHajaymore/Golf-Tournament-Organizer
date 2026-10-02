@@ -3,6 +3,7 @@ import {
   checkoutLineItem,
   clubStatusFor,
   isPurchasablePlan,
+  RETAIN_AFTER_CANCEL_DAYS,
   subscriptionIdOf,
   subscriptionWrite,
   type StripeSubscriptionLike,
@@ -74,10 +75,28 @@ describe("what a Stripe subscription means for a club", () => {
     expect(subscriptionWrite(sub({ status: "unpaid" }))).toMatchObject({ plan: "club", status: "past_due" });
   });
 
-  it("an ended subscription returns the club to Par WITHOUT the Par deletion rules", () => {
+  it("an ended subscription returns the club to Par — and holds every tournament 30 days from the END", () => {
+    const ended = 1_800_000_000; // Stripe's ended_at, in seconds
     for (const status of ["canceled", "incomplete_expired"]) {
-      expect(subscriptionWrite(sub({ status }))).toMatchObject({ plan: "free", status: "canceled", planTermsApply: false });
+      const w = subscriptionWrite(sub({ status, ended_at: ended }))!;
+      expect(w).toMatchObject({ plan: "free", status: "canceled", planTermsApply: true });
+      expect(w.retainEventsUntil?.getTime()).toBe((ended + RETAIN_AFTER_CANCEL_DAYS * 86_400) * 1000);
+      expect(w.currentPeriodEnd?.getTime()).toBe(ended * 1000);
     }
+    expect(RETAIN_AFTER_CANCEL_DAYS).toBe(30);
+  });
+
+  it("the hold counts from Stripe's end date, so a replayed event can't push it forward", () => {
+    const ended = 1_800_000_000;
+    const first = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
+    const replayed = subscriptionWrite(sub({ status: "canceled", ended_at: ended }))!;
+    expect(replayed.retainEventsUntil?.getTime()).toBe(first.retainEventsUntil?.getTime());
+  });
+
+  it("a paid plan that is still running sets no hold and doesn't touch the terms", () => {
+    const w = subscriptionWrite(sub({ status: "active" }))!;
+    expect(w.retainEventsUntil).toBeUndefined();
+    expect(w.planTermsApply).toBeUndefined();
   });
 
   it("a checkout still waiting on its first payment changes nothing", () => {

@@ -17,7 +17,10 @@ export function PlanBilling({
   hasSubscription,
   pastDue,
   canEdit,
+  heldUntil,
 }: {
+  /** A paid plan ended: the date its tournaments are kept until, already formatted. */
+  heldUntil?: string;
   /** What can be bought, already priced by the panel: one per plan and interval. */
   offers: { plan: string; interval: "month" | "year"; label: string }[];
   /** A live Stripe subscription — change it in the portal, not a second checkout. */
@@ -49,6 +52,12 @@ export function PlanBilling({
       {outcome === "cancelled" && (
         <p role="status" className="text-muted" style={{ margin: 0, fontSize: 12.5 }}>
           Checkout was cancelled. Nothing was charged.
+        </p>
+      )}
+      {heldUntil && (
+        <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>
+          <Icon name="clock-countdown" /> Your paid plan has ended. Every tournament is kept until{" "}
+          <strong>{heldUntil}</strong>; after that the free plan&rsquo;s terms apply. Choose a plan to keep everything.
         </p>
       )}
       {pastDue && (

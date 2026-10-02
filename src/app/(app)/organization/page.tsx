@@ -21,6 +21,22 @@ import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
 import { PlanPanel } from "@/components/PlanPanel";
 import { billingEnabled } from "@/lib/services/billing";
+import { retainUntilAfter } from "@/lib/domain/billing";
+import { formatDay } from "@/lib/domain/locale";
+
+/**
+ * For a club whose paid plan has ENDED and whose 30-day hold is still running,
+ * the date the hold ends, written in the club's own way. Undefined otherwise.
+ */
+function heldUntilLabel(
+  sub: { status: string; currentPeriodEnd: Date | null } | null | undefined,
+  locale: string | null | undefined,
+): string | undefined {
+  if (sub?.status !== "canceled" || !sub.currentPeriodEnd) return undefined;
+  const until = retainUntilAfter(new Date(sub.currentPeriodEnd));
+  if (until.getTime() <= Date.now()) return undefined;
+  return locale ? formatDay(until.toISOString().slice(0, 10), locale) : formatDay(until.toISOString().slice(0, 10));
+}
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
@@ -308,6 +324,7 @@ export default async function OrganizationPage() {
             hasSubscription: Boolean(org.subscription?.providerSubscriptionId) && org.subscription?.status !== "canceled",
             pastDue: org.subscription?.status === "past_due",
             canEdit,
+            heldUntil: heldUntilLabel(org.subscription, org.locale),
           }}
         />
       </SettingsSectionAnchor>

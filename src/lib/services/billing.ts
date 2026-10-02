@@ -121,7 +121,16 @@ export async function portalUrl(organizationId: string, origin: string): Promise
   }
 }
 
-/** Write a Stripe subscription's meaning onto the club's Subscription row. */
+/**
+ * Write a Stripe subscription's meaning onto the club's Subscription row —
+ * and, when a paid plan has ended, hold the club's tournaments.
+ *
+ * ONE TRANSACTION, the hold FIRST in it. Par's terms reach a club the moment
+ * its plan reads "free", and the sweep runs on a clock that does not wait for
+ * this function; a club that is briefly "free and unheld" is a club whose
+ * events could be deleted in the gap. So the hold and the plan change land
+ * together or not at all.
+ */
 export async function applySubscriptionWrite(w: SubscriptionWrite): Promise<void> {
   const data = {
     plan: w.plan,
@@ -130,12 +139,24 @@ export async function applySubscriptionWrite(w: SubscriptionWrite): Promise<void
     providerCustomerId: w.providerCustomerId,
     providerSubscriptionId: w.providerSubscriptionId,
     currentPeriodEnd: w.currentPeriodEnd,
-    ...(w.planTermsApply === false ? { planTermsApply: false } : {}),
+    ...(w.planTermsApply ? { planTermsApply: true } : {}),
   };
-  await prisma.subscription.upsert({
-    where: { organizationId: w.organizationId },
-    create: { organizationId: w.organizationId, ...data },
-    update: data,
+  await prisma.$transaction(async (tx) => {
+    if (w.retainEventsUntil) {
+      // Only ever EXTENDS a hold: a later date somebody set by hand stands.
+      await tx.event.updateMany({
+        where: {
+          organizationId: w.organizationId,
+          OR: [{ retainUntil: null }, { retainUntil: { lt: w.retainEventsUntil } }],
+        },
+        data: { retainUntil: w.retainEventsUntil },
+      });
+    }
+    await tx.subscription.upsert({
+      where: { organizationId: w.organizationId },
+      create: { organizationId: w.organizationId, ...data },
+      update: data,
+    });
   });
 }
 
