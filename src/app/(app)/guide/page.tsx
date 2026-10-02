@@ -89,9 +89,14 @@ export default async function GuidePage() {
         title="How TourneyHQ works"
         subtitle="A high-level map of the product: who uses it, how a tournament runs from setup to prize-giving, and what happens on the course in between. A step-by-step user guide follows later."
         actions={
-          <a className="btn btn-primary" href={PDF} download>
-            <Icon name="ph ph-file-pdf" /> Download PDF
-          </a>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn-secondary" href="/guide/steps">
+              <Icon name="ph ph-list-numbers" /> Step-by-step guide
+            </a>
+            <a className="btn btn-primary" href={PDF} download>
+              <Icon name="ph ph-file-pdf" /> Download PDF
+            </a>
+          </div>
         }
       />
 
