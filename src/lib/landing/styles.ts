@@ -152,14 +152,22 @@ ${landingTokens("dark", "  ")}
    the phone stands in front of its left edge, dropping below it. */
 .thq .stage { display: grid; margin-top: 64px; }
 .thq .stage > * { grid-area: 1 / 1; }
-.thq .stage .desk { margin-left: 20%; align-self: start; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xl); }
-.thq .stage .phone { position: relative; z-index: 1; align-self: start; width: min(340px, 28%); margin-top: 40px; }
+/* The phone stands over the console's whole left menu (Ajay, 2026-10-02: "check
+   the desktop/laptop app rendering, it's not correct"): at 20% it covered most
+   of the menu and left fragments — "istory", "andings", "rboard" — between the
+   phone and the table, a cut screen. Measured on the capture, the menu ends at
+   17.2% of its width and the console's own text starts at 19.5%: with the
+   console 12% in, a phone 28% wide ends at 18.2% of it — in that gap — covering
+   the menu edge to edge and top to bottom without touching a word. Nothing is
+   cropped or retouched. */
+.thq .stage .desk { margin-left: 12%; align-self: start; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xl); }
+.thq .stage .phone { position: relative; z-index: 1; align-self: start; width: 28%; margin-top: 0; }
 .thq .real { margin-top: 24px; font-size: 14px; color: var(--ink-faint); }
 .thq .real b { color: var(--ink-soft); font-weight: 600; }
 @media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } }
 /* A tablet keeps the pair: shown the phone alone, an iPad's hero was one small
    screen on a wide empty stage. The phone grows a little so it still reads. */
-@media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: min(340px, 32%); } }
+@media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: 32%; } .thq .stage .desk { margin-left: 17%; } }
 @media (max-width: 760px) { .thq .stage .desk { display: none; } .thq .stage .phone { width: min(330px, 84%); margin: 0 auto; } }
 @media (max-width: 760px) { .thq .hero { padding-top: 48px; } .thq .proof { gap: 6px 18px; margin-top: 32px; } }
 
@@ -198,8 +206,10 @@ ${landingTokens("dark", "  ")}
 /* ── the round: one Saturday, both sides ── */
 .thq .round { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 96px; }
 .thq .step { min-height: min(72vh, 620px); display: flex; flex-direction: column; justify-content: center; padding: 40px 0; border-top: 1px solid var(--line); }
-.thq-js .step { opacity: .32; transition: opacity .35s; }
-.thq-js .step.on { opacity: 1; }
+/* Every step stays readable (2026-10-02): faded to .32, the steps not in view
+   read pale grey — most of the section, on a laptop — and failed 7:1. The step
+   in view is marked by its time in orange; the others' times are grey. */
+@media (min-width: 1001px) { .thq-js .step:not(.on) .step-t b { color: var(--ink-faint); transition: color .35s; } }
 .thq .step-t { display: flex; align-items: center; gap: 16px; }
 .thq .step-t b { font: 600 60px/1 var(--mono); letter-spacing: -.05em; color: var(--brass); font-variant-numeric: tabular-nums; }
 .thq .who { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
@@ -469,7 +479,8 @@ __SHOW_FRAMES__
 .thq .mcard p { color: var(--ink-soft); margin-top: 10px; font-size: 16px; }
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
-.thq .mcard .well { margin-top: auto; border-radius: 14px; overflow: hidden; }
+/* Centred in what is left of its card, beside the taller expenses phone, not dropped to the foot. */
+.thq .mcard .well { margin-top: auto; margin-bottom: auto; border-radius: 14px; overflow: hidden; }
 /* A phone-width capture is never drawn wider than a phone shows it (1170px at 2x = 585): on
    an iPad the money cards stack to one column and the prizes card stretched to 680px, 1.72x. */
 .thq .mcard .well:has(img[src*="prizes-org-phone"]) { width: min(100%, 440px); margin-left: auto; margin-right: auto; }
