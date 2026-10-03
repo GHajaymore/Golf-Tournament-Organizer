@@ -71,6 +71,7 @@
   "dependencies": {
     "@prisma/client": "^6.3.1",
     "@sentry/nextjs": "^10.76.0",
+    "botid": "^1.5.11",
     "geist": "^1.7.2",
     "next": "15.5.25",
     "react": "19.0.0",

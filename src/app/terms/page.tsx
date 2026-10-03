@@ -219,8 +219,11 @@ export default async function TermsPage() {
 
       <Section title="Ending">
         <p>
-          A club can stop using TourneyHQ at any time, and ask us to delete its data
-          {writeTo ? <> by writing to {writeTo}</> : null}.
+          A club can stop using TourneyHQ at any time. Its owner can delete the club from Club settings:
+          every tournament, card, result, money record, the roster and the settings go at once, for
+          good. A paid plan has to be cancelled first, so nothing goes on being billed for a club that
+          no longer exists.
+          {writeTo ? <> A club can also ask us to delete its data by writing to {writeTo}.</> : null}
         </p>
       </Section>
 
@@ -229,7 +232,11 @@ export default async function TermsPage() {
           If these terms change, the date below changes and the change is described here rather than
           made quietly.
         </p>
-        <p className="lg-date">Last updated 2 October 2026.</p>
+        <p>
+          <strong>3 October 2026:</strong> a club&rsquo;s owner can now delete the club from Club
+          settings.
+        </p>
+        <p className="lg-date">Last updated 3 October 2026.</p>
       </Section>
 
       {writeTo && (

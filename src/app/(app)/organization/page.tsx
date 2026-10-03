@@ -22,6 +22,9 @@ import { PlaySettings } from "@/components/PlaySettings";
 import { PlanPanel } from "@/components/PlanPanel";
 import { billingEnabled } from "@/lib/services/billing";
 import { retainUntilAfter } from "@/lib/domain/billing";
+import { paidPlanRunning } from "@/lib/domain/club-deletion";
+import { DeleteClub } from "@/components/DeleteClub";
+import { orgProfile } from "@/lib/domain/org-profile";
 import { formatDay } from "@/lib/domain/locale";
 
 /**
@@ -130,6 +133,12 @@ export default async function OrganizationPage() {
    */
   const access = await organizationAccess(session);
   const canEdit = access?.canEdit ?? false;
+  // An explicit OWNER membership of this club — not `canEdit`, which an admin
+  // and the ownerless escape hatch also have. The delete action reads the same.
+  const isClubOwner =
+    (await prisma.organizationMember.count({
+      where: { organizationId: org.id, userId: session.userId, role: "owner" },
+    })) > 0;
 
   const report = await organizationAccessReport(org.id);
   // Who is waiting to be let in. Almost always empty; see OrganizationAccess.
@@ -342,6 +351,18 @@ export default async function OrganizationPage() {
           organizer={golfTermsFor(golfRegister(org.country, org.golfTerms)).organizer}
         />
       </SettingsSectionAnchor>
+
+      {/* Last on the page, and for the owner alone — the rule and its reasons
+          are in domain/club-deletion.ts. */}
+      {isClubOwner && (
+        <div style={{ marginTop: 16 }}>
+          <DeleteClub
+            clubName={org.name}
+            noun={orgProfile(org.kind, org.country, org.communityNoun).noun}
+            paidPlanRunning={paidPlanRunning(org.subscription)}
+          />
+        </div>
+      )}
     </>
   );
 }

@@ -1,3 +1,5 @@
+import { withBotId } from "botid/next/config";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -134,4 +136,5 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// BotID's proxy rewrites, for the sign-up bot check (lib/services/bot-check.ts).
+export default withBotId(nextConfig);
