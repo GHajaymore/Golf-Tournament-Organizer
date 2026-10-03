@@ -72,6 +72,36 @@ async function fitsTheViewport(page: Page, box: Locator, what: string) {
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth, `${what}: the page is ${scrollWidth}px in a ${width}px viewport`)
     .toBeLessThanOrEqual(width);
+
+  /**
+   * AND EVERYTHING IN IT IS INSIDE IT (2026-10-03). The checks above measure
+   * the dialog's own box, and a box can fit perfectly while its contents spill
+   * out of it: #765 put a third button in the sign-out dialog's action row, and
+   * at 393px the row was wider than the dialog — the first button started at
+   * x=1, fifteen pixels outside a dialog that passed every check here. Found by
+   * walking the screen, not by this file; this is the check that would have.
+   *
+   * Every control a person can press, measured against the dialog's LEFT and
+   * RIGHT edges, with a pixel's grace for sub-pixel rounding. Not top and
+   * bottom: a dialog is capped at the screen's height and scrolls inside itself
+   * by design (`.dialog` in design-system.css), so a button below its fold on a
+   * 320px phone is reachable — the first draft of this check flagged exactly
+   * that and was wrong. Nobody scrolls SIDEWAYS inside a dialog to find a button.
+   */
+  const outside = await box.evaluate((dialog) => {
+    const d = dialog.getBoundingClientRect();
+    return [...dialog.querySelectorAll<HTMLElement>("a, button, input, select, textarea")]
+      .filter((el) => el.getBoundingClientRect().width > 0)
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left < d.left - 1 || r.right > d.right + 1;
+      })
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return `"${(el.textContent || el.getAttribute("aria-label") || el.tagName).trim().slice(0, 30)}" ${Math.round(r.left)}..${Math.round(r.right)} in a dialog ${Math.round(d.left)}..${Math.round(d.right)}`;
+      });
+  });
+  expect(outside, `${what} has controls outside its own edges`).toEqual([]);
 }
 
 test.describe("the sign-out dialog", () => {

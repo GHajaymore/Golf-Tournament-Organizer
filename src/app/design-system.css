@@ -656,7 +656,11 @@ textarea.input { min-height: 90px; resize: vertical; }
   overflow-wrap: anywhere;
 }
 .dialog-body { font-size: 14px; opacity: 0.85; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+/* Wraps (2026-10-03): three actions on a phone used to run off the dialog's
+   left edge — "Go to Reports" on the complete-and-delete dialog sat at x=-55,
+   partly off the screen, in the one dialog where saving the results first
+   matters. Caught by dialog.spec's controls-inside-the-dialog check. */
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
 
 /* ── Score entry ───────────────────────────────────────────────────────────
