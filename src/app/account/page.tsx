@@ -6,6 +6,7 @@ import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import { Icon } from "@/components/Icon";
 import { DeleteAccount } from "@/components/DeleteAccount";
+import { SendResetLink } from "@/components/SendResetLink";
 import { soleOwnedClubs } from "@/lib/services/account-deletion";
 
 // Behind a session, and about one person.
@@ -17,8 +18,8 @@ export const metadata = { title: "Your account", robots: NOINDEX };
  * There was no page about the person at all — only about their clubs and
  * tournaments — so there was nowhere to delete an account from. Standalone,
  * like `/choose`, because organizers and players both reach it, and neither
- * shell is the other's. It says who is signed in, offers a new password by the
- * same reset email the sign-in page uses, and holds the deletion.
+ * shell is the other's. It says who is signed in, sends a new-password link by
+ * the same reset email the sign-in page uses, and holds the deletion.
  */
 export default async function AccountPage() {
   const session = await requireSession();
@@ -54,10 +55,7 @@ export default async function AccountPage() {
 
         <section className="card elev-sm" style={{ gap: 8 }}>
           <h2 className="card-title" style={{ fontSize: 15 }}>Password</h2>
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-            To change it, sign out and choose <strong>Forgot?</strong> on the sign-in form. A link is sent to{" "}
-            {session.email}, and it works for 15 minutes.
-          </p>
+          <SendResetLink email={session.email} />
         </section>
 
         <DeleteAccount email={session.email} soleOwnerOf={soleOwnerOf} />
