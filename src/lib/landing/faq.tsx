@@ -325,6 +325,18 @@ export const FAQ: FaqGroup[] = [
         q: "Is our members' information kept private?",
         a: () => <p>Contact details never appear on the public leaderboard — it carries names and scores only, and nothing is visible at all until you choose to publish. Your roster stays yours.</p>,
       },
+      {
+        id: "delete-account",
+        q: "Can I delete my account?",
+        a: () => (
+          <p>
+            Yes — from <Link href="/account">Your account</Link>, once you&rsquo;re signed in. Your sign-in and all your
+            access go at once. What a club holds about you — entries, scores, roster details, money records and
+            messages — stays with that club, which can remove it. A club&rsquo;s owner can delete the whole club from its
+            settings.
+          </p>
+        ),
+      },
     ],
   },
   {

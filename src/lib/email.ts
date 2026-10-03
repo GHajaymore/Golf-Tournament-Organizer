@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { classifySendFailure, type EmailKind, type EmailFailureReason } from "@/lib/domain/email-trouble";
 import { appUrl } from "@/lib/domain/app-url";
 import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
+import { emailBrandFor } from "@/lib/services/email-brand";
+import { EMAIL } from "@/lib/themes";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -39,13 +41,22 @@ const FROM = process.env.RESEND_FROM_EMAIL ?? `TourneyHQ <${SANDBOX_FROM}>`;
  * sender goes through this, so none can be the one that looks like a test
  * message or arrives without a text part. `whyHtml` is the footer line saying
  * why this person got it — escaped by the caller like the body.
+ *
+ * `organizationId`, when the email is sent on a club's behalf, puts that club's
+ * name and logo under TourneyHQ's (or in its place, on a white-label plan).
+ * `action` is the one thing to do, drawn as a button; `preview` is the line an
+ * inbox shows beside the subject.
  */
-function compose(subject: string, bodyHtml: string, whyHtml: string) {
-  return {
-    subject,
-    html: emailDocument({ subject, bodyHtml, whyHtml }),
-    text: emailText({ bodyHtml, whyHtml }),
-  };
+async function compose(
+  subject: string,
+  bodyHtml: string,
+  whyHtml: string,
+  extras: { preview?: string; action?: { label: string; url: string }; organizationId?: string } = {},
+) {
+  const base = appUrl().base;
+  const brand = await emailBrandFor(extras.organizationId, base);
+  const parts = { subject, bodyHtml, whyHtml, base, preview: extras.preview, action: extras.action, brand };
+  return { subject, html: emailDocument(parts), text: emailText(parts) };
 }
 
 /**
@@ -240,13 +251,13 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      ...compose(
+      ...(await compose(
         "Reset your TourneyHQ password",
-        `<p>Someone asked to reset the password for your TourneyHQ account.</p>` +
-          `<p><a href="${resetUrl}">Reset your password</a> — the link works for 15 minutes.</p>` +
-          `<p>If it wasn't you, ignore this email and nothing changes.</p>`,
-        `You're getting this because somebody asked to reset the password for this address on TourneyHQ.`,
-      ),
+        `<p>Someone asked to reset the password for your TourneyHQ account. Choose a new one with the button below — it works for <strong>15 minutes</strong>.</p>`,
+        `You're getting this because somebody asked to reset the password for this address on TourneyHQ. ` +
+          `If it wasn't you, ignore this email and your password stays as it is.`,
+        { preview: "Your reset link works for 15 minutes.", action: { label: "Reset your password", url: resetUrl } },
+      )),
     });
     if (error) {
       console.error(`[email] Resend rejected the reset email for ${maskEmail(to)}: ${error.message}`);
@@ -310,11 +321,12 @@ export async function sendRegistrationEmail(
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      ...compose(
+      ...(await compose(
         `You're registered — ${opts.eventName}`,
         `<p>Thanks for entering <strong>${escapeHtml(opts.eventName)}</strong>.</p><p>${line}</p>`,
         `You're getting this because this address was used to enter ${escapeHtml(opts.eventName)} on TourneyHQ.`,
-      ),
+        { preview: line, organizationId: opts.organizationId },
+      )),
     });
     if (error) {
       console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
@@ -385,20 +397,25 @@ export async function sendStaffInviteEmail(
   const club = opts.organizationName || "a club";
   const base = appUrl().base;
   const line = opts.hasPassword
-    ? `<p>Sign in with this email address and you will see it: <a href="${base}">${base}</a></p>`
-    : `<p>You do not have a password yet. Go to <a href="${base}">${base}</a>, enter this email address, and it will walk you through setting one.</p>`;
+    ? `<p>Sign in with this email address and you will see it.</p>`
+    : `<p>You don't have a password yet. Enter this email address on the sign-in page and it will walk you through setting one.</p>`;
 
   try {
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      ...compose(
+      ...(await compose(
         `You have been added to ${club} on TourneyHQ`,
         `<p>An organizer at <strong>${escapeHtml(club)}</strong> has given you ${escapeHtml(opts.role)} access on TourneyHQ.</p>` +
           line +
-          `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
+          `<p>If you weren't expecting this, you can ignore it — nothing happens until you sign in.</p>`,
         `You're getting this because an organizer at ${escapeHtml(club)} added this address on TourneyHQ.`,
-      ),
+        {
+          preview: `You now have ${opts.role} access to ${club}.`,
+          action: { label: opts.hasPassword ? "Sign in" : "Set your password", url: `${base}/#signin` },
+          organizationId: opts.organizationId,
+        },
+      )),
     });
     if (error) {
       console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
@@ -495,28 +512,31 @@ export async function sendJoinRequestEmail(
   const club = opts.organizationName || "your club";
   const base = appUrl().base;
   const note = opts.note.trim()
-    ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid #ddd">${escapeHtml(opts.note.trim())}</blockquote>`
+    ? `<blockquote style="margin:12px 0;padding-left:12px;border-left:3px solid ${EMAIL.flag}">${escapeHtml(opts.note.trim())}</blockquote>`
     : "";
 
   try {
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      ...compose(
+      ...(await compose(
         `${opts.askerName} asked to join ${club} on TourneyHQ`,
         `<p><strong>${escapeHtml(opts.askerName)}</strong> (${escapeHtml(opts.askerEmail)}) asked to join <strong>${escapeHtml(club)}</strong> on TourneyHQ.</p>` +
-        note +
-        /**
-         * `#access`, not the top of the page. Walked it on 2026-09-17: club
-         * settings is a long screen — branding, colour, house defaults,
-         * handicaps, money, plan — and the request sits under "Staff & access"
-         * at the bottom. A link to `/organization` lands somebody who came to
-         * answer one question in front of a logo upload form.
-         */
-        `<p>Nothing has changed yet. Answer it here: <a href="${base}/organization#access">${base}/organization#access</a></p>` +
-        `<p>If you do not recognise them, decline — they are told nothing about you beyond the name already shown when they searched.</p>`,
+          note +
+          `<p>Nothing has changed yet. If you don't recognise them, decline — they are told nothing about you beyond the name already shown when they searched.</p>`,
         `You're getting this because you run ${escapeHtml(club)} on TourneyHQ.`,
-      ),
+        {
+          preview: `${opts.askerName} is waiting for an answer.`,
+          /**
+           * `#access`, not the top of the page. Walked it on 2026-09-17: club
+           * settings is a long screen — branding, colour, house defaults,
+           * handicaps, money, plan — and the request sits under "Staff & access"
+           * at the bottom. A link to `/organization` lands somebody who came to
+           * answer one question in front of a logo upload form.
+           */
+          action: { label: "Answer the request", url: `${base}/organization#access` },
+        },
+      )),
     });
     if (error) {
       console.error(`[email] Resend rejected the join request notice for ${maskEmail(to)}: ${error.message}`);
@@ -591,7 +611,13 @@ export async function sendFieldStatusEmail(
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      ...compose(subject, body, `You're getting this because you're entered in ${eventName} on TourneyHQ.`),
+      ...(await compose(subject, body, `You're getting this because you're entered in ${eventName} on TourneyHQ.`, {
+        preview:
+          opts.change === "promoted"
+            ? "You're now confirmed in the field — nothing to do to accept."
+            : "You're on the waitlist — please don't travel expecting to play.",
+        organizationId: opts.organizationId,
+      })),
     });
     if (error) {
       console.error(`[email] Resend rejected the field-status email for ${maskEmail(to)}: ${error.message}`);

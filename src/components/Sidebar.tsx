@@ -208,12 +208,14 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
           >
             {initials}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Your name opens your account — the one page about the person
+              rather than their clubs (2026-10-03). */}
+          <Link href="/account" title="Your account" style={{ flex: 1, minWidth: 0, color: "inherit", textDecoration: "none" }}>
             <div style={{ fontSize: 13 }}>{name}</div>
             <div className="text-muted" style={{ fontSize: 11 }}>
               {roleLabel(viewRole)}
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             className="btn btn-icon"

@@ -70,6 +70,11 @@ export function PlayerSignOut({ name }: { name: string }) {
               scores and messages are saved as you go.
             </div>
             <div className="dialog-actions">
+              {/* The player app's way to their account page (2026-10-03): the
+                  dialog about the account is where somebody looks for it. */}
+              <a href="/account" className="btn btn-secondary">
+                Your account
+              </a>
               <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
                 Stay signed in
               </button>

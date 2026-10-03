@@ -258,6 +258,12 @@ export default async function PrivacyPage() {
           have it corrected, have it deleted, or object to how it is used.
         </p>
         <p>
+          <strong>If you have a TourneyHQ account, you can delete it yourself</strong> from{" "}
+          <Link href="/account">Your account</Link>. Your sign-in and all your access go at once. What a club holds
+          about you &mdash; entries, scores, roster details, money records and messages &mdash; stays with that club,
+          which can remove it; ask them as below.
+        </p>
+        <p>
           <strong>Ask your club first</strong> — they hold the relationship and can act immediately.
           If that does not resolve it,{" "}
           {contact.kind === "address" ? (
@@ -298,7 +304,8 @@ export default async function PrivacyPage() {
           <strong>3 October 2026:</strong> Vercel&rsquo;s cookie-free page counts are described, for
           when they are switched on; &ldquo;no third-party analytics&rdquo; becomes &ldquo;no
           analytics cookies&rdquo;, which is what stays true either way. A club&rsquo;s owner can
-          delete the club, and all it holds, from Club settings.
+          delete the club, and all it holds, from Club settings; and anybody with an account can delete
+          it from Your account.
         </p>
         <p>
           <strong>2 October 2026:</strong> Stripe is listed, for clubs that pay for a plan, and
