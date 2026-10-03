@@ -660,9 +660,10 @@ __CMP_FRAMES__
      of three links, not three of two; the mark and the small print closer in. */
   .thq .ftr { padding-top: 28px; }
   .thq .ftr-row { flex-direction: column; align-items: stretch; gap: 6px; }
-  .thq .ftr-row nav ul { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0 12px; }
+  .thq .ftr-row nav ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .thq .ftr-legal .ftr-copy { flex-basis: 100%; }
   .thq .ftr-row nav a { min-height: 44px; font-size: 15px; }
-  .thq .ftr-base { flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; padding-top: 14px; font-size: 12.5px; line-height: 1.5; }
+  .thq .ftr-base { flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 10px; padding-top: 14px; font-size: 13px; line-height: 1.5; }
 }
 
 /* ── /faq ── */
@@ -849,7 +850,7 @@ __CMP_FRAMES__
   .thq .real { font-size: 15px; }
   .thq .pin .cap { font-size: 14px; }
   .thq .vs-legal { font-size: 14.5px; }
-  .thq .cx thead th span:not(.sr) { font-size: 12px; }
+  .thq .cx thead th span:not(.sr) { font-size: 13px; }
   .thq .cx .cx-us { width: 196px; }
   .thq .cx .cx-lab small { font-size: 14px; }
   .thq .cx td { font-size: 15px; }
