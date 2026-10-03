@@ -20,6 +20,32 @@ const SANDBOX_FROM = "onboarding@resend.dev";
 const FROM = process.env.RESEND_FROM_EMAIL ?? `TourneyHQ <${SANDBOX_FROM}>`;
 
 /**
+ * Text from a person, going into an email body made of HTML string concatenation.
+ *
+ * EVERY value a person typed goes through this — and that is nearly every
+ * value. This used to be applied to the join request alone, on the theory that
+ * the other senders interpolate "values the APP produced — a club name it
+ * stored". A stored club name was TYPED; so is every tournament's name, dates
+ * and course. Anyone can sign up as an organizer and add players by email, so
+ * a tournament named `<a href="…">Claim your prize</a>` would have been
+ * delivered as a working link by TourneyHQ's own sender (2026-10-02,
+ * `email-escapes-what-people-typed.test.ts`).
+ *
+ * Only what the app BUILT goes in raw: its own URLs and the fixed sentences
+ * below. Subjects are plain text, not HTML, and need nothing.
+ *
+ * Ampersand first, or the escapes escape each other.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * An address, logged without being an address.
  *
  * P2 of the 2026-08-12 audit: five lines printed a member's email into the
@@ -281,7 +307,7 @@ export async function sendRegistrationEmail(
       from: FROM,
       to,
       subject: `You're registered — ${opts.eventName}`,
-      html: `<p>Thanks for registering for <strong>${opts.eventName}</strong>.</p><p>${line}</p>`,
+      html: `<p>Thanks for registering for <strong>${escapeHtml(opts.eventName)}</strong>.</p><p>${line}</p>`,
     });
     if (error) {
       console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
@@ -361,7 +387,7 @@ export async function sendStaffInviteEmail(
       to,
       subject: `You have been added to ${club} on TourneyHQ`,
       html:
-        `<p>An organizer at <strong>${club}</strong> has given you ${opts.role} access on TourneyHQ.</p>` +
+        `<p>An organizer at <strong>${escapeHtml(club)}</strong> has given you ${escapeHtml(opts.role)} access on TourneyHQ.</p>` +
         line +
         `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
     });
@@ -425,26 +451,6 @@ export type FieldChange = "promoted" | "waitlisted";
  * Fire-and-forget, like every other send here: the field is already correct in
  * the database, and a bounced notification must never undo a place in it.
  */
-/**
- * Text from a person, going into an email body made of HTML string concatenation.
- *
- * Every other sender in this file interpolates values the APP produced — a club
- * name it stored, a role from a closed list, a URL it built. The join request
- * carries a sentence somebody TYPED, and a `<script>` or a stray `<` in it
- * would land unescaped in a stranger's inbox. So it is escaped here, at the one
- * place free text enters an email.
- *
- * Ampersand first, or the escapes escape each other.
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /**
  * Tell a club that somebody has asked to be let in.
  *
@@ -546,7 +552,8 @@ export async function sendFieldStatusEmail(
     return;
   }
 
-  const where = [opts.eventDates, opts.eventCourse].filter((s) => s.trim()).join(" &middot; ");
+  const where = [opts.eventDates, opts.eventCourse].filter((s) => s.trim()).map(escapeHtml).join(" &middot; ");
+  const eventName = escapeHtml(opts.eventName);
   const heading = where ? `<p>${where}</p>` : "";
 
   const subject =
@@ -556,7 +563,7 @@ export async function sendFieldStatusEmail(
 
   const body =
     opts.change === "promoted"
-      ? `<p>A place has opened in <strong>${opts.eventName}</strong> and you have moved off the waitlist.</p>` +
+      ? `<p>A place has opened in <strong>${eventName}</strong> and you have moved off the waitlist.</p>` +
         heading +
         `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
         // Asks for a reply within the same window the organizer's screen uses
@@ -564,7 +571,7 @@ export async function sendFieldStatusEmail(
         // request, not a deadline: the place is theirs either way, and saying
         // otherwise would be a threat the software does not carry out.
         `<p>If you can no longer play, please tell the organizer <strong>within 48 hours</strong> so the place can go to the next person on the list.</p>`
-      : `<p>The field for <strong>${opts.eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
+      : `<p>The field for <strong>${eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
         heading +
         `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +
         `<p>You keep your place in the queue, and we will be in touch if a place opens again. If you think this is a mistake, contact the organizer.</p>`;
