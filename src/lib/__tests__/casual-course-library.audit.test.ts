@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { prisma } from "@/lib/db";
 import { libraryOrganizationFor, organizationIdsFor } from "@/lib/services/organization";
 import { readSource } from "./source";
+import { RATE_LIMITS } from "@/lib/domain/rate-limit";
 
 /**
  * "WHERE ARE YOU PLAYING?" HAD NO REACHABLE ANSWER.
@@ -378,22 +379,43 @@ describe("what picking a directory course costs", () => {
 });
 
 /**
- * The quota, which is the one thing that must NOT get easier.
+ * The quota, which must stay BOUNDED.
  *
  * A `"use server"` export is a public HTTP endpoint. The remote directory
- * lookup spends a shared allowance — 500 requests a day for the whole app —
- * so it keeps the organizer check it had. `localOnly` reads stored rows, a
- * public list of golf courses and nobody's data, and is what the quick-round
- * picker asks for.
+ * lookup spends a shared allowance — 500 requests a day for the whole app.
+ *
+ * UNTIL 2026-10-03 the guarantee was kept by refusing everybody but organizers
+ * the live directory, and every picker asked catalogue-only. That kept the
+ * quota and broke the product: the stored catalogue was empty, so a casual
+ * round could not find any course at all (Ajay: "the casual round doesn't list
+ * the golf course"). The guarantee is now kept the other way — a non-organizer
+ * may search live, but every such lookup is COUNTED against a personal
+ * `course-search` budget, and over it the search falls back to the catalogue.
+ * What this pins is that guarantee, not the old expression.
  */
 describe("what the directory search still refuses", () => {
-  it("keeps the remote lookup behind the organizer check", () => {
+  const searchFn = () => {
     const src = readSource("src/app/actions/courses.ts");
-    const fn = src.slice(
+    return src.slice(
       src.indexOf("export async function searchCourseDirectory"),
       src.indexOf("export interface DirectoryImportResult"),
     );
-    expect(fn).toMatch(/if \(!localOnly && session\.role !== "admin"\)/);
+  };
+
+  it("counts every non-organizer's live lookup against a personal budget", () => {
+    const fn = searchFn();
+    expect(fn).toMatch(/if \(live && session\.role !== "admin"\)/);
+    expect(fn).toMatch(/checkRateLimit\("course-search", /);
+    // Over budget is a fallback to the catalogue, never an unbounded lookup.
+    expect(fn).toMatch(/if \(!budget\.allowed\) live = false;/);
+    expect(fn).toMatch(/searchDirectory\(query, !live, /);
+  });
+
+  it("the personal budget is an hourly handful, not a share of the day", () => {
+    const policy = RATE_LIMITS["course-search"];
+    expect(policy.windowMs).toBe(60 * 60_000);
+    expect(policy.limit).toBeGreaterThan(0);
+    expect(policy.limit).toBeLessThanOrEqual(60);
   });
 
   it("still refuses a caller with no session at all", () => {
@@ -406,10 +428,14 @@ describe("what the directory search still refuses", () => {
     }
   });
 
-  it("sends the picker at the local catalogue rather than the paid one", () => {
-    // `searchCourseDirectory(q, true)`. Dropping the second argument would
-    // send every keystroke of every quick round at the paid endpoint.
+  it("the picker asks the live directory only when its own list has nothing, and only once typing settles", () => {
+    // It asks live now — the server decides whether the caller may spend it.
+    // What keeps that cheap is on the picker's side: no lookup under three
+    // letters or while the club's own courses already match, and one lookup
+    // per pause rather than one per keystroke.
     const picker = readSource("src/components/CoursePicker.tsx");
-    expect(picker).toMatch(/searchCourseDirectory\(q, true\)/);
+    expect(picker).toMatch(/searchCourseDirectory\(q, false\)/);
+    expect(picker).toMatch(/if \(!searchDirectory \|\| q\.length < 3 \|\| shown\.length > 0\)/);
+    expect(picker).toMatch(/\}, 300\);/);
   });
 });

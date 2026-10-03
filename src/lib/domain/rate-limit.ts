@@ -52,7 +52,8 @@ export type RateLimitKind =
   | "register-token"
   | "register-email"
   | "card-photo"
-  | "join-request";
+  | "join-request"
+  | "course-search";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -115,6 +116,16 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * rather than sending a second mail.
    */
   "join-request": { limit: 3, windowMs: 60 * MINUTE },
+  /**
+   * Looking a course up in the LIVE directory, for anybody who is not an
+   * organizer (2026-10-03). The directory allows 500 requests a day for the
+   * whole app, and a "use server" export is callable by anyone signed in, so a
+   * member setting up a Sunday fourball gets a personal budget rather than the
+   * app's. Thirty an hour is far more than choosing one course takes — the
+   * picker waits for typing to settle and only asks when the stored catalogue
+   * had nothing — and past it the search quietly falls back to the catalogue.
+   */
+  "course-search": { limit: 30, windowMs: 60 * MINUTE },
 };
 
 /**
@@ -279,9 +290,15 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many reset requests. Try again in ${wait}.`;
     case "round-code":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+    // Its own sentence (2026-10-03). It fell through to the card-photo message,
+    // so somebody entering a tournament through a busy public link was told
+    // "Too many card readings just now … type the scores in".
     case "register-token":
+      return `This entry form is very busy just now. Wait ${wait} and try again.`;
     case "card-photo":
       return "Too many card readings just now. Wait a few minutes, or type the scores in.";
+    case "course-search":
+      return `Too many course searches just now. Wait ${wait}, or pick from your own courses.`;
     case "register-email":
       return `Too many registration attempts. Wait ${wait} and try again.`;
     case "join-request":
