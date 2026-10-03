@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { parseHoleArray } from "@/lib/courses";
+import { pickedCardNote } from "@/lib/domain/picked-card";
 import { NewMatchForm } from "@/components/NewMatchForm";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
@@ -57,7 +58,10 @@ export default async function NewMatchPage() {
   const courses = await prisma.course.findMany({
     where: { organizationId: { in: clubIds } },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, city: true, pars: true, strokeIndex: true },
+    select: {
+      id: true, name: true, city: true, pars: true, strokeIndex: true,
+      source: true, verifiedAt: true, verifiedBy: true,
+    },
   });
 
   /**
@@ -151,6 +155,9 @@ export default async function NewMatchPage() {
             // Shown, not hidden: a course with no card is still where you are
             // playing, and a level match does not need one.
             hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
+            // Said the moment the course is picked: missing, incomplete or
+            // never checked. See `picked-card.ts`.
+            cardNote: pickedCardNote(c),
           }))}
           myName={session.name}
           /**

@@ -15,6 +15,7 @@ import {
 import { useFormatting } from "@/components/CurrencyProvider";
 import { useDistanceWords } from "@/components/DistanceUnitProvider";
 import { CoursePicker } from "@/components/CoursePicker";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { ScoreCell } from "@/components/ScorecardTable";
@@ -308,7 +309,7 @@ export function ScoreEntryClient({
   isAdmin?: boolean;
   /** Courses this tournament may be played on. More than one turns on the
    *  per-match venue picker. */
-  venues?: Array<{ id: string; name: string }>;
+  venues?: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /** No fixed venue: each match names its own before it can be scored. */
   openCourse?: boolean;
   courseLibrary?: VenueCourse[];

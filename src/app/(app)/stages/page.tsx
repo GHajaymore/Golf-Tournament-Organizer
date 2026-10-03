@@ -23,6 +23,7 @@ import { missingCardsRefusal } from "@/lib/domain/round-card-status";
 import { PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { cardTrustNote, parseIndex } from "@/lib/domain/card-trust";
+import { pickedCardNote } from "@/lib/domain/picked-card";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -229,7 +230,7 @@ export default async function StagesPage() {
   const missingCardsNote = PRE_LAUNCH_STATUSES.includes(state.event.status)
     ? missingCardsRefusal(await roundsMissingCards(session.eventId))
     : null;
-  const venues = await prisma.course.findMany({
+  const venueRows = await prisma.course.findMany({
     where: { events: { some: { eventId: session.eventId } } },
     // Provenance with the name: this is the screen that decides which card a
     // round is scored against, so it is the screen that should say whether
@@ -238,9 +239,11 @@ export default async function StagesPage() {
     // keeps a card whose index is missing rather than throwing the pars away,
     // so "this course has no stroke index" is a state a club can be in — and
     // it is the one that makes every net score wrong rather than doubtful.
-    select: { id: true, name: true, source: true, verifiedAt: true, verifiedBy: true, strokeIndex: true },
+    select: { id: true, name: true, source: true, verifiedAt: true, verifiedBy: true, strokeIndex: true, pars: true },
     orderBy: { name: "asc" },
   });
+  // And the round's course picker says it again the moment one is chosen.
+  const venues = venueRows.map((v) => ({ ...v, cardNote: pickedCardNote(v) }));
 
   // Matches per player in a round robin = (largest flight size − 1).
   const flightSizes = state.groups.map(

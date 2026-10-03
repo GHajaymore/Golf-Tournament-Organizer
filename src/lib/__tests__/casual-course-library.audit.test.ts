@@ -283,7 +283,9 @@ describe("which library a search result is compared against", () => {
      * which is the half that decides whether they try again.
      */
     const picker = readSource("src/components/CoursePicker.tsx");
-    expect(picker).toMatch(/setTakenFromDirectory\(\{ id: res\.courseId, name: hit\.name \}\)/);
+    // The id and the NAME, whatever else rides along (since 2026-10-03, the
+    // card note for the course just added).
+    expect(picker).toMatch(/setTakenFromDirectory\(\{\s*id: res\.courseId,\s*name: hit\.name[,\s]/);
     // And the fallback is USED, not merely stored.
     expect(picker).toMatch(/takenFromDirectory\.id === value \? takenFromDirectory : null/);
   });

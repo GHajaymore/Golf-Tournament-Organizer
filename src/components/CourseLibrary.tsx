@@ -708,6 +708,7 @@ export function CourseLibrary({
               name: c.name,
               city: c.city,
               hasCard: c.hasCard,
+              cardNote: c.cardNote,
             }))}
             value={homeCourseId ?? ""}
             disabled={pending}

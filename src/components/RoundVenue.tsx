@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { setStageCourse } from "@/app/actions/courses";
 import { CoursePicker } from "@/components/CoursePicker";
 import { defaultTeeFor, type TeeLike } from "@/lib/domain/venue";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { Icon } from "./Icon";
 
 /**
@@ -54,7 +55,7 @@ export function RoundVenue({
   /** The venue set on the round itself. "" means it inherits. */
   courseId: string;
   /** Every venue this tournament may be played on. */
-  venues: Array<{ id: string; name: string }>;
+  venues: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /**
    * Every course the club has, not only the ones already on this tournament.
    *
@@ -64,7 +65,13 @@ export function RoundVenue({
    * from a course the tournament does not know about. Choosing one adds it
    * to the tournament's venues, which is what the action does now.
    */
-  library?: Array<{ id: string; name: string; city?: string; tees?: Array<TeeLike & { rated: boolean }> }>;
+  library?: Array<{
+    id: string;
+    name: string;
+    city?: string;
+    tees?: Array<TeeLike & { rated: boolean }>;
+    cardNote?: PickedCardNote | null;
+  }>;
   /** The set this round is currently played from, or "" for the tournament's. */
   teeId?: string;
   /**

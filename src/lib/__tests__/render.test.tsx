@@ -803,6 +803,45 @@ describe("picking a course, wherever you pick one", () => {
     expect(await picker({ label: "Round venue" })).toContain("Round venue");
   });
 
+  describe("says what is wrong with the chosen course's card (Ajay, 2026-10-03)", () => {
+    const unchecked = { warn: true, text: "zz-unchecked: nobody at the club has checked it." };
+    const checked = { warn: false, text: "zz-checked: Card checked on 20 Sept 2026." };
+    const noted = [
+      { ...courses[0], cardNote: unchecked },
+      { ...courses[1], cardNote: undefined },
+      { ...courses[2], cardNote: checked },
+    ];
+
+    it("warns under the box when the chosen card is unchecked or incomplete", async () => {
+      const html = await picker({ options: noted, value: "c1" });
+      expect(html).toContain("zz-unchecked");
+      expect(html).toContain('data-card-note="warn"');
+      expect(html).toContain('role="note"');
+    });
+
+    it("warns that there is no scorecard when the caller only knows hasCard is false", async () => {
+      const { NO_CARD_YET } = await import("@/lib/domain/picked-card");
+      const html = await picker({ options: noted, value: "c2" });
+      expect(html).toContain('data-card-note="warn"');
+      expect(html).toContain(NO_CARD_YET.slice(0, 40).replace(/'/g, "&#x27;"));
+    });
+
+    it("states a checked card quietly, without a warning", async () => {
+      const html = await picker({ options: noted, value: "c3" });
+      expect(html).toContain("zz-checked");
+      expect(html).toContain('data-card-note="ok"');
+      expect(html).not.toContain('data-card-note="warn"');
+    });
+
+    it("says nothing about a card until a course is chosen", async () => {
+      // The control: the note is about the CHOSEN course, so with none chosen
+      // no course's note may leak onto the screen.
+      const html = await picker({ options: noted, value: "" });
+      expect(html).not.toContain("data-card-note");
+      expect(html).not.toContain("zz-unchecked");
+    });
+  });
+
   it("carries the caller's note about what the choice affects", async () => {
     const html = await picker({ hint: "applies to new tournaments" });
     expect(html).toContain("applies to new tournaments");
@@ -8481,6 +8520,31 @@ describe("setting up a casual round", () => {
     // is a handicap field, and there is none.
     expect(html).not.toContain('inputMode="decimal"');
     expect(html).not.toContain("Handicap</label>");
+  });
+
+  it("asks the format, the holes and gross or net BEFORE the names", () => {
+    /**
+     * Whether shots are given decides whether every player row needs a
+     * handicap box, so it is asked first (Ajay, 2026-10-03: set up on the
+     * course, on a phone). Asked below the names, it made people type the
+     * field, scroll on, say "net", and scroll back for a column that had only
+     * just appeared.
+     */
+    const html = render(<NewMatchForm {...noClub} />);
+    const at = (s: string) => {
+      const i = html.indexOf(s);
+      expect(i, s).toBeGreaterThan(-1);
+      return i;
+    };
+    const format = at("What are you playing?");
+    const holes = at("How many holes?");
+    const basis = at("Are shots being given?");
+    const players = at("s playing?</span>");
+    const money = at("Playing for anything?");
+    expect(format).toBeLessThan(holes);
+    expect(holes).toBeLessThan(basis);
+    expect(basis).toBeLessThan(players);
+    expect(players).toBeLessThan(money);
   });
 
   it("warns that the round is temporary before anything is entered", () => {

@@ -6,6 +6,7 @@ import { PLAY_KINDS, playNoun, resultHeading } from "@/lib/domain/play-kind";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
 import { StickySave } from "./StickySave";
@@ -43,6 +44,8 @@ interface CourseOption {
   name: string;
   city: string;
   address: string;
+  /** What the picker says about this course's card once chosen. */
+  cardNote?: PickedCardNote | null;
 }
 
 /**
@@ -620,7 +623,7 @@ export function EventSetupClient({
              * used everywhere — it narrows, it shows the town — while what it
              * saves is untouched.
              */
-            options={courses.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
+            options={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, cardNote: c.cardNote }))}
             value={courseSelect}
             onChange={onSelectCourse}
             noneLabel="— Select a course —"
