@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { parseHoleArray } from "../courses";
 import { resolveDistanceUnit, type DistanceUnit } from "../domain/distance-unit";
+import { pickedCardNote, type PickedCardNote } from "../domain/picked-card";
 
 /**
  * EVERY COURSE THIS TOURNAMENT MAY BE PLAYED ON — its linked venues AND its
@@ -58,6 +59,12 @@ export interface ClubCourse {
   distanceUnit: DistanceUnit;
   /** The sets of tees it is played from, with their ratings. */
   tees: ClubTee[];
+  /**
+   * What the course picker says about this card the moment it is chosen —
+   * missing, incomplete, unchecked or checked long ago. See `picked-card.ts`.
+   * Optional so a hand-built course (a test, a preset) need not invent one.
+   */
+  cardNote?: PickedCardNote | null;
 }
 
 /**
@@ -141,6 +148,7 @@ export async function clubCourses(
     // courses was meant to stop.
     hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
     inEvent: selected.has(c.id),
+    cardNote: pickedCardNote(c),
     source: c.source,
     verified: c.verifiedAt !== null,
     verifiedBy: c.verifiedBy,
@@ -205,6 +213,7 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       yards: parseHoleArray(l.course.yards) ?? DEFAULT_YARDS,
       strokeIndex: parseHoleArray(l.course.strokeIndex) ?? DEFAULT_SI,
       inEvent: true,
+      cardNote: pickedCardNote(l.course),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

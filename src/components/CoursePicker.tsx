@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
 import { Icon } from "./Icon";
+import { NO_CARD_YET, IMPORTED_UNCHECKED, type PickedCardNote } from "@/lib/domain/picked-card";
 import {
   searchCourseDirectory,
   importCourseFromDirectory,
@@ -38,6 +39,13 @@ export interface CourseOption {
   /** False when the course still needs its card typed in. Shown, never hidden:
    *  it is pickable, it just cannot be scored on yet. */
   hasCard?: boolean;
+  /**
+   * What to say about this course's scorecard once it is chosen — missing,
+   * incomplete, never checked, or checked over a year ago. Worked out on the
+   * server by `pickedCardNote`, so every screen that picks a course says the
+   * same thing about the same card. Absent means the caller did not look.
+   */
+  cardNote?: PickedCardNote | null;
 }
 
 /**
@@ -220,11 +228,25 @@ export function CoursePicker({
    * was broken except what the reader could see, which is the half that
    * decides whether they try again.
    */
-  const [takenFromDirectory, setTakenFromDirectory] = useState<{ id: string; name: string } | null>(null);
+  const [takenFromDirectory, setTakenFromDirectory] = useState<
+    { id: string; name: string; cardNote?: PickedCardNote | null } | null
+  >(null);
 
-  const chosen =
+  const chosen: CourseOption | null =
     options.find((o) => o.id === value) ??
     (takenFromDirectory && takenFromDirectory.id === value ? takenFromDirectory : null);
+
+  /**
+   * THE CARD, SAID THE MOMENT THE COURSE IS CHOSEN (Ajay, 2026-10-03).
+   *
+   * Under the box rather than in the list: the list is for telling two
+   * Hillcrests apart, and this is about the one that was picked. A caller that
+   * passed no note but knows there is no card still gets the no-card line —
+   * the one warning that needs nothing but `hasCard` to be true.
+   */
+  const cardNote: PickedCardNote | null = chosen
+    ? (chosen.cardNote ?? (chosen.hasCard === false ? { warn: true, text: NO_CARD_YET } : null))
+    : null;
   // An extra choice is a real answer too, and the box has to say so rather
   // than going blank the moment somebody picks "no fixed course".
   const chosenExtra = extras.find((x) => x.id === value && x.id !== "") ?? null;
@@ -363,7 +385,18 @@ export function CoursePicker({
        */
       if (res.courseId) {
         // Before `pick`, so the box has a name to show the moment it closes.
-        setTakenFromDirectory({ id: res.courseId, name: hit.name });
+        // A fresh import is the definition of a card nobody at the club has
+        // read; a refused one stored no card at all. "Already in your
+        // courses" (`ok: false`) says nothing it cannot know.
+        setTakenFromDirectory({
+          id: res.courseId,
+          name: hit.name,
+          cardNote: !res.ok
+            ? null
+            : res.cardImported
+              ? { warn: true, text: IMPORTED_UNCHECKED }
+              : { warn: true, text: res.cardProblem ? `${NO_CARD_YET} (${res.cardProblem})` : NO_CARD_YET },
+        });
         pick(res.courseId);
       }
     });
@@ -566,6 +599,25 @@ export function CoursePicker({
             </p>
           )}
         </div>
+      )}
+
+      {cardNote && !open && (
+        <p
+          role="note"
+          data-card-note={cardNote.warn ? "warn" : "ok"}
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 6,
+            margin: "6px 0 0",
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            color: cardNote.warn ? "var(--color-warning)" : "var(--color-text-muted)",
+          }}
+        >
+          <Icon name={cardNote.warn ? "warning-circle" : "check"} aria-hidden style={{ flex: "none", marginTop: 2 }} />
+          <span>{cardNote.text}</span>
+        </p>
       )}
 
       {hint && (

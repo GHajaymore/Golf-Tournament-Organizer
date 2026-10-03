@@ -25,6 +25,7 @@ import { isTeamFormat } from "@/lib/side-style";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import {
@@ -663,7 +664,7 @@ function StageCard({
   confirmedCount: number;
   /** Flights the field is split into — decides what a per-flight cut advances. */
   flightCount: number;
-  venues: Array<{ id: string; name: string }>;
+  venues: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /** The tournament's own course, named only when there is more than one. */
   homeVenue: string;
   /** Ways this round doesn't fit the one before it. */
@@ -1987,7 +1988,7 @@ export function StagesClient({
   /** Flights the field is split into — decides what a per-flight cut advances. */
   flightCount?: number;
   /** Courses this tournament may be played on; more than one shows the picker. */
-  venues?: Array<{ id: string; name: string }>;
+  venues?: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /** The tournament's own course. Only used when `venues` has more than one. */
   homeVenue?: string;
   /** Whether rounds feed each other — false for a single-round tournament. */

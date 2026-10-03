@@ -13,6 +13,7 @@ import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import type { VenueCourse } from "./VenuePrompt";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
 
@@ -153,7 +154,7 @@ export function EntryModes({
   /** Organizer, not assistant — gates the Reopen control. */
   isAdmin?: boolean;
   /** Courses this tournament may be played on. */
-  venues?: Array<{ id: string; name: string }>;
+  venues?: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
   /** Where and when — a scorecard without its course and date is a page of
    *  numbers with no provenance, and it's the first thing a committee checks
    *  when a card is queried. */

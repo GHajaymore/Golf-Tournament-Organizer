@@ -300,7 +300,7 @@ export default async function EventPage({
         // The id travels now. It was dropped here, which is the whole reason
         // the tournament's venue was the one thing in the app picked by
         // typing a name — the screen never had anything else to pick by.
-        courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
+        courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "", cardNote: c.cardNote }))}
       />
         {/* HOW THIS ONE WRITES ITS DATES AND ITS MONEY.
             In the identity section because that is what it is: the same kind

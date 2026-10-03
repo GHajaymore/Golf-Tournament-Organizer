@@ -2,6 +2,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
+import { pickedCardNote } from "@/lib/domain/picked-card";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { distanceUnitFor } from "@/lib/services/round-card";
 import { cardBrand } from "@/lib/services/organization";
@@ -960,6 +961,7 @@ export default async function EntryPage() {
         // Whole rows, because the picker defaults through `defaultTeeFor`,
         // which prefers a RATED set and needs the ratings to know which is.
         tees: c.tees,
+        cardNote: c.cardNote,
       }))}
       activeIndex={activeIndex}
       players={state.confirmed
@@ -983,7 +985,7 @@ export default async function EntryPage() {
       courseName={course.name || state.event.course}
       eventDates={state.event.dates}
       isAdmin={session.viewRole === "admin"}
-      venues={venues.map((v) => ({ id: v.id, name: v.name }))}
+      venues={venues.map((v) => ({ id: v.id, name: v.name, cardNote: pickedCardNote(v) }))}
       // The club's badge at the head of the card. Same reader the console
       // header and the player's own card use, so an organizer checking a
       // returned card and the player who returned it see one club, not two.

@@ -13,6 +13,7 @@ import {
   type TeeLike,
 } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
+import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { Icon } from "./Icon";
 
 const BLANK = new Array(18).fill("");
@@ -57,6 +58,8 @@ export interface VenueCourse {
    * nobody has entered — it is the last rung, not the first.
    */
   tees?: Array<TeeLike & { rated: boolean }>;
+  /** What the course picker says about this card once it is chosen. */
+  cardNote?: PickedCardNote | null;
 }
 
 /**
