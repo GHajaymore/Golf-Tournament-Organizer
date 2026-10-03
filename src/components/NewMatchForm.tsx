@@ -490,6 +490,58 @@ export function NewMatchForm({
         </div>
       ))}
 
+      <div className="field">
+        <label>How many holes?</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          <button type="button" {...pill(holes === 18)} onClick={() => setHoles(18)}>18 holes</button>
+          <button type="button" {...pill(holes === 9)} onClick={() => setHoles(9)}>9 holes</button>
+        </div>
+        {holes === 9 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <button type="button" {...pill(nine === "front")} onClick={() => setNine("front")}>Front nine</button>
+            <button type="button" {...pill(nine === "back")} onClick={() => setNine("back")}>Back nine</button>
+          </div>
+        )}
+      </div>
+
+      {/* THE SCORING BASIS, ASKED IN PLAIN WORDS AND NAMED IN GOLF'S.
+
+          This is the gross/net choice — `useHandicaps` is what becomes
+          `scoringBasis` — and it was worded only as "Are shots being given?"
+          on the reasoning that friends settling that on the first tee do not
+          reach for the scoring vocabulary to do it. That reasoning still holds
+          for the QUESTION, and it turned out to hide the answer: somebody
+          looking for where a casual round picks gross or net could not find
+          it, because neither word was on the screen.
+
+          So both, and in the order they are thought in: the plain question
+          leads, the term follows it in brackets. A player who does not know
+          what "net" means still reads a sentence they understand; one who came
+          looking for it now finds it.
+
+          ASKED BEFORE THE NAMES, not after (Ajay, 2026-10-03). Whether shots
+          are given decides whether each player row needs a handicap box, so a
+          screen that asked it below the names had people type a field of names,
+          scroll on, say "net", and scroll back up to fill in a column that had
+          only just appeared. Format, then basis, then the players it shapes. */}
+      <div className="field">
+        <label>Are shots being given?</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          <button type="button" {...pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
+            No — play level (gross)
+          </button>
+          <button type="button" {...pill(useHandicaps)} onClick={() => setUseHandicaps(true)}>
+            Yes — off handicaps (net)
+          </button>
+        </div>
+        {useHandicaps && (
+          <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+            Strokes are given by stroke index, so a course with its card filled in is needed before
+            this can be scored. Playing level needs nothing.
+          </p>
+        )}
+      </div>
+
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Who&rsquo;s playing?</span>
         {/* THIS PARAGRAPH USED TO BE A WARNING AND IS NOW A PROMISE.
@@ -509,6 +561,15 @@ export function NewMatchForm({
             ? "Start typing to pick a member — their handicap comes with them. Anyone else is a guest: they play and they're scored, and they're not added to your club roster."
             : "Just names. Nobody needs an account to play, and nobody entered here is added to a club roster."}
         </p>
+        {/* The box beside each name, explained where it appears. Shots are
+            being given, so the handicap is the second thing to type for every
+            player — said once here rather than left to a placeholder. */}
+        {useHandicaps && (
+          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            <Icon name="note-pencil" /> Put each player&rsquo;s handicap index beside their name — it
+            decides who gets shots, and on which holes.
+          </p>
+        )}
         {/* Said BEFORE the names are typed, not discovered afterwards.
 
             The sides are taken in entry order — the first two against the next
@@ -714,59 +775,15 @@ export function NewMatchForm({
               : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament (free on ${PLANS.free.name}).`}
           </p>
         )}
-      </div>
 
-      <div className="field">
-        <label>How many holes?</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button type="button" {...pill(holes === 18)} onClick={() => setHoles(18)}>18 holes</button>
-          <button type="button" {...pill(holes === 9)} onClick={() => setHoles(9)}>9 holes</button>
-        </div>
-        {holes === 9 && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-            <button type="button" {...pill(nine === "front")} onClick={() => setNine("front")}>Front nine</button>
-            <button type="button" {...pill(nine === "back")} onClick={() => setNine("back")}>Back nine</button>
-          </div>
-        )}
-      </div>
-
-      {/* THE SCORING BASIS, ASKED IN PLAIN WORDS AND NAMED IN GOLF'S.
-
-          This is the gross/net choice — `useHandicaps` is what becomes
-          `scoringBasis` — and it was worded only as "Are shots being given?"
-          on the reasoning that friends settling that on the first tee do not
-          reach for the scoring vocabulary to do it. That reasoning still holds
-          for the QUESTION, and it turned out to hide the answer: somebody
-          looking for where a casual round picks gross or net could not find
-          it, because neither word was on the screen.
-
-          So both, and in the order they are thought in: the plain question
-          leads, the term follows it in brackets. A player who does not know
-          what "net" means still reads a sentence they understand; one who came
-          looking for it now finds it. */}
-      <div className="field">
-        <label>Are shots being given?</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button type="button" {...pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
-            No — play level (gross)
-          </button>
-          <button type="button" {...pill(useHandicaps)} onClick={() => setUseHandicaps(true)}>
-            Yes — off handicaps (net)
-          </button>
-        </div>
-        {useHandicaps && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
-            Strokes are given by stroke index, so a course with its card filled in is needed before
-            this can be scored. Playing level needs nothing.
-          </p>
-        )}
         {/* A BLANK HANDICAP IS SCRATCH, and that was never said. A guest left
             empty on a net round started the card on "hcp 0" and gave their
             whole handicap away with nobody noticing — walked 2026-09-27. Said
-            here, while the box is still in front of them; not refused, because
-            a scratch golfer, or friends who agree to it, is a real answer. */}
+            here, under the boxes, while they are still in front of them; not
+            refused, because a scratch golfer, or friends who agree to it, is a
+            real answer. */}
         {useHandicaps && scratchByDefault && (
-          <p style={{ fontSize: 12.5, margin: "8px 0 0", lineHeight: 1.5, color: "var(--color-warning)" }} role="note">
+          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5, color: "var(--color-warning)" }} role="note">
             {scratchByDefault}
           </p>
         )}

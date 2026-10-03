@@ -8483,6 +8483,31 @@ describe("setting up a casual round", () => {
     expect(html).not.toContain("Handicap</label>");
   });
 
+  it("asks the format, the holes and gross or net BEFORE the names", () => {
+    /**
+     * Whether shots are given decides whether every player row needs a
+     * handicap box, so it is asked first (Ajay, 2026-10-03: set up on the
+     * course, on a phone). Asked below the names, it made people type the
+     * field, scroll on, say "net", and scroll back for a column that had only
+     * just appeared.
+     */
+    const html = render(<NewMatchForm {...noClub} />);
+    const at = (s: string) => {
+      const i = html.indexOf(s);
+      expect(i, s).toBeGreaterThan(-1);
+      return i;
+    };
+    const format = at("What are you playing?");
+    const holes = at("How many holes?");
+    const basis = at("Are shots being given?");
+    const players = at("s playing?</span>");
+    const money = at("Playing for anything?");
+    expect(format).toBeLessThan(holes);
+    expect(holes).toBeLessThan(basis);
+    expect(basis).toBeLessThan(players);
+    expect(players).toBeLessThan(money);
+  });
+
   it("warns that the round is temporary before anything is entered", () => {
     // The whole justification for deleting it after a day is that nobody
     // finds out afterwards. On the setup screen, before any names are typed.
