@@ -135,19 +135,19 @@ export default async function ChooseTournamentPage({
           {/* The one lockup — not the mark in a tinted tile, which was a third
               treatment of "the logo" beside the sidebar's and the landing's. */}
           <Lockup size={LOGO_SIZE.md} />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Link href="/account" className="btn btn-secondary" style={{ fontSize: 12 }}>
-              Your account
-            </Link>
-            <form action={signOutAction}>
-              <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
-                <Icon name="sign-out" /> Sign out
-              </button>
-            </form>
-          </div>
+          <form action={signOutAction}>
+            <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
+              <Icon name="sign-out" /> Sign out
+            </button>
+          </form>
         </div>
 
-        <div className="page-kicker">Signed in as {session.name}</div>
+        {/* Your account sits with your name — where a person looks for their own
+            details — not as a second header button, which stacked untidily
+            beside the logo on a phone (walked 2026-10-03). */}
+        <div className="page-kicker">
+          Signed in as {session.name} &middot; <Link href="/account">Your account</Link>
+        </div>
         <h1 style={{ fontSize: 32, margin: "8px 0 4px" }}>
           {greeting.title}
         </h1>
