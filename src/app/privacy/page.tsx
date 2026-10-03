@@ -143,7 +143,7 @@ export default async function PrivacyPage() {
           No payment card details. When a club pays for a plan it pays on Stripe&rsquo;s own page, and
           the card goes to Stripe, never to us. Money in a tournament &mdash; entry fees, skins,
           payouts &mdash; is worked out and recorded, never taken. No location tracking. No
-          advertising identifiers, and no third-party analytics or advertising trackers.
+          advertising identifiers, no advertising trackers, and no analytics cookies.
         </p>
         <p>
           Sign-in and abuse limits are counted against a <strong>hashed</strong> identifier. The code
@@ -164,7 +164,11 @@ export default async function PrivacyPage() {
         <p>Only what is needed to run the service:</p>
         <ul>
           <li>
-            <strong>Vercel</strong> — hosting. Serves the app and keeps standard server logs.
+            <strong>Vercel</strong> — hosting. Serves the app and keeps standard server logs. Where
+            page counts are switched on, Vercel also counts visits to each page — the page&rsquo;s
+            address, the referring site, the country, and the kind of browser and device. It uses no
+            cookies and does not recognise anyone from one day to the next. Any link token in an
+            address is removed before it is counted.
           </li>
           <li>
             <strong>Our database provider</strong> — stores the tournament data described above.
@@ -287,6 +291,11 @@ export default async function PrivacyPage() {
           date below changes and the change is described here rather than made quietly.
         </p>
         <p>
+          <strong>3 October 2026:</strong> Vercel&rsquo;s cookie-free page counts are described, for
+          when they are switched on; &ldquo;no third-party analytics&rdquo; becomes &ldquo;no
+          analytics cookies&rdquo;, which is what stays true either way.
+        </p>
+        <p>
           <strong>2 October 2026:</strong> Stripe is listed, for clubs that pay for a plan, and
           Sentry, for error reports; a paid plan that ends keeps its tournaments for{" "}
           {RETAIN_AFTER_CANCEL_DAYS} days.
@@ -296,7 +305,7 @@ export default async function PrivacyPage() {
           deletion on the free plan, which is built and running; the icon stylesheet on a public CDN is
           no longer listed, because the icons are now part of the page and nothing is fetched from it.
         </p>
-        <p className="lg-date">Last updated 2 October 2026.</p>
+        <p className="lg-date">Last updated 3 October 2026.</p>
       </Section>
 
       <p className="lg-back">

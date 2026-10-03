@@ -19,6 +19,8 @@ import { Fraunces, Oswald } from "next/font/google";
 import { IconSprite } from "@/components/IconSprite";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { SiteAnalytics } from "@/components/SiteAnalytics";
+import { analyticsEnabled } from "@/lib/domain/analytics-event";
 import { siteOrigin } from "@/lib/site";
 
 /**
@@ -228,6 +230,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <IconSprite />
         {children}
         <ServiceWorkerRegister />
+        {/* Cookie-free page counts, off unless switched on (SiteAnalytics.tsx). */}
+        {analyticsEnabled(process.env.NEXT_PUBLIC_ANALYTICS) && <SiteAnalytics />}
       </body>
     </html>
   );
