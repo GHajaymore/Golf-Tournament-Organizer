@@ -245,7 +245,11 @@ export default async function PrivacyPage() {
           A casual round is deleted 24 hours after it is set up unless its organizer keeps it. On{" "}
           {PLANS.free.name}, for clubs that joined after those terms were introduced, it cannot be kept.
         </p>
-        <p>An organizer can remove a player, or a member from the club roster, at any time.</p>
+        <p>
+          An organizer can remove a player, or a member from the club roster, at any time. A
+          club&rsquo;s owner can delete the whole club from Club settings, and everything it holds goes
+          at once &mdash; including the record of any texts sent and emails that failed.
+        </p>
       </Section>
 
       <Section title="Your rights">
@@ -293,7 +297,8 @@ export default async function PrivacyPage() {
         <p>
           <strong>3 October 2026:</strong> Vercel&rsquo;s cookie-free page counts are described, for
           when they are switched on; &ldquo;no third-party analytics&rdquo; becomes &ldquo;no
-          analytics cookies&rdquo;, which is what stays true either way.
+          analytics cookies&rdquo;, which is what stays true either way. A club&rsquo;s owner can
+          delete the club, and all it holds, from Club settings.
         </p>
         <p>
           <strong>2 October 2026:</strong> Stripe is listed, for clubs that pay for a plan, and
