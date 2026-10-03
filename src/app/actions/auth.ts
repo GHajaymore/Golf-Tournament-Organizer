@@ -5,6 +5,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
 import { passwordProblem } from "@/lib/domain/password";
 import { safeNextPath } from "@/lib/domain/safe-next";
 import { appUrl } from "@/lib/domain/app-url";
@@ -270,6 +271,10 @@ export async function signUp(
   const weak = passwordProblem(password, { email: cleanEmail, name: cleanName });
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
+
+  // A script is refused before it costs a lookup or a password hash. See
+  // bot-check.ts for why this lets a person in when the check itself fails.
+  if (await signUpLooksAutomated()) return { ok: false, error: AUTOMATED_SIGNUP };
 
   const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
