@@ -17,14 +17,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * that forgets is caught the day it is added to the list below.
  */
 
-const sent: { subject: string; html: string }[] = [];
+const sent: { subject: string; html: string; text?: string }[] = [];
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 vi.mock("resend", () => ({
   Resend: class {
     emails = {
-      send: async (m: { subject: string; html: string }) => {
+      send: async (m: { subject: string; html: string; text?: string }) => {
         sent.push(m);
         return { error: null };
       },
@@ -61,6 +61,30 @@ describe("an email never carries markup somebody typed", () => {
       expect(html).not.toContain("<img");
       // CONTROL: it is there, escaped, rather than dropped — the name still reads.
       expect(html).toContain("&lt;a href=&quot;https://zz-phish.invalid&quot;&gt;Claim&lt;/a&gt;");
+    });
+  }
+
+  /**
+   * Every sender in the shared layout, with a plain-text part and a line saying
+   * why (2026-10-03, `domain/email-layout.ts`). The reset email is included here:
+   * it has nothing a person typed, but it is still an email somebody reads.
+   */
+  const ALL: Array<[string, () => Promise<unknown>]> = [
+    ...SENDERS,
+    ["password reset", () => email.sendPasswordResetEmail(TO, "https://tourneyhq.club/reset-password?token=zz")],
+  ];
+  for (const [name, send] of ALL) {
+    it(`${name}: arrives in the shared layout, with a text part and a reason`, async () => {
+      await send();
+      const m = sent[0];
+      expect(m.html, name).toMatch(/^<!doctype html>/);
+      expect(m.html).toContain(">TourneyHQ</td>");
+      expect(m.html).toMatch(/You're getting this because/);
+      expect(m.text, `${name} has no plain-text part`).toBeTruthy();
+      // The app's own markup is gone. (What a person TYPED may legitimately
+      // contain "<a" — in a text email it is shown as the characters they typed.)
+      expect(m.text).not.toMatch(/<\/?(p|strong|blockquote)>/);
+      expect(m.text).toMatch(/You're getting this because/);
     });
   }
 

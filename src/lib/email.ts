@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { prisma } from "@/lib/db";
 import { classifySendFailure, type EmailKind, type EmailFailureReason } from "@/lib/domain/email-trouble";
 import { appUrl } from "@/lib/domain/app-url";
+import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -20,29 +21,31 @@ const SANDBOX_FROM = "onboarding@resend.dev";
 const FROM = process.env.RESEND_FROM_EMAIL ?? `TourneyHQ <${SANDBOX_FROM}>`;
 
 /**
- * Text from a person, going into an email body made of HTML string concatenation.
+ * EVERY value a person typed goes through `escapeHtml` before it reaches an
+ * email — and that is nearly every value. It was applied to the join request
+ * alone, on the theory that the other senders interpolate "values the APP
+ * produced — a club name it stored". A stored club name was TYPED; so is every
+ * tournament's name, dates and course, and a tournament named
+ * `<a href="…">Claim your prize</a>` would have been delivered as a working
+ * link by TourneyHQ's own sender (2026-10-02,
+ * `email-escapes-what-people-typed.test.ts`). Only what the app BUILT goes in
+ * raw: its own URLs and the fixed sentences below. Subjects are plain text.
  *
- * EVERY value a person typed goes through this — and that is nearly every
- * value. This used to be applied to the join request alone, on the theory that
- * the other senders interpolate "values the APP produced — a club name it
- * stored". A stored club name was TYPED; so is every tournament's name, dates
- * and course. Anyone can sign up as an organizer and add players by email, so
- * a tournament named `<a href="…">Claim your prize</a>` would have been
- * delivered as a working link by TourneyHQ's own sender (2026-10-02,
- * `email-escapes-what-people-typed.test.ts`).
- *
- * Only what the app BUILT goes in raw: its own URLs and the fixed sentences
- * below. Subjects are plain text, not HTML, and need nothing.
- *
- * Ampersand first, or the escapes escape each other.
+ * The escaper lives with the layout (`domain/email-layout.ts`), so there is one.
  */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+
+/**
+ * One email, in the shared layout, with its plain-text twin (2026-10-03). Every
+ * sender goes through this, so none can be the one that looks like a test
+ * message or arrives without a text part. `whyHtml` is the footer line saying
+ * why this person got it — escaped by the caller like the body.
+ */
+function compose(subject: string, bodyHtml: string, whyHtml: string) {
+  return {
+    subject,
+    html: emailDocument({ subject, bodyHtml, whyHtml }),
+    text: emailText({ bodyHtml, whyHtml }),
+  };
 }
 
 /**
@@ -237,12 +240,13 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      subject: "Reset your TourneyHQ password",
-      html: `
-        <p>Someone requested a password reset for your TourneyHQ account.</p>
-        <p><a href="${resetUrl}">Reset your password</a> — this link expires in 15 minutes.</p>
-        <p>If you didn't request this, you can safely ignore this email.</p>
-      `,
+      ...compose(
+        "Reset your TourneyHQ password",
+        `<p>Someone asked to reset the password for your TourneyHQ account.</p>` +
+          `<p><a href="${resetUrl}">Reset your password</a> — the link works for 15 minutes.</p>` +
+          `<p>If it wasn't you, ignore this email and nothing changes.</p>`,
+        `You're getting this because somebody asked to reset the password for this address on TourneyHQ.`,
+      ),
     });
     if (error) {
       console.error(`[email] Resend rejected the reset email for ${maskEmail(to)}: ${error.message}`);
@@ -306,8 +310,11 @@ export async function sendRegistrationEmail(
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      subject: `You're registered — ${opts.eventName}`,
-      html: `<p>Thanks for registering for <strong>${escapeHtml(opts.eventName)}</strong>.</p><p>${line}</p>`,
+      ...compose(
+        `You're registered — ${opts.eventName}`,
+        `<p>Thanks for entering <strong>${escapeHtml(opts.eventName)}</strong>.</p><p>${line}</p>`,
+        `You're getting this because this address was used to enter ${escapeHtml(opts.eventName)} on TourneyHQ.`,
+      ),
     });
     if (error) {
       console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
@@ -385,11 +392,13 @@ export async function sendStaffInviteEmail(
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      subject: `You have been added to ${club} on TourneyHQ`,
-      html:
+      ...compose(
+        `You have been added to ${club} on TourneyHQ`,
         `<p>An organizer at <strong>${escapeHtml(club)}</strong> has given you ${escapeHtml(opts.role)} access on TourneyHQ.</p>` +
-        line +
-        `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
+          line +
+          `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
+        `You're getting this because an organizer at ${escapeHtml(club)} added this address on TourneyHQ.`,
+      ),
     });
     if (error) {
       console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
@@ -493,8 +502,8 @@ export async function sendJoinRequestEmail(
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      subject: `${opts.askerName} asked to join ${club} on TourneyHQ`,
-      html:
+      ...compose(
+        `${opts.askerName} asked to join ${club} on TourneyHQ`,
         `<p><strong>${escapeHtml(opts.askerName)}</strong> (${escapeHtml(opts.askerEmail)}) asked to join <strong>${escapeHtml(club)}</strong> on TourneyHQ.</p>` +
         note +
         /**
@@ -506,6 +515,8 @@ export async function sendJoinRequestEmail(
          */
         `<p>Nothing has changed yet. Answer it here: <a href="${base}/organization#access">${base}/organization#access</a></p>` +
         `<p>If you do not recognise them, decline — they are told nothing about you beyond the name already shown when they searched.</p>`,
+        `You're getting this because you run ${escapeHtml(club)} on TourneyHQ.`,
+      ),
     });
     if (error) {
       console.error(`[email] Resend rejected the join request notice for ${maskEmail(to)}: ${error.message}`);
@@ -577,7 +588,11 @@ export async function sendFieldStatusEmail(
         `<p>You keep your place in the queue, and we will be in touch if a place opens again. If you think this is a mistake, contact the organizer.</p>`;
 
   try {
-    const { error } = await resend.emails.send({ from: FROM, to, subject, html: body });
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      ...compose(subject, body, `You're getting this because you're entered in ${eventName} on TourneyHQ.`),
+    });
     if (error) {
       console.error(`[email] Resend rejected the field-status email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
