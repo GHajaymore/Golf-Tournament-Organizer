@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
@@ -1056,8 +1057,27 @@ export async function searchCourseDirectory(
    * called with whatever the caller likes. So the spend keeps the guard that
    * was on it and the free read loses one it never needed.
    */
-  if (!localOnly && session.role !== "admin") throw new Error("Organizer access required");
-  const hits = await searchDirectory(query, localOnly, await clubNear(session.eventId));
+  /**
+   * THE LIVE DIRECTORY FOR EVERYONE, ON A PERSONAL BUDGET (2026-10-03).
+   *
+   * This threw for anyone who was not an organizer, and every course picker
+   * asked catalogue-only anyway — so a casual round could only ever find a
+   * course that happened to be in the stored catalogue, and when that table
+   * was empty (as it was) "where are you playing?" found nothing at all
+   * (Ajay: "the casual round doesn't list the golf course"). The live
+   * directory answers for Pebble Beach, Sharon Woods and St Andrews alike.
+   *
+   * Organizers search as before. Anybody else is counted against
+   * `course-search` — thirty an hour each — so no one person can spend the
+   * app's daily allowance, and over that budget the search quietly falls back
+   * to the catalogue rather than refusing.
+   */
+  let live = !localOnly;
+  if (live && session.role !== "admin") {
+    const budget = await checkRateLimit("course-search", session.userId || session.email);
+    if (!budget.allowed) live = false;
+  }
+  const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
 
   /**
    * Which of these the club already has.

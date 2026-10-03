@@ -272,7 +272,11 @@ export function CoursePicker({
     const mine = (seq.current += 1);
     setSearching(true);
     const t = setTimeout(async () => {
-      const res = await searchCourseDirectory(q, true);
+      // The live directory when the catalogue has nothing — the server decides
+      // whether this caller may spend it (organizers freely, everyone else on a
+      // personal hourly budget). This asked catalogue-only on every screen, so
+      // an empty catalogue meant no course could be found anywhere it is used.
+      const res = await searchCourseDirectory(q, false);
       // A query the reader has already typed past.
       if (mine !== seq.current) return;
       setFound(res.ok ? (res.hits ?? []).filter((h) => !h.inLibrary).slice(0, 8) : []);
