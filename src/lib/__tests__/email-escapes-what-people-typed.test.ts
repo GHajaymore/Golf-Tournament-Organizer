@@ -58,7 +58,8 @@ describe("an email never carries markup somebody typed", () => {
       expect(sent, `${name} sent nothing — the stub was not reached`).toHaveLength(1);
       const { html } = sent[0];
       expect(html).not.toContain("<a href=\"https://zz-phish.invalid\"");
-      expect(html).not.toContain("<img");
+      // The hostile tag, not any <img>: the layout now carries the logo.
+      expect(html).not.toContain("<img src=x");
       // CONTROL: it is there, escaped, rather than dropped — the name still reads.
       expect(html).toContain("&lt;a href=&quot;https://zz-phish.invalid&quot;&gt;Claim&lt;/a&gt;");
     });
@@ -78,7 +79,7 @@ describe("an email never carries markup somebody typed", () => {
       await send();
       const m = sent[0];
       expect(m.html, name).toMatch(/^<!doctype html>/);
-      expect(m.html).toContain(">TourneyHQ</td>");
+      expect(m.html).toContain('alt="TourneyHQ"');
       expect(m.html).toMatch(/You're getting this because/);
       expect(m.text, `${name} has no plain-text part`).toBeTruthy();
       // The app's own markup is gone. (What a person TYPED may legitimately
@@ -100,7 +101,7 @@ describe("an email never carries markup somebody typed", () => {
 
   it("CONTROL: the app's own markup survives — links it built are still links", async () => {
     await email.sendStaffInviteEmail(TO, { organizationName: "ZZ Golf Club", organizationId: "zz", role: "admin", hasPassword: true });
-    expect(sent[0].html).toMatch(/<a href="[^"]+">/);
+    expect(sent[0].html).toMatch(/<a href="[^"]+"[^>]*>/);
     expect(sent[0].html).toContain("<strong>ZZ Golf Club</strong>");
   });
 });

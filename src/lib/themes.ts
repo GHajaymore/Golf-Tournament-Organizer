@@ -1360,3 +1360,27 @@ export const SHARE_CARD = {
   /** The ink on the orange HQ chip. */
   onFlag: "#16181a",
 } as const;
+
+/**
+ * The palette every email is painted in (2026-10-03), for the same reason as
+ * the share card above: an email client reads no stylesheet and no custom
+ * property, so something has to hold the literal, and `brand-consistency`
+ * says that something is the theme.
+ *
+ * LIGHT always — a dark message in a light inbox reads as a warning — and built
+ * from the light ground, so a change to the app's grounds reaches the mail.
+ * The one accent is TourneyHQ's own flag orange, used as a thin rule and never
+ * as a text colour, so no line of mail depends on orange-on-white contrast.
+ * The button is ink on paper reversed: the highest-contrast pair the ground has.
+ */
+export const EMAIL = {
+  bg: LIGHT_GROUND.bg,
+  surface: LIGHT_GROUND.surface,
+  text: LIGHT_GROUND.text,
+  /** The flag orange, as the rule under the logo. */
+  flag: SHARE_CARD.flag,
+  /** A hairline between the message and its sign-off. */
+  divider: "rgba(26,28,30,0.12)",
+  buttonBg: LIGHT_GROUND.text,
+  buttonText: LIGHT_GROUND.surface,
+} as const;
