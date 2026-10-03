@@ -68,13 +68,15 @@ export function PlayerSignOut({ name }: { name: string }) {
             <div className="dialog-body">
               You&rsquo;ll need your email and password to get back in. Nothing you&rsquo;ve entered is lost —
               scores and messages are saved as you go.
+              {/* The player app's way to their account page (2026-10-03): the
+                  dialog about the account is where somebody looks for it. A
+                  link in the text, not a third button — three did not fit the
+                  dialog on a phone, and the first was clipped at its edge. */}
+              <span style={{ display: "block", marginTop: 8 }}>
+                <a href="/account">Your account</a> &mdash; your details, or deleting it.
+              </span>
             </div>
             <div className="dialog-actions">
-              {/* The player app's way to their account page (2026-10-03): the
-                  dialog about the account is where somebody looks for it. */}
-              <a href="/account" className="btn btn-secondary">
-                Your account
-              </a>
               <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
                 Stay signed in
               </button>
