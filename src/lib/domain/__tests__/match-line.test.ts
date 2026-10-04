@@ -46,10 +46,19 @@ describe("matchLine", () => {
     expect(line("AAH", "p-someone-else")).toBe("Ann 2 up through 3");
   });
 
-  it("is what a casual singles match's summary shows, fed the stored forfeit", () => {
+  it("is what a casual match's summary shows — singles fed the stored forfeit, a four-ball its sides' names", () => {
     const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    expect(dash).toContain("if (!casualMatch) return \"\";");
-    expect(dash).toContain("forfeitedBy: only.forfeitedBy ?? \"\"");
+    expect(dash).toContain("if (!casualMatch) return null;");
+    expect(dash).toContain("forfeitedBy: oneMatch.forfeitedBy ?? \"\"");
+    expect(dash).toContain("aName: sideNames!.get(oneMatch.teamAId)");
     expect(dash).toContain("{oneMatchLine ? (");
+  });
+
+  it("names two sides the same way it names two players", () => {
+    const holes = card("BHBHBHHHBHHBB");
+    // Side B: six up with five to play after thirteen — Rule 3.2a(3).
+    expect(matchLine({ aId: "t-a", bId: "t-b", aName: "Walker & Partner", bName: "Third & Fourth", holes })).toBe(
+      "Third & Fourth won 6&5",
+    );
   });
 });

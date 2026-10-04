@@ -1,9 +1,35 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
 import { ScoreCell } from "@/components/ScorecardTable";
+import { HoleByHoleCard } from "@/components/HoleByHoleCard";
+import { Icon } from "@/components/Icon";
 import { holeNumber } from "@/lib/domain/hole-number";
+
+/**
+ * The cards scored together on the hole view: everybody in one MATCH (both
+ * sides of a four-ball), or one side where a round has no opponent.
+ *
+ * Each match arrives twice — once per side, each listing its own cards — so
+ * grouping by match id puts all four players of a four-ball on one hole.
+ */
+export function holeGroups(teams: TeamEntryRow[]): Array<{
+  key: string;
+  label: string;
+  rows: Array<{ team: TeamEntryRow; card: TeamCardRow }>;
+}> {
+  const byKey = new Map<string, { key: string; label: string; rows: Array<{ team: TeamEntryRow; card: TeamCardRow }> }>();
+  for (const team of teams) {
+    const key = team.matchId || `team:${team.teamId}`;
+    const group =
+      byKey.get(key) ??
+      { key, label: team.opponentName ? `${team.teamName} v ${team.opponentName}` : team.teamName, rows: [] };
+    for (const card of team.cards) group.rows.push({ team, card });
+    byKey.set(key, group);
+  }
+  return [...byKey.values()];
+}
 
 export interface TeamCardRow {
   /** Empty where the side shares one ball. */
@@ -122,6 +148,53 @@ export function TeamEntryClient({
     });
   };
 
+  /**
+   * ONE HOLE AT A TIME, ON A PHONE (2026-10-04). A four-ball at 393px was four
+   * eighteen-column grids, each scrolled sideways to the hole being played and
+   * each with its own Save button. The hole view puts every card in the match
+   * on the hole — both sides, with each player's shots — and saves them
+   * together. Grid on a desk, as before; switched on mount for the hydration
+   * reason StrokePlayEntry gives.
+   */
+  const [view, setView] = useState<"hole" | "card">("card");
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setView("hole");
+  }, []);
+  const groups = useMemo(() => holeGroups(teams), [teams]);
+  const [groupKey, setGroupKey] = useState(groups[0]?.key ?? "");
+  const group = groups.find((g) => g.key === groupKey) ?? groups[0];
+  /** What the hole view last saved, so "Saved." is only said while true. */
+  const [savedDraft, setSavedDraft] = useState("");
+  const groupDraft = group
+    ? JSON.stringify(group.rows.map(({ team, card }) => draft[keyFor(team.teamId, team.matchId, card.playerId)] ?? card.strokes))
+    : "";
+
+  /**
+   * Every card in the group that has a score on it — and, as on the stroke
+   * round, ONE BAD CARD MUST NOT TAKE THE REST WITH IT: each is saved on its
+   * own, and any that fail are named rather than lost under a "Saved".
+   */
+  const saveGroup = () => {
+    if (!group) return;
+    setError("");
+    startTransition(async () => {
+      const failed: string[] = [];
+      for (const { team, card } of group.rows) {
+        const strokes = draft[keyFor(team.teamId, team.matchId, card.playerId)] ?? card.strokes;
+        if (!strokes.some((s) => s != null)) continue;
+        const who = card.playerId ? card.playerName : team.teamName;
+        try {
+          const res = await saveTeamScorecard(team.teamId, card.playerId, team.matchId, strokes);
+          if (!res.ok) failed.push(`${who}: ${res.error ?? "not saved"}`);
+        } catch {
+          failed.push(`${who}: not saved`);
+        }
+      }
+      if (failed.length) setError(`Not saved — ${failed.join("; ")}`);
+      else setSavedDraft(groupDraft);
+    });
+  };
+
   const save = (teamId: string, playerId: string, matchId: string, saved: (number | null)[]) => {
     const key = keyFor(teamId, matchId, playerId);
     // Falls back to what the server already holds, never to an empty card —
@@ -153,7 +226,74 @@ export function TeamEntryClient({
         </div>
       )}
 
-      {teams.map((t) => (
+      {teams.length > 0 && (
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["hole", "card"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setView(v)}
+              aria-pressed={view === v}
+              style={
+                view === v
+                  ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
+                  : { fontSize: 12.5 }
+              }
+            >
+              <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} /> {v === "hole" ? "Hole by hole" : "Full card"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === "hole" && group && (
+        <div className="card elev-sm" style={{ gap: 12 }}>
+          {groups.length > 1 && (
+            <div className="field">
+              <label htmlFor="team-hole-group">Scoring</label>
+              <select id="team-hole-group" className="input" value={group.key} onChange={(e) => setGroupKey(e.target.value)}>
+                {groups.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <HoleByHoleCard
+            players={group.rows.map(({ team, card }) => ({
+              id: keyFor(team.teamId, team.matchId, card.playerId),
+              name: card.playerId ? card.playerName : team.teamName,
+              shotsOn: (h: number) => card.shots?.[h] ?? 0,
+            }))}
+            cards={Object.fromEntries(
+              group.rows.map(({ team, card }) => {
+                const key = keyFor(team.teamId, team.matchId, card.playerId);
+                return [key, draft[key] ?? card.strokes];
+              }),
+            )}
+            pars={pars}
+            yards={[]}
+            strokeIndex={strokeIndex}
+            holes={holes}
+            firstHole={firstHole}
+            onSet={(key, hole, value) => setHole(key, hole, value)}
+          />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            {savedDraft === groupDraft && savedDraft !== "" && (
+              <span role="status" className="text-muted" style={{ fontSize: 12.5 }}>
+                Saved.
+              </span>
+            )}
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={saveGroup}>
+              <Icon name="check" /> {pending ? "Saving…" : "Save scores"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {view === "card" && teams.map((t) => (
         <div key={`${t.teamId}:${t.matchId}`} className="card elev-sm" style={{ gap: 10 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <span className="card-title" style={{ fontSize: 15 }}>{t.teamName}</span>
@@ -161,10 +301,17 @@ export function TeamEntryClient({
               <span className="text-muted" style={{ fontSize: 13 }}>v {t.opponentName}</span>
             )}
             {/* No tooltip: "Plays off 12" IS the playing handicap, said in
-                the words a side would use. */}
-            <span className="tag tag-neutral">
-              Plays off {t.playingHandicap}
-            </span>
+                the words a side would use.
+
+                Only where the SIDE plays one ball (a single "Team card"). In a
+                four-ball each player plays off their own strokes, shown on
+                their own row, and a side figure beside them — "Plays off 37"
+                over a 17 and a 24 — is a number nothing on the card uses. */}
+            {t.cards.some((c) => c.playerId === "") && (
+              <span className="tag tag-neutral">
+                Plays off {t.playingHandicap}
+              </span>
+            )}
             <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
               {t.played > 0 ? `${t.grossTotal} gross · ${t.netTotal} net · ${t.played} holes` : "No score yet"}
             </span>
