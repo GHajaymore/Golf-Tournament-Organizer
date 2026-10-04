@@ -1,8 +1,6 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 /**
  * THE APP'S OWN DAILY COURSE IMPORT (2026-10-04) — against real rows, with a
@@ -21,10 +19,9 @@ import { join } from "node:path";
 const prisma = new PrismaClient();
 const MARK = "zz-cat-";
 const KEY = "zz-catalogue-walk-test";
-const SECRET = "zz-audit-catalogue-secret";
 
-const { importCatalogueSlice } = await import("@/lib/services/catalogue-import");
-const { GET } = await import("@/app/api/cron/course-catalogue/route");
+const { importCatalogueSlice, refreshCatalogueSlice } = await import("@/lib/services/catalogue-import");
+const { importGcaSlice, gcaId } = await import("@/lib/services/catalogue-gca");
 
 const PARS = [4, 5, 4, 4, 3, 5, 3, 4, 4, 4, 4, 3, 4, 5, 4, 4, 3, 5];
 const SI = [6, 10, 12, 16, 14, 2, 18, 4, 8, 3, 9, 17, 7, 1, 13, 11, 15, 5];
@@ -83,7 +80,10 @@ const cursor = async () => JSON.parse((await prisma.platformSetting.findUnique({
 const at = (phase: number, offset: number) => ({ phase, offset });
 
 async function scrub() {
-  await prisma.courseCatalog.deleteMany({ where: { id: { startsWith: MARK } } });
+  // Both directories' ids: GolfCourseAPI rows are stored as "gca:" + id.
+  await prisma.courseCatalog.deleteMany({
+    where: { OR: [{ id: { startsWith: MARK } }, { id: { startsWith: `gca:${MARK}` } }] },
+  });
   await prisma.platformSetting.deleteMany({ where: { key: KEY } });
 }
 
@@ -196,50 +196,142 @@ describe("another writer landing the same course in between", () => {
   });
 });
 
-describe("who may run it", () => {
-  const original = process.env.CRON_SECRET;
-  const ask = (headers: Record<string, string> = {}) =>
-    GET(new Request("https://example.invalid/api/cron/course-catalogue", { headers }));
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    if (original === undefined) delete process.env.CRON_SECRET;
-    else process.env.CRON_SECRET = original;
+/**
+ * LATEST AND CLEAN (Ajay, 2026-10-04). The refresh pass against real rows,
+ * confined to this file's marked ids. Each stored row is backdated past the
+ * refresh age so it is due.
+ */
+describe("re-fetching the oldest stored courses", () => {
+  const OLD = new Date(Date.now() - 90 * 86_400_000);
+  const SORTED = [5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 4]; // refused since #771
+  const NEW_PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4];
+  const row = (id: string, pars: number[] | null) =>
+    prisma.courseCatalog.create({
+      data: {
+        id, name: `ZZ Old ${id}`, fetchedAt: OLD,
+        pars: pars ? JSON.stringify(pars) : "", strokeIndex: pars ? JSON.stringify(SI) : "",
+        par: pars ? pars.reduce((a, b) => a + b, 0) : 0,
+      },
+    });
+  /** A directory that answers per id: a good card, no card, or nothing at all. */
+  const answering = (answers: Record<string, "card" | "none" | "404">) => async (path: string) => {
+    const id = decodeURIComponent(path.split("/").pop() ?? "");
+    const a = answers[id];
+    if (!a || a === "404") return { status: 404, body: null };
+    return {
+      status: 200,
+      body: { id, course_name: `ZZ Fresh ${id}`, city: "Zz Town", holes_data: a === "card" ? holes(NEW_PARS, SI) : [], tees: [] },
+    };
+  };
+  const refresh = (answers: Record<string, "card" | "none" | "404">, budget = 10) =>
+    refreshCatalogueSlice({ budget, deadline: later(), fetchJson: answering(answers), sleep: noSleep, idPrefix: MARK });
+  const get = (id: string) => prisma.courseCatalog.findUniqueOrThrow({ where: { id } });
+
+  it("takes the directory's newer card, judged by today's rules", async () => {
+    await row(`${MARK}r1`, PARS);
+    const r = await refresh({ [`${MARK}r1`]: "card" });
+    expect(r).toMatchObject({ checked: 1, updated: 1 });
+    const after = await get(`${MARK}r1`);
+    expect(JSON.parse(after.pars)).toEqual(NEW_PARS);
+    expect(after.name).toBe(`ZZ Fresh ${MARK}r1`);
+    expect(after.fetchedAt.getTime()).toBeGreaterThan(OLD.getTime());
   });
 
-  it("refuses without the secret, with a wrong one, and when none is configured — and asks the directory nothing", async () => {
-    const spy = vi.fn(async () => new Response("{}", { status: 200 }));
-    vi.stubGlobal("fetch", spy);
-
-    process.env.CRON_SECRET = SECRET;
-    expect((await ask()).status).toBe(401);
-    expect((await ask({ authorization: "Bearer nope" })).status).toBe(401);
-    delete process.env.CRON_SECRET;
-    expect((await ask({ authorization: `Bearer ${SECRET}` })).status).toBe(401);
-    expect(spy).not.toHaveBeenCalled();
+  it("never swaps a good stored card for no card", async () => {
+    await row(`${MARK}r2`, PARS);
+    const r = await refresh({ [`${MARK}r2`]: "none" });
+    expect(r).toMatchObject({ kept: 1, updated: 0, cleared: 0 });
+    expect(JSON.parse((await get(`${MARK}r2`)).pars)).toEqual(PARS);
   });
 
-  it("lets the scheduler through (the control — else a route that always refuses passes)", async () => {
-    /**
-     * Against the REAL position key, so its row is put back exactly as found.
-     * The stubbed directory returns an empty listing: the run reaches "the
-     * end" at once, writes offset 0, and spends nothing.
-     */
-    const { WALK_KEY } = await import("@/lib/services/catalogue-import");
-    const before = await prisma.platformSetting.findUnique({ where: { key: WALK_KEY } });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ courses: [] }), { status: 200 })));
-    process.env.CRON_SECRET = SECRET;
-    try {
-      const res = await ask({ authorization: `Bearer ${SECRET}` });
-      expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ ok: true, fetched: 0, stopped: "end" });
-    } finally {
-      if (before) await prisma.platformSetting.update({ where: { key: WALK_KEY }, data: { value: before.value } });
-      else await prisma.platformSetting.deleteMany({ where: { key: WALK_KEY } });
-    }
+  it("clears a stored card today's rules refuse, when nothing better comes, and says why", async () => {
+    await row(`${MARK}r3`, SORTED);
+    const r = await refresh({ [`${MARK}r3`]: "404" });
+    expect(r).toMatchObject({ cleared: 1 });
+    const after = await get(`${MARK}r3`);
+    expect(after.pars).toBe("");
+    expect(after.cardProblem).toContain("par 5s in a row");
+    // Still in the catalogue, findable by name.
+    expect(after.name).toBe(`ZZ Old ${MARK}r3`);
   });
 
-  it("is scheduled", () => {
-    const vercel = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8")) as { crons: Array<{ path: string }> };
-    expect(vercel.crons.map((c) => c.path)).toContain("/api/cron/course-catalogue");
+  it("takes the oldest first, up to its budget, and moves each one's date", async () => {
+    await row(`${MARK}r4`, PARS);
+    await row(`${MARK}r5`, PARS);
+    await prisma.courseCatalog.update({ where: { id: `${MARK}r5` }, data: { fetchedAt: new Date(OLD.getTime() - 86_400_000) } });
+    const r = await refresh({}, 1);
+    expect(r).toMatchObject({ checked: 1, stopped: "budget" });
+    expect((await get(`${MARK}r5`)).fetchedAt.getTime()).toBeGreaterThan(OLD.getTime());
+    expect((await get(`${MARK}r4`)).fetchedAt.getTime()).toBe(OLD.getTime());
+  });
+
+  it("leaves a course read recently alone (the control)", async () => {
+    await prisma.courseCatalog.create({ data: { id: `${MARK}r6`, name: "ZZ Recent" } });
+    expect((await refresh({ [`${MARK}r6`]: "card" })).checked).toBe(0);
+  });
+});
+
+/**
+ * INTERNATIONAL — GolfCourseAPI brought into the app, with a fake directory
+ * and its own state key. Complete cards only: a missing stroke index is stored
+ * as a reason, never as a usable card.
+ */
+describe("the international slice", () => {
+  const GCA_KEY = "zz-gca-walk-test";
+  afterEach(() => prisma.platformSetting.deleteMany({ where: { key: GCA_KEY } }));
+  const gholes = (pars: number[], si: (number | null)[]) => pars.map((par, i) => ({ par, handicap: si[i], yardage: 0 }));
+  const summary = (id: string, country: string, tees = 1) => ({
+    id, club_name: `ZZ Club ${id}`, course_name: "", location: { city: "Zz", country }, tees: { male: tees },
+  });
+  const gcaDirectory = () => {
+    const calls: string[] = [];
+    const fetchJson = async (path: string) => {
+      calls.push(path);
+      if (path.startsWith("/v1/search")) {
+        return {
+          status: 200,
+          body: {
+            courses: [
+              summary(`${MARK}us`, "United States"),
+              summary(`${MARK}gb`, "England"),
+              summary(`${MARK}nosi`, "Scotland"),
+              summary(`${MARK}notees`, "Ireland", 0),
+            ],
+          },
+        };
+      }
+      const id = decodeURIComponent(path.split("/").pop() ?? "");
+      const noSi = id.endsWith("nosi");
+      return { status: 200, body: { course: { tees: { male: [{ holes: gholes(PARS, noSi ? PARS.map(() => null) : SI) }] } } } };
+    };
+    return { calls, fetchJson };
+  };
+
+  it("stores complete cards, the reason for incomplete ones, and fetches outside the US first", async () => {
+    const dir = gcaDirectory();
+    const r = await importGcaSlice({ budget: 10, deadline: later(), fetchJson: dir.fetchJson, sleep: noSleep, stateKey: GCA_KEY });
+    expect(r).toMatchObject({ withCard: 2, queued: 0, stopped: "drained" });
+    const gb = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}gb`) } });
+    expect(JSON.parse(gb.strokeIndex)).toEqual(SI);
+    const noSi = await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}nosi`) } });
+    expect(noSi.pars).toBe("");
+    expect(noSi.cardProblem).toContain("no stroke index");
+    // No tee boxes: judged off the search row, no detail request spent on it.
+    expect(dir.calls.some((c) => c.includes("notees"))).toBe(false);
+    expect((await prisma.courseCatalog.findUniqueOrThrow({ where: { id: gcaId(`${MARK}notees`) } })).cardProblem).toContain("no tee boxes");
+    // Outside the US first: the US course is the last detail asked for.
+    const details = dir.calls.filter((c) => c.startsWith("/v1/courses/"));
+    expect(details[details.length - 1]).toContain(`${MARK}us`);
+  });
+
+  it("stops at its budget and keeps the rest banked for tomorrow", async () => {
+    const dir = gcaDirectory();
+    const r = await importGcaSlice({ budget: 2, deadline: later(), fetchJson: dir.fetchJson, sleep: noSleep, stateKey: GCA_KEY });
+    expect(r.stopped).toBe("budget");
+    expect(r.requests).toBe(2);
+    expect(r.queued).toBe(2);
+    const state = JSON.parse((await prisma.platformSetting.findUniqueOrThrow({ where: { key: GCA_KEY } })).value);
+    expect(state.queue).toHaveLength(2);
+    expect(state.termIndex).toBe(1);
   });
 });

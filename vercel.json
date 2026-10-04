@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/course-catalogue",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/course-catalogue",
+      "schedule": "0 16 * * *"
     }
   ]
 }

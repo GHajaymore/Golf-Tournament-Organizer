@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { courseFrom, hitsFrom } from "@/lib/domain/course-directory";
+import { courseFrom, hitsFrom, catalogueRefusal } from "@/lib/domain/course-directory";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * THE APP FILLS ITS OWN COURSE CATALOGUE, A SLICE A DAY (2026-10-04).
@@ -88,6 +89,28 @@ export const directoryFetch: FetchJson = async (path) => {
     return null;
   }
 };
+
+/**
+ * One GET against the directory, retried on a refusal, `null` for an answer
+ * that is "no" (a 404), and `DirectoryRefusing` once backing off has not
+ * helped — at which point the day has nothing more to give.
+ */
+function askDirectory(fetchJson: FetchJson, sleep: (ms: number) => Promise<void>) {
+  return async (path: string): Promise<unknown | null> => {
+    for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt += 1) {
+      const res = await fetchJson(path);
+      if (res && res.status >= 200 && res.status < 300) {
+        const limited = (res.body as { limit_hit?: boolean } | null)?.limit_hit;
+        if (!limited) return res.body;
+      } else if (res && res.status !== 429 && res.status < 500) {
+        // A 404 is an answer. Asking again is three times the load for nothing.
+        return null;
+      }
+      if (attempt < BACKOFF_MS.length) await sleep(BACKOFF_MS[attempt]);
+    }
+    throw new DirectoryRefusing();
+  };
+}
 
 export interface SliceOptions {
   /** How many courses this run may fetch (one request each). */
@@ -202,20 +225,7 @@ export async function importCatalogueSlice(opts: SliceOptions): Promise<SliceRes
       ? `/api/v1/courses/state/${states[at.phase]}?limit=${PAGE}&offset=${at.offset}`
       : `/api/v1/courses/search?limit=${PAGE}&offset=${at.offset}`;
 
-  const ask = async (path: string): Promise<unknown | null> => {
-    for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt += 1) {
-      const res = await fetchJson(path);
-      if (res && res.status >= 200 && res.status < 300) {
-        const limited = (res.body as { limit_hit?: boolean } | null)?.limit_hit;
-        if (!limited) return res.body;
-      } else if (res && res.status !== 429 && res.status < 500) {
-        // A 404 is an answer. Asking again is three times the load for nothing.
-        return null;
-      }
-      if (attempt < BACKOFF_MS.length) await sleep(BACKOFF_MS[attempt]);
-    }
-    throw new DirectoryRefusing();
-  };
+  const ask = askDirectory(fetchJson, sleep);
 
   let at = await readCursor(key, states.length);
   /**
@@ -292,4 +302,134 @@ export async function importCatalogueSlice(opts: SliceOptions): Promise<SliceRes
     result.position = at;
   }
   return result;
+}
+
+/* ── Keeping what is stored LATEST and CLEAN ─────────────────────────── */
+
+/** A course is due a fresh look once it is this old. */
+export const REFRESH_AFTER_DAYS = 30;
+
+export interface RefreshOptions {
+  budget: number;
+  deadline: number;
+  fetchJson?: FetchJson;
+  sleep?: (ms: number) => Promise<void>;
+  /** Only rows whose id starts with this — a test confines itself to its own. */
+  idPrefix?: string;
+  now?: Date;
+}
+
+export interface RefreshResult {
+  checked: number;
+  /** A better card replaced the stored one, or a first card arrived. */
+  updated: number;
+  /** The stored card no longer passes today's rules and nothing better came. */
+  cleared: number;
+  /** Stored card kept: the directory's answer was no better. */
+  kept: number;
+  stopped: "budget" | "deadline" | "done" | "refused";
+}
+
+/**
+ * RE-FETCH THE COURSES FETCHED LONGEST AGO (Ajay, 2026-10-04: "make sure the
+ * clean and complete and latest golf course score card gets into production").
+ *
+ * The walk never looks at a course twice, so a card is exactly as current as
+ * the day it was first read — and a card stored under an older rule stays
+ * stored however that rule has since tightened (Andalusia's eight par 5s were
+ * stored the day before the rule that refuses them). Each run takes a few of
+ * the oldest and asks again:
+ *
+ *  - a USABLE card from the directory replaces what is stored — that is the
+ *    latest card, judged by today's rules on the way in;
+ *  - an unusable answer NEVER replaces a stored card that still passes
+ *    today's rules: the directory losing data is not a reason to lose a card;
+ *  - a stored card that FAILS today's rules, with nothing better to put in its
+ *    place, is cleared and the reason recorded — the course stays findable by
+ *    name, as every course without a card does.
+ *
+ * OpenGolfAPI rows only; a `gca:` row is the other directory's.
+ */
+export async function refreshCatalogueSlice(opts: RefreshOptions): Promise<RefreshResult> {
+  const fetchJson = opts.fetchJson ?? directoryFetch;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const ask = askDirectory(fetchJson, sleep);
+  const now = opts.now ?? new Date();
+  const result: RefreshResult = { checked: 0, updated: 0, cleared: 0, kept: 0, stopped: "done" };
+
+  const due = await prisma.courseCatalog.findMany({
+    where: {
+      fetchedAt: { lt: new Date(now.getTime() - REFRESH_AFTER_DAYS * 86_400_000) },
+      ...(opts.idPrefix ? { id: { startsWith: opts.idPrefix } } : { NOT: { id: { startsWith: "gca:" } } }),
+    },
+    orderBy: { fetchedAt: "asc" },
+    take: Math.max(0, opts.budget),
+    select: { id: true, pars: true, strokeIndex: true },
+  });
+
+  try {
+    for (const row of due) {
+      if (Date.now() >= opts.deadline) {
+        result.stopped = "deadline";
+        break;
+      }
+      const payload = await ask(`/api/v1/courses/${encodeURIComponent(row.id)}`);
+      result.checked += 1;
+      const fresh = payload ? courseFrom(payload) : null;
+      const stamp = { fetchedAt: new Date() };
+
+      if (fresh?.card.usable) {
+        await prisma.courseCatalog.update({
+          where: { id: row.id },
+          data: {
+            name: fresh.name, city: fresh.city, state: fresh.state, website: fresh.website, address: fresh.address,
+            par: fresh.card.pars.reduce((s, p) => s + p, 0),
+            pars: JSON.stringify(fresh.card.pars),
+            yards: JSON.stringify(fresh.card.yards),
+            strokeIndex: JSON.stringify(fresh.card.strokeIndex),
+            tees: JSON.stringify(fresh.tees),
+            cardProblem: "",
+            ...stamp,
+          },
+        });
+        result.updated += 1;
+      } else {
+        const pars = parseArray(row.pars);
+        const storedRefusal = pars.length
+          ? catalogueRefusal(pars, parseArray(row.strokeIndex), holesPlayed(pars.length))
+          : null;
+        if (pars.length && storedRefusal) {
+          await prisma.courseCatalog.update({
+            where: { id: row.id },
+            data: { pars: "", yards: "", strokeIndex: "", par: 0, cardProblem: storedRefusal, ...stamp },
+          });
+          result.cleared += 1;
+        } else {
+          // Whatever is stored is still the best there is — or there is no
+          // card either way. Only the date moves, so the next run looks at
+          // the next oldest instead of this one again.
+          await prisma.courseCatalog.update({ where: { id: row.id }, data: stamp });
+          result.kept += 1;
+        }
+      }
+      await sleep(PAUSE_MS);
+      if (result.checked >= opts.budget) {
+        result.stopped = "budget";
+        break;
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof DirectoryRefusing)) throw e;
+    result.stopped = "refused";
+  }
+  return result;
+}
+
+function parseArray(stored: string): number[] {
+  try {
+    const v = JSON.parse(stored) as unknown;
+    return Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
 }
