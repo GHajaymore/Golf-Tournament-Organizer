@@ -101,7 +101,13 @@ export function NewMatchForm({
   myName,
   members = [],
   me = null,
+  localCurrency = DEFAULT_CURRENCY,
 }: {
+  /**
+   * The currency of where the round is being set up (`local-currency.ts`).
+   * The stake is in it unless they switch to US dollars.
+   */
+  localCurrency?: string;
   /**
     * The club's own courses.
     *
@@ -244,9 +250,17 @@ export function NewMatchForm({
    * unparseable becomes 0, which `planMatch` then refuses by name if a game
    * was chosen; that is better than guessing at a number that is money.
    */
+  /**
+   * WHICH MONEY THE STAKE IS IN (Ajay, 2026-10-04): where the round is set up,
+   * unless they switch to US dollars. Starts local.
+   */
+  const [currency, setCurrency] = useState(localCurrency);
+
   const stakeCents = (() => {
     const n = Number(stake.replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+    // In THIS currency's minor units: a yen has none, so ¥500 is 500 and not
+    // 50,000 — the reason amounts are stored in minor units at all.
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 10 ** minorUnitDigits(currency)) : 0;
   })();
 
   /**
@@ -418,6 +432,7 @@ export function NewMatchForm({
         useHandicaps,
         courseId,
         money: moneyChoice,
+        currency,
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");

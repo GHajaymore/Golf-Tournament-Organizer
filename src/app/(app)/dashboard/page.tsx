@@ -33,7 +33,7 @@ import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
 import { setupFlowFor } from "@/lib/services/setup-flow";
-import { isMatch } from "@/lib/tournament-shape";
+import { isMatch, reviewsScores } from "@/lib/tournament-shape";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -1095,7 +1095,8 @@ export default async function DashboardPage() {
               `domain/review-queue.ts` — it counts both sources over the whole
               tournament now, so a round the organizer has moved on from cannot
               take its unreviewed work off the screen with it. */}
-          {isStaff && (
+          {/* Not on a casual round, which nobody reviews — `reviewsScores`. */}
+          {isStaff && reviewsScores(state.event.shape) && (
             <StatCard
               label="Awaiting review"
               value={state.pendingConfirmations}

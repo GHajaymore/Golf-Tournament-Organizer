@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { localCurrency, requestCountry } from "@/lib/domain/local-currency";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { parseHoleArray } from "@/lib/courses";
@@ -25,6 +27,13 @@ export const metadata = { title: "Set up a round", robots: NOINDEX };
  */
 export default async function NewMatchPage() {
   const session = await requireSession();
+
+  /**
+   * The currency of wherever the round is being set up — the first tee, as a
+   * rule — with US dollars one tap away on the form. See `local-currency.ts`.
+   */
+  const h = await headers();
+  const localCur = localCurrency(requestCountry(h.get("x-vercel-ip-country"), h.get("accept-language")));
 
   // Whether they are due to play a real tournament round today. Read before
   // the roster query so the warning is decided on the same request that
@@ -160,6 +169,7 @@ export default async function NewMatchPage() {
             cardNote: pickedCardNote(c),
           }))}
           myName={session.name}
+          localCurrency={localCur}
           /**
            * The organizer's OWN roster row, when they have one.
            *

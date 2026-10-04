@@ -141,6 +141,9 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       status: "live",
       configUnlocked: true,
       shape: "match",
+      // Where the round is being played decides what its stake is counted in
+      // — see `local-currency.ts`. "" follows the organization, as before.
+      currencyOverride: plan.currency,
       /**
        * SET, not left to the column default — which is "match".
        *

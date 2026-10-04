@@ -27,13 +27,15 @@ const TAG = "ZZ-AUDIT-REVIEWQUEUE";
 let bothSources = "";
 let strokeOnly = "";
 let playersConfirm = "";
+let casualMatch = "";
+let tournamentMatch = "";
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
 
-async function makeEvent(name: string, scoreApproval: string) {
+async function makeEvent(name: string, scoreApproval: string, shape = "series") {
   const org = await prisma.organization.create({
     data: { name: `${TAG} ${name}`, kind: "club" },
     select: { id: true },
@@ -42,7 +44,7 @@ async function makeEvent(name: string, scoreApproval: string) {
     data: {
       name: `${TAG} ${name}`,
       organizationId: org.id,
-      shape: "series",
+      shape,
       format: "match",
       status: "active",
       scoreApproval,
@@ -196,6 +198,36 @@ beforeAll(async () => {
       });
     }
   }
+
+  /**
+   * A CASUAL ROUND, AND ITS CONTROL (2026-10-04, Ajay: "no review for casual
+   * round score cards"). Identical rows — one decided match, freshly scored,
+   * player confirmation as every casual round is set up with — and only the
+   * SHAPE differs. Inside 24 hours a "players" match is still pending, so the
+   * tournament counts it; the casual round must not, because nobody is there
+   * to confirm it.
+   */
+  for (const [name, shape] of [
+    ["casual-match", "match"],
+    ["tournament-match", "series"],
+  ] as const) {
+    const { eventId, groupId, players } = await makeEvent(name, "players", shape);
+    if (shape === "match") casualMatch = eventId;
+    else tournamentMatch = eventId;
+    const s = await stage(eventId, 0, "The match", "Round Robin", "Match Play");
+    await prisma.match.create({
+      data: {
+        eventId,
+        stageId: s.id,
+        groupId,
+        round: 1,
+        playerAId: players[0].id,
+        playerBId: players[1].id,
+        holes: DECIDED,
+        scoredAt: new Date(),
+      },
+    });
+  }
 });
 
 afterAll(async () => {
@@ -241,5 +273,14 @@ describe("what the dashboard says is waiting", () => {
     const state = (await loadEventState(playersConfirm))!;
     expect(state.reviewing.cards).toBe(0);
     expect(state.pendingConfirmations).toBe(0);
+  });
+
+  it("puts nothing from a casual round up for review — and the same rows in a tournament still are", async () => {
+    const tournament = (await loadEventState(tournamentMatch))!;
+    // The control: without it, an empty queue everywhere would pass.
+    expect(tournament.reviewing.matches, "the tournament's decided match was not queued").toBe(1);
+    const casual = (await loadEventState(casualMatch))!;
+    expect(casual.reviewing.matches, "a casual round's match was put up for review").toBe(0);
+    expect(casual.pendingConfirmations).toBe(0);
   });
 });
