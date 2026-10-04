@@ -182,6 +182,12 @@ export interface CoursePickerProps {
   disabled?: boolean;
   /** Shown under the control — a caller's note about what the choice affects. */
   hint?: string;
+  /**
+   * Off where the screen already says what is wrong with the card in its own,
+   * louder way — the round's venue panel has a "no card yet" block with the
+   * button to fix it, and the same warning twice is noise. Defaults on.
+   */
+  showCardNote?: boolean;
 }
 
 export function CoursePicker({
@@ -195,6 +201,7 @@ export function CoursePicker({
   onEnterNew,
   disabled = false,
   hint,
+  showCardNote = true,
 }: CoursePickerProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -601,7 +608,7 @@ export function CoursePicker({
         </div>
       )}
 
-      {cardNote && !open && (
+      {cardNote && showCardNote && !open && (
         <p
           role="note"
           data-card-note={cardNote.warn ? "warn" : "ok"}

@@ -327,7 +327,9 @@ export function HoleByHoleCard({
           </div>
           <div style={{ textAlign: "right", fontSize: 13.5, lineHeight: 1.7, color: "var(--color-neutral-400)" }}>
             <div>Par <strong style={{ color: "var(--color-text)", fontSize: 16 }}>{par ?? "—"}</strong></div>
-            {yards[hole] != null && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
+            {/* A length of 0 is a card with no yardage on it, not a hole of
+                nought yards — "0 yds" on the first tee reads as a broken card. */}
+            {(yards[hole] ?? 0) > 0 && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
             {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
             {/* Where the hole is cut today, from the committee's pin sheet. */}
             {pins[hole] && (

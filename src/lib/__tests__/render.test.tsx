@@ -5105,8 +5105,9 @@ describe("locked metered features", () => {
     // already on Club was being told it came with the plan it pays for.
     expect(html).toContain("Coming soon");
     expect(html).not.toContain("On the paid plan");
-    // And it says what to do instead, so the screen is still usable.
-    expect(html).toContain("Type the scores in below");
+    // And it says what to do instead, so the screen is still usable — "above",
+    // since it moved below the card it fills (2026-10-04).
+    expect(html).toContain("Type the scores into the card above");
     // The control itself must be gone — a button that does nothing is worse
     // than no button.
     expect(html).not.toContain("Read from a photo");

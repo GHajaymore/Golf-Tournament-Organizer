@@ -47,19 +47,27 @@ describe("pickedCardNote", () => {
     dupe[1] = 7; // hole 2 now shares stroke index 7 with hole 1, and 3 is gone
     const note = pickedCardNote(card({ strokeIndex: JSON.stringify(dupe) }), TODAY);
     expect(note?.warn).toBe(true);
-    expect(note?.text).toContain("looks incomplete");
+    expect(note?.text).toContain("doesn't look right");
     expect(note?.text).toContain("Stroke index 7 used more than once");
 
     const short = pickedCardNote(card({ pars: JSON.stringify(PARS.slice(0, 12)) }), TODAY);
-    expect(short?.text).toContain("looks incomplete");
+    expect(short?.text).toContain("doesn't look right");
     expect(short?.text).toContain("12 holes");
+
+    // Andalusia, walked on 2026-10-04: nearly sorted, eight par 5s in a row.
+    const andalusia = [5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 4];
+    const sorted = pickedCardNote(card({ pars: JSON.stringify(andalusia) }), TODAY);
+    expect(sorted?.warn).toBe(true);
+    expect(sorted?.text).toContain("par 5s in a row");
+    // One instruction, not two stacked.
+    expect(sorted?.text.match(/Check/g)?.length).toBe(1);
   });
 
   it("warns that a complete card nobody at the club has checked is unchecked — not incomplete", () => {
     const note = pickedCardNote(card(), TODAY);
     expect(note).toEqual({ warn: true, text: IMPORTED_UNCHECKED });
     expect(note?.text).toContain("nobody at the club has checked it");
-    expect(note?.text).not.toContain("incomplete");
+    expect(note?.text).not.toContain("doesn't look right");
     expect(pickedCardNote(card({ source: "manual" }), TODAY)?.text).toContain("was typed in");
   });
 

@@ -465,6 +465,31 @@ export function implausibleCard(pars: number[], holes = 18): string | null {
     }
   }
 
+  /**
+   * FOUR PAR 5s IN A ROW — the sorted card that is not QUITE sorted.
+   *
+   * Andalusia Country Club came out of the directory as
+   * 5,5,5,5,5,5,5,5,4 | 4,4,4,4,3,3,3,3,4: eight par 5s, then the 4s, then the
+   * 3s, with a stray 4 at the end of each nine. Nearly every hole in
+   * descending order, so wrong on nearly every hole, and the check above let it
+   * through because two holes break the run. Walked into a casual round on
+   * 2026-10-04, it scored a front nine of par 44.
+   *
+   * MEASURED, READ-ONLY, BEFORE IT WAS WRITTEN (CLAUDE.md, "Course cards"):
+   * across the 102 stored cards that day the longest run of consecutive par 5s
+   * was 0-2 on 97, 3 on four, and 8 on one — Andalusia. Three in a row is
+   * real (Casper Municipal's routings have it), so three stays allowed; four
+   * refused exactly the one broken card and nothing else. Par 5s only: a run of
+   * par 3s is an executive course and a run of 4s is most courses.
+   */
+  let fives = 0;
+  for (const p of pars) {
+    fives = p === 5 ? fives + 1 : 0;
+    if (fives >= 4) {
+      return "These pars have four or more par 5s in a row, which no course is laid out as — they look sorted rather than in hole order. Check they are listed as the course is played.";
+    }
+  }
+
   return null;
 }
 

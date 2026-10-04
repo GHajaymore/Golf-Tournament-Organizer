@@ -215,6 +215,17 @@ export function RoundVenue({
    */
   const editHref = venue ? `/event?course=${encodeURIComponent(venue.courseId)}` : "/event";
 
+  const pickable = [...venues, ...library.filter((c) => !venues.some((v) => v.id === c.id))];
+  /**
+   * WHAT THE PICKER IS ALREADY SAYING ABOUT THIS CARD, so this panel does not
+   * say it again (walked at 393px on 2026-10-04: two warnings about one card,
+   * stacked above the first hole). The picker speaks only for a course it has
+   * CHOSEN — an inherited venue leaves it silent, and then the panel's own
+   * sentence is the only one.
+   */
+  const pickerNote =
+    courseId && !missingCard && !noVenue ? pickable.find((c) => c.id === courseId)?.cardNote ?? null : null;
+
   /**
    * The sets belonging to the course this round actually resolves to.
    *
@@ -268,12 +279,11 @@ export function RoundVenue({
           /* The tournament's own venues first, then the rest of the club's
              library — same list, in the order a round is most likely to
              want. Deduped, because a venue is in both. */
-          options={[
-            ...venues,
-            ...library.filter((c) => !venues.some((v) => v.id === c.id)),
-          ]}
+          options={pickable}
           value={courseId}
           disabled={pending}
+          // The "no card yet" block below says it louder, with the fix.
+          showCardNote={!missingCard && !noVenue}
           // Empty means inherit, and the label names what that resolves to,
           // so a blank is never presented as "nowhere".
           noneLabel={venue ? `${venue.name} (inherited)` : "Not set"}
@@ -306,7 +316,9 @@ export function RoundVenue({
           <span className="text-muted">Tees</span>
           <select
             className="input"
-            style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+            // Room for the arrow: "Blue (as set up)" was clipped to "Blue
+            // (as set u" under it at 393px. 44px tall for a thumb.
+            style={{ width: "auto", minWidth: 0, maxWidth: "100%", fontSize: 13, padding: "6px 30px 6px 10px", minHeight: 44 }}
             value={teeId}
             disabled={pending}
             onChange={(e) => setTee(e.target.value)}
@@ -404,6 +416,16 @@ export function RoundVenue({
             <Icon name="note-pencil" /> Enter this course&rsquo;s card
           </Link>
         </>
+      ) : pickerNote ? (
+        // The picker has said what is wrong (or that it was checked). Only the
+        // way to fix it is left to add, and only when there is something to fix.
+        pickerNote.warn &&
+        venue && (
+          <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+            <Link href={editHref}>Correct {venue.name}&rsquo;s card</Link> — it is stored once, for
+            every round played there.
+          </p>
+        )
       ) : (
         venue && (
           // The card is right there in the grid below — par and S.I. on their

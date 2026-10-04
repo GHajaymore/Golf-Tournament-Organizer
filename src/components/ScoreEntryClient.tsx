@@ -1512,13 +1512,18 @@ export function ScoreEntryClient({
                   <tbody>
                     {hasCourseData && (
                       <>
-                        <tr className="sc-ref">
-                          <td>{distance.row}</td>
-                          {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
-                          {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
-                          {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
-                          {isEighteen && <td className="sc-tot">{sum(yards, 9, totalHoles)}</td>}
-                        </tr>
+                        {/* Only when the card HAS lengths — the same rule as
+                            ScorecardTable's `hasYards`. A card imported without
+                            yardage drew a row of noughts totalling 0. */}
+                        {yards.some((y) => typeof y === "number" && y > 0) && (
+                          <tr className="sc-ref">
+                            <td>{distance.row}</td>
+                            {front.map((i) => (<td key={i}>{yards[i] || "-"}</td>))}
+                            {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
+                            {back.map((i) => (<td key={i}>{yards[i] || "-"}</td>))}
+                            {isEighteen && <td className="sc-tot">{sum(yards, 9, totalHoles)}</td>}
+                          </tr>
+                        )}
                         <tr className="sc-ref sc-par">
                           <td>Par</td>
                           {front.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}

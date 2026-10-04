@@ -41,6 +41,34 @@ describe("pars in sorted order rather than hole order", () => {
   });
 });
 
+describe("four par 5s in a row — sorted, but not quite (2026-10-04)", () => {
+  /** Andalusia Country Club, as the directory returned it. */
+  const ANDALUSIA = [5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 4];
+
+  it("catches the card the strict sorted check let through", () => {
+    // Par 76 — inside the total bound — and not monotonic because of the two
+    // stray 4s, which is exactly why it got past.
+    expect(ANDALUSIA.reduce((a, b) => a + b, 0)).toBe(76);
+    expect(implausibleCard(ANDALUSIA)).toContain("four or more par 5s in a row");
+    expect(cardRefusal(ANDALUSIA, [], SI)).toContain("four or more par 5s in a row");
+  });
+
+  it("refuses at four, on a nine as well", () => {
+    expect(implausibleCard([4, 5, 5, 5, 5, 4, 3, 4, 3], 9)).toContain("par 5s in a row");
+  });
+
+  it("leaves three in a row alone — real routings have it (measured: Casper Municipal)", () => {
+    // Both are real cards from the catalogue, each with three par 5s in a row.
+    expect(implausibleCard([5, 4, 3, 5, 5, 5, 4, 3, 3, 4, 4, 4, 5, 3, 4, 5, 4, 3])).toBeNull();
+    expect(implausibleCard([4, 3, 4, 5, 5, 4, 3, 4, 3, 5, 4, 3, 5, 5, 5, 4, 3, 3])).toBeNull();
+  });
+
+  it("leaves long runs of par 3s and par 4s alone — an executive course, most courses", () => {
+    expect(implausibleCard([3, 3, 3, 3, 3, 3, 3, 4, 3], 9)).toBeNull();
+    expect(implausibleCard([4, 4, 4, 4, 4, 4, 3, 4, 5, 4, 4, 4, 4, 4, 3, 5, 4, 4])).toBeNull();
+  });
+});
+
 describe("a par total nobody plays", () => {
   it("catches 79, which is in the catalogue", () => {
     const p79 = [5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4, 4, 4, 4];

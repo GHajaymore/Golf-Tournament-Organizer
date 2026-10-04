@@ -137,7 +137,7 @@ export function CardPhotoReader({
   // this that makes somebody give up on the product rather than buy it.
   if (!available) {
     return (
-      <LockedFeature feature="cardScan" insteadOf="Type the scores in below as usual." />
+      <LockedFeature feature="cardScan" insteadOf="Type the scores into the card above as usual." />
     );
   }
 
