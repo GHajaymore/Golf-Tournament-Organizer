@@ -163,7 +163,20 @@ async function store(id: string, payload: unknown, country: string): Promise<"ca
     : {};
   // Create, not upsert: the walk only ever fetches a course it does not hold
   // (see `known` below), so there is no stored card here to protect.
-  await prisma.courseCatalog.create({ data: { id, ...base, ...card } });
+  try {
+    await prisma.courseCatalog.create({ data: { id, ...base, ...card } });
+  } catch (e) {
+    /**
+     * SOMETHING ELSE STORED IT FIRST (2026-10-04). `known` is read a moment
+     * before this write, and anything else filling the catalogue — a bulk
+     * import, a second run — can land the same id in between. Then the row
+     * exists, which is all this wanted; failing the whole night's run over it
+     * would throw away every course after it. Counted as a skip, and whatever
+     * is stored is left exactly as it is.
+     */
+    if ((e as { code?: string })?.code === "P2002") return "skip";
+    throw e;
+  }
   return usable ? "card" : "no-card";
 }
 
