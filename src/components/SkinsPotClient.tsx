@@ -94,7 +94,14 @@ export function SkinsPotClient({
 }) {
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
-  const { plain: money, parse: parseBuyIn } = useMoney();
+  /**
+   * `money` here is the PLAIN figure, for the input and the table's columns;
+   * `withSymbol` is for the sentences. The columns carried no currency at all
+   * and the labels did not name it either, so a casual round's "5.00" said
+   * nothing about which money (Ajay, 2026-10-04). The headings carry the
+   * symbol now, and the pot and settle-up lines read in full.
+   */
+  const { plain: money, money: withSymbol, symbol, parse: parseBuyIn } = useMoney();
   const { pending, error, run } = useAction();
   // One per game on the screen, so each game's captions name its own boxes.
   const fid = useId();
@@ -220,7 +227,7 @@ export function SkinsPotClient({
       {/* ── Setup ─────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ width: 120 }}>
-          <label htmlFor={`${fid}-buyin`}>Buy-in</label>
+          <label htmlFor={`${fid}-buyin`}>Buy-in ({symbol})</label>
           <input id={`${fid}-buyin`} className="input" inputMode="decimal" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
         </div>
         {/* What was agreed instead of money, shown where the money would be.
@@ -384,9 +391,9 @@ export function SkinsPotClient({
               </>
             ) : (
               <>
-                {view.entrantIds.length} × {money(view.buyInCents)}
+                {view.entrantIds.length} × {withSymbol(view.buyInCents)}
                 ={" "}
-                <b style={{ color: "var(--color-text)" }}>{money(r.potCents)}</b> over{" "}
+                <b style={{ color: "var(--color-text)" }}>{withSymbol(r.potCents)}</b> over{" "}
                 {r.claimedSkins + r.unclaimedSkins} skins
                 {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}.
                 {/* WHAT THE UNCLAIMED ONES DO, because the reader can do the
@@ -429,9 +436,9 @@ export function SkinsPotClient({
                   <th style={{ textAlign: "center" }}>Skins</th>
                   {/* Three columns of zeroes is worse than no columns: it
                       reads as a settled game in which nobody won anything. */}
-                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Won</th>}
-                  {!forSomethingElse && <th style={{ textAlign: "right" }}>In</th>}
-                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Net</th>}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Won ({symbol})</th>}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>In ({symbol})</th>}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Net ({symbol})</th>}
                 </tr>
               </thead>
               <tbody>
@@ -509,7 +516,7 @@ export function SkinsPotClient({
             {view.transfers.map((t, i) => (
               <li key={i}>
                 {name(t.fromPlayerId)} pays {name(t.toPlayerId)}{" "}
-                <b style={{ fontVariantNumeric: "tabular-nums" }}>{money(t.cents)}</b>
+                <b style={{ fontVariantNumeric: "tabular-nums" }}>{withSymbol(t.cents)}</b>
               </li>
             ))}
           </ul>

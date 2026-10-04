@@ -1,6 +1,19 @@
 import { editionFor } from "@/lib/landing/edition";
 import { countryCode } from "./country";
-import { isCurrencyCode } from "./money-format";
+import { isCurrencyCode, minorUnitDigits } from "./money-format";
+
+/**
+ * A typed stake as minor units of THIS currency: "5" is 500 cents, but ¥500 is
+ * 500 — a yen has no minor unit, and multiplying by a hundred stored a fiver of
+ * yen as fifty thousand. 0 for anything that is not a positive amount, which
+ * `planMatch` then refuses by name if a game was chosen.
+ */
+export function stakeMinorUnits(typed: string, currency: string): number {
+  // A minus is not a stake. Stripping it with the symbols turned "-3" into 3.
+  if ((typed ?? "").trim().startsWith("-")) return 0;
+  const n = Number((typed ?? "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 10 ** minorUnitDigits(currency)) : 0;
+}
 
 /**
  * A CASUAL ROUND'S CURRENCY, FROM WHERE IT IS BEING SET UP (Ajay, 2026-10-04:

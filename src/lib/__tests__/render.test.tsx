@@ -5586,8 +5586,10 @@ describe("side bets", () => {
         // Three columns of zeroes reads as a settled game nobody won anything
         // in, which is a different and wrong statement.
         const html = await skins();
-        expect(html).not.toContain(">Won<");
-        expect(html).not.toContain(">Net<");
+        // ">Won" with no closing bracket: the heading carries the currency
+        // ("Won ($)") since 2026-10-04, and neither form may appear here.
+        expect(html).not.toContain(">Won");
+        expect(html).not.toContain(">Net");
       });
 
       it("while a pot with cash in it keeps all of them", async () => {
@@ -5607,8 +5609,11 @@ describe("side bets", () => {
             ],
           },
         });
-        expect(html).toContain(">Won<");
-        expect(html).toContain(">Net<");
+        // The columns, each naming its currency.
+        expect(html).toMatch(/>Won \((<!-- -->)?\$/);
+        expect(html).toMatch(/>Net \((<!-- -->)?\$/);
+        // And the pot line reads in full, symbol and all.
+        expect(html).toContain("$10.00");
         expect(html).not.toContain("no money on");
       });
 
