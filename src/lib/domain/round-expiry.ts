@@ -104,6 +104,20 @@ export function hoursLeft(
 export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: string | null = null): string {
   if (hours === null) return "";
   /**
+   * SOMEBODY WHO CANNOT KEEP IT IS NOT SOLD AN UPGRADE (2026-10-04). The branch
+   * below pitches the plan, which is the right remedy for the person who set
+   * the round up and the wrong one for a partner who joined by its code: walked
+   * at 393px, their own scorecard opened on "Upgrade to Birdie to keep it for
+   * good" — a plan for a club they do not have, on a round they did not make.
+   * Their remedy is the person who can, whatever that person then has to do.
+   */
+  if (!canKeep) {
+    const ask = "Ask whoever set it up if you want the scores kept.";
+    return hours <= 0
+      ? `This round has passed its day and will be deleted shortly. ${ask}`
+      : `This round is temporary — it's deleted about a day after it was set up. ${ask}`;
+  }
+  /**
    * AND NOBODY IS TOLD TO KEEP A ROUND THAT CANNOT BE KEPT (2026-09-29). On the
    * Par terms a casual round keeps its 24 hours — `casualKeepRefusal` — so both
    * remedies below would be instructions that fail when followed. The remedy

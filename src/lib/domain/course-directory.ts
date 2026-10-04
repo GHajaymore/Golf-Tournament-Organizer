@@ -174,6 +174,35 @@ function withoutPhantomHoles(sorted: Array<Record<string, unknown>>): Array<Reco
  * failed — the organizer's next move is the paste box or typing the card, and
  * neither is helped by "import failed".
  */
+/**
+ * WHETHER THE CATALOGUE KEEPS A CARD — the one judgement, for the import AND
+ * for re-judging what is already stored.
+ *
+ * Two copies of it had come apart (found 2026-10-04 by the catalogue rebuild):
+ * `cardFrom` accepts a card with good pars and NO stroke index, deliberately
+ * since 2026-09-19 (see `cardProblems`'s `allowMissingIndex`), while the
+ * importer's `--revalidate` asked the stricter `cardRefusal`, which refuses
+ * every such card ("Stroke index 0 used more than once"). So re-judging the
+ * catalogue would have blanked 34 cards the import had just judged good. A
+ * re-check must ask exactly what the check asked.
+ *
+ * Pars and stroke index only; yardage is optional and nothing scores off it.
+ */
+export function catalogueRefusal(pars: number[], strokeIndex: number[], holes: 9 | 18): string | null {
+  const problems = cardProblems({ pars, strokeIndex }, holes, true);
+  if (problems.length > 0) return problems[0];
+  /**
+   * The shape checks, from the one place that holds them.
+   *
+   * These lived here, which meant they guarded the directory import and
+   * nothing else: the same scrambled card pasted in by hand was accepted
+   * without complaint. They now sit in `scorecard-parse.ts`, where every way a
+   * card enters this app goes past them — typed, pasted, imported, or read off
+   * a photograph.
+   */
+  return implausibleCard(pars, holes);
+}
+
 export function cardFrom(holes: unknown): DirectoryCard {
   const rows = Array.isArray(holes) ? holes : [];
   /**
@@ -242,20 +271,8 @@ export function cardFrom(holes: unknown): DirectoryCard {
    * golf. Storing an index that is wrong is far worse than storing none — the
    * shots land on the wrong holes and nothing says so.
    */
-  const problems = cardProblems({ pars, strokeIndex }, holeCount, true);
-  if (problems.length > 0) return { usable: false, reason: problems[0] };
-
-  /**
-   * The shape checks, from the one place that holds them.
-   *
-   * These lived here, which meant they guarded the directory import and
-   * nothing else: the same scrambled card pasted in by hand was accepted
-   * without complaint. They now sit in `scorecard-parse.ts`, where every way a
-   * card enters this app goes past them — typed, pasted, imported, or read off
-   * a photograph.
-   */
-  const shape = implausibleCard(pars, holeCount);
-  if (shape) return { usable: false, reason: shape };
+  const refusal = catalogueRefusal(pars, strokeIndex, holeCount);
+  if (refusal) return { usable: false, reason: refusal };
 
   /**
    * The directory's own stated par is NOT checked against the card.

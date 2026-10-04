@@ -301,9 +301,16 @@ export default async function PlayCardPage() {
     : [];
 
   const alloc = allocationHoles(holes);
-  const shots = Array.from({ length: holes }, (_, i) =>
-    known ? holeStrokesReceived(playing, card.strokeIndex[i] ?? 18, alloc) : 0,
-  );
+  /** One player's shots per hole, off the same chain as the holder's own. */
+  const shotsFor = (playerId: string) => {
+    const hcp = playerId === me.playerId ? playing : state.strokeHandicapFor(playerId, me.round!.stageId);
+    return Array.from({ length: holes }, (_, i) =>
+      known ? holeStrokesReceived(hcp, card.strokeIndex[i] ?? 18, alloc) : 0,
+    );
+  };
+  const shots = shotsFor(me.playerId);
+  // The partners' too, for the marker keeping the group's card.
+  const partnersWithShots = partners.map((p) => ({ ...p, shots: shotsFor(p.id) }));
 
   return (
     // The card's distances in THIS course's unit — see DistanceUnitProvider.
@@ -374,7 +381,7 @@ export default async function PlayCardPage() {
        * before you sign." for the whole round.
        */
       savePartial={mayReportPartialCard(settings, session.role)}
-      partners={partners}
+      partners={partnersWithShots}
       startHole={me.round.group?.startHole ?? 1}
     />
     {/* WHAT THIS CARD'S NET SCORE WAS WORKED OUT FROM (2026-09-19). The pars

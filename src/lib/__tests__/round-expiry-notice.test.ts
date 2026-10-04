@@ -108,16 +108,31 @@ describe("where the warning renders", () => {
 describe("a round the plan will not let anybody keep", () => {
   const refusal = "On the free Par plan a casual round is kept for 24 hours. Upgrade to Birdie to keep it for good.";
 
-  it("names the upgrade, to staff and player alike, and never the button", () => {
-    for (const canKeep of [true, false]) {
-      const s = expiryNotice(6, canKeep, refusal);
-      expect(s).toContain("Upgrade to Birdie");
-      expect(s).not.toContain("Keep it to hold on to");
-      expect(s).not.toContain("Ask whoever set it up");
-      // Still warned — the half that must never be hidden.
-      expect(s).toContain("deleted");
-    }
+  it("names the upgrade to whoever set it up, and never the button", () => {
+    const s = expiryNotice(6, true, refusal);
+    expect(s).toContain("Upgrade to Birdie");
+    expect(s).not.toContain("Keep it to hold on to");
+    expect(s).toContain("deleted");
     expect(expiryNotice(0, true, refusal)).toContain("passed its day");
+  });
+
+  it("tells a partner who joined by its code to ask, and sells them no plan (2026-10-04)", () => {
+    /**
+     * This said "Upgrade to Birdie" to the player as well, and was right that
+     * "Ask whoever set it up TO KEEP IT" was an instruction `keepRound` refuses
+     * on Par. The line now promises no button: it names the person, who is the
+     * one shown the upgrade. A partner on their own scorecard was being sold a
+     * club plan for a round they did not make.
+     */
+    for (const hours of [6, 0]) {
+      const s = expiryNotice(hours, false, refusal);
+      expect(s).not.toContain("Upgrade");
+      expect(s).not.toContain("Birdie");
+      expect(s).not.toContain("to keep it");
+      expect(s).toContain("Ask whoever set it up if you want the scores kept.");
+      // Still warned — the half that must never be hidden.
+      expect(s).toMatch(/deleted/);
+    }
   });
 
   it("CONTROL: with no refusal the wording is exactly as before", () => {
