@@ -3,6 +3,7 @@ import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
 import { pickedCardNote } from "@/lib/domain/picked-card";
+import { casualCardGroups } from "@/lib/domain/casual-card-groups";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { distanceUnitFor } from "@/lib/services/round-card";
 import { cardBrand } from "@/lib/services/organization";
@@ -785,11 +786,17 @@ export default async function EntryPage() {
            * they saved. An organizer needs the draft here, because grouping
            * the card is what they are doing; a player does not.
            */
-          teeGroups: ((isStaff || stage.teeSheetPublished ? parseTeeSheet(stage.teeSheet)?.groups : []) ?? []).map((g) => ({
-            name: g.name,
-            time: g.time,
-            playerIds: g.playerIds,
-          })),
+          teeGroups: (() => {
+            const sheet = ((isStaff || stage.teeSheetPublished ? parseTeeSheet(stage.teeSheet)?.groups : []) ?? []).map(
+              (g) => ({ name: g.name, time: g.time, playerIds: g.playerIds }),
+            );
+            // A casual round has no tee sheet, and without one entry scored a
+            // single player at a time. Its players are the card — see
+            // `casualCardGroups`. Staff only, as the sheet's draft is.
+            return sheet.length === 0 && casualRound && isStaff
+              ? casualCardGroups(state.confirmed.map((p) => p.id))
+              : sheet;
+          })(),
           // Strokes received per hole, allocated on the server from the real
           // course handicap and this round's allowance — the same numbers the
           // scoring engine uses, so the dots on the card cannot disagree with

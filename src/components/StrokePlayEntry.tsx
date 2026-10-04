@@ -482,32 +482,6 @@ export function StrokePlayEntry({
           cannot drift into four different promises — see `MicNote`. */}
       <MicNote style={{ marginTop: 6 }} />
 
-      {/* Beside the mic because it answers the same question — how do I get
-          this card in without typing it. Both fill the grid below and neither
-          saves; the organizer's own submit is still what writes anything. */}
-      {cardPlayers.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <CardPhotoReader
-            available={cardScanAvailable}
-            stageId={stageId}
-            players={cardPlayers}
-            holeCount={holes}
-            onReading={(rows) =>
-              setCards((prev) => {
-                const next = { ...prev };
-                for (const { playerId: id, strokes } of rows) {
-                  // Merge rather than replace: a hole the reader could not
-                  // make out must not wipe a score already typed in by hand.
-                  const current = next[id] ?? new Array(holes).fill(null);
-                  next[id] = current.map((existing, i) => strokes[i] ?? existing ?? null);
-                }
-                return next;
-              })
-            }
-          />
-        </div>
-      )}
-
       {/* Two windows onto one card. The grid is for a desk and a stack of
           returned cards; the hole view is for a phone on the course. Both write
           to the same state, so switching never loses a score. */}
@@ -611,6 +585,37 @@ export function StrokePlayEntry({
           <Icon name="check" /> Save scorecard
         </button>
       </div>
+
+      {/* Another way to get a card in without typing it. It fills the grid
+          above and does not save; the submit is still what writes anything.
+
+          BELOW the card, not above it (2026-10-04). Walked at 393px it sat
+          between a player on the first tee and hole 1's buttons — a locked
+          "coming soon" panel taking most of a screen of scrolling on every
+          visit. A returned card photographed at the desk is read after the
+          round, so here is where it is reached for anyway. */}
+      {cardPlayers.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <CardPhotoReader
+            available={cardScanAvailable}
+            stageId={stageId}
+            players={cardPlayers}
+            holeCount={holes}
+            onReading={(rows) =>
+              setCards((prev) => {
+                const next = { ...prev };
+                for (const { playerId: id, strokes } of rows) {
+                  // Merge rather than replace: a hole the reader could not
+                  // make out must not wipe a score already typed in by hand.
+                  const current = next[id] ?? new Array(holes).fill(null);
+                  next[id] = current.map((existing, i) => strokes[i] ?? existing ?? null);
+                }
+                return next;
+              })
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }

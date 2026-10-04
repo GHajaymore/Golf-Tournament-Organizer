@@ -484,9 +484,9 @@ export function ScorecardTable({
             {hasYards && (
               <tr className="sc-ref">
                 <td>{distance.row}</td>
-                {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+                {front.map((i) => (<td key={i}>{yards[i] || "-"}</td>))}
                 {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
-                {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+                {back.map((i) => (<td key={i}>{yards[i] || "-"}</td>))}
                 {isEighteen && <td className="sc-tot">{sum(yards, 9, holes)}</td>}
                 <td className="sc-tot">{sum(yards, 0, holes)}</td>
               </tr>

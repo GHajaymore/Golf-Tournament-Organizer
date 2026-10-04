@@ -76,10 +76,9 @@ export function pickedCardNote(card: StoredCard | null | undefined, today: Date 
       ? `It has ${pars.length} holes on it, not 9 or 18.`
       : cardRefusal(pars, [], si, pars.length);
   if (problem) {
-    return {
-      warn: true,
-      text: `This course's scorecard looks incomplete: ${problem} Check it against the club's own card before scoring on it.`,
-    };
+    // The refusal already says what to check, in its own words — one
+    // instruction, not two stacked ("Check they are listed… Check it against…").
+    return { warn: true, text: `This course's scorecard doesn't look right. ${problem}` };
   }
 
   // The date in `cardTrustNote`'s own form, the same one the round screen and
