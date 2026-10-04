@@ -601,7 +601,12 @@ export function PlayClient(props: Props) {
           </div>
 
           <HoleByHoleCard
-            players={[{ id: "me", name: props.playerName ?? "You" }]}
+            /* WITH THE SHOTS (2026-10-04). The totals above came off
+               `props.shots` and the hole never showed them, so a partner
+               scoring their own net round by its code could not see where
+               their strokes fell — two on the 1st, on the host's card, and
+               nothing on their own. The same numbers, on the hole. */
+            players={[{ id: "me", name: props.playerName ?? "You", shotsOn: (h: number) => props.shots?.[h] ?? 0 }]}
             cards={{ me: card }}
             pars={pars}
             yards={props.yards ?? []}

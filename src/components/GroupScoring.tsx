@@ -11,6 +11,11 @@ export interface GroupPartner {
   name: string;
   strokes: (number | null)[];
   revision: string;
+  /**
+   * Handicap strokes per hole for THIS partner, resolved on the server the
+   * same way as the holder's own. Absent means none to show.
+   */
+  shots?: number[];
 }
 
 /**
@@ -113,7 +118,9 @@ export function GroupScoring({
       ))}
 
       <HoleByHoleCard
-        players={[me, ...partners.map((p) => ({ id: p.id, name: p.name }))]}
+        // Each partner's shots on their own row, as the holder's are on theirs:
+        // the marker keeping a net card has to see who gets a stroke here.
+        players={[me, ...partners.map((p) => ({ id: p.id, name: p.name, shotsOn: (h: number) => p.shots?.[h] ?? 0 }))]}
         cards={{ [me.id]: myStrokes, ...cards }}
         pars={pars}
         yards={yards}
