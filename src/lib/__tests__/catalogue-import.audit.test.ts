@@ -170,6 +170,32 @@ describe("a day's slice of the directory", () => {
   });
 });
 
+describe("another writer landing the same course in between", () => {
+  it("is a skip, not a failed night — and what the other writer stored is left alone", async () => {
+    /**
+     * `known` is read, then each course is fetched and created. A bulk import
+     * (or a second run) can store the same id inside that gap. The fake
+     * directory does exactly that, for one course, the moment it is asked for
+     * it.
+     */
+    const dir = directory(3);
+    const raced = dir.ids[1];
+    const fetchJson = async (path: string) => {
+      if (path.endsWith(encodeURIComponent(raced))) {
+        await prisma.courseCatalog.create({ data: { id: raced, name: "zz-stored-by-someone-else" } });
+      }
+      return dir.fetchJson(path);
+    };
+    const r = await importCatalogueSlice({ budget: 10, deadline: later(), fetchJson, sleep: noSleep, cursorKey: KEY, states: STATES });
+    expect(r.fetched).toBe(3);
+    expect(r.skipped).toBe(1);
+    expect(r.stopped).toBe("end");
+    // The other writer's row, untouched; the other two stored normally.
+    expect((await prisma.courseCatalog.findUnique({ where: { id: raced } }))?.name).toBe("zz-stored-by-someone-else");
+    expect(await prisma.courseCatalog.count({ where: { id: { startsWith: MARK } } })).toBe(3);
+  });
+});
+
 describe("who may run it", () => {
   const original = process.env.CRON_SECRET;
   const ask = (headers: Record<string, string> = {}) =>

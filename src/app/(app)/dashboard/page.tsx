@@ -316,26 +316,60 @@ export default async function DashboardPage() {
    * Only when the round really is one singles match — a four-ball's sides and
    * every tournament keep the table, which is there to compare a field.
    */
-  const oneMatchLine = (() => {
-    if (!casualMatch) return "";
+  /**
+   * AND A CASUAL FOUR-BALL TOO (2026-10-04) — two SIDES, one match, the same
+   * one line: "Third & Fourth won 6&5". It pointed at another screen instead
+   * ("the standings rank the sides — they're on the Live leaderboard"), on a
+   * round with exactly one result to state. The match row carries the
+   * hole-by-hole the cards were derived into, so the line reads the same holes
+   * the board does; the sides are named by their own names.
+   */
+  const oneMatch = (() => {
+    if (!casualMatch) return null;
     const here = state.matches.filter((m) => m.stageId === state.boardStage?.id);
-    const only = here.length === 1 ? here[0] : null;
-    if (!only || !only.playerAId || !only.playerBId) return "";
+    return here.length === 1 ? here[0] : null;
+  })();
+  const sideNames =
+    oneMatch && !oneMatch.playerAId && oneMatch.teamAId && oneMatch.teamBId
+      ? new Map(
+          (
+            await prisma.team.findMany({
+              where: { id: { in: [oneMatch.teamAId, oneMatch.teamBId] }, eventId: state.event.id },
+              select: { id: true, name: true },
+            })
+          ).map((t) => [t.id, t.name]),
+        )
+      : null;
+  const oneMatchLine = (() => {
+    if (!oneMatch) return "";
+    const singles = !!oneMatch.playerAId && !!oneMatch.playerBId;
+    const sides = !!sideNames && sideNames.has(oneMatch.teamAId) && sideNames.has(oneMatch.teamBId);
+    if (!singles && !sides) return "";
     const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "";
     let holes: HoleResult[] = [];
     try {
-      holes = JSON.parse(only.holes) as HoleResult[];
+      holes = JSON.parse(oneMatch.holes) as HoleResult[];
     } catch {
       return "";
     }
-    return matchLine({
-      aId: only.playerAId,
-      bId: only.playerBId,
-      aName: nameOf(only.playerAId),
-      bName: nameOf(only.playerBId),
-      holes,
-      forfeitedBy: only.forfeitedBy ?? "",
-    });
+    return singles
+      ? matchLine({
+          aId: oneMatch.playerAId,
+          bId: oneMatch.playerBId,
+          aName: nameOf(oneMatch.playerAId),
+          bName: nameOf(oneMatch.playerBId),
+          holes,
+          forfeitedBy: oneMatch.forfeitedBy ?? "",
+        })
+      : matchLine({
+          // A team match cannot be forfeited (`forfeitMatch` refuses a side),
+          // so the card is the whole answer.
+          aId: oneMatch.teamAId,
+          bId: oneMatch.teamBId,
+          aName: sideNames!.get(oneMatch.teamAId) ?? "",
+          bName: sideNames!.get(oneMatch.teamBId) ?? "",
+          holes,
+        });
   })();
 
   // Counted over the rounds the field plays, not over the Round Robins: those
