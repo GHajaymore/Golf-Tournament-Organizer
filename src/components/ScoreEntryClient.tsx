@@ -16,6 +16,7 @@ import { useFormatting } from "@/components/CurrencyProvider";
 import { useDistanceWords } from "@/components/DistanceUnitProvider";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
+import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { ScoreCell } from "@/components/ScorecardTable";
@@ -327,6 +328,23 @@ export function ScoreEntryClient({
    */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  /**
+   * THE FULL SCORECARD ONE HOLE AT A TIME, ON A PHONE (2026-10-04).
+   *
+   * A match with skins on it needs every stroke, so its only entry was an
+   * eighteen-column grid — at 393px, holes 1 to 5 visible, small boxes, scroll
+   * sideways to find the hole you are standing on. A stroke round has had the
+   * hole-by-hole card for this since it was built: big targets, both players on
+   * the hole. Same card here, writing through the same `applyStroke` the grid
+   * does, so the match, the derived holes and the save are untouched.
+   *
+   * Server-rendered as the grid and switched on mount, for the hydration reason
+   * StrokePlayEntry gives.
+   */
+  const [cardView, setCardView] = useState<"hole" | "card">("card");
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setCardView("hole");
+  }, []);
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
   );
@@ -1624,6 +1642,40 @@ export function ScoreEntryClient({
                   ? "Enter each player's gross strokes per hole — the net winner (after handicap strokes, marked •) is worked out automatically."
                   : "Enter each player's gross strokes per hole — the lower score wins each hole, straight up."}
               </p>
+              {/* Two windows onto one card, as on a stroke round. */}
+              <div style={{ display: "flex", gap: 6, margin: "0 0 12px" }}>
+                {(["hole", "card"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setCardView(v)}
+                    aria-pressed={cardView === v}
+                    style={
+                      cardView === v
+                        ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
+                        : { fontSize: 12.5 }
+                    }
+                  >
+                    <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} /> {v === "hole" ? "Hole by hole" : "Full card"}
+                  </button>
+                ))}
+              </div>
+              {cardView === "hole" ? (
+                <HoleByHoleCard
+                  players={[
+                    { id: "A", name: aLabel, shotsOn: (h: number) => strokesGiven.toA[h] ?? 0 },
+                    { id: "B", name: bLabel, shotsOn: (h: number) => strokesGiven.toB[h] ?? 0 },
+                  ]}
+                  cards={{ A: aStrokes, B: bStrokes }}
+                  pars={pars}
+                  yards={yards}
+                  strokeIndex={strokeIndex}
+                  holes={totalHoles}
+                  firstHole={firstHole}
+                  onSet={(pid, i, v) => applyStroke(pid === "A" ? "A" : "B", i, v)}
+                />
+              ) : (
               <div className="sc-wrap">
                 <table className="sc" style={{ minWidth: isEighteen ? 940 : 540 }}>
                   <thead>
@@ -1786,13 +1838,17 @@ export function ScoreEntryClient({
                   </tbody>
                 </table>
               </div>
+              )}
               {/* The prompt for THIS mic, which dictates strokes. See
                   `listenHint`: the shared default used to advertise the
                   final-result panel's phrasing on a screen that cannot hear
                   it. */}
-              <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-                {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
-              </p>
+              {/* Only beside the grid, where those mics are. */}
+              {cardView === "card" && (
+                <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                  {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
+                </p>
+              )}
             </div>
           )}
 

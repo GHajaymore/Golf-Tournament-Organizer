@@ -2,6 +2,8 @@ import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { roundLabel, roundNameFor, roundNumber } from "@/lib/domain/round-label";
 import { reviewQueueDetail } from "@/lib/domain/review-queue";
+import { matchLine } from "@/lib/domain/match-line";
+import type { HoleResult } from "@/lib/domain/types";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { StatCard, FactCard } from "@/components/PageHeader";
@@ -307,6 +309,34 @@ export default async function DashboardPage() {
    * shows and hides — which is the question `shape` genuinely answers.
    */
   const casualMatch = matchEvent && !state.boardIsStroke;
+
+  /**
+   * A ONE-ON-ONE CASUAL MATCH IS SUMMED UP IN ONE LINE, not a points table
+   * (2026-10-04): "Bob won 7&6" where the table said REC 1-0-0 · +7 · PTS 6.5.
+   * Only when the round really is one singles match — a four-ball's sides and
+   * every tournament keep the table, which is there to compare a field.
+   */
+  const oneMatchLine = (() => {
+    if (!casualMatch) return "";
+    const here = state.matches.filter((m) => m.stageId === state.boardStage?.id);
+    const only = here.length === 1 ? here[0] : null;
+    if (!only || !only.playerAId || !only.playerBId) return "";
+    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "";
+    let holes: HoleResult[] = [];
+    try {
+      holes = JSON.parse(only.holes) as HoleResult[];
+    } catch {
+      return "";
+    }
+    return matchLine({
+      aId: only.playerAId,
+      bId: only.playerBId,
+      aName: nameOf(only.playerAId),
+      bName: nameOf(only.playerBId),
+      holes,
+      forfeitedBy: only.forfeitedBy ?? "",
+    });
+  })();
 
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
@@ -1110,6 +1140,14 @@ export default async function DashboardPage() {
                       : "Overall · all flights"}
                   </span>
                 </div>
+                {oneMatchLine ? (
+                  <p
+                    data-match-line
+                    style={{ fontFamily: "var(--font-heading)", fontSize: 22, lineHeight: 1.3, margin: "8px 0 2px", textWrap: "balance" }}
+                  >
+                    {oneMatchLine}
+                  </p>
+                ) : (
                 <LeaderboardTable
                   isStroke={isStroke}
                   /* `boardStage`, like the two props either side of it. All
@@ -1150,6 +1188,7 @@ export default async function DashboardPage() {
                         : "Nothing to rank here yet — the board fills in as scores come back."
                   }
                 />
+                )}
               </>
             ) : (
               <>

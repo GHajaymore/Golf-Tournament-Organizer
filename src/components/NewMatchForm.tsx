@@ -73,6 +73,29 @@ export function scratchNote(names: readonly string[]): string | null {
   return `${who} ${one ? "has" : "have"} no handicap here, so ${one ? "plays" : "play"} off scratch (0). Add it if they have one.`;
 }
 
+/**
+ * The line beside the start button: the ONE step that is left.
+ *
+ * Empty when the red line above (`blocker`) is showing — that line already
+ * names what is left, and on 2026-10-04 this one contradicted it ("2 names,
+ * and you're away" beside a disabled button, two names typed, skins chosen and
+ * no stake).
+ */
+export function startHint(s: {
+  blocker: string;
+  ready: boolean;
+  roundName: string;
+  courseChosen: boolean;
+  formatChosen: boolean;
+  exact: number | null;
+}): string {
+  if (s.blocker) return "";
+  if (s.ready && s.courseChosen) return `Opens the card for ${s.roundName}.`;
+  if (!s.formatChosen) return "Pick what you're playing, then who's in it.";
+  if (!s.ready) return s.exact ? `${s.exact} names, and you're away.` : "Two names is enough to start.";
+  return "Say where you're playing.";
+}
+
 export function NewMatchForm({
   courses,
   myName,
@@ -727,7 +750,9 @@ export function NewMatchForm({
                   aria-label={`Handicap for ${p.name.trim() || `player ${i + 1}`}`}
                   value={p.hcp}
                   onChange={(e) => setPlayer(i, { hcp: e.target.value })}
-                  placeholder="12.4"
+                  // An example, said as one: a grey "12.4" reads as an index
+                  // already filled in, and an empty box here is scratch.
+                  placeholder="e.g. 12.4"
                 />
               </div>
             )}
@@ -855,7 +880,10 @@ export function NewMatchForm({
                   inputMode="decimal"
                   value={stake}
                   onChange={(e) => setStake(e.target.value)}
-                  placeholder="5"
+                  // "e.g.", because a bare grey "5" in the box reads as a stake
+                  // already entered — walked at 393px on 2026-10-04, with the
+                  // start button disabled for the stake that was not there.
+                  placeholder="e.g. 5"
                   aria-label="Stake per player"
                 />
               </div>
@@ -982,15 +1010,19 @@ export function NewMatchForm({
               because it is the one thing somebody arranging a round already
               knows — so naming it before the names would be pedantry, and
               naming it after them is the one step actually left. */}
-          {planned.ok && courseId
-            ? `Opens the card for ${planned.plan.name}.`
-            : !format
-              ? "Pick what you're playing, then who's in it."
-              : !planned.ok
-                ? exact
-                  ? `${exact} names, and you're away.`
-                  : "Two names is enough to start."
-                : "Say where you're playing."}
+          {/* SILENT WHEN THE RED LINE ABOVE HAS SPOKEN (2026-10-04). With
+              skins picked and no stake, the line above said "How much is the
+              skins for?" while this said "2 names, and you're away" beside a
+              disabled button — two names already typed. The blocker is the one
+              thing left, and it is already on the screen. */}
+          {startHint({
+            blocker,
+            ready: planned.ok,
+            roundName: planned.ok ? planned.plan.name : "",
+            courseChosen: !!courseId,
+            formatChosen: !!format,
+            exact,
+          })}
         </span>
       </div>
 
