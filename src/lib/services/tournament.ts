@@ -67,6 +67,7 @@ import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../to
 import { holesPlayed } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
+import { reviewsScores } from "../tournament-shape";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -2283,10 +2284,13 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     select: { key: true, winnerId: true },
   });
   const drawList = bracketDraws(brackets);
-  const reviewing = reviewQueue({
-    ...reviewInput,
-    knockoutReports: tieReports.filter((r) => openTieReport(drawList, r) !== null).length,
-  });
+  // A casual round puts nothing up for review — see `reviewsScores`.
+  const reviewing = reviewsScores(event.shape)
+    ? reviewQueue({
+        ...reviewInput,
+        knockoutReports: tieReports.filter((r) => openTieReport(drawList, r) !== null).length,
+      })
+    : reviewQueue({ matches: [], cards: [], staffApproves, knockoutReports: 0 });
   const pendingConfirmations = reviewing.total;
 
   /**

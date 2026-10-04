@@ -1,6 +1,7 @@
 import { holesPlayed } from "./handicap";
 import { perPlayerPotRefusal } from "./shared-ball";
 import { PLANS } from "../plans";
+import { isCurrencyCode } from "./money-format";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -457,6 +458,14 @@ export interface MatchSetupInput {
    * money; see `QuickMoneyChoice.stakeNote`.
    */
   money?: QuickMoneyChoice | null;
+  /**
+   * The round's currency — the setup screen's local default, or US dollars if
+   * they switched (`local-currency.ts`). Anything that is not a currency the
+   * app can write is ignored rather than refused: this is a public endpoint,
+   * and a bad code must not cost somebody their round. Ignored means the
+   * round follows its organization, which is what every round did before.
+   */
+  currency?: string | null;
 }
 
 export interface PlannedMatchPlayer {
@@ -579,6 +588,8 @@ export interface MatchPlan {
    * made a bet the condition of playing.
    */
   money: PlannedMoney | null;
+  /** `Event.currencyOverride`: a valid code, or "" to follow the organization. */
+  currency: string;
   /**
    * What the round must ask a scorer for, or "" to let the format decide.
    *
@@ -924,6 +935,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
       scoringBasis: input.useHandicaps ? "net" : "gross",
       courseId: (input.courseId ?? "").trim() || null,
       money,
+      currency: isCurrencyCode(input.currency ?? "") ? (input.currency ?? "").trim().toUpperCase() : "",
       /**
        * A card, when the money needs one — and nothing otherwise.
        *

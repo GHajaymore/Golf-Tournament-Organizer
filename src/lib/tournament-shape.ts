@@ -111,6 +111,25 @@ export function isMatch(shape: string | null | undefined): boolean {
   return shapeOf(shape) === "match";
 }
 
+/**
+ * WHETHER ANYBODY REVIEWS THIS ROUND'S SCORES — never, for a casual round.
+ *
+ * Ajay, 2026-10-04: "no review for casual round score cards". A tournament
+ * holds results for a committee or for the opponent to accept, because a field
+ * is compared and a prize is at stake. Friends playing a round have nobody to
+ * accept a card for them: the screen asked them to "Confirm result" or
+ * "Dispute", counted "1 match result to confirm" on their summary, and told a
+ * player certifying their card that "the committee accepts it after that".
+ *
+ * DISPLAY AND QUEUE ONLY, deliberately. Results are not written "confirmed":
+ * a confirmed match refuses to be cleared until reopened, and friends must be
+ * able to correct a mis-tapped score at any time. A casual round's results are
+ * simply never put up for review.
+ */
+export function reviewsScores(shape: string | null | undefined): boolean {
+  return !isMatch(shape);
+}
+
 /** Resolve a stored value, falling back rather than throwing — an unknown
  *  shape must never stop a tournament from opening. */
 export function shapeOf(v: string | null | undefined): TournamentShape {

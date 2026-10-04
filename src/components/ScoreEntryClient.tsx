@@ -255,6 +255,17 @@ const TAG_CLASS: Record<MatchStatusKey, string> = {
  *  between renders and the `useMemo` depending on it can actually memoize. */
 const NO_HOLES: HoleResult[] = [];
 
+/**
+ * The review status a LABEL should read. On a round nobody reviews it is
+ * "confirmed" for display — a finished match reads "Final", never "Awaiting
+ * approval" — while the stored value is untouched, so nothing is locked. A
+ * dispute somebody did raise is still shown as one.
+ */
+export function reviewedStatus(stored: string, reviews: boolean): string {
+  if (reviews || stored === "disputed") return stored;
+  return "confirmed";
+}
+
 function statusOf(holes: HoleResult[], confirmStatus: string): { tag: string; tagClass: string } {
   const key = matchStatusKey({
     complete: resolveMatch(holes).complete,
@@ -282,6 +293,7 @@ export function ScoreEntryClient({
   scoreInput = "",
   courseKnown = true,
   isAdmin = false,
+  reviews = true,
   venues = [],
   openCourse = false,
   courseLibrary = [],
@@ -308,6 +320,13 @@ export function ScoreEntryClient({
   courseKnown?: boolean;
   /** Organizer, as opposed to assistant. Only they may reopen a result. */
   isAdmin?: boolean;
+  /**
+   * Whether a result is put up for review at all — false on a casual round
+   * (`reviewsScores`). Then a finished match reads "Final", and there is no
+   * Confirm, Dispute or Reopen: nobody is there to accept it, and the scores
+   * stay editable because nothing was ever locked.
+   */
+  reviews?: boolean;
   /** Courses this tournament may be played on. More than one turns on the
    *  per-match venue picker. */
   venues?: Array<{ id: string; name: string; cardNote?: PickedCardNote | null }>;
@@ -453,11 +472,11 @@ export function ScoreEntryClient({
           status: matchStatusKey({
             complete: resolveMatch(holes).complete,
             started: holes.some((h) => h !== null),
-            confirmStatus: statusById[m.id] ?? m.status,
+            confirmStatus: reviewedStatus(statusById[m.id] ?? m.status, reviews),
           }),
         };
       }),
-    [matches, holesById, statusById],
+    [matches, holesById, statusById, reviews],
   );
   const counts = useMemo(() => statusCounts(tagged), [tagged]);
   const shown = useMemo(() => filterMatches(tagged, filter), [tagged, filter]);
@@ -1110,7 +1129,7 @@ export function ScoreEntryClient({
           )}
 
           {visible.rows.map((m) => {
-            const st = statusOf(holesById[m.id] ?? m.holes, statusById[m.id] ?? m.status);
+            const st = statusOf(holesById[m.id] ?? m.holes, reviewedStatus(statusById[m.id] ?? m.status, reviews));
             const selected = m.id === selectedId;
             return (
               <button
@@ -1852,7 +1871,9 @@ export function ScoreEntryClient({
             </div>
           )}
 
-          {resolution.complete && (
+          {/* Nothing to draw on a round nobody reviews unless there is a
+              concession to undo — an empty strip otherwise. */}
+          {resolution.complete && (reviews || (isAdmin && !!active.forfeitedBy)) && (
             <div
               style={{
                 display: "flex",
@@ -1866,14 +1887,17 @@ export function ScoreEntryClient({
                 borderRadius: "var(--radius-md)",
               }}
             >
+              {/* No review state on a round nobody reviews — see `reviews`. */}
+              {reviews && (
               <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                 <Icon name="seal-check" style={{ color: "var(--color-accent-200)" }} />
                 <span className={`tag ${CONFIRM_META[activeStatus]?.tag ?? "tag-neutral"}`}>
                   {CONFIRM_META[activeStatus]?.label ?? activeStatus}
                 </span>
               </span>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
-                {activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
+                {reviews && activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
                   <>
                     <button type="button" className="btn btn-secondary" onClick={doDispute}>
                       <Icon name="warning" /> Dispute
@@ -1886,7 +1910,7 @@ export function ScoreEntryClient({
                 {/* Organizer-only: reopening undoes an approval, and the
                     action refuses anyone else. Showing it to assistants would
                     hand them a button that only ever errors. */}
-                {isAdmin && (
+                {isAdmin && reviews && (
                   <button type="button" className="btn btn-secondary" onClick={doReopen}>
                     <Icon name="lock-key-open" /> Reopen
                   </button>

@@ -13,6 +13,8 @@ import {
   STAKE_NOTE_MAX,
 } from "@/lib/domain/quick-match";
 import { PLANS } from "@/lib/plans";
+import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
+import { stakeMinorUnits } from "@/lib/domain/local-currency";
 import { entryModesFor } from "@/lib/domain/match-entry";
 import { sharedBallRound } from "@/lib/domain/shared-ball";
 import { Icon } from "./Icon";
@@ -101,7 +103,13 @@ export function NewMatchForm({
   myName,
   members = [],
   me = null,
+  localCurrency = DEFAULT_CURRENCY,
 }: {
+  /**
+   * The currency of where the round is being set up (`local-currency.ts`).
+   * The stake is in it unless they switch to US dollars.
+   */
+  localCurrency?: string;
   /**
     * The club's own courses.
     *
@@ -244,10 +252,14 @@ export function NewMatchForm({
    * unparseable becomes 0, which `planMatch` then refuses by name if a game
    * was chosen; that is better than guessing at a number that is money.
    */
-  const stakeCents = (() => {
-    const n = Number(stake.replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
-  })();
+  /**
+   * WHICH MONEY THE STAKE IS IN (Ajay, 2026-10-04): where the round is set up,
+   * unless they switch to US dollars. Starts local.
+   */
+  const [currency, setCurrency] = useState(localCurrency);
+
+  // In THIS currency's minor units — see `stakeMinorUnits`.
+  const stakeCents = stakeMinorUnits(stake, currency);
 
   /**
    * The whole money answer, built once so the preview and the submit cannot
@@ -418,6 +430,7 @@ export function NewMatchForm({
         useHandicaps,
         courseId,
         money: moneyChoice,
+        currency,
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");
@@ -872,20 +885,39 @@ export function NewMatchForm({
               </div>
             </div>
             {stakeKind === "money" ? (
-              <div className="field" style={{ maxWidth: 180, marginTop: 10 }}>
-                <label htmlFor="quick-stake">Stake each</label>
-                <input
-                  id="quick-stake"
-                  className="input"
-                  inputMode="decimal"
-                  value={stake}
-                  onChange={(e) => setStake(e.target.value)}
-                  // "e.g.", because a bare grey "5" in the box reads as a stake
-                  // already entered — walked at 393px on 2026-10-04, with the
-                  // start button disabled for the stake that was not there.
-                  placeholder="e.g. 5"
-                  aria-label="Stake per player"
-                />
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                <div className="field" style={{ maxWidth: 180 }}>
+                  {/* The currency on the label, so the figure typed is never
+                      a number in an unknown money. */}
+                  <label htmlFor="quick-stake">
+                    Stake each <span className="text-muted" style={{ fontWeight: 400 }}>({currencySymbol(currency)} {currency})</span>
+                  </label>
+                  <input
+                    id="quick-stake"
+                    className="input"
+                    inputMode="decimal"
+                    value={stake}
+                    onChange={(e) => setStake(e.target.value)}
+                    // "e.g.", because a bare grey "5" in the box reads as a stake
+                    // already entered — walked at 393px on 2026-10-04, with the
+                    // start button disabled for the stake that was not there.
+                    placeholder="e.g. 5"
+                    aria-label="Stake per player"
+                  />
+                </div>
+                {/* LOCAL, OR US DOLLARS — the one switch (Ajay, 2026-10-04).
+                    Only where local is not already dollars: a switch between
+                    one currency and itself is furniture. */}
+                {localCurrency !== DEFAULT_CURRENCY && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} role="group" aria-label="Currency">
+                    <button type="button" {...pill(currency === localCurrency)} onClick={() => setCurrency(localCurrency)}>
+                      {currencySymbol(localCurrency)} {localCurrency}
+                    </button>
+                    <button type="button" {...pill(currency === DEFAULT_CURRENCY)} onClick={() => setCurrency(DEFAULT_CURRENCY)}>
+                      $ US dollars
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="field" style={{ maxWidth: 280, marginTop: 10 }}>

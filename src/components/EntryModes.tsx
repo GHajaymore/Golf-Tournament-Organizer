@@ -465,6 +465,9 @@ export function EntryModes({
           scoreInput={round.scoreInput}
           courseKnown={courseKnown}
           isAdmin={isAdmin}
+          // A casual round's results are never put up for review — the same
+          // rule as `reviewsScores`, which is `!isMatch(shape)`, i.e. `casual`.
+          reviews={!casual}
           venues={venues}
           openCourse={openCourse}
           courseLibrary={courseLibrary}
