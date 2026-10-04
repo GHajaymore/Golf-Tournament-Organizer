@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { checkRateLimit, clearRateLimit } from "../rate-limit";
 import { RATE_LIMITS } from "../domain/rate-limit";
 
@@ -51,9 +52,19 @@ describe("attempts are counted in the database, not in this process", () => {
   it("writes a row that another instance would read", async () => {
     // The whole point of the change. If this row isn't there, every serverless
     // instance is counting on its own and the limit means nothing.
-    const before = await prisma.rateLimitHit.count();
-    await checkRateLimit("round-code", fresh("stored"));
-    expect(await prisma.rateLimitHit.count()).toBe(before + 1);
+    //
+    // Counted by THIS identifier's own key, not the whole table. It counted
+    // every row before and after, and a parallel file pruning its own rows in
+    // between (asking-to-be-let-in deletes "join-request:" hits) moved the
+    // total from 25 to 4 under it — a red gate on 2026-10-04 that was never
+    // about the limiter. The key holds the identifier's sha256, so this asks
+    // for exactly the row the attempt should have written.
+    const id = fresh("stored");
+    const hash = createHash("sha256").update(id.trim().toLowerCase()).digest("hex");
+    const mine = () => prisma.rateLimitHit.count({ where: { key: { contains: hash } } });
+    expect(await mine()).toBe(0);
+    await checkRateLimit("round-code", id);
+    expect(await mine()).toBe(1);
   });
 
   it("refuses the attempt after the limit and keeps refusing", async () => {
