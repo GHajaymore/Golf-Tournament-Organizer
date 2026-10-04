@@ -25,8 +25,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { courseFrom, hitsFrom } from "../src/lib/domain/course-directory";
-import { cardRefusal } from "../src/lib/domain/scorecard-parse";
+import { courseFrom, hitsFrom, catalogueRefusal } from "../src/lib/domain/course-directory";
+import { holesPlayed } from "../src/lib/domain/handicap";
 
 const prisma = new PrismaClient();
 
@@ -223,8 +223,8 @@ async function getJson(path: string): Promise<unknown | null> {
  * eighteen-hole cards stored at par 81 through 85. No golf course plays that;
  * they predate the par-total check.
  *
- * Costs nothing: this reads what is already stored and asks `cardRefusal` the
- * same question every write path asks. A card that fails is BLANKED and the
+ * Costs nothing: this reads what is already stored and asks `catalogueRefusal`
+ * the same question the import asked when it stored it. A card that fails is BLANKED and the
  * reason recorded — the course stays in the catalogue with its name and town,
  * exactly as a course the directory never had a card for does, because the
  * course is still real and still worth finding.
@@ -241,20 +241,23 @@ async function revalidateStored(): Promise<void> {
   let cleared = 0;
   for (const r of rows) {
     const pars = parse(r.pars);
-    /**
-     * Yardage is not judged here at all.
-     *
-     * It is optional, nothing scores off it, and it must never be the reason
-     * a card is thrown away — but `validateCard` range-checks it whenever the
-     * array is non-empty, and a directory that reports a hole as 20 yards
-     * would take the pars and the stroke index down with it. Twice: first for
-     * all-zero yardage, then again for implausible values. The scoring data is
-     * what this is protecting.
-     */
-    const yards: number[] = [];
     const strokeIndex = parse(r.strokeIndex);
     if (!pars.length) continue;
-    const refusal = cardRefusal(pars, yards, strokeIndex, pars.length === 9 ? 9 : 18);
+    /**
+     * THE IMPORT'S OWN JUDGEMENT — `catalogueRefusal`, the function `cardFrom`
+     * calls — and not `cardRefusal`, which this used to ask. That one refuses
+     * a card with no stroke index, which the import keeps on purpose since
+     * 2026-09-19, so a re-check asking it would have blanked 34 cards the
+     * import had just judged good (found 2026-10-04 by the catalogue rebuild).
+     * A re-check must ask exactly what the check asked.
+     *
+     * Yardage is still not judged, as before: it is optional, nothing scores
+     * off it, and it must never be the reason a card is thrown away.
+     * `catalogueRefusal` never looks at it.
+     *
+     * A row of the wrong length is judged as an eighteen and refused for it.
+     */
+    const refusal = catalogueRefusal(pars, strokeIndex, holesPlayed(pars.length));
     if (!refusal) continue;
     await prisma.courseCatalog.update({
       where: { id: r.id },
