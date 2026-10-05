@@ -66,6 +66,26 @@ export async function teardownOrganizer() {
   }
 }
 
+/**
+ * A signed-in session for a member the organizer has entered — their sign-in
+ * account, made the way a first sign-in would make it (`organizer-entry.spec`
+ * walks that part), so a spec can read the player app as them. Swept by the
+ * teardown with the field's other `medal-` addresses.
+ */
+export async function memberSession(email, name) {
+  const prisma = new PrismaClient();
+  try {
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email, name, password: "x:unusable" },
+    });
+    return sign(user.id);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Seed from clean, and return the signed session cookie for the organizer. */
 export async function seedOrganizer() {
   await teardownOrganizer();
