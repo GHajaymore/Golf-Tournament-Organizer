@@ -29,6 +29,7 @@ import { matchCourse, teeProblems } from "@/lib/domain/venue";
 import { libraryOrganizationFor, organizationIdsForPlayer } from "@/lib/services/organization";
 import { addCourseToLibrary } from "@/lib/services/course-library";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { roundKicker } from "@/lib/domain/round-label";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -413,7 +414,7 @@ export async function deleteClubCourse(courseId: string): Promise<CourseResult> 
     const blocked = playedHere.filter((s) => played.has(s.id));
     if (blocked.length > 0) {
       const first = blocked[0];
-      const round = first.description?.trim() || first.type;
+      const round = roundKicker(first.description, first.type);
       return {
         ok: false,
         error:

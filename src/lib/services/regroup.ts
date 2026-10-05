@@ -13,6 +13,7 @@ import { courseHandicapMap } from "../domain";
 import { resolveCourse } from "../courses";
 import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
 import { holesPlayed } from "../domain/handicap";
+import { roundKicker } from "../domain/round-label";
 
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
@@ -563,7 +564,7 @@ export async function generateCutRound(
         reason: "no-results",
         // Same label the boards use: what the organizer called the round if
         // they named it, and its number if they did not.
-        roundName: lastPriorRound.description.trim() || `Round ${priorRr.length}`,
+        roundName: roundKicker(lastPriorRound.description, `Round ${priorRr.length}`),
       };
     }
 

@@ -37,6 +37,13 @@ export function plural(n: number, one: string, many?: string): string {
   return `${n} ${n === 1 ? one : (many ?? `${one}s`)}`;
 }
 
+/** A finishing place as golf says it: 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st. */
+export function placeOrdinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
 export function record(s: PlayerStats): string {
   return `${s.wins}-${s.ties}-${s.losses}`;
 }

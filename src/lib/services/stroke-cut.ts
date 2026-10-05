@@ -1,11 +1,10 @@
 import { prisma } from "../db";
 import { loadEventState } from "./tournament";
 import { survivorsWithTies, type CutRule } from "../domain/cut";
-import { roundIsStroke, isPlayingRound } from "../stage-types";
-import { needsTeams } from "../formats";
+import { isPlayingRound, isIndividualStrokeRound } from "../stage-types";
 import { holesPlayed } from "../domain/handicap";
 import { logAudit } from "./action-shared";
-import { roundLabel } from "../domain/round-label";
+import { roundLabel, roundKicker } from "../domain/round-label";
 
 /**
  * THE STROKE-PLAY CUT, APPLIED — Ajay's decisions of 2026-09-26.
@@ -66,13 +65,15 @@ const STAGE_SELECT = {
  * cut as a round. Never `position + 1` (see `round-number-source.test.ts`).
  */
 function nameOf(all: readonly StageRow[], s: StageRow): string {
-  return s.description?.trim() || roundLabel(all, s.id) || "the round before";
+  // `roundKicker`: the description only where it reads as a NAME. Every round
+  // is added carrying its type's blurb as its description, so "the organizer's
+  // own name, else the number" was always the blurb — "didn't play The field
+  // plays the round and returns cards; …" under every missed cut (2026-10-04).
+  return roundKicker(s.description, roundLabel(all, s.id) || "the round before");
 }
 
 /** A round whose scores are individual stroke cards — the only kind this cuts. */
-function individualStroke(s: StageRow): boolean {
-  return isPlayingRound(s.type) && roundIsStroke(s.type, s.format) && !needsTeams(s.format);
-}
+const individualStroke = (s: StageRow): boolean => isIndividualStrokeRound(s);
 
 function ruleOf(next: StageRow): CutRule {
   return {

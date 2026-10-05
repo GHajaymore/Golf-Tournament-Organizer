@@ -3,7 +3,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
 import { COURSE_REF, soleVenueCourse } from "./course-resolution";
-import { roundNameFor } from "../domain/round-label";
+import { roundNameFor, roundKicker } from "../domain/round-label";
 import { loadEventState, standingRows, cutLineNote, settingsOf, withBoardRound } from "./tournament";
 import { leaderboardRounds } from "../domain/leaderboard-rounds";
 import { teamMatchBoard } from "./teams";
@@ -448,9 +448,12 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
        console heading's words (`roundNameFor`). This fell back to the TYPE
        alone, so a club's Scramble went out to its members as "Stroke Play
        Round · 18 Oct 2026". */
-    roundLabel:
-      activeStage?.description?.trim() ||
-      (activeStage ? roundNameFor(state.playRounds, activeStage) : ""),
+    // …and only where that name IS a name (`roundKicker`): every round is added
+    // carrying its type's blurb, which went to members as the round's label.
+    roundLabel: roundKicker(
+      activeStage?.description,
+      activeStage ? roundNameFor(state.playRounds, activeStage) : "",
+    ),
     rounds,
     shownStageId: activeStage?.id ?? "",
     brand,

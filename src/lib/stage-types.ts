@@ -1,4 +1,4 @@
-import { isStrokeScored, boardKind, type BoardKind } from "./formats";
+import { isStrokeScored, boardKind, needsTeams, type BoardKind } from "./formats";
 
 /**
  * The kinds of round a tournament can be made of.
@@ -446,6 +446,18 @@ export function roundIsStroke(type: string, format?: string): boolean {
 /** Rounds the field actually plays, in play order. */
 export function isPlayingRound(type: string): boolean {
   return lookupStageType(type)?.isPlayingRound ?? false;
+}
+
+/**
+ * A round whose scores are INDIVIDUAL STROKE CARDS — the only kind a
+ * stroke-play cut ("top N and ties", `services/stroke-cut.ts`) is made between.
+ *
+ * One test with three readers: the cut itself, the control on Rounds & formats
+ * that sets it, and the board that lights who is through. They were three
+ * spellings, and the board's disagreed with the cut's (2026-10-04).
+ */
+export function isIndividualStrokeRound(s: { type: string; format: string }): boolean {
+  return isPlayingRound(s.type) && roundIsStroke(s.type, s.format) && !needsTeams(s.format);
 }
 
 /**

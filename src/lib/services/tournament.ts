@@ -1,13 +1,13 @@
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
-import { survivors, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
-import { roundLabel } from "../domain/round-label";
+import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
+import { roundLabel, roundKicker } from "../domain/round-label";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -36,7 +36,7 @@ import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { cleanIsoDate } from "../domain/round-dates";
-import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
+import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
@@ -1905,7 +1905,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
   const nameOfRound = (id: string): string => {
     const st = stages.find((s) => s.id === id);
-    return st?.description?.trim() || roundLabel(stages, id) || "a round";
+    // The description only where it is a name — see `roundKicker`. Every round
+    // carries its type's blurb as a description, so this captioned a missed
+    // cut "didn't play The field plays the round and returns cards; …".
+    return roundKicker(st?.description, roundLabel(stages, id) || "a round");
   };
 
   const strokeStandings: StrokeStanding[] = confirmed
@@ -2165,7 +2168,28 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const ranked: CutCandidate[] = isStroke
         ? strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
         : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
-      advancingIds = survivors(ranked, cutRule);
+      /**
+       * A STROKE CUT IS LIT THE WAY IT IS MADE: top N AND TIES (2026-10-04).
+       *
+       * `applyStrokeCut` sends everyone level on the last place through — Ajay's
+       * rule of 2026-09-26 — but this lit exactly N, so the board drew its line
+       * THROUGH the tie and then flagged it: "Tied for the last place — play-off
+       * to decide" beside two players the cut was about to send through
+       * together. Same ranking as the cut (the standings' own rank, after
+       * countback), same function. A cut into anything else — a round robin's
+       * pairings, a bracket's slots — keeps exactly N and its play-off note.
+       */
+      const activeRound = playRounds[activePlayIdx];
+      const nextRound = playRounds[activePlayIdx + 1];
+      const strokeCut =
+        isStroke && !!activeRound && !!nextRound &&
+        isIndividualStrokeRound(activeRound) && isIndividualStrokeRound(nextRound);
+      advancingIds = strokeCut
+        ? survivorsWithTies(
+            strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank })),
+            cutRule,
+          )
+        : survivors(ranked, cutRule);
     }
   }
   const advancingCount = advancingIds.size;
@@ -2865,13 +2889,22 @@ function highlightsOf(state: EventState): Highlight[] {
     // `qualifyingSettled` for why the two ways of being settled differ.
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
     const lastIn = state.qualifyingSettled ? undefined : advancing[advancing.length - 1];
+    /**
+     * ON THE BOARD'S OWN BASIS, like the Leader line above (2026-09-28). This
+     * always quoted the net, so a GROSS championship read "holds the final
+     * qualifying spot at net 68" over a board ranked on gross 72 — found by the
+     * championship e2e spec, 2026-10-04. The bubble below measured on net too.
+     */
+    const netScored = unitIsNet(state.strokeUnitLabel);
     if (lastIn) {
       out.push({
         icon: "🎯",
         title: "Qualification watch",
         text: stableford
           ? `${lastIn.player.name} holds the final qualifying spot at ${lastIn.points} pts.`
-          : `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.`,
+          : netScored
+            ? `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.`
+            : `${lastIn.player.name} holds the final qualifying spot at ${lastIn.gross}.`,
       });
     }
     // Measured against the line that applies: each flight's own bubble under a
@@ -2882,7 +2915,7 @@ function highlightsOf(state: EventState): Highlight[] {
     const bubble = qualificationBubble(
       scored.map((s) => ({
         id: s.player.id,
-        score: stableford ? s.points : s.net,
+        score: stableford ? s.points : netScored ? s.net : s.gross,
         groupId: s.player.groupId,
         advancing: state.advancingIds.has(s.player.id),
       })),
@@ -2915,7 +2948,9 @@ function highlightsOf(state: EventState): Highlight[] {
         icon: "⚖️",
         title: "Tied for the last place",
         kind: "cut" as const,
-        text: `${names.join(" and ")} are level on ${tiedAtLine[0].rank}${
+        // A shared PLACE, said as golf says it — "tied for 2nd". It read "are
+        // level on 2", which is a place printed as if it were a score.
+        text: `${names.join(" and ")} are tied for ${placeOrdinal(tiedAtLine[0].rank)}${
           tiedAtLine.length > 1 ? `, and ${tiedAtLine.length - 1} more flight(s) are tied too` : ""
         }. A play-off or your published countback decides who goes through — the app has not.`,
       });
