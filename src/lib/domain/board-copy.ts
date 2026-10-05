@@ -50,23 +50,38 @@ export interface BoardCopyInput {
    * the board's own unit caption (`unitIsNet`), never re-derived here.
    */
   netToPar?: boolean;
+  /**
+   * The field is divided into MORE THAN ONE flight. REQUIRED, so a caller says
+   * it rather than inheriting "across all flights" by omission.
+   *
+   * The casual answer above removed flights and the cut from a fourball's
+   * board. A club competition with one flight and no cut had the same two
+   * sentences, untrue in the same way: a one-round Stableford read "Overall
+   * standings across all flights … Advancing rows reflect the qualification
+   * cutoff" over four players, nobody advancing anywhere (organizer e2e spec,
+   * 2026-10-04).
+   */
+  flighted: boolean;
+  /** Some row on this board is lit as advancing — there is a line to explain. */
+  advancing: boolean;
 }
 
 /** The line under "Live leaderboard". */
-export function boardIntro({ isStroke, stableford, casual }: BoardCopyInput): string {
+export function boardIntro({ isStroke, stableford, casual, flighted }: BoardCopyInput): string {
+  const standings = flighted ? "Overall standings across all flights" : "Overall standings";
   if (!isStroke) {
     return casual
       ? "How the match stands · holes won, halved and lost."
-      : "Overall standings across all flights · match points breakdown.";
+      : `${standings} · match points breakdown.`;
   }
   if (stableford) {
     return casual
       ? "Everyone's card, as it stands · Stableford points (higher is better)."
-      : "Overall standings across all flights · Stableford points (higher is better).";
+      : `${standings} · Stableford points (higher is better).`;
   }
   return casual
     ? "Everyone's card, as it stands · gross, net and to-par."
-    : "Overall standings across all flights · stroke play (gross / net / to-par).";
+    : `${standings} · stroke play (gross / net / to-par).`;
 }
 
 /**
@@ -76,12 +91,15 @@ export function boardIntro({ isStroke, stableford, casual }: BoardCopyInput): st
  * — the arithmetic explanation is just as useful to a fourball, and rewriting
  * it would be a second copy of a rule that is already stated once.
  */
-export function boardFootnote({ isStroke, stableford, casual, netToPar = false }: BoardCopyInput): string {
-  const cut = casual ? "" : " Advancing rows reflect the qualification cutoff.";
+export function boardFootnote({ isStroke, stableford, casual, netToPar = false, advancing }: BoardCopyInput): string {
+  // Only where a row IS lit — a sentence explaining a highlight nobody has is
+  // the board describing a cut that does not exist.
+  const explainsCut = !casual && advancing;
+  const cut = explainsCut ? " Advancing rows reflect the qualification cutoff." : "";
   if (!isStroke) {
-    return casual
-      ? "Columns: P played, W won, ½ halved, L lost."
-      : "Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current qualification cutoff and update live as scores are entered.";
+    return explainsCut
+      ? "Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current qualification cutoff and update live as scores are entered."
+      : "Columns: P played, W won, ½ halved, L lost.";
   }
   if (stableford) {
     return `Points are Stableford: 2 for a net par, +1 per stroke better, -1 per stroke worse, floored at 0.${cut}`;
