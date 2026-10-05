@@ -58,7 +58,8 @@ async function open(page: Page, path: string) {
 test("a new organizer runs a club Stableford to a points board", async ({ page }) => {
   test.setTimeout(360_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   await test.step("create, date and course", async () => {
     await open(page, "/choose");

@@ -71,7 +71,8 @@ const card = (overPar: number) => MEDAL_PARS.map((par, i) => par + (i < overPar 
 test("a new organizer runs a net medal from nothing to a finished board", async ({ page }) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   await test.step("create the tournament", async () => {
     await open(page, "/choose");

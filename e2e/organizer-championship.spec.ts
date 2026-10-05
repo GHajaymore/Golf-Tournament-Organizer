@@ -94,7 +94,8 @@ async function finish(page: Page, round: string) {
 test("a new organizer runs a 36-hole championship with a cut", async ({ page }) => {
   test.setTimeout(480_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   await test.step("create the tournament: a series of rounds", async () => {
     await open(page, "/choose");

@@ -47,12 +47,13 @@ test("a member enters from the link, signs in, and scores their own card", async
   test.setTimeout(360_000);
   await page.context().addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   // The member's own phone: nobody signed in.
   const memberCtx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
   const member = await memberCtx.newPage();
-  member.on("pageerror", (e) => errors.push(`member: ${String(e)}`));
+  member.on("pageerror", (e) => errors.push(`member ${new URL(member.url()).pathname}: ${String(e)}`));
 
   try {
     let link = "";
