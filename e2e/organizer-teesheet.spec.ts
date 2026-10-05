@@ -147,6 +147,30 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
       const dash = await member.locator("main").innerText();
       expect(dash, `the member's dashboard does not place them:\n${dash}`).toMatch(/You're in Group 2 — hole 10 at 7:30 AM\./);
     });
+
+    await test.step("the prizes she is playing for are on her Board", async () => {
+      // Ajay, 2026-10-05: players see the prizes of the tournament they are in.
+      await open(page, "/prizes");
+      for (const [category, amount] of [["Winner", "50"], ["Nearest the pin", "15"]] as const) {
+        await page.getByLabel("Category").fill(category);
+        // The add form's box ("Amount ($)"), not a prize already in the list.
+        await page.getByRole("spinbutton", { name: /^Amount \(/ }).fill(amount);
+        await page.getByRole("button", { name: "Add", exact: true }).click();
+        // The visible copy: Prizes draws a table on a desktop and stacked rows
+        // on a phone, with the same labelled box in both, and the stacked one
+        // comes first in the page — hidden at 1280px. `.first()` alone waited
+        // on that hidden box and failed every desktop run of #793.
+        await expect(page.getByLabel(`Amount for ${category}`).filter({ visible: true }).first()).toBeVisible({
+          timeout: 20_000,
+        });
+      }
+
+      await open(member, "/me/board");
+      const prizes = member.locator("section", { has: member.getByRole("heading", { name: /Prizes/ }) });
+      await expect(prizes, "the member cannot see what she is playing for").toBeVisible();
+      await expect(prizes).toContainText(/Winner\s*\$50\.00/);
+      await expect(prizes).toContainText(/Nearest the pin\s*\$15\.00/);
+    });
   } finally {
     await memberCtx.close();
   }
