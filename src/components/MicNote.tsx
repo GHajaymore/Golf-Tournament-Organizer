@@ -1,4 +1,5 @@
 import { Icon } from "./Icon";
+import { OnceTip } from "./OnceTip";
 
 /**
  * WHAT THE MICROPHONE DOES, SAID WHERE THE MICROPHONE IS.
@@ -37,20 +38,26 @@ import { Icon } from "./Icon";
  * subject is privacy. `mic-says-what-it-does.test.tsx` pins that every mic
  * renders it, and that this file claims nothing about where the browser sends
  * audio.
+ *
+ * SAID ONCE, THEN AN ⓘ (Ajay, 2026-10-05). Four lines of it sat above the
+ * score pad on every hole of every round. The promise is the same on the
+ * fourteenth as on the first, and the player has read it by then — so it opens
+ * the first time this phone shows a mic and folds to "About the microphone"
+ * after, one tap from the full sentence. `OnceTip` keeps the words in the
+ * page, so every assertion below about what it says still reads them.
  */
 export function MicNote({ style }: { style?: React.CSSProperties }) {
   return (
-    <p
-      className="text-muted"
-      style={{ margin: 0, fontSize: 12, lineHeight: 1.5, display: "flex", gap: 6, ...style }}
-    >
-      {/* The same name the two existing mic buttons use — Phosphor's, not a
-          bare "microphone", which renders nothing. */}
-      <Icon name="ph ph-microphone" aria-hidden />
-      <span>
-        Only on while you use this button, never in the background. Nothing you say is recorded or
-        kept — just the numbers, into the card.
+    <OnceTip id="mic-note" label="About the microphone" style={style}>
+      <span style={{ display: "flex", gap: 6 }}>
+        {/* The same name the two existing mic buttons use — Phosphor's, not a
+            bare "microphone", which renders nothing. */}
+        <Icon name="ph ph-microphone" aria-hidden />
+        <span>
+          Only on while you use this button, never in the background. Nothing you say is recorded or
+          kept — just the numbers, into the card.
+        </span>
       </span>
-    </p>
+    </OnceTip>
   );
 }

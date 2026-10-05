@@ -47,8 +47,9 @@ test("My card opens on the holes already returned", async ({ page }) => {
   await expect(scored).toHaveCount(data.partialHolesFilled);
   await expect(page.getByText(`${data.partialHolesFilled} of 18 holes in`)).toBeVisible();
 
-  // And it will not let a half-finished card be certified.
-  await expect(page.getByRole("button", { name: /Certify/ })).toBeDisabled();
+  // And it will not let a half-finished card be certified: since 2026-10-05
+  // the button is not there until the last hole is in.
+  await expect(page.getByRole("button", { name: /Certify/ })).toHaveCount(0);
 });
 
 test("entering a hole advances and updates the running score", async ({ page }) => {
@@ -181,6 +182,9 @@ test("availability is on the player's own screen, grouped and dated", async ({ p
    */
   const availability = page.locator(".card").filter({ hasText: "Your availability" });
   await expect(availability).toBeVisible();
+  // Since 2026-10-05 Today shows the next round's In / Out and folds the rest
+  // of the season under "See all rounds" — opened here, then the list.
+  await availability.getByText(/See all rounds/).click();
   await availability.getByText("List", { exact: false }).click();
 
   const card = availability;
@@ -228,6 +232,7 @@ test("the next round comes before the future ones on screen", async ({ page }) =
   // and the screen opens on the calendar.
   const card = page.locator(".card").filter({ hasText: "Your availability" });
   await expect(card).toBeVisible();
+  await card.getByText(/See all rounds/).click();
   await card.getByText("List", { exact: false }).click();
   const next = await card.getByText("Next round").boundingBox();
   const future = await card.getByText(/Future rounds/).boundingBox();

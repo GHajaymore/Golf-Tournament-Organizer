@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
@@ -17,7 +16,6 @@ import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { partnerCardsFor } from "@/lib/services/group-cards";
 import { roundCardFor } from "@/lib/services/round-card";
 import { teamStandings } from "@/lib/services/teams";
-import { Icon } from "@/components/Icon";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
 import { clubEventsFor } from "@/lib/services/club-events";
@@ -383,6 +381,10 @@ export default async function PlayCardPage() {
       savePartial={mayReportPartialCard(settings, session.role)}
       partners={partnersWithShots}
       startHole={me.round.group?.startHole ?? 1}
+      // Rules left the tab bar for Events (2026-09-19); the card is where a
+      // local rule or the handicap allowance comes up, so the card's own
+      // "Rules" line carries it (2026-10-05) rather than a second link here.
+      rulesHref="/me/rules"
     />
     {/* WHAT THIS CARD'S NET SCORE WAS WORKED OUT FROM (2026-09-19). The pars
         and the stroke index on this screen decide where a player's shots
@@ -407,16 +409,6 @@ export default async function PlayCardPage() {
         your own record, and the committee decides the result.
       </p>
     )}
-    {/* Rules left the tab bar for Events (2026-09-19); the card is where a
-        local rule or the handicap allowance comes up, so it is linked here. */}
-    <p style={{ margin: "14px 0 0" }}>
-      <Link
-        href="/me/rules"
-        style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent-200)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
-      >
-        <Icon name="book-open" /> This tournament&rsquo;s rules
-      </Link>
-    </p>
     </DistanceUnitProvider>
   );
 }

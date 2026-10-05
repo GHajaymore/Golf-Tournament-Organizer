@@ -575,7 +575,7 @@ export function PlayClient(props: Props) {
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
             {props.playerName}
           </h1>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 12 }}>
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
             {/* Says which kind of round this is, because the surface used to
                 claim every round was a match. */}
             Your own card — nobody to play, just your score on each hole.{" "}
@@ -586,7 +586,7 @@ export function PlayClient(props: Props) {
         </div>
 
         <div className="card elev-sm" style={{ gap: 10 }}>
-          <div style={{ display: "flex", gap: 14, fontSize: 13, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 14, fontSize: 15, flexWrap: "wrap" }}>
             {/* The figure the round is decided on leads, because that is the
                 one being read. `cardTotals` puts points first on a Stableford
                 for exactly that reason. */}
@@ -626,7 +626,7 @@ export function PlayClient(props: Props) {
           />
 
           {/* Where the card is — the same words the signed-in card uses. */}
-          <p role="status" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          <p role="status" style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
             {cardQueue.status.label}
           </p>
           {/* Only when the server said no: a way to try again by hand. */}
@@ -645,12 +645,18 @@ export function PlayClient(props: Props) {
 
               A separate, deliberate act, exactly as it is on the signed-in
               card. Saving is bookkeeping; certifying is a statement that
-              these hole scores are right. */}
+              these hole scores are right.
+
+              It APPEARS with the last hole, as on `/me/card` (2026-10-05): the
+              "n/18 holes" figure above says how far there is to go, and a
+              greyed button under the pad for the whole round said nothing it
+              did not. Never on an unfinished card — certifying one would claim
+              holes nobody played were right. */}
+          {(cardComplete || certified) && (
+          <>
           <button
             type="button"
             className="btn btn-primary"
-            // Certifying an unfinished card would be claiming holes that were
-            // never played were right.
             disabled={pending || !cardComplete || certified}
             onClick={certifyCard}
             style={{ minHeight: 52 }}
@@ -668,9 +674,11 @@ export function PlayClient(props: Props) {
               The screen was telling those two the opposite, and it started
               being read by them the moment a quick round began issuing Round
               Codes. */}
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
             {certifyPrompt(cardComplete, holeCount, !!props.staffApproves)}
           </p>
+          </>
+          )}
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
