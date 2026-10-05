@@ -4,7 +4,7 @@ import { parseHoleArray } from "../courses";
 import { roundCardStatus, type CardSource, type RoundCardStatus } from "../domain/round-card-status";
 import { courseModeOf } from "../domain/venue";
 import { isPlayingRound } from "../stage-types";
-import { roundLabel } from "../domain/round-label";
+import { roundLabel, roundKicker } from "../domain/round-label";
 
 /** One playing round's card, for Rounds & formats and for launch. */
 export interface RoundCardLine {
@@ -72,7 +72,8 @@ export async function roundCardLines(eventId: string): Promise<RoundCardLine[]> 
       const roundVenue = s.courseId ? venueById.get(s.courseId) ?? null : null;
       return {
         stageId: s.id,
-        label: s.description.trim() || roundLabel(stages, s.id),
+        // A name, never the type's blurb every round is added with — `roundKicker`.
+        label: roundKicker(s.description, roundLabel(stages, s.id)),
         course: (roundVenue ?? eventCard)?.name ?? "",
         status: roundCardStatus({ round: s, roundVenue, eventCard, cardedVenues, openCourse }),
       };

@@ -4,7 +4,7 @@ import { todayIso } from "../deadline";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
 import { isMatch } from "../tournament-shape";
-import { roundLabel } from "../domain/round-label";
+import { roundLabel, roundKicker } from "../domain/round-label";
 
 /**
  * Whether the person setting up a casual round is due to play a TOURNAMENT
@@ -107,7 +107,7 @@ export async function tournamentClashFor(
       // does it — "Club Medal" is more use than "Round 1". The fallback goes
       // through `roundLabel`, the one counter, which does not count a cut as
       // a round.
-      roundLabel: roundToday.description.trim() || roundLabel(event.stages, roundToday.id),
+      roundLabel: roundKicker(roundToday.description, roundLabel(event.stages, roundToday.id)),
       // In THAT tournament's club's date order (`shortDate`).
       dateLabel: shortDate(today, (await formattingForEvent(event.id)).locale),
       teeSheetPublished: roundToday.teeSheetPublished,

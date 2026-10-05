@@ -12,7 +12,7 @@ import { standingRows, settingsOf, type EventState } from "@/lib/services/tourna
 import { canEnterScores } from "@/lib/tournament-settings";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
-import { roundLabel } from "@/lib/domain/round-label";
+import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
 import type { HoleResult } from "@/lib/domain/types";
 import { holesPlayed } from "../domain/handicap";
@@ -493,7 +493,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       // apart, and worse than useless while this screen was showing the wrong
       // one. The number is what the play shell and the score-entry picker
       // already call it.
-      label: stage.description?.trim() || roundNumberLabel(state, stage.id) || stage.type || "This round",
+      label: roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round"),
       // The same fallbacks WITHOUT the description — see the note on the field.
       // "This round" last, because a sentence needs a noun and every other
       // candidate here may legitimately be empty.

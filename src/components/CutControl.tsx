@@ -17,7 +17,14 @@ export function CutControl({
   confirmedCount,
   flightCount = 1,
   locked = false,
+  tiesGoThrough = false,
 }: {
+  /**
+   * The cut sends everyone level on the last place through — the stroke-play
+   * rule ("top N and ties", `survivorsWithTies`). Said in the count so "2 of 5
+   * advance" is not read as a promise of exactly two.
+   */
+  tiesGoThrough?: boolean;
   /** Setup is locked, which both cut actions refuse — see `SetupLocked`. */
   locked?: boolean;
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
@@ -130,6 +137,7 @@ export function CutControl({
               min={1}
               style={{ width: 90 }}
               value={n}
+              aria-label={`Players who make the cut for ${roundLabel}`}
               disabled={pending}
               onChange={(e) => setN(parseInt(e.target.value, 10) || 1)}
               onBlur={() => commit(on, m, n, pct)}
@@ -142,6 +150,7 @@ export function CutControl({
               max={100}
               style={{ width: 90 }}
               value={pct}
+              aria-label={`Percent of the field who make the cut for ${roundLabel}`}
               disabled={pending}
               onChange={(e) => setPct(parseInt(e.target.value, 10) || 1)}
               onBlur={() => commit(on, m, n, pct)}
@@ -171,8 +180,8 @@ export function CutControl({
           </div>
           <span className="text-muted" style={{ fontSize: 12 }}>
             {perFlight
-              ? `${bucketSurvivors} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
-              : `${survivors} of ${confirmedCount} advance into ${roundLabel}.`}
+              ? `${bucketSurvivors}${tiesGoThrough ? " and ties" : ""} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
+              : `${survivors}${tiesGoThrough ? " and ties" : ""} of ${confirmedCount} advance into ${roundLabel}.`}
             {/* Why "Per flight" is dead, in the sentence that is already here
                 rather than in a `title` nobody on a phone can reach. The same
                 pattern removed from the draw button, Teams & pairs and the tee

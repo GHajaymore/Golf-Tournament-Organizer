@@ -45,6 +45,7 @@ import {
   nextPlayingStage,
   isStructuralStage,
   MAX_ROUNDS_AT_ONCE,
+  isIndividualStrokeRound,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -912,6 +913,23 @@ function StageCard({
   // round that then had to be found and deleted. A round is added
   // deliberately, from "Add round"; nothing here conjures one.
   const showTransition = stage.type === "Round Robin" && chainsRounds;
+  /**
+   * A STROKE-PLAY CUT, SET WHERE THE ROUND IS (2026-10-04).
+   *
+   * The cut into a stroke round is Ajay's rule of 2026-09-26 — "top N and
+   * ties", made when the organizer marks this round finished (`stroke-cut.ts`).
+   * But the only cut control lived in "Before the next round", which is round
+   * robins only, so a 36-hole championship with a cut could not be set up from
+   * any screen: the engine was there, the audit test seeded the cut straight
+   * into the database, and the guide told organizers to look for a section
+   * their round never shows. Found mapping the championship path for the
+   * organizer e2e specs.
+   *
+   * Offered on exactly the pairs `stroke-cut.ts` cuts — both rounds individual
+   * stroke cards — so the screen never sets a cut the server will not make.
+   */
+  const showStrokeCut =
+    chainsRounds && !showTransition && !!nextStage && isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
   const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
   // TWO summaries, because they answer to two different places and one string
@@ -1542,6 +1560,34 @@ function StageCard({
             Robin set to Stroke Play is head-to-head by type and a medal in
             fact — `docs/deferred-register.md` is explicit that on this axis
             you assert the output, not the flag. */}
+        {/* Beside the box that makes it, not behind "Customize": on a
+            championship the cut is one of the two things this round decides. */}
+        {showStrokeCut && nextStage && (
+          <div>
+            <SectionLabel>The cut</SectionLabel>
+            <p className="text-muted" style={{ fontSize: 12, margin: "0 0 8px", lineHeight: 1.5 }}>
+              Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on this round&rsquo;s scores.
+              Anyone level on the last place after countback goes through too. The cut is made when
+              you mark this round finished.
+            </p>
+            <CutControl
+              key={nextStage.id}
+              formId={stage.id}
+              getStageId={async () => nextStage.id}
+              roundLabel={roundLabelOf(allStages, nextStage.id)}
+              enabled={nextStage.cutEnabled}
+              mode={nextStage.cutMode}
+              count={nextStage.cutCount}
+              percent={nextStage.cutPercent}
+              scope={nextStage.cutScope}
+              confirmedCount={confirmedCount}
+              flightCount={flightCount}
+              locked={locked}
+              tiesGoThrough
+            />
+          </div>
+        )}
+
         {stage.type !== "Bracket Stage" &&
           standingsUnit(stage.format, stage.scoringBasis) !== "match points" && (
           <div>

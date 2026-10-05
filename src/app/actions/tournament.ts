@@ -86,7 +86,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, capacityUnderCap, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
-import { roundLabel } from "@/lib/domain/round-label";
+import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
@@ -5021,8 +5021,8 @@ export async function clearRoundScores(
       eventId,
       "clear-round-scores",
       scoped.length
-        ? `Cleared ${cleared} score${cleared === 1 ? "" : "s"} for ${scoped.length} player${scoped.length === 1 ? "" : "s"} in round "${stage.description?.trim() || stage.type}"`
-        : `Cleared ${cleared} score${cleared === 1 ? "" : "s"} from round "${stage.description?.trim() || stage.type}"`,
+        ? `Cleared ${cleared} score${cleared === 1 ? "" : "s"} for ${scoped.length} player${scoped.length === 1 ? "" : "s"} in round "${roundKicker(stage.description, stage.type)}"`
+        : `Cleared ${cleared} score${cleared === 1 ? "" : "s"} from round "${roundKicker(stage.description, stage.type)}"`,
     );
   }
 
