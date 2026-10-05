@@ -17,7 +17,7 @@ import { usesStandardBoard, boardKind } from "@/lib/formats";
 import { ModifiedStablefordTable } from "@/components/PointsLeaderboard";
 import { modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { pts, shortName, distinctLabels, plural } from "@/lib/format";
-import { toParText } from "@/lib/domain";
+import { toParText, isBracketMode, drawBrackets } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { isStablefordRound } from "@/lib/domain/week-basis";
@@ -521,6 +521,21 @@ export default async function DashboardPage() {
   };
   const showBracketTile = showStandings && showBracket(bracketProgress);
   const bracketTileBadge = bracketBadge(bracketProgress);
+  /**
+   * WHICH DRAWS THERE ARE, AND WHAT THEY ARE CALLED — asked of `drawBrackets`,
+   * the same function `/bracket` asks (2026-10-04).
+   *
+   * This card printed "Winners" and "Consolation" whatever the arrangement, so
+   * a single knockout ("One bracket — lose and you're out") read "Consolation ·
+   * 1 match" under its champion: a match in a draw that does not exist. The
+   * bracket screen dropped its own hard-coded Consolation tab for exactly this
+   * on 2026-09-23; this card was the other reader. Found by the knockout e2e
+   * spec, `e2e/organizer-knockout.spec.ts`.
+   */
+  const { mainLabel: bracketMainLabel, secondLabel: bracketSecondLabel } = drawBrackets(
+    [],
+    isBracketMode(event.bracketMode) ? event.bracketMode : "split",
+  );
 
   // One source of truth for which screens exist in this tournament: the same
   // sidebar the layout renders. A shortcut to a door the sidebar has closed is
@@ -1369,7 +1384,7 @@ export default async function DashboardPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />Winners</span>
+                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketMainLabel}</span>
                   {/* `plural`, because this card printed "1 matches" on the
                       demo tournament's consolation bracket — read off the
                       rendered screen on 2026-09-14. The stat card at the top
@@ -1378,10 +1393,12 @@ export default async function DashboardPage() {
                       to be spotted by eye. */}
                   <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />Consolation</span>
-                  <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
-                </div>
+                {bracketSecondLabel !== "" && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                    <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketSecondLabel}</span>
+                    <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
+                  </div>
+                )}
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
                 Open the {bracketScreenName(!isStaff).toLowerCase()} <Icon name="arrow-right" />
