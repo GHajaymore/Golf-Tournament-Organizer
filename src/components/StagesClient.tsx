@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
 import { roundLabel as roundLabelOf } from "@/lib/domain/round-label";
@@ -1010,7 +1010,12 @@ function StageCard({
   const roundText = ROUND_TEXT[stage.position % ROUND_TEXT.length];
 
   return (
-    <div className="card elev-sm" style={{ gap: 14, borderLeft: `3px solid ${roundColor}` }}>
+    <div
+      id={`round-${stage.id}`}
+      className="card elev-sm"
+      // Clear of the sticky header when a new round is scrolled to.
+      style={{ gap: 14, borderLeft: `3px solid ${roundColor}`, scrollMarginTop: 88 }}
+    >
       {chainWarnings.length > 0 && (
         // Shown on the later round of the pair, because that is where the
         // carry-forward or cut setting causing it actually lives. Advisory
@@ -2084,6 +2089,22 @@ export function StagesClient({
   const [addRefused, setAddRefused] = useState("");
   const [pending, startTransition] = useTransition();
 
+  /**
+   * THE ROUND JUST ADDED IS OPENED AND BROUGHT INTO VIEW (2026-10-04).
+   *
+   * `openRound` is decided once, when the screen loads, so a tournament's first
+   * round arrived closed — and above the builder, which stays open after an
+   * add. On a phone that is off the top of the screen: the organizer pressed
+   * "Add stroke play round" and saw nothing change. Found walking a new club's
+   * first medal in `e2e/organizer-medal.spec.ts`.
+   */
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  useEffect(() => {
+    if (!justAdded || !stages.some((s) => s.id === justAdded)) return;
+    document.getElementById(`round-${justAdded}`)?.scrollIntoView({ block: "start" });
+    setJustAdded(null);
+  }, [justAdded, stages]);
+
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
 
   // Where the rounds don't fit together. Rounds chain — standings carry
@@ -2452,6 +2473,10 @@ export function StagesClient({
                 }
                 setHowMany(1);
                 setStartDate("");
+                if (res?.id) {
+                  setOpenRound(res.id);
+                  setJustAdded(res.id);
+                }
               })
             }
           >
