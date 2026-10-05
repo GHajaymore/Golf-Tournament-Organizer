@@ -1,5 +1,7 @@
 import { prisma } from "../db";
-import { loadEventState } from "./tournament";
+import { loadEventState, settingsOf } from "./tournament";
+import { allowsAutoConfirm } from "../tournament-settings";
+import { cutBlockers, cutBlockedSentence, cutRuleOf } from "../domain/cut-ready";
 import { survivorsWithTies, type CutRule } from "../domain/cut";
 import { isPlayingRound, isIndividualStrokeRound } from "../stage-types";
 import { holesPlayed } from "../domain/handicap";
@@ -16,9 +18,16 @@ import { roundLabel, roundKicker } from "../domain/round-label";
  * board. Found walking the seeded Club Championship as a player who missed the
  * cut: Today offered "Start my card" for round 2.
  *
- * Two decisions: the cut is applied AUTOMATICALLY when the round it is taken
- * out of is closed ("This round is finished" — or completing the tournament),
- * and players level on the last place ALL go through ("top 16 and ties").
+ * Two decisions: the cut is applied when the round it is taken out of is
+ * closed ("This round is finished"), and players level on the last place ALL go
+ * through ("top 16 and ties").
+ *
+ * NOT by completing the tournament, which this comment used to claim and the
+ * code never did. Ajay confirmed on 2026-10-05 that it should not: a cut is
+ * made between rounds, by the committee, after every card is approved — and
+ * since that day closing the round is refused until they are
+ * (`strokeCutRefusal`), with the dashboard asking for it once they are
+ * (`roundReadyForCut`).
  *
  * Applied the way the round-robin path already does it: every survivor gets an
  * empty, playable card for the next round, and nobody else does — so the field
@@ -75,14 +84,8 @@ function nameOf(all: readonly StageRow[], s: StageRow): string {
 /** A round whose scores are individual stroke cards — the only kind this cuts. */
 const individualStroke = (s: StageRow): boolean => isIndividualStrokeRound(s);
 
-function ruleOf(next: StageRow): CutRule {
-  return {
-    scope: next.cutScope === "perFlight" ? "perFlight" : "overall",
-    mode: next.cutMode === "percent" ? "percent" : "count",
-    count: next.cutCount,
-    percent: next.cutPercent,
-  };
-}
+/** Shared with the dashboard's preview of the cut — see `cutRuleOf`. */
+const ruleOf = (next: StageRow): CutRule => cutRuleOf(next);
 
 /** The playing round after `feeder`, if its field is decided by a stroke cut out of it. */
 async function cutRoundAfter(
@@ -100,6 +103,35 @@ async function cutRoundAfter(
 }
 
 /**
+ * WHY THE CUT OUT OF `feederId` CANNOT BE MADE YET, or null when it can (or
+ * when there is no cut to make).
+ *
+ * Ajay, 2026-10-05: "Cut can't be final unless organizer approve all cards and
+ * approve the Cut." Closing the round IS approving the cut — it is the act that
+ * makes it — so `setRoundClosed` asks this first and refuses to close while any
+ * card in the round is not yet a result: awaiting the committee's approval, not
+ * returned, or disputed. Refused rather than closed-without-a-cut, because a
+ * closed feeder is what `strokeCutField` reads as "the cut has been made", and
+ * a round closed with no cut applied would hand the next round an empty field.
+ *
+ * Here, beside `applyStrokeCut`, so the rule lives where the cut is made and a
+ * second door into closing a round cannot forget it.
+ */
+export async function strokeCutRefusal(eventId: string, feederId: string): Promise<string | null> {
+  const pair = await cutRoundAfter(eventId, feederId);
+  if (!pair) return null;
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return null;
+  const staffApproves = !allowsAutoConfirm(settingsOf(event));
+  const cards = await prisma.scorecard.findMany({
+    where: { eventId, stageId: feederId },
+    select: { status: true, strokes: true },
+  });
+  const blockers = cutBlockers(cards, staffApproves);
+  return blockers.total > 0 ? cutBlockedSentence(blockers, nameOf(pair.all, pair.feeder)) : null;
+}
+
+/**
  * Apply the cut out of `feederId` into the round after it, if there is one.
  * Returns how many go through, or null when there is no stroke cut to apply.
  */
@@ -107,6 +139,9 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
   const pair = await cutRoundAfter(eventId, feederId);
   if (!pair) return null;
   const { feeder, next, all } = pair;
+  // The same refusal `setRoundClosed` asks first. Never reached through that
+  // door; here so a cut can never be made on cards that are not results.
+  if (await strokeCutRefusal(eventId, feederId)) return null;
 
   // Ranked on the rounds up to and including the feeder only — a round 2 card
   // somebody started early must not move who made a cut out of round 1.

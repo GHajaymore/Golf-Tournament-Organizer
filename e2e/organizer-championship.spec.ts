@@ -181,8 +181,45 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     expect(before, "a gross championship quoted on net").not.toMatch(/qualifying spot at net/);
   });
 
-  await test.step("round 1 finished: the cut is made, ties go through", async () => {
-    await finish(page, "Round 1");
+  await test.step("no cut on cards the committee has not approved", async () => {
+    // Ajay, 2026-10-05: "Cut can't be final unless organizer approve all cards
+    // and approve the Cut." The organizer typed these five in, so they are
+    // entered, not approved: closing Round 1 — which makes the cut — is refused
+    // and says why, and the dashboard does not ask for the cut yet.
+    await open(page, "/stages");
+    const header = page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ });
+    const box = page.getByRole("checkbox", { name: /^This round is finished/ });
+    if (!(await box.isVisible()) || (await header.getAttribute("aria-expanded")) !== "true") await header.click();
+    await box.click();
+    await expect(page.getByText(/5 cards need your approval\. Closing Round 1 makes the cut/)).toBeVisible({ timeout: 20_000 });
+    await expect(box).not.toBeChecked();
+    await open(page, "/dashboard");
+    await expect(page.getByRole("region", { name: "The cut is ready" })).toHaveCount(0);
+  });
+
+  await test.step("the organizer approves every round 1 card", async () => {
+    await open(page, "/entry");
+    await page.getByLabel("Round to enter scores for").selectOption({ label: "Round 1" });
+    const anyway = page.getByRole("button", { name: "Approve anyway" });
+    await expect(anyway).toHaveCount(FIELD.length, { timeout: 20_000 });
+    for (let left = FIELD.length; left > 0; left -= 1) {
+      await anyway.first().click();
+      await expect(anyway).toHaveCount(left - 1, { timeout: 20_000 });
+    }
+  });
+
+  await test.step("the dashboard asks for the cut; the organizer approves it — ties go through", async () => {
+    await open(page, "/dashboard");
+    const cut = page.getByRole("region", { name: "The cut is ready" });
+    await expect(cut).toContainText("All Round 1 cards are approved — approve the cut.");
+    // Briar and Cedar level on the second place: top 2 AND TIES is three.
+    await expect(cut).toContainText("Top 2 and ties: 3 players go through to Round 2, 2 miss the cut.");
+    await cut.getByRole("button", { name: /Approve the cut/ }).click();
+    await cut.getByRole("button", { name: /Make the cut/ }).click();
+    await expect(async () => {
+      await open(page, "/dashboard");
+      await expect(page.getByRole("region", { name: "The cut is ready" })).toHaveCount(0);
+    }).toPass({ timeout: 20_000 });
   });
 
   await test.step("round 2 cards, for those who made it", async () => {

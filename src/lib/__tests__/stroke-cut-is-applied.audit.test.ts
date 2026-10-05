@@ -115,7 +115,17 @@ beforeAll(async () => {
       select: { id: true },
     });
     id[who] = p.id;
-    await prisma.scorecard.create({ data: { eventId, stageId: r1, playerId: p.id, strokes: JSON.stringify(card(totals[who])) } });
+    // Approved — a cut is only made on cards the committee has accepted (Ajay,
+    // 2026-10-05). D's is still waiting on it, which the first close meets.
+    await prisma.scorecard.create({
+      data: {
+        eventId,
+        stageId: r1,
+        playerId: p.id,
+        strokes: JSON.stringify(card(totals[who])),
+        status: who === "d" ? "certified" : "approved",
+      },
+    });
   }
 
   adminUser = (await prisma.user.create({ data: { email: `${lower}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })).id;
@@ -141,9 +151,35 @@ describe("a stroke-play cut", () => {
     expect(rank("b")).toBe(rank("c"));
   });
 
+  it("is NOT made while a round 1 card still needs the committee's approval", async () => {
+    /**
+     * Ajay, 2026-10-05: "Cut can't be final unless organizer approve all cards
+     * and approve the Cut." Closing round 1 is approving the cut, so it is
+     * refused — nothing written, the round still open, no round 2 card — and
+     * the organizer is told which cards are in the way.
+     */
+    await as(adminUser);
+    const res = await setRoundClosed(r1, true);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/1 card needs your approval/);
+    expect((await prisma.stage.findUnique({ where: { id: r1 }, select: { closedAt: true } }))?.closedAt).toBeNull();
+    expect(await r2Holders()).toEqual([]);
+    expect(await strokeCutField(eventId, r2)).toBeNull();
+    // And the dashboard does not ask for the cut yet.
+    expect((await loadEventState(eventId))!.cutReady).toBeNull();
+  });
+
+  it("is asked for on the dashboard once every card is approved", async () => {
+    await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.d }, data: { status: "approved" } });
+    const ready = (await loadEventState(eventId))!.cutReady;
+    expect(ready).toMatchObject({ feederId: r1, feederName: "Round 1", nextId: r2, nextName: "Round 2" });
+  });
+
   it("is made when round 1 closes: top 2 and ties get round 2 cards, nobody else", async () => {
     await as(adminUser);
     expect(await setRoundClosed(r1, true)).toEqual({ ok: true });
+    // Made, so the dashboard stops asking.
+    expect((await loadEventState(eventId))!.cutReady).toBeNull();
     expect(await r2Holders()).toEqual(["a", "b", "c"]);
     const field = await strokeCutField(eventId, r2);
     expect(field && [...field].length).toBe(3);

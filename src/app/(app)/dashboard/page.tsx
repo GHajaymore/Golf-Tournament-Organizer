@@ -23,7 +23,10 @@ import { todayIso } from "@/lib/deadline";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { currentRoundCut } from "@/lib/domain/cut";
+import { currentRoundCut, survivorsWithTies } from "@/lib/domain/cut";
+import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
+import { loadEventState } from "@/lib/services/tournament";
+import { CutReadyCard } from "@/components/CutReadyCard";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
@@ -428,6 +431,30 @@ export default async function DashboardPage() {
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+
+  /**
+   * THE CUT, READY FOR THE ORGANIZER TO APPROVE (Ajay, 2026-10-05). Previewed
+   * with exactly what `applyStrokeCut` will do — the field ranked as of the round
+   * the cut is taken out of, `survivorsWithTies` on the next round's rule — so
+   * the card's "3 go through" is the number the button then makes.
+   */
+  const cutPreview = await (async () => {
+    if (!isStaff || !state.cutReady) return null;
+    const next = state.stages.find((s) => s.id === state.cutReady!.nextId);
+    const asOf = await loadEventState(event.id, state.cutReady.feederId);
+    if (!next || !asOf) return null;
+    const ranked = asOf.strokeStandings
+      .filter((s) => s.ranked)
+      .map((s) => ({ id: s.player.id, groupId: s.player.groupId, rank: s.rank }));
+    const rule = cutRuleOf(next);
+    const through = survivorsWithTies(ranked, rule).size;
+    return {
+      ...state.cutReady,
+      rule: cutRuleWords(rule),
+      through,
+      missed: Math.max(0, asOf.strokeStandings.length - through),
+    };
+  })();
 
   /**
    * A casual round says, on its own screen, that it is temporary.
@@ -990,6 +1017,17 @@ export default async function DashboardPage() {
       )}
 
       <AnnouncementList items={announcements} />
+
+      {cutPreview && (
+        <CutReadyCard
+          feederId={cutPreview.feederId}
+          feederName={cutPreview.feederName}
+          nextName={cutPreview.nextName}
+          rule={cutPreview.rule}
+          through={cutPreview.through}
+          missed={cutPreview.missed}
+        />
+      )}
 
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
       {unstarted && (
