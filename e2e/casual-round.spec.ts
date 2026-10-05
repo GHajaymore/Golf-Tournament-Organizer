@@ -221,6 +221,64 @@ test.describe("a casual round at the course", () => {
     expect(text.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
   });
 
+  test("two friends score their own cards by the round code, on their own phones", async ({ page, browser, baseURL }, testInfo) => {
+    /**
+     * The round is set up on one phone and the code read out on the first
+     * tee. Each friend opens the app with NO ACCOUNT, types the code, taps
+     * their own name and keeps their own card — the one-player pad that moves
+     * to the next hole by itself.
+     *
+     * Ann pars every hole: 72. Bea birdies the 5th: 71. So Bea leads by a
+     * shot on the host's own screen, gross. A card that never reached the
+     * server, a score filed under the other friend, or a hole the pad skipped
+     * past prints something else.
+     */
+    await setUp(page, "Stroke Play", false, [ANN, BEA]);
+    await page.goto(`/dashboard?bust=${Date.now()}`);
+    const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
+    expect(code, "the dashboard shows no round code").toMatch(/^[A-Z0-9-]{6,}$/);
+
+    const phone = async (name: string, birdieOn: number | null) => {
+      const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+      try {
+        const p = await ctx.newPage();
+        await p.goto("/play");
+        await p.getByLabel("Round code").fill(code);
+        await p.getByRole("button", { name: "Continue" }).click();
+        await p.getByRole("button", { name, exact: true }).click();
+        await expect(p.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 30_000 });
+        for (let hole = 1; hole <= 18; hole += 1) {
+          // The pad moves on by itself; the hole on screen is the proof it did.
+          await expect(p.getByLabel(`Strokes on hole ${hole}`)).toBeVisible();
+          await p.getByRole("button", { name: hole === birdieOn ? /Birdie$/ : /Par$/ }).click();
+        }
+        await expect(p.getByText("18/18 holes")).toBeVisible();
+        // Reached the host AS PLAYED, before anybody signs anything — the
+        // round is followed hole by hole. (Certifying saves the card too, so
+        // without this a phone that never sent a hole would still pass.)
+        await expect(async () => {
+          await page.goto(`/entry?bust=${Date.now()}`);
+          const host = await page.locator("main").innerText();
+          expect(host).toMatch(new RegExp(`${name.split(" ")[0]}\\n[^\\n]*thru 18`));
+        }).toPass({ timeout: 30_000 });
+        await p.getByRole("button", { name: /Certify my card/ }).click();
+        await expect(p.getByRole("button", { name: /Certified/ })).toBeVisible({ timeout: 20_000 });
+        // A friendly: the card is final the moment it is signed.
+        await expect(p.getByText(/nobody else has to accept it/)).toBeVisible();
+      } finally {
+        await ctx.close();
+      }
+    };
+    await phone(ANN, null);
+    await phone(BEA, 5);
+
+    const text = await dashboard(page);
+    const bea = text.search(new RegExp(`${BEA}\\s+71\\s+[-−]1\\b`));
+    const ann = text.search(new RegExp(`${ANN}\\s+72\\s+E\\b`));
+    expect([bea, ann], `a friend's card did not reach the host's screen:\n${text}`).not.toContain(-1);
+    expect(ann, "the shot saved is not in front").toBeGreaterThan(bea);
+  });
+
   test("modified stableford, net, two players", async ({ page }) => {
     await setUp(page, "Modified Stableford", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);
