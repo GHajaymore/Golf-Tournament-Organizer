@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { makeBoardPublic, readPublicBoard } from "./public-board";
 
 /**
  * A CLUB STABLEFORD, RUN FROM NOTHING — the commonest weekly competition there
@@ -55,7 +56,7 @@ async function open(page: Page, path: string) {
   await page.waitForLoadState("networkidle");
 }
 
-test("a new organizer runs a club Stableford to a points board", async ({ page }) => {
+test("a new organizer runs a club Stableford to a points board", async ({ page, baseURL }) => {
   test.setTimeout(360_000);
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
@@ -102,6 +103,7 @@ test("a new organizer runs a club Stableford to a points board", async ({ page }
   });
 
   await test.step("launch", async () => {
+    await makeBoardPublic(page);
     await open(page, "/dashboard");
     for (const step of ["Start taking entries", "Mark ready"]) {
       await page.getByRole("button", { name: step }).click();
@@ -143,6 +145,16 @@ test("a new organizer runs a club Stableford to a points board", async ({ page }
     expect(board).not.toMatch(/Advancing rows/);
     // The rule it does state, in its own words.
     expect(board).toMatch(/floored at 0/);
+  });
+
+  await test.step("the link the club sends its members says the same", async () => {
+    const pub = await readPublicBoard(page, baseURL!);
+    expect(pub).toMatch(/Ranked by Stableford points/i);
+    // A row reads like a tour board: place, name, F for finished, points.
+    const order = [...FIELD].sort((a, b) => b.points - a.points);
+    const at = order.map((p, i) => pub.search(new RegExp(`${i + 1}\\s+${p.name}\\s+F\\s+${p.points}\\b`)));
+    expect(at, `a player is missing or carries the wrong points on the public board:\n${pub}`).not.toContain(-1);
+    expect([...at].sort((a, b) => a - b), "the public board is not in points order").toEqual(at);
   });
 
   expect(errors, "a screen threw").toEqual([]);
