@@ -13,7 +13,9 @@ import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { standingRows } from "@/lib/services/tournament";
-import { usesStandardBoard } from "@/lib/formats";
+import { usesStandardBoard, boardKind } from "@/lib/formats";
+import { ModifiedStablefordTable } from "@/components/PointsLeaderboard";
+import { modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -371,6 +373,25 @@ export default async function DashboardPage() {
           holes,
         });
   })();
+
+  /**
+   * A CASUAL MODIFIED STABLEFORD IS RANKED ON POINTS, here as on the board
+   * (2026-10-04). The standard table below is skipped for this format — it
+   * ranks strokes — so the card said "Nothing to rank here yet — the board
+   * fills in as scores come back" over two finished cards, while the
+   * leaderboard one tap away had them on 20 and 17. Found by the casual-round
+   * e2e spec on its first run. The same reader the leaderboard uses, on the
+   * same round's card.
+   */
+  const casualPoints =
+    matchEvent && casualStage && boardKind(casualStage.format) === "modified-stableford"
+      ? await modifiedStablefordBoard(
+          state.event.id,
+          casualStage.id,
+          state.strokeCourseFor(casualStage.id).pars,
+          state.strokeCourseFor(casualStage.id).holeDifficulty,
+        )
+      : null;
 
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
@@ -1171,7 +1192,9 @@ export default async function DashboardPage() {
                     {matchEvent
                       ? casualMatch
                         ? "Holes won"
-                        : "Gross, net and to-par"
+                        : casualPoints
+                          ? "Modified Stableford points"
+                          : "Gross, net and to-par"
                       : "Overall · all flights"}
                   </span>
                 </div>
@@ -1182,6 +1205,8 @@ export default async function DashboardPage() {
                   >
                     {oneMatchLine}
                   </p>
+                ) : casualPoints ? (
+                  <ModifiedStablefordTable rows={casualPoints} bare />
                 ) : (
                 <LeaderboardTable
                   isStroke={isStroke}

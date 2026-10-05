@@ -587,18 +587,36 @@ export function ScoreEntryClient({
     });
   };
 
+  /**
+   * Writes still out, and whether any of them failed since the last time
+   * there were none.
+   *
+   * "SAVED" ONLY WHEN NOTHING IS LEFT TO SAVE (2026-10-04). Every tap on a
+   * match card starts a write, and each one used to set "Saved" as it
+   * finished — so the FIRST of a run of taps finishing put "Saved" on the
+   * screen while the rest were still queued behind it. A scorer who believed
+   * it and locked the phone lost the end of the card: the casual-round e2e
+   * spec, tapping a round in at the course's pace, read back 12 holes of 18.
+   */
+  const outstanding = useRef(0);
+  const failedInBatch = useRef(false);
+
   /** Run a write and report how it went. */
   const save = (run: () => Promise<unknown>) => {
+    if (outstanding.current === 0) failedInBatch.current = false;
+    outstanding.current += 1;
     setSaveState("saving");
     setSaveNote("");
     startTransition(async () => {
       try {
         await run();
-        setSaveState("saved");
       } catch {
         // Deliberately sticky: the entered value is still on screen and is
         // *not* stored, and clearing that warning on a timer would hide it.
-        setSaveState("failed");
+        failedInBatch.current = true;
+      } finally {
+        outstanding.current -= 1;
+        if (outstanding.current === 0) setSaveState(failedInBatch.current ? "failed" : "saved");
       }
     });
   };

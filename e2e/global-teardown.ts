@@ -1,4 +1,5 @@
 import { teardown } from "./fixture.mjs";
+import { teardownCasual } from "./casual-fixture.mjs";
 
 /**
  * Remove the fixture tournament.
@@ -9,4 +10,7 @@ import { teardown } from "./fixture.mjs";
  */
 export default async function globalTeardown() {
   await teardown();
+  // The casual-round spec clears its own in `afterAll`; this catches a run
+  // killed part-way, before its rows can be mistaken for somebody's round.
+  await teardownCasual();
 }

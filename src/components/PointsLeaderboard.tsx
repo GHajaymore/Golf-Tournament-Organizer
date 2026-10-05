@@ -214,15 +214,20 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
   );
 }
 
-/** The points table WITHOUT a page heading — see `SkinsStandingsTable`. */
-export function ModifiedStablefordTable({ rows }: { rows: ModStablefordRow[] }) {
+/**
+ * The points table WITHOUT a page heading — see `SkinsStandingsTable`.
+ *
+ * `bare` drops the card it sits in, for a screen that already has one — the
+ * casual round's dashboard puts it inside its own "Where the round stands".
+ */
+export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStablefordRow[]; bare?: boolean }) {
   // Level on points is level. The sort falls back to gross and then to
   // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
   // and 2nd alphabetically.
   const places = placeTexts(placesByValue(rows, (r) => r.points, (r) => r.played > 0));
   return (
     <>
-      <div className="card elev-sm">
+      <div className={bare ? undefined : "card elev-sm"}>
         {rows.length === 0 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>No cards returned yet.</p>
         ) : (
