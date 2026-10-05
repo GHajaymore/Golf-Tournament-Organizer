@@ -33,6 +33,8 @@ import { bracketResults } from "@/lib/services/bracket-results";
 import { golfTermsForEvent } from "@/lib/services/organization";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
+import { PlayerPrizes } from "@/components/PlayerPrizes";
+import { prizesForEntrant } from "@/lib/services/player-prizes";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -118,6 +120,16 @@ export default async function PlayBoardPage({
       </div>
     );
   }
+
+  /**
+   * WHAT IS BEING PLAYED FOR (Ajay, 2026-10-05: "players can see the prizes
+   * only for the tournament/round they are playing"). `prizesForEntrant`
+   * returns the list to somebody confirmed in this field and [] to anybody
+   * else. Read after the published-standings check above: a winner's name is a
+   * result, and a club that has not published its standings has not published
+   * who won.
+   */
+  const prizes = await prizesForEntrant(session.eventId, session.email);
 
   // The round this board shows, and whether IT is stroke-scored — both
   // from the state, which is where the four screens that used to work this
@@ -278,6 +290,7 @@ export default async function PlayBoardPage({
             underneath would be the app overruling that. This branch is about
             the format, not about what the club has chosen to show. */}
         <ResultLines lines={await resultLinesFor(state)} kind={state.event.playKind} />
+        <PlayerPrizes prizes={prizes} />
         <WayForward
           links={[
             { href: "/me", label: "Back to today", icon: "flag" },
@@ -389,6 +402,7 @@ export default async function PlayBoardPage({
           {drawSection}
         </>
       )}
+      <PlayerPrizes prizes={prizes} />
     </div>
   );
 }
