@@ -5,6 +5,7 @@ import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { useAction } from "./useAction";
 import { RescoreWarning } from "./RescoreWarning";
 import {
@@ -108,6 +109,7 @@ export function TeamsClient({
   league?: boolean;
 }) {
   const { pending, error, setError, run, startTransition } = useAction();
+  const saveStatus = useSaveStatus(pending);
   /** Anything that changes a side: waiting on a save, or setup locked. */
   const busy = pending || locked;
   const [newName, setNewName] = useState("");
@@ -298,6 +300,9 @@ export function TeamsClient({
         >
           <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
         </button>
+        {/* A side's name saves when its box is left, and a player when picked —
+            said here, as self-saving controls do. */}
+        <SaveState status={saveStatus} />
       </div>
 
       {/* The reason the button above is dead, on the page rather than in a

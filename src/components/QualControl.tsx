@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
+import { SaveState, useSaveStatus } from "./SaveState";
 
 export function QualControl({
   mode,
@@ -18,6 +19,9 @@ export function QualControl({
   const [pf, setPf] = useState(perFlight);
   const [ov, setOv] = useState(overall);
   const [saving, startTransition] = useTransition();
+  // Every one of these saves itself, the number when its box is left — said
+  // beside them, as other self-saving controls do (`SaveState`).
+  const saveStatus = useSaveStatus(saving);
   // Every control below is disabled on this, so the lock rides along with it.
   const pending = saving || locked;
 
@@ -77,6 +81,7 @@ export function QualControl({
           <span className="text-muted">overall</span>
         </label>
       )}
+      <SaveState status={saveStatus} />
     </div>
   );
 }

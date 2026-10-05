@@ -6,6 +6,7 @@ import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { useId, useState, useRef, useEffect, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
@@ -143,6 +144,12 @@ export function RegistrationClient({
   const [addError, setAddError] = useState("");
   const [rowError, setRowError] = useState("");
   const [pending, startTransition] = useTransition();
+  const tableSaveStatus = useSaveStatus(pending);
+  // The invite message saves when it is left, on its own transition so its
+  // "Saved" does not light up for a change made somewhere else on the screen.
+  const [invitePending, startInviteSave] = useTransition();
+  const inviteSaveStatus = useSaveStatus(invitePending);
+  const savedInvite = useRef(event.inviteMessage);
   // Fixed by the plan on free, the organizer's own choice on a paid plan.
   const phoneLocked = event.phoneLocked;
   // What the import and the public form will actually insist on — the resolved
@@ -402,6 +409,9 @@ export function RegistrationClient({
       <div className="card elev-sm">
         <div className="card-head">
           <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
+          {/* A handicap or an email saves when its box is left — said here, as
+              self-saving controls do. Failures already say so (`rowError`). */}
+          <SaveState status={tableSaveStatus} />
           {anySelected && (
             <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
               <Icon name="trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
@@ -998,9 +1008,15 @@ export function RegistrationClient({
             value={invite}
             placeholder={suggestion}
             onChange={(e) => setInvite(e.target.value)}
-            onBlur={() => startTransition(() => setInviteMessage(invite))}
+            onBlur={() => {
+              // Leaving it unchanged saves nothing, and says nothing.
+              if (invite === savedInvite.current) return;
+              savedInvite.current = invite;
+              startInviteSave(() => setInviteMessage(invite));
+            }}
             style={{ resize: "vertical", fontFamily: "inherit" }}
           />
+          <SaveState status={inviteSaveStatus} />
         </div>
         {/* Nothing to send until a token exists. Every one of these buttons
             puts the link in front of a member, and a link with no token is a
