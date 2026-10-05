@@ -193,6 +193,12 @@ export interface CoursePickerProps {
    * button to fix it, and the same warning twice is noise. Defaults on.
    */
   showCardNote?: boolean;
+  /**
+   * True while a course taken from the directory is being added, false once
+   * it is in. For a screen with its own Save: until then the course is not
+   * chosen, and a save in that second goes without it.
+   */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export function CoursePicker({
@@ -207,6 +213,7 @@ export function CoursePicker({
   disabled = false,
   hint,
   showCardNote = true,
+  onBusyChange,
 }: CoursePickerProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -223,6 +230,7 @@ export function CoursePicker({
    */
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState("");
+  const [addingName, setAddingName] = useState("");
   const [, startAdd] = useTransition();
   const seq = useRef(0);
 
@@ -374,9 +382,17 @@ export function CoursePicker({
    */
   const takeFromDirectory = (hit: DirectorySearchHit) => {
     setAdding(hit.id);
+    setAddingName(hit.name);
+    onBusyChange?.(true);
     startAdd(async () => {
-      const res = await importCourseFromDirectory(hit.id);
-      setAdding("");
+      let res: Awaited<ReturnType<typeof importCourseFromDirectory>>;
+      try {
+        res = await importCourseFromDirectory(hit.id);
+      } finally {
+        setAdding("");
+        setAddingName("");
+        onBusyChange?.(false);
+      }
       /**
        * THE ID IS THE ANSWER, WHETHER OR NOT THE IMPORT HAPPENED.
        *
@@ -458,7 +474,10 @@ export function CoursePicker({
         // Shows what is chosen when idle, and what is being typed when not.
         // A picker that forgets its own answer the moment you touch it is the
         // commonest way one of these goes wrong.
-        value={open ? query : (chosen?.name ?? chosenExtra?.label ?? "")}
+        // And what is being ADDED while a directory course comes in — the
+        // typed words stayed in the box until then, which read as chosen.
+        value={addingName ? `Adding ${addingName}…` : open ? query : (chosen?.name ?? chosenExtra?.label ?? "")}
+        readOnly={addingName !== ""}
         placeholder={chosenExtra?.label ?? chosen?.name ?? noneLabel ?? "Type to find a course"}
         onFocus={() => {
           setOpen(true);

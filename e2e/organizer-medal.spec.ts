@@ -95,14 +95,14 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     const option = page.locator('#course-picker-list [role="option"]', { hasText: "Dayton" }).first();
     await expect(option, "the course search found nothing").toBeVisible({ timeout: 20_000 });
     await option.click();
-    // The catalogue's full name, which the box shows only once the course has
-    // been added and chosen — the words typed are in it from the start.
-    await expect(course).toHaveValue(MEDAL_COURSE, { timeout: 20_000 });
-    const save = page.getByRole("button", { name: "Save event" });
-    await expect(save, "Save is refused with a course just chosen").toBeEnabled();
-    await save.click();
+    // Save pressed the moment the course is picked, as somebody in a hurry
+    // does. Adding it from the search takes a moment, and a save in that
+    // moment went without it — so Save waits ("Adding the course…") until
+    // the course is in. The round step below proves it arrived.
+    await page.locator("button.btn-primary", { hasText: /Save event|Adding the course/ }).click();
     // The button's own word for done: "Save event" becomes "Saved".
     await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(course).toHaveValue(MEDAL_COURSE);
 
     // The link the club sends its members — off until somebody says so.
     await open(page, "/event");
@@ -129,11 +129,11 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await page.getByRole("button", { name: /^Stroke play round/ }).click();
     await page.getByLabel("Format for every round added").selectOption("Stroke Play");
     await page.getByRole("button", { name: /^Add stroke play round/ }).click();
-    const round = page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ });
-    await expect(round, "the round was not added").toBeVisible({ timeout: 20_000 });
+    // The round just added is opened and brought on screen — it used to land
+    // closed, above the builder, off the top of a phone.
     const customize = page.getByRole("button", { name: /^Customize this round/ });
-    if (!(await customize.isVisible())) await round.click();
-    await expect(customize).toBeVisible();
+    await expect(customize, "the new round did not open").toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeInViewport();
     // The course chosen on the event screen is the round's card — #779.
     await expect(page.getByText(/A course card is missing/)).toHaveCount(0);
     await customize.click();

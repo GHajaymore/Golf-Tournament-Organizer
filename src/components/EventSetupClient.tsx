@@ -263,6 +263,13 @@ export function EventSetupClient({
    * name. Set together and never separately, so they cannot come to
    * disagree — the failure that makes two sources of truth worse than one.
    */
+  /**
+   * A course from the search is being added. Save waits for it: until it is
+   * in, nothing is chosen, and saving in that second stored the tournament
+   * with no course while the box still showed the name typed (2026-10-04).
+   */
+  const [courseAdding, setCourseAdding] = useState(false);
+
   const onSelectCourse = (val: string, taken?: { name: string; city: string }) => {
     setCourseSelect(val);
     if (val === "") {
@@ -634,6 +641,7 @@ export function EventSetupClient({
             options={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, cardNote: c.cardNote }))}
             value={courseSelect}
             onChange={onSelectCourse}
+            onBusyChange={setCourseAdding}
             noneLabel="— Select a course —"
             searchDirectory
             // A society playing somewhere new every month should not have to
@@ -854,7 +862,7 @@ export function EventSetupClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || !isDirty || locked}
+            disabled={pending || !isDirty || locked || courseAdding}
             onClick={() => {
               startTransition(() =>
                 saveEvent({
@@ -867,7 +875,7 @@ export function EventSetupClient({
               setSavedSnapshot(f);
             }}
           >
-            <Icon name="check" /> {isDirty ? "Save event" : "Saved"}
+            <Icon name="check" /> {courseAdding ? "Adding the course…" : isDirty ? "Save event" : "Saved"}
           </button>
         </StickySave>
       </div>
