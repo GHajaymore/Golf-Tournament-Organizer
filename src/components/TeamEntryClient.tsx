@@ -265,6 +265,9 @@ export function TeamEntryClient({
             players={group.rows.map(({ team, card }) => ({
               id: keyFor(team.teamId, team.matchId, card.playerId),
               name: card.playerId ? card.playerName : team.teamName,
+              // A side's one card is called by the side's name, in full —
+              // never shortened as if it were a person.
+              ...(card.playerId ? {} : { label: team.teamName }),
               shotsOn: (h: number) => card.shots?.[h] ?? 0,
             }))}
             cards={Object.fromEntries(

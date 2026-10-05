@@ -317,6 +317,9 @@ export default async function ChooseTournamentPage({
           <Icon name="arrow-right" style={{ color: "var(--color-accent-200)", marginLeft: "auto", flex: "none" }} />
         </Link>
 
+        {/* The other thing a player at the course does — see RoundCodeDoor. */}
+        {accounts.length === 0 && <RoundCodeDoor />}
+
         {/* Keyed on the count so the form remounts (and collapses) once the
             first tournament exists, instead of staying open from its initial
             "no tournaments yet" state. */}
@@ -364,17 +367,32 @@ export default async function ChooseTournamentPage({
           asks={await myAsks(session.email)}
         />
 
-        {/* A player given a round code but never added by email lands here with
-            nothing to enter — accessibleEvents only knows people an organizer
-            put on the roster. This is their way in: the existing /play code
-            entry, not a new sign-up path. Shown only in the empty state, where
-            "I was sent a code" is the likeliest reason someone sees no events. */}
-        {accounts.length === 0 && (
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The way into somebody else's round, for a player standing at the course.
+ *
+ * A player given a round code but never added by email lands on /choose with
+ * nothing to enter — accessibleEvents only knows people an organizer put on
+ * the roster. This is their way in: the existing /play code entry, not a new
+ * sign-up path. Shown only in the empty state, where "I was sent a code" is
+ * the likeliest reason someone sees no events.
+ *
+ * DIRECTLY UNDER "Just playing a round?" (2026-10-04). It sat at the foot of
+ * the page, below the whole tournament form, so the two things a player does
+ * at the first tee — start a round, join one — were a screen and a half apart
+ * at 393px, with the one they needed second out of sight.
+ */
+function RoundCodeDoor() {
+  return (
           <div
             style={{
-              marginTop: 18,
-              paddingTop: 18,
-              borderTop: "1px solid var(--color-divider)",
+              marginTop: 12,
+              // Clear of the tournament card below, which starts at its edge.
+              marginBottom: 18,
               display: "flex",
               flexWrap: "wrap",
               alignItems: "center",
@@ -406,8 +424,5 @@ export default async function ChooseTournamentPage({
               <Icon name="flag" /> Enter a round code
             </Link>
           </div>
-        )}
-      </div>
-    </div>
   );
 }
