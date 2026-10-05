@@ -144,23 +144,7 @@ export function reviewQueue(input: {
   return { matches, cards, knockouts, total: matches + cards + knockouts, disputed };
 }
 
-/**
- * What the queue is made of, for the line under the number.
- *
- * Said in the right words for each source rather than collapsed into one:
- * "scores" was the word that made thirty-six match results read as thirty-six
- * scorecards, and the fix is not a better single noun — it is naming both.
- */
-export function reviewQueueDetail(q: ReviewQueue): string {
-  const parts: string[] = [];
-  if (q.cards > 0) parts.push(`${q.cards} ${q.cards === 1 ? "card" : "cards"}`);
-  if (q.matches > 0) {
-    parts.push(`${q.matches} match ${q.matches === 1 ? "result" : "results"}`);
-  }
-  if (q.knockouts > 0) {
-    parts.push(`${q.knockouts} knockout ${q.knockouts === 1 ? "result" : "results"}`);
-  }
-  // Not "0 to confirm": the number above already says none, and a stat card
-  // that repeats its own zero in words reads as an error state.
-  return parts.length === 0 ? "nothing waiting" : `${parts.join(" · ")} to confirm`;
-}
+// The words for the queue — cards and match results named apart, never
+// "scores", which made thirty-six match results read as thirty-six cards —
+// are said by `needsYouNow` since the dashboard's "Awaiting review" tile became
+// lines on "Needs you now" (2026-10-05).

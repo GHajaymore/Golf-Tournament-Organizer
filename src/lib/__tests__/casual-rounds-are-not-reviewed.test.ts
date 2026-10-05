@@ -37,8 +37,10 @@ describe("the screens that ask", () => {
     expect(entry).toContain("{reviews && activeStatus !== \"confirmed\"");
     expect(entry).toContain("{isAdmin && reviews && (");
     expect(readSource("src", "components", "EntryModes.tsx")).toContain("reviews={!casual}");
+    // The tile became lines on "Needs you now" (2026-10-05); the queue it
+    // reads is still emptied of approvals on a casual round.
     expect(readSource("src", "app", "(app)", "dashboard", "page.tsx")).toContain(
-      "isStaff && reviewsScores(state.event.shape)",
+      "reviewing: reviewsScores(state.event.shape)",
     );
   });
 

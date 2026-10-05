@@ -1,7 +1,6 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { roundLabel, roundNameFor, roundNumber } from "@/lib/domain/round-label";
-import { reviewQueueDetail } from "@/lib/domain/review-queue";
 import { matchLine } from "@/lib/domain/match-line";
 import type { HoleResult } from "@/lib/domain/types";
 import { requireState } from "@/lib/page-helpers";
@@ -27,6 +26,8 @@ import { currentRoundCut, survivorsWithTies } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
+import { NeedsYouNow } from "@/components/NeedsYouNow";
+import { needsYouNow } from "@/lib/domain/needs-you-now";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
@@ -786,7 +787,9 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {publishedSheet && (
+      {/* A member's tee sheet: every group, their own first. The organizer's
+          is one line, under "Needs you now" — see below. */}
+      {publishedSheet && !isStaff && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
           <div>
             <span className="card-title" style={{ fontSize: 15 }}>
@@ -850,27 +853,17 @@ export default async function DashboardPage() {
         }}
       >
         <div>
-          <div className="page-kicker">{event.name}</div>
           {/* A match is not a tournament, and calling its one screen a
               "Tournament dashboard" is the app telling two friends they have
-              set up the wrong thing. */}
+              set up the wrong thing.
+
+              NAMED ONCE (Ajay, 2026-10-05). The tournament's name, dates and
+              venue were printed here under the event bar that already shows
+              all three on every console screen — the same two lines twice
+              at the top of a phone. */}
           <h1 className="page-title">
             {matchEvent ? (casualMatch ? "The match" : "The round") : "Tournament dashboard"}
           </h1>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {/* The library's venues stand in for the free-text course when
-                there is none — see `attachedVenues`. Named rather than
-                counted: "2 venues" tells an organizer nothing they did not
-                already know, and a rotating league's whole point is which
-                courses. */}
-            {[
-              event.dates,
-              [event.course || attachedVenues.join(" · "), event.city].filter(Boolean).join(", "),
-            ]
-              .filter(Boolean)
-              .join(" · ") ||
-              (matchEvent ? "No date or course set — neither is needed to play it" : "No dates or venue set yet")}
-          </p>
         </div>
         {/**
          * ONE PRIMARY ON THE SCREEN, and the lifecycle wins it when it has
@@ -913,6 +906,63 @@ export default async function DashboardPage() {
           );
         })()}
       </div>
+
+      {/* WHAT NEEDS THE ORGANIZER, IN ONE PLACE, FIRST (Ajay, 2026-10-05).
+          Disputes, cards and results to approve, a reported knockout result,
+          and the cut once every card is in — each with the button that does
+          it. Staff only: none of it is a player's to do. */}
+      {isStaff && (
+        <NeedsYouNow
+          items={needsYouNow({
+            // A casual round has no committee (`reviewsScores`), so there is
+            // nothing to approve — the old tile was hidden there for the same
+            // reason. A dispute still needs settling, so it stays.
+            reviewing: reviewsScores(state.event.shape)
+              ? state.reviewing
+              : { ...state.reviewing, cards: 0, matches: 0, knockouts: 0, total: 0 },
+          })}
+        >
+          {cutPreview && (
+            <CutReadyCard
+              feederId={cutPreview.feederId}
+              feederName={cutPreview.feederName}
+              nextName={cutPreview.nextName}
+              rule={cutPreview.rule}
+              through={cutPreview.through}
+              missed={cutPreview.missed}
+            />
+          )}
+        </NeedsYouNow>
+      )}
+
+      {/* THE ORGANIZER GETS THE SHEET IN ONE LINE (Ajay, 2026-10-05). Every
+          group and every name was drawn above the heading — one group on the
+          demo, thirty on a club medal of 120, several phone screens before
+          anything an organizer acts on. Their own group still shows when they
+          are playing; the whole sheet is one tap away on its own screen. A
+          member keeps the full card — it is their answer to "when do I go,
+          and with whom". */}
+      {publishedSheet && isStaff && (
+        <div className="card elev-sm" style={{ marginBottom: 16, gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15, fontWeight: 600 }}>
+              {publishedSheet.roundLabel} tee sheet · {plural(publishedSheet.sheet.groups.length, "group")}
+              {publishedSheet.sheet.groups[0]?.time ? ` · first group ${publishedSheet.sheet.groups[0].time}` : ""}
+            </span>
+            <Link href="/foursomes" className="btn btn-secondary" style={{ minHeight: 44 }}>
+              See the tee sheet <Icon name="arrow-right" />
+            </Link>
+          </div>
+          {publishedSheet.mine && (
+            <p style={{ fontSize: 14, margin: 0, fontWeight: 600 }}>
+              {(() => {
+                const g = publishedSheet!.sheet.groups.find((x) => x.name === publishedSheet!.mine)!;
+                return `You're in ${g.name} — hole ${startHoleNumber(g.startHole, publishedSheet!.firstHole)}${g.half ?? ""} at ${g.time}.`;
+              })()}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
           always while it is suspended, so the way back is never hidden. */}
@@ -1018,17 +1068,6 @@ export default async function DashboardPage() {
 
       <AnnouncementList items={announcements} />
 
-      {cutPreview && (
-        <CutReadyCard
-          feederId={cutPreview.feederId}
-          feederName={cutPreview.feederName}
-          nextName={cutPreview.nextName}
-          rule={cutPreview.rule}
-          through={cutPreview.through}
-          missed={cutPreview.missed}
-        />
-      )}
-
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
       {unstarted && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
@@ -1051,7 +1090,14 @@ export default async function DashboardPage() {
               put "Registration & field" into a 64px tile on a 320px phone. The
               same fix, for the same reason, as the flights grid in
               QualificationPanel. */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 8, marginTop: 6 }}>
+          {/* `keep-grid`, so a phone keeps the tiles side by side. Without
+              it the phone rule in globals.css stacked all seven one per row —
+              over a screen of shortcuts to doors the Menu already holds
+              (2026-10-05). */}
+          <div
+            className="keep-grid"
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 8, marginTop: 6 }}
+          >
             {quickActions.map((a) => (
               <Link
                 key={a.href}
@@ -1194,24 +1240,11 @@ export default async function DashboardPage() {
               icon="ph ph-check-circle"
             />
           )}
-          {/* An organizer's review queue, not a player-facing number.
-
-              The sub-line NAMES WHAT IS IN IT rather than calling everything a
-              "score". Read off the demo tournament: "36 scores to confirm"
-              sitting beside "Cards in 7/33" was thirty-six MATCH RESULTS, and
-              the two numbers were about different rounds. See
-              `domain/review-queue.ts` — it counts both sources over the whole
-              tournament now, so a round the organizer has moved on from cannot
-              take its unreviewed work off the screen with it. */}
-          {/* Not on a casual round, which nobody reviews — `reviewsScores`. */}
-          {isStaff && reviewsScores(state.event.shape) && (
-            <StatCard
-              label="Awaiting review"
-              value={state.pendingConfirmations}
-              sub={reviewQueueDetail(state.reviewing)}
-              icon="ph ph-seal-check"
-            />
-          )}
+          {/* THE REVIEW QUEUE IS ON "NEEDS YOU NOW" (2026-10-05), not in a tile
+              here. It was both — "1 card to approve" at the top and "Awaiting
+              review 1 · 1 card to confirm" down here — and the lessons the tile
+              carried (name cards and match results apart, never call a match
+              result a score) live in `needsYouNow` and its tests. */}
           {/* Who's advancing is a live read on the standings, so it follows them
               — and only counts when there's a knockout to advance into; a
               round-to-round cut has no single event-level "advancing" number. */}
