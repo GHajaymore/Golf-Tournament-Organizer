@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { MoreInfo } from "@/components/MoreInfo";
 import { cardTrustNote, type CardTrust } from "@/lib/domain/card-trust";
 
 /**
@@ -35,6 +36,26 @@ export function CardTrustNote({
   const note = cardTrustNote(card, new Date(), formatDate, strokeIndex);
   if (!note) return null;
 
+  /* A WARNING IN ONE LINE, ITS REASON AN ⓘ AWAY (Ajay, 2026-10-05). The full
+     sentence was 30-odd words under every scorecard; the short line says the
+     fact, and the reason — and the way to fix it — is one tap behind it. A
+     checked card is already one short line and stays as it was. */
+  if (note.warn) {
+    return (
+      <MoreInfo warn short={note.short} style={{ marginTop: 8 }}>
+        {note.text}
+        {fix && (
+          <>
+            {" "}
+            <Link href={fix} style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>
+              Check the card
+            </Link>
+          </>
+        )}
+      </MoreInfo>
+    );
+  }
+
   return (
     <p
       style={{
@@ -42,23 +63,13 @@ export function CardTrustNote({
         alignItems: "flex-start",
         gap: 6,
         margin: "8px 0 0",
-        fontSize: 12.5,
+        fontSize: 14,
         lineHeight: 1.55,
-        color: note.warn ? "var(--color-warning)" : "var(--color-text-muted)",
+        color: "var(--color-text-muted)",
       }}
     >
-      <Icon name={note.warn ? "warning-circle" : "check"} aria-hidden style={{ flex: "none", marginTop: 2 }} />
-      <span>
-        {note.text}
-        {note.warn && fix && (
-          <>
-            {" "}
-            <Link href={fix} style={{ color: "inherit", fontWeight: 600 }}>
-              Check the card
-            </Link>
-          </>
-        )}
-      </span>
+      <Icon name="check" aria-hidden style={{ flex: "none", marginTop: 3 }} />
+      <span>{note.text}</span>
     </p>
   );
 }

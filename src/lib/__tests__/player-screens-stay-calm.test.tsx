@@ -10,7 +10,8 @@ vi.mock("@/app/actions/tournament", () => ({
 }));
 
 const { RoundAvailability } = await import("@/components/RoundAvailability");
-const { MicNote } = await import("@/components/MicNote");
+const { MicNote, MIC_SHORT } = await import("@/components/MicNote");
+const { cardTrustNote } = await import("@/lib/domain/card-trust");
 const { AnnouncementList } = await import("@/components/AnnouncementList");
 const { PlayerCard } = await import("@/components/PlayerCard");
 
@@ -53,7 +54,10 @@ describe("the type on a phone on the course", () => {
     "src/components/PlayerCard.tsx",
     "src/components/GroupScoring.tsx",
     "src/components/CardConflict.tsx",
-    "src/components/OnceTip.tsx",
+    "src/components/MoreInfo.tsx",
+    "src/components/CardTrustNote.tsx",
+    "src/app/(player)/me/money/page.tsx",
+    "src/app/(player)/me/calendar/page.tsx",
     "src/components/AnnouncementCard.tsx",
     "src/components/FoldedAnnouncements.tsx",
     "src/components/TournamentSwitcher.tsx",
@@ -76,28 +80,45 @@ describe("the type on a phone on the course", () => {
   });
 });
 
-describe("a how-to sentence is said once, then kept a tap away", () => {
-  it("keeps the microphone's promise in the page, folded", () => {
-    // Folded on the server (no `open`), opened in the browser the first time
-    // this phone shows it. The words never leave the markup.
+describe("a long sentence is a short line, the rest an ⓘ away", () => {
+  /**
+   * Ajay, 2026-10-05: "why don't we provide a short and long details where
+   * long is an info icon away". The short line is what shows; the long text
+   * stays in the page, folded, never removed.
+   */
+  const shortLine = (html: string) => (html.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
+
+  it("keeps the microphone's whole promise in the page, behind a short line", () => {
     const html = renderToStaticMarkup(<MicNote />);
     expect(html).toMatch(/<details(?![^>]*\bopen\b)/);
-    expect(html).toContain("About the microphone");
+    expect(shortLine(html)).toBe(MIC_SHORT);
     expect(html).toMatch(/never in the background/i);
   });
 
-  it("puts availability's explanation behind the same fold on Today only", () => {
+  it("holds every short line to ten words or fewer", () => {
+    for (const s of [MIC_SHORT, "Tap In or Out for each round.", "No side games in this tournament."]) {
+      expect(s.split(/\s+/).length, s).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("puts availability's explanation behind a short line on Today only", () => {
     const compact = renderToStaticMarkup(
       <RoundAvailability today="2026-09-19" playerId="p1" next={round("1", "2026-09-24")} future={[round("2", "2026-10-01")]} past={[]} compact />,
     );
-    expect(compact).toContain("How this works");
+    expect(shortLine(compact)).toBe("Tap In or Out for each round.");
     expect(compact).toContain("Say whether you");
     // Control: the console's own card still prints it as a sentence.
     const full = renderToStaticMarkup(
       <RoundAvailability today="2026-09-19" playerId="p1" next={round("1", "2026-09-24")} future={[round("2", "2026-10-01")]} past={[]} />,
     );
-    expect(full).not.toContain("How this works");
+    expect(full).not.toContain("Tap In or Out for each round.");
     expect(full).toContain("Say whether you");
+  });
+
+  it("gives every course-card warning a short line of its own", () => {
+    const unchecked = cardTrustNote({ source: "imported", verifiedAt: null, verifiedBy: "" });
+    expect(unchecked?.warn).toBe(true);
+    expect(unchecked!.short.length).toBeLessThan(unchecked!.text.length / 2);
   });
 });
 

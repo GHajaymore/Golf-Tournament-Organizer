@@ -15,6 +15,7 @@ import {
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
 import { messageAudience } from "@/lib/domain/message-audience";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * The messages screen.
@@ -116,15 +117,19 @@ function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
         <Icon name="info" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
         <span className="card-title" style={{ fontSize: 14.5 }}>Before you start</span>
       </div>
-      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
-        Messages are sent inside the app over your internet connection — there is no per-text charge
-        from your phone company. If you are on mobile data rather than wifi, your{" "}
-        <b>standard data charges apply</b>, the same as any other app.
-      </p>
-      <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.65 }}>
-        If your club turns on text or email alerts for these messages, your carrier&rsquo;s message
-        and data rates may apply to those.
-      </p>
+      {/* Short, with the whole disclosure an ⓘ away (Ajay, 2026-10-05). The
+          short line keeps the one fact that costs money — data charges. */}
+      <MoreInfo short={<>No text charges. <b>Your data rates apply.</b></>}>
+        <p style={{ margin: 0 }}>
+          Messages are sent inside the app over your internet connection — there is no per-text charge
+          from your phone company. If you are on mobile data rather than wifi, your{" "}
+          <b>standard data charges apply</b>, the same as any other app.
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          If your club turns on text or email alerts for these messages, your carrier&rsquo;s message
+          and data rates may apply to those.
+        </p>
+      </MoreInfo>
       <div>
         <button type="button" className="btn btn-primary" onClick={onDismiss}>
           Got it
@@ -393,8 +398,8 @@ export function MessagesClient({
 
       <div className="card elev-sm" style={{ gap: 0, padding: 0, overflow: "hidden" }}>
         {threads.length === 0 && (
-          <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: 16 }}>
-            No conversations yet. Start one with your group, your flight, or anyone in the field.
+          <p className="text-muted" style={{ fontSize: 14, margin: 0, padding: 16 }}>
+            No conversations yet — start one above.
           </p>
         )}
         {threads.map((t) => (

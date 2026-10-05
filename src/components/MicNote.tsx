@@ -1,5 +1,5 @@
 import { Icon } from "./Icon";
-import { OnceTip } from "./OnceTip";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * WHAT THE MICROPHONE DOES, SAID WHERE THE MICROPHONE IS.
@@ -39,16 +39,18 @@ import { OnceTip } from "./OnceTip";
  * renders it, and that this file claims nothing about where the browser sends
  * audio.
  *
- * SAID ONCE, THEN AN ⓘ (Ajay, 2026-10-05). Four lines of it sat above the
- * score pad on every hole of every round. The promise is the same on the
- * fourteenth as on the first, and the player has read it by then — so it opens
- * the first time this phone shows a mic and folds to "About the microphone"
- * after, one tap from the full sentence. `OnceTip` keeps the words in the
- * page, so every assertion below about what it says still reads them.
+ * SHORT, WITH THE WHOLE PROMISE AN ⓘ AWAY (Ajay, 2026-10-05). Four lines of
+ * it sat above the score pad on every hole of every round. The short line says
+ * the two facts a golfer actually asks — is it always listening, is it kept —
+ * and the full sentence is one tap behind it. `MoreInfo` keeps those words in
+ * the page, so every assertion below about what it says still reads them, and
+ * the short line is held to the same no-false-promise list.
  */
+export const MIC_SHORT = "Listens only while pressed. Nothing is recorded.";
+
 export function MicNote({ style }: { style?: React.CSSProperties }) {
   return (
-    <OnceTip id="mic-note" label="About the microphone" style={style}>
+    <MoreInfo short={MIC_SHORT} style={style}>
       <span style={{ display: "flex", gap: 6 }}>
         {/* The same name the two existing mic buttons use — Phosphor's, not a
             bare "microphone", which renders nothing. */}
@@ -58,6 +60,6 @@ export function MicNote({ style }: { style?: React.CSSProperties }) {
           kept — just the numbers, into the card.
         </span>
       </span>
-    </OnceTip>
+    </MoreInfo>
   );
 }

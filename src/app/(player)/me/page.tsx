@@ -44,6 +44,7 @@ import { isFinished } from "@/lib/domain/lifecycle-state";
 import { firstHoleOf, holeNumber, startHoleNumber } from "@/lib/domain/hole-number";
 import { playWithFor } from "@/lib/services/pairing";
 import { PlayWithPicker } from "@/components/PlayWithPicker";
+import { MoreInfo } from "@/components/MoreInfo";
 
 /**
  * Today — the player's home.
@@ -316,10 +317,10 @@ export default async function PlayTodayPage() {
               this branches on `me.round`, which is null when there is no
               PLAYABLE round, and stages that are not playing rounds would make
               the stronger sentence an overclaim. Say what the gate knows. */}
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          <MoreInfo short="Your card and the board appear here once there's a round.">
             Your entry is confirmed. There&rsquo;s no round to play in this tournament yet, so
             there&rsquo;s no card and no board — both appear here as soon as there is one.
-          </p>
+          </MoreInfo>
           {myRow?.windowNote && (
             <span className="text-muted" style={{ fontSize: 13 }}>
               {myRow.windowNote}
@@ -333,20 +334,20 @@ export default async function PlayTodayPage() {
       {waiting && myRow?.awaiting && (
         <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">Your entry is awaiting approval</span>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          <MoreInfo short="No card until it's approved.">
             The {terms.organizer} approves each entry to this tournament, and yours is with them. There&rsquo;s
             no card until it&rsquo;s approved — the board, the groups and the notices are all open to read.
-          </p>
+          </MoreInfo>
         </section>
       )}
 
       {waiting && !myRow?.awaiting && (
         <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          <MoreInfo short="No card until a place opens up.">
             Your name is down and the {terms.organizer} will confirm your place if one opens up. There&rsquo;s
             no card until then — the board, the groups and the notices are all open to read.
-          </p>
+          </MoreInfo>
           {myRow?.placesNote && (
             <span className="text-muted" style={{ fontSize: 13 }}>
               {myRow.placesNote}
@@ -356,10 +357,9 @@ export default async function PlayTodayPage() {
       )}
 
       {!me.playerId && !watching && !waiting && (
-        <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          You aren&rsquo;t entered in this tournament, so there&rsquo;s no card here. The board is still
-          open on the next tab.
-        </p>
+        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 16 }}>
+          So there&rsquo;s no card here. The board is still open on the next tab.
+        </MoreInfo>
       )}
 
       {/**
@@ -371,10 +371,10 @@ export default async function PlayTodayPage() {
       {watching && (
         <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re watching this one</span>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          <MoreInfo short="You aren't entered — the board is open to read.">
             You aren&rsquo;t entered, so there&rsquo;s no card for you here. The board, the groups and the
             notices are all open to read.
-          </p>
+          </MoreInfo>
           {myRow?.windowNote && (
             <span className="text-muted" style={{ fontSize: 13 }}>
               {myRow.windowNote}
@@ -612,10 +612,10 @@ export default async function PlayTodayPage() {
           {round?.cutOut ? (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>
-              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+              <MoreInfo short={`Your ${round.cutOut} score stands on the board.`} style={{ marginTop: 4 }}>
                 You didn&rsquo;t make the cut after {round.cutOut}, so there&rsquo;s no {round.name} card for
-                you. Your {round.cutOut} score stands on the board.
-              </p>
+                you.
+              </MoreInfo>
               <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
                 See the board <Icon name="arrow-right" />
               </Link>
@@ -727,10 +727,10 @@ export default async function PlayTodayPage() {
       {me.playerId && round?.offSheet && !round.group && !card?.filled && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
-          <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "4px 0 0" }}>
-            The tee times for this round are out, and you were entered after they were drawn. The
+          <MoreInfo short={`The ${terms.organizer} will add you to a group.`} style={{ marginTop: 4 }}>
+            The tee times for this round are out, and you were entered after they were drawn. The{" "}
             {terms.organizer} adds you to a group — check back here, or ask them for your time.
-          </p>
+          </MoreInfo>
         </section>
       )}
 

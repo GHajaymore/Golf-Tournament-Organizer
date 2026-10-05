@@ -7611,7 +7611,8 @@ describe("what a player has riding on the round", () => {
       const html = render(
         <RoundMoney view={{ ...base, anyGame: false, rounds: finished(3), stake: { games: 0, cents: 0 } }} />,
       );
-      expect(html).toMatch(/no side games on this tournament/i);
+      // "in", since the short-line rewording of 2026-10-05; same answer.
+      expect(html).toMatch(/no side games in this tournament/i);
       expect(html).not.toMatch(/once every hole is in/i);
     });
 

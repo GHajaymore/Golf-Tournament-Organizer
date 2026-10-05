@@ -14,6 +14,7 @@ import {
 } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+import { MoreInfo } from "@/components/MoreInfo";
 import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/me/rules");
@@ -201,11 +202,12 @@ export default async function PlayRulesPage() {
         <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 17, margin: "0 0 4px" }}>
           The Rules of Golf
         </h2>
-        <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
-          {inPlay.length
-            ? "The ones this tournament plays under. Published by the USGA and The R&A; links open their site."
-            : "Published by the USGA and The R&A. Links open their site."}
-        </p>
+        <MoreInfo
+          short={inPlay.length ? "The ones this tournament plays under." : "As published by the USGA and The R&A."}
+          style={{ margin: "0 0 10px" }}
+        >
+          Published by the USGA and The R&amp;A. Each link opens the rule on their site.
+        </MoreInfo>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(inPlay.length ? inPlay : Object.values(RULES)).map((r) => (
             <RuleLink key={r.key} rule={r} />

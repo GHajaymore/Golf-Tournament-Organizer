@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/page-helpers";
 import { moneyFor, roundMoneyFor, usesExpenses } from "@/lib/services/expenses";
 import { MoneyClient } from "@/components/MoneyClient";
 import { RoundMoney } from "@/components/RoundMoney";
+import { MoreInfo } from "@/components/MoreInfo";
 import { prisma } from "@/lib/db";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
@@ -199,9 +200,10 @@ export default async function MoneyPage() {
       {/* Said ONCE, for the whole screen (2026-09-19). The pots and the
           settle-up each ended with their own version of it, so a player with
           both read it twice. */}
-      <p className="text-muted" style={{ fontSize: 11.5, margin: "14px 0 0", lineHeight: 1.5 }}>
-        TourneyHQ works the money out and writes it down. It never moves money.
-      </p>
+      <MoreInfo short="TourneyHQ records money. It never moves it." style={{ marginTop: 14 }}>
+        TourneyHQ works the money out and writes it down. Paying and collecting happen between you, off
+        the app; marking something settled records that it happened.
+      </MoreInfo>
     </div>
   );
 }
