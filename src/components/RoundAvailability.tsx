@@ -4,7 +4,7 @@ import { setAttendance } from "@/app/actions/attendance";
 import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import type { AvailabilityRound, AvailabilityView, CaptainFlight } from "@/lib/services/availability";
 import { Icon } from "./Icon";
-import { OnceTip } from "./OnceTip";
+import { MoreInfo } from "./MoreInfo";
 
 export type { AvailabilityRound, CaptainFlight } from "@/lib/services/availability";
 
@@ -235,9 +235,11 @@ export function RoundAvailability({
           <span className="card-title" style={{ fontSize: 16 }}>
             {asksPlayer ? "Your availability" : "Whether you're playing"}
           </span>
-          <OnceTip id={asksPlayer ? "availability-how" : "availability-captain"} label="How this works">
+          <MoreInfo
+            short={asksPlayer ? "Tap In or Out for each round." : "Your captain sends the side in."}
+          >
             {explanation}
-          </OnceTip>
+          </MoreInfo>
         </div>
 
         {next && (

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { MoreInfo } from "@/components/MoreInfo";
 import { requireSession } from "@/lib/page-helpers";
 import { clubCommitmentsFor } from "@/lib/services/club-calendar";
 import { todayIso } from "@/lib/deadline";
@@ -55,10 +56,10 @@ export default async function ClubCalendarPage() {
         </div>
       ) : (
         <>
-          <p className="text-muted" style={{ margin: "10px 0 18px", fontSize: 13, lineHeight: 1.5 }}>
-            Every round you are entered in, across the club. Where a league still lets you choose,
-            set whether you are in right here.
-          </p>
+          <MoreInfo short="Every round you're entered in." style={{ margin: "10px 0 18px" }}>
+            Across every tournament at the club. Where a league still lets you choose your weeks, set
+            whether you are in right here.
+          </MoreInfo>
           <ClubCalendar commitments={commitments} today={todayIso()} />
         </>
       )}

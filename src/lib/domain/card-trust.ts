@@ -76,6 +76,11 @@ export interface TrustNote {
   level: "unchecked" | "stale" | "checked";
   /** One sentence, in full, for a screen to print. */
   text: string;
+  /**
+   * The same note in one line, for a screen that shows `text` an ⓘ away
+   * (Ajay, 2026-10-05). Says the fact; `text` says why it matters.
+   */
+  short: string;
   /** Whether this should read as a warning rather than as a footnote. */
   warn: boolean;
 }
@@ -117,6 +122,7 @@ export function cardTrustNote(
     return {
       level: "unchecked",
       warn: true,
+      short: "No stroke index on this card — net scores will be off.",
       text: `This course card has no stroke index, so handicap strokes cannot be allocated — net scores will be wrong until somebody enters it off the club's own scorecard. Gross scoring is unaffected.`,
     };
   }
@@ -127,6 +133,7 @@ export function cardTrustNote(
     return {
       level: "unchecked",
       warn: true,
+      short: "Nobody at the club has checked this course card.",
       text: `This course card was ${where} and nobody at the club has checked it. Compare the pars and stroke index with the club's own scorecard — a wrong stroke index puts handicap shots on the wrong holes.`,
     };
   }
@@ -137,6 +144,7 @@ export function cardTrustNote(
     return {
       level: "stale",
       warn: true,
+      short: "This course card was last checked over a year ago.",
       text: `This card was last checked on ${formatDate(verified)}${by ? ` by ${by}` : ""} — over a year ago. Courses change their stroke index when they change a hole, so it is worth checking against the club's scorecard.`,
     };
   }
@@ -145,6 +153,7 @@ export function cardTrustNote(
   return {
     level: "checked",
     warn: false,
+    short: `Card checked on ${formatDate(verified)}.`,
     text: `Card checked on ${formatDate(verified)}${by ? ` by ${by}` : ""}.`,
   };
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { RoundMoneyView } from "@/lib/services/expenses";
 import { useMoney } from "@/components/CurrencyProvider";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * What the pots paid, round by round, with the outing underneath.
@@ -169,10 +170,10 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
          * none of the pots can pay them. The shared money is deliberately
          * visible to everyone in the group and stays visible.
          */
-        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+        <MoreInfo short="You have no stake in the pots.">
           You aren&rsquo;t in this tournament&rsquo;s field, so you have no stake in its pots. The
           group&rsquo;s shared costs are below.
-        </p>
+        </MoreInfo>
       ) : !view.anyFinal ? (
         /**
          * "NOT YET" AND "NOT AT ALL" ARE DIFFERENT ANSWERS, and this said the
@@ -195,26 +196,28 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
          * Told apart by the same test the rest of this card uses — a round is
          * outstanding when it is not final — so the two cannot drift.
          */
-        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+        // A div, not a <p>: each answer is a short line with its reason an ⓘ
+        // away (Ajay, 2026-10-05), and a <details> may not sit inside a <p>.
+        <div>
           {!view.anyGame ? (
-            <>
-              No side games on this tournament, so there is nothing to divide. Skins, pots and contests are set
-              up per round, and none has been.
-            </>
+            <MoreInfo short="No side games in this tournament.">
+              Nothing to divide. Skins, pots and contests are set up per round, and none has been.
+            </MoreInfo>
           ) : outstanding || view.rounds.length === 0 ? (
-            <>
-              Nothing settled yet. A round&rsquo;s pots are worked out once every hole is in — a skins pot can
-              carry to the last green, so a running total would only be a different number that looked like the
-              answer.
-            </>
+            <MoreInfo short="Nothing settled yet.">
+              A round&rsquo;s pots are worked out once every hole is in — a skins pot can carry to the last
+              green, so a running total would only be a different number that looked like the answer.
+            </MoreInfo>
+          ) : sharedBall.length > 0 ? (
+            <MoreInfo short="Every round is in, and no pot changed hands.">
+              Rounds played with one ball per side have no individual scores, so no pot can run on them.
+            </MoreInfo>
           ) : (
-            <>
+            <p className="text-muted" style={{ fontSize: 14, margin: 0 }}>
               Every round is in, and no pot changed hands.
-              {sharedBall.length > 0 &&
-                " Rounds played with one ball per side have no individual scores, so no pot can run on them."}
-            </>
+            </p>
           )}
-        </p>
+        </div>
       ) : (
         <>
           {/* The outing first: the number people actually came for. */}

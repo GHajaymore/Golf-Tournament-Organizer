@@ -70,9 +70,16 @@ describe("every microphone explains itself", () => {
      * above the scorecard on a 376px screen until Ajay asked for the screen to
      * be simple. Pinned as a LENGTH rather than as wording, so it can be
      * reworded but not quietly grow back.
+     *
+     * Two lengths since 2026-10-05: the short line that is always on screen,
+     * and the full promise an ⓘ behind it. Both are held, so neither can grow.
      */
-    const text = renderToStaticMarkup(<MicNote />).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    expect(text.length, `the note is ${text.length} characters: "${text}"`).toBeLessThan(160);
+    const html = renderToStaticMarkup(<MicNote />);
+    const plain = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const shown = plain(html.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1] ?? "");
+    const folded = plain(html.replace(/<summary[\s\S]*?<\/summary>/, ""));
+    expect(shown.length, `the short line is ${shown.length} characters: "${shown}"`).toBeLessThan(60);
+    expect(folded.length, `the full note is ${folded.length} characters: "${folded}"`).toBeLessThan(160);
   });
 
   it("claims nothing about where the browser sends the audio", () => {

@@ -19,6 +19,7 @@ import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * The outing's money, on a phone.
@@ -1245,10 +1246,9 @@ export function MoneyClient({
             screen. Rendered only when there is at least one line this viewer
             cannot change; somebody who entered all their own sees nothing. */}
         {view.expenses.some((e) => !e.canEdit) && (
-          <p className="text-muted" style={{ fontSize: 11.5, margin: "10px 0 0", lineHeight: 1.55 }}>
-            You can change the lines you entered. For anyone else&rsquo;s, ask whoever entered it or
-            an organizer.
-          </p>
+          <MoreInfo short="You can edit the lines you entered." style={{ marginTop: 10 }}>
+            For anyone else&rsquo;s, ask whoever entered it or an organizer.
+          </MoreInfo>
         )}
       </section>
 
