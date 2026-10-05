@@ -17,7 +17,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { applyStrokeCut, strokeCutField } from "@/lib/services/stroke-cut";
+import { applyStrokeCut, strokeCutField, strokeCutRefusal } from "@/lib/services/stroke-cut";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
@@ -5427,6 +5427,14 @@ export async function setRoundClosed(
     select: { id: true, description: true, position: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+
+  // Closing a round that a cut is taken out of IS approving the cut, and a cut
+  // is only made on final cards (Ajay, 2026-10-05). Refused before anything is
+  // written, so a round is never closed without its cut. See `strokeCutRefusal`.
+  if (closed) {
+    const refusal = await strokeCutRefusal(eventId, stage.id);
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   await prisma.stage.update({
     where: { id: stage.id },

@@ -8,6 +8,7 @@ import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../fo
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
+import { roundReadyForCut } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -568,6 +569,12 @@ export interface EventState {
    * played yet, and `/foursomes` had no way to ask for one.
    */
   nextUnplayedRound: DbStage | null;
+  /**
+   * A stroke cut with every card in and the round it is taken out of still
+   * open — the organizer's one step left is to mark that round finished. See
+   * `roundReadyForCut`. Names are what the organizer reads ("Round 1").
+   */
+  cutReady: { feederId: string; feederName: string; nextId: string; nextName: string } | null;
   strokeStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
@@ -2425,6 +2432,22 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         }
       : boardProgressOfCards;
 
+  // Counted with the same `roundProgress` the dashboard's "Cards in" reads, so
+  // the prompt and the count beside it cannot disagree about "all in" — on the
+  // FINAL cards: approved, or certified where no committee reviews.
+  const readyCut = roundReadyForCut(playRounds, (r) => {
+    const p = roundProgress(r);
+    return { final: staffApproves ? p.approved : p.certified, total: p.total };
+  });
+  const cutReady = readyCut
+    ? {
+        feederId: readyCut.feeder.id,
+        feederName: roundKicker(readyCut.feeder.description, roundLabel(stages, readyCut.feeder.id) || "This round"),
+        nextId: readyCut.next.id,
+        nextName: roundKicker(readyCut.next.description, roundLabel(stages, readyCut.next.id) || "the next round"),
+      }
+    : null;
+
   return {
     event,
     scoring,
@@ -2480,6 +2503,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     bracketFeederProgress,
     boardProgress,
     nextUnplayedRound,
+    cutReady,
     strokeStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,
