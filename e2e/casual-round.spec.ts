@@ -60,13 +60,24 @@ const CAT = "Cat Zed";
 const DOT = "Dot Zed";
 
 /** The setup screen, top to bottom, in the order it asks. */
-async function setUp(page: Page, format: string, net: boolean, names: string[]) {
+async function setUp(
+  page: Page,
+  format: string,
+  net: boolean,
+  names: string[],
+  money?: { game: string; stake: string },
+) {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
 
   await page.goto("/match/new");
   await page.getByRole("button", { name: new RegExp(`^${format}\\b`) }).click();
   await page.getByRole("button", { name: net ? /off handicaps \(net\)/ : /play level \(gross\)/ }).click();
+
+  if (money) {
+    await page.getByRole("button", { name: money.game, exact: true }).click();
+    await page.getByLabel("Stake per player").fill(money.stake);
+  }
 
   for (const [i, name] of names.entries()) {
     const box = page.getByRole("combobox", { name: `Player ${i + 1} name` });
@@ -101,15 +112,26 @@ async function setUp(page: Page, format: string, net: boolean, names: string[]) 
  * this waits for — no extra grace period a person would not give it.
  */
 async function scoreEveryHole(page: Page, firstSideCards: number) {
+  await scoreHoles(page, (hole, card) => (FIRST_SIDE_DROPS_ON.has(hole) && card < firstSideCards ? 1 : 0));
+}
+
+/**
+ * Every hole, every card on it, at par plus `toPar(hole, card)`: one tap makes
+ * par, then one more per shot dropped or one fewer per shot saved. Cards come
+ * on the hole in the order the players were typed.
+ */
+async function scoreHoles(page: Page, toPar: (hole: number, card: number) => number) {
   await page.goto("/entry");
   const plus = page.getByRole("button", { name: /^One more stroke for/ });
+  const minus = page.getByRole("button", { name: /^One fewer stroke for/ });
   await expect(plus.first(), "the hole-by-hole card did not open").toBeVisible({ timeout: 30_000 });
 
   for (let hole = 1; hole <= 18; hole += 1) {
     const n = await plus.count();
-    for (let i = 0; i < n; i += 1) await plus.nth(i).click();
-    if (FIRST_SIDE_DROPS_ON.has(hole)) {
-      for (let i = 0; i < firstSideCards; i += 1) await plus.nth(i).click();
+    for (let i = 0; i < n; i += 1) {
+      await plus.nth(i).click();
+      const d = toPar(hole, i);
+      for (let k = 0; k < Math.abs(d); k += 1) await (d > 0 ? plus : minus).nth(i).click();
     }
     if (hole < 18) await page.getByRole("button", { name: /^Next/ }).click();
   }
@@ -159,6 +181,44 @@ test.describe("a casual round at the course", () => {
     const ann = text.search(new RegExp(`${ANN}\\s+74\\s+\\+2\\b`));
     expect([bea, cat, ann], "a row is missing or wrong").not.toContain(-1);
     expect(ann, "the dropped shots are not last").toBeGreaterThan(Math.max(bea, cat));
+  });
+
+  test("a skins game for money, gross, three players", async ({ page }) => {
+    /**
+     * Ten dollars each, so a thirty-dollar pot. Everybody pars every hole but
+     * two: Ann birdies the 3rd, taking it and the two tied holes carried into
+     * it — 3 skins — and Bea birdies the 10th, taking holes 4 to 10 — 7 skins.
+     * Holes 11 to 18 are all tied, so nobody wins them.
+     *
+     * The pot divides by the skins actually WON (skins-pot.ts), ten of them:
+     * Ann 3/10 of $30 = $9, Bea 7/10 = $21, Cat nothing. Net: Ann -$1, Bea
+     * +$11, Cat -$10, which sums to nothing — money is moved between players,
+     * never made or lost.
+     *
+     * A carry that did not carry gives Ann 1 skin and Bea 1; a pot divided by
+     * all eighteen holes pays Bea $11.67; a game read as net from a gross
+     * round, or the local currency lost, prints different words. None of them
+     * prints this table.
+     */
+    await setUp(page, "Stroke Play", false, [ANN, BEA, CAT], { game: "Skins", stake: "10" });
+    await scoreHoles(page, (hole, card) => ((hole === 3 && card === 0) || (hole === 10 && card === 1) ? -1 : 0));
+
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle");
+    const text = await page.locator("main").innerText();
+    expect(text, "the pot is still provisional with every card in").not.toMatch(/Provisional/);
+    // Headings are capitals on screen — CSS, which innerText reports.
+    expect(text, "the money is not in the local currency").toMatch(/Won \(\$\)/i);
+    expect(text).toMatch(/10 skins actually won/);
+    const row = (name: string, skins: number, won: string, net: string) =>
+      new RegExp(`${name}\\s+${skins}\\s+${won}(\\.00)?\\s+10(\\.00)?\\s+${net}(\\.00)?\\b`);
+    expect(text).toMatch(row(BEA, 7, "21", "\\+11"));
+    expect(text).toMatch(row(ANN, 3, "9", "[-−]1"));
+    expect(text).toMatch(row(CAT, 0, "0", "[-−]10"));
+    // What they actually do on the eighteenth green: two handovers, both to Bea.
+    expect(text).toContain(`${CAT} pays ${BEA} $10.00`);
+    expect(text).toContain(`${ANN} pays ${BEA} $1.00`);
+    expect(text.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
   });
 
   test("modified stableford, net, two players", async ({ page }) => {
