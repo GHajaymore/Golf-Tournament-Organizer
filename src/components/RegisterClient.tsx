@@ -42,6 +42,9 @@ interface Props {
   organizer?: string;
 }
 
+/** The home page's sign-in, coming back to the member's own screen after. */
+export const SIGN_IN_TO_ME = "/?next=%2Fme#signin";
+
 /**
  * What the confirmation says, and whether it leads back into the app.
  *
@@ -54,7 +57,7 @@ export function entryReceipt(
   eventName: string,
   signedIn: boolean,
   organizer = "organizer",
-): { heading: string; detail: string; good: boolean; backToApp: boolean } {
+): { heading: string; detail: string; good: boolean; backToApp: boolean; signIn: boolean } {
   const heading = done.already
     ? "You're already registered"
     : done.status === "confirmed"
@@ -69,7 +72,18 @@ export function entryReceipt(
       : done.status === "waitlisted"
         ? "The field is full, so you're on the waitlist. We'll be in touch if a place opens up."
         : `Your entry is with the ${organizer} for approval. You'll hear once it's confirmed.`;
-  return { heading, detail, good: !!done.already || done.status === "confirmed", backToApp: signedIn };
+  /**
+   * AND A SIGNED-OUT ENTRANT IS GIVEN THE DOOR IN (2026-10-04).
+   *
+   * "You're confirmed … Use this email to sign in." was the whole screen: no
+   * button, no link, on a page with no navigation, reached from a link the
+   * secretary texted. The member who has just entered is the person most
+   * likely to want their tee time and, on the day, their card — and they were
+   * left to find the sign-in on their own. Anybody holding a place, or a place
+   * in the queue, is offered it; their first sign-in sets their password.
+   */
+  const signIn = !signedIn && (!!done.already || done.status === "confirmed" || done.status === "waitlisted");
+  return { heading, detail, good: !!done.already || done.status === "confirmed", backToApp: signedIn, signIn };
 }
 
 export function RegisterClient({
@@ -136,7 +150,7 @@ export function RegisterClient({
 
   // Confirmation — this IS the receipt (email is best-effort and deferred).
   if (done) {
-    const { heading, detail, good, backToApp } = entryReceipt(done, eventName, signedIn, organizer);
+    const { heading, detail, good, backToApp, signIn } = entryReceipt(done, eventName, signedIn, organizer);
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
         <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
@@ -147,6 +161,12 @@ export function RegisterClient({
         {backToApp && (
           <a href="/me/events" className="btn btn-primary" style={{ marginTop: 6, minHeight: 44 }}>
             Back to your events
+          </a>
+        )}
+        {signIn && (
+          // The sign-in on the home page, returning to their own screen.
+          <a href={SIGN_IN_TO_ME} className="btn btn-primary" style={{ marginTop: 6, minHeight: 44 }}>
+            Sign in to see your entry
           </a>
         )}
       </div>

@@ -44,3 +44,36 @@ describe("the confirmation after entering on the sign-up link", () => {
     expect(form).toMatch(/\{backToApp && \(\s*<a href="\/me\/events"/);
   });
 });
+
+/**
+ * AND A STRANGER IS GIVEN THE WAY IN (2026-10-04).
+ *
+ * The note above said a stranger has "no way into an app they have no account
+ * for". They do: the address they entered with is provisioned, and signing in
+ * with it goes to "Set your password" (`needsClaim`). The receipt told them to
+ * do that and gave them nowhere to do it — no button on a page with no
+ * navigation, reached from a link the secretary texted. Walked by
+ * `e2e/organizer-entry.spec.ts`.
+ */
+describe("a signed-out entrant is offered the sign-in", () => {
+  it("on a confirmed place, a place in the queue, and an entry already made", () => {
+    for (const done of [{ status: "confirmed" as const }, { status: "waitlisted" as const }, { already: true }]) {
+      expect(entryReceipt(done, "zz", false).signIn).toBe(true);
+    }
+  });
+
+  it("not while the entry waits on the organizer — there is nothing of theirs to see yet", () => {
+    expect(entryReceipt({ status: "pending" }, "zz", false).signIn).toBe(false);
+  });
+
+  it("not to somebody already signed in, who is led back instead (the control)", () => {
+    expect(entryReceipt({ status: "confirmed" }, "zz", true).signIn).toBe(false);
+  });
+
+  it("the button goes to the sign-in and comes back to their own screen", async () => {
+    const { SIGN_IN_TO_ME } = await import("@/components/RegisterClient");
+    expect(SIGN_IN_TO_ME).toBe("/?next=%2Fme#signin");
+    const form = readSource("src", "components", "RegisterClient.tsx");
+    expect(form).toMatch(/\{signIn && \([\s\S]*?<a href=\{SIGN_IN_TO_ME\}/);
+  });
+});
