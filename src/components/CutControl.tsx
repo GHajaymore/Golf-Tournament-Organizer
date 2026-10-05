@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
 import { cutAdvancesEveryone } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { plural } from "@/lib/format";
 
 export function CutControl({
@@ -50,6 +51,9 @@ export function CutControl({
   const [pct, setPct] = useState(percent);
   const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
   const [saving, startTransition] = useTransition();
+  // The number saves when its box is left — said beside it, as every other
+  // control that saves itself does (`SaveState`).
+  const saveStatus = useSaveStatus(saving);
   // Every control below is disabled on this, so the lock rides along with it.
   const pending = saving || locked;
 
@@ -105,6 +109,7 @@ export function CutControl({
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
         <input type="checkbox" checked={on} disabled={pending} onChange={(e) => commit(e.target.checked, m, n, pct)} />
         Cut the field for {roundLabel}
+        <SaveState status={saveStatus} />
       </label>
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

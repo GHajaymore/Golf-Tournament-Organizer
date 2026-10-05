@@ -16,6 +16,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { useAction } from "./useAction";
 
 /**
@@ -172,6 +173,7 @@ export function ContestsClient({
 }) {
   const { money, plain, parse } = useMoney();
   const { pending, error, setError, run } = useAction();
+  const saveStatus = useSaveStatus(pending);
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<ContestKind>("closest-pin");
   const [name, setName] = useState("");
@@ -375,7 +377,12 @@ export function ContestsClient({
           the point: the scores name one. All an organizer sets is the stake
           and who is in. */}
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
-        <span className="card-kicker">Settled by the scores</span>
+        <span className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          Settled by the scores
+          {/* A stake saves when its box is left — said here, as self-saving
+              controls do. */}
+          <SaveState status={saveStatus} />
+        </span>
         <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
           {/* Names only what is actually offered below. A round with no
               matches does not show the Nassau row, and a sentence advertising

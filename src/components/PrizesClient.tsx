@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import { addPrize, updatePrize, setPrizeWinner, removePrize, applyPrizeStructure } from "@/app/actions/tournament";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { PRIZE_STRUCTURES } from "@/lib/domain/prize-structures";
 import { useMoney } from "@/components/CurrencyProvider";
 import { money as formatMoney, minorUnitDigits } from "@/lib/domain/money-format";
@@ -50,6 +51,7 @@ export function PrizesClient({
   const [detail, setDetail] = useState("");
   const [amount, setAmount] = useState("");
   const [pending, startTransition] = useTransition();
+  const saveStatus = useSaveStatus(pending);
 
   /**
    * A prize's amount, winner and remove — the same three controls in the table
@@ -220,7 +222,12 @@ export function PrizesClient({
           by name ("a club-funded prize belongs in the prize list…"), pointing
           at something no heading called that. */}
       <div className="card elev-sm">
-        <span className="card-title" style={{ fontSize: 15 }}>Prizes</span>
+        {/* An amount saves when its box is left and a winner when picked —
+            said here, once for the list, as self-saving controls do. */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Prizes</span>
+          <SaveState status={saveStatus} />
+        </div>
         {/* ON A PHONE, ONE PRIZE A ROW (2026-09-29). The table put the WINNER
             in its last column, and at 390px that column was off the right edge
             — the one screen whose point is who won never showed it without a

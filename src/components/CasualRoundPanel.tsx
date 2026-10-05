@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { useRouter } from "next/navigation";
 import { setStageHoles, setStageScoringBasis, updateSignup, removeSignup } from "@/app/actions/tournament";
 import { ConfirmButton } from "./ConfirmButton";
@@ -63,6 +64,7 @@ export function CasualRoundPanel({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const saveStatus = useSaveStatus(pending);
   const [error, setError] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
 
@@ -209,7 +211,10 @@ export function CasualRoundPanel({
           ))}
         </div>
         <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
-          Handicaps save when you tap away. A plus handicap is written &ldquo;+2&rdquo;.
+          Handicaps save when you tap away. A plus handicap is written &ldquo;+2&rdquo;.{" "}
+          {/* And then it says that it has — the sentence promised a save the
+              screen never confirmed. */}
+          <SaveState status={saveStatus} />
         </p>
       </div>
 
