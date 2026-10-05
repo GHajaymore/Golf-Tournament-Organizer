@@ -156,7 +156,13 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
         // The add form's box ("Amount ($)"), not a prize already in the list.
         await page.getByRole("spinbutton", { name: /^Amount \(/ }).fill(amount);
         await page.getByRole("button", { name: "Add", exact: true }).click();
-        await expect(page.getByLabel(`Amount for ${category}`).first()).toBeVisible({ timeout: 20_000 });
+        // The visible copy: Prizes draws a table on a desktop and stacked rows
+        // on a phone, with the same labelled box in both, and the stacked one
+        // comes first in the page — hidden at 1280px. `.first()` alone waited
+        // on that hidden box and failed every desktop run of #793.
+        await expect(page.getByLabel(`Amount for ${category}`).filter({ visible: true }).first()).toBeVisible({
+          timeout: 20_000,
+        });
       }
 
       await open(member, "/me/board");
