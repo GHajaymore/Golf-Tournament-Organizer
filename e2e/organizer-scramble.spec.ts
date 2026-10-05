@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { makeBoardPublic, readPublicBoard } from "./public-board";
 
 /**
  * A FOUR-PERSON TEXAS SCRAMBLE ON NET, RUN FROM NOTHING — the society day and
@@ -68,7 +69,7 @@ async function open(page: Page, path: string) {
 /** A side's card: birdies on the first holes until it is `toPar` under, pars after. */
 const card = (toPar: number) => MEDAL_PARS.map((p: number, i: number) => p + (i < Math.abs(toPar) ? Math.sign(toPar) : 0));
 
-test("a new organizer runs a four-person scramble on net", async ({ page }) => {
+test("a new organizer runs a four-person scramble on net", async ({ page, baseURL }) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
@@ -143,6 +144,7 @@ test("a new organizer runs a four-person scramble on net", async ({ page }) => {
   });
 
   await test.step("launch", async () => {
+    await makeBoardPublic(page);
     await open(page, "/dashboard");
     for (const step of ["Start taking entries", "Mark ready"]) {
       await page.getByRole("button", { name: step }).click();
@@ -178,6 +180,18 @@ test("a new organizer runs a four-person scramble on net", async ({ page }) => {
     );
     expect(at, `a side is missing or carries the wrong figures:\n${board}`).not.toContain(-1);
     expect([...at].sort((a, b) => a - b), "the board is not in net order").toEqual(at);
+  });
+
+  await test.step("the link the club sends its members says the same", async () => {
+    const pub = await readPublicBoard(page, baseURL!);
+    expect(pub).toMatch(/Texas Scramble · 2 sides · lowest net wins/);
+    // A row: the side, its players, plays off, holes, gross, net, net to par.
+    const order = [...SIDES].sort((a, b) => a.net - b.net);
+    const at = order.map((s) =>
+      pub.search(new RegExp(`${s.name}\\s*\\n[^\\n]*\\s+${s.playsOff}\\s+18\\s+${s.gross}\\s+${s.net}\\s+[-−]${PAR - s.net}\\b`)),
+    );
+    expect(at, `a side is missing or carries the wrong figures on the public board:\n${pub}`).not.toContain(-1);
+    expect([...at].sort((a, b) => a - b), "the public board is not in net order").toEqual(at);
   });
 
   expect(errors, "a screen threw").toEqual([]);

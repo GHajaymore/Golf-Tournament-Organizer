@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
+import { makeBoardPublic, readPublicBoard } from "./public-board";
 
 /**
  * A 36-HOLE CLUB CHAMPIONSHIP WITH A CUT, RUN FROM NOTHING.
@@ -91,7 +92,7 @@ async function finish(page: Page, round: string) {
   await expect(closedNotes).toHaveCount(before + 1, { timeout: 30_000 });
 }
 
-test("a new organizer runs a 36-hole championship with a cut", async ({ page }) => {
+test("a new organizer runs a 36-hole championship with a cut", async ({ page, baseURL }) => {
   test.setTimeout(480_000);
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
@@ -156,6 +157,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page }) 
   });
 
   await test.step("launch", async () => {
+    await makeBoardPublic(page);
     await open(page, "/dashboard");
     for (const step of ["Start taking entries", "Mark ready"]) {
       await page.getByRole("button", { name: step }).click();
@@ -204,6 +206,29 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page }) 
       expect(i, `${cut.name} missed the cut and is ranked among those who played 36`).toBeGreaterThan(Math.max(...at));
     }
     expect(board.match(/didn't play Round 2/g)?.length, "missed-cut players are not captioned").toBe(2);
+  });
+
+  await test.step("the link the club sends its members says the same", async () => {
+    const pub = await readPublicBoard(page, baseURL!);
+    expect(pub).toMatch(/Ranked by gross strokes/i);
+    // The round named as a round — this board's own reader (`live-board.ts`)
+    // printed the type's description here until 2026-10-04.
+    expect(pub).toMatch(/Round 2 · Stroke Play/);
+    expect(pub).not.toMatch(/The field plays the round and returns cards/);
+    // Place, name, F, the 36-hole score to par: 142, 144, 145 on two par 72s.
+    const rows = [
+      /1\s+Briar Quayle\s+F\s+[-−]2\b/,
+      /2\s+Alder Quayle\s+F\s+E\b/,
+      /3\s+Cedar Quayle\s+F\s+\+1\b/,
+    ];
+    const at = rows.map((r) => pub.search(r));
+    expect(at, `a player who made the cut is missing or wrong on the public board:\n${pub}`).not.toContain(-1);
+    expect([...at].sort((a, b) => a - b), "the public board is not in 36-hole order").toEqual(at);
+    // The cut, said to members as it is said to the committee — and below the field.
+    for (const name of ["Dune Quayle", "Elm Quayle"]) {
+      const i = pub.search(new RegExp(`${name}\\s+F · didn't play Round 2`));
+      expect(i, `${name} is not shown as missing the cut on the public board`).toBeGreaterThan(Math.max(...at));
+    }
   });
 
   expect(errors, "a screen threw").toEqual([]);
