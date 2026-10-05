@@ -70,6 +70,9 @@ async function decide(page: Page, winner: string, loser: string, round: "Semifin
   await expect(result, `no margin box for ${winner} v ${loser}`).toBeVisible({ timeout: 20_000 });
   await result.fill(margin);
   await result.press("Tab");
+  // The box saves when it is left, and now says so. Moving on before it does
+  // is how a "1 UP" was lost on CI (2026-10-05) — as it would be for anybody.
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible({ timeout: 20_000 });
 }
 
 test("a new organizer runs a four-player knockout to a champion", async ({ page }) => {

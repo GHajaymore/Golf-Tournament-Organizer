@@ -16,6 +16,15 @@ export function BracketBoard({
   readOnly: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  /**
+   * The match whose margin the server has just confirmed (2026-10-05).
+   *
+   * The margin saves when the box is left, and said nothing either way — an
+   * organizer typing "2&1" and moving on could not tell it was kept, and one
+   * who went straight to another screen could leave before it was. Found when
+   * the knockout e2e spec, which did exactly that, lost a "1 UP" on CI.
+   */
+  const [savedKey, setSavedKey] = useState("");
 
   const slotButton = (
     matchKey: string,
@@ -74,9 +83,23 @@ export function BracketBoard({
                     // A placeholder is not a name, and there is one of these
                     // per finished match — each says whose match it records.
                     aria-label={`Result of ${m.a?.name ?? "TBD"} v ${m.b?.name ?? "TBD"}, ${rd.label}`}
-                    onBlur={(e) => startTransition(() => setBracketResult(m.key, e.target.value))}
+                    onBlur={(e) => {
+                      const value = e.target.value;
+                      // Leaving the box unchanged saves nothing, and says nothing.
+                      if (value.trim() === (results[m.key] ?? "").trim()) return;
+                      setSavedKey("");
+                      startTransition(async () => {
+                        await setBracketResult(m.key, value);
+                        setSavedKey(m.key);
+                      });
+                    }}
                     style={{ marginTop: 4, fontSize: 11, minHeight: 26, padding: "2px 8px" }}
                   />
+                )}
+                {m.winnerId && !readOnly && savedKey === m.key && !pending && (
+                  <div role="status" className="text-muted" style={{ fontSize: 11, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="check" /> Saved
+                  </div>
                 )}
                 {m.winnerId && readOnly && results[m.key] && (
                   <div className="text-muted" style={{ fontSize: 11, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
