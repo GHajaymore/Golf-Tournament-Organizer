@@ -263,7 +263,7 @@ export function EventSetupClient({
    * name. Set together and never separately, so they cannot come to
    * disagree — the failure that makes two sources of truth worse than one.
    */
-  const onSelectCourse = (val: string) => {
+  const onSelectCourse = (val: string, taken?: { name: string; city: string }) => {
     setCourseSelect(val);
     if (val === "") {
       setF((prev) => ({ ...prev, course: "", city: "", address: "", courseId: "", courseMode: "fixed" }));
@@ -276,7 +276,15 @@ export function EventSetupClient({
       // Typed in by hand, so there is no club course to point at.
       setF((prev) => ({ ...prev, course: "", courseId: "", courseMode: "fixed" }));
     } else {
-      const c = courses.find((x) => x.id === val);
+      /**
+       * A COURSE FOUND BY SEARCH IS NOT IN `courses` — the list was read when
+       * the page loaded and the course was imported a moment ago. This looked
+       * only there, found nothing and set nothing, so the box showed the
+       * course, "Save event" stayed greyed as "Saved", and the tournament had
+       * no venue: a new club's first act, silently dropped (found by the
+       * organizer e2e spec, 2026-10-04). The picker hands over the name now.
+       */
+      const c = courses.find((x) => x.id === val) ?? (taken ? { id: val, ...taken, address: "" } : null);
       if (c) {
         setF((prev) => ({
           ...prev,

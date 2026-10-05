@@ -134,7 +134,12 @@ export interface CoursePickerProps {
   options: readonly CourseOption[];
   /** The chosen course id, or "" for none. */
   value: string;
-  onChange: (courseId: string) => void;
+  /**
+   * `taken` is set when the course was just taken from the DIRECTORY: it is in
+   * no `options` list the caller holds, so the caller is handed its name and
+   * town rather than left to look an id up in a list that cannot have it.
+   */
+  onChange: (courseId: string, taken?: { name: string; city: string }) => void;
   label?: string;
   /** What the empty choice reads as. Omit to require a choice. */
   noneLabel?: string;
@@ -351,8 +356,8 @@ export function CoursePicker({
     return out;
   }, [noneLabel, extras, shown, found, onEnterNew, query]);
 
-  const pick = (id: string) => {
-    onChange(id);
+  const pick = (id: string, taken?: { name: string; city: string }) => {
+    onChange(id, taken);
     setQuery("");
     setOpen(false);
     setActive(-1);
@@ -404,7 +409,7 @@ export function CoursePicker({
               ? { warn: true, text: IMPORTED_UNCHECKED }
               : { warn: true, text: res.cardProblem ? `${NO_CARD_YET} (${res.cardProblem})` : NO_CARD_YET },
         });
-        pick(res.courseId);
+        pick(res.courseId, { name: hit.name, city: hit.city ?? "" });
       }
     });
   };
