@@ -68,7 +68,8 @@ async function setUp(
   money?: { game: string; stake: string },
 ) {
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   await page.goto("/match/new");
   await page.getByRole("button", { name: new RegExp(`^${format}\\b`) }).click();

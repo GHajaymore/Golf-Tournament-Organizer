@@ -75,7 +75,8 @@ async function decide(page: Page, winner: string, loser: string, round: "Semifin
 test("a new organizer runs a four-player knockout to a champion", async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  // With the page it came from: "a screen threw" is no use without which one.
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
 
   await test.step("create the tournament as a knockout", async () => {
     await open(page, "/choose");
