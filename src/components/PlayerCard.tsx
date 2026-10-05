@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useSeenOnce } from "./useSeenOnce";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { saveScorecard, certifyScorecard, disputeScorecard } from "@/app/actions/tournament";
@@ -73,7 +75,15 @@ export function PlayerCard({
   voiceEntry = true,
   pins = [],
   firstHole = 1,
+  rulesHref,
 }: {
+  /**
+   * This tournament's own rules page, folded into the card's one "Rules"
+   * line beside the Rules of Golf citation. The page used to print it as a
+   * link of its own under the card — two rule links, two lines, on the
+   * screen a player reads between shots (Ajay, 2026-10-05).
+   */
+  rulesHref?: string;
   /** Where the holes are cut today — the committee's pin sheet. Empty for none. */
   pins?: PinSheet;
   /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
@@ -180,6 +190,9 @@ export function PlayerCard({
   // hears the player.
   const dictationRef = useRef<Dictation | null>(null);
   const [listenHint, setListenHint] = useState("");
+  // The "Read your 18 scores down the card" line, until the mic has been used
+  // once on this phone — the same key the hole view's "Or say it" uses.
+  const micHint = useSeenOnce("mic-hint");
   const [error, setError] = useState("");
   /** What the server holds, when it refused our write for disagreeing. */
   const [conflict, setConflict] = useState<{ strokes: (number | null)[]; revision: string } | null>(null);
@@ -479,6 +492,7 @@ export function PlayerCard({
       return;
     }
     setListenHint("");
+    micHint.markSeen();
     const started = startDictation({
       onTranscript: (transcript) => {
         const firstGap = strokes.findIndex((s) => s == null);
@@ -865,9 +879,11 @@ export function PlayerCard({
                 <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
                 {listening ? "Listening…" : "Say the card"}
               </button>
-              <span className="text-muted" style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}>
+              <span className="text-muted" style={{ fontSize: 14, flex: 1, minWidth: 0 }}>
                 {listenHint ||
-                  `Read your ${holes} scores down the card — “four, five, three, six …”. Or type straight into it.`}
+                  (micHint.seen === true
+                    ? ""
+                    : `Read your ${holes} scores down the card — “four, five, three, six …”. Or type straight into it.`)}
               </span>
             </div>
             {/* What the mic does, under the mic — one line, in one component
@@ -939,7 +955,7 @@ export function PlayerCard({
               gap: 6,
               minHeight: 22,
               marginTop: 12,
-              fontSize: 12.5,
+              fontSize: 14,
               fontWeight: card.status.tone === "warn" ? 600 : 400,
               color:
                 card.status.tone === "warn"
@@ -966,21 +982,29 @@ export function PlayerCard({
             )}
           </div>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            // Certifying an unfinished card would be claiming holes that were
-            // never played were right.
-            disabled={pending || !complete || state === "certified"}
-            onClick={certify}
-            style={{ width: "100%", minHeight: 52, marginTop: 10 }}
-          >
-            <Icon name="check" /> {state === "certified" ? "Certified" : "Certify my card"}
-          </button>
+          {/* CERTIFY ARRIVES WITH THE LAST HOLE (Ajay, 2026-10-05). A greyed
+              button and "Certify once all 18 holes are in" sat under the pad
+              for four hours a round, doing nothing and saying so. The line
+              above already says "9 of 18 holes in"; the button appears when
+              it can be pressed, which is still never on an unfinished card —
+              certifying one would claim holes nobody played were right. */}
+          {(complete || state === "certified") && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending || !complete || state === "certified"}
+                onClick={certify}
+                style={{ width: "100%", minHeight: 52, marginTop: 10 }}
+              >
+                <Icon name="check" /> {state === "certified" ? "Certified" : "Certify my card"}
+              </button>
 
-          <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-            {certifyPrompt(complete, holes, staffApproves)}
-          </p>
+              <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
+                {certifyPrompt(complete, holes, staffApproves)}
+              </p>
+            </>
+          )}
 
           {/* SAYING THE CARD IS WRONG — the other answer to "is this right?".
 
@@ -1005,9 +1029,12 @@ export function PlayerCard({
               one is already said. */}
           {state !== "disputed" && filled > 0 && (
             <div style={{ marginTop: 10 }}>
+              {/* A plain line rather than a full-width button: the door has
+                  to be there, it does not have to be the loudest thing under
+                  the card (2026-10-05). Still 44px to press. */}
               <ConfirmButton
-                className="btn btn-secondary"
-                style={{ width: "100%", minHeight: 44, fontSize: 13 }}
+                className="btn btn-ghost"
+                style={{ minHeight: 44, fontSize: 14, paddingInline: 4 }}
                 icon="warning"
                 label="Something on this card is wrong"
                 title="Dispute this card"
@@ -1019,14 +1046,35 @@ export function PlayerCard({
             </div>
           )}
           {state === "disputed" && (
-            <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-danger)" }}>
+            <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> Flagged as wrong. The committee has been told and will
               not accept it until it is sorted out.
             </p>
           )}
-          <p style={{ margin: "6px 0 0" }}>
-            <RuleCite rule="scorecardCertification" />
-          </p>
+          {/* ONE "RULES" LINE for both rule links — the Rules of Golf on
+              certifying, and the tournament's own page. Folded, because they
+              are looked up, not read on every hole. */}
+          <details style={{ marginTop: 6 }}>
+            <summary
+              className="touch-target"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", listStyle: "none", fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}
+            >
+              <Icon name="book-open" /> Rules
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 2 }}>
+              <span>
+                <RuleCite rule="scorecardCertification" fontSize={14} />
+              </span>
+              {rulesHref && (
+                <Link
+                  href={rulesHref}
+                  style={{ fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)", display: "inline-flex", alignItems: "center", gap: 4, minHeight: 44 }}
+                >
+                  This tournament&rsquo;s rules
+                </Link>
+              )}
+            </div>
+          </details>
           {note && (
             <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-accent-2-200)" }}>
               <Icon name="check" /> {note}
@@ -1057,14 +1105,14 @@ function Stat({
 }) {
   return (
     <div style={{ minWidth: 0, textAlign: "center" }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
         {label}
       </div>
       <div
         title={hint}
         style={{
           fontFamily: "var(--font-heading)",
-          fontSize: 21,
+          fontSize: 24,
           lineHeight: 1.1,
           fontVariantNumeric: "tabular-nums",
           color: tone === "good" ? "var(--color-accent-2-200)" : "var(--color-text)",

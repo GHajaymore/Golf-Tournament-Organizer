@@ -1,6 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDistanceWords } from "./DistanceUnitProvider";
+import { useSeenOnce } from "./useSeenOnce";
 import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
 import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
@@ -155,6 +156,15 @@ export function HoleByHoleCard({
   const [listening, setListening] = useState(false);
   const dictationRef = useRef<Dictation | null>(null);
   const [heard, setHeard] = useState("");
+  /**
+   * "Or say it: four, par, bogey" is how somebody learns the mic exists. Once
+   * they have pressed it they know, and the line goes — the button and its
+   * read-back stay. Shared with the full card's "Say the card" hint, so
+   * learning it on one is learning it on both. `seen !== true` keeps it on the
+   * server and the first render, where it sits beside a 48px button and so
+   * moves nothing when it leaves.
+   */
+  const micHint = useSeenOnce("mic-hint");
   // Open where the card has got to.
   //
   // With the phone's holder known, that is THEIR next hole in playing order —
@@ -226,6 +236,7 @@ export function HoleByHoleCard({
       return;
     }
     setHeard("");
+    micHint.markSeen();
     const started = startDictation({
       onTranscript: (transcript) => {
         const got = parseHoleTranscript(
@@ -248,6 +259,22 @@ export function HoleByHoleCard({
     if (started) setListening(true);
     else setHeard("This browser can’t listen. Tap the scores in instead.");
   };
+
+  /**
+   * THE HOLE STRIP KEEPS THE CURRENT HOLE IN VIEW. At a thumb-sized 36px a
+   * button, eighteen of them are wider than a phone and the strip scrolls —
+   * so moving to the 14th must bring the 14th on screen, or the strip shows
+   * holes 1 to 9 while the card says 14. Scrolled on the strip itself, never
+   * with `scrollIntoView`, which would also move the page under the scorer.
+   */
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    const chip = strip?.children[hole] as HTMLElement | undefined;
+    if (!strip || !chip) return;
+    const left = chip.offsetLeft - strip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
+    strip.scrollLeft = Math.max(0, left);
+  }, [hole]);
 
   const holeDone = (i: number) => players.every((p) => strokesOf(p.id)[i] != null);
   const holeStarted = (i: number) => players.some((p) => strokesOf(p.id)[i] != null);
@@ -283,7 +310,7 @@ export function HoleByHoleCard({
     <div>
       {/* Position in the round, and which holes are in. Doubles as navigation,
           so a hole written down wrong is two taps away. */}
-      <div style={{ display: "flex", gap: 3, marginBottom: 16, overflowX: "auto", paddingBottom: 2 }}>
+      <div ref={stripRef} style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 2 }}>
         {Array.from({ length: holes }, (_, i) => {
           const done = holeDone(i);
           const part = !done && holeStarted(i);
@@ -298,9 +325,12 @@ export function HoleByHoleCard({
               aria-current={here ? "true" : undefined}
               style={{
                 flex: "1 0 auto",
-                minWidth: 26,
-                height: 30,
-                fontSize: 12,
+                // 36 x 40, from 26 x 30 (2026-10-05): the most-tapped control
+                // on the most-used screen. A coarse pointer lifts the height
+                // to 44 in globals.css; the width is what this sets.
+                minWidth: 36,
+                height: 40,
+                fontSize: 15,
                 fontVariantNumeric: "tabular-nums",
                 fontWeight: here ? 700 : 500,
                 cursor: "pointer",
@@ -328,15 +358,15 @@ export function HoleByHoleCard({
       >
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
               Hole
             </div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 54, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
               {holeNumber(hole, firstHole)}
             </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 13.5, lineHeight: 1.7, color: "var(--color-neutral-400)" }}>
-            <div>Par <strong style={{ color: "var(--color-text)", fontSize: 16 }}>{par ?? "—"}</strong></div>
+          <div style={{ textAlign: "right", fontSize: 15, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+            <div>Par <strong style={{ color: "var(--color-text)", fontSize: 20 }}>{par ?? "—"}</strong></div>
             {/* A length of 0 is a card with no yardage on it, not a hole of
                 nought yards — "0 yds" on the first tee reads as a broken card. */}
             {(yards[hole] ?? 0) > 0 && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
@@ -385,13 +415,15 @@ export function HoleByHoleCard({
                 of this screen (offline.spec finds it by that role), and a hint
                 that is always there is not a status — only what was heard
                 needs announcing, which a polite live region does. */}
-            <span style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--color-neutral-400)", minWidth: 0 }} aria-live="polite">
+            <span style={{ fontSize: 14, lineHeight: 1.45, color: "var(--color-neutral-400)", minWidth: 0 }} aria-live="polite">
               {listening
                 ? "Listening…"
                 : heard ||
-                  (solo
-                    ? "Or say it: “four”, “par”, “bogey”."
-                    : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
+                  (micHint.seen === true
+                    ? ""
+                    : solo
+                      ? "Or say it: “four”, “par”, “bogey”."
+                      : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
             </span>
             </div>
             {/* What the mic does, in the one place it is offered on this card. */}
@@ -426,7 +458,7 @@ export function HoleByHoleCard({
                   }}
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 15, fontWeight: 550, overflowWrap: "anywhere" }}>
+                    <span style={{ display: "block", fontSize: 16, fontWeight: 550, overflowWrap: "anywhere" }}>
                       {labels[idx]}
                       {shots > 0 && (
                         <span
@@ -437,7 +469,7 @@ export function HoleByHoleCard({
                         </span>
                       )}
                     </span>
-                    <span style={{ display: "block", fontSize: 11.5, color: "var(--color-neutral-400)", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ display: "block", fontSize: 13, color: "var(--color-neutral-400)", fontVariantNumeric: "tabular-nums" }}>
                       {/* A to-par only where there is a par to be under.
                           `toParOf` sums `s[i] - (pars[i] ?? 0)`, so with no
                           course card it returns the GROSS — and this line then
@@ -536,7 +568,7 @@ function SoloPad({
   return (
     <>
       {shots > 0 && (
-        <p style={{ margin: "10px 0 0", fontSize: 12.5, color: "var(--color-accent-200)", fontWeight: 600 }}>
+        <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
           {"•".repeat(shots)} {shots === 1 ? "1 shot" : `${shots} shots`} on this hole
         </p>
       )}
@@ -576,14 +608,14 @@ function SoloPad({
                 gap: 1,
               }}
             >
-              <span style={{ fontSize: 21, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{n}</span>
-              <span style={{ fontSize: 10.5, color: "var(--color-neutral-400)" }}>{nameFor(rel, par)}</span>
+              <span style={{ fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{n}</span>
+              <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{nameFor(rel, par)}</span>
             </button>
           );
         })}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-        <label htmlFor="hbh-other" style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>Other</label>
+        <label htmlFor="hbh-other" style={{ fontSize: 14, color: "var(--color-neutral-400)" }}>Other</label>
         <input
           id="hbh-other"
           className={`input sc-score${scoreMark(value, par)}`}

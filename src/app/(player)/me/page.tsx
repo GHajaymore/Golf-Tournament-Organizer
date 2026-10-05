@@ -459,7 +459,7 @@ export default async function PlayTodayPage() {
                 {mySide.played > 0 ? "Your side" : "Your side · not started"}
               </span>
               <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{mySide.name}</div>
-              <div className="text-muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+              <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
                 {mySide.members.join(" · ")}
               </div>
               {mySide.played > 0 ? (
@@ -497,23 +497,23 @@ export default async function PlayTodayPage() {
               style={{ marginTop: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
+                <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
                   {standingLabels({ position: standing.position, thru: standing.thru, knockout: round?.knockout }).hero}
                 </div>
                 <div style={{ fontFamily: "var(--font-heading)", fontSize: 40, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                   {standing.position || "–"}
                 </div>
                 {standing.record && (
-                  <div style={{ fontSize: 12.5, color: "var(--color-neutral-400)", marginTop: 3 }}>{standing.record}</div>
+                  <div style={{ fontSize: 14, color: "var(--color-neutral-400)", marginTop: 3 }}>{standing.record}</div>
                 )}
                 {standing.note && (
-                  <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", marginTop: 5, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, color: "var(--color-neutral-400)", marginTop: 5, lineHeight: 1.5 }}>
                     {standing.note}
                   </div>
                 )}
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
+                <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
                   {standing.scoreLabel ?? "Not started"}
                 </div>
                 <div
@@ -631,6 +631,49 @@ export default async function PlayTodayPage() {
         </>
       )}
 
+      {/* Who I go off with. The question every player asks first — so it
+          sits straight under their own card, ABOVE the leaders (Ajay,
+          2026-10-05). It was below them, a scroll down on a phone. */}
+      {me.playerId && round?.group && (
+        <section
+          className="card elev-sm"
+          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
+        >
+          {round.group.partners.length > 0 && (
+            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
+              {round.group.partners.slice(0, 3).map((p, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: "var(--color-surface-2)",
+                    border: "2px solid var(--color-surface)",
+                    marginLeft: i === 0 ? 0 : -8,
+                  }}
+                >
+                  {initialsOf(p)}
+                </span>
+              ))}
+            </span>
+          )}
+          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>
+              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
+            </span>
+            <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
+              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
+              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
+            </span>
+          </span>
+        </section>
+      )}
+
       {/**
        * WHERE I STAND, ON THE LEADERS BOARD. The top five and the player,
        * from `standingRows` — the Board tab's own rows — and only where the
@@ -668,7 +711,7 @@ export default async function PlayTodayPage() {
                 {standing.position ? "On the board" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
               </span>
               {(standing.note || standing.record) && (
-                <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+                <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
                   {standing.note || standing.record}
                 </span>
               )}
@@ -676,47 +719,6 @@ export default async function PlayTodayPage() {
             <Icon name="arrow-right" />
           </Link>
         )
-      )}
-
-      {/* Who I go off with. The question every player asks first. */}
-      {me.playerId && round?.group && (
-        <section
-          className="card elev-sm"
-          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
-        >
-          {round.group.partners.length > 0 && (
-            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
-              {round.group.partners.slice(0, 3).map((p, i) => (
-                <span
-                  key={i}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: "var(--color-surface-2)",
-                    border: "2px solid var(--color-surface)",
-                    marginLeft: i === 0 ? 0 : -8,
-                  }}
-                >
-                  {initialsOf(p)}
-                </span>
-              ))}
-            </span>
-          )}
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>
-              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
-            </span>
-            <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.45 }}>
-              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
-              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
-            </span>
-          </span>
-        </section>
       )}
 
       {/* The sheet is out and I am not on it — entered after the draw. Said
@@ -748,7 +750,8 @@ export default async function PlayTodayPage() {
       {/* The rest of what the club posted, under the player's own round. */}
       {announcements.some((a) => !a.pinned) && (
         <div style={{ marginTop: 12 }}>
-          <AnnouncementList items={announcements.filter((a) => !a.pinned)} />
+          {/* Read once, then folded into "N earlier messages" (2026-10-05). */}
+          <AnnouncementList items={announcements.filter((a) => !a.pinned)} foldSeen />
         </div>
       )}
 
@@ -756,7 +759,9 @@ export default async function PlayTodayPage() {
           Both live on the Events tab now (player-nav.ts), one tap from
           anywhere — a row on Today was a second way to the same place. */}
 
-      {/* Am I playing, and when — the calendar, unchanged. */}
+      {/* Am I playing, and when. `compact`: the next round's In / Out on its
+          own, the season's calendar a tap away (Ajay, 2026-10-05) — two month
+          grids were over a screen of Today on a phone. */}
       {me.playerId && availability.playerId && (
         <div style={{ marginTop: 12 }}>
           <RoundAvailability
@@ -767,6 +772,7 @@ export default async function PlayTodayPage() {
             captainOf={availability.captainOf}
             asksPlayer={availability.asksPlayer}
             today={todayIso()}
+            compact
           />
         </div>
       )}

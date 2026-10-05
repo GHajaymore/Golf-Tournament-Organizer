@@ -86,7 +86,7 @@ export function ScoreboardLeaders({
             gap: 10,
             padding: "4px 10px 10px",
             fontFamily: "var(--font-body)",
-            fontSize: 12.5,
+            fontSize: 14,
             color: "var(--sb-ink)",
           }}
         >
@@ -152,7 +152,7 @@ export function ScoreboardCard({
           </Link>
         )}
 
-        <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, lineHeight: 1.5 }}>{footer}</div>
+        <div style={{ fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.5 }}>{footer}</div>
       </div>
     </section>
   );

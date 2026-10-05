@@ -4151,11 +4151,30 @@ describe("the player's own card opens on what is already there", () => {
         status="entered" initialStrokes={nine()}
       />,
     );
-    // The Certify button is the only btn-primary on the screen, so finding it
-    // and checking it carries `disabled` is enough — and does not depend on
-    // how React happens to serialise the icon element inside it.
+    // Since 2026-10-05 it is not on the screen at all until the last hole is
+    // in — a greyed button under the pad for four hours said nothing the
+    // "9 of 18 holes in" line does not (Ajay: the screen was crowded). The
+    // promise is unchanged: there is no way to certify half a card.
+    expect(html, "Certify must not be offered on a half-finished card").not.toContain("Certify my card");
+    expect(html).not.toMatch(/<button[^>]*btn-primary[^>]*>/);
+    expect(html).toContain("9 of 18 holes in");
+  });
+
+  it("offers to certify the moment the card is complete", async () => {
+    // The control for the test above: a card that HIDES Certify everywhere
+    // would pass it. Eighteen holes in, the button is there and pressable.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(4)}
+      />,
+    );
     const certify = html.match(/<button[^>]*btn-primary[^>]*>/)?.[0] ?? "";
-    expect(certify, "Certify must be disabled on a half-finished card").toContain("disabled");
+    expect(html).toContain("Certify my card");
+    expect(certify, "Certify should be pressable on a complete card").not.toContain("disabled");
   });
 
   it("normalises a card longer than the round", async () => {
@@ -4291,7 +4310,8 @@ describe("the player's own card opens on what is already there", () => {
         stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
         holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
         strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
-        status="entered" initialStrokes={nine()}
+        // Complete, so Certify is on screen: it appears with the last hole.
+        status="entered" initialStrokes={new Array(18).fill(4)}
       />,
     );
     // Sprite id rather than the retired font class — see the note on the
@@ -9370,9 +9390,13 @@ describe("what the play card says a signature leads to", () => {
   it("still asks for the whole card first, whichever it is", async () => {
     // The half-finished state comes before either sentence: certifying an
     // unfinished card claims holes nobody played were right.
+    // Since 2026-10-05 that is said by the card's own "1/18 holes" and by
+    // Certify not being there yet, rather than by a sentence under a greyed
+    // button — the same rule as /me/card.
     for (const staffApproves of [true, false]) {
       const html = await card({ staffApproves, card: [4, ...new Array(17).fill(null)] });
-      expect(html, String(staffApproves)).toContain("Certify once all 18 holes are in");
+      expect(html, String(staffApproves)).toContain("1/18 holes");
+      expect(html, String(staffApproves)).not.toContain("Certify my card");
       expect(html, String(staffApproves)).not.toContain("committee");
     }
   });

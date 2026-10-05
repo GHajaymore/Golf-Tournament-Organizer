@@ -4,6 +4,7 @@ import { setAttendance } from "@/app/actions/attendance";
 import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import type { AvailabilityRound, AvailabilityView, CaptainFlight } from "@/lib/services/availability";
 import { Icon } from "./Icon";
+import { OnceTip } from "./OnceTip";
 
 export type { AvailabilityRound, CaptainFlight } from "@/lib/services/availability";
 
@@ -38,7 +39,16 @@ export function RoundAvailability({
   captainOf = [],
   today,
   asksPlayer = true,
+  compact = false,
 }: {
+  /**
+   * The player's Today (Ajay, 2026-10-05). The next round's In / Out stays in
+   * view and everything else — the calendar, the list, earlier rounds — folds
+   * under "See all rounds". The how-it-works sentence is said once, then sits
+   * behind an ⓘ. On a phone the full card was over a screen of Today, for a
+   * question most visits answer about one round. Off everywhere else.
+   */
+  compact?: boolean;
   /** The signed-in player's entry in this tournament. */
   playerId: string;
   next: AvailabilityView["next"];
@@ -118,79 +128,58 @@ export function RoundAvailability({
     />
   );
 
-  return (
-    <div className="card elev-sm" style={{ gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>
-            {asksPlayer ? "Your availability" : "Whether you're playing"}
-          </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-            {asksPlayer ? (
-              <>
-                Say whether you&rsquo;re playing, round by round. You can change your answer until each
-                round&rsquo;s sign-up deadline; after that the organizer makes changes.
-              </>
-            ) : (
-              /* Named, so the player knows who to ring. "Ask the organizer"
-                 would send them past the person who actually decided. */
-              <>
-                Your captain sends the side to the club and the club records it, so there is nothing to
-                answer here &mdash; this is what they have you down for. To change a week, ask your
-                captain.
-              </>
-            )}
-          </p>
-        </div>
-        {canCalendar && (
-          <div className="seg" style={{ flexShrink: 0 }}>
-            <label className="seg-opt">
-              <input
-                type="radio"
-                name="avail-view"
-                checked={view === "calendar"}
-                onChange={() => setView("calendar")}
-              />
-              <Icon name="calendar-blank" /> Calendar
-            </label>
-            <label className="seg-opt">
-              <input
-                type="radio"
-                name="avail-view"
-                checked={view === "list"}
-                onChange={() => setView("list")}
-              />
-              <Icon name="list" /> List
-            </label>
-          </div>
-        )}
-      </div>
+  const explanation = asksPlayer ? (
+    <>
+      Say whether you&rsquo;re playing, round by round. You can change your answer until each
+      round&rsquo;s sign-up deadline; after that the organizer makes changes.
+    </>
+  ) : (
+    /* Named, so the player knows who to ring. "Ask the organizer"
+       would send them past the person who actually decided. */
+    <>
+      Your captain sends the side to the club and the club records it, so there is nothing to
+      answer here &mdash; this is what they have you down for. To change a week, ask your
+      captain.
+    </>
+  );
 
-      {/* WHY THERE IS NO CALENDAR, when there is none. A season whose rounds
-          have no dates can only be a list, and a player who liked the
-          calendar elsewhere reads its absence as the app going back to the
-          old way (the club's Thursday league, 2026-09-19). Saying so names
-          who can change it. */}
-      {!canCalendar && all.length > 1 && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-          <Icon name="calendar-blank" /> These rounds don&rsquo;t have dates yet, so they&rsquo;re listed in
-          order. Once your organizer dates them, they appear on a calendar here.
-        </p>
-      )}
+  const viewToggle = canCalendar && (
+    <div className="seg" style={{ flexShrink: 0 }}>
+      <label className="seg-opt">
+        <input
+          type="radio"
+          name="avail-view"
+          checked={view === "calendar"}
+          onChange={() => setView("calendar")}
+        />
+        <Icon name="calendar-blank" /> Calendar
+      </label>
+      <label className="seg-opt">
+        <input
+          type="radio"
+          name="avail-view"
+          checked={view === "list"}
+          onChange={() => setView("list")}
+        />
+        <Icon name="list" /> List
+      </label>
+    </div>
+  );
 
-      {/* The next round sits above both views, always.
-          It is what most players opened the app to answer, it is the only one
-          with a deadline worth printing in words, and a month grid answers
-          "am I around in June" without answering "what about Tuesday". The
-          toggle below switches the REST of the season between a calendar and
-          a list. */}
-      {next && (
-        <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span className="card-kicker">Next round</span>
-          {row(next, true)}
-        </section>
-      )}
+  /* WHY THERE IS NO CALENDAR, when there is none. A season whose rounds
+     have no dates can only be a list, and a player who liked the calendar
+     elsewhere reads its absence as the app going back to the old way (the
+     club's Thursday league, 2026-09-19). Saying so names who can change it. */
+  const undatedNote = !canCalendar && all.length > 1 && (
+    <p className="text-muted" style={{ fontSize: compact ? 14 : 12, margin: 0, lineHeight: 1.5 }}>
+      <Icon name="calendar-blank" /> These rounds don&rsquo;t have dates yet, so they&rsquo;re listed in
+      order. Once your organizer dates them, they appear on a calendar here.
+    </p>
+  );
 
+  /* The season beyond the next round: the calendar, or the list. */
+  const seasonViews = (
+    <>
       {canCalendar && view === "calendar" && (
         <AvailabilityCalendar
           rounds={all.map((r) => ({
@@ -236,6 +225,87 @@ export function RoundAvailability({
           </div>
         </details>
       )}
+    </>
+  );
+
+  if (compact) {
+    return (
+      <div className="card elev-sm" style={{ gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span className="card-title" style={{ fontSize: 16 }}>
+            {asksPlayer ? "Your availability" : "Whether you're playing"}
+          </span>
+          <OnceTip id={asksPlayer ? "availability-how" : "availability-captain"} label="How this works">
+            {explanation}
+          </OnceTip>
+        </div>
+
+        {next && (
+          <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span className="card-kicker">Next round</span>
+            {row(next, true)}
+          </section>
+        )}
+
+        {(future.length > 0 || past.length > 0) && (
+          <details>
+            <summary
+              className="touch-target"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}
+            >
+              <Icon name="calendar-blank" /> See all rounds ({all.length})
+            </summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 10 }}>
+              {viewToggle}
+              {undatedNote}
+              {seasonViews}
+            </div>
+          </details>
+        )}
+
+        {error && (
+          <p className="form-error">
+            <Icon name="warning-circle" /> {error}
+          </p>
+        )}
+
+        {captainOf.map((f) => (
+          <CaptainTable key={f.flightName} f={f} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="card elev-sm" style={{ gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>
+            {asksPlayer ? "Your availability" : "Whether you're playing"}
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+            {explanation}
+          </p>
+        </div>
+        {viewToggle}
+      </div>
+
+      {undatedNote}
+
+      {/* The next round sits above both views, always.
+          It is what most players opened the app to answer, it is the only one
+          with a deadline worth printing in words, and a month grid answers
+          "am I around in June" without answering "what about Tuesday". The
+          toggle below switches the REST of the season between a calendar and
+          a list. */}
+      {next && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="card-kicker">Next round</span>
+          {row(next, true)}
+        </section>
+      )}
+
+      {seasonViews}
 
       {error && (
         <p className="form-error">
@@ -244,7 +314,15 @@ export function RoundAvailability({
       )}
 
       {captainOf.map((f) => (
-        <div key={f.flightName} style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
+        <CaptainTable key={f.flightName} f={f} />
+      ))}
+    </div>
+  );
+}
+
+function CaptainTable({ f }: { f: CaptainFlight }) {
+  return (
+        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
           <span className="card-kicker">
             {f.flightName} (you&rsquo;re {f.deputy ? "vice-captain" : "captain"})
           </span>
@@ -319,8 +397,6 @@ export function RoundAvailability({
             </table>
           </div>
         </div>
-      ))}
-    </div>
   );
 }
 
@@ -367,14 +443,14 @@ function Round({
       }}
     >
       <div style={{ display: "flex", flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: emphasis ? 15 : 13.5, fontWeight: 600 }}>{r.label}</span>
+        <span style={{ fontSize: emphasis ? 16 : 14, fontWeight: 600 }}>{r.label}</span>
         {/* The date, which the row never carried — "Round 7" tells a player
             nothing about whether they are free. */}
         {r.dateLabel && (
           <span style={{ fontSize: emphasis ? 14 : 13, color: "var(--color-text-muted)" }}>{r.dateLabel}</span>
         )}
         {r.whenLabel && (
-          <span className="tag tag-accent" style={{ fontSize: 10.5 }}>
+          <span className="tag tag-accent" style={{ fontSize: 13 }}>
             {r.whenLabel}
           </span>
         )}
@@ -409,7 +485,7 @@ function Round({
         ) : (
           <span
             className={`tag ${status === "in" ? "tag-accent" : "tag-neutral"}`}
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 13 }}
           >
             <Icon name={status === "in" ? "check-circle" : "x-circle"} />{" "}
             {status === "in" ? "You're playing" : "Not this week"}
@@ -419,12 +495,12 @@ function Round({
             Under captains, silence means the captain has not named you, and
             "by default" reads as a setting rather than as an absence. */}
         {asksPlayer && !explicit && (
-          <span className="tag tag-neutral" style={{ fontSize: 10.5 }}>
+          <span className="tag tag-neutral" style={{ fontSize: 13 }}>
             by default
           </span>
         )}
         {!asksPlayer && !explicit && (
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Your captain hasn&rsquo;t sent this week&rsquo;s side in yet.
           </span>
         )}
@@ -432,7 +508,7 @@ function Round({
             no window to print, and "Sign-up closed" would be a refusal of
             something never offered. */}
         {asksPlayer && (
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {r.deadlineLabel}
           </span>
         )}

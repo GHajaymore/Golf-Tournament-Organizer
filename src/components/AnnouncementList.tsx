@@ -1,19 +1,7 @@
-import { Icon } from "./Icon";
-import { sinceWords } from "@/lib/domain/since";
+import { AnnouncementCard, type AnnouncementItem } from "./AnnouncementCard";
+import { FoldedAnnouncements } from "./FoldedAnnouncements";
 
-export interface AnnouncementItem {
-  id: string;
-  title: string;
-  body: string;
-  pinned: boolean;
-  /**
-   * When it was posted. The organizer's screen always said "4 hours ago" and
-   * the player's never did, so "Tee times moved ten minutes later" could have
-   * been this morning's or last week's, and the person it was written for had
-   * no way to tell. Walked 2026-09-28.
-   */
-  createdAt?: Date | string;
-}
+export type { AnnouncementItem } from "./AnnouncementCard";
 
 /**
  * Posted notices, rendered the same way wherever they are read.
@@ -26,46 +14,21 @@ export interface AnnouncementItem {
  * on the dashboard is looking at what the field will actually see. Two copies
  * of this drifting apart is a smaller version of the bug it was extracted to
  * fix.
+ *
+ * `foldSeen` is the player's Today (Ajay, 2026-10-05): a notice read once
+ * folds into "N earlier messages" instead of sitting between the cards for
+ * the rest of the tournament. Never for pinned ones — pinning is the
+ * organizer saying this outranks everything — and never on the organizer's
+ * dashboard, which shows what was posted.
  */
-export function AnnouncementList({ items }: { items: AnnouncementItem[] }) {
+export function AnnouncementList({ items, foldSeen = false }: { items: AnnouncementItem[]; foldSeen?: boolean }) {
   if (items.length === 0) return null;
+  if (foldSeen) return <FoldedAnnouncements items={items} />;
 
   return (
     <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
       {items.map((a) => (
-        <div
-          key={a.id}
-          className="card elev-sm"
-          style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
-            {a.pinned && (
-              <span className="tag tag-accent">
-                <Icon name="push-pin" /> Pinned
-              </span>
-            )}
-            {/* The title takes the rest of the row and wraps INSIDE it. As a
-                plain wrapping item a long title dropped whole to the next line
-                and left the megaphone alone on the row above it. */}
-            <span style={{ fontWeight: 600, fontSize: 14, flex: "1 1 0", minWidth: 0 }}>
-              {/* The title in an element of its own: its text stays one node,
-                  which is how a reader (and player-round.spec) finds it. */}
-              <span>{a.title}</span>
-              {a.createdAt && (
-                <span className="text-muted" style={{ fontSize: 12, fontWeight: 400 }}>
-                  {" "}
-                  · {sinceWords(a.createdAt)}
-                </span>
-              )}
-            </span>
-          </div>
-          {a.body && (
-            <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>
-              {a.body}
-            </p>
-          )}
-        </div>
+        <AnnouncementCard key={a.id} a={a} />
       ))}
     </div>
   );

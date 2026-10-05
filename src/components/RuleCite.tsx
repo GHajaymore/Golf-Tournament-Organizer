@@ -12,12 +12,25 @@ import { Icon } from "./Icon";
  * Opens the publisher's own site in a new tab. The rule text is not reproduced
  * here — see the note in lib/rules.ts.
  */
-export function RuleCite({ rule, showWhy = false }: { rule: string; showWhy?: boolean }) {
+export function RuleCite({
+  rule,
+  showWhy = false,
+  fontSize = 11.5,
+}: {
+  rule: string;
+  showWhy?: boolean;
+  /**
+   * 11.5 under an organizer's control, where it should be ignorable. The
+   * player's card folds it into a "Rules" line somebody opened on purpose,
+   * and there it is read at a reading size.
+   */
+  fontSize?: number;
+}) {
   const r = ruleFor(rule);
   if (!r) return null;
 
   return (
-    <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "baseline", gap: 5, fontSize: 11.5 }}>
+    <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "baseline", gap: 5, fontSize }}>
       <a
         href={r.url}
         target="_blank"

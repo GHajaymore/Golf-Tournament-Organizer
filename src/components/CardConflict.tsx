@@ -130,7 +130,7 @@ export function CardConflict({
       <span className="card-title" style={{ fontSize: 15 }}>
         {copy.title}
       </span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 14, margin: 0, lineHeight: 1.55 }}>
         {recovered ? (
           copy.body
         ) : (
@@ -149,11 +149,11 @@ export function CardConflict({
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: "5px 8px", fontSize: 11.5 }}>Hole</th>
+              <th style={{ textAlign: "left", padding: "5px 8px", fontSize: 13 }}>Hole</th>
               {differing.map((i) => (
                 <th
                   key={i}
-                  style={{ padding: "5px 8px", textAlign: "center", fontSize: 11.5 }}
+                  style={{ padding: "5px 8px", textAlign: "center", fontSize: 13 }}
                 >
                   {holeNumber(i, firstHole)}
                   {pars[i] ? (
@@ -222,7 +222,7 @@ export function CardConflict({
           </button>
         ))}
       </div>
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
         {copy.footnote}
       </p>
     </section>

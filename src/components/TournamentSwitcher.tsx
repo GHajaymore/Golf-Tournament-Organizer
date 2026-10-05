@@ -44,25 +44,35 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
             listStyle: "none",
           }}
         >
+          {/* THE NAME, WHOLE, AND NO LABEL OVER IT (2026-10-05). A
+              "TOURNAMENT" kicker sat above a name cut off at one line, so
+              the strip spent three lines saying less than the name alone.
+              A long name now wraps to a second line rather than losing its
+              end — the end is usually the part that differs ("— Men's" /
+              "— Ladies'"). */}
           <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
-            <span className="text-muted" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              {current ? "Tournament" : "Choose a tournament"}
-            </span>
+            {!current && (
+              <span className="text-muted" style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                Choose a tournament
+              </span>
+            )}
             {current && (
               <span
                 style={{
                   fontWeight: 600,
-                  fontSize: 14.5,
+                  fontSize: 15,
+                  overflowWrap: "anywhere",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
                   overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                 }}
               >
                 {current.name}
               </span>
             )}
             {current?.note && !current.watching && !current.waiting && (
-              <span className="text-muted" style={{ fontSize: 11.5 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {current.note}
               </span>
             )}
@@ -75,7 +85,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
             <span
               style={{
                 flex: "none",
-                fontSize: 11.5,
+                fontSize: 13,
                 fontWeight: 700,
                 padding: "3px 9px",
                 borderRadius: 999,
@@ -88,7 +98,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
             </span>
           )}
           {others.length > 0 && (
-            <span style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--color-accent-200)", fontWeight: 600 }}>
+            <span style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--color-accent-200)", fontWeight: 600 }}>
               Switch <Icon name="caret-down" />
             </span>
           )}
@@ -120,7 +130,7 @@ export function TournamentSwitcher({ switcher }: { switcher: Switcher }) {
                     {o.name}
                   </span>
                   {o.note && (
-                    <span className="text-muted" style={{ fontSize: 12, fontWeight: 500 }}>
+                    <span className="text-muted" style={{ fontSize: 13, fontWeight: 500 }}>
                       {o.note}
                     </span>
                   )}

@@ -138,7 +138,7 @@ export function GroupScoring({
           own card uses, so "Saved" means the same thing on every line. */}
       <ul aria-label="Your group’s cards" style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         {partners.map((p) => (
-          <li key={p.id} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+          <li key={p.id} style={{ fontSize: 14, lineHeight: 1.5 }}>
             <strong style={{ fontWeight: 600 }}>{p.name}</strong>
             <span className="text-muted"> — {statuses[p.id]?.label ?? "No changes yet"}</span>
             {notes[p.id] && (
