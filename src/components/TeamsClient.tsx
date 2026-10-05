@@ -459,6 +459,9 @@ export function TeamsClient({
                 <select
                   className="input"
                   autoFocus
+                  // Named for the side it adds to: it had no label at all, so a
+                  // screen reader announced a bare list of players.
+                  aria-label={`Add a player to ${t.name}`}
                   value=""
                   onChange={(e) => {
                     if (e.target.value) run(() => addTeamMember(t.id, e.target.value));
