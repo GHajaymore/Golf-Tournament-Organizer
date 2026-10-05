@@ -37,6 +37,54 @@ describe("holeGroups", () => {
   });
 });
 
+describe("a side's one card is called by the side's name", () => {
+  it("in full on the hole, never shortened as if it were a person", async () => {
+    const { HoleByHoleCard } = await import("@/components/HoleByHoleCard");
+    const side = "zz-Ann Walker & zz-Bob Partner";
+    const html = renderToStaticMarkup(
+      <HoleByHoleCard
+        players={[
+          { id: "s1", name: side, label: side },
+          { id: "s2", name: "zz-Cy Third & zz-Di Fourth", label: "zz-Cy Third & zz-Di Fourth" },
+        ]}
+        cards={{ s1: blank(), s2: blank() }}
+        pars={new Array(18).fill(4)}
+        yards={[]}
+        strokeIndex={[]}
+        holes={18}
+        onSet={() => {}}
+      />,
+    );
+    // The VISIBLE label — the full name is also in each button's aria-label,
+    // which is right and says nothing about what the scorer reads.
+    expect(html).toMatch(/>zz-Ann Walker &amp; zz-Bob Partner</);
+    // The control: the same name with no label is shortened like a person's.
+    const unlabelled = renderToStaticMarkup(
+      <HoleByHoleCard
+        players={[
+          { id: "s1", name: side },
+          { id: "s2", name: "zz-Cy Third & zz-Di Fourth" },
+        ]}
+        cards={{ s1: blank(), s2: blank() }}
+        pars={new Array(18).fill(4)}
+        yards={[]}
+        strokeIndex={[]}
+        holes={18}
+        onSet={() => {}}
+      />,
+    );
+    expect(unlabelled).not.toMatch(/>zz-Ann Walker &amp; zz-Bob Partner</);
+    expect(unlabelled).toMatch(/>zz-Ann</);
+  });
+
+  it("is what the team screen passes for a shared ball", async () => {
+    const { readSource } = await import("./source");
+    expect(readSource("src", "components", "TeamEntryClient.tsx")).toContain(
+      "...(card.playerId ? {} : { label: team.teamName })",
+    );
+  });
+});
+
 describe("the side's handicap", () => {
   const render = (teams: TeamEntryRow[]) =>
     renderToStaticMarkup(

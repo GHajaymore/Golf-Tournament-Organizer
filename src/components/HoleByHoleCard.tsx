@@ -49,6 +49,15 @@ export interface CardPlayer {
   /** Handicap strokes received on a given hole, from the real course-handicap
    *  allocation. Optional: an event with no ratings has none to show. */
   shotsOn?: (hole: number) => number;
+  /**
+   * Exactly what to call this card, bypassing the "First L." shortening.
+   *
+   * For a card that is not a person: a foursomes SIDE plays one ball and keeps
+   * one card, and "ZZ Walker & ZZ Partner" shortened as a name came out as
+   * "ZZ P." — a side presented as an individual, on the screen where the
+   * scorer decides whose number goes where (walked 2026-10-04).
+   */
+  label?: string;
 }
 
 /**
@@ -172,7 +181,8 @@ export function HoleByHoleCard({
   });
 
   /** One label per player, in the same order, guaranteed to differ. */
-  const labels = distinctLabels(players.map((p) => p.name));
+  const shortened = distinctLabels(players.map((p) => p.name));
+  const labels = players.map((p, i) => p.label?.trim() || shortened[i]);
 
   const par = pars[hole];
   const solo = players.length === 1;
