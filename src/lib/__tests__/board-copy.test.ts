@@ -29,9 +29,11 @@ import { readSource } from "./source";
  * same thing. And press commentary, with an upsell attached, is a broadcast
  * channel aimed at the person standing next to you.
  */
-const stroke = { isStroke: true, stableford: false };
-const stableford = { isStroke: true, stableford: true };
-const match = { isStroke: false, stableford: false };
+// A flighted field with a cut ahead — the tournament these sentences were
+// written for. The two cases where neither is true are pinned at the bottom.
+const stroke = { isStroke: true, stableford: false, flighted: true, advancing: true };
+const stableford = { isStroke: true, stableford: true, flighted: true, advancing: true };
+const match = { isStroke: false, stableford: false, flighted: true, advancing: true };
 
 describe("what the board says it is", () => {
   it("does not mention flights to a round that cannot have them", () => {
@@ -108,6 +110,35 @@ describe("what the board says under the table", () => {
     expect(boardFootnote({ ...stroke, casual: false })).toBe(
       "Net = gross minus handicap strokes received on the holes played; To-par is versus the holes played. Advancing rows reflect the qualification cutoff.",
     );
+  });
+});
+
+/**
+ * A CLUB COMPETITION WITH ONE FLIGHT AND NO CUT — the monthly Stableford.
+ *
+ * The casual case above took flights and the cut off a fourball's board. A
+ * one-round club competition had the same two sentences and they were just as
+ * untrue: "across all flights" over one flight, "Advancing rows reflect the
+ * qualification cutoff" over a board with no row lit and nothing to advance
+ * to. Read off the organizer e2e spec's Stableford board, 2026-10-04.
+ */
+describe("a tournament board says only what this tournament has", () => {
+  for (const base of [stroke, stableford, match]) {
+    it(`one flight is no flights (${base.isStroke ? (base.stableford ? "Stableford" : "stroke") : "match"})`, () => {
+      expect(boardIntro({ ...base, casual: false, flighted: false })).not.toMatch(/flight/i);
+      // The control: still says it where there are flights.
+      expect(boardIntro({ ...base, casual: false, flighted: true })).toMatch(/across all flights/);
+    });
+    it(`no lit row, no cut sentence (${base.isStroke ? (base.stableford ? "Stableford" : "stroke") : "match"})`, () => {
+      expect(boardFootnote({ ...base, casual: false, advancing: false })).not.toMatch(/Advancing|cutoff/);
+      expect(boardFootnote({ ...base, casual: false, advancing: true })).toMatch(/Advancing rows/);
+    });
+  }
+
+  it("the console board passes both from the event's own state", () => {
+    const src = readSource("src", "app", "(app)", "leaderboard", "page.tsx");
+    expect(src).toMatch(/flighted: state\.groups\.length > 1/);
+    expect(src).toMatch(/advancing: state\.advancingIds\.size > 0/);
   });
 });
 

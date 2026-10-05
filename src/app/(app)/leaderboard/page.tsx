@@ -273,6 +273,10 @@ export default async function LeaderboardPage({
     // Net to par on a net board — the board's own caption decides, as it
     // does for the column itself (`toParOnBasis` via `unitIsNet`).
     netToPar: unitIsNet(state.strokeUnitLabel),
+    // What the board can truthfully say about flights and a cut — see
+    // `BoardCopyInput`. One flight is no flights; no lit row is no line.
+    flighted: state.groups.length > 1,
+    advancing: state.advancingIds.size > 0,
   };
   const commentary = await prisma.commentary.findMany({
     where: { eventId: session.eventId },
