@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { reviewQueue, reviewQueueDetail, cardAwaitsReview } from "../domain/review-queue";
+import { reviewQueue, cardAwaitsReview } from "../domain/review-queue";
+import { needsYouNow } from "../domain/needs-you-now";
 
 /**
  * THE ORGANIZER'S QUEUE COUNTS BOTH KINDS OF RESULT, AND SAYS WHICH.
@@ -196,9 +197,11 @@ describe("a knockout result a player reported (2026-09-28)", () => {
     }
   });
 
-  it("is named for what it is under the number", () => {
-    expect(reviewQueueDetail({ matches: 0, cards: 0, knockouts: 1, total: 1, disputed: 0 })).toBe(
-      "1 knockout result to confirm",
+  it("is named for what it is on the organizer's list", () => {
+    // The "Awaiting review" tile that said this moved into "Needs you now"
+    // (2026-10-05) — `needs-you-now.test.ts` holds the wording now.
+    expect(needsYouNow({ reviewing: { matches: 0, cards: 0, knockouts: 1, total: 1, disputed: 0 } })[0].text).toBe(
+      "1 knockout result reported",
     );
   });
 
@@ -208,29 +211,34 @@ describe("a knockout result a player reported (2026-09-28)", () => {
   });
 });
 
-describe("the line under the number", () => {
+describe("the organizer's line for the queue", () => {
+  /**
+   * These were the "Awaiting review" tile's sub-line until 2026-10-05, when the
+   * tile went and the queue became lines on "Needs you now". The lessons are
+   * the same and stay pinned here: name both sources, never call a match
+   * result a score, and say only the half that exists.
+   */
+  const line = (q: Parameters<typeof needsYouNow>[0]["reviewing"]) =>
+    needsYouNow({ reviewing: q }).find((i) => i.key === "review")?.text ?? "";
+
   it("names both sources rather than calling everything a score", () => {
     // The actual defect: "scores to confirm" over thirty-six match results.
-    const detail = reviewQueueDetail({ matches: 36, cards: 5, total: 41, disputed: 0, knockouts: 0 });
+    const detail = line({ matches: 36, cards: 5, total: 41, disputed: 0, knockouts: 0 });
     expect(detail).toContain("36 match results");
     expect(detail).toContain("5 cards");
     expect(detail, "a match result is not a score").not.toMatch(/\bscores\b/);
   });
 
   it("says only the half that exists", () => {
-    // A round robin has no cards and a medal has no matches; "0 cards · 36
+    // A round robin has no cards and a medal has no matches; "0 cards and 36
     // match results" is a queue reporting its own empty half.
-    expect(reviewQueueDetail({ matches: 36, cards: 0, total: 36, disputed: 0, knockouts: 0 })).toBe("36 match results to confirm");
-    expect(reviewQueueDetail({ matches: 0, cards: 5, total: 5, disputed: 0, knockouts: 0 })).toBe("5 cards to confirm");
+    expect(line({ matches: 36, cards: 0, total: 36, disputed: 0, knockouts: 0 })).toBe("36 match results to approve");
+    expect(line({ matches: 0, cards: 5, total: 5, disputed: 0, knockouts: 0 })).toBe("5 cards to approve");
   });
 
-  it("counts one of each in the singular", () => {
-    expect(reviewQueueDetail({ matches: 1, cards: 1, total: 2, disputed: 0, knockouts: 0 })).toBe("1 card · 1 match result to confirm");
-  });
-
-  it("says nothing is waiting rather than repeating a zero", () => {
-    // The number above already reads 0. "0 to confirm" underneath it reads as
-    // an error state rather than an empty one.
-    expect(reviewQueueDetail({ matches: 0, cards: 0, total: 0, disputed: 0, knockouts: 0 })).toBe("nothing waiting");
+  it("puts nothing on the list when nothing is waiting", () => {
+    // An empty to-do list is no line at all, rather than a "0" that reads as
+    // an error state.
+    expect(needsYouNow({ reviewing: { matches: 0, cards: 0, total: 0, disputed: 0, knockouts: 0 } })).toEqual([]);
   });
 });
