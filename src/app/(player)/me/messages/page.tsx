@@ -44,7 +44,7 @@ export default async function PlayMessagesPage() {
     <div>
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "0 0 4px" }}>Messages</h1>
       <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "var(--color-neutral-400)" }}>
-        Your group, your flight, your match — and anyone in the field.
+        Message your group, flight, match or anyone in the field.
       </p>
       <MessagesClient
         threads={threads}

@@ -190,7 +190,9 @@ export default async function PlayRulesPage() {
           {courses.map((c) => (
             <div key={c.id} className="card elev-sm" style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 14.5, fontWeight: 600, marginBottom: 5 }}>{c.name}</div>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {/* data-authored: the club's own words, left as written — see
+                  e2e/player-words.spec.ts. */}
+              <p data-authored style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                 {c.localRules}
               </p>
             </div>

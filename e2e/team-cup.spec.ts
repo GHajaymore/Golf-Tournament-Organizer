@@ -254,7 +254,7 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     const board = page.getByRole("region", { name: "The cup" });
     await expect(board).toContainText("2 of 2 matches decided");
     await expect(board).not.toContainText("win the cup");
-    await expect(board).toContainText("set once every session's lineup is announced");
+    await expect(board).toContainText("Points to win: set once every lineup is out.");
     // The cup is the whole board: no pairs table under it.
     await expect(page.getByText(/Match play — 1 point a win/)).toHaveCount(0);
   });

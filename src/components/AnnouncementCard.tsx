@@ -48,7 +48,8 @@ export function AnnouncementCard({ a }: { a: AnnouncementItem }) {
         </span>
       </div>
       {a.body && (
-        <p className="text-muted" style={{ fontSize: 14, margin: 0, whiteSpace: "pre-wrap" }}>
+        // data-authored: the organizer's own words — see e2e/player-words.spec.ts.
+        <p data-authored className="text-muted" style={{ fontSize: 14, margin: 0, whiteSpace: "pre-wrap" }}>
           {a.body}
         </p>
       )}

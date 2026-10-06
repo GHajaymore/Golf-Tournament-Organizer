@@ -41,11 +41,11 @@ export default async function ClubCalendarPage() {
       {commitments.length === 0 ? (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title">Nothing on your calendar yet</span>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5 }}>
+          <MoreInfo short="Rounds you're entered in appear here." style={{ marginTop: 6 }}>
             Once you are entered in one of your club&rsquo;s tournaments, its rounds appear here on the
             days they are played — and where a league lets you choose your weeks, you can set them from
             this screen.
-          </p>
+          </MoreInfo>
           <Link
             href="/me/events"
             className="btn btn-secondary"

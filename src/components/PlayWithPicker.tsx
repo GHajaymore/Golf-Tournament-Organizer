@@ -3,6 +3,7 @@ import { useState } from "react";
 import { setMyPlayWith } from "@/app/actions/pairing";
 import { MAX_REQUESTS } from "@/lib/domain/pairing-requests";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 
 /**
@@ -35,12 +36,14 @@ export function PlayWithPicker({
       <span id="play-with" style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
         <Icon name="users-three" /> Who would you like to play with?
       </span>
-      <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
-        {chosen.length
-          ? `You've asked for ${chosen.map((id) => nameOf.get(id) ?? "").filter(Boolean).join(", ")}. `
-          : ""}
-        A request, not a booking — the draw keeps you together where it can. Up to {MAX_REQUESTS}.
-      </p>
+      {chosen.length > 0 && (
+        <p style={{ fontSize: 14, lineHeight: 1.5, margin: 0 }}>
+          You&apos;ve asked for {chosen.map((id) => nameOf.get(id) ?? "").filter(Boolean).join(", ")}.
+        </p>
+      )}
+      <MoreInfo short={`A request, not a booking. Up to ${MAX_REQUESTS}.`}>
+        The draw keeps you together where it can, but a request is not a booking.
+      </MoreInfo>
       {!open ? (
         <div>
           <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>

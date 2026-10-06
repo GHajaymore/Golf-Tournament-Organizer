@@ -9,6 +9,7 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { nameHold, type NameHold } from "@/lib/domain/bet-name";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * A bet between whoever wants in, across whatever fourballs they are in.
@@ -235,10 +236,9 @@ export function SideBetStart({
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 12 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Start a side bet</span>
-      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-        Yours to set up — no organizer needed. Pick the game, pick who is in, and it settles
-        like every other pot into the same one number.
-      </p>
+      <MoreInfo short="Yours to set up — no organizer needed.">
+        Pick the game, pick who is in, and it settles like every other pot into the same one number.
+      </MoreInfo>
 
       <div>
         <span className="card-kicker">The game</span>
@@ -388,10 +388,9 @@ export function SideBetStart({
             );
           })}
         </div>
-        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
-          Two players or ten, from any group. Once there are names in it, only the people in it
-          can change it.
-        </p>
+        <MoreInfo short="Two players or ten, from any group." style={{ marginTop: 8 }}>
+          Once there are names in it, only the people in it can change it.
+        </MoreInfo>
       </div>
 
       {error && (

@@ -2,6 +2,7 @@ import type { TeamStanding } from "@/lib/services/teams";
 import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
 import { toParText } from "@/lib/domain";
 import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Standings for a team round.
@@ -171,18 +172,25 @@ export function TeamStandingsTable({
             </table>
           </div>
         )}
-        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
+        {/* What decides the order, and how far the field has got, in one
+            line; the why behind the ⓘ (36 words on a phone, 2026-10-06). */}
+        <MoreInfo
+          style={{ marginTop: 8 }}
+          short={
+            (stableford ? "Stableford points." : basis === "gross" ? "Decided on gross." : "Decided on net.") +
+            (started.length > 0 && started.length < rows.length
+              ? ` ${started.length} of ${rows.length} sides have started.`
+              : "")
+          }
+        >
           {stableford
-            ? "Points are Stableford against the side's playing handicap."
+            ? "Points are Stableford against the side's playing handicap. "
             : basis === "gross"
               ? "This round is decided on gross: the handicap column is shown for reference and takes no part in the order. "
               : "Net is the side's gross minus the handicap strokes it receives. "}
           Sides that haven&apos;t returned a card yet are unranked rather than shown level with the
           field.
-          {started.length > 0 && started.length < rows.length
-            ? ` ${started.length} of ${rows.length} sides have started.`
-            : ""}
-        </p>
+        </MoreInfo>
       </div>
     </>
   );

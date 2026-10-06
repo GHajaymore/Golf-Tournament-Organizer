@@ -72,3 +72,21 @@ export function yourCardNote(input: {
   if (holes > 0 && side.played >= holes) return `${whose} Your side’s card is in.`;
   return `${whose} Your side is thru ${side.played}.`;
 }
+
+/**
+ * THE SAME ANSWER IN ONE SHORT LINE, with `yourCardNote` behind its ⓘ.
+ *
+ * The note runs to 27 words, measured at 393px on 2026-10-06 — a player in a
+ * four-ball read two sentences of explanation every time they opened Today.
+ * What they look for is where the card has got to, so that is what the short
+ * line keeps: thru 7, or in. The why stays one tap away.
+ */
+export function yourCardShort(input: Parameters<typeof yourCardNote>[0]): string {
+  const { side, holes } = input;
+  if (input.round === false) return "";
+  if (input.knockout) return "Your tie is recorded on the draw.";
+  if (!side) return "Your organizer records your match.";
+  if (side.played <= 0) return "This card belongs to your side.";
+  if (holes > 0 && side.played >= holes) return "Your side’s card is in.";
+  return `Your side is thru ${side.played}.`;
+}

@@ -141,8 +141,8 @@ export function PushToggle() {
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
         <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.4 }}>
           {state === "blocked"
-            ? "Notifications are blocked for this site — turn them on in your browser settings to get alerts."
-            : "A notification when your tee time is posted or changes — no email needed."}
+            ? "Blocked — turn them on in your browser settings."
+            : "When your tee time is posted or changes."}
         </span>
         {error && (
           <span className="form-error" style={{ fontSize: 13, marginTop: 2 }}>
