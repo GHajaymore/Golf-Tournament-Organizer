@@ -40,11 +40,16 @@ import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { firstHoleOf } from "@/lib/domain/hole-number";
+import { TEAM_SESSION, cupSessionsFor } from "@/lib/services/cup";
+import { CupSessionNav } from "@/components/CupSessionNav";
 
 export const metadata = screenMetadata("/entry");
 
-export default async function EntryPage() {
+export default async function EntryPage({ searchParams }: { searchParams?: Promise<{ round?: string }> }) {
   const session = await requireScreen("entry");
+  // A round asked for by link — the cup's session links, or anybody's — read
+  // before anything else so every branch below scores the same round.
+  const pickedRound = String((await searchParams)?.round ?? "");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
@@ -139,10 +144,26 @@ export default async function EntryPage() {
     );
   }
 
+  /**
+   * WHICH ROUND THIS SCREEN SCORES — the one asked for, then, on a team cup,
+   * the session this person has a match to play in, then the active round.
+   *
+   * It was the active round and nothing else. A cup weekend has a pair session
+   * and a singles session running off one tournament, and "active" is ONE of
+   * them — so the player in Saturday's foursomes opened the four-balls and was
+   * told "No sides drawn yet", with no way to reach their own match. Found
+   * 2026-10-05 walking a cup as its players.
+   */
+  const cup = await cupSessionsFor(state, session.email, isStaff);
+  const picked = pickedRound ? state.stages.find((s) => s.id === pickedRound) ?? null : null;
+  const activeStage = picked ?? cup.defaultStage ?? state.activeStage ?? state.stages[0] ?? null;
+  const cupNav = cup.sessions.length ? (
+    <CupSessionNav sessions={cup.sessions} current={activeStage?.id ?? ""} />
+  ) : null;
+
   // A team round is entered differently enough that it gets its own screen
   // rather than a mode inside the individual one: the unit is a side, the card
   // count depends on the format, and there is no A/B slot to fill.
-  const activeStage = state.activeStage ?? state.stages[0] ?? null;
   if (activeStage && needsTeams(activeStage.format)) {
     /**
      * Whose card this round is written on — the committee's answer, not the
@@ -342,15 +363,31 @@ export default async function EntryPage() {
       const mine = new Set(
         teams.filter((t) => t.members.some((m) => m.playerId === me?.id)).map((t) => t.id),
       );
-      visible = rows.filter((r) => mine.has(r.teamId));
+      /**
+       * AND ONLY THE CARD THEY MAY SAVE. In a format where each partner keeps
+       * their own card (four-ball), `saveTeamScorecard` accepts a player's own
+       * card and refuses their partner's — so offering both put a card on the
+       * screen that "Save scores" then rejected, after it had been filled in.
+       * A side that shares one ball has one card, which either partner keeps.
+       */
+      visible = rows
+        .filter((r) => mine.has(r.teamId))
+        .map((r) => (sideOnly ? r : { ...r, cards: r.cards.filter((c) => c.playerId === me?.id) }));
     }
 
     return (
       <>
         <p className="kicker">Manage</p>
         <h1 className="page-title">Score entry</h1>
+        {cupNav}
         <TeamEntryClient
-          round={`${activeStage.format}`}
+          // A cup session by the name the club gave it — "Saturday foursomes" —
+          // with the format beside it; any other team round by its format.
+          round={
+            activeStage.type === TEAM_SESSION && activeStage.description.trim()
+              ? `${activeStage.description.trim()} · ${activeStage.format}`
+              : `${activeStage.format}`
+          }
           teams={visible}
           pars={teamPars}
           strokeIndex={teamStrokeIndex}
@@ -489,7 +526,14 @@ export default async function EntryPage() {
   // Every round the field plays, not just the round-robin chain — a medal
   // round has no pairings but very much has cards to enter, and keying this
   // off rrStages alone made it unreachable from score entry.
-  const rrStages = state.playRounds.length ? state.playRounds : state.stages.slice(0, 1);
+  //
+  // Never a cup's PAIR session: its sides are teams, so this screen — one
+  // player per slot — showed "—" v "—" and scored the pair as one scratch
+  // ball. Those are scored on the team screen above, reached by the session
+  // links.
+  const rrStages = (state.playRounds.length ? state.playRounds : state.stages.slice(0, 1)).filter(
+    (s) => !(s.type === TEAM_SESSION && needsTeams(s.format)),
+  );
 
   // Tee ratings, once, for the whole screen. Needed here — not only in the
   // player-specific block further down — because the hole-by-hole card shows
@@ -711,7 +755,10 @@ export default async function EntryPage() {
         // has to know that from the round's structure, not its format name:
         // a Stroke Play Round created before this carries the schema's
         // "Match Play" default and would still be sent to the wrong entry.
-        drawsPairings: generatesPairings(stage.type),
+        // And a cup session, whose matches are the captains' lineup: it draws
+        // nothing itself, but it has matches to enter, so it opens on them.
+        drawsPairings: generatesPairings(stage.type) || stage.type === TEAM_SESSION,
+        cup: stage.type === TEAM_SESSION,
         // The knockout is recorded on the Bracket, and the screen says so.
         bracket: isKnockoutRound(stage.type),
         matches: stageMatches,
@@ -842,9 +889,11 @@ export default async function EntryPage() {
     }),
   );
 
+  // The round chosen above — a link's, a cup player's own session, or the
+  // active one — so the screen opens where the team branch would have.
   const activeIndex = Math.max(
     0,
-    rounds.findIndex((r) => r.stageId === state.activeStage?.id),
+    rounds.findIndex((r) => r.stageId === activeStage?.id),
   );
 
   /**
@@ -953,6 +1002,7 @@ export default async function EntryPage() {
   return (
     <EntryModes
       setupLocked={isSetupLocked(state.event)}
+      sessionNav={cupNav}
       cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
       rounds={rounds}
       voice={voice}

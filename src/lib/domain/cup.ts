@@ -49,12 +49,41 @@ export function cupMatchState(m: CupMatchInput): CupMatchState {
     return { points: [0.5, 0.5], status: "final", label: "A/S", leader: null };
   }
   const lead = Math.abs(r.lead);
+  // DORMIE — as many up as there are holes left, so the side behind must win
+  // every one of them to halve. What a golfer calls it, and what a cup board
+  // prints, because it is the moment the match is the story.
+  const left = m.holes.length - r.played;
   return {
     points: [0, 0],
     status: "in-play",
-    label: `${lead === 0 ? "A/S" : `${lead} UP`} thru ${r.played}`,
+    label: lead > 0 && lead === left ? `Dormie ${lead}` : `${lead === 0 ? "A/S" : `${lead} UP`} thru ${r.played}`,
     leader: r.lead > 0 ? "A" : r.lead < 0 ? "B" : null,
   };
+}
+
+/**
+ * One match as its player is told it — from THEIR side, in words.
+ *
+ * The board prints a direction ("◀ 2 UP"), which is right for a crowd reading
+ * both names and wrong for the one person who is in the match: they want to
+ * know whether they are up or down, and at the end whether they won.
+ */
+export function yourMatchLine(s: CupMatchState, mine: CupSide): string {
+  if (s.status === "not-started") return "Not started";
+  if (s.status === "final") {
+    if (!s.leader) return "Halved";
+    const result = s.label === "Conceded" ? "— conceded" : s.label;
+    return `${s.leader === mine ? "Won" : "Lost"} ${result}`;
+  }
+  const dormie = /^Dormie (\d+)$/.exec(s.label);
+  if (dormie) {
+    const n = dormie[1];
+    return s.leader === mine ? `You're dormie ${n} — ${n} up with ${n} to play` : `${n} down with ${n} to play — you need ${n === "1" ? "it" : n === "2" ? "both" : `all ${n}`}`;
+  }
+  const thru = /thru (\d+)$/.exec(s.label)?.[1] ?? "";
+  if (!s.leader) return `All square thru ${thru}`;
+  const up = /^(\d+) UP/.exec(s.label)?.[1] ?? "";
+  return `You're ${up} ${s.leader === mine ? "up" : "down"} thru ${thru}`;
 }
 
 export interface CupTally {
@@ -100,21 +129,36 @@ export type CupVerdict =
   | { kind: "won"; by: CupSide }
   | { kind: "retained"; by: CupSide }
   | { kind: "tied" }
-  | { kind: "open"; needA: number; needB: number };
+  /** Null needs: no target to measure against yet — see `totalKnown`. */
+  | { kind: "open"; needA: number | null; needB: number | null };
 
 /**
  * Who has the cup, or what each team still needs.
  *
  * Won the moment a team reaches the target — the rest of the singles are still
- * played, but the cup is decided (a golfer says "the cup is won"). Once every
- * match is decided and neither reached it, the teams are level: the holder
- * RETAINS if there is one, otherwise it is shared.
+ * played, but the cup is decided (a golfer says "the cup is won").
+ *
+ * RETAINED the moment the holder cannot be caught: when the challenger, given
+ * every match still out, could not reach the target. That is 14 of 28 in a
+ * Ryder Cup, said on the course with singles still going — not after the last
+ * putt, which is when this used to say it. Level at the end is the same case.
+ *
+ * `totalKnown`: whether every session has its lineup. Without an explicit
+ * target, "more than half" is half of the matches that EXIST — so before the
+ * last session is lined up there is no target yet, and nothing is decided.
+ * An explicit target needs no total and is honoured either way.
  */
-export function cupVerdict(t: CupTally, target: number, holder: CupSide | null): CupVerdict {
+export function cupVerdict(t: CupTally, target: number, holder: CupSide | null, totalKnown = true): CupVerdict {
+  if (target <= 0 && !totalKnown) return { kind: "open", needA: null, needB: null };
   const win = pointsToWin(target, t.total);
   if (win > 0 && t.a >= win) return { kind: "won", by: "A" };
   if (win > 0 && t.b >= win) return { kind: "won", by: "B" };
-  if (t.total > 0 && t.decided === t.total) {
+  const left = t.total - t.decided;
+  if (holder && totalKnown && t.total > 0) {
+    const challenger = holder === "A" ? t.b : t.a;
+    if (challenger + left < win) return { kind: "retained", by: holder };
+  }
+  if (t.total > 0 && left === 0) {
     return holder ? { kind: "retained", by: holder } : { kind: "tied" };
   }
   return { kind: "open", needA: Math.max(0, win - t.a), needB: Math.max(0, win - t.b) };

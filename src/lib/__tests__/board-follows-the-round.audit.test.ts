@@ -405,8 +405,15 @@ describe("every board reads the round's answer", () => {
      * want to type into and is not always the latest round with results. That
      * screen appears here only because it also calls `standingRows` once, for
      * the spoken "where am I?" — and that call already asks `boardStage`.
+     *
+     * Since 2026-10-05 that line puts two answers to the SAME question first:
+     * a round a link names (`?round=`), and on a team cup the session this
+     * scorer has a match in. Still which round is being typed into — a cup's
+     * foursomes player was opening the four-balls — and still not the board's.
      */
-    const ALLOWED = new Set([`const activeStage = state.activeStage ?? state.stages[0] ?? null;`]);
+    const ALLOWED = new Set([
+      `const activeStage = picked ?? cup.defaultStage ?? state.activeStage ?? state.stages[0] ?? null;`,
+    ]);
     const offenders: string[] = [];
     for (const f of sourceFiles()) {
       if (f.endsWith(join("services", "tournament.ts"))) continue;

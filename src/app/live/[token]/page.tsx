@@ -214,11 +214,12 @@ export default async function PublicLeaderboardPage({
             {board.name}
           </h1>
           <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>
-            {[board.roundLabel, board.dates, board.venue].filter(Boolean).join(" · ")}
+            {[cup.ok ? "" : board.roundLabel, board.dates, board.venue].filter(Boolean).join(" · ")}
           </p>
           {/* Every round, not only the latest — the same picker the console
-              leaderboard has. Renders nothing where choosing changes nothing. */}
-          {board.rounds.length > 1 && (
+              leaderboard has. Renders nothing where choosing changes nothing,
+              which on a cup is everything: its board is every session at once. */}
+          {board.rounds.length > 1 && !cup.ok && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>Showing</span>
               <RoundPicker
@@ -231,11 +232,17 @@ export default async function PublicLeaderboardPage({
           )}
         </header>
 
-        {/* A TEAM CUP'S SCORE FIRST — the figure everybody following the trip
-            opened this link for. The round's own board stays below it. */}
-        {cup.ok && <CupScoreboard board={cup.board} />}
+        {/* A TEAM CUP'S SCORE — the figure everybody following the trip opened
+            this link for, and the whole of the board for a cup.
 
-        {board.straightKnockout ? (
+            The session's own board used to follow it: a pairs round robin
+            table ("P W ½ L · PTS" for each pair) that ranks nothing a cup is
+            decided on, under a "Showing Round 1 · Four-Ball" picker that
+            chose between tables of it. The cup board already lists every
+            match in every session. */}
+        {cup.ok ? (
+          <CupScoreboard board={cup.board} />
+        ) : board.straightKnockout ? (
           /* A knockout from the first tee: the draw IS the board. Its
              match-points table ranks everybody on nothing (see #633). */
           board.draws.length > 0 ? null : (
@@ -283,7 +290,7 @@ export default async function PublicLeaderboardPage({
           />
         )}
 
-        {board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
+        {!cup.ok && board.draws.length > 0 && <TheDraw draws={board.draws} results={board.bracketResults} />}
 
         {/*
           Stamped HERE, outside the cache, on every request.

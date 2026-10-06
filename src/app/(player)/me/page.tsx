@@ -45,6 +45,9 @@ import { firstHoleOf, holeNumber, startHoleNumber } from "@/lib/domain/hole-numb
 import { playWithFor } from "@/lib/services/pairing";
 import { PlayWithPicker } from "@/components/PlayWithPicker";
 import { MoreInfo } from "@/components/MoreInfo";
+import { MyCup } from "@/components/MyCup";
+import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
+import { canEnterScores } from "@/lib/tournament-settings";
 
 /**
  * Today — the player's home.
@@ -111,6 +114,15 @@ export default async function PlayTodayPage() {
    */
   const waiting = !me.playerId && isWaiting(myRow, isStaff);
 
+  /**
+   * A TEAM CUP. Its sessions are rounds, but a player's day is their matches
+   * across them — the score, and who they play with and against — so the cup
+   * card leads and the round-shaped panels below (a side's card, a pairing
+   * request the captains have already answered) stand aside. See `MyCup`.
+   */
+  const cupResult = state.stages.some((s) => s.type === TEAM_SESSION) ? await cupBoard(session.eventId) : null;
+  const cup = cupResult?.ok ? cupResult.board : null;
+
   const round = me.round;
   const card = round?.card ?? null;
   /** This player's record against the opponent in the tie they are about to play. */
@@ -124,7 +136,7 @@ export default async function PlayTodayPage() {
    * not over. Null otherwise, and for a field of one.
    */
   const playWithData =
-    me.playerId && !round?.group && !card?.filled && !isFinished(state.event.status)
+    me.playerId && !cup && !round?.group && !card?.filled && !isFinished(state.event.status)
       ? await playWithFor(session.eventId, me.playerId)
       : null;
   const playWith = playWithData && playWithData.others.length > 0 ? playWithData : null;
@@ -267,7 +279,11 @@ export default async function PlayTodayPage() {
           textOverflow: "ellipsis",
         }}
       >
-        {[round ? roundKicker(round.label, round.name) : "Today", round?.venue].filter(Boolean).join(" · ")}
+        {/* A cup is played across its sessions, so it is headed by the cup,
+            not by whichever session the tournament calls current. */}
+        {[cup && me.playerId ? "Your cup" : round ? roundKicker(round.label, round.name) : "Today", round?.venue]
+          .filter(Boolean)
+          .join(" · ")}
       </h1>
 
       {/**
@@ -295,6 +311,10 @@ export default async function PlayTodayPage() {
        * everything — a frost delay. Unpinned posts sit under the round.
        */}
       <AnnouncementList items={announcements.filter((a) => a.pinned)} />
+
+      {cup && me.playerId && (
+        <MyCup board={cup} meId={me.playerId} canScore={canEnterScores(settingsOf(state.event), session.viewRole)} />
+      )}
 
       {/**
        * ENTERED, AND THERE IS NOTHING TO PLAY YET.
@@ -447,7 +467,7 @@ export default async function PlayTodayPage() {
           hole goes in" and "your score is recorded against your opponent" —
           two futures and an opponent, for a tournament with nothing in it.
           The organizer's half of this is #518. */}
-      {me.playerId && round && !hero && (
+      {me.playerId && round && !hero && !cup && (
         <>
           {/* YOUR SIDE'S ROUND, which on a team day is your round.
               Above the "not started" panel and in place of it: a player whose

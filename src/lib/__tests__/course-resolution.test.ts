@@ -9,7 +9,7 @@ import {
   type EventCourseFields,
 } from "../services/course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain/stroke";
-import { hasCourseData } from "../courses";
+import { hasCourseData, resolveCourse } from "../courses";
 
 const arr = (n: number) => JSON.stringify(new Array(18).fill(n));
 
@@ -517,5 +517,47 @@ describe("cardForStage — the nine actually played", () => {
   it("treats a missing stage as eighteen holes rather than guessing a half", () => {
     expect(cardForStage(CARD, null).strokeIndex).toEqual(SI);
     expect(cardForStage(CARD, undefined).pars).toEqual(PARS);
+  });
+});
+
+/**
+ * YARDAGE IS OPTIONAL, AND NOTHING SCORES OFF IT (CLAUDE.md, "Course cards").
+ *
+ * A course with a par and a stroke index for every hole and no yardage was
+ * thrown away whole by the resolver — so the scoring screen printed "Par —"
+ * and a net match had no stroke index to give strokes on. Found 2026-10-05
+ * walking a team cup on a course entered without yards.
+ */
+describe("a card with no yardage is still a card", () => {
+  const noYards = (yards: string): StoredCourse => ({ ...stored("Yardless"), yards });
+
+  it.each(["[]", "", "null", JSON.stringify(new Array(5).fill(300))])("yards %s", (yards) => {
+    const c = courseForRound(noYards(yards), blankEvent);
+    expect(c, "the card was thrown away").not.toBeNull();
+    expect(c!.pars).toHaveLength(18);
+    expect(c!.strokeIndex).toHaveLength(18);
+    expect(c!.yards).toEqual([]);
+    // And it narrows like any other card.
+    expect(cardForStage(c!, { holes: 9, nine: "back" }).pars).toHaveLength(9);
+  });
+
+  it("CONTROL: no par or no stroke index is still no card", () => {
+    expect(courseForRound({ ...stored("NoPar"), pars: "[]" }, blankEvent)).toBeNull();
+    expect(courseForRound({ ...stored("NoSI"), strokeIndex: "[]" }, blankEvent)).toBeNull();
+  });
+
+  it("a tournament's own card with no yardage is kept too", () => {
+    const e = { ...presetEvent, customYards: "" };
+    expect(courseForRound(null, e)?.pars).toHaveLength(18);
+    // The older resolver the save actions still read, and the gate on score entry.
+    expect(resolveCourse(e).pars).toEqual(JSON.parse(presetEvent.customPars));
+    expect(resolveCourse(e).yards).toEqual([]);
+    expect(hasCourseData(e)).toBe(true);
+  });
+
+  it("the picked course and the sole venue, with no yardage, resolve to their cards", () => {
+    const yardless = { ...stored("Yardless"), yards: "[]" };
+    expect(resolveCourse({ ...blankEvent, courseRef: yardless }).pars).toHaveLength(18);
+    expect(resolveCourse({ ...blankEvent, courses: [{ course: yardless }] }).strokeIndex).toHaveLength(18);
   });
 });
