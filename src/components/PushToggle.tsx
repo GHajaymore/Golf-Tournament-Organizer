@@ -116,6 +116,21 @@ export function PushToggle() {
 
   if (state === "checking" || state === "unavailable") return null;
 
+  /**
+   * BLOCKED IS AN ANSWER, so it is one line, not a card (2026-10-06). A player
+   * who said no to notifications was shown the full prompt on every visit to
+   * Today, asking them to go into their browser settings — a nag on the one
+   * screen kept to the moment. Said once, quietly, like "alerts are on".
+   */
+  if (state === "blocked") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--color-text-muted)" }}>
+        <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
+        <span>Tee-time alerts are blocked in your browser settings.</span>
+      </div>
+    );
+  }
+
   if (state === "on") {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
@@ -140,9 +155,7 @@ export function PushToggle() {
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
         <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.4 }}>
-          {state === "blocked"
-            ? "Blocked — turn them on in your browser settings."
-            : "When your tee time is posted or changes."}
+          When your tee time is posted or changes.
         </span>
         {error && (
           <span className="form-error" style={{ fontSize: 13, marginTop: 2 }}>
@@ -150,11 +163,9 @@ export function PushToggle() {
           </span>
         )}
       </span>
-      {state !== "blocked" && (
-        <button type="button" onClick={enable} disabled={busy} className="btn btn-secondary touch-target" style={{ flex: "none" }}>
-          {busy ? "Turning on…" : "Turn on"}
-        </button>
-      )}
+      <button type="button" onClick={enable} disabled={busy} className="btn btn-secondary touch-target" style={{ flex: "none" }}>
+        {busy ? "Turning on…" : "Turn on"}
+      </button>
     </div>
   );
 }
