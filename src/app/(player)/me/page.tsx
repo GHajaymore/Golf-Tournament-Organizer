@@ -53,6 +53,7 @@ import { weekAhead } from "@/lib/domain/club-calendar";
 import { dayInWords } from "@/lib/domain/round-dates";
 import { formattingForEvent } from "@/lib/services/organization";
 import { enterTournament } from "@/app/actions/auth";
+import { namedAfterPlayers } from "@/lib/domain/side-name";
 
 /**
  * Today — the player's home.
@@ -290,6 +291,54 @@ export default async function PlayTodayPage() {
     gap,
   }));
 
+  /**
+   * WHO I GO OFF WITH, AND WHEN — the first-tee question. On the screen
+   * before the round; under More once the card has holes in, because a
+   * player on the course is standing with their group (the design table,
+   * 2026-10-06: during the round the summary is the card and the position).
+   */
+  const groupCard =
+    me.playerId && round?.group ? (
+        <section
+          className="card elev-sm"
+          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
+        >
+          {round.group.partners.length > 0 && (
+            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
+              {round.group.partners.slice(0, 3).map((p, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: "var(--color-surface-2)",
+                    border: "2px solid var(--color-surface)",
+                    marginLeft: i === 0 ? 0 : -8,
+                  }}
+                >
+                  {initialsOf(p)}
+                </span>
+              ))}
+            </span>
+          )}
+          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>
+              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
+            </span>
+            <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
+              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
+              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
+            </span>
+          </span>
+        </section>
+    ) : null;
+  const groupOnScreen = !card?.filled;
+
   /** The In / Out card — on the screen or under More, never both. */
   const availabilityCard = availabilityShown ? (
     <div style={{ marginTop: 12 }}>
@@ -311,6 +360,7 @@ export default async function PlayTodayPage() {
    * drawn at all: an extender that opens onto nothing is worse than none.
    */
   const moreParts = [
+    !groupOnScreen && groupCard ? "Your group" : "",
     !leadersOnScreen && leaders.length > 0 ? "Leaders" : "",
     availabilityShown && !availabilityOnScreen ? "Your rounds" : "",
     playWith ? "Playing partners" : "",
@@ -535,9 +585,12 @@ export default async function PlayTodayPage() {
                 {mySide.played > 0 ? "Your side" : "Your side · not started"}
               </span>
               <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{mySide.name}</div>
-              <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
-                {mySide.members.join(" · ")}
-              </div>
+              {/* The players, only where the name is not already them. */}
+              {!namedAfterPlayers(mySide.name, mySide.members) && (
+                <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
+                  {mySide.members.join(" · ")}
+                </div>
+              )}
               {mySide.played > 0 ? (
                 <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6 }}>
                   {mySide.played >= holes ? "Round complete" : `Thru ${mySide.played}`} ·{" "}
@@ -549,9 +602,11 @@ export default async function PlayTodayPage() {
                     : ""}
                 </p>
               ) : (
-                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6 }}>
-                  Your side&rsquo;s card hasn&rsquo;t been started yet.
-                </p>
+                // Why it is the SIDE's card sits behind the ⓘ here — this card
+                // is the one place Today talks about it (2026-10-06).
+                <MoreInfo short="Your side’s card hasn’t been started yet." style={{ marginTop: 8 }}>
+                  {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
+                </MoreInfo>
               )}
               {/* Where the rest of the field is. The board has the sides now. */}
               <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
@@ -696,7 +751,9 @@ export default async function PlayTodayPage() {
                 See the board <Icon name="arrow-right" />
               </Link>
             </section>
-          ) : (
+          ) : mySide ? null /* The side card above already says where the
+              side's card is; a second card saying "This card belongs to your
+              side" was the same fact twice (2026-10-06). */ : (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
               {round && (
@@ -715,45 +772,7 @@ export default async function PlayTodayPage() {
       {/* Who I go off with. The question every player asks first — so it
           sits straight under their own card, ABOVE the leaders (Ajay,
           2026-10-05). It was below them, a scroll down on a phone. */}
-      {me.playerId && round?.group && (
-        <section
-          className="card elev-sm"
-          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
-        >
-          {round.group.partners.length > 0 && (
-            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
-              {round.group.partners.slice(0, 3).map((p, i) => (
-                <span
-                  key={i}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: "var(--color-surface-2)",
-                    border: "2px solid var(--color-surface)",
-                    marginLeft: i === 0 ? 0 : -8,
-                  }}
-                >
-                  {initialsOf(p)}
-                </span>
-              ))}
-            </span>
-          )}
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>
-              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
-            </span>
-            <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
-              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
-              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
-            </span>
-          </span>
-        </section>
-      )}
+      {groupOnScreen && groupCard}
 
       {/**
        * WHERE I STAND, ON THE LEADERS BOARD. The top five and the player,
@@ -874,6 +893,7 @@ export default async function PlayTodayPage() {
           {moreLabel}
         </summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+          {!groupOnScreen && groupCard}
           {!leadersOnScreen && leaders.length > 0 && (
             <ScoreboardLeaders
               rows={leaders}

@@ -240,12 +240,19 @@ describe("the tee time sits above the leaders on Today", () => {
   it("renders the group before the leaders board", () => {
     // Source order is render order here: both are top-level blocks of the
     // same fragment. "What time am I off" is asked before "who is leading".
+    // Since 2026-10-06 the group card is built once (`groupCard`) and placed
+    // twice — on the screen before the round, under More during it — and the
+    // leaders likewise. The order holds in BOTH places, so it is pinned in both.
     const src = readSource("src/app/(player)/me/page.tsx");
-    const group = src.indexOf("round?.group && (");
-    const leaders = src.indexOf("<ScoreboardLeaders");
-    expect(group).toBeGreaterThan(-1);
-    expect(leaders).toBeGreaterThan(-1);
-    expect(group).toBeLessThan(leaders);
+    const body = src.slice(src.indexOf("  return ("));
+    const onScreen = { group: body.indexOf("{groupOnScreen && groupCard}"), leaders: body.indexOf("{leadersOnScreen && leaders.length > 0") };
+    const more = body.slice(body.indexOf("{moreLabel}"));
+    const inMore = { group: more.indexOf("{!groupOnScreen && groupCard}"), leaders: more.indexOf("<ScoreboardLeaders") };
+    for (const [where, at] of Object.entries({ onScreen, inMore })) {
+      expect(at.group, `${where}: no group`).toBeGreaterThan(-1);
+      expect(at.leaders, `${where}: no leaders`).toBeGreaterThan(-1);
+      expect(at.group, `${where}: the leaders come first`).toBeLessThan(at.leaders);
+    }
   });
 });
 

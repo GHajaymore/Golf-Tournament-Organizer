@@ -1,6 +1,7 @@
 "use client";
 import { WEEK_BASIS_LABEL, WEEK_BASIS_COLUMN, valueOnBasis } from "@/lib/domain/week-basis";
 import { weekReturnsNote } from "@/lib/domain/attendance";
+import { namedAfterPlayers } from "@/lib/domain/side-name";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -496,9 +497,11 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                             Gordon" and its members are "Hattie Mwangi · Gordon
                             Pyle", so inline they ran into one another and read
                             as the same two names printed twice. */}
-                        <div className="text-muted" style={{ fontSize: 13 }}>
-                          {s.members.join(" · ") || "No players"}
-                        </div>
+                        {!namedAfterPlayers(s.name, s.members) && (
+                          <div className="text-muted" style={{ fontSize: 13 }}>
+                            {s.members.join(" · ") || "No players"}
+                          </div>
+                        )}
                       </td>
                       {view.basis !== "gross" && (
                         <td style={num}>{s.played > 0 ? s.gross : "—"}</td>
