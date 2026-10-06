@@ -223,12 +223,22 @@ figcaption {
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
 
 /* Nothing here is load-bearing motion — it's all easing on hover and focus.
-   Someone who has asked for less of it loses nothing by having none. */
+   Someone who has asked for less of it loses nothing by having none.
+
+   TRANSITIONS ARE OFF, NOT SHORTENED (2026-10-06). This used to set
+   `transition-duration: 0.01ms` on everything — and `transition-property`
+   defaults to `all`, so that did not shorten the few transitions declared
+   here, it GAVE one to every property of every element. Each change was then
+   drawn a frame late: the "More about" panel painted its first frame at its
+   unplaced position, 324px on a 320px screen, which CI read twice. Nothing
+   listens for `transitionend`, so none is needed. Animations keep the short
+   run: one only plays where it is declared, and the 0.01ms run still lands on
+   its end state, which something fading in needs. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition: none !important;
     scroll-behavior: auto !important;
   }
 }
