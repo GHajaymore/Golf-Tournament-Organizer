@@ -266,8 +266,16 @@ export default async function PlayTodayPage() {
   const today = todayIso();
   const { locale } = await formattingForEvent(state.event.id);
   const thisWeek = weekAhead(await clubCommitmentsFor(session.email), today, session.eventId);
+  /**
+   * IS THE ROUND UNDER WAY — for THIS player, whatever shape it is. Their own
+   * card has holes in, or their side's card does (a four-ball or foursomes
+   * player owns no card), or one of their matches has started. One reading,
+   * so the In / Out question and the group card leave the screen together.
+   */
+  const roundUnderWay =
+    (card?.filled ?? 0) > 0 || (mySide?.played ?? 0) > 0 || (round?.matches ?? []).some((m) => !m.notStarted);
   const availabilityShown = Boolean(me.playerId && availability.playerId);
-  const availabilityOnScreen = availabilityShown && Boolean(availability.next) && !card?.filled;
+  const availabilityOnScreen = availabilityShown && Boolean(availability.next) && !roundUnderWay;
   const leadersOnScreen = !hero;
 
   const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
@@ -292,10 +300,11 @@ export default async function PlayTodayPage() {
   }));
 
   /**
-   * WHO I GO OFF WITH, AND WHEN — the first-tee question. On the screen
-   * before the round; under More once the card has holes in, because a
-   * player on the course is standing with their group (the design table,
-   * 2026-10-06: during the round the summary is the card and the position).
+   * WHO I GO OFF WITH, AND WHEN — the first-tee question. Leading the screen
+   * before the round; under More once it is under way (`roundUnderWay`),
+   * because a player on the course is standing with their group (the design
+   * table, 2026-10-06: during the round the summary is the card and the
+   * position).
    */
   const groupCard =
     me.playerId && round?.group ? (
@@ -337,7 +346,7 @@ export default async function PlayTodayPage() {
           </span>
         </section>
     ) : null;
-  const groupOnScreen = !card?.filled;
+  const groupOnScreen = !roundUnderWay;
 
   /** The In / Out card — on the screen or under More, never both. */
   const availabilityCard = availabilityShown ? (
@@ -514,6 +523,25 @@ export default async function PlayTodayPage() {
               See the board <Icon name="arrow-right" />
             </Link>
           </div>
+        </section>
+      )}
+
+      {/* BEFORE THE ROUND, WHO AND WHEN COMES FIRST: the group, tee time and
+          start hole lead the screen, the card and "Start my card" under them.
+          Once the round is under way the group moves to More (`groupOnScreen`). */}
+      {groupOnScreen && groupCard}
+
+      {/* The sheet is out and I am not on it — entered after the draw. Said
+          plainly, so "not drawn yet" and "left off" are not the same silence;
+          in the group's own place, because it is the answer to the same
+          question. Not once the round is under way: by then it is answered. */}
+      {me.playerId && round?.offSheet && !round.group && !roundUnderWay && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
+          <MoreInfo short={`The ${terms.organizer} will add you to a group.`} style={{ marginTop: 4 }}>
+            The tee times for this round are out, and you were entered after they were drawn. The{" "}
+            {terms.organizer} adds you to a group — check back here, or ask them for your time.
+          </MoreInfo>
         </section>
       )}
 
@@ -769,11 +797,6 @@ export default async function PlayTodayPage() {
         </>
       )}
 
-      {/* Who I go off with. The question every player asks first — so it
-          sits straight under their own card, ABOVE the leaders (Ajay,
-          2026-10-05). It was below them, a scroll down on a phone. */}
-      {groupOnScreen && groupCard}
-
       {/**
        * WHERE I STAND, ON THE LEADERS BOARD. The top five and the player,
        * from `standingRows` — the Board tab's own rows — and only where the
@@ -823,19 +846,6 @@ export default async function PlayTodayPage() {
           </Link>
         )}
 
-      {/* The sheet is out and I am not on it — entered after the draw. Said
-          plainly, so "not drawn yet" and "left off" are not the same silence.
-          Not once a card has holes in: by then the question is answered. */}
-      {me.playerId && round?.offSheet && !round.group && !card?.filled && (
-        <section className="card elev-sm" style={{ marginTop: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
-          <MoreInfo short={`The ${terms.organizer} will add you to a group.`} style={{ marginTop: 4 }}>
-            The tee times for this round are out, and you were entered after they were drawn. The{" "}
-            {terms.organizer} adds you to a group — check back here, or ask them for your time.
-          </MoreInfo>
-        </section>
-      )}
-
       {/* Am I playing, and when — asked as a question until it is answered,
           one line after (`NextRound`). On the screen until the round is under
           way; then it joins the rest of the season under More. */}
@@ -854,7 +864,9 @@ export default async function PlayTodayPage() {
       {thisWeek.length > 0 && (
         <section aria-label="This week" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
           <span className="card-kicker">Also this week</span>
-          {thisWeek.map((c) => (
+          {/* Three at most: a member in three leagues and a medal is a
+              calendar, and the Calendar tab is where a calendar lives. */}
+          {thisWeek.slice(0, 3).map((c) => (
             <form key={c.stageId} action={enterTournament.bind(null, c.eventId, "player")}>
               <button
                 type="submit"
@@ -874,6 +886,11 @@ export default async function PlayTodayPage() {
               </button>
             </form>
           ))}
+          {thisWeek.length > 3 && (
+            <Link href="/me/calendar" className="touch-target" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}>
+              {thisWeek.length - 3} more this week — see your calendar
+            </Link>
+          )}
         </section>
       )}
 

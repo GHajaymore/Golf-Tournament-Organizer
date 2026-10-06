@@ -481,13 +481,12 @@ export function MoneyClient({
          * `addExpense` refuses the same case with the same sentence. This only
          * decides whether a control is offered.
          */
-        <p
-          className="text-muted"
-          style={{ fontSize: 13, margin: "12px 0 0", lineHeight: 1.6 }}
-        >
-          <Icon name="info" /> The {terms.organizers} add the shared costs for this one — send them
-          what you paid for and it will appear here.
-        </p>
+        // A short line, the whole sentence behind the ⓘ (2026-10-06): it was
+        // twenty words at 13px, on the screen kept to the one number.
+        <MoreInfo short={`The ${terms.organizers} add the shared costs.`} style={{ marginTop: 12 }}>
+          The {terms.organizers} add the shared costs for this one — send them what you paid for and it
+          will appear here.
+        </MoreInfo>
       ) : !adding ? (
         <button
           type="button"

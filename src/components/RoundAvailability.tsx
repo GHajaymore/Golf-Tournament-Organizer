@@ -497,12 +497,14 @@ function NextRound({
       >
         <Icon name={icon} />
       </span>
-      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+      {/* Divs, not spans: the captain's line carries an ⓘ fold (a <details>),
+          which is block content and does not belong inside a span. */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
-        <span className="text-muted" style={{ fontSize: 13 }}>
+        <div className="text-muted" style={{ fontSize: 13 }}>
           {sub}
-        </span>
-      </span>
+        </div>
+      </div>
       {action}
     </div>
   );
