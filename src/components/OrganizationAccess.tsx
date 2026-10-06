@@ -11,6 +11,7 @@ import type { AccessReport } from "@/lib/services/access";
 import type { PendingAsk } from "@/lib/services/join-requests";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 import { roleName } from "@/lib/roles";
 
@@ -129,10 +130,10 @@ export function OrganizationAccess({
           <span className="card-title" style={{ fontSize: 15 }}>
             Asked to join ({asks.length})
           </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
+          <MoreInfo short="They see nothing of yours until you say so." style={{ margin: "-2px 0 4px" }}>
             They typed this {from}&rsquo;s name when setting up their own and were told it already
-            exists. Nothing has changed yet — they see nothing of yours until you say so.
-          </p>
+            exists. Nothing has changed yet.
+          </MoreInfo>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {asks.map((ask) => (
               <div
@@ -215,20 +216,21 @@ export function OrganizationAccess({
           {/* The reconciliation, said rather than left for the reader to
               notice. The two numbers are both correct and count different
               things; what was missing was any sentence admitting it. */}
-          <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
-            {seats === 1
-              ? `1 person holds a staff seat`
-              : `${seats} people hold a staff seat`}{" "}
-            — organizer or assistant rights somewhere, which is what your plan counts. Members and
-            guests are on this list without holding one.
-          </p>
-          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
-            {/* The Commissioner line must keep saying BILLING. The word
-                describes control, not money — unlike "Owner", which said it by
-                implication — so if this sentence is ever shortened, the one
-                thing that actually distinguishes this role from Admin
-                disappears with it. Their powers are otherwise identical:
-                `canAdministerOrg` is `owner || admin`. */}
+          <MoreInfo
+            short={seats === 1 ? `1 person holds a staff seat` : `${seats} people hold a staff seat`}
+            style={{ marginTop: 2 }}
+          >
+            A seat is organizer or assistant rights somewhere, which is what your plan counts. Members
+            and guests are on this list without holding one.
+          </MoreInfo>
+          {/* The Commissioner line must keep saying BILLING. The word
+              describes control, not money — unlike "Owner", which said it by
+              implication — so if this sentence is ever shortened, the one
+              thing that actually distinguishes this role from Admin
+              disappears with it. Their powers are otherwise identical:
+              `canAdministerOrg` is `owner || admin`. Behind the ⓘ it is
+              still the whole sentence, word for word. */}
+          <MoreInfo short="What each role means" style={{ margin: "0 0 4px" }}>
             <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
             <b>Admin</b> — organizer on every tournament this {from} runs, without being added to
             each one. <b>Member</b> — staff pool; access only where explicitly given on an event.{" "}
@@ -238,7 +240,7 @@ export function OrganizationAccess({
                 the rest of the year. Upgrade them to Member if they join. */}
             <b>Guest</b> — in for one event only: a charity entrant, a league substitute, a sponsor.
             They never see the club&rsquo;s other tournaments. Make them a Member if they join.
-          </p>
+          </MoreInfo>
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 13 }}>
               <thead>
@@ -311,10 +313,9 @@ export function OrganizationAccess({
 
         <div className="card elev-sm" style={{ gap: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add staff</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
-            Pro shop staff and co-organizers. Players are added per tournament on Registration — they never
-            take a staff seat.
-          </p>
+          <MoreInfo short="Pro shop staff and co-organizers." style={{ marginTop: -4 }}>
+            Players are added per tournament on Registration — they never take a staff seat.
+          </MoreInfo>
           <div className="field">
             <label htmlFor={`${fid}-name`}>Name</label>
             <input id={`${fid}-name`} className="input" value={name} disabled={!canEdit || pending} onChange={(e) => setName(e.target.value)} />
@@ -381,11 +382,11 @@ export function OrganizationAccess({
             {report.people.length} people · {report.events.length} tournaments
           </span>
         </div>
-        <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 6px" }}>
+        <MoreInfo short="Including access a club role gives." style={{ margin: "-2px 0 6px" }}>
           Effective access, including roles inherited from an organization role. A
           <span className="tag tag-neutral" style={{ margin: "0 4px", fontSize: 13 }}>{from}</span>
           marker means the person was never added to that tournament directly.
-        </p>
+        </MoreInfo>
 
         {report.events.length === 0 ? (
           <span className="text-muted" style={{ fontSize: 13 }}>No tournaments yet.</span>

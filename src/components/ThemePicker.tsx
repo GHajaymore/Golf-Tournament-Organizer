@@ -32,6 +32,7 @@ import {
   type SunGrade,
 } from "@/lib/themes";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 
 /**
@@ -503,10 +504,11 @@ export function ThemePicker({
                   )}
                 </span>
                 <span className="text-muted" style={{ fontSize: 13 }}>{pair.blurb}</span>
+                {/* One line, not a disclosure: this sits inside the scheme's
+                    button, and a <details> inside a <button> is not allowed. */}
                 {pair.key === RECOMMENDED_SCHEME && (
                   <span className="text-muted" style={{ fontSize: 13 }}>
-                    Tested on a phone in sun and on a screen indoors, and it clears both comfortably —
-                    so it holds up whichever appearance your members&rsquo; devices choose.
+                    Readable in sun and indoors, dark or light.
                   </span>
                 )}
               </button>
@@ -527,15 +529,15 @@ export function ThemePicker({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  Easiest to read on a phone in direct sun, on the appearance you have chosen.
+                  Easiest to read in direct sun.
                 </p>
                 {grid(good)}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                <MoreInfo short="Best indoors — hard to read in sun.">
                   These look their best indoors. On a bright day your members may struggle to read a
                   score — switching Appearance to Light fixes every one of them.
-                </p>
+                </MoreInfo>
                 {grid(dim)}
               </div>
             </div>
@@ -565,18 +567,18 @@ export function ThemePicker({
           onUse={() => set({ accentKey: "custom", accentHex: accentHexDraft })}
           active={draft.accentKey === "custom"}
         />
-        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+        <MoreInfo short="The swatches show exactly what you'll get.">
           We keep your colour&apos;s hue and adjust its brightness so text stays readable on every
-          screen — the swatches show exactly what you&apos;ll get.
-        </p>
+          screen.
+        </MoreInfo>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Second colour</span>
-        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          Marks players advancing, scores under par and matches won. Most should leave this on
-          Fairway — it reads as the colour of the game rather than of any one outfit.
-        </p>
+        <MoreInfo short="Marks players advancing, under par and matches won.">
+          Most should leave this on Fairway — it reads as the colour of the game rather than of any
+          one outfit.
+        </MoreInfo>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
           {SECONDARY_PRESETS.map((p) => {
             // A second colour under 24° from the accent is the accent, as far

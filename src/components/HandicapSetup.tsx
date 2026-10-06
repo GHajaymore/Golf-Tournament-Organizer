@@ -2,6 +2,7 @@
 import { saveHandicapPolicy, saveScoreReporting } from "@/app/actions/handicap-policy";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 
 /**
@@ -154,11 +155,13 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
           <span className="dot" />
           <span>Send finished competition rounds to {view.scores.label}</span>
         </label>
-        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
-          A posted score changes a golfer&rsquo;s official index at every club they play, and it
-          cannot be taken back from here. Only complete rounds of a counting competition are sent,
-          each one once, and anything refused is listed with the reason.
-        </p>
+        {/* The irreversible half stays on the line itself, in the warning
+            colour: it is the one thing here nobody should have to tap for. */}
+        <MoreInfo warn short="A posted score can't be taken back from here." style={{ marginTop: 8 }}>
+          A posted score changes a golfer&rsquo;s official index at every club they play. Only
+          complete rounds of a counting competition are sent, each one once, and anything refused is
+          listed with the reason.
+        </MoreInfo>
         {view.scores.enabled && view.scores.status !== "ready" && (
           <p style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55, color: "var(--color-neutral-300)" }}>
             {view.scores.howToEnable} Nothing is queued or sent until then.
