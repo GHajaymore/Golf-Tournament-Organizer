@@ -147,6 +147,15 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
      */
     launched: !PRE_LAUNCH_STATUSES.includes(event.status),
     teams: { needed: teamRounds > 0, sides, unsided },
+    // A team cup: its two teams are its flights — see `cup` on SetupFacts.
+    ...(stageRows.some((s) => s.type === "Team Session")
+      ? {
+          cup: {
+            flights: groups,
+            unplaced: await prisma.player.count({ where: { eventId, status: "confirmed", groupId: null } }),
+          },
+        }
+      : {}),
   };
 
   return setupFlow(facts, screenName);

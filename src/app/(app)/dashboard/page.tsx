@@ -27,6 +27,8 @@ import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { NeedsYouNow } from "@/components/NeedsYouNow";
+import { CupScoreboard } from "@/components/CupScoreboard";
+import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
@@ -89,6 +91,9 @@ import { formatDay } from "@/lib/domain/locale";
  */
 const QUICK_ACTIONS = [
   { href: "/registration", icon: "ph ph-user-plus", staff: true },
+  // A team cup's own screen — its teams, its lineups. Only in a cup: the
+  // sidebar offers it only there, and this list is filtered by the sidebar.
+  { href: "/cup", icon: "ph ph-flag-pennant", staff: true },
   { href: "/grouping", icon: "ph ph-squares-four", staff: true },
   { href: "/stages", icon: "ph ph-stack", staff: true },
   { href: "/foursomes", icon: "ph ph-users-four", staff: true },
@@ -624,6 +629,9 @@ export default async function DashboardPage() {
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
       hasKnockout,
+      // The sidebar's own question (layout.tsx), so the Team cup shortcut is
+      // offered exactly where the menu offers the screen.
+      hasCup: state.stages.some((s) => s.type === TEAM_SESSION),
       isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,      // Same list the sidebar is filtered by, so the quick actions cannot
       // offer a match a door to Flights that the sidebar has just closed.
       isMatch: matchEvent,
@@ -631,8 +639,19 @@ export default async function DashboardPage() {
       .flatMap((section) => section.items)
       .map((item) => item.href),
   );
+  /**
+   * A TEAM CUP'S DASHBOARD IS THE CUP (2026-10-06). Walked as a new organizer,
+   * this screen gave a cup "0 flights · Sides in 0/0", a Flights shortcut and
+   * a leaderboard summary of one session — and not the score, or the next
+   * lineup to pick. Staff read the board with its drafts, as on Team cup.
+   */
+  const cupResult = state.stages.some((s) => s.type === TEAM_SESSION)
+    ? await cupBoard(event.id, { staff: isStaff })
+    : null;
+  const cupDash = cupResult?.ok ? cupResult.board : null;
   const quickActions = QUICK_ACTIONS.filter(
-    (a) => !(a.staff && !isStaff) && navHrefs.has(a.href),
+    // In a cup the two flights ARE the teams, made on Team cup.
+    (a) => !(a.staff && !isStaff) && navHrefs.has(a.href) && !(cupDash && a.href === "/grouping"),
   );
 
   // A tournament with no field yet has nothing to report: every stat reads
@@ -920,6 +939,10 @@ export default async function DashboardPage() {
             reviewing: reviewsScores(state.event.shape)
               ? state.reviewing
               : { ...state.reviewing, cards: 0, matches: 0, knockouts: 0, total: 0 },
+            // A cup's next lineup — drafted and waiting, or not picked yet.
+            ...(cupDash
+              ? { cup: { sessions: cupDash.sessions.map((s) => ({ name: s.name, published: s.published, matches: s.matches.length })) } }
+              : {}),
           })}
         >
           {cutPreview && (
@@ -1127,8 +1150,13 @@ export default async function DashboardPage() {
       )}
 
       {/* Every number in here is derived from the field, so with no field
-          they all read zero. The checklist above says what to do instead. */}
-      {!unstarted && (
+          they all read zero. The checklist above says what to do instead.
+
+          A cup has one number everybody is watching, and it is not any of
+          these — the board below replaces them. */}
+      {!unstarted && cupDash ? (
+        <CupScoreboard board={cupDash} />
+      ) : !unstarted && (
         <>
         <div className="stat-grid" style={{ marginBottom: 16 }}>
           {/* "1 flights" was on this card for every one-flight tournament, and

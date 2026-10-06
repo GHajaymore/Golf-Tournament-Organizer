@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SETUP_ORDER, bySetupOrder, setupScreens } from "@/lib/domain/setup-flow";
+import { SETUP_ORDER, bySetupOrder, setupScreens, setupFlow } from "@/lib/domain/setup-flow";
 import { allNavItems, TOURNAMENT_ONLY_SCREENS, screenAppliesToMatch } from "@/lib/nav";
 import { setupChecklist, type ChecklistState } from "@/lib/services/checklist";
 import { readSource } from "./source";
@@ -47,7 +47,11 @@ describe("the setup sequence is stated once", () => {
     // and before the flights a newcomer mistakes for them. It is a step only in
     // a tournament with a round played in sides — see `teams` on SetupFacts —
     // and is listed here so that, when present, every reader places it alike.
-    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/teams", "/grouping", "/prizes"]);
+    //
+    // "/cup" since 2026-10-06: a team cup's two teams, in place of BOTH the
+    // sides and the flights — so no tournament ever has all six of these at
+    // once. Listed so that, when present, it lands after the field.
+    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/cup", "/teams", "/grouping", "/prizes"]);
   });
 
   it("orders the dashboard checklist by it", () => {
@@ -198,7 +202,8 @@ describe("the step the dashboard never had", () => {
     })
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));
-    expect(hrefs).toEqual([...SETUP_ORDER]);
+    // Every step but the cup's, which a team-sides tournament never has.
+    expect(hrefs).toEqual(SETUP_ORDER.filter((h) => h !== "/cup"));
   });
 });
 
@@ -214,11 +219,64 @@ describe("the sides step, which only a team event has", () => {
   it("is on the journey card only when the flow has it", () => {
     expect(setupScreens()).not.toContain("/teams");
     expect(setupScreens(["/event", "/stages", "/registration", "/grouping", "/prizes"])).not.toContain("/teams");
-    expect(setupScreens(["/event", "/stages", "/registration", "/teams", "/grouping", "/prizes"])).toEqual([
-      ...SETUP_ORDER,
-    ]);
+    expect(setupScreens(["/event", "/stages", "/registration", "/teams", "/grouping", "/prizes"])).toEqual(
+      SETUP_ORDER.filter((h) => h !== "/cup"),
+    );
     // The always-present steps are never dropped — the control.
-    expect(setupScreens()).toEqual(SETUP_ORDER.filter((h) => h !== "/teams"));
+    expect(setupScreens()).toEqual(SETUP_ORDER.filter((h) => h !== "/teams" && h !== "/cup"));
+  });
+});
+
+/**
+ * A TEAM CUP'S SETUP (2026-10-06). Walked from nothing, the rail sent a cup
+ * organizer to "Teams & pairs" (draw sides from the field) and "Flights"
+ * (pick a formation rule) — neither of which a cup has — and nothing said
+ * "your two teams". One step replaces both, and points at the Team cup screen.
+ */
+describe("a team cup's setup", () => {
+  const facts = (cup: { flights: number; unplaced: number }) => ({
+    confirmed: 8,
+    rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, cutFed: false, matches: 0 }],
+    groups: cup.flights,
+    named: true,
+    dated: true,
+    venued: true,
+    moneyAnswered: true,
+    launched: false,
+    // A cup's four-ball session is a team-format round, so sides are "needed"
+    // by the generic test — and must still not be asked for.
+    teams: { needed: true, sides: 0, unsided: 8 },
+    cup,
+  });
+  const hrefsOf = (cup: { flights: number; unplaced: number }) =>
+    setupFlow(facts(cup), (h) => h).steps.map((s) => s.href);
+
+  it("asks for the two teams in place of sides and flights", () => {
+    expect(hrefsOf({ flights: 0, unplaced: 8 })).toEqual(["/event", "/stages", "/registration", "/cup", "/prizes"]);
+  });
+
+  it("says what is missing, and is done with two teams and nobody left over", () => {
+    const step = (cup: { flights: number; unplaced: number }) =>
+      setupFlow(facts(cup), (h) => h).steps.find((s) => s.href === "/cup")!;
+    expect(step({ flights: 0, unplaced: 8 })).toMatchObject({ done: false, missing: "Name your two teams." });
+    expect(step({ flights: 2, unplaced: 3 })).toMatchObject({ done: false, missing: "3 players are not on a team yet." });
+    expect(step({ flights: 4, unplaced: 0 }).done).toBe(false);
+    expect(step({ flights: 2, unplaced: 0 }).done).toBe(true);
+  });
+
+  it("the dashboard's list says the same, and offers no flights row", () => {
+    const rows = setupChecklist({
+      ...empty,
+      flow: [{ href: "/cup", done: false, missing: "Name your two teams." }],
+    });
+    expect(rows.find((r) => r.href === "/cup")).toMatchObject({ detail: "Name your two teams.", done: false });
+    expect(rows.some((r) => r.href === "/grouping")).toBe(false);
+  });
+
+  it("CONTROL: a tournament with no cup has no cup step", () => {
+    const plain = { ...facts({ flights: 0, unplaced: 0 }), cup: undefined };
+    expect(setupFlow(plain, (h) => h).steps.map((s) => s.href)).not.toContain("/cup");
+    expect(setupScreens()).not.toContain("/cup");
   });
 });
 

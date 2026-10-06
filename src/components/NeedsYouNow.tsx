@@ -24,7 +24,8 @@ export function NeedsYouNow({ items, children }: { items: NeedsYouItem[]; childr
           </span>
           {items.map((item, i) => (
             <div
-              key={item.key}
+              // The text, not the key: a cup can list two lineups at once.
+              key={item.text}
               style={{
                 display: "flex",
                 alignItems: "center",

@@ -50,3 +50,49 @@ describe("the organizer's to-do list on the day", () => {
     expect(keys).toEqual(["disputed", "review", "knockouts"]);
   });
 });
+
+/**
+ * A TEAM CUP'S NEXT JOB IS A LINEUP (2026-10-06). Walked as a new organizer,
+ * the dashboard of a cup said "0 flights · Sides in 0/0" and nothing about the
+ * one thing a captain and a committee do before every session: pick the pairs,
+ * and announce them.
+ */
+describe("a team cup's lineups", () => {
+  const session = (name: string, published: boolean, matches: number) => ({ name, published, matches });
+
+  it("a drafted lineup is waiting to be announced", () => {
+    const items = needsYouNow({ reviewing: quiet, cup: { sessions: [session("Saturday four-balls", false, 4)] } });
+    expect(items).toEqual([
+      { key: "lineup", text: "Saturday four-balls lineup is ready to announce", href: "/cup", action: "Announce" },
+    ]);
+  });
+
+  it("the next session with no lineup is the next job — once, not every session after it", () => {
+    const items = needsYouNow({
+      reviewing: quiet,
+      cup: {
+        sessions: [
+          session("Saturday four-balls", true, 4),
+          session("Saturday foursomes", false, 0),
+          session("Sunday singles", false, 0),
+        ],
+      },
+    });
+    expect(items).toEqual([
+      { key: "lineup", text: "Saturday foursomes has no lineup yet", href: "/cup", action: "Set the lineup" },
+    ]);
+  });
+
+  it("CONTROL: a cup with every session announced asks for nothing", () => {
+    const items = needsYouNow({ reviewing: quiet, cup: { sessions: [session("Sunday singles", true, 12)] } });
+    expect(items).toEqual([]);
+  });
+
+  it("comes after disputes and approvals — a result outranks a pairing", () => {
+    const keys = needsYouNow({
+      reviewing: { ...quiet, disputed: 1, cards: 1, total: 1 },
+      cup: { sessions: [session("Sunday singles", false, 0)] },
+    }).map((i) => i.key);
+    expect(keys).toEqual(["disputed", "review", "lineup"]);
+  });
+});

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { cupBoard, type CupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { CupLineup } from "@/components/CupLineup";
+import { CupTeams, CreateCupTeams } from "@/components/CupTeams";
 
 export const metadata = screenMetadata("/cup");
 
@@ -34,15 +35,18 @@ export default async function CupPage() {
         </p>
       </div>
 
-      {!result.ok ? (
+      {!result.ok && result.reason === "teams" && isStaff && (await flightCount(session.eventId)) === 0 ? (
+        // No flights at all: make the two teams right here, by name.
+        <CreateCupTeams />
+      ) : !result.ok ? (
         <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
           {result.reason === "teams" ? (
             <p style={{ margin: 0, lineHeight: 1.6 }}>
               A cup is played between <strong>two teams</strong>, and the teams are this tournament&rsquo;s flights.
               {isStaff ? (
                 <>
-                  {" "}Set up exactly two flights on <Link href="/grouping">Flights</Link> — one per team, with the
-                  Manual rule so you choose who is on which side — and name each after its team.
+                  {" "}This one has a different number of flights, so they can&rsquo;t be the two teams. Make it
+                  exactly two on <Link href="/grouping">Flights</Link> and name each after its team.
                 </>
               ) : (
                 " The organizer hasn't set the two teams up yet."
@@ -73,17 +77,45 @@ export default async function CupPage() {
   );
 }
 
+/** Every flight the event has — none means the cup's teams can be made here. */
+async function flightCount(eventId: string): Promise<number> {
+  return prisma.group.count({ where: { eventId, stageId: null, isCarrier: false } });
+}
+
 async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoard }) {
-  const [event, players] = await Promise.all([
+  const [event, players, unplaced, captains] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed", groupId: { in: board.teams.map((t) => t.id) } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, groupId: true },
+      select: { id: true, name: true, groupId: true, handicap: true, handicapSource: true, handicapType: true },
+    }),
+    prisma.player.findMany({
+      where: { eventId, status: "confirmed", groupId: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, handicap: true, handicapSource: true, handicapType: true },
+    }),
+    prisma.group.findMany({
+      where: { id: { in: board.teams.map((t) => t.id) }, eventId, isCarrier: false },
+      select: { id: true, captainId: true },
     }),
   ]);
   const teamPlayers = (id: string) => players.filter((p) => p.groupId === id).map((p) => ({ id: p.id, name: p.name }));
+  const captainOf = (id: string) => captains.find((c) => c.id === id)?.captainId ?? "";
+  const roster = (id: string) =>
+    players
+      .filter((p) => p.groupId === id)
+      .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapSource: p.handicapSource, handicapType: p.handicapType }));
   return (
+    <>
+    <CupTeams
+      teams={[
+        { id: board.teams[0].id, name: board.teams[0].name, captainId: captainOf(board.teams[0].id), players: roster(board.teams[0].id) },
+        { id: board.teams[1].id, name: board.teams[1].name, captainId: captainOf(board.teams[1].id), players: roster(board.teams[1].id) },
+      ]}
+      unplaced={unplaced}
+      inLineup={board.sessions.flatMap((s) => s.matches.flatMap((m) => m.playerIds))}
+    />
     <section aria-labelledby="lineups" style={{ marginTop: 8 }}>
       <h2 id="lineups" className="card-title" style={{ fontSize: 18, margin: "0 0 10px" }}>
         Lineups
@@ -116,5 +148,6 @@ async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoar
         }))}
       />
     </section>
+    </>
   );
 }
