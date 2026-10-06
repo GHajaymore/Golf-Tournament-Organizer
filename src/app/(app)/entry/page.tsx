@@ -41,6 +41,7 @@ import { holesPlayed } from "@/lib/domain/handicap";
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { firstHoleOf } from "@/lib/domain/hole-number";
 import { TEAM_SESSION, cupSessionsFor } from "@/lib/services/cup";
+import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { CupSessionNav } from "@/components/CupSessionNav";
 
 export const metadata = screenMetadata("/entry");
@@ -155,11 +156,30 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
    * 2026-10-05 walking a cup as its players.
    */
   const cup = await cupSessionsFor(state, session.email, isStaff);
-  const picked = pickedRound ? state.stages.find((s) => s.id === pickedRound) ?? null : null;
+  // A link to a cup session not yet announced opens nothing for a player.
+  const asked = pickedRound ? state.stages.find((s) => s.id === pickedRound) ?? null : null;
+  const picked = asked && (isStaff || !lineupHidden(asked)) ? asked : null;
   const activeStage = picked ?? cup.defaultStage ?? state.activeStage ?? state.stages[0] ?? null;
   const cupNav = cup.sessions.length ? (
     <CupSessionNav sessions={cup.sessions} current={activeStage?.id ?? ""} />
   ) : null;
+
+  // The tournament's own current round can be a cup session still in draft —
+  // the organizer is building Saturday's lineup while Friday is played. A
+  // player is told so, and offered the sessions they can score.
+  if (activeStage && !isStaff && lineupHidden(activeStage)) {
+    return (
+      <>
+        <p className="kicker">Manage</p>
+        <h1 className="page-title">Score entry</h1>
+        {cupNav}
+        <div className="card elev-sm" style={{ marginTop: 8 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Lineup not announced yet</span>
+          <p className="text-muted" style={{ fontSize: 14, margin: "6px 0 0" }}>{LINEUP_HIDDEN}</p>
+        </div>
+      </>
+    );
+  }
 
   // A team round is entered differently enough that it gets its own screen
   // rather than a mode inside the individual one: the unit is a side, the card
@@ -201,6 +221,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         return JSON.parse(row.strokes) as (number | null)[];
       } catch {
         return new Array(holeCount).fill(null);
+      }
+    };
+    /** The holes this card picked up on — match play's "X". */
+    const picksOf = (teamId: string, matchId: string, playerId: string): boolean[] => {
+      const row = cards.find((c) => c.teamId === teamId && c.matchId === matchId && c.playerId === playerId);
+      try {
+        const v = JSON.parse(row?.pickedUp ?? "[]") as unknown;
+        return Array.from({ length: holeCount }, (_, h) => Array.isArray(v) && v[h] === true);
+      } catch {
+        return new Array(holeCount).fill(false);
       }
     };
 
@@ -296,6 +326,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               handicap: 0,
               shots: matchStrokesPerHole(t.playingHandicap, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, ""),
+              pickedUp: picksOf(teamId, matchId, ""),
             }]
           : t.members.map((m) => ({
               playerId: m.playerId,
@@ -303,6 +334,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               handicap: m.handicap,
               shots: matchStrokesPerHole(playingOfMember(m.handicap), low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
+              pickedUp: picksOf(teamId, matchId, m.playerId),
             }));
       const card =
         sideOnly
@@ -394,6 +426,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
           note={teamEntryNote(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis)}
           holes={holeCount}
           firstHole={firstHoleOf(teamCard)}
+          // Against an opponent, a side can pick up — and has conceded the
+          // hole when nobody on it is left in. Never on a team medal.
+          pickUp={teamMatchPlay && stageMatches.length > 0}
         />
       </>
     );
@@ -531,8 +566,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   // player per slot — showed "—" v "—" and scored the pair as one scratch
   // ball. Those are scored on the team screen above, reached by the session
   // links.
+  //
+  // Nor, for a player, a cup session whose lineup is still a draft.
   const rrStages = (state.playRounds.length ? state.playRounds : state.stages.slice(0, 1)).filter(
-    (s) => !(s.type === TEAM_SESSION && needsTeams(s.format)),
+    (s) => !(s.type === TEAM_SESSION && needsTeams(s.format)) && (isStaff || !lineupHidden(s)),
   );
 
   // Tee ratings, once, for the whole screen. Needed here — not only in the

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { addCupMatch, removeCupMatch, setCupSettings } from "@/app/actions/cup";
+import { addCupMatch, removeCupMatch, setCupSettings, publishCupLineup, hideCupLineup } from "@/app/actions/cup";
+import { forfeitMatch } from "@/app/actions/tournament";
 import { useAction } from "./useAction";
 import { ConfirmButton } from "./ConfirmButton";
 
@@ -20,7 +21,22 @@ interface Session {
   name: string;
   kind: string;
   sideSize: number;
-  matches: { id: string; a: string[]; b: string[]; started: boolean }[];
+  /** Whether the lineup has been announced to the players and the public board. */
+  published: boolean;
+  matches: {
+    id: string;
+    a: string[];
+    b: string[];
+    /** A shot, or a concession, is recorded in it. */
+    started: boolean;
+    final: boolean;
+    /** "3&2", "Conceded", "2 UP thru 9" — the board's own words. */
+    label: string;
+    /** What each team is stored under on the match — a concession names it. */
+    aSideId: string;
+    bSideId: string;
+    conceded: "A" | "B" | null;
+  }[];
   /** Players already in a match this session. */
   busy: string[];
 }
@@ -152,29 +168,110 @@ function SessionLineup({
   // Nobody left to pick on one side: say so, rather than offer empty pickers.
   const full = teams.some((t) => t.players.filter((p) => !busy.has(p.id)).length < session.sideSize);
 
+  const underWay = session.matches.some((m) => m.started);
   return (
     <section className="card elev-sm" aria-label={`${session.name} lineup`}>
-      <h2 className="card-title" style={{ fontSize: 16, margin: 0 }}>
-        {session.name} · {session.kind}
-      </h2>
-      <ul style={{ listStyle: "none", margin: "10px 0", padding: 0, display: "grid", gap: 6 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        <h2 className="card-title" style={{ fontSize: 16, margin: 0 }}>
+          {session.name} · {session.kind}
+        </h2>
+        <span className={`tag ${session.published ? "tag-accent" : "tag-neutral"}`}>
+          {session.published ? "Announced" : "Draft"}
+        </span>
+      </div>
+      {/* WHO CAN SEE IT, said where the lineup is built. A captain picks the
+          afternoon's pairs knowing the morning's score, so each session is
+          announced on its own, both teams together. */}
+      <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+        {session.published
+          ? "Players and the public board can see this lineup."
+          : "Only staff can see this lineup until you announce it."}
+      </p>
+      <ul style={{ listStyle: "none", margin: "10px 0", padding: 0, display: "grid", gap: 8 }}>
         {session.matches.length === 0 && <li className="text-muted" style={{ fontSize: 13 }}>No matches yet.</li>}
         {session.matches.map((m) => (
-          <li key={m.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", fontSize: 14 }}>
+          <li
+            key={m.id}
+            aria-label={`${m.a.join(" & ")} v ${m.b.join(" & ")}`}
+            style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 8, alignItems: "center", fontSize: 14 }}
+          >
             <span style={{ minWidth: 0 }}>
               {m.a.join(" & ")} <span className="text-muted">v</span> {m.b.join(" & ")}
+              {m.label && <span className="text-muted"> · {m.conceded ? `Conceded by ${(m.conceded === "A" ? teams[0] : teams[1]).name}` : m.label}</span>}
             </span>
-            {!m.started && (
-              <ConfirmButton
-                title={`Remove ${m.a.join(" & ")} v ${m.b.join(" & ")}`}
-                confirmLabel="Remove match"
-                disabled={pending}
-                onConfirm={() => run(() => removeCupMatch(m.id))}
-              />
-            )}
+            <span style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+              {/* THE ORGANIZER RECORDS A CONCESSION (Rule 3.2b; Ajay,
+                  2026-10-06) — the captain tells the committee, never a
+                  player's button. The players' cards stay as they were. */}
+              {session.published && !m.conceded && !m.final &&
+                (["A", "B"] as const).map((side) => {
+                  const team = side === "A" ? teams[0] : teams[1];
+                  return (
+                    <ConfirmButton
+                      key={side}
+                      className="btn btn-secondary"
+                      icon="flag"
+                      label={`${team.name} concede`}
+                      title={`Record ${team.name} conceding ${m.a.join(" & ")} v ${m.b.join(" & ")}`}
+                      confirmLabel={`${team.name} conceded`}
+                      note="A full point to the other team."
+                      disabled={pending}
+                      onConfirm={() => run(() => forfeitMatch(m.id, side === "A" ? m.aSideId : m.bSideId))}
+                    />
+                  );
+                })}
+              {m.conceded && (
+                <ConfirmButton
+                  className="btn btn-secondary"
+                  icon="arrow-counter-clockwise"
+                  label="Undo concession"
+                  title={`Undo the concession in ${m.a.join(" & ")} v ${m.b.join(" & ")}`}
+                  confirmLabel="Undo concession"
+                  note="The match goes back to its cards."
+                  disabled={pending}
+                  onConfirm={() => run(() => forfeitMatch(m.id, ""))}
+                />
+              )}
+              {!m.started && (
+                <ConfirmButton
+                  title={`Remove ${m.a.join(" & ")} v ${m.b.join(" & ")}`}
+                  confirmLabel="Remove match"
+                  disabled={pending}
+                  onConfirm={() => run(() => removeCupMatch(m.id))}
+                />
+              )}
+            </span>
           </li>
         ))}
       </ul>
+      {!session.published && session.matches.length > 0 && (
+        <div style={{ margin: "0 0 12px" }}>
+          <ConfirmButton
+            className="btn btn-primary"
+            icon="megaphone"
+            label="Announce lineup"
+            title={`Announce the ${session.name} lineup`}
+            confirmLabel="Announce to everyone"
+            note="Both teams' pairings go out together, and each player is told their match."
+            disabled={pending}
+            onConfirm={() => run(() => publishCupLineup(session.id))}
+          />
+        </div>
+      )}
+      {session.published && !underWay && (
+        <div style={{ margin: "0 0 12px" }}>
+          <ConfirmButton
+            className="btn btn-secondary"
+            icon="eye-slash"
+            label="Take the announcement back"
+            title={`Hide the ${session.name} lineup again`}
+            confirmLabel="Hide this lineup"
+            note="Only before anybody has scored in it."
+            disabled={pending}
+            onConfirm={() => run(() => hideCupLineup(session.id))}
+          />
+        </div>
+      )}
       {full ? (
         <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
           Everyone who can play in this session has a match. Remove one to change the lineup.

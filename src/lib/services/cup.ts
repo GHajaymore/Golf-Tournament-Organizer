@@ -12,6 +12,7 @@ import {
   type CupVerdict,
 } from "../domain/cup";
 import type { HoleResult } from "../domain/types";
+import { lineupHidden } from "../domain/cup-lineup";
 
 /**
  * THE TEAM CUP BOARD — every session, every match, the running score.
@@ -41,6 +42,14 @@ export interface CupBoardMatch {
   /** Team A's player ids and Team B's, in the same order as `a` and `b`. */
   aIds: string[];
   bIds: string[];
+  /**
+   * The id each team is stored under on this match — a pair's Team id or a
+   * singles player's id — which is what a concession names (`forfeitMatch`).
+   */
+  aSideId: string;
+  bSideId: string;
+  /** Which team conceded, or null. */
+  conceded: CupSide | null;
   state: CupMatchState;
 }
 
@@ -51,6 +60,12 @@ export interface CupSession {
   kind: string;
   /** Players per side: 1 for singles, 2 for a pair format. */
   sideSize: number;
+  /**
+   * Whether the organizer has announced this session's lineup. Until then its
+   * matches are a draft: on the board staff read they are listed and marked,
+   * and on every other board they are not there at all.
+   */
+  published: boolean;
   matches: CupBoardMatch[];
 }
 
@@ -81,6 +96,7 @@ interface StageLike {
   type: string;
   format: string;
   description: string;
+  lineupPublished?: boolean | null;
 }
 interface MatchLike {
   stageId: string;
@@ -158,8 +174,10 @@ export async function cupSessionsFor<S extends StageLike>(
   const me = await myCupIds(state.event.id, email);
   const mine = (m: MatchLike) =>
     me.players.has(m.playerAId) || me.players.has(m.playerBId) || me.sides.has(m.teamAId) || me.sides.has(m.teamBId);
-  const myMatches = state.matches.filter((m) => cupStages.some((s) => s.id === m.stageId) && mine(m));
-  const mySessions = cupStages.filter((s) => myMatches.some((m) => m.stageId === s.id));
+  // Only announced sessions: a draft lineup is not a match a player has yet.
+  const announced = cupStages.filter((s) => !lineupHidden(s));
+  const myMatches = state.matches.filter((m) => announced.some((s) => s.id === m.stageId) && mine(m));
+  const mySessions = announced.filter((s) => myMatches.some((m) => m.stageId === s.id));
   const toPlay = mySessions.find((s) => myMatches.some((m) => m.stageId === s.id && !matchDecided(m)));
   return {
     sessions: mySessions.map(link),
@@ -167,7 +185,14 @@ export async function cupSessionsFor<S extends StageLike>(
   };
 }
 
-export async function cupBoard(eventId: string): Promise<CupBoardResult> {
+/**
+ * `staff`: the organizer's own board on the Team cup screen, which lists a
+ * session's DRAFT lineup too (marked as such). Every other board — players,
+ * the public link, the console leaderboard — is the announced cup only. The
+ * score is the announced cup on both: a draft can still change, so it counts
+ * for nobody.
+ */
+export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}): Promise<CupBoardResult> {
   const [event, flights, stages] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, select: { cupPointsToWin: true, cupHolderGroupId: true } }),
     prisma.group.findMany({
@@ -178,9 +203,10 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
     prisma.stage.findMany({
       where: { eventId, type: TEAM_SESSION },
       orderBy: { position: "asc" },
-      select: { id: true, format: true, description: true },
+      select: { id: true, format: true, description: true, lineupPublished: true },
     }),
   ]);
+  const published = new Set(stages.filter((s) => s.lineupPublished).map((s) => s.id));
   if (!event || stages.length === 0) return { ok: false, reason: "no-sessions" };
   if (flights.length !== 2) return { ok: false, reason: "teams" };
   const [ta, tb] = flights;
@@ -227,6 +253,9 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
   const inputs: CupMatchInput[] = [];
   const bySession = new Map<string, CupBoardMatch[]>();
   for (const m of matches) {
+    // A draft lineup is on the staff board only, and never in the score.
+    const announced = published.has(m.stageId);
+    if (!announced && !opts.staff) continue;
     const sa = sideOf(m.teamAId, m.playerAId);
     const sb = sideOf(m.teamBId, m.playerBId);
     // A match the cup cannot place — a side from neither team — is left off
@@ -249,7 +278,7 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
       if (conceded) conceded = conceded === "A" ? "B" : "A";
     }
     const input = { holes, conceded };
-    inputs.push(input);
+    if (announced) inputs.push(input);
     const row: CupBoardMatch = {
       id: m.id,
       a: flipped ? sb.names : sa.names,
@@ -257,6 +286,9 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
       playerIds: [...sa.ids, ...sb.ids],
       aIds: flipped ? sb.ids : sa.ids,
       bIds: flipped ? sa.ids : sb.ids,
+      aSideId: flipped ? m.teamBId || m.playerBId : m.teamAId || m.playerAId,
+      bSideId: flipped ? m.teamAId || m.playerAId : m.teamBId || m.playerBId,
+      conceded,
       state: cupMatchState(input),
     };
     bySession.set(m.stageId, [...(bySession.get(m.stageId) ?? []), row]);
@@ -265,8 +297,9 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
   const tally = cupTally(inputs);
   const holder: CupSide | null =
     event.cupHolderGroupId === ta.id ? "A" : event.cupHolderGroupId === tb.id ? "B" : null;
-  // Every session lined up, so "more than half" is half of the real total.
-  const totalKnown = stages.every((s) => (bySession.get(s.id)?.length ?? 0) > 0);
+  // Every session lined up AND announced, so "more than half" is half of the
+  // real total. A draft lineup can still change, so it is not a total yet.
+  const totalKnown = stages.every((s) => published.has(s.id) && (bySession.get(s.id)?.length ?? 0) > 0);
   return {
     ok: true,
     board: {
@@ -281,6 +314,7 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
           name: s.description.trim() || `Session ${i + 1}`,
           kind,
           sideSize: kind === "Singles" ? 1 : Math.max(1, lookupFormat(s.format.trim())?.sideSize ?? 1),
+          published: published.has(s.id),
           matches: bySession.get(s.id) ?? [],
         };
       }),

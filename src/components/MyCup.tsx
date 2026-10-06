@@ -45,7 +45,7 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
       <h2 style={{ fontSize: 15, margin: "4px 0 0" }}>{mine.length === 1 ? "Your match" : "Your matches"}</h2>
       {mine.length === 0 ? (
         <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-          You aren&rsquo;t in a lineup yet. The captains set each session&rsquo;s matches, and yours appears here.
+          You aren&rsquo;t in an announced lineup yet. Your match appears here as soon as its session is announced.
         </p>
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
@@ -86,6 +86,19 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
             );
           })}
         </ul>
+      )}
+      {/* What is still to come, so a player with no match yet knows why: the
+          captains pick each session's pairs, and the organizer announces them
+          one session at a time. */}
+      {board.sessions.some((s) => !s.published) && (
+        <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+          Still to be announced:{" "}
+          {board.sessions
+            .filter((s) => !s.published)
+            .map((s) => s.name)
+            .join(", ")}
+          .
+        </p>
       )}
       <Link className="btn btn-secondary" href="/me/board" style={{ alignSelf: "flex-start" }}>
         Every match <Icon name="arrow-right" />

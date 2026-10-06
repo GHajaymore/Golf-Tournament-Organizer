@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cupMatchState, cupPoints, cupTally, cupVerdict, pointsToWin, yourMatchLine, type CupMatchInput } from "../cup";
+import { cupMatchState, cupPoints, cupTally, cupVerdict, lineupNotices, pointsToWin, yourMatchLine, type CupMatchInput } from "../cup";
 import type { HoleResult } from "../types";
 
 /**
@@ -80,6 +80,41 @@ describe("a match, told to one of its players", () => {
 
   it("before a shot", () => {
     expect(yourMatchLine(st(""), "A")).toBe("Not started");
+  });
+});
+
+/**
+ * WHEN A LINEUP IS ANNOUNCED, EVERY PLAYER IN IT IS TOLD — their own match,
+ * by name, from their side. Nobody outside the session is.
+ */
+describe("the lineup notice", () => {
+  const session = {
+    name: "Saturday foursomes",
+    kind: "Foursomes",
+    matches: [
+      { a: ["Cora Blue", "Dev Blue"], aIds: ["a3", "a4"], b: ["Gwen White", "Hal White"], bIds: ["b3", "b4"] },
+    ],
+  };
+
+  it("tells all four players, each from their own side", () => {
+    const n = lineupNotices(session);
+    expect(n.map((x) => x.playerId).sort()).toEqual(["a3", "a4", "b3", "b4"]);
+    expect(n.find((x) => x.playerId === "a3")!.body).toBe("You & Dev Blue v Gwen White & Hal White · Saturday foursomes");
+    expect(n.find((x) => x.playerId === "b4")!.body).toBe("Gwen White & You v Cora Blue & Dev Blue · Saturday foursomes");
+    expect(n[0].title).toBe("Your foursomes match is set");
+  });
+
+  it("singles read as singles", () => {
+    const n = lineupNotices({
+      name: "Sunday singles",
+      kind: "Singles",
+      matches: [{ a: ["Ailsa Blue"], aIds: ["a1"], b: ["Edda White"], bIds: ["b1"] }],
+    });
+    expect(n.find((x) => x.playerId === "a1")).toMatchObject({ title: "Your singles match is set", body: "You v Edda White · Sunday singles" });
+  });
+
+  it("CONTROL: an empty lineup tells nobody", () => {
+    expect(lineupNotices({ ...session, matches: [] })).toEqual([]);
   });
 });
 

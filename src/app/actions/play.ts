@@ -14,6 +14,7 @@ import { marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
+import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 
 /**
  * Redeeming a Round Code.
@@ -215,8 +216,11 @@ export async function savePlayMatchHoles(
   // so a wrong-length array changes the RESULT rather than just the row.
   const stage = await prisma.stage.findUnique({
     where: { id: match.stageId },
-    select: { holes: true },
+    select: { holes: true, type: true, lineupPublished: true },
   });
+  // A cup lineup not yet announced is nobody's match to score — the same
+  // refusal the console's paths give (`assertOwnMatch`).
+  if (stage && lineupHidden(stage)) return { ok: false, error: LINEUP_HIDDEN };
   const clean = cleanHoleResults(holes, holesPlayed(stage?.holes));
   if (!clean) {
     return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
@@ -324,6 +328,12 @@ export async function savePlayMatchResult(
     inMatch = membership !== null;
   }
   if (!inMatch) return { ok: false, error: "You can only enter scores for your own match." };
+
+  const resultStage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { type: true, lineupPublished: true },
+  });
+  if (resultStage && lineupHidden(resultStage)) return { ok: false, error: LINEUP_HIDDEN };
 
   if (winner !== "A" && winner !== "B" && winner !== "H") {
     return { ok: false, error: "Pick a winner, or halved." };

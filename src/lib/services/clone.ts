@@ -382,6 +382,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   optDeadline: "a date, like the others",
   teeSheet: "last year's draw, made from last year's field",
   teeSheetPublished: "belongs to the tee sheet that was not copied",
+  lineupPublished: "belongs to a cup lineup, and lineups are pairings — never copied, so a copy's sessions start as drafts",
   pinSheet: "where the holes were cut on last year's day — a committee moves them every round",
   matches: "results and pairings are never copied",
   carriers:

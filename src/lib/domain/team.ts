@@ -273,6 +273,13 @@ export interface MatchBall {
   /** The PLAYING handicap — the round's allowance already applied. A shared
    *  ball passes the side's figure; a four-ball passes one per player. */
   playingHandicap: number;
+  /**
+   * Per hole: this ball PICKED UP. Out of the hole, unlike a blank, which is
+   * a score not entered yet. When every ball on a side has picked up, the side
+   * has conceded the hole (Rule 3.2b(1)). Absent on every card that never
+   * recorded one.
+   */
+  pickedUp?: boolean[];
 }
 
 /**
@@ -325,9 +332,15 @@ export function matchHolesOffTheLow(
   const shots = all.map((_, i) => matchStrokesPerHole(playing[i], low, strokeIndex));
   const shotsOf = new Map(all.map((b, i) => [b, shots[i]]));
 
+  // Every ball on the side out of this hole: the side has conceded it.
+  const conceded = (side: MatchBall[], h: number): boolean =>
+    side.length > 0 && side.every((b) => b.pickedUp?.[h] === true);
+
   const sideScore = (side: MatchBall[], h: number): number | null => {
     const nets = side
       .map((b) => {
+        // A ball out of the hole has no score on it, whatever was typed.
+        if (b.pickedUp?.[h] === true) return null;
         const gross = b.strokes[h];
         if (gross == null || !Number.isFinite(gross)) return null;
         return gross - (shotsOf.get(b)![h] ?? 0);
@@ -340,6 +353,13 @@ export function matchHolesOffTheLow(
 
   const out: ("A" | "B" | "H" | null)[] = [];
   for (let h = 0; h < holeCount; h += 1) {
+    // A conceded hole needs no score from the other side.
+    const aOut = conceded(sideA, h);
+    const bOut = conceded(sideB, h);
+    if (aOut || bOut) {
+      out.push(aOut && bOut ? "H" : aOut ? "B" : "A");
+      continue;
+    }
     const a = sideScore(sideA, h);
     const b = sideScore(sideB, h);
     if (a == null || b == null) out.push(null);

@@ -187,6 +187,57 @@ describe("four-ball match play, strokes off the low handicap", () => {
     const b: MatchBall[] = [{ strokes: [], playingHandicap: 10 }];
     expect(matchHolesOffTheLow(a, b, SI, 18, 1)[0]).toBeNull();
   });
+});
+
+/**
+ * PICKED UP (2026-10-06). In match play a side that picks up has conceded the
+ * hole (Rule 3.2b(1)) — and there was no way to say so: a blank box meant "not
+ * entered yet", so a hole both partners walked off stayed undecided and the
+ * match could not move past it.
+ */
+describe("a ball picked up", () => {
+  const up = (si: number): boolean[] => Array.from({ length: 18 }, (_, i) => i === si - 1);
+
+  it("one partner picking up leaves the other's ball to count", () => {
+    const a: MatchBall[] = [
+      { strokes: only(1, 5), playingHandicap: 0 },
+      { strokes: [], playingHandicap: 0, pickedUp: up(1) },
+    ];
+    const b: MatchBall[] = [{ strokes: only(1, 4), playingHandicap: 0 }];
+    // The 5 still plays: B's 4 wins it — the pick-up conceded nothing on its own.
+    expect(matchHolesOffTheLow(a, b, SI, 18, 1)[0]).toBe("B");
+  });
+
+  it("the whole side picking up concedes the hole — whatever the other side has entered", () => {
+    const a: MatchBall[] = [
+      { strokes: [], playingHandicap: 0, pickedUp: up(1) },
+      { strokes: [], playingHandicap: 0, pickedUp: up(1) },
+    ];
+    // B has entered nothing on the 1st: a conceded hole needs no score.
+    const b: MatchBall[] = [{ strokes: [], playingHandicap: 0 }];
+    expect(matchHolesOffTheLow(a, b, SI, 18, 1)[0]).toBe("B");
+    // And from the other side.
+    expect(matchHolesOffTheLow(b, a, SI, 18, 1)[0]).toBe("A");
+  });
+
+  it("a foursomes side's one ball picked up concedes the hole", () => {
+    const a: MatchBall[] = [{ strokes: [], playingHandicap: 8, pickedUp: up(3) }];
+    const b: MatchBall[] = [{ strokes: only(3, 9), playingHandicap: 16 }];
+    expect(matchHolesOffTheLow(a, b, SI, 18, 1)[2]).toBe("B");
+  });
+
+  it("both sides picking up halves it", () => {
+    const a: MatchBall[] = [{ strokes: [], playingHandicap: 0, pickedUp: up(2) }];
+    const b: MatchBall[] = [{ strokes: [], playingHandicap: 0, pickedUp: up(2) }];
+    expect(matchHolesOffTheLow(a, b, SI, 18, 1)[1]).toBe("H");
+  });
+
+  it("CONTROL: a pick-up on one hole decides only that hole", () => {
+    const a: MatchBall[] = [{ strokes: [], playingHandicap: 0, pickedUp: up(5) }];
+    const b: MatchBall[] = [{ strokes: [], playingHandicap: 0 }];
+    const holes = matchHolesOffTheLow(a, b, SI, 18, 1);
+    expect(holes.filter((h) => h !== null)).toEqual(["B"]);
+  });
 
   it("counts the best two where the league counts the best two", () => {
     // countBest is the side's counting scores, the same meaning

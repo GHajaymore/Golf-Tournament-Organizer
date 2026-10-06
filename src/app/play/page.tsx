@@ -17,6 +17,7 @@ import { isHeadToHead } from "@/lib/stage-types";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { lineupHidden } from "@/lib/domain/cup-lineup";
 
 /**
  * The Round Code surface.
@@ -49,7 +50,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    * back to the first — and the save re-checks membership regardless.
    */
   const { m: pickedMatch } = await searchParams;
-  const [event, myMatches] = await Promise.all([
+  const [event, drawn, codeStage] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId }, include: COURSE_REF }),
     prisma.match.findMany({
       where: {
@@ -58,7 +59,10 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       },
       orderBy: { id: "asc" },
     }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { type: true, lineupPublished: true } }),
   ]);
+  // A cup lineup the organizer has not announced is nobody's match yet.
+  const myMatches = codeStage && lineupHidden(codeStage) ? [] : drawn;
   const match = myMatches.find((x) => x.id === pickedMatch) ?? myMatches[0] ?? null;
   if (!event) return <PlayClient stage="code" />;
 

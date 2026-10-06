@@ -1819,6 +1819,14 @@ model Stage {
    */
   teeSheetPublished Boolean @default(false)
   /**
+   * A team cup session's lineup has been announced (Ajay, 2026-10-06).
+   * Until then the captains' pairings are the organizer's draft: players and
+   * the public board do not see them, and nobody may score them. Published
+   * per SESSION, because a captain picks Friday afternoon's pairs knowing the
+   * morning's score. Meaningless on any other kind of round.
+   */
+  lineupPublished   Boolean @default(false)
+  /**
    * Where the hole is cut on each green for this round, as JSON — one entry
    * per hole of the round's card, {on, side, off} or null. See
    * lib/domain/pin-sheet.ts. Empty means no pin sheet, which is every round
@@ -2210,6 +2218,15 @@ model TeamScorecard {
   playerId String @default("")
   // JSON array of per-hole gross strokes (number | null), one per hole.
   strokes  String @default("[]")
+  /**
+   * JSON array of booleans, one per hole: this ball PICKED UP there (2026-10-06).
+   * Match play only. Kept beside `strokes` rather than as a sentinel inside it,
+   * so every reader of strokes — medal totals, standings, the printed card —
+   * still sees "no score" and nothing else: only the match recompute knows a
+   * side that picked up on a hole has conceded it. Empty array on every row
+   * written before it, which reads as nobody picking up anywhere.
+   */
+  pickedUp String @default("[]")
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)

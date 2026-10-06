@@ -14,8 +14,11 @@ export function cupVerdictLine(board: CupBoard): string {
     return level ? `Level — ${name(v.by)} retain the cup.` : `${name(v.by)} retain the cup.`;
   }
   if (v.kind === "tied") return "Level — the cup is shared.";
-  if (board.tally.total === 0) return "No matches in the lineup yet.";
-  if (v.needA === null || v.needB === null) return "The points to win are set once every session is lined up.";
+  if (board.tally.total === 0) {
+    // A lineup can exist and be a draft; "no matches" would not be true then.
+    return board.sessions.some((s) => !s.published) ? "No lineup has been announced yet." : "No matches in the lineup yet.";
+  }
+  if (v.needA === null || v.needB === null) return "The points to win are set once every session's lineup is announced.";
   return `${cupPoints(board.target)} to win · ${a.name} need ${cupPoints(v.needA)}, ${b.name} need ${cupPoints(v.needB)}.`;
 }
 
@@ -65,9 +68,16 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
           <h3 style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-500)" }}>
             {s.name} · {s.kind}
           </h3>
+          {/* A draft lineup reaches this component only on the staff board;
+              everywhere else an unannounced session arrives empty. */}
+          {!s.published && s.matches.length > 0 && (
+            <p style={{ margin: "0 0 6px", fontSize: 13, color: "var(--color-warning)", fontWeight: 600 }}>
+              Draft — only staff can see this lineup until it is announced.
+            </p>
+          )}
           {s.matches.length === 0 ? (
             <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
-              Lineup not set yet.
+              {s.published ? "Lineup not set yet." : "Lineup not announced yet."}
             </p>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
