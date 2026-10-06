@@ -121,6 +121,23 @@ async function scorePars(page: Page, who: string, holes: number, pickUps: number
   await row.getByRole("button", { name: "Save card" }).click();
   // A hole picked up has no score on it, so it is not among the holes played.
   await expect(row.getByText(`${holes - pickUps.length} holes`)).toBeVisible({ timeout: 20_000 });
+  /**
+   * AND PROVE THIS CARD WAS STORED, not merely that the side shows 13 holes.
+   * That figure is the SIDE's, so in a four-ball the partner's card had already
+   * made it true: CI went on (2026-10-06) while Finn's save was still in
+   * flight, and read the four-ball as it stood without him — "3 down thru 13",
+   * exactly the match off Edda's card alone. Reload and read the last hole
+   * back from the server.
+   */
+  const last = holes;
+  const expectLast = pickUps.includes(last) ? "X" : String(PARS[last - 1]);
+  await expect(async () => {
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    const full2 = page.getByRole("button", { name: "Full card" });
+    if (await full2.count()) await full2.click();
+    await expect(page.getByLabel(`${who}, hole ${last}, par ${PARS[last - 1]}`, { exact: true })).toHaveValue(expectLast, { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 /** Today's cup card, and one match on it by session. */
