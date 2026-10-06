@@ -25,6 +25,7 @@ import { resolveCourse } from "@/lib/courses";
 import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
+import { MoreInfo } from "@/components/MoreInfo";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { requestClusters, requestPairs, splitRequests } from "@/lib/domain/pairing-requests";
 import { PairingRequests } from "@/components/PairingRequests";
@@ -516,10 +517,10 @@ export default async function FoursomesPage({
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Manage</div>
         <h1 className="page-title">Tee sheet</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Decide who plays together, what order they go off, and from which tee. Once a round has been
-          played you can re-pair off the leaderboard and send the leaders out last.
-        </p>
+        {/* One line, the rest an ⓘ away (2026-10-05). */}
+        <MoreInfo short="Who plays together, in what order, from which tee." style={{ marginTop: 6 }}>
+          Once a round has been played you can re-pair off the leaderboard and send the leaders out last.
+        </MoreInfo>
       </div>
 
       {/* The list the sheet below is drawn from, and the control that changes

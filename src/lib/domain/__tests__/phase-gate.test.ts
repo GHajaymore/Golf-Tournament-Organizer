@@ -187,8 +187,10 @@ describe("where the gates are enforced", () => {
     const bar = readSource("src", "components", "LifecycleBar.tsx");
     expect(bar).toMatch(/disabled=\{pending \|\| !!blockedReason\}/);
     // The reason is rendered, not merely held — a greyed-out button that
-    // explains nothing is the worst of both.
-    expect(bar).toMatch(/\{refused \|\| blockedReason\}/);
+    // explains nothing is the worst of both. Read from the same pair since
+    // it became a short line with the rest behind an ⓘ (2026-10-05); that it
+    // reaches the screen is RENDERED in `lifecycle-reason-shown.test.tsx`.
+    expect(bar).toMatch(/refused \|\| blockedReason/);
   });
 
   it("only gates the transitions that change what the field sees", () => {

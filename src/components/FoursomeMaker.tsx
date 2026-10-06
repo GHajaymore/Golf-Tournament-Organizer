@@ -475,7 +475,7 @@ export function FoursomeMaker({
               );
             })}
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {activeOrder.blurb}
           </p>
           {orderBlocked.length > 0 && (

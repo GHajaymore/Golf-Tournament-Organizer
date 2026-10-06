@@ -1,6 +1,7 @@
 import { resolveMoneyMode, MONEY_MODE_LABEL } from "@/lib/domain/money-mode";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * WHAT THIS TOURNAMENT DOES WITH MONEY, SAID BEFORE ANY OF IT IS SHOWN.
@@ -84,11 +85,12 @@ export function MoneyModeLine({
       <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>
         {MONEY_MODE_LABEL[active]}
       </div>
-      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.55 }}>
+      {/* One line, the consequence an ⓘ away (2026-10-05). */}
+      <MoreInfo short={inherited ? `Following ${clubName || `the ${profile.noun}`}.` : "Chosen for this tournament."}>
         {inherited
           ? `Following ${clubName || `the ${profile.noun}`}. Change it here and this tournament stops following.`
           : "Chosen for this tournament, so the club's default no longer applies to it."}
-      </p>
+      </MoreInfo>
     </div>
   );
 }

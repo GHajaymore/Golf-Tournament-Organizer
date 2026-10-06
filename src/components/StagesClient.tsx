@@ -72,6 +72,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
 
@@ -2183,10 +2184,11 @@ export function StagesClient({
           <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
             <Icon name="flag" /> Handicaps are approximate
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{handicapWarning}</p>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-            Add them under the course on <a href="/event">Event setup</a>.
-          </p>
+          {/* The fix in one line, the reason an ⓘ away (2026-10-05). The
+              heading already says what is wrong. */}
+          <MoreInfo short="Add tees with a rating and slope to the course.">
+            {handicapWarning} Add them under the course on <a href="/event">Event setup</a>.
+          </MoreInfo>
         </div>
       )}
       {stages.map((s, i) => {

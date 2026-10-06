@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
+import { MoreInfo } from "@/components/MoreInfo";
 import { isHeadToHead } from "@/lib/stage-types";
 import { usesStandardBoard } from "@/lib/formats";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
@@ -229,10 +230,11 @@ export default async function PrizesPage({
             setup is finished. */}
         <div className="page-kicker">{flow && !flow.complete ? "Set up" : "Results"}</div>
         <h1 className="page-title">Prizes &amp; payouts</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+        {/* One line, the rest an ⓘ away (2026-10-05). */}
+        <MoreInfo short="The prize list, the purse, and who won." style={{ marginTop: 6 }}>
           Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
           long drive and any specials.
-        </p>
+        </MoreInfo>
       </div>
       {/* Before any of the money, because it decides what all of it means —
           see the note on the component. The picker itself stays at the foot of

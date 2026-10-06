@@ -5480,7 +5480,8 @@ describe("side bets", () => {
 
     it("is not offered at all", async () => {
       const html = await bets({ headToHead: false });
-      expect(html, "no Nassau row").not.toContain("three bets on every match");
+      // The row is found by its ⓘ since its rule moved behind one (2026-10-05).
+      expect(html, "no Nassau row").not.toContain('aria-label="More about Nassau"');
       // And the sentence above the rows stops advertising it, or it sends
       // somebody looking for a row that is not there.
       expect(html).toContain("birdies, eagles are worked out");
@@ -5498,7 +5499,7 @@ describe("side bets", () => {
        * stops anyone finding it.
        */
       const html = await bets({ headToHead: false, sideGames: [nassau] });
-      expect(html).toContain("three bets on every match");
+      expect(html).toContain('aria-label="More about Nassau"');
       expect(html, "and says why").toContain("Nobody plays anybody in this round");
       expect(html, "and what to do about it").toContain("Set it to 0");
     });
@@ -5506,7 +5507,7 @@ describe("side bets", () => {
     it("and a match round is unchanged", async () => {
       // THE ASSERTION THAT STOPS THIS BECOMING "NEVER OFFER A NASSAU".
       const html = await bets({ headToHead: true });
-      expect(html).toContain("three bets on every match");
+      expect(html).toContain('aria-label="More about Nassau"');
       expect(html).toContain("and the Nassau are worked out");
       expect(html).not.toContain("Nobody plays anybody in this round");
     });

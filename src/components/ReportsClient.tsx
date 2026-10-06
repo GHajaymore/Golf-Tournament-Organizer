@@ -270,15 +270,15 @@ export function ReportsClient({
             <Icon name={e.icon} style={{ color: "var(--color-accent-200)", fontSize: 20, width: 22 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{e.label}</div>
-              <div className="text-muted" style={{ fontSize: 12 }}>{e.desc}</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{e.desc}</div>
             </div>
             <button type="button" className={`btn ${e.kind === "csv" ? "btn-primary" : "btn-secondary"}`} onClick={e.action}>
               {e.kind === "csv" ? "Export CSV" : "Open"}
             </button>
           </div>
         ))}
-        <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
-          Use your browser&rsquo;s Print → &ldquo;Save as PDF&rdquo; on any printable view (chrome is hidden in print).
+        <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
+          For a PDF: Print → &ldquo;Save as PDF&rdquo;.
         </p>
       </div>
       {/* No snapshot at all for a format the app does not score. A printed

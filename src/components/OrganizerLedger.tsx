@@ -6,6 +6,7 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { splitLabel } from "@/lib/domain/expense-split-label";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * The ledger, for whoever is running it.
@@ -42,10 +43,11 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>The ledger</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 0", lineHeight: 1.55 }}>
-        Everybody&rsquo;s position and what is left to collect. Expenses and side-game winnings together,
-        which is the only figure worth settling on. TourneyHQ works it out; it never moves the money.
-      </p>
+      {/* One line, the rest an ⓘ away (2026-10-05). */}
+      <MoreInfo short="Everybody's position and what is left to collect." style={{ marginTop: -2 }}>
+        Expenses and side-game winnings together, which is the only figure worth settling on. TourneyHQ
+        works it out; it never moves the money.
+      </MoreInfo>
 
       <div className="stat-grid" style={{ marginTop: 4 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>

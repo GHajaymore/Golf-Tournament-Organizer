@@ -5,6 +5,7 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { prisma } from "@/lib/db";
 import { loadEventState } from "@/lib/services/tournament";
 import { AnnouncementsClient } from "@/components/AnnouncementsClient";
+import { MoreInfo } from "@/components/MoreInfo";
 // The same words the player's copy of the notice now carries (`AnnouncementList`),
 // rather than a private "4h ago" that disagreed with it in form.
 import { sinceWords } from "@/lib/domain/since";
@@ -26,16 +27,18 @@ export default async function AnnouncementsPage() {
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Manage</div>
         <h1 className="page-title">Announcements</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          {/* WHERE IT LANDS, said before it is posted. This read "schedule
-              changes, weather" and stopped, and a posted notice alerts nobody:
-              it waits on Today — pinned at the top, the rest at the foot below
-              the card and the board (walked 2026-09-28). A secretary moving the
-              tee times needs to know that before choosing this over Messages. */}
+        {/* WHERE IT LANDS, said before it is posted. This read "schedule
+            changes, weather" and stopped, and a posted notice alerts nobody:
+            it waits on Today — pinned at the top, the rest at the foot below
+            the card and the board (walked 2026-09-28). A secretary moving the
+            tee times needs to know that before choosing this over Messages.
+            The landing place stays in the short line (2026-10-05); the rest is
+            an ⓘ away. */}
+        <MoreInfo short="Shown on each player's Today screen — not sent to phones." style={{ marginTop: 6 }}>
           Post notices to players — schedule changes, weather, results. They appear on each
           player&rsquo;s Today screen when they open it: pinned posts at the top, the rest at the foot.
           Nothing is sent to their phones — a post in Messages also shows them an unread count.
-        </p>
+        </MoreInfo>
       </div>
       <AnnouncementsClient
         aiAvailable={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}

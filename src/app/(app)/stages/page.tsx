@@ -269,8 +269,8 @@ export default async function StagesPage() {
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 className="page-title">Rounds &amp; formats</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Sequence the tournament — add as many rounds as you need, each feeding the next.
+        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+          The rounds, in order, each feeding the next.
         </p>
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />

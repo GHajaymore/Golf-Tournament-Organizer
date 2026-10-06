@@ -7,6 +7,7 @@ import { listNames } from "@/lib/format";
 import { PLAYER_ACCESS_LABEL } from "@/lib/tournament-settings";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Fill a field from the club roster.
@@ -161,11 +162,16 @@ export function RosterPicker({
           />
 
           {missingCount > 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-              {missingCount === available.length
-                ? "None of these members can be entered yet"
-                : `${missingCount} of these members can't be entered yet`}{" "}
-              — each is missing a contact detail this tournament needs, marked below. Add it under{" "}
+            // The count in one line, what to do about it an ⓘ away (2026-10-05).
+            <MoreInfo
+              warn
+              short={
+                missingCount === available.length
+                  ? "None of these members can be entered yet"
+                  : `${missingCount} of these members can't be entered yet`
+              }
+            >
+              Each is missing a contact detail this tournament needs, marked below. Add it under{" "}
               <Link href="/roster" style={{ textDecoration: "underline" }}>Manage members</Link>, then pick
               them here.
               {missingEmail && (
@@ -176,7 +182,7 @@ export function RosterPicker({
                   <Link href="/event" style={{ textDecoration: "underline" }}>Tournament details</Link>.
                 </>
               )}
-            </p>
+            </MoreInfo>
           )}
 
           <label
