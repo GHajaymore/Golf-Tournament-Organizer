@@ -17,6 +17,8 @@ import {
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import FieldInfo from "./FieldInfo";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * How money is handled — for ONE TOURNAMENT, or for the whole club.
@@ -103,11 +105,11 @@ export function MoneySetup({
         }
         style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
       />
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 13.5, fontWeight: 550 }}>{label}</span>
-        <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
-          {help}
-        </span>
+      {/* The name, its explanation an ⓘ away (2026-10-05) — see `Choice` in
+          PlaySettings, which does the same for every setting. */}
+      <span style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 2, fontSize: 14, fontWeight: 550 }}>
+        {label}
+        <FieldInfo label={label}>{help}</FieldInfo>
       </span>
     </label>
   );
@@ -143,11 +145,9 @@ export function MoneySetup({
         onChange={() => run(() => setExpenseEntry(value))}
         style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
       />
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 13, fontWeight: 550 }}>{label}</span>
-        <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.6 }}>
-          {help}
-        </span>
+      <span style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 2, fontSize: 14, fontWeight: 550 }}>
+        {label}
+        <FieldInfo label={label}>{help}</FieldInfo>
       </span>
     </label>
   );
@@ -159,10 +159,9 @@ export function MoneySetup({
     return (
       <section className="card elev-sm" style={{ gap: 10 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Money at {clubName || `this ${profile.noun}`}</span>
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 4px", lineHeight: 1.55 }}>
-          What every tournament here uses unless it says otherwise. Changing it does not touch a
-          tournament that has already made its own choice.
-        </p>
+        <MoreInfo short="What every tournament here uses unless it says otherwise." style={{ margin: "-2px 0 4px" }}>
+          Changing it does not touch a tournament that has already made its own choice.
+        </MoreInfo>
 
         {option(
           "",
@@ -199,10 +198,10 @@ export function MoneySetup({
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Money in this tournament</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 4px", lineHeight: 1.55 }}>
+      <MoreInfo short="TourneyHQ records money. It never moves it." style={{ margin: "-2px 0 4px" }}>
         TourneyHQ works money out and writes it down. It never moves it — there is no payment rail here,
         and a settlement line means somebody says a payment happened.
-      </p>
+      </MoreInfo>
 
       {option(
         "",

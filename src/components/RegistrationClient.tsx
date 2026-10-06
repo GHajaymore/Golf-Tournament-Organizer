@@ -17,6 +17,7 @@ import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 interface Signup {
   /** The set this entry plays from. Null means the round’s own. */
@@ -572,9 +573,9 @@ export function RegistrationClient({
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 className="page-title">Registration &amp; field</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+        <MoreInfo short="Who's in, and who's waiting." style={{ marginTop: 6 }}>
           Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
-        </p>
+        </MoreInfo>
       </div>
 
       <SetupLockBanner locked={locked} isAdmin={isAdmin} />
@@ -595,11 +596,21 @@ export function RegistrationClient({
             style={{ color: "var(--color-accent-200)", fontSize: 18, marginTop: gaps.lines.length > 1 ? 1 : 0 }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {gaps.lines.map((line) => (
-              <span key={line} style={{ fontSize: 13 }}>
-                {line}
-              </span>
-            ))}
+            {/* Each line's first sentence, the rest an ⓘ away (2026-10-05) —
+                the count is what an organizer acts on; why the entries are
+                not a mistake is there when asked. */}
+            {gaps.lines.map((line) => {
+              const cut = line.indexOf(". ");
+              return cut < 0 ? (
+                <span key={line} style={{ fontSize: 14 }}>
+                  {line}
+                </span>
+              ) : (
+                <MoreInfo key={line} short={line.slice(0, cut + 1)}>
+                  {line}
+                </MoreInfo>
+              );
+            })}
           </div>
         </div>
       )}
@@ -808,9 +819,8 @@ export function RegistrationClient({
               read. "Not published" is the answer most organizers need and the
               one that used to cost a scroll through both panels to find. */}
           <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
-            {event.registrationOpen
-              ? "The public sign-up link is live. Share it, or invite people to it."
-              : "No public link yet — you can publish one, or just add people below."}
+            {/* Short — it sits in the panel's own heading (2026-10-05). */}
+            {event.registrationOpen ? "The public sign-up link is live." : "No public link yet."}
           </span>
         </span>
         <Icon
@@ -1132,7 +1142,11 @@ export function RegistrationClient({
                 four sentences, and the nested form had already produced one
                 that read "name and email (both required — email is how each
                 player signs in), handicap, phone". */}
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            {/* One line, the full rules an ⓘ away (2026-10-05). */}
+            <MoreInfo
+              short={`A header row, then: ${["name", ...(needsEmail ? ["email"] : []), ...(phoneRequired ? ["phone"] : [])].join(", ")}.`}
+              style={{ marginTop: 6 }}
+            >
               First row must be a header. Required columns:{" "}
               {[
                 "name",
@@ -1151,7 +1165,7 @@ export function RegistrationClient({
               {needsEmail
                 ? "Rows missing a required column, or duplicating an email already in the field, are skipped automatically."
                 : "Rows missing a required column are skipped automatically. Without an email to go on, a row is treated as already entered when its name matches somebody in the field."}
-            </p>
+            </MoreInfo>
             {importResult && (
               importResult.error ? (
                 <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger)" }}>

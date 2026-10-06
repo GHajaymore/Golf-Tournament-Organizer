@@ -13,6 +13,7 @@ import { CONTEST_KINDS, CONTEST_LABEL, contestHasHole, type ContestKind } from "
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import FieldInfo from "@/components/FieldInfo";
+import { MoreInfo } from "@/components/MoreInfo";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
@@ -300,7 +301,8 @@ export function ContestsClient({
           </button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 0", lineHeight: 1.55 }}>
+      {/* Short, the rest an ⓘ away (2026-10-05). */}
+      <MoreInfo short="Player-funded: the winner takes the pot." style={{ marginTop: 4 }}>
         {/* "under Prizes", not "in the prize list above". The list it meant had
             no heading at all until this pass named it, so the sentence pointed
             at something nothing on the screen called that — and pointed by
@@ -318,7 +320,7 @@ export function ContestsClient({
              looking for a door that is not there. */
           ""
         )}
-      </p>
+      </MoreInfo>
 
       {contestsApply && adding && (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -383,14 +385,15 @@ export function ContestsClient({
               controls do. */}
           <SaveState status={saveStatus} />
         </span>
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
+        {/* One line, the rest an ⓘ away (2026-10-05). */}
+        <MoreInfo short="The cards pick the winner — set the stake and who's in." style={{ margin: "4px 0 10px" }}>
           {/* Names only what is actually offered below. A round with no
               matches does not show the Nassau row, and a sentence advertising
               a bet the screen does not carry sends somebody looking for it. */}
           Low gross, low net, birdies, eagles{headToHead ? " and the Nassau are" : " are"} worked out
           from the cards — set the stake and who is in, and the money follows the scoring. Nobody
           types a winner.
-        </p>
+        </MoreInfo>
 
         {DERIVED_ROWS.map((row) => {
           const game = sideGames.find((g) => g.kind === row.kind);
@@ -417,8 +420,11 @@ export function ContestsClient({
             <div key={row.kind} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ flex: 1, minWidth: 120 }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{row.label}</span>
-                  <span className="text-muted" style={{ fontSize: 11.5 }}>{row.help}</span>
+                  {/* The name, its rule an ⓘ away (2026-10-05). */}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 14, fontWeight: 550 }}>
+                    {row.label}
+                    <FieldInfo label={row.label}>{row.help}</FieldInfo>
+                  </span>
                 </span>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
                   <span className="text-muted">Stake</span>
@@ -578,10 +584,10 @@ export function ContestsClient({
       {contestsApply && (
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
         <span className="card-kicker">You name the winner</span>
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
+        <MoreInfo short="Closest to the pin, long drive — you tick who won." style={{ margin: "4px 0 10px" }}>
           Closest to the pin, long drive, and whatever else the first tee invented. Nothing in the
           cards decides these, so you tick who took it.
-        </p>
+        </MoreInfo>
 
         {contests.length === 0 && !adding && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>

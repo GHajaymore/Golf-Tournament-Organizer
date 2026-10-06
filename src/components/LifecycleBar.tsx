@@ -13,6 +13,7 @@ import {
 } from "@/lib/domain/lifecycle-state";
 import { WIPE_ON_CLOSE, LIFESPAN_DAYS } from "@/lib/domain/close-terms";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 export interface LifecycleSummary {
   name: string;
@@ -246,9 +247,21 @@ export function LifecycleBar({
           <span className="card-title" style={{ fontSize: 14 }}>
             <Icon name="warning-circle" /> Not yet — {action?.label.toLowerCase()}
           </span>
-          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
-            {refused || blockedReason}
-          </p>
+          {/* Its first sentence, the rest an ⓘ away (2026-10-05). The words
+              are the server's own refusal, unchanged — only folded, so the
+              dashboard's "Needs you now" and this card do not both spell out
+              the same dispute in full. */}
+          {(() => {
+            const reason = refused || blockedReason || "";
+            const cut = reason.indexOf(". ");
+            return cut < 0 ? (
+              <p className="text-muted" style={{ fontSize: 14, margin: 0, lineHeight: 1.55 }}>
+                {reason}
+              </p>
+            ) : (
+              <MoreInfo short={reason.slice(0, cut + 1)}>{reason}</MoreInfo>
+            );
+          })()}
         </div>
       )}
 

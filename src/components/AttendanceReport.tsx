@@ -1,4 +1,4 @@
-import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import type { AttendanceReport as Report } from "@/lib/services/attendance-report";
 
 /**
@@ -32,11 +32,11 @@ export function AttendanceReport({ report }: { report: Report }) {
         <span className="card-title" style={{ fontSize: 15 }}>
           Weekly sign-up
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-          <Icon name="ph ph-info" /> This tournament doesn&rsquo;t use weekly sign-up — every
-          confirmed player is in every round, so there is nothing to report. Turn it on in
-          Settings if your league needs members to say which weeks they can make.
-        </p>
+        <MoreInfo short="Not used — every confirmed player is in every round.">
+          This tournament doesn&rsquo;t use weekly sign-up — every confirmed player is in every round,
+          so there is nothing to report. Turn it on in Settings if your league needs members to say
+          which weeks they can make.
+        </MoreInfo>
       </div>
     );
   }
@@ -47,23 +47,28 @@ export function AttendanceReport({ report }: { report: Report }) {
         <span className="card-title" style={{ fontSize: 15 }}>
           Who turned out ({report.rows.length})
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-          Every round of the season. {report.modeLabel}.{" "}
+        {/* One line, the rest an ⓘ away (2026-10-05). */}
+        <MoreInfo short={`${report.modeLabel}.`} style={{ marginTop: 4 }}>
+          Every round of the season.{" "}
           {report.playersAnswerThemselves
             ? "Players answer on their own phone; your staff can set anyone's."
             : "Captains send their pairs in and your staff record them."}
-        </p>
+        </MoreInfo>
         {/* THE CHASE LIST, as a number. "Nobody has answered" is the state an
             opt-in league starts every week in, and a secretary needs to know
             how much of the grid below is a real answer before reading it. */}
         {report.neverAnswered > 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-            <Icon name="ph ph-warning-circle" />{" "}
-            {report.neverAnswered === 1
-              ? "1 player has never answered for any round"
-              : `${report.neverAnswered} players have never answered for any round`}{" "}
-            — their rows below are the league&rsquo;s default, not their word.
-          </p>
+          <MoreInfo
+            warn
+            short={
+              report.neverAnswered === 1
+                ? "1 player has never answered for any round"
+                : `${report.neverAnswered} players have never answered for any round`
+            }
+            style={{ marginTop: 4 }}
+          >
+            Their rows below are the league&rsquo;s default, not their word.
+          </MoreInfo>
         )}
       </div>
 
@@ -161,7 +166,9 @@ export function AttendanceReport({ report }: { report: Report }) {
         </table>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.6 }}>
+      {/* The key the grid is read with — an instruction, so it stays on
+          screen, at reading size (2026-10-05). */}
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
         <b>✓</b> said they were in · <b>✕</b> said they were out · <b>·</b> in by default ·{" "}
         <b>–</b> out by default. Change an answer on the round itself, from Tee sheet or Score
         entry.

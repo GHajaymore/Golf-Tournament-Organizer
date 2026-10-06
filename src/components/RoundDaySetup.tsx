@@ -4,6 +4,7 @@ import { setPaceMinutes, setPinSheet } from "@/app/actions/round-day";
 import { MAX_PACES_OFF, MAX_PACES_ON, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, minutesPerHole } from "@/lib/domain/pace";
 import { useAction } from "./useAction";
+import { MoreInfo } from "./MoreInfo";
 import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
@@ -68,10 +69,9 @@ export function RoundDaySetup({
         <h2 id={`${stageId}-roundday`} className="card-title" style={{ fontSize: 16, margin: 0 }}>
           Round day — {roundLabel || "this round"}
         </h2>
-        <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
-          Where the holes are cut, and the time the round is allowed. The pins print on every card and show on
-          each hole of a player&rsquo;s phone.
-        </p>
+        <MoreInfo short="Where the holes are cut, and the time allowed." style={{ marginTop: 4 }}>
+          The pins print on every card and show on each hole of a player&rsquo;s phone.
+        </MoreInfo>
       </div>
 
       <div style={{ display: "grid", gap: 6 }}>
@@ -98,7 +98,7 @@ export function RoundDaySetup({
               </option>
             ))}
           </select>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             for 18 holes as a four-ball · three-ball {hoursAndMinutes(minutesPerHole(target, 3) * 18)} · two-ball{" "}
             {hoursAndMinutes(minutesPerHole(target, 2) * 18)}
           </span>
@@ -112,10 +112,10 @@ export function RoundDaySetup({
 
       <div style={{ display: "grid", gap: 6 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Pin sheet</span>
-        <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
+        <MoreInfo short="22 / 6R = twenty-two on, six from the right.">
           Paces on from the front of the green, then which side (L, C for the middle, R) and paces in from it —
           22 / 6R is twenty-two on, six from the right. Leave a hole blank if it isn&rsquo;t set.
-        </p>
+        </MoreInfo>
         <div style={{ overflowX: "auto" }}>
           <table className="table table-tight" style={{ minWidth: 0, fontSize: 13 }}>
             <thead>

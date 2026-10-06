@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain/card-approval";
 import { RuleCite } from "./RuleCite";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * The committee's step: accepting a round's cards.
@@ -54,12 +55,11 @@ export function RoundApproval({
   return (
     <div className="card elev-sm" style={{ marginTop: 16 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Approve this round</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 4px", lineHeight: 1.5 }}>
-        Cards are certified by the marker and the player, then accepted here. Only accepted cards are results.
-      </p>
-      <p style={{ margin: "0 0 12px" }}>
+      {/* One line, the rest and the rule an ⓘ away (2026-10-05). */}
+      <MoreInfo short="Only approved cards are results." style={{ margin: "-2px 0 12px" }}>
+        Cards are certified by the marker and the player, then accepted here. Only accepted cards are results.{" "}
         <RuleCite rule="scorecardCertification" />
-      </p>
+      </MoreInfo>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button
