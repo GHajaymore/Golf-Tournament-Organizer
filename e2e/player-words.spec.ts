@@ -47,42 +47,85 @@ test.beforeEach(async ({}, testInfo) => {
 });
 
 type Long = { text: string; words: number; longest: number };
+type Small = { text: string; px: number; floor: number };
 
-/** Every visible leaf block on the page whose words run long. */
-function longBlocks(page: Page): Promise<Long[]> {
+/**
+ * What a reader sees, block by block: every visible TEXT NODE, grouped under
+ * its nearest block-level ancestor.
+ *
+ * The first version took "leaf" blocks — elements with no block child — and
+ * so never read a sentence that shared its element with a block-level link:
+ * the tie rule on Rules ran to 22 words beside its "under Committee
+ * Procedures 5A" citation and passed (2026-10-06). Grouping text nodes by
+ * their block reads mixed content as a reader does.
+ *
+ * And the TYPE it is set in (Ajay, 2026-10-06: "appropriate font sizes for
+ * good visibility and reading"): a label at 13px or more, a sentence at 14 —
+ * the floor #794 set, measured here off what the browser renders rather than
+ * off a list of files, so a component nobody listed is read too.
+ */
+function readTheScreen(page: Page): Promise<{ long: Long[]; small: Small[] }> {
   return page.evaluate(
     ({ SENTENCE, BLOCK }) => {
       const inline = new Set(["inline", "inline-block", "inline-flex", "contents"]);
-      const out: Long[] = [];
-      for (const el of Array.from(document.querySelectorAll("body *"))) {
-        if (!(el instanceof HTMLElement) || !el.getClientRects().length) continue;
-        if (el.closest("[data-authored]")) continue;
-        if (inline.has(getComputedStyle(el).display) && el.tagName !== "SUMMARY") continue;
-        const blockKid = Array.from(el.children).some(
-          (k) => k instanceof HTMLElement && !inline.has(getComputedStyle(k).display) && k.innerText.trim(),
-        );
-        if (blockKid) continue;
-        const text = el.innerText.replace(/\s+/g, " ").trim();
-        if (!text) continue;
-        const words = text.split(" ").length;
-        const longest = Math.max(...text.split(/(?<=[.!?])\s+/).map((s) => s.split(" ").filter(Boolean).length));
-        if (longest >= SENTENCE || words >= BLOCK) out.push({ text, words, longest });
+      const blockOf = (el: Element): Element => {
+        let at: Element | null = el;
+        while (at && at !== document.body) {
+          if (at.tagName === "SUMMARY" || !inline.has(getComputedStyle(at).display)) return at;
+          at = at.parentElement;
+        }
+        return document.body;
+      };
+      const texts = new Map<Element, string[]>();
+      const sized: { block: Element; parent: Element; px: number }[] = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const parent = n.parentElement;
+        if (!parent || !n.textContent?.trim()) continue;
+        // `checkVisibility`, not `getClientRects`: a closed <details> hides its
+        // content with content-visibility, which still leaves layout boxes, so
+        // the explanation behind every ⓘ read as on screen.
+        if (!parent.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        if (parent.closest("[data-authored], [data-brand], script, style, noscript")) continue;
+        const block = blockOf(parent);
+        texts.set(block, [...(texts.get(block) ?? []), n.textContent]);
+        sized.push({ block, parent, px: parseFloat(getComputedStyle(parent).fontSize) });
       }
-      return out;
+      const words = (s: string) => s.split(" ").filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+      const textOf = (b: Element) => (texts.get(b) ?? []).join("").replace(/\s+/g, " ").trim();
+      const long: Long[] = [];
+      for (const b of texts.keys()) {
+        const text = textOf(b);
+        const all = words(text);
+        const longest = Math.max(0, ...text.split(/(?<=[.!?])\s+/).map(words));
+        if (longest >= SENTENCE || all >= BLOCK) long.push({ text, words: all, longest });
+      }
+      const small: Small[] = [];
+      const seen = new Set<Element>();
+      for (const s of sized) {
+        if (seen.has(s.parent)) continue;
+        seen.add(s.parent);
+        const text = textOf(s.block);
+        const sentence = words(text) >= 5 && /[.!?]$/.test(text);
+        const floor = sentence ? 14 : 13;
+        if (s.px < floor - 0.01) small.push({ text: `${(s.parent.textContent ?? "").trim().slice(0, 60)} (in "${text.slice(0, 60)}")`, px: s.px, floor });
+      }
+      return { long, small };
     },
     { SENTENCE, BLOCK },
   );
 }
 
-async function sweep(page: Page, who: string) {
-  for (const route of ROUTES) {
+async function sweep(page: Page, who: string, routes = ROUTES) {
+  for (const route of routes) {
     const res = await page.goto(`${route}?bust=${Date.now()}`);
     await page.waitForLoadState("networkidle");
     // A screen that did not render cannot be short: assert it arrived first.
     expect(res?.status(), `${who} ${route}`).toBe(200);
     await expect(page.locator("h1").first(), `${who} ${route} has a heading`).toBeVisible();
-    const long = await longBlocks(page);
-    expect(long, `${who} on ${route}: ${long.map((l) => `"${l.text}"`).join(" | ")}`).toEqual([]);
+    const { long, small } = await readTheScreen(page);
+    expect.soft(long, `${who} on ${route}: ${long.map((l) => `"${l.text}"`).join(" | ")}`).toEqual([]);
+    expect.soft(small, `${who} on ${route}, under the floor: ${small.map((s) => `${s.px}px<${s.floor} ${s.text}`).join(" | ")}`).toEqual([]);
   }
 }
 
@@ -112,11 +155,30 @@ test("the scan sees a long paragraph when there is one (control)", async ({ page
     q.setAttribute("data-authored", "");
     q.textContent = "And this one is somebody else's words, which the scan leaves exactly as they were written.";
     document.querySelector("main")!.appendChild(q);
+    // A long sentence sharing its element with a block-level child — the
+    // shape the first scanner could not read.
+    const mixed = document.createElement("div");
+    mixed.append("Countback on the last nine, then the last six, then the last three, then the final hole.");
+    const cite = document.createElement("a");
+    cite.style.display = "flex";
+    cite.textContent = "under a rule";
+    mixed.appendChild(cite);
+    document.querySelector("main")!.appendChild(mixed);
+    // And small type: a sentence at 11px, which the floor puts at 14.
+    const tiny = document.createElement("p");
+    tiny.style.fontSize = "11px";
+    tiny.textContent = "Planted small.";
+    document.querySelector("main")!.appendChild(tiny);
   });
-  const long = await longBlocks(page);
-  expect(long.map((l) => l.text)).toEqual([
-    "This sentence has been planted here to prove that the scan is able to see a long one.",
-  ]);
+  const { long, small } = await readTheScreen(page);
+  expect(long.map((l) => l.text)).toEqual(
+    expect.arrayContaining([
+      "This sentence has been planted here to prove that the scan is able to see a long one.",
+      "Countback on the last nine, then the last six, then the last three, then the final hole.",
+    ]),
+  );
+  expect(long.map((l) => l.text).join(" ")).not.toContain("somebody else's words");
+  expect(small.map((s) => s.px)).toContain(11);
 });
 
 test("an individual entrant", async ({ page }) => {
@@ -152,4 +214,9 @@ test("a cup player, before and after their session is announced, and one sitting
   await sweep(page, "a cup player in the four-ball");
   await asCup(page, baseURL!, "b4");
   await sweep(page, "a cup player sitting the four-ball out");
+
+  // The board a club sends its members, opened from a link with no session —
+  // read on the same phones, so held to the same lines and the same type.
+  await page.context().clearCookies();
+  await sweep(page, "a member opening the public board", [`/live/${f.shareToken}`]);
 });

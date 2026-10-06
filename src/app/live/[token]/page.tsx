@@ -183,7 +183,9 @@ export default async function PublicLeaderboardPage({
               display: "inline-flex",
               alignItems: "center",
               gap: 7,
-              fontSize: 11,
+              // 13px, the label floor (2026-10-06): this is the board a club
+              // sends its members, read on a phone like the player app.
+              fontSize: 13,
               fontWeight: 700,
               letterSpacing: "0.09em",
               textTransform: "uppercase",

@@ -87,7 +87,7 @@ export default async function ClubEventsPage() {
         <Icon name="sword" style={{ color: "var(--color-accent-200)", fontSize: 20 }} />
         <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>Play a casual round</span>
-          <span className="text-muted" style={{ fontSize: 12.5 }}>
+          <span className="text-muted" style={{ fontSize: 13.5 }}>
             Just you and your group — no tournament needed
           </span>
         </span>
@@ -108,13 +108,13 @@ export default async function ClubEventsPage() {
           padding: "10px 12px",
           textDecoration: "none",
           color: "var(--color-text)",
-          fontSize: 13.5,
+          fontSize: 14,
         }}
       >
         <Icon name="calendar-check" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           Your calendar
-          <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
+          <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
             Every round you&rsquo;re in, on the days they&rsquo;re played
           </span>
         </span>

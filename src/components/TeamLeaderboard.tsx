@@ -122,11 +122,20 @@ export function TeamStandingsTable({
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>
                       {places[i] ?? "—"}
                     </td>
-                    <td>
+                    {/* ROOM FOR THE NAME, AND THE NAME ONCE (2026-10-06). At
+                        393px the number columns took the width and a side's
+                        name wrapped a word to a line — "Ashbourne / 1 /
+                        Ashbourne / 2" — then printed again underneath as its
+                        members, 230px a row: a 72-side board was 17 phone
+                        screens. The members line is kept where it says
+                        something the name does not. */}
+                    <td style={{ minWidth: "9.5em" }}>
                       <div style={{ fontWeight: 500 }}>{r.name}</div>
-                      <div className="text-muted" style={{ fontSize: 13 }}>
-                        {r.members.join(" · ") || "No players"}
-                      </div>
+                      {r.members.join(" / ") !== r.name && (
+                        <div className="text-muted" style={{ fontSize: 13 }}>
+                          {r.members.join(" · ") || "No players"}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {r.playingHandicap}

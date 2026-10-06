@@ -320,9 +320,11 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
     out.push({
       label: "Ties",
       value:
+        // Short enough to read on a phone (2026-10-06); the ladder itself is
+        // unchanged, and still the one `stroke-countback.ts` applies.
         input.holes === 9
-          ? "Countback: last 6 holes, then last 3, then the final hole. A tie that survives shares the place."
-          : "Countback: last 9 holes, then last 6, then last 3, then the final hole. A tie that survives shares the place.",
+          ? "Countback: last 6 and 3 holes, then the final hole. A tie after that is shared."
+          : "Countback: last 9, 6 and 3 holes, then the final hole. A tie after that is shared.",
       rule: "decidingTies",
     });
   } else if (input.tiebreakers.length) {
@@ -361,7 +363,7 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
 
   out.push({
     label: "Scorecards",
-    value: "Certified by the marker and the player, then approved by the committee",
+    value: "Signed by marker and player, then approved by the committee",
     rule: "scorecardCertification",
   });
 

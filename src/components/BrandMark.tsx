@@ -19,7 +19,10 @@ export function BrandMark({
   style?: React.CSSProperties;
 }) {
   return (
+    // data-brand: the wordmark is drawn at the logo's proportion, not set as
+    // text — the type floor in e2e/player-words.spec.ts reads past it.
     <span
+      data-brand
       style={{
         fontFamily: "var(--font-heading)",
         fontWeight: 700,
