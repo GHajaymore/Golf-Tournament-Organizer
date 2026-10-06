@@ -18,7 +18,7 @@ import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
 import { weekBasis, valueOnBasis, isStablefordRound } from "@/lib/domain/week-basis";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
-import { yourCardNote } from "@/lib/domain/your-card";
+import { yourCardNote, yourCardShort } from "@/lib/domain/your-card";
 import { myTieLine } from "@/lib/domain/my-tie";
 import { recordBetween } from "@/lib/services/head-to-head";
 import { yourHistory } from "@/lib/domain/head-to-head";
@@ -507,7 +507,7 @@ export default async function PlayTodayPage() {
             <section className="card elev-sm" style={{ marginTop: 18 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }} className="text-muted">
-                Your position and score appear here as soon as the first hole goes in.
+                Your score appears once the first hole goes in.
               </p>
             </section>
           )}
@@ -568,7 +568,7 @@ export default async function PlayTodayPage() {
               </p>
               {m.notStarted && (
                 <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.5 }}>
-                  Nothing recorded yet — it appears here hole by hole as it goes in.
+                  Nothing yet — it fills in hole by hole.
                 </p>
               )}
             </section>
@@ -643,9 +643,14 @@ export default async function PlayTodayPage() {
           ) : (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
-              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-                {yourCardNote({ side: mySide, holes, round: !!round, knockout: round?.knockout })}
-              </p>
+              {round && (
+                <MoreInfo
+                  short={yourCardShort({ side: mySide, holes, round: true, knockout: round.knockout })}
+                  style={{ marginTop: 4 }}
+                >
+                  {yourCardNote({ side: mySide, holes, round: true, knockout: round.knockout })}
+                </MoreInfo>
+              )}
             </section>
           )}
         </>

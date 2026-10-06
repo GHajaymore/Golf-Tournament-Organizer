@@ -18,6 +18,7 @@ import { roundCardFor } from "@/lib/services/round-card";
 import { teamStandings } from "@/lib/services/teams";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
+import { MoreInfo } from "@/components/MoreInfo";
 import { TEAM_SESSION } from "@/lib/services/cup";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
@@ -213,10 +214,10 @@ export default async function PlayCardPage() {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
-        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+        <MoreInfo short="Your matches are scored on Today." style={{ marginTop: 10 }}>
           A cup is scored match by match, so there&rsquo;s no card of your own. Your matches — and the
           button to score each one — are on Today.
-        </p>
+        </MoreInfo>
         <WayForward
           links={[
             { href: "/me", label: "See my matches", icon: "sword" },
@@ -231,14 +232,26 @@ export default async function PlayCardPage() {
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
-        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+        {/* The short line is the answer — whose card it is, or the side's
+            score once it is in, which is a result and never hidden. The why
+            is behind the ⓘ. */}
+        <MoreInfo
+          style={{ marginTop: 10 }}
+          short={
+            myCardedSide
+              ? `Your side's card is in: ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
+              : teamRound
+                ? "This card belongs to your side."
+                : "Match play: no card of your own."
+          }
+        >
           {teamRound
             ? `${me.round.name} is played as ${stage?.format}, so the card belongs to your side rather than to you individually.`
             : `${me.round.name} is match play, so your score is recorded against your opponent rather than as your own card.`}{" "}
           {myCardedSide
             ? `Your side's card is in: ${myCardedSide.name} went round in ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
             : `Your ${terms.organizer} enters it, and it appears on the board as soon as it’s in.`}
-        </p>
+        </MoreInfo>
         {/* A way forward out of what was otherwise a dead end.
             A player taps "My card" on a match-play round, is told the card is
             not theirs, and until now the only offer was the whole board. Their
@@ -429,10 +442,10 @@ export default async function PlayCardPage() {
         want the scores, and refusing them would be deciding that for them.
         What changes is that it no longer implies a result is coming. */}
     {isManualFormat(stage?.format ?? "") && (
-      <p className="text-muted" style={{ margin: "12px 0 0", fontSize: 13, lineHeight: 1.6 }}>
+      <MoreInfo short="Scored by hand — the committee decides the result." style={{ marginTop: 12 }}>
         This round is scored by hand, so nothing here works out a position — your card is kept for
         your own record, and the committee decides the result.
-      </p>
+      </MoreInfo>
     )}
     </DistanceUnitProvider>
   );

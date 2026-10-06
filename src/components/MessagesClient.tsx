@@ -308,7 +308,7 @@ export function MessagesClient({
                   {m.authorName || m.authorEmail}
                 </div>
               )}
-              <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
+              <div data-authored style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               <div style={{ fontSize: 13, opacity: 0.7, marginTop: 3, textAlign: "right" }}>
                 {when(m.createdAt, locale, now)}
               </div>
@@ -526,8 +526,7 @@ function OptOutPanel({
             Don&rsquo;t let other players message me directly
           </span>
           <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
-            You&rsquo;ll be taken out of the list people pick from, and nobody can start a private
-            conversation with you.
+            Nobody can start a private conversation with you.
           </span>
         </span>
       </label>

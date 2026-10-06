@@ -18,7 +18,7 @@ export function cupVerdictLine(board: CupBoard): string {
     // A lineup can exist and be a draft; "no matches" would not be true then.
     return board.sessions.some((s) => !s.published) ? "No lineup has been announced yet." : "No matches in the lineup yet.";
   }
-  if (v.needA === null || v.needB === null) return "The points to win are set once every session's lineup is announced.";
+  if (v.needA === null || v.needB === null) return "Points to win: set once every lineup is out.";
   return `${cupPoints(board.target)} to win · ${a.name} need ${cupPoints(v.needA)}, ${b.name} need ${cupPoints(v.needB)}.`;
 }
 

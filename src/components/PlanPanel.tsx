@@ -115,10 +115,25 @@ export function PlanPanel({
 
   return (
     <div className="card elev-sm" style={{ gap: 14 }}>
+      {/* WHAT YOU ARE ON, IN ONE LINE, with the four tiers behind "Compare
+          plans" (Ajay, 2026-10-06). The panel showed every tier's card and the
+          whole upgrade list on every visit — a comparison a club needs when it
+          is deciding, not each time it opens its settings. */}
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Your plan</span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-          What you are on today, and what the other one includes.
+        {/* "You're on Birdie, $49 a month" — worded as a fact, never in the
+            "Birdie · $49/mo" shape of a buy button beside it, which would
+            offer a paying club the plan it already has. */}
+        <p style={{ fontSize: 14, margin: "4px 0 0" }}>
+          You&rsquo;re on <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>{current.name}</span>
+          {current.contactOnly
+            ? "."
+            : effectivePrice(current, overrides, quoteIn) === 0
+              ? ", free."
+              : `, ${price(effectivePrice(current, overrides, quoteIn))} a month.`}
+        </p>
+        <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0", lineHeight: 1.5 }}>
+          {limitLine(current)}
         </p>
       </div>
 
@@ -179,7 +194,47 @@ export function PlanPanel({
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+      {benefits.length > 0 && (
+        <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          <span style={{ fontWeight: 600 }}>Upgrading adds:</span> {benefits[0]}
+          {benefits.length > 1 && <span className="text-muted"> And {benefits.length - 1} more.</span>}
+        </p>
+      )}
+
+      {/* BUYING A PLAN (2026-10-02). This is the club paying TourneyHQ for the
+          software — not golf money, which the app still never moves. With
+          billing switched on the buttons open Stripe's own hosted pages; with
+          it off, the panel says what it always said. */}
+      {billing?.enabled ? (
+        <Suspense fallback={null}>
+          <PlanBilling
+            offers={PURCHASABLE_PLANS.filter((k) => k !== current.key).flatMap((k) => {
+              const p = PLANS[k];
+              return [
+                { plan: k, interval: "year" as const, label: `${p.name} · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr` },
+                { plan: k, interval: "month" as const, label: `${p.name} · ${price(effectivePrice(p, overrides, quoteIn))}/mo` },
+              ];
+            })}
+            hasSubscription={billing.hasSubscription}
+            pastDue={billing.pastDue}
+            canEdit={billing.canEdit}
+            heldUntil={billing.heldUntil}
+          />
+        </Suspense>
+      ) : (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+          Changing plan is arranged with us directly — nothing is charged through the app.
+        </p>
+      )}
+
+      <details>
+        <summary
+          className="touch-target"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}
+        >
+          Compare plans
+        </summary>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 8 }}>
         {(Object.values(PLANS) as Plan[]).map((p) => {
           const mine = p.key === current.key;
           return (
@@ -229,7 +284,7 @@ export function PlanPanel({
       </div>
 
       {benefits.length > 0 && (
-        <div>
+        <div style={{ marginTop: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>What upgrading would add</span>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
             {benefits.map((b) => (
@@ -238,32 +293,7 @@ export function PlanPanel({
           </ul>
         </div>
       )}
-
-      {/* BUYING A PLAN (2026-10-02). This is the club paying TourneyHQ for the
-          software — not golf money, which the app still never moves. With
-          billing switched on the buttons open Stripe's own hosted pages; with
-          it off, the panel says what it always said. */}
-      {billing?.enabled ? (
-        <Suspense fallback={null}>
-          <PlanBilling
-            offers={PURCHASABLE_PLANS.filter((k) => k !== current.key).flatMap((k) => {
-              const p = PLANS[k];
-              return [
-                { plan: k, interval: "year" as const, label: `${p.name} · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr` },
-                { plan: k, interval: "month" as const, label: `${p.name} · ${price(effectivePrice(p, overrides, quoteIn))}/mo` },
-              ];
-            })}
-            hasSubscription={billing.hasSubscription}
-            pastDue={billing.pastDue}
-            canEdit={billing.canEdit}
-            heldUntil={billing.heldUntil}
-          />
-        </Suspense>
-      ) : (
-        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-          Changing plan is arranged with us directly — nothing is charged through the app.
-        </p>
-      )}
+      </details>
     </div>
   );
 }

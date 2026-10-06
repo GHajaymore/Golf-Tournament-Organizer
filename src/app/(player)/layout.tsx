@@ -251,8 +251,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               {gateEvent?.name ?? "This tournament"} hasn&rsquo;t opened yet
             </h1>
             <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-              Your club is still setting it up. Everything here — your card, the board, the tee
-              sheet — opens as soon as they are ready, and you will not need to do anything.
+              Your club is still setting it up. Nothing to do — it opens here when ready.
             </p>
             <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
               Playing in something else today? Use the switcher above.

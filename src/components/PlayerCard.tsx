@@ -1047,8 +1047,8 @@ export function PlayerCard({
           )}
           {state === "disputed" && (
             <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55, color: "var(--color-danger)" }}>
-              <Icon name="warning-circle" /> Flagged as wrong. The committee has been told and will
-              not accept it until it is sorted out.
+              <Icon name="warning-circle" /> Flagged as wrong. The committee won&rsquo;t accept it until
+              it&rsquo;s sorted.
             </p>
           )}
           {/* ONE "RULES" LINE for both rule links — the Rules of Golf on

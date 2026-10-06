@@ -848,10 +848,10 @@ export function MoneyClient({
       {view.sideGames.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Pots on the scores</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.5 }}>
+          <MoreInfo short="Put your name down, then pay the organizer." style={{ margin: "4px 0 8px" }}>
             Worked out from the cards — no result to enter. Put your name down here and pay the
             organizer; nothing counts until they have it.
-          </p>
+          </MoreInfo>
           {view.sideGames.map((g) => (
             <div
               key={g.id}
@@ -941,7 +941,7 @@ export function MoneyClient({
                 The rest of your side bets
               </span>
               <span className="text-muted" style={{ fontSize: 13 }}>
-                Your share of the skins and the score pots — worked out from the cards.
+                Your share of the skins and score pots.
               </span>
               {/* ITEMISED, where it used to be a lump.
                   This was money in a player's own total that the screen could
@@ -1107,10 +1107,10 @@ export function MoneyClient({
           );
         })()}
         {view.expenses.length === 0 && (
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
-            Nothing yet. Add what you paid for and it splits between whoever was there — {terms.carts} with
-            your group, dinner with everyone.
-          </p>
+          <MoreInfo short="No shared costs yet." style={{ marginTop: 6 }}>
+            Add what you paid for and it splits between whoever was there — {terms.carts} with your
+            group, dinner with everyone.
+          </MoreInfo>
         )}
         {/* OPEN, not collapsed.
             Who owes what on a bill is the thing this screen exists to answer,

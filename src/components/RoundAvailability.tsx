@@ -328,10 +328,10 @@ function CaptainTable({ f }: { f: CaptainFlight }) {
           <span className="card-kicker">
             {f.flightName} (you&rsquo;re {f.deputy ? "vice-captain" : "captain"})
           </span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.5 }}>
-            Who your side has available, week by week. To change someone&rsquo;s answer, ask
-            the organizer &mdash; captains don&rsquo;t set other players&rsquo; availability.
-          </p>
+          <MoreInfo short="Who your side has, week by week." style={{ margin: "4px 0 8px" }}>
+            To change someone&rsquo;s answer, ask the organizer &mdash; captains don&rsquo;t set other
+            players&rsquo; availability.
+          </MoreInfo>
           {/* A table, because this is a grid of two variables — who, and which
               week — and any other shape makes the reader hold one of them in
               their head. It scrolls sideways rather than squeezing the names. */}

@@ -6,6 +6,7 @@ import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole } from "@/lib/domain/stroke";
@@ -447,10 +448,9 @@ export function PlayClient(props: Props) {
               not exist. "Whoever set the round up" covers a club secretary and
               a mate equally, and the tee sheet is kept as the second half,
               where it is an example rather than the instruction. */}
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Type the round code you were given — whoever set the round up will have read it out, or
-            it may be on the tee sheet.
-          </p>
+          <MoreInfo short="Type the round code you were given." style={{ marginTop: 6 }}>
+            Whoever set the round up will have read it out, or it may be on the tee sheet.
+          </MoreInfo>
         </div>
 
         <div className="card elev-sm" style={{ gap: 12 }}>
@@ -578,7 +578,7 @@ export function PlayClient(props: Props) {
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
             {/* Says which kind of round this is, because the surface used to
                 claim every round was a match. */}
-            Your own card — nobody to play, just your score on each hole.{" "}
+            Your own card, hole by hole.{" "}
             {props.submitWhole
               ? "Your organizer wants the full round submitted at the end."
               : "Saves as you go."}

@@ -48,7 +48,7 @@ export function withdrawWords(
     : {
         consequence: "If the field is full, your place goes to the next person on the waiting list.",
         keep: "Keep my place",
-        done: "You’ve withdrawn. If there was a waiting list, your place has gone to the next person on it.",
+        done: "You’ve withdrawn. Any waiting list moves up a place.",
       };
 }
 

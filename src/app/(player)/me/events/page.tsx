@@ -129,8 +129,8 @@ export default async function ClubEventsPage() {
           <span className="card-title">No tournaments yet</span>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {club
-              ? `${club.name} has not published any tournaments yet. When it does, they will appear here and you can enter from this screen.`
-              : "You are not in a club's tournaments yet. When a club adds you, its tournaments appear here and you can enter from this screen."}
+              ? `${club.name}'s tournaments appear here to enter once published.`
+              : "A club's tournaments appear here once it adds you."}
           </p>
         </div>
       ) : (

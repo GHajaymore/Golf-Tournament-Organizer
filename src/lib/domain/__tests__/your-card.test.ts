@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { yourCardNote } from "../your-card";
+import { yourCardNote, yourCardShort } from "../your-card";
 
 /**
  * THE SENTENCE UNDER "YOUR CARD" ON A ROUND THE PLAYER DOES NOT SCORE.
@@ -77,5 +77,47 @@ describe("what Today says about a card that is not the player's own", () => {
     expect(yourCardNote({ side: null, holes: 18, round: true })).toMatch(/against your opponent/i);
     expect(yourCardNote({ side: null, holes: 18 })).toMatch(/against your opponent/i);
     expect(yourCardNote({ side: { played: 9 }, holes: 9, round: true })).toMatch(/card is in/i);
+  });
+});
+
+/**
+ * THE SHORT LINE ON TODAY (2026-10-06): where the card has got to, in under ten
+ * words, with the full note behind its ⓘ. It must say the same thing as the
+ * note at every stage — a short line that disagreed with its own explanation
+ * would be worse than the long one.
+ */
+describe("yourCardShort", () => {
+  const cases: Parameters<typeof yourCardShort>[0][] = [
+    { side: { played: 0 }, holes: 18 },
+    { side: { played: 7 }, holes: 18 },
+    { side: { played: 18 }, holes: 18 },
+    { side: { played: 9 }, holes: 9 },
+    { side: null, holes: 18 },
+    { side: null, holes: 18, round: true, knockout: true },
+  ];
+
+  it("is under ten words in every state", () => {
+    for (const c of cases) expect(yourCardShort(c).split(" ").length).toBeLessThan(10);
+  });
+
+  it("carries the progress the note gives", () => {
+    expect(yourCardShort({ side: { played: 7 }, holes: 18 })).toBe("Your side is thru 7.");
+    expect(yourCardShort({ side: { played: 18 }, holes: 18 })).toMatch(/card is in/);
+    expect(yourCardShort({ side: { played: 9 }, holes: 9 })).toMatch(/card is in/);
+    // Nine of eighteen is NOT in — the same line the note draws.
+    expect(yourCardShort({ side: { played: 9 }, holes: 18 })).toBe("Your side is thru 9.");
+    expect(yourCardShort({ side: { played: 0 }, holes: 18 })).toBe("This card belongs to your side.");
+  });
+
+  it("names the same kind of card as the note", () => {
+    expect(yourCardShort({ side: null, holes: 18, round: true, knockout: true })).toMatch(/draw/);
+    expect(yourCardNote({ side: null, holes: 18, round: true, knockout: true })).toMatch(/draw/);
+    expect(yourCardShort({ side: null, holes: 18 })).toMatch(/match/);
+    expect(yourCardNote({ side: null, holes: 18 })).toMatch(/opponent/);
+  });
+
+  it("says nothing when there is no round, like the note", () => {
+    expect(yourCardShort({ side: null, holes: 0, round: false })).toBe("");
+    expect(yourCardShort({ side: { played: 4 }, holes: 18, round: false })).toBe("");
   });
 });

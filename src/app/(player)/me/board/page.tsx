@@ -1,5 +1,6 @@
 import { Icon } from "@/components/Icon";
 import { WayForward } from "@/components/WayForward";
+import { MoreInfo } from "@/components/MoreInfo";
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
@@ -146,10 +147,10 @@ export default async function PlayBoardPage({
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
-        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+        <MoreInfo short="No round yet, so nothing to rank." style={{ marginTop: 10 }}>
           There&rsquo;s no round to play in this tournament yet, so there&rsquo;s nothing to rank.
           The board appears here as soon as there is one.
-        </p>
+        </MoreInfo>
         <WayForward
           links={[
             { href: "/me", label: "Back to today", icon: "flag" },
@@ -240,11 +241,14 @@ export default async function PlayBoardPage({
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
         {picker}
+        {kind === "manual" ? (
+          // No "when it's settled": also shown on a finished tournament.
+          <MoreInfo short="Scored by hand — no board for this round." style={{ marginTop: 10 }}>
+            This round is scored by hand, so there is no board for it here — the committee works out the result.
+          </MoreInfo>
+        ) : (
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          {kind === "manual"
-            ? /* No "when it's settled": also shown on a finished tournament. */
-              "This round is scored by hand, so there is no board for it here — the committee works out the result."
-            : kind === "team"
+          {kind === "team"
               ? `This round ranks sides rather than players. ${teamBoardNote(
                   stage?.format ?? "",
                   sides?.length ?? 0,
@@ -258,6 +262,7 @@ export default async function PlayBoardPage({
                     ? MOD_STABLEFORD_NOTE
                     : `This round is scored a different way. Ask your ${terms.organizer} for the current standings.`}
         </p>
+        )}
         {points && (
           <div style={{ marginTop: 14 }}>
             {points.kind === "skins" ? (

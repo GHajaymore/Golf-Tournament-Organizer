@@ -1,6 +1,7 @@
 import { indexLabel } from "@/lib/domain/handicap-label";
 import type { SkinsBoard, NassauMatchRow, ModStablefordRow } from "@/lib/services/points-standings";
 import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Boards for the formats that read an ordinary card a different way.
@@ -15,7 +16,7 @@ export const SKINS_NOTE = (net: boolean) =>
 
 /** What a Nassau is, said once. */
 export const NASSAU_NOTE =
-  "Nassau · three bets on one card: front nine, back nine, and the full eighteen.";
+  "Nassau · front nine, back nine and the full eighteen.";
 
 export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boolean }) {
   return (
@@ -53,9 +54,9 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
     <>
       <div className="card elev-sm" style={{ marginBottom: 16 }}>
         {outcome.standings.length === 0 ? (
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            No holes decided yet. A hole needs at least two returned scores to be a contest.
-          </p>
+          <MoreInfo short="No holes decided yet.">
+            A hole needs at least two returned scores to be a contest.
+          </MoreInfo>
         ) : (
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 13 }}>
@@ -93,10 +94,10 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
       {outcome.holes.length > 0 && (
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 14, marginBottom: 6 }}>Hole by hole</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+          <MoreInfo short="A tied hole carries its skin to the next." style={{ marginBottom: 8 }}>
             The carry is the whole game — a player who has won nothing all day can take the lot on the
             last.
-          </p>
+          </MoreInfo>
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 13 }}>
               <thead>
@@ -262,11 +263,11 @@ export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStabl
             </table>
           </div>
         )}
-        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
+        <MoreInfo short="Points can go negative." style={{ marginTop: 8 }}>
           Points can go negative — the format is meant to punish a blow-up hole, not floor it at zero
           the way standard Stableford does. Players who haven&apos;t returned a card are unranked
           rather than shown level on nothing.
-        </p>
+        </MoreInfo>
       </div>
     </>
   );

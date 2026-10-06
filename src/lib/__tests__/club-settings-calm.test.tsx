@@ -12,7 +12,9 @@ import { LocalePicker } from "@/components/LocalePicker";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { cleanSettings } from "@/lib/tournament-settings";
-import { DEFAULT_CLUB_THEME } from "@/lib/themes";
+import { DEFAULT_CLUB_THEME, THEME_PAIRS, pairFor, sunlightVerdict, type ClubTheme } from "@/lib/themes";
+import { PlanPanel } from "@/components/PlanPanel";
+import { upgradeBenefits } from "@/lib/plans";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -199,5 +201,61 @@ describe("the long explanations are still there, one tap away", () => {
   it("what a new tournament inherits", () => {
     expect(card("house defaults")).toContain("never rewrites an event in progress");
     expect(card("money")).toContain("Prizes &amp; payouts");
+  });
+});
+
+/**
+ * THE COLOURS AND THE PLANS FOLD — Ajay, 2026-10-06, after #802 left the page
+ * 14.6 phone screens tall on its controls alone: eleven scheme cards, two
+ * swatch grids, four plan tiers and their upgrade list.
+ *
+ * Asserted by ORDER in the page rather than by a count of visible words: what
+ * a club must see is before the fold, what it chooses from is after it, and
+ * the fold is closed. The picker and the tiers stay in the page, so every test
+ * pinning their words still reads them.
+ */
+describe("the colours and the plans fold, and what must be seen stays out", () => {
+  const plain = (html: string) =>
+    html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const foldAt = (html: string) => {
+    const at = html.indexOf("<details");
+    expect(at, "there is a fold").toBeGreaterThan(-1);
+    expect(html.slice(at, html.indexOf(">", at)), "and it starts closed").not.toMatch(/\bopen\b/);
+    return at;
+  };
+
+  it("the theme says what the club has, with the picker behind Change colours", () => {
+    const html = plain(render(<ThemePicker theme={DEFAULT_CLUB_THEME} readOnly={false} />));
+    const fold = foldAt(html);
+    const name = pairFor(DEFAULT_CLUB_THEME.accentKey, DEFAULT_CLUB_THEME.secondaryKey)!.name;
+    expect(html.indexOf(name)).toBeGreaterThan(-1);
+    expect(html.indexOf(name), "the scheme's name is read without a tap").toBeLessThan(fold);
+    expect(html.indexOf("Change colours")).toBeGreaterThan(fold);
+    expect(html.indexOf("Colour scheme"), "the eleven schemes are folded").toBeGreaterThan(fold);
+    expect(html.indexOf("Main colour"), "the swatches are folded").toBeGreaterThan(fold);
+  });
+
+  it("a look that fails in the sun says so ABOVE the fold", () => {
+    const dim = THEME_PAIRS.map(
+      (p): ClubTheme => ({ ...DEFAULT_CLUB_THEME, accentKey: p.accentKey, secondaryKey: p.secondaryKey, appearance: "dark" }),
+    ).find((t) => sunlightVerdict(t).warning);
+    expect(dim, "a scheme that fails on dark exists (control)").toBeDefined();
+    const html = plain(render(<ThemePicker theme={dim!} readOnly={false} />));
+    const warning = sunlightVerdict(dim!).warning!;
+    expect(html.indexOf(warning)).toBeGreaterThan(-1);
+    expect(html.indexOf(warning), "the sun warning is never folded away").toBeLessThan(foldAt(html));
+  });
+
+  it("the plan says what you're on, with the four tiers behind Compare plans", () => {
+    const html = plain(renderToStaticMarkup(<PlanPanel planKey="free" termsApply />));
+    const fold = foldAt(html);
+    expect(html.indexOf("You’re on")).toBeGreaterThan(-1);
+    expect(html.indexOf("You’re on")).toBeLessThan(fold);
+    // The retention warning is the loudest thing on the panel, by its own
+    // comment — it deletes work — so it is never behind a tap.
+    expect(html.indexOf("Deleted when completed")).toBeGreaterThan(-1);
+    expect(html.indexOf("Deleted when completed")).toBeLessThan(fold);
+    expect(html.indexOf(upgradeBenefits("free")[0]), "the first reason to upgrade is visible").toBeLessThan(fold);
+    expect(html.indexOf("You are here"), "the tier cards are folded").toBeGreaterThan(fold);
   });
 });

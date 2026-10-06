@@ -157,6 +157,7 @@ export function ThemePicker({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<ClubTheme>(theme);
   // Held separately from the draft so typing a half-finished hex doesn't blank
   // the preview on every keystroke.
@@ -363,6 +364,59 @@ export function ThemePicker({
           Applies to every tournament this {noun} runs, on every device anyone opens it on.
         </p>
       </div>
+
+      {/* WHAT THE CLUB HAS, IN ONE LINE, with the picker behind "Change
+          colours" (Ajay, 2026-10-06). Eleven schemes and two swatch grids
+          were most of the height of Club settings — and a club picks its look
+          once. Read off what is SAVED, not the draft: this line answers "what
+          do my members see". */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>
+          {theme.accentKey === "custom" || theme.secondaryKey === "custom"
+            ? "Your own colours"
+            : (pairFor(theme.accentKey, theme.secondaryKey)?.name ?? "Your own colours")}
+        </span>
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          · {APPEARANCES.find((a) => a.key === theme.appearance)?.name ?? "Follow the device"}
+        </span>
+        <SunBadge grade={themeSunGrade(theme)} />
+      </div>
+
+      {/* The sun warning stays OUT of the fold: a club whose look fails the
+          bar outdoors is told so, and told the remedy, every time it opens
+          this screen — not only if it thinks to look. */}
+      {sun.warning && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <Icon name="sun" style={{ fontSize: 15, marginTop: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
+            {sun.suggestion && (
+              <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{sun.suggestion}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Held open while there are unsaved changes, so a draft cannot be
+          folded away out of sight; Save or Discard first. */}
+      <details open={open || dirty} onToggle={(e) => setOpen(e.currentTarget.open)}>
+        <summary
+          className="touch-target"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}
+        >
+          {readOnly ? "See the colours" : "Change colours"}
+        </summary>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
 
       {/* Appearance first: it changes the ground every colour below is judged
           against, and it matters more outdoors than any colour does. */}
@@ -611,30 +665,6 @@ export function ThemePicker({
 
       <ThemePreview theme={draft} ground={ground} />
 
-      {/* No contrast standard covers a phone in direct sun, and that is where
-          this app is used. */}
-      {sun.warning && (
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
-          }}
-        >
-          <Icon name="sun" style={{ fontSize: 15, marginTop: 1 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
-            {sun.suggestion && (
-              <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{sun.suggestion}</p>
-            )}
-          </div>
-        </div>
-      )}
-
       {pair.kind !== "ok" && (
         <div
           style={{
@@ -714,6 +744,8 @@ export function ThemePicker({
           )}
         </div>
       )}
+      </div>
+      </details>
     </div>
   );
 }
