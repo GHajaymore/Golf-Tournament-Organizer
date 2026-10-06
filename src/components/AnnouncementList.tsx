@@ -21,9 +21,23 @@ export type { AnnouncementItem } from "./AnnouncementCard";
  * organizer saying this outranks everything — and never on the organizer's
  * dashboard, which shows what was posted.
  */
-export function AnnouncementList({ items, foldSeen = false }: { items: AnnouncementItem[]; foldSeen?: boolean }) {
+export function AnnouncementList({
+  items,
+  foldSeen = false,
+  lineOnceRead = false,
+}: {
+  items: AnnouncementItem[];
+  foldSeen?: boolean;
+  /**
+   * The player's PINNED notices on Today (2026-10-06): in full until this
+   * phone has shown them, then one line — the title, the text a tap away.
+   * Never folded away; see `FoldedAnnouncements`.
+   */
+  lineOnceRead?: boolean;
+}) {
   if (items.length === 0) return null;
   if (foldSeen) return <FoldedAnnouncements items={items} />;
+  if (lineOnceRead) return <FoldedAnnouncements items={items} earlierFold={false} />;
 
   return (
     <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>

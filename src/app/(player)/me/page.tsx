@@ -48,6 +48,11 @@ import { MoreInfo } from "@/components/MoreInfo";
 import { MyCup } from "@/components/MyCup";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { canEnterScores } from "@/lib/tournament-settings";
+import { clubCommitmentsFor } from "@/lib/services/club-calendar";
+import { weekAhead } from "@/lib/domain/club-calendar";
+import { dayInWords } from "@/lib/domain/round-dates";
+import { formattingForEvent } from "@/lib/services/organization";
+import { enterTournament } from "@/app/actions/auth";
 
 /**
  * Today — the player's home.
@@ -240,6 +245,30 @@ export default async function PlayTodayPage() {
         )[myIdx]
       : null;
 
+  /**
+   * ONE SCREEN, THEN MORE (Ajay, 2026-10-06). Today answers the moment — the
+   * round, the group, whether you're playing, where you stand, what you have
+   * on this week — and everything a player only sometimes wants sits behind
+   * one labelled extender at the bottom. What decides each placement:
+   *
+   *   In / Out        on the screen until the round is under way: before it,
+   *                   "are you playing Friday" IS the moment; once the card
+   *                   has holes, the season's weeks are not.
+   *   Leaders         on the screen only for somebody with no card of their
+   *                   own (watching, waiting) — for them the board is the
+   *                   content. A player with a card gets one position line,
+   *                   and the table behind More.
+   *   This week       the player's rounds in their OTHER tournaments over the
+   *                   next seven days — Today is one tournament, and "what
+   *                   have I got on" is not.
+   */
+  const today = todayIso();
+  const { locale } = await formattingForEvent(state.event.id);
+  const thisWeek = weekAhead(await clubCommitmentsFor(session.email), today, session.eventId);
+  const availabilityShown = Boolean(me.playerId && availability.playerId);
+  const availabilityOnScreen = availabilityShown && Boolean(availability.next) && !card?.filled;
+  const leadersOnScreen = !hero;
+
   const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
   const shownNames = boardNames(shown.map((s) => s.row.name));
   const isStableford = isStablefordRound(boardStage?.scoringBasis, boardStage?.format);
@@ -260,6 +289,33 @@ export default async function PlayTodayPage() {
     you: row.id === me.playerId,
     gap,
   }));
+
+  /** The In / Out card — on the screen or under More, never both. */
+  const availabilityCard = availabilityShown ? (
+    <div style={{ marginTop: 12 }}>
+      <RoundAvailability
+        playerId={availability.playerId}
+        next={availability.next}
+        future={availability.future}
+        past={availability.past}
+        captainOf={availability.captainOf}
+        asksPlayer={availability.asksPlayer}
+        today={today}
+        compact
+      />
+    </div>
+  ) : null;
+  /**
+   * The extender NAMES what is in it — "More: Leaders · Your rounds" — so a
+   * player knows whether it is worth opening. With nothing to name it is not
+   * drawn at all: an extender that opens onto nothing is worse than none.
+   */
+  const moreParts = [
+    !leadersOnScreen && leaders.length > 0 ? "Leaders" : "",
+    availabilityShown && !availabilityOnScreen ? "Your rounds" : "",
+    playWith ? "Playing partners" : "",
+  ].filter(Boolean);
+  const moreLabel = `More: ${moreParts.join(" · ")}`;
 
   return (
     <div>
@@ -310,7 +366,7 @@ export default async function PlayTodayPage() {
        * dashboard", and pinning is the organizer saying this one outranks
        * everything — a frost delay. Unpinned posts sit under the round.
        */}
-      <AnnouncementList items={announcements.filter((a) => a.pinned)} />
+      <AnnouncementList items={announcements.filter((a) => a.pinned)} lineOnceRead />
 
       {cup && me.playerId && (
         <MyCup board={cup} meId={me.playerId} canScore={canEnterScores(settingsOf(state.event), session.viewRole)} />
@@ -705,15 +761,18 @@ export default async function PlayTodayPage() {
        * Board tab would show them: the club has published standings, and the
        * round ranks individuals. The qualifier ("2 of 4 cards in — these
        * standings will change") is printed under the board it qualifies.
+       *
+       * On the screen for somebody with no card of their own; a player with a
+       * card reads one position line here and the table under More.
        */}
-      {leaders.length > 0 ? (
+      {leadersOnScreen && leaders.length > 0 && (
         <ScoreboardLeaders
           rows={leaders}
           note={standing?.note || standing?.record || ""}
           title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
         />
-      ) : (
-        hero &&
+      )}
+      {hero &&
         standing && (
           <Link
             href="/me/board"
@@ -743,8 +802,7 @@ export default async function PlayTodayPage() {
             </span>
             <Icon name="arrow-right" />
           </Link>
-        )
-      )}
+        )}
 
       {/* The sheet is out and I am not on it — entered after the draw. Said
           plainly, so "not drawn yet" and "left off" are not the same silence.
@@ -759,48 +817,85 @@ export default async function PlayTodayPage() {
         </section>
       )}
 
-      {/* A pairing request, while there is still a draw to ask of — no group
-          on a published sheet yet, and nothing on the card. */}
-      {playWith && (
-        <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />
-      )}
+      {/* Am I playing, and when — asked as a question until it is answered,
+          one line after (`NextRound`). On the screen until the round is under
+          way; then it joins the rest of the season under More. */}
+      {availabilityOnScreen && availabilityCard}
 
-      {/* Opt in to tee-time push alerts. Self-hiding: it renders nothing where
-          push isn't available and shrinks to one line once alerts are on, so it
-          is a prompt rather than a permanent card. */}
-      <div style={{ marginTop: 12 }}>
-        <PushToggle />
-      </div>
-
-      {/* The rest of what the club posted, under the player's own round. */}
+      {/* What the club posted: new ones in full, read ones folded into
+          "N earlier messages" (2026-10-05). */}
       {announcements.some((a) => !a.pinned) && (
         <div style={{ marginTop: 12 }}>
-          {/* Read once, then folded into "N earlier messages" (2026-10-05). */}
           <AnnouncementList items={announcements.filter((a) => !a.pinned)} foldSeen />
         </div>
       )}
 
-      {/* The club's tournaments and a casual round used to be two rows here.
-          Both live on the Events tab now (player-nav.ts), one tap from
-          anywhere — a row on Today was a second way to the same place. */}
+      {/* WHAT ELSE I HAVE ON THIS WEEK — my rounds in my other tournaments,
+          each one tap from that tournament's Today (`weekAhead`). */}
+      {thisWeek.length > 0 && (
+        <section aria-label="This week" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="card-kicker">Also this week</span>
+          {thisWeek.map((c) => (
+            <form key={c.stageId} action={enterTournament.bind(null, c.eventId, "player")}>
+              <button
+                type="submit"
+                className="btn btn-secondary"
+                style={{ width: "100%", minHeight: 48, justifyContent: "space-between", textAlign: "left", gap: 10 }}
+              >
+                <span style={{ minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                  <span style={{ fontWeight: 600 }}>
+                    {capitalise(dayInWords(c.playedOn, today, locale))}
+                    {c.roundLabel ? ` · ${c.roundLabel}` : ""}
+                  </span>
+                  <span className="text-muted" style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.eventName}
+                  </span>
+                </span>
+                <Icon name="arrow-right" />
+              </button>
+            </form>
+          ))}
+        </section>
+      )}
 
-      {/* Am I playing, and when. `compact`: the next round's In / Out on its
-          own, the season's calendar a tap away (Ajay, 2026-10-05) — two month
-          grids were over a screen of Today on a phone. */}
-      {me.playerId && availability.playerId && (
+      {/* MORE — what a player only sometimes wants, behind one extender that
+          names what is in it. Nothing in here needs them to act. */}
+      {moreParts.length === 0 ? (
         <div style={{ marginTop: 12 }}>
-          <RoundAvailability
-            playerId={availability.playerId}
-            next={availability.next}
-            future={availability.future}
-            past={availability.past}
-            captainOf={availability.captainOf}
-            asksPlayer={availability.asksPlayer}
-            today={todayIso()}
-            compact
-          />
+          <PushToggle />
         </div>
+      ) : (
+      <details style={{ marginTop: 16 }}>
+        <summary
+          className="touch-target"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
+        >
+          <Icon name="caret-down" aria-hidden />
+          {moreLabel}
+        </summary>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+          {!leadersOnScreen && leaders.length > 0 && (
+            <ScoreboardLeaders
+              rows={leaders}
+              note={standing?.note || standing?.record || ""}
+              title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
+            />
+          )}
+          {availabilityShown && !availabilityOnScreen && availabilityCard}
+          {/* A pairing request, while there is still a draw to ask of — no
+              group on a published sheet yet, and nothing on the card. */}
+          {playWith && <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />}
+          {/* Tee-time alerts. Self-hiding where push isn't available, one line
+              once they are on. */}
+          <PushToggle />
+        </div>
+      </details>
       )}
     </div>
   );
+}
+
+/** "tomorrow" → "Tomorrow", for the start of a line. */
+function capitalise(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
 }

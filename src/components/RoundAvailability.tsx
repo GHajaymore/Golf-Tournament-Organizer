@@ -230,23 +230,21 @@ export function RoundAvailability({
 
   if (compact) {
     return (
-      <div className="card elev-sm" style={{ gap: 12 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div className="card elev-sm" role="region" aria-label="Your availability" style={{ gap: 12 }}>
+        {next ? (
+          <NextRound
+            round={next}
+            status={byStage[next.stageId]}
+            explicit={explicitByStage[next.stageId]}
+            pending={pending}
+            onAnswer={answer}
+            asksPlayer={asksPlayer}
+            explanation={explanation}
+          />
+        ) : (
           <span className="card-title" style={{ fontSize: 16 }}>
             {asksPlayer ? "Your availability" : "Whether you're playing"}
           </span>
-          <MoreInfo
-            short={asksPlayer ? "Tap In or Out for each round." : "Your captain sends the side in."}
-          >
-            {explanation}
-          </MoreInfo>
-        </div>
-
-        {next && (
-          <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <span className="card-kicker">Next round</span>
-            {row(next, true)}
-          </section>
         )}
 
         {(future.length > 0 || past.length > 0) && (
@@ -255,7 +253,7 @@ export function RoundAvailability({
               className="touch-target"
               style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}
             >
-              <Icon name="calendar-blank" /> See all rounds ({all.length})
+              <Icon name="calendar-blank" /> {next ? "Your other rounds" : "Your rounds"} ({future.length + past.length})
             </summary>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 10 }}>
               {viewToggle}
@@ -399,6 +397,176 @@ function CaptainTable({ f }: { f: CaptainFlight }) {
             </table>
           </div>
         </div>
+  );
+}
+
+/**
+ * THE NEXT ROUND, ASKED AS A GOLFER ASKS IT (Ajay, 2026-10-06).
+ *
+ * It was a form: a title, an instruction, a "Next round" kicker, a tinted
+ * panel, an In / Out control that read as two tabs, a "by default" chip that
+ * did not say which way the default went, and two dates to reconcile ("in 3
+ * days", "Answer by Thu, Oct 8"). A player wants one thing from it: am I down
+ * to play on Friday, and how do I change that.
+ *
+ *   asked, unanswered   "Are you playing?" — the default said in words, and two
+ *                       EQUAL buttons. Neither is filled: filling the default
+ *                       would make an assumption look like an answer, which
+ *                       is the ambiguity "by default" had. The organizer's
+ *                       draw needs answers, and equal buttons ask for one.
+ *   asked, answered     one line — "You're playing on Friday" — and Change.
+ *   closed              the same line, locked, and who to ask.
+ *   captain answers     what the captain has sent; nothing to press.
+ *
+ * Nothing about what is stored or when the window locks changes here: the
+ * answer goes through the same `onAnswer` (setAttendance), and `locked` is the
+ * server's.
+ */
+function NextRound({
+  round: r,
+  status,
+  explicit,
+  pending,
+  onAnswer,
+  asksPlayer,
+  explanation,
+}: {
+  round: AvailabilityRound;
+  status: "in" | "out";
+  explicit: boolean;
+  pending: boolean;
+  onAnswer: (stageId: string, status: "in" | "out") => void;
+  asksPlayer: boolean;
+  explanation: React.ReactNode;
+}) {
+  const [changing, setChanging] = useState(false);
+  // "on Friday", "on Tue 19 May" — but "today" and "tomorrow" stand alone; an
+  // undated round is named by its number.
+  const when = r.dayWords
+    ? r.dayWords === "today" || r.dayWords === "tomorrow"
+      ? r.dayWords
+      : `on ${r.dayWords}`
+    : r.label;
+  const about = [r.dateLabel, r.label].filter(Boolean).join(" · ");
+  const playing = status === "in";
+
+  const buttons = (filled: boolean) => (
+    <div style={{ display: "flex", gap: 8 }}>
+      {(["in", "out"] as const).map((s) => {
+        const on = filled && status === s;
+        return (
+          <button
+            key={s}
+            type="button"
+            className={on ? "btn btn-primary" : "btn btn-secondary"}
+            aria-pressed={filled ? status === s : undefined}
+            disabled={pending}
+            onClick={() => {
+              onAnswer(r.stageId, s);
+              setChanging(false);
+            }}
+            style={{ flex: 1, minHeight: 48, fontSize: 15 }}
+          >
+            {s === "in" ? (
+              <>
+                <Icon name="check" /> I&rsquo;m playing
+              </>
+            ) : (
+              "Can't make it"
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const line = (icon: string, title: string, sub: React.ReactNode, action?: React.ReactNode) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 32,
+          height: 32,
+          flex: "none",
+          borderRadius: "50%",
+          display: "grid",
+          placeItems: "center",
+          background: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
+          color: "var(--color-accent-200)",
+        }}
+      >
+        <Icon name={icon} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          {sub}
+        </span>
+      </span>
+      {action}
+    </div>
+  );
+
+  if (!asksPlayer) {
+    return line(
+      explicit ? (playing ? "check-circle" : "x-circle") : "clock",
+      explicit
+        ? playing
+          ? `Your captain has you playing ${when}`
+          : `Your captain has you out ${when}`
+        : "Your captain hasn't sent the side in yet",
+      <MoreInfo short={about || r.label}>{explanation}</MoreInfo>,
+    );
+  }
+
+  if (r.locked) {
+    return line(
+      "lock",
+      `You're ${playing ? "" : "not "}playing ${when}`,
+      "Answers closed — ask the organizer",
+    );
+  }
+
+  if (explicit && !changing) {
+    return line(
+      playing ? "check-circle" : "x-circle",
+      `You're ${playing ? "" : "not "}playing ${when}`,
+      about,
+      <button
+        type="button"
+        className="btn btn-ghost touch-target"
+        onClick={() => setChanging(true)}
+        style={{ flex: "none", fontSize: 14 }}
+      >
+        Change
+      </button>,
+    );
+  }
+
+  return (
+    <section aria-label="Are you playing?" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {about && (
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            {about}
+          </span>
+        )}
+        <span style={{ fontFamily: "var(--font-heading)", fontSize: 19, fontWeight: 600 }}>Are you playing?</span>
+        {!explicit && (
+          <span className="text-muted" style={{ fontSize: 14 }}>
+            You&rsquo;re down as {playing ? "playing" : "not playing"} until you say.
+          </span>
+        )}
+      </div>
+      {/* Unanswered: equal weight. Changing an answer: the current one shows. */}
+      {buttons(explicit)}
+      {r.deadlineWords && (
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          <Icon name="clock" />{" "}
+          {r.deadlineWords === "today" ? "Answer today" : `Answer by ${r.deadlineWords}`}
+        </span>
+      )}
+    </section>
   );
 }
 

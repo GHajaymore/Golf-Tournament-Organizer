@@ -37,6 +37,8 @@ const round = (stageId: string, playedOn: string) => ({
   whenLabel: "",
   optDeadline: "",
   deadlineLabel: "",
+  dayWords: "",
+  deadlineWords: "",
   status: "in" as const,
   explicit: false,
   locked: false,
@@ -96,22 +98,22 @@ describe("a long sentence is a short line, the rest an ⓘ away", () => {
   });
 
   it("holds every short line to ten words or fewer", () => {
-    for (const s of [MIC_SHORT, "Tap In or Out for each round.", "No side games in this tournament."]) {
+    for (const s of [MIC_SHORT, "No side games in this tournament."]) {
       expect(s.split(/\s+/).length, s).toBeLessThanOrEqual(10);
     }
   });
 
-  it("puts availability's explanation behind a short line on Today only", () => {
+  it("asks Today's question in place of the instruction, and keeps the console's sentence", () => {
     const compact = renderToStaticMarkup(
       <RoundAvailability today="2026-09-19" playerId="p1" next={round("1", "2026-09-24")} future={[round("2", "2026-10-01")]} past={[]} compact />,
     );
-    expect(shortLine(compact)).toBe("Tap In or Out for each round.");
-    expect(compact).toContain("Say whether you");
-    // Control: the console's own card still prints it as a sentence.
+    expect(compact).toContain("Are you playing?");
+    expect(compact).not.toContain("Tap In or Out for each round.");
+    // Control: the console's own card still prints the instruction as a sentence.
     const full = renderToStaticMarkup(
       <RoundAvailability today="2026-09-19" playerId="p1" next={round("1", "2026-09-24")} future={[round("2", "2026-10-01")]} past={[]} />,
     );
-    expect(full).not.toContain("Tap In or Out for each round.");
+    expect(full).not.toContain("Are you playing?");
     expect(full).toContain("Say whether you");
   });
 
@@ -134,18 +136,24 @@ describe("Today answers the next round, and keeps the season a tap away", () => 
     />,
   );
 
-  it("puts the next round's In / Out above the fold", () => {
-    const answer = html.indexOf('name="avail-1"');
-    const fold = html.indexOf("See all rounds");
-    expect(answer, "the next round has no In / Out").toBeGreaterThan(-1);
+  it("puts the next round's question above the fold", () => {
+    const answer = html.indexOf("I&#x27;m playing") >= 0 ? html.indexOf("I&#x27;m playing") : html.indexOf("I’m playing");
+    const fold = html.indexOf("Your other rounds");
+    expect(answer, "the next round has no answer to give").toBeGreaterThan(-1);
     expect(fold, "the season is not folded").toBeGreaterThan(-1);
     expect(answer).toBeLessThan(fold);
-    expect(html).toContain("See all rounds (3)");
+    // The OTHER rounds: the next one is already on screen above it.
+    expect(html).toContain("Your other rounds (2)");
   });
 
   it("folds the calendar under it rather than dropping it", () => {
-    // The calendar toggle is still there — inside the fold.
-    expect(html.indexOf('name="avail-view"')).toBeGreaterThan(html.indexOf("See all rounds"));
+    // The calendar toggle is still there — inside the fold. Both indexes are
+    // asserted present: a position compared against a missing anchor (-1)
+    // passes whatever the order, which is how this test went vacuous once.
+    const fold = html.indexOf("Your other rounds");
+    const toggle = html.indexOf('name="avail-view"');
+    expect(fold).toBeGreaterThan(-1);
+    expect(toggle).toBeGreaterThan(fold);
   });
 
   it("is the form Today asks for", () => {
@@ -160,8 +168,71 @@ describe("Today answers the next round, and keeps the season a tap away", () => 
     const one = renderToStaticMarkup(
       <RoundAvailability today="2026-09-19" playerId="p1" next={round("1", "2026-09-24")} future={[]} past={[]} compact />,
     );
-    expect(one).not.toContain("See all rounds");
-    expect(one).toContain('name="avail-1"');
+    expect(one).not.toContain("Your other rounds");
+    expect(one).toContain("Are you playing?");
+  });
+});
+
+/**
+ * THE NEXT ROUND, ASKED AS A GOLFER ASKS IT (Ajay, 2026-10-06) — the four
+ * states of `NextRound`, and the rule that decided the design: an unanswered
+ * round shows two EQUAL buttons, because filling the default would make an
+ * assumption look like an answer.
+ */
+describe("Are you playing?", () => {
+  const next = (over: Record<string, unknown> = {}) => ({
+    ...round("1", "2026-09-24"),
+    dateLabel: "Thu 24 Sep",
+    label: "Round 2",
+    dayWords: "Thursday",
+    deadlineWords: "Wednesday",
+    optDeadline: "2026-09-23",
+    ...over,
+  });
+  const render = (r: ReturnType<typeof next>, asksPlayer = true) =>
+    renderToStaticMarkup(
+      <RoundAvailability today="2026-09-19" playerId="p1" next={r} future={[]} past={[]} asksPlayer={asksPlayer} compact />,
+    ).replace(/&#x27;/g, "'");
+  const buttonClasses = (html: string) =>
+    [...html.matchAll(/<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>)[\s\S])*?(I’m playing|Can't make it)/g)].map((m) => m[1]);
+
+  it("unanswered: says the default in words, and weighs both answers the same", () => {
+    const html = render(next({ explicit: false, status: "in" }));
+    expect(html).toContain("You’re down as playing until you say.");
+    const classes = buttonClasses(html);
+    expect(classes, "both answers are offered").toHaveLength(2);
+    expect(new Set(classes).size, `one answer is weighted: ${classes.join(" | ")}`).toBe(1);
+    expect(classes[0]).not.toMatch(/btn-primary/);
+    expect(html).toContain("Answer by Wednesday");
+    // The default the other way is said the other way.
+    expect(render(next({ explicit: false, status: "out" }))).toContain("You’re down as not playing until you say.");
+  });
+
+  it("answered: one line, with the day, and a way to change it", () => {
+    const html = render(next({ explicit: true, status: "in" }));
+    expect(html).toContain("You're playing on Thursday");
+    expect(html).toContain(">Change<");
+    expect(buttonClasses(html), "the question is not asked again").toHaveLength(0);
+    expect(render(next({ explicit: true, status: "out" }))).toContain("You're not playing on Thursday");
+  });
+
+  it("today and tomorrow stand alone; an undated round goes by its number", () => {
+    expect(render(next({ explicit: true, dayWords: "tomorrow" }))).toContain("You're playing tomorrow");
+    expect(render(next({ explicit: true, dayWords: "", dateLabel: "" }))).toContain("You're playing Round 2");
+  });
+
+  it("closed: the answer that stands, and who to ask", () => {
+    const html = render(next({ explicit: false, locked: true }));
+    expect(html).toContain("You're playing on Thursday");
+    expect(html).toContain("Answers closed");
+    expect(buttonClasses(html)).toHaveLength(0);
+  });
+
+  it("where the captain answers, a statement and nothing to press", () => {
+    const sent = render(next({ explicit: true, status: "in" }), false);
+    expect(sent).toContain("Your captain has you playing on Thursday");
+    expect(buttonClasses(sent)).toHaveLength(0);
+    expect(render(next({ explicit: false }), false)).toContain("Your captain hasn't sent the side in yet");
   });
 });
 

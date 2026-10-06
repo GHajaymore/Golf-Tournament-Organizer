@@ -8,7 +8,7 @@ import {
   tracksPerRound,
   type AttendanceMode,
 } from "@/lib/domain/attendance";
-import { cleanIsoDate, relativeDay, shortDate } from "@/lib/domain/round-dates";
+import { cleanIsoDate, dayInWords, relativeDay, shortDate } from "@/lib/domain/round-dates";
 import { roundLabel } from "@/lib/domain/round-label";
 import { todayIso } from "@/lib/deadline";
 import { formattingForEvent } from "@/lib/services/organization";
@@ -43,6 +43,10 @@ export interface AvailabilityRound {
   optDeadline: string;
   /** The same deadline in words, ready to print. */
   deadlineLabel: string;
+  /** The day it is played as a golfer says it — "Friday", "tomorrow" — or "". */
+  dayWords: string;
+  /** The last day to answer, the same way, or "" for an open window. */
+  deadlineWords: string;
   /** The signed-in player's effective answer. */
   status: "in" | "out";
   /** Whether that answer was stated, or is the league's default. */
@@ -200,6 +204,8 @@ export async function availabilityFor(
       playedOn,
       dateLabel: playedOn ? shortDate(playedOn, locale) : "",
       whenLabel: playedOn ? relativeDay(playedOn, today) : "",
+      dayWords: dayInWords(playedOn, today, locale),
+      deadlineWords: dayInWords(optDeadline, today, locale),
       optDeadline,
       deadlineLabel: locked
         ? "Sign-up closed"

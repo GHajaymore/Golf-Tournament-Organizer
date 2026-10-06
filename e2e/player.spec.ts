@@ -27,7 +27,10 @@ test("Today answers the three questions a player actually has", async ({ page })
   await page.goto("/me");
   await page.waitForLoadState("networkidle");
 
-  // Who I am out with, from the drawn tee sheet.
+  // Who I am out with, from the drawn tee sheet. This player is mid-round
+  // (thru 9), so since 2026-10-06 their group is under More — a player on the
+  // course is standing with them; before the round it leads the screen.
+  await openMore(page);
   await expect(page.getByText("08:10")).toBeVisible();
   await expect(page.getByText(/With .*Marcus Webb/)).toBeVisible();
 
@@ -180,17 +183,19 @@ test("availability is on the player's own screen, grouped and dated", async ({ p
    * Driving the toggle rather than weakening the assertions: the grouping is
    * still a real promise of the list view, and it is still worth holding to.
    */
-  const availability = page.locator(".card").filter({ hasText: "Your availability" });
-  await expect(availability).toBeVisible();
-  // Since 2026-10-05 Today shows the next round's In / Out and folds the rest
-  // of the season under "See all rounds" — opened here, then the list.
-  await availability.getByText(/See all rounds/).click();
+  // Since 2026-10-06 the card is Today's "Are you playing?" — on the screen
+  // before the round, under More once it is under way (this player is thru 9).
+  // The rest of the season folds under "Your other rounds" — opened, then the
+  // list.
+  const availability = await openAvailability(page);
+  await availability.getByText(/Your other rounds/).click();
   await availability.getByText("List", { exact: false }).click();
 
   const card = availability;
 
-  // Grouped: the imminent round is lifted out of the list.
-  await expect(card.getByText("Next round")).toBeVisible();
+  // Grouped: the imminent round is lifted out of the list, as the question
+  // (or its one-line answer) at the top of the card.
+  await expect(card.getByText(/Are you playing\?|You're (not )?playing/).first()).toBeVisible();
   await expect(card.getByText(/Future rounds/)).toBeVisible();
 
   /**
@@ -230,39 +235,42 @@ test("the next round comes before the future ones on screen", async ({ page }) =
 
   // Same reason as the test above: the grouped headings live in the list view,
   // and the screen opens on the calendar.
-  const card = page.locator(".card").filter({ hasText: "Your availability" });
-  await expect(card).toBeVisible();
-  await card.getByText(/See all rounds/).click();
+  const card = await openAvailability(page);
+  await card.getByText(/Your other rounds/).click();
   await card.getByText("List", { exact: false }).click();
-  const next = await card.getByText("Next round").boundingBox();
+  const next = await card.getByText(/Are you playing\?|You're (not )?playing/).first().boundingBox();
   const future = await card.getByText(/Future rounds/).boundingBox();
-  expect(next, "no Next round heading").not.toBeNull();
+  expect(next, "no next-round question").not.toBeNull();
   expect(future, "no Future rounds heading").not.toBeNull();
   expect(next!.y).toBeLessThan(future!.y);
 });
 
-test("In / Out is big enough to hit with a thumb", async ({ page }, testInfo) => {
-  // The control a league player taps most, and the one segmented control that
-  // never got sized for touch: it shipped at 34px while every button around it
-  // was 44. Branching on the reported pointer, not the project name — the
-  // 320px profile is a phone too.
-  await page.goto("/me");
-  await page.waitForLoadState("networkidle");
-
-  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-  const opt = page.locator(".seg-opt").first();
-  await expect(opt).toBeVisible();
-  const box = await opt.boundingBox();
-  expect(box, "no In/Out control found").not.toBeNull();
-
-  if (coarse) {
-    expect(box!.height, `In/Out was ${box!.height}px on a touch screen`).toBeGreaterThanOrEqual(44);
-  } else {
-    // Desktop keeps its compact control — the phone fix must not coarsen it.
-    expect(box!.height, `In/Out grew to ${box!.height}px on desktop`).toBeLessThan(44);
+test("the answer is big enough to hit with a thumb", async ({ page }) => {
+  // The control a league player taps most. It shipped as a 34px segmented
+  // control; since 2026-10-06 it is two 48px buttons with a verb on each, on
+  // every screen — a button that size is as right on a desktop as on a phone.
+  const card = await openAvailability(page);
+  const change = card.getByRole("button", { name: "Change" });
+  if (await change.count()) await change.click();
+  for (const name of [/I.m playing/, /Can't make it/]) {
+    const box = await card.getByRole("button", { name }).boundingBox();
+    expect(box, `no ${name} button`).not.toBeNull();
+    expect(box!.height, `${name} was ${box!.height}px`).toBeGreaterThanOrEqual(44);
   }
-  expect(testInfo.project.name).toBeTruthy();
 });
+
+/**
+ * Today's availability card, wherever Today has put it: on the screen before
+ * the round, under "More" once the card has holes in.
+ */
+async function openAvailability(page: import("@playwright/test").Page) {
+  await page.goto(`/me?bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle");
+  const card = page.getByRole("region", { name: "Your availability" });
+  if (!(await card.isVisible())) await page.locator("summary", { hasText: /^More:/ }).click();
+  await expect(card).toBeVisible();
+  return card;
+}
 
 test("a multi-week league opens on the round played, not the last on the calendar", async ({ page }) => {
   /**
@@ -277,5 +285,14 @@ test("a multi-week league opens on the round played, not the last on the calenda
   await page.goto("/me");
   await page.waitForLoadState("networkidle");
   await expect(page.getByText("Round 1", { exact: true }).first()).toBeVisible();
+  // Round 1's group, under More mid-round (see the first test in this file).
+  await openMore(page);
   await expect(page.getByText("08:10")).toBeVisible();
 });
+
+/** Open Today's extender — the one labelled "More: …". */
+async function openMore(page: import("@playwright/test").Page) {
+  const more = page.locator("main summary", { hasText: /^More:/ });
+  await expect(more).toHaveCount(1);
+  await more.click();
+}

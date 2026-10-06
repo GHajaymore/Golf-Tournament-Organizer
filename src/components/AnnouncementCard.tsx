@@ -19,15 +19,56 @@ export interface AnnouncementItem {
  * One posted notice. Its own file so the server list and the player's folding
  * list draw it from one place — see `AnnouncementList`.
  */
-export function AnnouncementCard({ a }: { a: AnnouncementItem }) {
+export function AnnouncementCard({ a, compact = false }: { a: AnnouncementItem; compact?: boolean }) {
+  /**
+   * ONE LINE ON TODAY (Ajay, 2026-10-06 — the one-screen Today). The title is
+   * the line and the organizer's text opens under it, a platform <details>, so
+   * the words stay in the page. The title has to carry the notice on its own,
+   * which is what an organizer writing "Frost delay — 30 minutes" already does.
+   */
+  if (compact && a.body) {
+    return (
+      <details
+        className="card elev-sm"
+        style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
+      >
+        <summary className="touch-target" style={{ cursor: "pointer", listStyle: "none" }}>
+          {titleRow(a, true)}
+        </summary>
+        <p data-authored className="text-muted" style={{ fontSize: 14, margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
+          {a.body}
+        </p>
+      </details>
+    );
+  }
   return (
     <div
       className="card elev-sm"
       style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
     >
+      {titleRow(a, false)}
+      {a.body && (
+        // data-authored: the organizer's own words — see e2e/player-words.spec.ts.
+        <p data-authored className="text-muted" style={{ fontSize: 14, margin: 0, whiteSpace: "pre-wrap" }}>
+          {a.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function titleRow(a: AnnouncementItem, opens: boolean) {
+  return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
-        {a.pinned && (
+        {/* One line, once read: the pin itself says "pinned", where the chip
+            pushed the title onto a second line (measured at 375px, 2026-10-06).
+            In full, the chip stays — it is the first thing the notice says. */}
+        {opens && a.pinned ? (
+          <Icon name="push-pin" aria-label="Pinned" style={{ color: "var(--color-accent-200)" }} />
+        ) : (
+          <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
+        )}
+        {a.pinned && !opens && (
           <span className="tag tag-accent">
             <Icon name="push-pin" /> Pinned
           </span>
@@ -46,13 +87,7 @@ export function AnnouncementCard({ a }: { a: AnnouncementItem }) {
             </span>
           )}
         </span>
+        {opens && <Icon name="caret-down" className="text-muted" aria-hidden />}
       </div>
-      {a.body && (
-        // data-authored: the organizer's own words — see e2e/player-words.spec.ts.
-        <p data-authored className="text-muted" style={{ fontSize: 14, margin: 0, whiteSpace: "pre-wrap" }}>
-          {a.body}
-        </p>
-      )}
-    </div>
   );
 }

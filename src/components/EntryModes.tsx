@@ -494,6 +494,7 @@ export function EntryModes({
         <StrokePlayEntry
           key={round.stageId}
           cardScanAvailable={cardScanAvailable}
+          photoFolded={!isStaff}
           // Decorated for THIS round, not the page. See absentByStage.
           players={players.map((p) => ({
             ...p,

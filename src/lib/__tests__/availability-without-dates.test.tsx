@@ -20,6 +20,8 @@ const round = (stageId: string, playedOn: string) => ({
   whenLabel: "",
   optDeadline: "",
   deadlineLabel: "",
+  dayWords: "",
+  deadlineWords: "",
   status: "in" as const,
   explicit: false,
   locked: false,

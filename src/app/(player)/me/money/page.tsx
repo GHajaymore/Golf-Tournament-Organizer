@@ -171,6 +171,31 @@ export default async function MoneyPage() {
     .map((p) => ({ id: p.id, name: p.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  /** A round with this player's stake in it, still being played. */
+  const liveStake = rounds.stake.cents > 0 && rounds.rounds.some((r) => !r.final);
+  const sideBet =
+    bettable && field.length > 1 ? (
+      <SideBetStart
+        stageId={bettable.id}
+        field={field}
+        taken={taken}
+        // The draw, so a player picks the people they are walking with rather
+        // than scanning forty names for the three they know — once it has
+        // been published. Before that they get the field, which is what this
+        // screen showed anyway for a round with no sheet at all.
+        groups={publishedSheet?.groups ?? []}
+      />
+    ) : null;
+  /* Said ONCE, for the whole screen (2026-09-19). The pots and the settle-up
+     each ended with their own version of it, so a player with both read it
+     twice. */
+  const recordsNote = (
+    <MoreInfo short="TourneyHQ records money. It never moves it." style={{ marginTop: 14 }}>
+      TourneyHQ works the money out and writes it down. Paying and collecting happen between you, off
+      the app; marking something settled records that it happened.
+    </MoreInfo>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* The heading this screen never had.
@@ -183,27 +208,33 @@ export default async function MoneyPage() {
 
           "Money", the same word as the tab that reaches it. */}
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "0 0 4px" }}>Money</h1>
-      <RoundMoney view={rounds} />
-      {ledger && <MoneyClient view={ledger} terms={await golfTermsForEvent(session.eventId)} />}
-      {bettable && field.length > 1 && (
-        <SideBetStart
-          stageId={bettable.id}
-          field={field}
-          taken={taken}
-          // The draw, so a player picks the people they are walking with rather
-          // than scanning forty names for the three they know — once it has
-          // been published. Before that they get the field, which is what this
-          // screen showed anyway for a round with no sheet at all.
-          groups={publishedSheet?.groups ?? []}
+      {/* ONE NUMBER FIRST, THEN MORE (Ajay, 2026-10-06). Where the tournament
+          splits costs, the ledger leads with the balance — which already holds
+          what the pots paid — and the itemised money sits under one labelled
+          More. The pots stay on the screen only while a round with this
+          player's stake in it is still being played: that is their exposure,
+          which CLAUDE.md says a player walking to the first tee wants and must
+          keep. Without a ledger the pots ARE the screen, as before. */}
+      {(!ledger || liveStake) && <RoundMoney view={rounds} />}
+      {ledger ? (
+        <MoneyClient
+          view={ledger}
+          terms={await golfTermsForEvent(session.eventId)}
+          moreParts={[!liveStake && rounds.anyGame ? "Pots" : "", sideBet ? "Side bet" : ""].filter(Boolean)}
+          more={
+            <>
+              {!liveStake && <RoundMoney view={rounds} />}
+              {sideBet}
+              {recordsNote}
+            </>
+          }
         />
+      ) : (
+        <>
+          {sideBet}
+          {recordsNote}
+        </>
       )}
-      {/* Said ONCE, for the whole screen (2026-09-19). The pots and the
-          settle-up each ended with their own version of it, so a player with
-          both read it twice. */}
-      <MoreInfo short="TourneyHQ records money. It never moves it." style={{ marginTop: 14 }}>
-        TourneyHQ works the money out and writes it down. Paying and collecting happen between you, off
-        the app; marking something settled records that it happened.
-      </MoreInfo>
     </div>
   );
 }

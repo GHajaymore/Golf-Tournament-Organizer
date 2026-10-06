@@ -126,9 +126,13 @@ test("the secretary posts; a member sees the pinned one always and the rest once
       await expect(main.getByText(/earlier message/)).toHaveCount(0);
     });
 
-    await test.step("next visit: the pinned one again in full, the read one folded", async () => {
+    await test.step("next visit: the pinned one as one line, the read one folded", async () => {
       await open(member, "/me");
+      // Pinned is never folded away, but once read it is its title, with the
+      // text a tap away (the one-screen Today, 2026-10-06).
       await expect(main.getByText(FROST.title, { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(main.getByText(FROST.body, { exact: true })).toBeHidden();
+      await main.getByText(FROST.title, { exact: true }).click();
       await expect(main.getByText(FROST.body, { exact: true })).toBeVisible();
       const fold = main.getByText("1 earlier message", { exact: true });
       await expect(fold).toBeVisible();
