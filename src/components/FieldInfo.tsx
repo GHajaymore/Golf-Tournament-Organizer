@@ -49,6 +49,17 @@ export default function FieldInfo({
    * margin either side.
    */
   const [shift, setShift] = useState(0);
+  /**
+   * AND MEASURED AGAIN WHENEVER IT CHANGES SIZE (2026-10-06).
+   *
+   * The panel is `width: max-content`, so its width is its text's — and the
+   * text's width moves when the web font finishes loading after the panel has
+   * opened. Measured once, it was slid in for the fallback font and then grew
+   * past the edge: CI caught it at 320px as 324 against 321, on a commit that
+   * did not touch the screen, and passed on a re-run. A ResizeObserver
+   * re-measures on every change of size, from wherever the panel now sits, so
+   * the shift is added to rather than recomputed from the centred position.
+   */
   useLayoutEffect(() => {
     if (!open) {
       setShift(0);
@@ -56,13 +67,22 @@ export default function FieldInfo({
     }
     const el = panel.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    const margin = 8;
-    const vw = document.documentElement.clientWidth;
-    let dx = 0;
-    if (r.right > vw - margin) dx = vw - margin - r.right;
-    if (r.left + dx < margin) dx = margin - r.left;
-    setShift(dx);
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const margin = 8;
+      const vw = document.documentElement.clientWidth;
+      let dx = 0;
+      if (r.right > vw - margin) dx = vw - margin - r.right;
+      if (r.left + dx < margin) dx = margin - r.left;
+      // Sub-pixel noise is not a move; anything else is added to the shift
+      // already applied, because `r` was measured with it in place.
+      if (Math.abs(dx) >= 0.5) setShift((s) => s + dx);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
   }, [open]);
 
   // Escape closes from anywhere, and a tap outside dismisses. Both are what
