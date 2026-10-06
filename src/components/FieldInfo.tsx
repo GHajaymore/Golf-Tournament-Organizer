@@ -50,15 +50,19 @@ export default function FieldInfo({
    */
   const [shift, setShift] = useState(0);
   /**
-   * AND MEASURED AGAIN WHENEVER IT CHANGES SIZE (2026-10-06).
+   * AND MEASURED AGAIN WHENEVER IT CHANGES SIZE — a rotation changes its
+   * max-width. A ResizeObserver re-measures from wherever the panel now sits,
+   * so the shift is added to rather than recomputed from the centred position.
    *
-   * The panel is `width: max-content`, so its width is its text's — and the
-   * text's width moves when the web font finishes loading after the panel has
-   * opened. Measured once, it was slid in for the fallback font and then grew
-   * past the edge: CI caught it at 320px as 324 against 321, on a commit that
-   * did not touch the screen, and passed on a re-run. A ResizeObserver
-   * re-measures on every change of size, from wherever the panel now sits, so
-   * the shift is added to rather than recomputed from the centred position.
+   * That addition assumes the shift is ON SCREEN by the time anything measures
+   * again. It was not, under reduced motion, and the cause was not here: the
+   * global reduced-motion rule gave every property a 0.01ms transition, so the
+   * new transform landed a frame late — the first frame drew the panel
+   * unplaced (CI: 324 against 321 at 320px, twice) and the observer's first
+   * reading added the same shift a second time. Sampled per frame on
+   * 2026-10-06; the fix is in `design-system.css`. An earlier note here blamed
+   * the web font loading late — the same sampling showed the fonts already
+   * loaded and the panel's width never moving.
    */
   useLayoutEffect(() => {
     if (!open) {
