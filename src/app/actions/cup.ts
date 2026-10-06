@@ -71,6 +71,101 @@ async function teamsOf(eventId: string) {
   return flights.length === 2 ? (flights as [(typeof flights)[0], (typeof flights)[0]]) : null;
 }
 
+/**
+ * THE TWO TEAMS, MADE WHERE THE CUP IS RUN (2026-10-06).
+ *
+ * A cup's teams are the tournament's two flights, and making them meant going
+ * to Flights, choosing the "Manual" formation rule and renaming the result —
+ * a screen about flight sizes and balanced handicaps, asked of somebody who
+ * wanted to type "Blues" and "Whites". Found walking a cup from nothing as a
+ * new organizer. These write the same rows, so everything that reads a cup
+ * (the board, the lineups, the score) is unchanged.
+ *
+ * Only while the tournament has no flights at all: two teams added beside an
+ * existing division of the field would make a cup of four.
+ */
+export async function createCupTeams(nameA: string, nameB: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const a = String(nameA ?? "").trim().slice(0, 40);
+  const b = String(nameB ?? "").trim().slice(0, 40);
+  if (!a || !b) return { ok: false, error: "Name both teams." };
+  if (a.toLowerCase() === b.toLowerCase()) return { ok: false, error: "Give the two teams different names." };
+  const cup = await prisma.stage.count({ where: { eventId, type: TEAM_SESSION } });
+  if (cup === 0) return { ok: false, error: "This tournament has no team cup sessions." };
+  const flights = await prisma.group.count({ where: { eventId, stageId: null, isCarrier: false } });
+  if (flights > 0) {
+    return { ok: false, error: "This tournament already has flights. A cup's two teams are its flights — set them on Flights." };
+  }
+  await prisma.group.create({ data: { eventId, name: a, position: 0 } });
+  await prisma.group.create({ data: { eventId, name: b, position: 1 } });
+  await logAudit(eventId, "cup.teams", `Teams made: ${a} v ${b}`);
+  await refresh(eventId);
+  return { ok: true };
+}
+
+/** A team's name. One of the cup's two flights, and nothing else. */
+export async function renameCupTeam(groupId: string, name: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const clean = String(name ?? "").trim().slice(0, 40);
+  if (!clean) return { ok: false, error: "Give the team a name." };
+  // Narrowed to this event's flights in the query itself.
+  const team = await prisma.group.findFirst({
+    where: { id: String(groupId), eventId, stageId: null, isCarrier: false },
+    select: { id: true, name: true },
+  });
+  const teams = await teamsOf(eventId);
+  if (!team || !teams?.some((t) => t.id === team.id)) return { ok: false, error: "That isn't one of this cup's two teams." };
+  const other = teams.find((t) => t.id !== team.id)!;
+  if (other.name.trim().toLowerCase() === clean.toLowerCase()) return { ok: false, error: "The other team already has that name." };
+  await prisma.group.update({ where: { id: team.id }, data: { name: clean } });
+  await logAudit(eventId, "cup.teams", `Team renamed: ${team.name} → ${clean}`);
+  await refresh(eventId);
+  return { ok: true };
+}
+
+/**
+ * Put a player on a team, or take them off ("" for neither).
+ *
+ * Refused while they are in a lineup: a match is made of a player FROM a
+ * team, and moving them would leave a match whose side is on the wrong team —
+ * which the board quietly drops (`cupBoard` leaves off a match it cannot
+ * place). Remove the match first, which is only allowed before it is played.
+ * A captain who leaves a team stops captaining it.
+ */
+export async function setCupPlayerTeam(playerId: string, groupId: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const teams = await teamsOf(eventId);
+  if (!teams) return { ok: false, error: "A cup needs exactly two teams. Make them first." };
+  const target = String(groupId ?? "");
+  if (target && !teams.some((t) => t.id === target)) return { ok: false, error: "That isn't one of this cup's two teams." };
+  const player = await prisma.player.findFirst({
+    where: { id: String(playerId), eventId, status: "confirmed" },
+    select: { id: true, name: true, groupId: true },
+  });
+  if (!player) return { ok: false, error: "That player isn't confirmed in this tournament." };
+  if ((player.groupId ?? "") === target) return { ok: true };
+
+  const cupStages = (await prisma.stage.findMany({ where: { eventId, type: TEAM_SESSION }, select: { id: true } })).map((s) => s.id);
+  const inLineup =
+    (await prisma.match.count({
+      where: { eventId, stageId: { in: cupStages }, OR: [{ playerAId: player.id }, { playerBId: player.id }] },
+    })) +
+    (await prisma.teamMember.count({ where: { playerId: player.id, team: { stageId: { in: cupStages } } } }));
+  if (inLineup > 0) {
+    return { ok: false, error: `${player.name} is in a lineup. Remove that match first, then move them.` };
+  }
+
+  if (player.groupId) {
+    await prisma.group.updateMany({ where: { id: player.groupId, eventId, captainId: player.id }, data: { captainId: null } });
+    await prisma.group.updateMany({ where: { id: player.groupId, eventId, viceCaptainId: player.id }, data: { viceCaptainId: null } });
+  }
+  await prisma.player.update({ where: { id: player.id }, data: { groupId: target || null } });
+  const to = teams.find((t) => t.id === target);
+  await logAudit(eventId, "cup.teams", to ? `${player.name} put on ${to.name}` : `${player.name} taken off their team`);
+  await refresh(eventId);
+  return { ok: true };
+}
+
 export async function setCupSettings(pointsToWin: number, holderGroupId: string): Promise<Result> {
   const eventId = await requireStaffEvent();
   const target = Number(pointsToWin);

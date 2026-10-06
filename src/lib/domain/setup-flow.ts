@@ -208,6 +208,17 @@ export interface SetupFacts {
    */
   teams?: { needed: boolean; sides: number; unsided: number };
   /**
+   * A TEAM CUP — present only when a round is a cup session (2026-10-06).
+   *
+   * A cup's two teams are the tournament's flights, and its pairs are made by
+   * the captains' lineup on the Team cup screen. So neither "Teams & pairs"
+   * (sides drawn from the field) nor "Flights" (a formation rule, a flight
+   * size) is a question a cup organizer has; walked from nothing, both were on
+   * the rail and neither said "your two teams". `flights` is every flight the
+   * event has; `unplaced` the confirmed players on none of them.
+   */
+  cup?: { flights: number; unplaced: number };
+  /**
    * Whether the tournament has been launched.
    *
    * Not a step, and deliberately not one: launching is not part of setting a
@@ -395,6 +406,26 @@ const STEPS: ReadonlyArray<{
     done: (f) => f.confirmed > 0,
   },
   {
+    key: "cup",
+    href: "/cup",
+    /**
+     * A CUP'S TWO TEAMS, made where the cup is run. Done when there are two
+     * and everybody entered is on one: a player on neither cannot be put in a
+     * lineup, and "two teams exist" with half the field unplaced would read
+     * finished. The lineups themselves are not setup — a captain picks each
+     * session's pairs during the event, knowing the score.
+     */
+    question: "Who is on which team?",
+    missing: (f) => {
+      const c = f.cup!;
+      if (c.flights === 0) return "Name your two teams.";
+      if (c.flights !== 2) return `A cup has two teams — this tournament has ${c.flights} flights.`;
+      return `${c.unplaced === 1 ? "1 player is" : `${c.unplaced} players are`} not on a team yet.`;
+    },
+    done: (f) => !!f.cup && f.cup.flights === 2 && f.cup.unplaced === 0,
+    applies: (f) => !!f.cup,
+  },
+  {
     key: "teams",
     href: "/teams",
     /**
@@ -418,7 +449,8 @@ const STEPS: ReadonlyArray<{
       return `${t.unsided === 1 ? "1 player is" : `${t.unsided} players are`} not on a side yet.`;
     },
     done: (f) => !f.teams?.needed || (f.teams.sides > 0 && f.teams.unsided === 0),
-    applies: (f) => !!f.teams?.needed,
+    // Not in a cup: its pairs come from the lineup, not from sides drawn.
+    applies: (f) => !!f.teams?.needed && !f.cup,
   },
   {
     key: "grouping",
@@ -431,7 +463,9 @@ const STEPS: ReadonlyArray<{
      * knockout sat at "4 of 5 — NOW Flights", being told to divide a field
      * that the draw then ignored.
      */
-    applies: (f) => !f.straightKnockout,
+    // Nor in a cup, whose two flights ARE its teams, made on the Team cup
+    // screen with no formation rule to choose.
+    applies: (f) => !f.straightKnockout && !f.cup,
     /**
      * Two conditions where there are two, and one where there is only one.
      *
@@ -521,6 +555,8 @@ export const SETUP_ORDER: readonly string[] = [
   "/event",
   "/stages",
   "/registration",
+  // Only in a team cup, in place of the two below — see the step.
+  "/cup",
   // Only in a tournament with a round played in sides — see the step. Listed
   // here so every reader places it the same way when it is present; the
   // journey card filters it out when it is not (see TournamentJourney).

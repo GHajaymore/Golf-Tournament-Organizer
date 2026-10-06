@@ -14,7 +14,7 @@ import type { ReviewQueue } from "./review-queue";
  * (`finishRefusal`), and approving is never the answer to one.
  */
 export interface NeedsYouItem {
-  key: "disputed" | "review" | "knockouts";
+  key: "disputed" | "review" | "knockouts" | "lineup";
   text: string;
   href: string;
   action: string;
@@ -22,7 +22,16 @@ export interface NeedsYouItem {
 
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-export function needsYouNow(input: { reviewing: ReviewQueue }): NeedsYouItem[] {
+export function needsYouNow(input: {
+  reviewing: ReviewQueue;
+  /**
+   * A team cup's sessions, in order (2026-10-06). Its job before every
+   * session is the lineup — picked, then announced — so a drafted lineup is
+   * waiting on the organizer, and so is the NEXT session with none. Only the
+   * next: Sunday's singles are not Saturday morning's problem.
+   */
+  cup?: { sessions: { name: string; published: boolean; matches: number }[] };
+}): NeedsYouItem[] {
   const q = input.reviewing;
   const items: NeedsYouItem[] = [];
 
@@ -46,6 +55,15 @@ export function needsYouNow(input: { reviewing: ReviewQueue }): NeedsYouItem[] {
       action: "Review",
     });
   }
+
+  // After the results: a pairing waits on a person, a result waits on a field.
+  for (const s of input.cup?.sessions ?? []) {
+    if (!s.published && s.matches > 0) {
+      items.push({ key: "lineup", text: `${s.name} lineup is ready to announce`, href: "/cup", action: "Announce" });
+    }
+  }
+  const next = input.cup?.sessions.find((s) => !s.published && s.matches === 0);
+  if (next) items.push({ key: "lineup", text: `${next.name} has no lineup yet`, href: "/cup", action: "Set the lineup" });
 
   return items;
 }

@@ -531,7 +531,9 @@ export function suggestedFor(shape: string): TournamentTemplate[] {
    */
   const isVersus = (t: TournamentTemplate) => {
     const r = head(t);
-    return !!r && isHeadToHead(r.type);
+    // Not a team cup: its sessions are head-to-head, but nobody is knocked out
+    // of a Ryder Cup — it is a series of sessions, and is suggested there.
+    return !!r && isHeadToHead(r.type) && r.type !== "Team Session";
   };
   const isRoundRobin = (t: TournamentTemplate) => head(t)?.type === "Round Robin";
 

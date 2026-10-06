@@ -175,6 +175,22 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
      * flow's answer outright, like the money row: there is no second opinion
      * on this screen worth writing.
      */
+    /**
+     * A CUP'S TWO TEAMS, in place of the sides and the flights — the flow has
+     * this step only for a tournament with a cup session (see `cup` on
+     * SetupFacts), and then has neither of the other two.
+     */
+    ...(step("/cup")
+      ? [
+          {
+            // The screen's own name, as every row here — see "a screen has one name".
+            label: screenName("/cup"),
+            detail: step("/cup")!.done ? "Two teams, and everybody is on one." : step("/cup")!.missing,
+            done: step("/cup")!.done,
+            href: "/cup",
+          },
+        ]
+      : []),
     ...(step("/teams")
       ? [
           {
@@ -212,7 +228,8 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
      * opinion" everywhere else in this list, and the local fallback here would
      * have called the tournament unfinished while the rail called it done.
      */
-    ...(straightKnockout
+    // Nor for a cup, whose two flights are its teams — the row above.
+    ...(straightKnockout || step("/cup")
       ? []
       : [{
       label: screenName("/grouping"),
