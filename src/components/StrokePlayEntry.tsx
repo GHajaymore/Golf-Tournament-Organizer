@@ -420,7 +420,7 @@ export function StrokePlayEntry({
             )}
           </select>
           {player?.absent && (
-            <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.45 }}>
               <Icon name="warning-circle" /> {player.name} is marked out for this round. Entering a card
               here still counts it — change who is playing on the{" "}
               <Link href="/foursomes">Tee sheet</Link> if they did play.
@@ -476,7 +476,7 @@ export function StrokePlayEntry({
           <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
           {listening ? "Listening…" : "Voice entry"}
         </button>
-        <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>{listenHint}</span>
       </div>
       {/* What the mic does, beside the mic. One component for all four so they
           cannot drift into four different promises — see `MicNote`. */}
@@ -495,8 +495,8 @@ export function StrokePlayEntry({
             aria-pressed={view === v}
             style={
               view === v
-                ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
-                : { fontSize: 12.5 }
+                ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 13 }
+                : { fontSize: 13 }
             }
           >
             <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} />{" "}
@@ -572,7 +572,7 @@ export function StrokePlayEntry({
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
-        <span className="text-muted" style={{ fontSize: 12 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {progressLine(card, holes)}
           {saveNote && (
             <>

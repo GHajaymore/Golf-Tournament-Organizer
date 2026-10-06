@@ -58,7 +58,7 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
                 padding: 0,
                 display: "grid",
                 gap: 4,
-                fontSize: 12,
+                fontSize: 13,
               }}
             >
               {round.decisions.map((d, i) => (
@@ -80,7 +80,7 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
           {/* Level, finished, and nobody through until somebody says who won
               the hole. Stated rather than left as a blank next round. */}
           {round.awaitingHole.length > 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
               {round.awaitingHole.map(([a, b]) => `${name(a)} v ${name(b)}`).join(", ")}{" "}
               {round.awaitingHole.length === 1 ? "finished" : "finished"} level — a play-off hole
               decides it, and the organizer records who won.
@@ -88,7 +88,7 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
           )}
         </div>
       ))}
-      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         Seeded from the season table, in the order it is printed. A level play-off meeting is
         settled on a play-off hole, and the organizer records who won it.
       </p>

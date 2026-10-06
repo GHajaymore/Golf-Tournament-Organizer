@@ -271,7 +271,7 @@ function SettingsGroup({
           {title}
         </h4>
         {blurb && (
-          <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
             {blurb}
           </p>
         )}
@@ -368,7 +368,7 @@ function NextRoundTransition({
           background: "color-mix(in srgb, var(--color-text) 3%, transparent)",
         }}
       >
-        <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+        <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
           <Icon name="info" /> No round after this yet. A cut and a carry-forward both need
           somewhere to go, so add the next round first and they will appear here.
         </span>
@@ -431,7 +431,7 @@ function NextRoundTransition({
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 600 }}>{carry.question}</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{carry.detail}</p>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{carry.detail}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -457,7 +457,7 @@ function NextRoundTransition({
         // Offering a switch that does nothing is worse than not offering it:
         // strokeStandings are built from the returned cards and never read the
         // carried total, so turning this on for a stroke round changes nothing.
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {carry.detail}
         </p>
       ) : (
@@ -505,7 +505,7 @@ function NextRoundTransition({
         />
         <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
       </div>
-      <p className="text-muted" style={{ fontSize: 12, margin: "0 0 0 2px" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "0 0 0 2px" }}>
         {carryEnabled
           ? `At ${carryPct}%, a player on 12 pts here starts ${roundLabel} with ${(12 * carryPct) / 100} pts.`
           : `Off — ${roundLabel} starts scoring from zero; no points carry over from this round.`}
@@ -515,7 +515,7 @@ function NextRoundTransition({
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         {nextIsSeeded ? (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             <Icon name="tree-structure" /> {roundLabel} is a bracket, so its field is
             whoever qualifies — set that under Qualification. A cut here would not change the
             draw.
@@ -556,7 +556,7 @@ function NextRoundTransition({
             <Icon name="arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel}
             {nextDrawsPairings ? " pairings" : ""}
           </button>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {nextDrawsPairings
               ? nextStage?.cutEnabled
                 ? `Builds ${roundLabel}'s matches from this round's current standings — run it once this round is complete.`
@@ -578,7 +578,7 @@ function NextRoundTransition({
               padding: "8px 10px",
               border: "1px solid var(--color-danger)",
               borderRadius: 8,
-              fontSize: 12.5,
+              fontSize: 13,
               lineHeight: 1.55,
             }}
           >
@@ -1052,12 +1052,12 @@ function StageCard({
             border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
             <Icon name="warning" />
             {chainWarnings.length === 1 ? "Check this round follows on" : "Check how this round follows on"}
           </span>
           {chainWarnings.map((w, i) => (
-            <p key={i} className="text-muted" style={{ fontSize: 12, margin: 0 }}>{w}</p>
+            <p key={i} className="text-muted" style={{ fontSize: 13, margin: 0 }}>{w}</p>
           ))}
         </div>
       )}
@@ -1132,7 +1132,7 @@ function StageCard({
             // Everything the closed row needs to be useful: what it plays,
             // over how many holes, and the settings summary the card already
             // computed for the "Customize" panel.
-            <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
+            <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
               {stage.format} · {stage.holes} holes · {summaryLine}
             </div>
           )}
@@ -1189,7 +1189,7 @@ function StageCard({
               shots…" — is what a newcomer needs while choosing; the full
               description and the round notes stay behind the ⓘ. */}
           {activeFormat && (
-            <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.45 }}>
+            <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.45 }}>
               {formatTagline(activeFormat.desc)}
             </p>
           )}
@@ -1260,7 +1260,7 @@ function StageCard({
                 padding: "8px 10px",
                 border: "1px solid var(--color-danger)",
                 borderRadius: 8,
-                fontSize: 12.5,
+                fontSize: 13,
                 lineHeight: 1.55,
               }}
             >
@@ -1282,7 +1282,7 @@ function StageCard({
                 padding: "8px 10px",
                 border: "1px solid var(--color-danger)",
                 borderRadius: 8,
-                fontSize: 12.5,
+                fontSize: 13,
                 lineHeight: 1.55,
               }}
             >
@@ -1325,7 +1325,7 @@ function StageCard({
             </div>
           )}
           {activePending && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet
               scored — {activePending.pendingReason}.
             </p>
@@ -1370,12 +1370,12 @@ function StageCard({
             aria-label={`Date ${roundLabelOf(allStages, stage.id) || "this round"} is played`}
           />
           {playedOn && (
-            <span className="text-muted" style={{ fontSize: 11.5, marginTop: 3, display: "block" }}>
+            <span className="text-muted" style={{ fontSize: 13, marginTop: 3, display: "block" }}>
               {shortDate(playedOn, locale)}
             </span>
           )}
           {dateRefused && (
-            <span role="alert" style={{ fontSize: 12, marginTop: 4, display: "block", color: "var(--color-danger)" }}>
+            <span role="alert" style={{ fontSize: 13, marginTop: 4, display: "block", color: "var(--color-danger)" }}>
               {dateRefused} <a href="/organization#plan">See plans</a>
             </span>
           )}
@@ -1432,7 +1432,7 @@ function StageCard({
         {/* Why those two are greyed out, ON the page — this app's rule is that
             a control's reason is not left to a tooltip. */}
         {!canSetVenue && (holes === 9 || venues.length > 1) && (
-          <span className="text-muted" style={{ fontSize: 11.5, alignSelf: "center" }}>
+          <span className="text-muted" style={{ fontSize: 13, alignSelf: "center" }}>
             The organizer sets where this round is played.
           </span>
         )}
@@ -1456,7 +1456,7 @@ function StageCard({
       </div>
 
       {expanded && formatInfoOpen && (
-        <div className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className="text-muted" style={{ fontSize: 13, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
           <p style={{ margin: 0 }}>{description}</p>
           {/* The whole description here; its first sentence also sits under
               the Format select. */}
@@ -1566,7 +1566,7 @@ function StageCard({
         {showStrokeCut && nextStage && (
           <div>
             <SectionLabel>The cut</SectionLabel>
-            <p className="text-muted" style={{ fontSize: 12, margin: "0 0 8px", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
               Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on this round&rsquo;s scores.
               Anyone level on the last place after countback goes through too. The cut is made when
               you mark this round finished.
@@ -1628,7 +1628,7 @@ function StageCard({
             entrants out of its knockout. */}
         {stage.type === "Bracket Stage" && (
           allStages.findIndex((s) => s.id === stage.id) === 0 ? (
-          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5, maxWidth: "62ch" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5, maxWidth: "62ch" }}>
             This bracket is the first round, so everyone in the field goes into the draw, seeded in order —
             there is no qualifying round to cut from. Add a round before it to qualify into it instead.
           </p>
@@ -1641,7 +1641,7 @@ function StageCard({
                 <p>{CUT_SCOPE_HELP}</p>
               </FieldInfo>
             </SectionLabel>
-            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
               How many players come through into this bracket — top N per flight, or top N overall.
             </p>
             <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} locked={locked} />
@@ -1675,7 +1675,7 @@ function StageCard({
             Customize this round
           </span>
           {!customizeOpen && (
-            <span className="text-muted" style={{ fontSize: 12, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="text-muted" style={{ fontSize: 13, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {customizeSummary}
             </span>
           )}
@@ -1705,7 +1705,7 @@ function StageCard({
                    (Ajay, 2026-09-28). A scratch competition is stroke play, so
                    there is nothing to choose here, and a picker offering
                    "Gross" would be offering a result the engine never gave. */
-                <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 0", lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
                   Off handicap — points are worked out after each player&rsquo;s strokes, as club
                   Stableford competitions are played. For a scratch competition, choose Stroke Play.
                 </p>
@@ -1777,7 +1777,7 @@ function StageCard({
                             <span className="text-muted"> — counts for handicapping</span>
                           )}
                           {info?.blurb && (
-                            <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.5 }}>
+                            <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.5 }}>
                               {info.blurb}
                             </span>
                           )}
@@ -1828,7 +1828,7 @@ function StageCard({
                     render an empty box and let the next save quietly erase it,
                     the old value stays visible until someone picks a date. */}
                 {deadline && !isIsoDate(deadline) && (
-                  <p className="text-muted" style={{ fontSize: 11, margin: "4px 0 0", lineHeight: 1.4 }}>
+                  <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
                     Currently &ldquo;{deadline}&rdquo; — pick a date to replace it.
                   </p>
                 )}
@@ -1870,14 +1870,14 @@ function StageCard({
                     disabled={pending}
                     onChange={(e) => startTransition(() => void setStageOptDeadline(stage.id, e.target.value))}
                   />
-                  <span className="text-muted" style={{ fontSize: 12 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     {stage.attendance.in} in
                     {stage.attendance.inByDefault > 0 && ` (${stage.attendance.inByDefault} by default)`}
                     {" · "}
                     {stage.attendance.out} out
                   </span>
                 </div>
-                <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.4 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
                   {stage.attendance.playersAnswer
                     ? "Players may answer until the end of this day; after it, changes go through you."
                     : "Players are never asked in this mode — you record the list the captains send in."}{" "}
@@ -1949,7 +1949,7 @@ function StageCard({
                         </p>
                       </FieldInfo>
                     </SectionLabel>
-                    <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
+                    <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
                       Who takes the point when a match ends level. Tried in order; a halved match stays
                       halved if none of them separates the two.
                     </p>
@@ -1968,7 +1968,7 @@ function StageCard({
                       </p>
                     </FieldInfo>
                   </SectionLabel>
-                  <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
+                  <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>
                     {/*
                      * THE SENTENCE HAS TO KNOW WHAT THE ROUND IS. It had two
                      * branches for three cases: Match Play, and "everything
@@ -2277,7 +2277,7 @@ export function StagesClient({
             {/* Names what is behind it. "Add a round" alone hides the fact
                 that a cut and a bracket live in here too, and a control whose
                 contents are a surprise is a control people do not open. */}
-            <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+            <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>
               Another round the field plays, or a cut or a bracket between them.
             </span>
           </span>
@@ -2295,7 +2295,7 @@ export function StagesClient({
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
-            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
               Sequence as many as you like. The <em>type</em> decides what gets drawn — pairings, a
               cut, or a bracket. How it&apos;s scored is the <em>format</em> on each round, chosen
               separately, so a Stableford or four-ball round is a round of one of these types.
@@ -2348,7 +2348,7 @@ export function StagesClient({
                   <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-200)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
-                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.45 }}>
                   {t.blurb}
                 </div>
               </button>
@@ -2382,7 +2382,7 @@ export function StagesClient({
                   <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-200)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
-                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.45 }}>
                   {t.blurb}
                 </div>
               </button>
@@ -2400,7 +2400,7 @@ export function StagesClient({
               the row aligned to `flex-end` its input sat on a different
               baseline to its neighbours — the row read as two rows that had
               not quite met. Same fields, same order, same behaviour. */}
-          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>
             <span className="text-muted">How many?</span>
             <input
               className="input"
@@ -2415,7 +2415,7 @@ export function StagesClient({
             />
           </label>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>
             <span className="text-muted">Format</span>
             <select
               className="input"
@@ -2450,7 +2450,7 @@ export function StagesClient({
             </select>
           </label>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>
             <span className="text-muted">Holes</span>
             <select
               className="input"
@@ -2467,7 +2467,7 @@ export function StagesClient({
 
           {/* A fixed-day league plays ON a day; it does not "play by" one.
               Leaving this blank keeps the old behaviour of no fixed date. */}
-          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>
             <span className="text-muted">First round played</span>
             <input
               className="input"
@@ -2481,7 +2481,7 @@ export function StagesClient({
           </label>
 
           {howMany > 1 && startDate && (
-            <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>
               <span className="text-muted">Then</span>
               <select
                 className="input"
@@ -2540,7 +2540,7 @@ export function StagesClient({
           </button>
         </div>
         {addRefused && (
-          <p role="alert" style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+          <p role="alert" style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
             {addRefused} <a href="/organization#plan">See plans</a>
           </p>
         )}
@@ -2556,7 +2556,7 @@ export function StagesClient({
             there happened to be space. It describes what the button will do,
             so it belongs beneath the row it describes — the same place every
             other explanation on this screen sits. */}
-        <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "62ch", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", maxWidth: "62ch", lineHeight: 1.5 }}>
           {/* Nothing is promised about a round nobody has chosen. This read
               "Draws a full set of pairings" on an untouched screen, which
               described the defaulted Round Robin rather than anything the
@@ -2582,17 +2582,17 @@ export function StagesClient({
               border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
             }}
           >
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
               All {howMany} rounds will be created the same
             </span>
-            <p style={{ margin: "5px 0 0", fontSize: 12, lineHeight: 1.6 }}>
+            <p style={{ margin: "5px 0 0", fontSize: 13, lineHeight: 1.6 }}>
               They share the format, holes{startDate ? " and dates" : ""} set above. Everything
               else — the handicap allowance, the cut line, carry-forward, round codes — is set on
               each round, so changing one of those afterwards means editing {howMany} cards.
               {" "}Worth setting the format here rather than there.
             </p>
             {startDate && (
-              <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5, lineHeight: 1.55 }}>
+              <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.55 }}>
                 {interval === 0
                   ? `All ${howMany} on ${shortDate(startDate, locale)}.`
                   : `${shortDate(startDate, locale)}, then ${INTERVAL_OPTIONS.find((o) => o.days === interval)?.label.toLowerCase()} — last round ${shortDate(roundDates(startDate, howMany, interval)[howMany - 1], locale)}.`}

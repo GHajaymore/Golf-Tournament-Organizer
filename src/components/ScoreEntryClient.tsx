@@ -1131,7 +1131,7 @@ export function ScoreEntryClient({
             </button>
           )}
           {bulkNotice && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               {bulkNotice}
             </p>
           )}
@@ -1141,7 +1141,7 @@ export function ScoreEntryClient({
               with its own message and a link. Checked before touching this:
               adding a no-draw branch here would have been dead code. */}
           {shown.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0" }}>
               No matches for that.
             </p>
           )}
@@ -1197,7 +1197,7 @@ export function ScoreEntryClient({
         <div className="card elev-sm" ref={entryRef} style={{ scrollMarginTop: 60 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
-              <div className="text-muted" style={{ fontSize: 12 }}>
+              <div className="text-muted" style={{ fontSize: 13 }}>
                 {active.label}
               </div>
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
@@ -1207,7 +1207,7 @@ export function ScoreEntryClient({
                   first thing anyone checks when a card is queried, and in a
                   league with no fixed venue it is the only way to tell two
                   otherwise identical cards apart. */}
-              <div className="text-muted" style={{ fontSize: 12, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {active.courseName && (
                   <span><Icon name="map-pin" style={{ marginRight: 3 }} />{active.courseName}</span>
                 )}
@@ -1258,7 +1258,7 @@ export function ScoreEntryClient({
               {resolution.complete && (
                 <span
                   className="tag tag-accent-2"
-                  style={{ fontSize: 10, marginBottom: 5, display: "inline-block" }}
+                  style={{ fontSize: 13, marginBottom: 5, display: "inline-block" }}
                 >
                   Final
                 </span>
@@ -1272,7 +1272,7 @@ export function ScoreEntryClient({
               >
                 {statusBig}
               </div>
-              <div className="text-muted" style={{ fontSize: 12 }}>
+              <div className="text-muted" style={{ fontSize: 13 }}>
                 {resolution.played} played · {resolution.remaining} to play
               </div>
               {/* Sits under the score the eye is already on. A failure has to
@@ -1283,7 +1283,7 @@ export function ScoreEntryClient({
                   role="status"
                   aria-live="polite"
                   style={{
-                    fontSize: 12,
+                    fontSize: 13,
                     marginTop: 4,
                     fontWeight: saveState === "failed" ? 600 : 400,
                     color:
@@ -1355,7 +1355,7 @@ export function ScoreEntryClient({
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    style={{ alignSelf: "start", fontSize: 12, minHeight: 44 }}
+                    style={{ alignSelf: "start", fontSize: 13, minHeight: 44 }}
                     onClick={() => setShowModes(true)}
                   >
                     <Icon name="pencil-simple" /> Enter it a different way
@@ -1363,14 +1363,14 @@ export function ScoreEntryClient({
                 )}
               </div>
             ) : (
-              <p className="text-muted" style={{ fontSize: 12, margin: 0, maxWidth: "64ch", lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, maxWidth: "64ch", lineHeight: 1.5 }}>
                 <Icon name={activeMode?.icon ?? "ph ph-cards"} />{" "}
                 <strong style={{ color: "var(--color-text)" }}>{activeMode?.label}</strong> — {format} is scored
                 on strokes, so there is no hole winner to record and no match margin to report.
               </p>
             )}
 
-            <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 11 }}>
+            <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 13 }}>
               <Icon name={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
               {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
             </span>
@@ -1407,14 +1407,14 @@ export function ScoreEntryClient({
                * belongs.
                */
               (active.courseName && changingCourseFor !== active.id ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
                   <span className="text-muted">Played at</span>
                   <strong style={{ fontSize: 13 }}>{active.courseName}</strong>
                   <span className="text-muted">· set for this tournament</span>
                   <button
                     type="button"
                     className="btn btn-secondary touch-target"
-                    style={{ fontSize: 12, padding: "4px 10px" }}
+                    style={{ fontSize: 13, padding: "4px 10px" }}
                     onClick={() => setChangingCourseFor(active.id)}
                   >
                     Change for this match
@@ -1461,11 +1461,11 @@ export function ScoreEntryClient({
                 different pars and stroke indexes, so on a net match this
                 decides which holes a player receives shots on. */}
             {totalHoles === 9 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
                 <span className="text-muted">Nine</span>
                 <select
                   className="input"
-                  style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+                  style={{ width: "auto", fontSize: 13, padding: "3px 8px" }}
                   value={nineByMatch[active.id] ?? ""}
                   onChange={(e) => {
                     const nine = e.target.value;
@@ -1487,7 +1487,7 @@ export function ScoreEntryClient({
                 below is already scoreable, and a player would have no reason
                 to look at a select they have not been asked about. */}
             {totalHoles === 9 && !nineByMatch[active.id] && (
-              <span style={{ fontSize: 12, color: "var(--color-danger)", fontWeight: 500 }}>
+              <span style={{ fontSize: 13, color: "var(--color-danger)", fontWeight: 500 }}>
                 <Icon name="warning-circle" /> Say which nine before scoring — front and
                 back have different stroke indexes, so this decides where shots fall.
               </span>
@@ -1526,13 +1526,13 @@ export function ScoreEntryClient({
                       <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
                       {listening === "holes" ? "Listening…" : "Voice entry"}
                     </button>
-                    <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : `Say each hole's winner in order, e.g. “${aLabel}, half, ${bLabel}”.`}</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>{listening === "holes" ? "Listening…" : `Say each hole's winner in order, e.g. “${aLabel}, half, ${bLabel}”.`}</span>
                     {/* What the mic does. Both mics on this screen are covered
                         by this one, which sits with the first of them. */}
                     <MicNote style={{ flexBasis: "100%", marginTop: 4 }} />
                   </>
                 ) : (
-                  <span className="text-muted" style={{ fontSize: 12 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     <Icon name="microphone-slash" /> Both players are called {firstName(active.aName)}, so
                     voice entry can&rsquo;t tell them apart. Tap the results below.
                   </span>
@@ -1620,7 +1620,7 @@ export function ScoreEntryClient({
           {effectiveMode === "result" && (
             <div className="card elev-sm" style={{ margin: "12px 0", gap: 12, background: "var(--color-bg)" }}>
               <div>
-                <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Winner</div>
+                <div className="text-muted" style={{ fontSize: 13, marginBottom: 6 }}>Winner</div>
                 <div className="seg">
                   <label className="seg-opt">
                     <input type="radio" name="rwin" checked={winner === "A"} onChange={() => setWinner("A")} />
@@ -1660,7 +1660,7 @@ export function ScoreEntryClient({
                     mic this one stays. Only the winner cannot be heard, and
                     the scorer is told to pick it rather than left wondering
                     why the name was ignored. */}
-                <div className="text-muted" style={{ fontSize: 12 }}>
+                <div className="text-muted" style={{ fontSize: 13 }}>
                   {canHearNames
                     ? listenHint || "Tap the mic and say e.g. “Sam wins 3 and 2”."
                     : `Both players are called ${firstName(active.aName)}, so the margin is heard but the winner isn't — pick it above.`}
@@ -1674,7 +1674,7 @@ export function ScoreEntryClient({
 
           {effectiveMode === "handicap" && (
             <div style={{ margin: "12px 0" }}>
-              <p className="text-muted" style={{ fontSize: 12, margin: "0 0 10px" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
                 {netMode
                   ? "Enter each player's gross strokes per hole — the net winner (after handicap strokes, marked •) is worked out automatically."
                   : "Enter each player's gross strokes per hole — the lower score wins each hole, straight up."}
@@ -1690,8 +1690,8 @@ export function ScoreEntryClient({
                     aria-pressed={cardView === v}
                     style={
                       cardView === v
-                        ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
-                        : { fontSize: 12.5 }
+                        ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 13 }
+                        : { fontSize: 13 }
                     }
                   >
                     <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} /> {v === "hole" ? "Hole by hole" : "Full card"}
@@ -1808,7 +1808,7 @@ export function ScoreEntryClient({
                               <span
                                 className="text-muted"
                                 title={`${label} receives ${shots} shot${shots === 1 ? "" : "s"} over the round`}
-                                style={{ fontWeight: 400, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}
+                                style={{ fontWeight: 400, fontSize: 13, fontVariantNumeric: "tabular-nums" }}
                               >
                                 +{shots}
                               </span>
@@ -1818,9 +1818,9 @@ export function ScoreEntryClient({
                               className="btn btn-secondary"
                               onClick={() => toggleListenStrokes(slot)}
                               title={`Dictate ${label}'s scores`}
-                              style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : {}) }}
+                              style={{ fontSize: 13, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)" } : {}) }}
                             >
-                              <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
+                              <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 13 }} />{" "}
                               {listening === `hcp-${slot}` ? "Listening…" : "Voice"}
                             </button>
                             </span>
@@ -1882,7 +1882,7 @@ export function ScoreEntryClient({
                   it. */}
               {/* Only beside the grid, where those mics are. */}
               {cardView === "card" && (
-                <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
                   {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
                 </p>
               )}
@@ -1963,7 +1963,7 @@ export function ScoreEntryClient({
               borderTop: "1px solid var(--color-divider)",
             }}
           >
-            <span className="text-muted" style={{ fontSize: 12 }}>
+            <span className="text-muted" style={{ fontSize: 13 }}>
               {/* What the match SAYS when nobody played it out. The holes-won
                   line is meaningless on a conceded match — it reads 0 · 0 —
                   and printing it there was the screen offering a statistic
@@ -1997,7 +1997,7 @@ export function ScoreEntryClient({
           {isAdmin && !active.forfeitedBy && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-divider)" }}>
               <span className="card-kicker">Not played out</span>
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px", lineHeight: 1.55 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.55 }}>
                 A concession, a walkover or a withdrawal (Rule 3.2b(1)). The other player takes the
                 match, and no holes are invented to make it look played.
               </p>
@@ -2009,7 +2009,7 @@ export function ScoreEntryClient({
                   <ConfirmButton
                     key={side.id}
                     className="btn btn-secondary"
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 13 }}
                     icon="flag"
                     label={`${side.label} concedes`}
                     title={`Record that ${side.label} conceded`}

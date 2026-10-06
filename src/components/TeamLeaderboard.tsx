@@ -123,7 +123,7 @@ export function TeamStandingsTable({
                     </td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{r.name}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>
+                      <div className="text-muted" style={{ fontSize: 13 }}>
                         {r.members.join(" · ") || "No players"}
                       </div>
                     </td>
@@ -171,7 +171,7 @@ export function TeamStandingsTable({
             </table>
           </div>
         )}
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
           {stableford
             ? "Points are Stableford against the side's playing handicap."
             : basis === "gross"

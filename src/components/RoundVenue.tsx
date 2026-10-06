@@ -193,7 +193,7 @@ export function RoundVenue({
           <Icon name="warning-circle" />{" "}
           {noVenue ? "No course set for this round" : `${venue!.name} has no card yet`}
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           Par and stroke index have nothing to come from, so net scores, Stableford points and every
           &ldquo;±&rdquo; on the board have nothing to measure against. The organizer sets the course
           for a round — ask them to before the cards go in.
@@ -312,7 +312,7 @@ export function RoundVenue({
           file. A club that has not entered its ratings is told so on the card
           instead, which is where a reader meets the consequence. */}
       {teesHere.length > 1 && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, flexWrap: "wrap" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
           <span className="text-muted">Tees</span>
           <select
             className="input"
@@ -333,7 +333,7 @@ export function RoundVenue({
               </option>
             ))}
           </select>
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             decides the shots, and is printed on every card
           </span>
         </label>
@@ -349,7 +349,7 @@ export function RoundVenue({
             padding: "8px 10px",
             border: "1px solid var(--color-accent)",
             borderRadius: 8,
-            fontSize: 12.5,
+            fontSize: 13,
             lineHeight: 1.55,
           }}
         >
@@ -395,7 +395,7 @@ export function RoundVenue({
           <span className="card-title" style={{ fontSize: 14 }}>
             <Icon name="warning-circle" /> No course set for this round
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             Par and stroke index have nothing to come from, so net scores, Stableford points and
             every &ldquo;±&rdquo; on the board have nothing to measure against. Find the course
             above — it is added to your club&rsquo;s library on the way past, and every round
@@ -407,7 +407,7 @@ export function RoundVenue({
           <span className="card-title" style={{ fontSize: 14 }}>
             <Icon name="warning-circle" /> {venue!.name} has no card yet
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             Par and stroke index are missing, so net scores, Stableford points and every
             &ldquo;±&rdquo; on the board have nothing to measure against. Enter the card once and
             every round played here uses it.
@@ -421,7 +421,7 @@ export function RoundVenue({
         // way to fix it is left to add, and only when there is something to fix.
         pickerNote.warn &&
         venue && (
-          <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <Link href={editHref}>Correct {venue.name}&rsquo;s card</Link> — it is stored once, for
             every round played there.
           </p>
@@ -431,7 +431,7 @@ export function RoundVenue({
           // The card is right there in the grid below — par and S.I. on their
           // own rows — so this does not repeat it. It only says where to go
           // when reading it shows something wrong.
-          <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             Check par and stroke index on the card below against the real one.{" "}
             <Link href={editHref}>Correct {venue.name}&rsquo;s card</Link> if anything is out — it
             is stored once, for every round played there.

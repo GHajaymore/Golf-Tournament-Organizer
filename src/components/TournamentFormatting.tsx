@@ -118,7 +118,7 @@ export function TournamentFormatting({
             </option>
           ))}
         </select>
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.55 }}>
           A tournament on 14–16 May reads{" "}
           <b style={{ color: "var(--color-text)" }}>
             {formatDayRange("2026-05-14", "2026-05-16", activeLocale)}
@@ -162,7 +162,7 @@ export function TournamentFormatting({
             </option>
           ))}
         </select>
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.55 }}>
           {/* THE EXAMPLE HAS TO HOLD IN EVERY CURRENCY, which a fixed number
               of minor units does not. This passed 123400 — correct as
               "$1,234.00" and correct as "¥123,400", because yen has no minor
@@ -180,9 +180,9 @@ export function TournamentFormatting({
         </p>
       </div>
 
-      {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
+      {error && <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0 }}>{error}</p>}
       {saved && !error && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           <Icon name="check" /> Saved
         </p>
       )}

@@ -53,7 +53,7 @@ export function ThirdPlaceControl({
         />
         <span>
           <span style={{ fontWeight: 500 }}>Play off for third</span>
-          <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
+          <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
             {THIRD_PLACE_HELP}
           </span>
         </span>
@@ -65,7 +65,7 @@ export function ThirdPlaceControl({
             padding: "9px 11px",
             borderRadius: "var(--radius-md)",
             background: "color-mix(in srgb, var(--color-accent) 7%, transparent)",
-            fontSize: 12.5,
+            fontSize: 13,
             lineHeight: 1.6,
           }}
         >

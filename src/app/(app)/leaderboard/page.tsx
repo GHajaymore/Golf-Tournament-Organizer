@@ -376,7 +376,7 @@ export default async function LeaderboardPage({
             border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
           }}
         >
-          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <b>Nothing here can be ranked.</b> {mismatch.message}{" "}
             <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Tournament details
@@ -387,7 +387,7 @@ export default async function LeaderboardPage({
 
       <div className="card elev-sm">
         <LeaderboardBoard isStroke={state.boardIsStroke} isStableford={isStablefordRound(activeStage?.scoringBasis, activeStage?.format)} rows={rows} isStaff={isStaff} />
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
           {boardFootnote(boardCopy)}
         </p>
       </div>

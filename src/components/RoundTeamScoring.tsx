@@ -152,16 +152,16 @@ export function RoundTeamScoring({
           shot event to team entry — their organizers are offered a wrong
           option and go looking for support. */}
       {info.entryChoices.length === 1 ? (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           {info.fixedReason}
         </p>
       ) : (
         <>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
             <span className="text-muted">Scores are entered as</span>
             <select
               className="input"
-              style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+              style={{ width: "auto", fontSize: 13, padding: "3px 8px" }}
               disabled={pending}
               value={info.entryMode}
               onChange={(e) =>
@@ -184,7 +184,7 @@ export function RoundTeamScoring({
           {/* Beside the control, because that is where the choice is made —
               not in a footnote and not in a title. */}
           {info.entryMode === "side-only" && info.sideOnlyCost && (
-            <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.6, color: "var(--color-accent-200)" }}>
+            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6, color: "var(--color-accent-200)" }}>
               <Icon name="warning-circle" /> {info.sideOnlyCost}
             </p>
           )}
@@ -195,7 +195,7 @@ export function RoundTeamScoring({
           someone chooses to change it — almost every round wants the
           recommendation, and a row of inputs would imply otherwise. */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Handicap allowance <b style={{ color: "var(--color-text)" }}>{info.allowance}%</b>
           {info.allowanceOverridden
             ? ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
@@ -206,7 +206,7 @@ export function RoundTeamScoring({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: "2px 10px", fontSize: 12 }}
+          style={{ padding: "2px 10px", fontSize: 13 }}
           onClick={() => {
             setAllowance(String(info.allowance));
             setEditingAllowance((o) => !o);
@@ -226,7 +226,7 @@ export function RoundTeamScoring({
             onChange={(e) => setAllowance(e.target.value)}
             aria-label="Handicap allowance percent"
           />
-          <span className="text-muted" style={{ fontSize: 12 }}>% of course handicap</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>% of course handicap</span>
           <button
             type="button"
             className="btn btn-primary"
@@ -267,7 +267,7 @@ export function RoundTeamScoring({
           format that doesn't use one would be a control with nothing behind it. */}
       {info.shares && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Handicap split <b style={{ color: "var(--color-text)" }}>{info.shares.join(" / ")}</b>
             {info.sharesOverridden
               ? ` — set by your committee, in place of the usual ${info.recommendedShares?.join(" / ")}.`
@@ -287,7 +287,7 @@ export function RoundTeamScoring({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12 }}
+            style={{ padding: "2px 10px", fontSize: 13 }}
             onClick={() => {
               setShares(info.shares!.map(String));
               setEditingShares((o) => !o);
@@ -310,7 +310,7 @@ export function RoundTeamScoring({
                 onChange={(e) => setShares((prev) => prev.map((p, j) => (j === i ? e.target.value : p)))}
                 aria-label={i === 0 ? "Share of the lower handicap, percent" : `Share ${i + 1}, percent`}
               />
-              <span className="text-muted" style={{ fontSize: 12 }}>%</span>
+              <span className="text-muted" style={{ fontSize: 13 }}>%</span>
             </span>
           ))}
           <button
@@ -357,7 +357,7 @@ export function RoundTeamScoring({
           single ball, so the question doesn't arise. */}
       {info.countBest !== null && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Scores that count{" "}
             <b style={{ color: "var(--color-text)" }}>
               best {info.countBest} of {info.maxSide}
@@ -379,7 +379,7 @@ export function RoundTeamScoring({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12 }}
+            style={{ padding: "2px 10px", fontSize: 13 }}
             onClick={() => {
               setCountBest(String(info.countBest ?? 1));
               setEditingCount((o) => !o);

@@ -79,7 +79,7 @@ function PlayedCardsQuestion({
         padding: "8px 10px",
         border: "1px solid var(--color-accent)",
         borderRadius: 8,
-        fontSize: 12.5,
+        fontSize: 13,
         lineHeight: 1.55,
       }}
     >
@@ -340,7 +340,7 @@ export function CourseLibrary({
         next[i] = e.target.value;
         set(next);
       }}
-      style={{ width: 42, padding: "4px 2px", textAlign: "center", fontSize: 12 }}
+      style={{ width: 42, padding: "4px 2px", textAlign: "center", fontSize: 13 }}
     />
   );
 
@@ -389,7 +389,7 @@ export function CourseLibrary({
                   <td style={{ fontWeight: 500 }}>
                     {c.name}
                     {c.city && (
-                      <span className="text-muted" style={{ fontSize: 12 }}> · {c.city}</span>
+                      <span className="text-muted" style={{ fontSize: 13 }}> · {c.city}</span>
                     )}
                     {/* An imported card is usable but unproven, and the thing
                         that can be wrong about it — the stroke index — is
@@ -401,7 +401,7 @@ export function CourseLibrary({
                         className="tag tag-neutral"
                         // A role, or the label below is ignored (aria-label-needs-a-role.test).
                         role="note"
-                        style={{ fontSize: 10.5, marginLeft: 8, verticalAlign: "middle" }}
+                        style={{ fontSize: 13, marginLeft: 8, verticalAlign: "middle" }}
                         title={
                           c.sourceUrl
                             ? `Imported from ${c.sourceUrl} — nobody has checked it against the real card.`
@@ -428,7 +428,7 @@ export function CourseLibrary({
                       // decoration it is.
                       <span
                         className="text-muted"
-                        style={{ fontSize: 11, marginLeft: 8 }}
+                        style={{ fontSize: 13, marginLeft: 8 }}
                         title={`Checked by ${c.verifiedBy}`}
                         aria-label={`Card checked by ${c.verifiedBy}`}
                         role="img"
@@ -447,7 +447,7 @@ export function CourseLibrary({
                     {c.hasCard ? (
                       c.pars.reduce((s, p) => s + p, 0)
                     ) : (
-                      <span className="text-muted" style={{ fontSize: 11.5, fontVariantNumeric: "normal" }}>
+                      <span className="text-muted" style={{ fontSize: 13, fontVariantNumeric: "normal" }}>
                         No card yet
                       </span>
                     )}
@@ -461,7 +461,7 @@ export function CourseLibrary({
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          style={{ fontSize: 12, padding: "3px 9px", marginRight: 6 }}
+                          style={{ fontSize: 13, padding: "3px 9px", marginRight: 6 }}
                           disabled={pending}
                           title={
                             c.verified
@@ -487,7 +487,7 @@ export function CourseLibrary({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: "3px 9px", marginRight: 6 }}
+                            style={{ fontSize: 13, padding: "3px 9px", marginRight: 6 }}
                             disabled={pending}
                             onClick={() =>
                               startTransition(async () => {
@@ -514,7 +514,7 @@ export function CourseLibrary({
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          style={{ fontSize: 12, padding: "3px 9px" }}
+                          style={{ fontSize: 13, padding: "3px 9px" }}
                           disabled={pending}
                           onClick={() => openEdit(c)}
                         >
@@ -525,7 +525,7 @@ export function CourseLibrary({
                             card removed by a mis-tap is not simply re-added. */}
                         <ConfirmButton
                           className="btn btn-secondary"
-                          style={{ fontSize: 12, padding: "3px 9px", marginLeft: 6 }}
+                          style={{ fontSize: 13, padding: "3px 9px", marginLeft: 6 }}
                           label="Remove"
                           title="Remove this course"
                           confirmLabel="Remove the course"
@@ -597,16 +597,16 @@ export function CourseLibrary({
           </span>
 
           {check.sourceProblem ? (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
               Nothing to compare: {check.sourceProblem} Your card is unaffected.
             </p>
           ) : check.differences.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
               No change — the directory&rsquo;s card matches yours hole for hole.
             </p>
           ) : (
             <>
-              <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                 {check.differences.length}{" "}
                 {check.differences.length === 1 ? "hole differs" : "holes differ"}.{" "}
                 {check.confirmed
@@ -614,7 +614,7 @@ export function CourseLibrary({
                   : "Nobody has confirmed this card yet, so the directory is as good a guess as what is stored — but check it against your own card before taking it."}
               </p>
               <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ fontSize: 12, minWidth: 320 }}>
+                <table className="table" style={{ fontSize: 13, minWidth: 320 }}>
                   <thead>
                     <tr>
                       <th>Hole</th>
@@ -653,7 +653,7 @@ export function CourseLibrary({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ fontSize: 12 }}
+                style={{ fontSize: 13 }}
                 disabled={pending}
                 onClick={() => takeSourceCard(check.courseId, check.name)}
               >
@@ -663,7 +663,7 @@ export function CourseLibrary({
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 13 }}
               onClick={() => setCheck(null)}
             >
               {check.differences.length > 0 ? "Leave mine as it is" : "Close"}
@@ -677,7 +677,7 @@ export function CourseLibrary({
           button — an organizer will not press something that might quietly
           rewrite a card they confirmed. */}
       {canEdit && courses.some((c) => isDirectorySource(c.sourceUrl)) && (
-        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
           <Icon name="arrows-clockwise" /> <b>Check source</b> asks the directory whether an
           imported card has changed. It never writes: you see what differs and decide.
         </p>
@@ -734,7 +734,7 @@ export function CourseLibrary({
       {selectedCount > 1 && (
         <p
           style={{
-            fontSize: 12,
+            fontSize: 13,
             margin: 0,
             padding: "8px 11px",
             borderRadius: "var(--radius-md)",
@@ -828,21 +828,21 @@ export function CourseLibrary({
               disabled={pending}
               onChange={(e) => applyPastedCard(e.target.value)}
               placeholder={"4 5 4 4 3 5 3 4 4 36 4 4 3 4 5 4 4 3 5 36 72\n6 10 12 16 14 2 18 4 8 3 9 17 7 1 13 11 15 5"}
-              style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}
+              style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13 }}
             />
             {pasteNote && (
-              <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
+              <p style={{ fontSize: 13, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
                 <Icon name="check-circle" /> {pasteNote}
               </p>
             )}
             {pasteProblems.map((m, i) => (
-              <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
+              <p key={i} style={{ fontSize: 13, margin: "3px 0 0", color: "var(--color-danger)" }}>
                 <Icon name="warning-circle" /> {m}
               </p>
             ))}
           </div>
 
-          <p className="text-muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
             Always the full 18, even for a nine-hole venue — which nine is chosen per round, so a half card
             would make &ldquo;back nine&rdquo; meaningless.
           </p>
@@ -869,7 +869,7 @@ export function CourseLibrary({
           </div>
 
           <div className="table-scroll">
-            <table className="table" style={{ fontSize: 12 }}>
+            <table className="table" style={{ fontSize: 13 }}>
               <tbody>
                 <tr>
                   <td style={{ fontWeight: 600 }}>Hole</td>

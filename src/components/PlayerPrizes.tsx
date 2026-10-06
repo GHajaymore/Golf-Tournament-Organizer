@@ -29,7 +29,7 @@ export function PlayerPrizes({ prizes }: { prizes: PlayerPrize[] }) {
               <span style={{ fontWeight: 600 }}>{p.category}</span>
               {p.detail && <span className="text-muted"> — {p.detail}</span>}
               {p.winner && (
-                <span style={{ display: "block", fontSize: 12.5 }} className="text-muted">
+                <span style={{ display: "block", fontSize: 13 }} className="text-muted">
                   Won by {p.winner}
                 </span>
               )}

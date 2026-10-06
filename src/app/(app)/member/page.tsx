@@ -125,7 +125,7 @@ export default async function MemberHistoryPage({
             {members.map((m) => (
               <li key={m.id}>
                 <Link href={`/member?member=${encodeURIComponent(m.id)}`}>{m.name}</Link>{" "}
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   · {m.entryCount === 1 ? "1 tournament" : `${m.entryCount} tournaments`}
                 </span>
               </li>
@@ -212,14 +212,14 @@ export default async function MemberHistoryPage({
                         </td>
                         <td>
                           <strong>{recordVerdict(r)}</strong>
-                          <div className="text-muted" style={{ fontSize: 12 }}>
+                          <div className="text-muted" style={{ fontSize: 13 }}>
                             {recordLine(r)}
                           </div>
                         </td>
                         <td style={{ fontSize: 13 }}>
                           {last.winner === null ? "Halved" : lastWon ? "Won" : "Lost"}
                           {last.margin && last.margin !== "AS" ? ` ${last.margin}` : ""}
-                          <div className="text-muted" style={{ fontSize: 12 }}>
+                          <div className="text-muted" style={{ fontSize: 13 }}>
                             {[last.eventName, last.where].filter(Boolean).join(" · ")}
                           </div>
                         </td>

@@ -99,7 +99,7 @@ export function EnterButton({
         {pending ? "Entering…" : waitlistOnly ? "Join the waiting list" : "Enter this tournament"} <Icon name={pending ? "hourglass" : "arrow-right"} />
       </button>
       {error && (
-        <span className="text-muted" style={{ fontSize: 12.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {error}{" "}
           <Link href={href} style={{ color: "var(--color-accent-200)", fontWeight: 600 }}>
             Use the entry form

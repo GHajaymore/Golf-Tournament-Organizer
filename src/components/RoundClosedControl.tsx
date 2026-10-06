@@ -44,7 +44,7 @@ export function RoundClosedControl({
         />
         <span>
           <span style={{ fontWeight: 500 }}>This round is finished</span>
-          <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
+          <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
             {pointsBoard
               ? // A missed week already costs a points player the points it was
                 // worth, so nothing about the board changes here. Saying so is
@@ -61,7 +61,7 @@ export function RoundClosedControl({
             padding: "9px 11px",
             borderRadius: "var(--radius-md)",
             background: "color-mix(in srgb, var(--color-accent) 7%, transparent)",
-            fontSize: 12.5,
+            fontSize: 13,
             lineHeight: 1.6,
           }}
         >

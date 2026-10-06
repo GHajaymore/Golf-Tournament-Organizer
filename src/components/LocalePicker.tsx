@@ -87,7 +87,7 @@ export function LocalePicker({ locale }: { locale: string }) {
         ))}
       </select>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
         A tournament on 14–16 May reads{" "}
         <b style={{ color: "var(--color-text)" }}>{formatDayRange("2026-05-14", "2026-05-16", value)}</b>
         , and entries closing on the 7th read{" "}
@@ -95,10 +95,10 @@ export function LocalePicker({ locale }: { locale: string }) {
       </p>
 
       {error && (
-        <p style={{ color: "var(--color-danger)", fontSize: 12, margin: "6px 0 0" }}>{error}</p>
+        <p style={{ color: "var(--color-danger)", fontSize: 13, margin: "6px 0 0" }}>{error}</p>
       )}
       {saved && !error && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           <Icon name="check" /> Saved
         </p>
       )}

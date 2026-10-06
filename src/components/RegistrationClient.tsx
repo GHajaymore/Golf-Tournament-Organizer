@@ -414,7 +414,7 @@ export function RegistrationClient({
               self-saving controls do. Failures already say so (`rowError`). */}
           <SaveState status={tableSaveStatus} />
           {anySelected && (
-            <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
+            <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
               <Icon name="trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
             </button>
           )}
@@ -461,7 +461,7 @@ export function RegistrationClient({
                         // to about thirty pixels: the control rendered as
                         // “Bl…” and “Re”, which is a tee nobody can read and a
                         // choice nobody can make.
-                        style={{ width: 100, padding: "3px 4px", fontSize: 11.5 }}
+                        style={{ width: 100, padding: "3px 4px", fontSize: 13 }}
                         onChange={(e) => commitTee(p.id, e.target.value || null)}
                       >
                         <option value="">{defaultTeeName || "Round's tees"}</option>
@@ -492,7 +492,7 @@ export function RegistrationClient({
                         className="input"
                         value={p.handicapType === "9" ? "9" : "18"}
                         disabled={pending || locked}
-                        style={{ width: 46, padding: "3px 2px", fontSize: 11 }}
+                        style={{ width: 46, padding: "3px 2px", fontSize: 13 }}
                         onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
                         // The one static tooltip on this screen that was
                         // load-bearing. This select has no visible label at
@@ -510,7 +510,7 @@ export function RegistrationClient({
                       </select>
                     </div>
                   </td>
-                  <td style={{ fontSize: 12 }}>
+                  <td style={{ fontSize: 13 }}>
                     <input
                       className="input"
                       type="email"
@@ -519,7 +519,7 @@ export function RegistrationClient({
                       placeholder="Required for sign-in"
                       style={{
                         padding: "3px 6px",
-                        fontSize: 12,
+                        fontSize: 13,
                         width: 150,
                         borderColor: p.email ? undefined : "var(--color-accent)",
                       }}
@@ -540,7 +540,7 @@ export function RegistrationClient({
                       }}
                     />
                   </td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
+                  <td className="text-muted" style={{ fontSize: 13 }}>{p.phone || "—"}</td>
                   {showFlight && <td>{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
                     {/* An unlabelled × at the end of a row of EDITABLE fields:
@@ -619,7 +619,7 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Confirmed</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{confirmed.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {unlimited ? "unlimited field" : `of ${event.capacity} capacity`}
             {/* Said out loud, because nothing else on the screen can say it:
                 `spotsLeft` is clamped at zero, so "spots remaining: 0" reads
@@ -639,7 +639,7 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Waitlisted</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{waitlist.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>bumped in if a spot opens</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>bumped in if a spot opens</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Registration closes</span>
@@ -649,7 +649,7 @@ export function RegistrationClient({
               is where an organizer goes to change them. Read-only with no way
               onward, an unset deadline renders as "—" and the screen offers
               nothing to do about it. Says where instead. */}
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             groups lock after this date · <a href="/event">set it on Tournament details</a>
           </div>
         </div>
@@ -667,7 +667,7 @@ export function RegistrationClient({
           {/* The reason, not the remedy. This card sits an inch above a banner
               that carries the full sentence, and printing it in both was the
               same words twice on one screen — see `RegistrationStatus.short`. */}
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.short}
           </div>
         </div>
@@ -699,7 +699,7 @@ export function RegistrationClient({
             color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
           }}
         />
-        <span style={{ fontSize: 12.5, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
+        <span style={{ fontSize: 13, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
           {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline, event.locale)}` : ""}.`}
           {!reg.acceptingEntries && (
             <>
@@ -818,7 +818,7 @@ export function RegistrationClient({
           {/* The state, in the summary, so it never has to be opened to be
               read. "Not published" is the answer most organizers need and the
               one that used to cost a scroll through both panels to find. */}
-          <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+          <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>
             {/* Short — it sits in the panel's own heading (2026-10-05). */}
             {event.registrationOpen ? "The public sign-up link is live." : "No public link yet."}
           </span>
@@ -847,7 +847,7 @@ export function RegistrationClient({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div>
             <span className="card-title" style={{ fontSize: 15 }}>Public sign-up link</span>
-            <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
               Share a link and people sign themselves up — no account needed. Entries appear in the field below.
             </p>
           </div>
@@ -868,7 +868,7 @@ export function RegistrationClient({
             `registrationStatus`. The organizer could see a working link and a
             "Closed" chip four inches apart and had nothing joining the two. */}
         {event.registrationOpen && !reg.acceptingEntries && (
-          <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+          <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
             {/* The reason in a few words. The full sentence lives on the
                 banner above; a third copy of it down here was the one that
                 made the screen read as though the app were nagging. */}
@@ -886,7 +886,7 @@ export function RegistrationClient({
                   readOnly
                   value={registerUrl}
                   onFocus={(e) => e.currentTarget.select()}
-                  style={{ flex: 1, minWidth: 220, fontSize: 12.5, fontFamily: "var(--font-mono, monospace)" }}
+                  style={{ flex: 1, minWidth: 220, fontSize: 13, fontFamily: "var(--font-mono, monospace)" }}
                 />
                 <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "reg")}>
                   <Icon name="copy" /> {copied === "reg" ? "Copied" : "Copy link"}
@@ -941,7 +941,7 @@ export function RegistrationClient({
                   </label>
                 ))}
               </div>
-              <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
                 {approveMode
                   ? "Every entry lands in “Pending approval” below for you to accept — nobody joins the field until you do."
                   : "Entries fill the field up to capacity and confirm automatically; once full, further entries go to the waitlist."}
@@ -980,13 +980,13 @@ export function RegistrationClient({
                     {phoneLocked && (
                       <span
                         className="text-muted"
-                        style={{ fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase" }}
+                        style={{ fontSize: 13, letterSpacing: 0.4, textTransform: "uppercase" }}
                       >
                         <Icon name="lock-simple" /> Always on — free plan
                       </span>
                     )}
                   </span>
-                  <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
+                  <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
                     {phoneLocked
                       ? PHONE_REQUIRED_FREE
                       : event.requirePhone
@@ -1002,7 +1002,7 @@ export function RegistrationClient({
 
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Invite players</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
           Share the sign-up message and link. (Direct sending to a WhatsApp group needs the WhatsApp Business API —
           for now this opens a share sheet you confirm.)
         </p>
@@ -1033,7 +1033,7 @@ export function RegistrationClient({
             dead end they cannot get past — better to say why than to hand the
             organizer a broken invitation that looks like it worked. */}
         {!registerUrl && (
-          <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+          <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
             {/* Names the control by the words now on it. A refusal that tells
                 somebody to press a button that no longer exists is worse than
                 no refusal at all. */}
@@ -1058,7 +1058,7 @@ export function RegistrationClient({
         <RosterPicker candidates={roster} eventName={event.name} locked={locked} />
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add someone new</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
             Anyone added here joins the {org.noun} roster too, so you only enter their details once.
           </p>
           <div className="field"><label htmlFor={`${fid}-name`}>Player name</label><input id={`${fid}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
@@ -1110,7 +1110,7 @@ export function RegistrationClient({
           {/* Said HERE, where the dead button is — the lock banner is a
               screen and a half above a form somebody has just filled in. */}
           {locked && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Setup is locked, so nobody can be added.{" "}
               {isAdmin ? "Unlock setup at the top of this page first." : "Ask the Organizer to unlock setup."}
             </p>
@@ -1120,7 +1120,7 @@ export function RegistrationClient({
               <Icon name="warning-circle" /> {addError}
             </p>
           )}
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {hSource === "ghin"
               ? "GHIN lookup is stubbed — enter the index manually for now; live GHIN integration slots in here."
               : "Auto-confirms while under capacity; overflow goes to the waitlist."}
@@ -1168,11 +1168,11 @@ export function RegistrationClient({
             </MoreInfo>
             {importResult && (
               importResult.error ? (
-                <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger)" }}>
+                <p style={{ fontSize: 13, margin: "8px 0 0", color: "var(--color-danger)" }}>
                   <Icon name="warning-circle" /> {importResult.error}
                 </p>
               ) : (
-                <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
                   <Icon name="check-circle" style={{ color: "var(--color-accent-2-200)" }} /> Imported {importResult.imported}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
@@ -1200,7 +1200,7 @@ export function RegistrationClient({
                 <Icon name="hourglass-medium" style={{ color: "var(--color-accent-200)" }} />
                 <span className="card-title" style={{ fontSize: 15 }}>Pending approval ({pendingEntries.length})</span>
               </div>
-              <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
                 Self-service entries waiting for you. Accepting one puts it in the field (or the waitlist if full).
               </p>
               <div className="table-scroll">
@@ -1224,12 +1224,12 @@ export function RegistrationClient({
                               scratch golfer in the queue. */}
                           {indexLabel(p)}
                         </td>
-                        <td className="text-muted" style={{ fontSize: 12 }}>{p.email || "—"}</td>
+                        <td className="text-muted" style={{ fontSize: 13 }}>{p.email || "—"}</td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                           <button
                             type="button"
                             className="btn btn-primary"
-                            style={{ fontSize: 12, padding: "4px 10px", marginRight: 6 }}
+                            style={{ fontSize: 13, padding: "4px 10px", marginRight: 6 }}
                             disabled={pending || locked}
                             onClick={() => startTransition(() => void approveSignup(p.id))}
                           >
@@ -1238,7 +1238,7 @@ export function RegistrationClient({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: "4px 10px" }}
+                            style={{ fontSize: 13, padding: "4px 10px" }}
                             disabled={pending || locked}
                             onClick={() => startTransition(() => void removeSignup(p.id))}
                           >
@@ -1310,7 +1310,7 @@ function PromotedBadge({ promotedAt }: { promotedAt?: string | null }) {
       }
       style={{
         marginLeft: 8,
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: 500,
         padding: "1px 7px",
         borderRadius: 999,

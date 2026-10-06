@@ -68,7 +68,7 @@ export function MatchTiebreakControl({
         <span className="card-kicker" style={{ display: "block" }}>
           If a match finishes all square
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
           Tried in order, stopping at the first step that separates them. With nothing selected a
           halved match stays halved — correct match play, and the right answer unless a winner has
           to be produced today.
@@ -80,7 +80,7 @@ export function MatchTiebreakControl({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 13 }}
             disabled={pending || isStandard}
             onClick={() => commit([...standard])}
           >
@@ -90,7 +90,7 @@ export function MatchTiebreakControl({
             <button
               type="button"
               className="btn btn-ghost"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 13 }}
               disabled={pending}
               onClick={() => commit([])}
             >
@@ -112,7 +112,7 @@ export function MatchTiebreakControl({
                 gap: 8,
                 padding: "6px 10px",
                 borderRadius: "var(--radius-md)",
-                fontSize: 12.5,
+                fontSize: 13,
                 background: "color-mix(in srgb, var(--color-accent) 9%, transparent)",
                 boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 26%, transparent)",
               }}
@@ -121,7 +121,7 @@ export function MatchTiebreakControl({
                 style={{
                   fontVariantNumeric: "tabular-nums",
                   fontWeight: 700,
-                  fontSize: 11,
+                  fontSize: 13,
                   color: "var(--color-accent-200)",
                   width: 14,
                 }}
@@ -139,7 +139,7 @@ export function MatchTiebreakControl({
                     disabled={pending || i === 0}
                     onClick={() => move(key, -1)}
                   >
-                    <Icon name="caret-up" style={{ fontSize: 11 }} />
+                    <Icon name="caret-up" style={{ fontSize: 13 }} />
                   </button>
                   <button
                     type="button"
@@ -149,7 +149,7 @@ export function MatchTiebreakControl({
                     disabled={pending || i === seq.length - 1}
                     onClick={() => move(key, 1)}
                   >
-                    <Icon name="caret-down" style={{ fontSize: 11 }} />
+                    <Icon name="caret-down" style={{ fontSize: 13 }} />
                   </button>
                   <button
                     type="button"
@@ -159,7 +159,7 @@ export function MatchTiebreakControl({
                     disabled={pending}
                     onClick={() => toggle(key)}
                   >
-                    <Icon name="x" style={{ fontSize: 10 }} />
+                    <Icon name="x" style={{ fontSize: 13 }} />
                   </button>
                 </>
               )}
@@ -188,8 +188,8 @@ export function MatchTiebreakControl({
                   border: "1px solid color-mix(in srgb, var(--color-text) 12%, transparent)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500 }}>
-                  <Icon name="plus" style={{ fontSize: 11, color: "var(--color-accent-200)" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500 }}>
+                  <Icon name="plus" style={{ fontSize: 13, color: "var(--color-accent-200)" }} />
                   {MATCH_TIEBREAK_LABELS[key]}
                 </div>
                 {/* The blurb was a `title`, so what "countback" actually does
@@ -199,7 +199,7 @@ export function MatchTiebreakControl({
                     already do it. */}
                 <div
                   className="text-muted"
-                  style={{ fontSize: 11, marginTop: 2, lineHeight: 1.45, maxWidth: "34ch" }}
+                  style={{ fontSize: 13, marginTop: 2, lineHeight: 1.45, maxWidth: "34ch" }}
                 >
                   {MATCH_TIEBREAK_BLURBS[key]}
                 </div>

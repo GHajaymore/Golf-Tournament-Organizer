@@ -81,7 +81,7 @@ export function RoundExpiryBanner({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 13, lineHeight: 1.5 }}>{notice}</div>
         {error && (
-          <div style={{ fontSize: 12, marginTop: 4, color: "var(--color-danger)" }}>{error}</div>
+          <div style={{ fontSize: 13, marginTop: 4, color: "var(--color-danger)" }}>{error}</div>
         )}
       </div>
       {canKeep && keepRefusal && (

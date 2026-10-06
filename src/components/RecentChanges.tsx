@@ -52,7 +52,7 @@ export function RecentChanges({
           {rows.map((r) => (
             <li key={r.id} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
               <span style={{ fontSize: 13.5, lineHeight: 1.45, overflowWrap: "anywhere" }}>{r.what}</span>
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {[when(r.at), r.actor, showKind ? r.kind : ""].filter(Boolean).join(" · ")}
               </span>
             </li>

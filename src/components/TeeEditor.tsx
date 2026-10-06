@@ -160,7 +160,7 @@ export function TeeEditor({
       <summary
         style={{
           cursor: "pointer",
-          fontSize: 12,
+          fontSize: 13,
           color: "var(--color-neutral-400)",
           padding: "4px 0",
           /* NO inline min-height. A first draft set 32 here under a comment
@@ -184,7 +184,7 @@ export function TeeEditor({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12, marginLeft: "auto" }}
+            style={{ padding: "2px 10px", fontSize: 13, marginLeft: "auto" }}
             disabled={pending}
             onClick={() => open()}
           >
@@ -201,7 +201,7 @@ export function TeeEditor({
         </MoreInfo>
       ) : (
         <div className="table-scroll">
-          <table className="table" style={{ fontSize: 12 }}>
+          <table className="table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
                 <th>Tees</th>
@@ -311,7 +311,7 @@ export function TeeEditor({
       )}
 
       {unrated.length > 0 && (
-        <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {unrated.map((t) => t.name).join(", ")} {unrated.length === 1 ? "has" : "have"} no rating
           yet, so anyone playing off {unrated.length === 1 ? "it" : "them"} is scored on their raw
           index.
@@ -387,7 +387,7 @@ export function TeeEditor({
 
           {/* Slope and rating are abstract numbers off the back of a card. This
               turns them into something an organizer can sanity-check. */}
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {preview !== null ? (
               <>
                 A <b style={{ color: "var(--color-text)" }}>14.0</b> index plays off{" "}

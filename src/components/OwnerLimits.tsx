@@ -75,10 +75,10 @@ export function OwnerLimits({
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
         <span className="card-title" style={{ fontSize: 15 }}>Limit controls</span>
-        <span className="text-muted" style={{ fontSize: 11.5 }}>Caps every entry gate reads.</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>Caps every entry gate reads.</span>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, margin: "8px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "8px 0 0" }}>
         Set each tier&rsquo;s caps and press <strong>Save limits</strong>. <strong>Field size</strong> is the
         most players a tournament may confirm on that tier — over it, entries waitlist instead of joining.
         Leave a box blank for <strong>no cap</strong>. Changes reach the next sign-up with no deploy.
@@ -148,7 +148,7 @@ export function OwnerLimits({
         <button type="button" className="btn btn-primary touch-target" onClick={save} disabled={pending}>
           {pending ? "Saving…" : "Save limits"}
         </button>
-        <span className="text-muted" style={{ fontSize: 12.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {enforce ? "Enforcement is ON." : "Enforcement is off — nothing is refused."}
         </span>
         {saved && (

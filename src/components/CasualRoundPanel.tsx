@@ -104,13 +104,13 @@ export function CasualRoundPanel({
     <div className="card elev-sm" style={{ gap: 14, marginBottom: 16 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>This round</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "3px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
           Change any of it while you play — nothing here is locked.
         </p>
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -210,7 +210,7 @@ export function CasualRoundPanel({
             </div>
           ))}
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Handicaps save when you tap away. A plus handicap is written &ldquo;+2&rdquo;.{" "}
           {/* And then it says that it has — the sentence promised a save the
               screen never confirmed. */}
@@ -249,7 +249,7 @@ export function CasualRoundPanel({
             >
               {accessCode}
             </code>
-            <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, minWidth: 0 }}>
+            <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, minWidth: 0 }}>
               Read it out to the others. They open the app, tap{" "}
               <b>Playing today?</b> and put it in — no account needed, and they pick
               their own name from the list.

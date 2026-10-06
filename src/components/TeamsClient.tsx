@@ -207,7 +207,7 @@ export function TeamsClient({
             card in Rounds & formats. They are settings of the round, and this
             screen had its own round selector — so the same round was being
             configured in two places, neither mentioning the other. */}
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
           {format.shares ? ` · split ${format.shares.join(" / ")}` : ""}
           {format.countBest !== null ? ` · best ${format.countBest} of ${format.max}` : ""}
@@ -221,7 +221,7 @@ export function TeamsClient({
           <span className="card-title" style={{ fontSize: 14 }}>
             {problems.length === 1 ? "One side isn't ready" : `${problems.length} sides aren't ready`}
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Better to fix now than on the first tee.
           </p>
           <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 13 }}>
@@ -315,7 +315,7 @@ export function TeamsClient({
       {sideBlock && (
         <p
           style={{
-            fontSize: 12.5,
+            fontSize: 13,
             margin: 0,
             lineHeight: 1.5,
             display: "flex",
@@ -348,7 +348,7 @@ export function TeamsClient({
           </div>
         </div>
       )}
-      <p className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "-8px 0 0" }}>
         An automatic draw balances the sides by handicap, pairing stronger players with weaker ones —
         otherwise a field with a wide spread is decided at registration rather than on the course.
       </p>
@@ -414,7 +414,7 @@ export function TeamsClient({
               </div>
 
               {t.members.length === 0 ? (
-                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Nobody on this side yet.</p>
+                <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>Nobody on this side yet.</p>
               ) : (
                 <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
                   {t.members.map((m) => (
@@ -455,7 +455,7 @@ export function TeamsClient({
               )}
 
               {short && (
-                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                   Needs {format.min - t.members.length} more.
                 </p>
               )}
@@ -496,7 +496,7 @@ export function TeamsClient({
                       same defect the Generate matches button on this very
                       screen was fixed for earlier. */}
                   {addBlock && (
-                    <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.45 }}>
+                    <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.45 }}>
                       {addBlock.problem}
                     </p>
                   )}

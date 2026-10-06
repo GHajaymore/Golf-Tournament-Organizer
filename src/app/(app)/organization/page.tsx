@@ -260,7 +260,7 @@ export default async function OrganizationPage() {
         {canEdit && (
           <section className="card elev-sm" style={{ marginBottom: 16 }}>
             <span className="card-title" style={{ fontSize: 15 }}>What this is</span>
-            <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
               It decides what the console calls this outfit, what setup asks you for, and what
               money does by default.
             </p>

@@ -66,7 +66,7 @@ const BAND_STYLE: Record<EventBand, { background: string; color: string }> = {
 };
 
 const FIELD: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, flex: "1 1 140px", minWidth: 0 };
-const LABEL: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: "var(--color-text-muted)" };
+const LABEL: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-text-muted)" };
 
 export function ClubEventsList({
   events,
@@ -204,7 +204,7 @@ export function ClubEventsList({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 700,
                   letterSpacing: "0.09em",
                   textTransform: "uppercase",
@@ -216,7 +216,7 @@ export function ClubEventsList({
               <div style={{ padding: "12px 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                   {e.seriesName && (
-                    <span className="text-muted" style={{ fontSize: 12 }}>
+                    <span className="text-muted" style={{ fontSize: 13 }}>
                       {e.seriesName}
                     </span>
                   )}
@@ -231,7 +231,7 @@ export function ClubEventsList({
                     {e.playKind && e.playKind !== "tournament" && (
                       <span
                         className="text-muted"
-                        style={{ fontSize: 11.5, fontWeight: 600, marginLeft: 8, whiteSpace: "nowrap" }}
+                        style={{ fontSize: 13, fontWeight: 600, marginLeft: 8, whiteSpace: "nowrap" }}
                       >
                         {playLabel(e.playKind)}
                       </span>
@@ -246,7 +246,7 @@ export function ClubEventsList({
                       <span
                         style={{
                           marginLeft: 6,
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: 700,
                           padding: "1px 7px",
                           borderRadius: 999,
@@ -316,7 +316,7 @@ export function ClubEventsList({
                 {/* Why it is shut, in the console's own sentence — only where
                     the band has not already said everything. */}
                 {e.band === "closed" && e.statusDetail && (
-                  <span className="text-muted" style={{ fontSize: 12.5 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     {e.statusDetail}
                   </span>
                 )}
@@ -398,7 +398,7 @@ function SeasonSections({
           <section key={label} style={{ marginTop: 16 }}>
             <h2
               style={{
-                fontSize: 11.5,
+                fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: "0.09em",
                 textTransform: "uppercase",

@@ -109,7 +109,7 @@ export function SingleMatchRulePicker({
   return (
     <div className="card elev-sm" style={{ marginTop: 12, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 14 }}>Who plays this match</span>
-      <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 0", lineHeight: 1.55 }}>
         One match, and the two players are worked out when the round opens rather than fixed now — so
         correcting a score in an earlier round changes who plays it.
       </p>
@@ -238,7 +238,7 @@ export function SingleMatchRulePicker({
           padding: "9px 11px",
           borderRadius: "var(--radius-md)",
           background: "color-mix(in srgb, var(--color-accent) 7%, transparent)",
-          fontSize: 12.5,
+          fontSize: 13,
           lineHeight: 1.6,
         }}
       >
@@ -264,7 +264,7 @@ export function SingleMatchRulePicker({
       )}
 
       {matchId ? (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           <Icon name="check-circle" /> The match is made. Enter its result on Score entry.
         </p>
       ) : (

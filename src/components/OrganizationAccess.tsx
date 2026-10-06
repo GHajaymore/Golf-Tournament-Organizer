@@ -129,7 +129,7 @@ export function OrganizationAccess({
           <span className="card-title" style={{ fontSize: 15 }}>
             Asked to join ({asks.length})
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
             They typed this {from}&rsquo;s name when setting up their own and were told it already
             exists. Nothing has changed yet — they see nothing of yours until you say so.
           </p>
@@ -149,7 +149,7 @@ export function OrganizationAccess({
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{ask.name}</div>
-                  <div className="text-muted" style={{ fontSize: 12 }}>
+                  <div className="text-muted" style={{ fontSize: 13 }}>
                     {ask.email}
                     {ask.note ? ` — “${ask.note}”` : ""}
                   </div>
@@ -215,14 +215,14 @@ export function OrganizationAccess({
           {/* The reconciliation, said rather than left for the reader to
               notice. The two numbers are both correct and count different
               things; what was missing was any sentence admitting it. */}
-          <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
             {seats === 1
               ? `1 person holds a staff seat`
               : `${seats} people hold a staff seat`}{" "}
             — organizer or assistant rights somewhere, which is what your plan counts. Members and
             guests are on this list without holding one.
           </p>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
             {/* The Commissioner line must keep saying BILLING. The word
                 describes control, not money — unlike "Owner", which said it by
                 implication — so if this sentence is ever shortened, the one
@@ -259,12 +259,12 @@ export function OrganizationAccess({
                           asked, not yet signed in. The title said the same
                           thing in more words, to a mouse only. */}
                       {!p.hasLogin && (
-                        <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
+                        <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 13 }}>
                           invited
                         </span>
                       )}
                     </td>
-                    <td className="text-muted" style={{ fontSize: 12 }}>{p.email}</td>
+                    <td className="text-muted" style={{ fontSize: 13 }}>{p.email}</td>
                     <td>
                       <div className="seg">
                         {ORG_ROLE_OPTS.map((o) => (
@@ -311,7 +311,7 @@ export function OrganizationAccess({
 
         <div className="card elev-sm" style={{ gap: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add staff</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
             Pro shop staff and co-organizers. Players are added per tournament on Registration — they never
             take a staff seat.
           </p>
@@ -366,7 +366,7 @@ export function OrganizationAccess({
             <Icon name="plus" /> Add staff
           </button>
           {!canEdit && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Only an owner or admin can manage staff.
             </p>
           )}
@@ -377,13 +377,13 @@ export function OrganizationAccess({
       <div className="card elev-sm">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Who can access what</span>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {report.people.length} people · {report.events.length} tournaments
           </span>
         </div>
-        <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 6px" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 6px" }}>
           Effective access, including roles inherited from an organization role. A
-          <span className="tag tag-neutral" style={{ margin: "0 4px", fontSize: 10 }}>{from}</span>
+          <span className="tag tag-neutral" style={{ margin: "0 4px", fontSize: 13 }}>{from}</span>
           marker means the person was never added to that tournament directly.
         </p>
 
@@ -391,7 +391,7 @@ export function OrganizationAccess({
           <span className="text-muted" style={{ fontSize: 13 }}>No tournaments yet.</span>
         ) : (
           <div className="table-scroll">
-            <table className="table" style={{ fontSize: 12, minWidth: 520 }}>
+            <table className="table" style={{ fontSize: 13, minWidth: 520 }}>
               <thead>
                 <tr>
                   <th style={{ minWidth: 170 }}>Person</th>
@@ -408,7 +408,7 @@ export function OrganizationAccess({
                   <tr key={p.email}>
                     <td>
                       <div style={{ fontWeight: 500 }}>{p.name || p.email}</div>
-                      {p.name && <div className="text-muted" style={{ fontSize: 11 }}>{p.email}</div>}
+                      {p.name && <div className="text-muted" style={{ fontSize: 13 }}>{p.email}</div>}
                     </td>
                     <td>
                       {p.orgRole ? (
@@ -445,7 +445,7 @@ export function OrganizationAccess({
         )}
 
         {eventOnly.length > 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
             {/* NOT "are not staff". The demo club has two people here holding
                 ADMIN on individual events — they consume a staff seat and do
                 not appear in the roster above, which is the other direction of

@@ -72,7 +72,7 @@ export function PaceOfPlay({ rounds }: { rounds: PaceRound[] }) {
               <h2 id={`pace-${round.stageId}`} className="card-title" style={{ fontSize: 16, margin: 0 }}>
                 <Icon name="clock" /> Pace of play{round.label ? ` — ${round.label}` : ""}
               </h2>
-              <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+              <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
                 {hoursAndMinutes(allowed)} allowed for a four-ball
                 {round.holes === 9 ? ` (${hoursAndMinutes(allowed / 2)} for these nine)` : ""}. Measured from each
                 group&rsquo;s tee time and the holes on its cards — a group that isn&rsquo;t entering scores

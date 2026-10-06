@@ -71,7 +71,7 @@ export function SettingsNav({ sections }: { sections: readonly SettingsSection[]
                   minHeight: 44,
                   padding: "7px 11px",
                   borderRadius: 999,
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: 600,
                   whiteSpace: "nowrap",
                   textDecoration: "none",

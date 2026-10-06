@@ -50,7 +50,7 @@ export function PlayWithPicker({
       ) : (
         <>
           <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-            <legend className="text-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>
+            <legend className="text-muted" style={{ fontSize: 13, marginBottom: 6 }}>
               {picked.length} of {MAX_REQUESTS} chosen
             </legend>
             <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 6, maxHeight: 220, overflowY: "auto" }}>

@@ -110,12 +110,12 @@ export function ScoringClient({
   return (
     <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 14 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Points {saving && <span className="text-muted" style={{ fontSize: 12 }}>· saving…</span>}</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Points {saving && <span className="text-muted" style={{ fontSize: 13 }}>· saving…</span>}</span>
         {FIELDS.map((f) => (
           <div key={f.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{f.label}</div>
-              <div className="text-muted" style={{ fontSize: 12 }}>{f.hint}</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{f.hint}</div>
             </div>
             <input
               className="input"
@@ -133,7 +133,7 @@ export function ScoringClient({
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
             Switch on the ones you want, applied in order when points are level. Reorder the active ones with the arrows.
           </p>
           {/* Cited here rather than anywhere else on the screen because this is
@@ -170,7 +170,7 @@ export function ScoringClient({
                   color: "var(--color-accent-100)",
                   display: "grid",
                   placeItems: "center",
-                  fontSize: 11,
+                  fontSize: 13,
                   flex: "none",
                 }}
               >
@@ -189,13 +189,13 @@ export function ScoringClient({
             </div>
           ))}
           {order.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0" }}>
               None active — level standings fall back to seed order.
             </p>
           )}
           {available.length > 0 && (
             <>
-              <div className="text-muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>
+              <div className="text-muted" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>
                 Available
               </div>
               {available.map((t) => (
@@ -233,10 +233,10 @@ export function ScoringClient({
               then 3, then the hardest hole — and each one added is a tighter
               cut than the last, so several in a chain is the normal case
               rather than an odd one. */}
-          <div className="text-muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", margin: "12px 0 4px" }}>
+          <div className="text-muted" style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", margin: "12px 0 4px" }}>
             Add a countback
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: "0 0 7px", lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 7px", lineHeight: 1.6 }}>
             Compares records over the hardest holes by stroke index. Add as many as you like — each one a
             tighter cut for players still level after the one before.
           </p>
@@ -261,7 +261,7 @@ export function ScoringClient({
                 const n = Number(e.target.value);
                 if (n) addToughest(n);
               }}
-              style={{ fontSize: 12, padding: "3px 6px", width: "auto" }}
+              style={{ fontSize: 13, padding: "3px 6px", width: "auto" }}
               aria-label="Add another countback"
             >
               <option value="">Another N…</option>
@@ -283,7 +283,7 @@ export function ScoringClient({
             {values.bonusPts ? ` + ${pts(values.bonusPts)} bonus` : ""} = <strong>{pts(total)} pts</strong>.
           </p>
           {capBites && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
               The {pts(values.maxPerMatch)}-point limit is doing something here: a match worth more
               than that only counts {pts(values.maxPerMatch)}. That is the point of it — one runaway
               result can&rsquo;t settle a flight before the last match is played.

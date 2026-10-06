@@ -102,7 +102,7 @@ export function LeagueTable({
         </tbody>
       </table>
       {orderNote && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.55 }}>
           {orderNote}
         </p>
       )}

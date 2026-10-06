@@ -84,14 +84,14 @@ export function ClubHandicapPanel({
       </span>
 
       {pending && !record && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Reading their approved cards…
         </p>
       )}
 
       {record && (
         <>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             {record.cardsFound === 0
               ? "No approved cards yet. A card counts once the committee has accepted it."
               : `${record.cardsFound} approved ${record.cardsFound === 1 ? "card" : "cards"}, of which ` +
@@ -101,7 +101,7 @@ export function ClubHandicapPanel({
           {skipped.length > 0 && (
             // Named, not merely subtracted. A member who played six rounds and
             // sees "from 3" will otherwise assume the app lost three of them.
-            <ul className="text-muted" style={{ fontSize: 11.5, margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+            <ul className="text-muted" style={{ fontSize: 13, margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
               {skipped.map(([reason, n]) => (
                 <li key={reason}>
                   {n} {n === 1 ? "round" : "rounds"} not counted — {REASONS[reason] ?? reason}
@@ -113,20 +113,20 @@ export function ClubHandicapPanel({
           {record.suggestion ? (
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   Plays off <b>{currentHandicap}</b> today
                 </span>
                 <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>
                   {record.suggestion.handicap}
                 </span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   from the lowest {record.suggestion.lowestCounted} of {record.suggestion.scoresUsed}
                   {record.suggestion.adjustment !== 0 && `, ${record.suggestion.adjustment} adjustment`}
                 </span>
               </div>
 
               {/* The one thing this number is not, said where the number is. */}
-              <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
                 A club handicap from this club&rsquo;s own cards — not a WHS Handicap Index, which only a
                 national association can issue. It carries no Playing Conditions adjustment, because that
                 is worked out from every card played that day across every club.
@@ -145,7 +145,7 @@ export function ClubHandicapPanel({
               ) : (
                 // Shown, never offered. The association is the authority and the
                 // action refuses this too — hiding a button stops nobody.
-                <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-200)", lineHeight: 1.6 }}>
+                <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-200)", lineHeight: 1.6 }}>
                   <Icon name="lock-simple" /> Their handicap comes from their association, so
                   TourneyHQ won&rsquo;t replace it. The record is here to read.
                 </p>
@@ -153,7 +153,7 @@ export function ClubHandicapPanel({
             </>
           ) : (
             record.cardsFound > 0 && (
-              <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                 Not enough yet — the Rules issue no handicap below three scored rounds.
               </p>
             )
@@ -162,7 +162,7 @@ export function ClubHandicapPanel({
       )}
 
       {note && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {note}
         </p>
       )}
@@ -175,7 +175,7 @@ export function ClubHandicapPanel({
       <button
         type="button"
         className="btn btn-ghost"
-        style={{ alignSelf: "flex-start", fontSize: 12 }}
+        style={{ alignSelf: "flex-start", fontSize: 13 }}
         onClick={onClose}
       >
         Close

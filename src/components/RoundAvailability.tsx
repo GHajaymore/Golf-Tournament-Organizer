@@ -285,7 +285,7 @@ export function RoundAvailability({
           <span className="card-title" style={{ fontSize: 15 }}>
             {asksPlayer ? "Your availability" : "Whether you're playing"}
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
             {explanation}
           </p>
         </div>
@@ -328,7 +328,7 @@ function CaptainTable({ f }: { f: CaptainFlight }) {
           <span className="card-kicker">
             {f.flightName} (you&rsquo;re {f.deputy ? "vice-captain" : "captain"})
           </span>
-          <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 8px", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.5 }}>
             Who your side has available, week by week. To change someone&rsquo;s answer, ask
             the organizer &mdash; captains don&rsquo;t set other players&rsquo; availability.
           </p>
@@ -336,7 +336,7 @@ function CaptainTable({ f }: { f: CaptainFlight }) {
               week — and any other shape makes the reader hold one of them in
               their head. It scrolls sideways rather than squeezing the names. */}
           <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ fontSize: 12.5, minWidth: 260 }}>
+            <table className="table" style={{ fontSize: 13, minWidth: 260 }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: "left" }}>Player</th>
@@ -367,7 +367,7 @@ function CaptainTable({ f }: { f: CaptainFlight }) {
                             below ten: it is read on a phone, outdoors, by
                             people who mostly do not have young eyes. */}
                         {!c.explicit && (
-                          <span className="text-muted" style={{ fontSize: 10.5, display: "block", lineHeight: 1 }}>
+                          <span className="text-muted" style={{ fontSize: 13, display: "block", lineHeight: 1 }}>
                             default
                           </span>
                         )}

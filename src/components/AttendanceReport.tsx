@@ -73,7 +73,7 @@ export function AttendanceReport({ report }: { report: Report }) {
       </div>
 
       <div className="table-scroll">
-        <table className="table" style={{ fontSize: 12 }}>
+        <table className="table" style={{ fontSize: 13 }}>
           <thead>
             <tr>
               <th style={{ minWidth: 130 }}>Player</th>
@@ -81,7 +81,7 @@ export function AttendanceReport({ report }: { report: Report }) {
                 <th key={r.stageId} style={{ textAlign: "center", whiteSpace: "nowrap" }}>
                   {r.label}
                   {r.dateLabel && (
-                    <div className="text-muted" style={{ fontSize: 10, fontWeight: 400 }}>
+                    <div className="text-muted" style={{ fontSize: 13, fontWeight: 400 }}>
                       {r.dateLabel}
                     </div>
                   )}
@@ -138,14 +138,14 @@ export function AttendanceReport({ report }: { report: Report }) {
               </tr>
             ))}
             <tr>
-              <td className="text-muted" style={{ fontSize: 11 }}>
+              <td className="text-muted" style={{ fontSize: 13 }}>
                 In this round
               </td>
               {report.rounds.map((r) => (
                 <td
                   key={r.stageId}
                   className="text-muted"
-                  style={{ textAlign: "center", fontVariantNumeric: "tabular-nums", fontSize: 11 }}
+                  style={{ textAlign: "center", fontVariantNumeric: "tabular-nums", fontSize: 13 }}
                 >
                   {r.in}
                   {/* How many of those are in only because nobody said
@@ -156,7 +156,7 @@ export function AttendanceReport({ report }: { report: Report }) {
                       that and is right to: this is a number a secretary reads
                       off a printed sheet. */}
                   {r.inByDefault > 0 && (
-                    <div style={{ fontSize: 10, opacity: 0.75 }}>{r.inByDefault} by default</div>
+                    <div style={{ fontSize: 13, opacity: 0.75 }}>{r.inByDefault} by default</div>
                   )}
                 </td>
               ))}

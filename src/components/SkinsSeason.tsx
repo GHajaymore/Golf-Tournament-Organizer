@@ -45,7 +45,7 @@ export function SkinsSeason({ rows }: { rows: SkinsSeasonRowView[] }) {
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <table className="table" style={{ fontSize: 12.5 }}>
+        <table className="table" style={{ fontSize: 13 }}>
           <thead>
             <tr>
               <th style={{ textAlign: "left" }}>Player</th>

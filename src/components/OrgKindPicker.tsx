@@ -88,7 +88,7 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
                 <span style={{ fontSize: 13, fontWeight: 600, color: chosen ? "var(--color-accent-200)" : undefined }}>
                   {p.label}
                 </span>
-                <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
+                <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
                   {p.blurb}
                 </span>
                 {/* WHAT ACTUALLY DIFFERS, read off the profile rather than
@@ -103,7 +103,7 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
                     A fourth flag, `seasonPlay`, was offered here in a first
                     draft and turned out to be read nowhere in the app; it was
                     deleted on 2026-09-20 rather than advertised. */}
-                <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
+                <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
                   {p.sharedRoster ? "Setup asks for a members list" : "Just your own list of players"}
                   {p.ownsCourse ? " · asks for your home course" : ""}
                   {p.ledger ? " · money splits between players by default" : " · money left to the shop by default"}
@@ -115,7 +115,7 @@ export function OrgKindPicker({ kind, country, noun }: { kind: string; country: 
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: confirmCount ? undefined : "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: confirmCount ? undefined : "var(--color-danger)" }}>
           <Icon name={confirmCount ? "warning" : "warning-circle"} /> {error}
         </p>
       )}

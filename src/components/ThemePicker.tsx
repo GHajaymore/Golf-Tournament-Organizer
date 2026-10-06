@@ -91,7 +91,7 @@ function SunBadge({
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        fontSize: 10.5,
+        fontSize: 13,
         lineHeight: 1.2,
         padding: "2px 6px",
         borderRadius: 999,
@@ -102,7 +102,7 @@ function SunBadge({
         ...style,
       }}
     >
-      <Icon name={good ? "ph ph-sun" : "ph ph-cloud-sun"} style={{ fontSize: 11 }} aria-hidden />
+      <Icon name={good ? "ph ph-sun" : "ph ph-cloud-sun"} style={{ fontSize: 13 }} aria-hidden />
       {SUN_GRADE_LABEL[grade]}
     </span>
   );
@@ -275,7 +275,7 @@ export function ThemePicker({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 3,
-                fontSize: 10,
+                fontSize: 13,
                 lineHeight: 1.2,
                 padding: "2px 6px",
                 borderRadius: 999,
@@ -286,7 +286,7 @@ export function ThemePicker({
                 background: ground.text,
               }}
             >
-              <Icon name="ph-bold ph-star" style={{ fontSize: 10 }} aria-hidden />
+              <Icon name="ph-bold ph-star" style={{ fontSize: 13 }} aria-hidden />
               Recommended
             </span>
           )}
@@ -296,7 +296,7 @@ export function ThemePicker({
             which never appears on a touch device and is not announced. On the
             swatch now, in place of the blurb, because a swatch that cannot be
             picked has no use for a description of what picking it would do. */}
-        <div style={{ fontSize: 11, marginTop: 1, opacity: 0.66 }}>
+        <div style={{ fontSize: 13, marginTop: 1, opacity: 0.66 }}>
           {disabledReason ?? preset.blurb}
         </div>
       </button>
@@ -354,7 +354,7 @@ export function ThemePicker({
     <div className="card elev-sm" style={{ gap: 16 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Colour &amp; appearance</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           {/* The outfit's own word. `useOrgProfile` rather than a new prop,
               which is how `OrganizationAccess` already does it — the kind
               alone cannot know what an outfit calls itself, so a US league
@@ -388,7 +388,7 @@ export function ThemePicker({
                 <Icon name={APPEARANCE_ICON[a.key]} />
                 {a.name}
               </div>
-              <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{a.blurb}</div>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{a.blurb}</div>
             </button>
           ))}
         </div>
@@ -488,7 +488,7 @@ export function ThemePicker({
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 4,
-                        fontSize: 10.5,
+                        fontSize: 13,
                         lineHeight: 1.2,
                         padding: "2px 6px",
                         borderRadius: 999,
@@ -497,14 +497,14 @@ export function ThemePicker({
                         background: "var(--color-accent-300)",
                       }}
                     >
-                      <Icon name="ph-bold ph-star" style={{ fontSize: 11 }} aria-hidden />
+                      <Icon name="ph-bold ph-star" style={{ fontSize: 13 }} aria-hidden />
                       Recommended
                     </span>
                   )}
                 </span>
-                <span className="text-muted" style={{ fontSize: 11 }}>{pair.blurb}</span>
+                <span className="text-muted" style={{ fontSize: 13 }}>{pair.blurb}</span>
                 {pair.key === RECOMMENDED_SCHEME && (
-                  <span className="text-muted" style={{ fontSize: 11 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     Tested on a phone in sun and on a screen indoors, and it clears both comfortably —
                     so it holds up whichever appearance your members&rsquo; devices choose.
                   </span>
@@ -526,13 +526,13 @@ export function ThemePicker({
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
                   Easiest to read on a phone in direct sun, on the appearance you have chosen.
                 </p>
                 {grid(good)}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <p className="text-muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
                   These look their best indoors. On a bright day your members may struggle to read a
                   score — switching Appearance to Light fixes every one of them.
                 </p>
@@ -565,7 +565,7 @@ export function ThemePicker({
           onUse={() => set({ accentKey: "custom", accentHex: accentHexDraft })}
           active={draft.accentKey === "custom"}
         />
-        <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           We keep your colour&apos;s hue and adjust its brightness so text stays readable on every
           screen — the swatches show exactly what you&apos;ll get.
         </p>
@@ -573,7 +573,7 @@ export function ThemePicker({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Second colour</span>
-        <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Marks players advancing, scores under par and matches won. Most should leave this on
           Fairway — it reads as the colour of the game rather than of any one outfit.
         </p>
@@ -625,9 +625,9 @@ export function ThemePicker({
         >
           <Icon name="sun" style={{ fontSize: 15, marginTop: 1 }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
+            <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
             {sun.suggestion && (
-              <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{sun.suggestion}</p>
+              <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{sun.suggestion}</p>
             )}
           </div>
         </div>
@@ -650,7 +650,7 @@ export function ThemePicker({
           }}
         >
           <Icon name="palette" style={{ fontSize: 15, marginTop: 1 }} />
-          <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             {pair.message}
             {pair.kind === "indistinct" && " Pick a second colour further from the accent to save."}
           </p>
@@ -750,7 +750,7 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
           <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15 }}>
             Leaderboard
           </span>
-          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+          <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
             after Round 2
           </span>
         </div>
@@ -815,7 +815,7 @@ function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
           >
             Publish
           </span>
-          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+          <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
             {accent.name}
             {secondary.key === "fairway" ? "" : ` + ${secondary.name}`}
           </span>

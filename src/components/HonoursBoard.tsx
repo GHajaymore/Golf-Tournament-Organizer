@@ -76,14 +76,14 @@ export function HonoursBoard({
   return (
     <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title">Honours board</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
         Every champion this {org.noun} has confirmed. Once a name is here it stays as it was recorded —
         it doesn&rsquo;t move when a member leaves the roster, a tournament is renamed, or the way a
         round is scored is corrected later.
       </p>
 
       {board.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Nothing on the board yet. Finished tournaments appear below to be confirmed.
         </p>
       ) : (
@@ -106,12 +106,12 @@ export function HonoursBoard({
                 >
                   <span style={{ minWidth: 0, fontSize: 13.5 }}>
                     <b>{e.championName}</b>
-                    <span className="text-muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                    <span className="text-muted" style={{ marginLeft: 8, fontSize: 13 }}>
                       {e.eventName}
                       {e.dates && ` · ${e.dates}`}
                     </span>
                     {e.note && (
-                      <span className="text-muted" style={{ display: "block", fontSize: 11.5 }}>
+                      <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
                         {e.note}
                       </span>
                     )}
@@ -119,7 +119,7 @@ export function HonoursBoard({
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {/* Says who, which is the question a board gets asked. */}
                     {e.confirmedBy && (
-                      <span className="text-muted" style={{ fontSize: 11 }}>
+                      <span className="text-muted" style={{ fontSize: 13 }}>
                         confirmed by {e.confirmedBy}
                       </span>
                     )}
@@ -165,14 +165,14 @@ export function HonoursBoard({
             >
               <span style={{ fontSize: 13 }}>
                 {p.eventName}
-                <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
+                <span className="text-muted" style={{ marginLeft: 6, fontSize: 13 }}>
                   {p.dates || (p.year ? String(p.year) : "no dates")}
                 </span>
               </span>
 
               {p.suggestion.ok ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span className="text-muted" style={{ fontSize: 12 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     Standings say <b>{p.suggestion.name}</b>
                     {p.suggestion.runnersUp.length > 0 &&
                       `, then ${p.suggestion.runnersUp.map((r) => r.name).join(" and ")}`}
@@ -180,7 +180,7 @@ export function HonoursBoard({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 13 }}
                     disabled={busy}
                     onClick={() => confirm(p.eventId)}
                   >
@@ -189,7 +189,7 @@ export function HonoursBoard({
                 </div>
               ) : p.suggestion.reason === "tied" ? (
                 <>
-                  <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+                  <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                     {CHAMPION_REFUSAL.tied}
                   </p>
                   {pickFor === p.eventId ? (
@@ -199,7 +199,7 @@ export function HonoursBoard({
                           key={t.playerId}
                           type="button"
                           className="btn btn-secondary"
-                          style={{ fontSize: 12 }}
+                          style={{ fontSize: 13 }}
                           disabled={busy}
                           onClick={() => confirm(p.eventId, t.playerId)}
                         >
@@ -209,7 +209,7 @@ export function HonoursBoard({
                       <button
                         type="button"
                         className="btn btn-ghost"
-                        style={{ fontSize: 12 }}
+                        style={{ fontSize: 13 }}
                         onClick={() => setPickFor(null)}
                       >
                         Cancel
@@ -219,7 +219,7 @@ export function HonoursBoard({
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      style={{ fontSize: 12, alignSelf: "flex-start" }}
+                      style={{ fontSize: 13, alignSelf: "flex-start" }}
                       onClick={() => setPickFor(p.eventId)}
                     >
                       <Icon name="scales" /> Decide between{" "}
@@ -228,7 +228,7 @@ export function HonoursBoard({
                   )}
                 </>
               ) : (
-                <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                   {CHAMPION_REFUSAL[p.suggestion.reason]}
                 </p>
               )}

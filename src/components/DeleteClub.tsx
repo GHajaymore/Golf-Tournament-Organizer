@@ -51,13 +51,13 @@ export function DeleteClub({
         undone. Your own account stays, along with anything else you belong to.
       </p>
       {paidPlanRunning ? (
-        <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
           This {noun} has a paid plan running. Cancel it in Manage billing above first; once the plan has
           ended, the {noun} can be deleted here.
         </p>
       ) : (
         <>
-          <label htmlFor={inputId} style={{ fontSize: 12.5, fontWeight: 500 }}>
+          <label htmlFor={inputId} style={{ fontSize: 13, fontWeight: 500 }}>
             Type <strong>{clubName}</strong> to confirm
           </label>
           <input
@@ -82,7 +82,7 @@ export function DeleteClub({
             />
           </div>
           {error && (
-            <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>
+            <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
               {error}
             </p>
           )}

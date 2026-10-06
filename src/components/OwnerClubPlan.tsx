@@ -22,7 +22,7 @@ export function OwnerClubPlan({ tiers }: { tiers: { key: string; name: string; t
   return (
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Put a club on a tier</span>
-      <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, margin: "8px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "8px 0 0" }}>
         Type the club&rsquo;s name exactly as it appears and choose its tier. Nothing is charged here — the
         price is agreed with the club first.
       </p>
@@ -62,7 +62,7 @@ export function OwnerClubPlan({ tiers }: { tiers: { key: string; name: string; t
         </button>
       </div>
       {result && (
-        <p role="status" style={{ fontSize: 12.5, margin: "8px 0 0", color: result.ok ? undefined : "var(--color-danger)" }}>
+        <p role="status" style={{ fontSize: 13, margin: "8px 0 0", color: result.ok ? undefined : "var(--color-danger)" }}>
           {result.text}
         </p>
       )}

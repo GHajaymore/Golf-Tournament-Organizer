@@ -180,23 +180,23 @@ export function CourseSetupPrompt({
           applyPaste(e.target.value);
         }}
         placeholder={"4 5 3 4 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71\n7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14"}
-        style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12.5, minHeight: 66 }}
+        style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13, minHeight: 66 }}
       />
       {/* "Open it to check", because the card below is FOLDED unless the paste
           went wrong. The old wording promised "the boxes below fill in as you
           paste" and they do — out of sight, which is not what a reader
           understands by that. */}
-      <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.45 }}>
         Copy the rows straight off the course&rsquo;s website — totals and labels are stripped
         automatically, and the card below fills in. Open it to check.
       </p>
       {pasteSummaryText && (
-        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: "4px 0 0", color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {pasteSummaryText}
         </p>
       )}
       {pasteProblems.map((m, i) => (
-        <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
+        <p key={i} style={{ fontSize: 13, margin: "3px 0 0", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {m}
         </p>
       ))}
@@ -255,14 +255,14 @@ export function CourseSetupPrompt({
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => applySaved(c)}
-                style={{ fontSize: 12.5 }}
+                style={{ fontSize: 13 }}
               >
                 <Icon name="flag-pennant" /> {c.name}
                 {c.city && <span className="text-muted" style={{ marginLeft: 5 }}>{c.city}</span>}
               </button>
             ))}
           </div>
-          <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
             Pick one to fill the card below — a course you just looked up appears here too.
           </p>
         </div>
@@ -291,7 +291,7 @@ export function CourseSetupPrompt({
           the evidence of. `open` is uncontrolled after the first render, so a
           reader can still fold it away again. */}
       <details open={pasteProblems.length > 0}>
-        <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
           {pasteProblems.length > 0 ? "Check the card below" : "Or type the card in by hand"}
         </summary>
         {/* Each nine gets its own scroller.

@@ -146,7 +146,7 @@ function Hint({ id, bad, children }: { id: string; bad: boolean; children: React
       className={bad ? undefined : "text-muted"}
       style={{
         display: "block",
-        fontSize: 11,
+        fontSize: 13,
         marginTop: 5,
         color: bad ? "var(--color-danger)" : undefined,
       }}

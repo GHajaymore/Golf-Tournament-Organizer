@@ -258,7 +258,7 @@ export function CreateFirstTournament({
         <span className="card-title" style={{ fontSize: 15 }}>
           {first ? "Organizing an event?" : "Create a tournament"}
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           Just a name to start — dates, course, format and field all come next, and can be changed any time.
         </p>
       </div>
@@ -294,7 +294,7 @@ export function CreateFirstTournament({
               <option key={o.id} value={o.id}>{o.name}</option>
             ))}
           </select>
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             Its members, its settings and its season. A tournament cannot be moved afterwards.
           </p>
         </div>
@@ -350,7 +350,7 @@ export function CreateFirstTournament({
                 }}
               >
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
-                <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 2, lineHeight: 1.4 }}>
                   {s.blurb}
                 </div>
               </button>
@@ -401,7 +401,7 @@ export function CreateFirstTournament({
             );
           })}
         </select>
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           {copyFrom
             ? `Copies the settings, rounds and courses from ${copyFrom.name.trim() || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
             : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
@@ -445,7 +445,7 @@ export function CreateFirstTournament({
             onChange={(e) => setOrgName(e.target.value)}
             placeholder="e.g. Cedar Dunes Golf Club"
           />
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             {/* TWO READERS OF ONE RULE, AND THEY MUST NOT DISAGREE. The label
                 above now says "set once for every tournament" when the gate
                 applies, and this line went on saying "Leave blank" underneath
@@ -492,7 +492,7 @@ export function CreateFirstTournament({
                   tournament — and a refusal nobody was warned about reads as
                   the form failing. */}
               {orgProfile(kindChoice, orgCountry, orgNoun).sharedRoster && (
-                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
                   A {orgProfile(kindChoice, orgCountry, orgNoun).noun} keeps a members list, and adds it before its first
                   tournament — every field is drawn from it. If yours is empty you&rsquo;ll be asked for it next.
                 </p>
@@ -518,7 +518,7 @@ export function CreateFirstTournament({
           }}
         >
           <Icon name="warning-circle" style={{ color: "var(--color-danger)", fontSize: 15, marginTop: 1 }} />
-          <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <b>On the {planName} plan:</b> {retention}
           </p>
         </div>
@@ -535,7 +535,7 @@ export function CreateFirstTournament({
           className="card"
           role={sameName ? "status" : "alert"}
           style={{
-            fontSize: 12.5,
+            fontSize: 13,
             margin: 0,
             padding: "10px 12px",
             gap: 0,
@@ -558,7 +558,7 @@ export function CreateFirstTournament({
       {asks.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {asks.map((ask) => (
-            <p key={`${ask.outfit}-${ask.status}`} className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p key={`${ask.outfit}-${ask.status}`} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               {ask.status === "pending" ? (
                 <>
                   <Icon name="clock" /> You asked <b>{ask.outfit}</b> to add you{" "}
@@ -590,13 +590,13 @@ export function CreateFirstTournament({
       {sameName && (
         <div className="card" style={{ gap: 8, padding: "10px 12px" }}>
           {asked ? (
-            <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               <Icon name="check" /> Asked {asked}. They will see it on their access screen and by
               email. You can still set up your own below — nothing is waiting on them.
             </p>
           ) : (
             <>
-              <label htmlFor={`${fid}-ask`} style={{ fontSize: 12.5 }}>
+              <label htmlFor={`${fid}-ask`} style={{ fontSize: 13 }}>
                 Ask them to add you{" "}
                 <span className="text-muted" style={{ fontWeight: 400 }}>
                   — they see your name and email, you are told nothing about them
@@ -672,7 +672,7 @@ export function CreateFirstTournament({
       {!pending &&
         (!name.trim() || (!copyFrom && !shape) || (clubNameRequired && !orgName.trim())) &&
         elsewhere.length === 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {!name.trim()
               ? copyFrom
                 ? "Give the new one a name — the rest comes across with it."
@@ -692,14 +692,14 @@ export function CreateFirstTournament({
           Shown last, under the disabled button, because it is the answer to
           "why can I not press that" and it is read after the press. */}
       {!pending && elsewhere.length > 0 && (
-        <div style={{ fontSize: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+        <div style={{ fontSize: 13, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
           <Icon name="warning-circle" style={{ color: "var(--color-accent-200)" }} />
           <span className="text-muted">
             Set up your {outfit.noun} first — it is answered once, and every tournament you run is built on
             it:
           </span>
           {elsewhere.map((s) => (
-            <a key={s.key} className="btn btn-secondary" style={{ fontSize: 12, padding: "3px 10px" }} href={s.href}>
+            <a key={s.key} className="btn btn-secondary" style={{ fontSize: 13, padding: "3px 10px" }} href={s.href}>
               {s.title}
             </a>
           ))}

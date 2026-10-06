@@ -345,7 +345,7 @@ export function MoneyClient({
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
         {/* Not "Money": the screen's h1 says that directly above. This
             section is the shared costs and who squares with whom. */}
         Expenses and settling up
@@ -367,7 +367,7 @@ export function MoneyClient({
          */
         <p
           className="text-muted"
-          style={{ fontSize: 12.5, margin: "12px 0 0", lineHeight: 1.6 }}
+          style={{ fontSize: 13, margin: "12px 0 0", lineHeight: 1.6 }}
         >
           <Icon name="info" /> The {terms.organizers} add the shared costs for this one — send them
           what you paid for and it will appear here.
@@ -480,7 +480,7 @@ export function MoneyClient({
               onChange={(e) => setAmount(e.target.value)}
               style={{ minHeight: 46, fontSize: 18, fontVariantNumeric: "tabular-nums" }}
             />
-            <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
               A refund goes in as a negative — “-30” for a {terms.cart} fee that came back.
             </p>
           </div>
@@ -623,17 +623,17 @@ export function MoneyClient({
                   "invalid". Somebody typing four amounts wants to know how
                   much is left, not that they are wrong. */}
               {splitMode === "exact" && splitOff !== 0 && cents !== 0 && (
-                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
                   {splitOff > 0 ? `${money(splitOff)} still to allocate` : `${money(-splitOff)} over the total`}
                 </span>
               )}
               {splitMode === "percent" && percentOff !== 0 && (
-                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
                   {percentOff > 0 ? `${percentOff}% still to allocate` : `${-percentOff}% over 100`}
                 </span>
               )}
               {splitMode === "shares" && (
-                <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+                <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
                   Shares, not amounts — two means twice as much as one. A zero leaves somebody on the
                   line without charging them, which is how a guest gets included in the round and not
                   in the bill.
@@ -677,13 +677,13 @@ export function MoneyClient({
                 );
               })}
               {paidOff !== 0 && cents !== 0 && (
-                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
                   {paidOff > 0
                     ? `${money(paidOff)} of this bill is unaccounted for`
                     : `${money(-paidOff)} more than the bill`}
                 </span>
               )}
-              <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+              <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
                 Leave somebody blank if they put nothing in. Anyone can pay for a bill they are not
                 sharing — fronting a guest&rsquo;s green fee is exactly that.
               </span>
@@ -692,7 +692,7 @@ export function MoneyClient({
 
           {/* Never render a split that does not add up. */}
           {valid && shareIds.length > 0 && (
-            <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               {money(Math.abs(cents))} between {shareIds.length} — about {money(each)} each
               {Math.abs(cents) % shareIds.length !== 0 && ", odd cents to the first names"}.
             </p>
@@ -713,7 +713,7 @@ export function MoneyClient({
             </button>
           </div>
           {error && (
-            <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
@@ -722,7 +722,7 @@ export function MoneyClient({
 
       {/* The one number. */}
       <section className="card elev-sm" style={{ marginTop: 8, alignItems: "center", textAlign: "center", padding: "20px 16px" }}>
-        <div style={{ fontSize: 12.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
           {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
         </div>
         <div
@@ -743,7 +743,7 @@ export function MoneyClient({
             player looking for what made up "Side games" found no section by
             that name. "Side bets" is also what the organizer's screen calls the
             card holding both kinds, so the two screens now agree. */}
-        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 12, color: "var(--color-neutral-400)" }}>
+        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 13, color: "var(--color-neutral-400)" }}>
           <span>Expenses {money(view.expensesCents)}</span>
           {view.gamesCents !== 0 && <span>Side bets {money(view.gamesCents)}</span>}
           {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
@@ -780,7 +780,7 @@ export function MoneyClient({
                   {c.name}
                   {c.hole > 0 && <span className="text-muted" style={{ fontWeight: 400 }}> · hole {c.hole}</span>}
                 </span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {money(c.potCents)} pot · {c.entrants} in ·{" "}
                   {c.decided
                     ? `won by ${c.winners.join(" & ")}`
@@ -824,7 +824,7 @@ export function MoneyClient({
                     // pot from the tee, so the tap target must clear the floor.
                     padding: "0 12px",
                     borderRadius: 999,
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 600,
                     cursor: c.youConfirmed ? "default" : "pointer",
                     color: "var(--color-text)",
@@ -848,7 +848,7 @@ export function MoneyClient({
       {view.sideGames.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Pots on the scores</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.5 }}>
             Worked out from the cards — no result to enter. Put your name down here and pay the
             organizer; nothing counts until they have it.
           </p>
@@ -865,7 +865,7 @@ export function MoneyClient({
             >
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{g.label}</span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {money(g.buyInCents)} each · {money(g.potCents)} pot · {g.entrants} in
                 </span>
               </span>
@@ -902,7 +902,7 @@ export function MoneyClient({
                     // pot from the tee, so the tap target must clear the floor.
                     padding: "0 12px",
                     borderRadius: 999,
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 600,
                     cursor: g.youConfirmed ? "default" : "pointer",
                     color: "var(--color-text)",
@@ -940,7 +940,7 @@ export function MoneyClient({
               <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>
                 The rest of your side bets
               </span>
-              <span className="text-muted" style={{ fontSize: 11.5 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 Your share of the skins and the score pots — worked out from the cards.
               </span>
               {/* ITEMISED, where it used to be a lump.
@@ -961,7 +961,7 @@ export function MoneyClient({
                         display: "flex",
                         justifyContent: "space-between",
                         gap: 10,
-                        fontSize: 12,
+                        fontSize: 13,
                         padding: "2px 0",
                       }}
                     >
@@ -1000,7 +1000,7 @@ export function MoneyClient({
       {view.transfers.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Settle up</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px", lineHeight: 1.5 }}>
             {/* SHOW THE SAVING, do not just claim it.
                 Every splitting app simplifies debts and every one of them
                 asks you to take it on faith, which is why people re-add it by
@@ -1035,7 +1035,7 @@ export function MoneyClient({
               <button
                 type="button"
                 className="btn btn-secondary touch-target"
-                style={{ fontSize: 12 }}
+                style={{ fontSize: 13 }}
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
@@ -1053,7 +1053,7 @@ export function MoneyClient({
               type="button"
               className="btn btn-secondary"
               onClick={() => setShowAllTransfers((v) => !v)}
-              style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 12.5 }}
+              style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 13 }}
             >
               {showAllTransfers
                 ? "Just mine"
@@ -1061,7 +1061,7 @@ export function MoneyClient({
             </button>
           )}
           {mine.length === 0 && !showAllTransfers && (
-            <p className="text-muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
               Nothing for you to hand over or collect.
             </p>
           )}
@@ -1094,7 +1094,7 @@ export function MoneyClient({
                 flexWrap: "wrap",
                 gap: "4px 14px",
                 margin: "8px 0 2px",
-                fontSize: 12.5,
+                fontSize: 13,
                 color: "var(--color-text-muted)",
               }}
             >
@@ -1128,7 +1128,7 @@ export function MoneyClient({
             <summary className="touch-target expense-row" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{e.description}</span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {/* Everyone who paid, not just the first of them. This said
                       "Paid by {one name}" from the moment a bill could have
                       several payers: the arithmetic credited both and the
@@ -1173,7 +1173,7 @@ export function MoneyClient({
             </summary>
             <div style={{ padding: "8px 0 4px" }}>
               {e.shares.map((s) => (
-                <div key={s.playerId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "2px 0" }}>
+                <div key={s.playerId} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "2px 0" }}>
                   <span className="text-muted">{s.name}{s.weight === 0 && " (not on this bill)"}</span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(s.cents)}</span>
                 </div>
@@ -1193,7 +1193,7 @@ export function MoneyClient({
                   an organizer to change it" six times on one screen. Measured
                   on the demo tournament, 2026-09-13. */}
               {!e.canEdit && (
-                <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
                   Entered by {e.createdBy || "someone else"}
                 </p>
               )}
@@ -1202,7 +1202,7 @@ export function MoneyClient({
                 <button
                   type="button"
                   className="btn btn-secondary touch-target"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13 }}
                   disabled={pending}
                   onClick={() => startEdit(e)}
                 >
@@ -1221,7 +1221,7 @@ export function MoneyClient({
                     fault cannot answer it slightly differently. */}
                 <ConfirmButton
                   className="btn btn-secondary touch-target"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13 }}
                   label="Remove"
                   title="Remove this line"
                   confirmLabel="Yes, remove it"
@@ -1261,7 +1261,7 @@ export function MoneyClient({
               mistake could not be taken back by anybody — including the two
               people who know whether the money actually changed hands. */}
           {view.settlements.map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, paddingTop: 6 }}>
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, paddingTop: 6 }}>
               <span className="text-muted" style={{ flex: 1, minWidth: 0 }}>
                 {s.fromName} → {s.toName} · {s.settledAt}
                 {s.recordedBy ? ` · recorded by ${s.recordedBy}` : ""}
@@ -1270,7 +1270,7 @@ export function MoneyClient({
               {s.canRemove && (
                 <ConfirmButton
                   className="btn btn-ghost"
-                  style={{ fontSize: 11.5 }}
+                  style={{ fontSize: 13 }}
                   icon="arrow-counter-clockwise"
                   label="Undo"
                   title={`Undo ${s.fromName} → ${s.toName}`}
@@ -1353,7 +1353,7 @@ function ShareField({
             // 10px is the floor this app sets itself, and the adherence test
             // in brand-consistency.test.ts enforces it. This was 9.5 and the
             // suite caught it, which is the test doing exactly its job.
-            fontSize: 10,
+            fontSize: 13,
             letterSpacing: "0.02em",
             fontVariantNumeric: "tabular-nums",
             border: `1px ${c.state === "nil" ? "dashed" : "solid"} ${

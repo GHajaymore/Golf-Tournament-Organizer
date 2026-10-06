@@ -79,15 +79,15 @@ export function GolfTermsPicker({
         <option value="uk">{GOLF_TERMS_LABEL.uk}</option>
       </select>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
         Screens say <b style={{ color: "var(--color-text)" }}>{words.cart}</b>,{" "}
         <b style={{ color: "var(--color-text)" }}>your {words.group}</b> and{" "}
         <b style={{ color: "var(--color-text)" }}>{words.organizer}</b>.
       </p>
 
-      {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: "6px 0 0" }}>{error}</p>}
+      {error && <p style={{ color: "var(--color-danger)", fontSize: 13, margin: "6px 0 0" }}>{error}</p>}
       {saved && !error && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           <Icon name="check" /> Saved
         </p>
       )}

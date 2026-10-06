@@ -106,7 +106,7 @@ export function WeekField({
         <span className="card-title" style={{ fontSize: 14 }}>
           Who is playing {roundLabel}
         </span>
-        <span className="text-muted" style={{ fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
+        <span className="text-muted" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
           {inCount} in
           {byDefault > 0 && ` (${byDefault} by default)`} · {outCount} out
         </span>
@@ -114,7 +114,7 @@ export function WeekField({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12, marginLeft: "auto" }}
+            style={{ padding: "2px 10px", fontSize: 13, marginLeft: "auto" }}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
           >
@@ -126,7 +126,7 @@ export function WeekField({
       {/* What this mode means, in the mode's own words rather than a second
           copy of them. A secretary who inherited an opt-in league is being
           told why sixteen people are out having done nothing wrong. */}
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
         {ATTENDANCE_MODE_HELP[mode]}
         {playersAnswer(mode)
           ? " You can change any answer here at any time — the sign-up deadline binds players, not you."
@@ -141,7 +141,7 @@ export function WeekField({
 
       {open && canEdit && (
         <div className="table-scroll">
-          <table className="table" style={{ fontSize: 12.5 }}>
+          <table className="table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
                 <th>Player</th>
@@ -197,7 +197,7 @@ export function WeekField({
       )}
 
       {!canEdit && (
-        <p className="text-muted" style={{ fontSize: 11.5, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Only an organizer can change who is playing.
         </p>
       )}

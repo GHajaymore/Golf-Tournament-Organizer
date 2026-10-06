@@ -486,7 +486,7 @@ export function EventSetupClient({
               <span className="text-muted">–</span>
               <input aria-label="Tournament dates, last day" className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
             </div>
-            {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
+            {f.dates && <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>{f.dates}</p>}
             {/* TENTATIVE IS A REAL ANSWER (2026-09-19). A club fixes its
                 calendar months before it fixes a tee time, and the app had one
                 word for both — so a member booking a holiday around a date the
@@ -536,7 +536,7 @@ export function EventSetupClient({
                     "saved automatically", left the screen, and lost the date.
                     Found 2026-09-26 setting up a Stableford from scratch. The
                     line shows only while the dates differ from what is stored. */}
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   Not saved yet. Dates have their own Save, so they can still be changed after launch.
                 </span>
               </div>
@@ -658,7 +658,7 @@ export function EventSetupClient({
             ]}
           />
           {courseSelect === "__open" && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
               For a league or society where each pairing arranges its own venue.
               Nothing is set here; whoever enters a card names the course they
               played, and it is saved to the club&rsquo;s list for next time.
@@ -696,7 +696,7 @@ export function EventSetupClient({
                 </button>
               </div>
             </div>
-            <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0", gridColumn: "1 / -1" }}>{zipMsg}</p>
+            <p className="text-muted" style={{ fontSize: 13, margin: "-6px 0 0", gridColumn: "1 / -1" }}>{zipMsg}</p>
           </div>
         )}
 
@@ -735,7 +735,7 @@ export function EventSetupClient({
               max={parseDeadlineIso(f.regDeadline) || undefined}
               onChange={(e) => set("regOpens", e.target.value)}
             />
-            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
               {f.regOpens ? formatDeadline(f.regOpens, locale) : "Leave empty to open as soon as sign-up is on"}
             </p>
           </div>
@@ -743,7 +743,7 @@ export function EventSetupClient({
             <label htmlFor={`${fid}-deadline`}>Registration deadline</label>
             <input id={`${fid}-deadline`} className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
             {f.regDeadline && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
                 {formatDeadline(f.regDeadline, locale)}
               </p>
             )}
@@ -760,7 +760,7 @@ export function EventSetupClient({
               )}
             </div>
             {fieldCap !== null && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
                 Your plan holds up to {fieldCap} players, so an open field or anything larger is saved as {fieldCap}.
               </p>
             )}
@@ -836,12 +836,12 @@ export function EventSetupClient({
                 </div>
               </div>
             )}
-            <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "-6px 0 0" }}>
               Pads with waitlist/placeholder entries or trims the roster to this exact count, then regroups.
             </p>
           </>
         ) : (
-          <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-6px 0 0" }}>
             Player count tracks confirmed registrations live — currently {playersCount}.
           </p>
         )}

@@ -23,13 +23,13 @@ export function ResultLines({ lines, kind }: { lines: OutingLine[]; kind: string
       <span className="card-title" style={{ fontSize: 15 }}>
         {resultHeading(kind)}
       </span>
-      <span className="text-muted" style={{ fontSize: 12.5 }}>
+      <span className="text-muted" style={{ fontSize: 13 }}>
         {resultSummary(lines)}
       </span>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
         {lines.map((l) => (
           <div key={l.label} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-            <span className="text-muted" style={{ fontSize: 12, minWidth: 92, flex: "none" }}>
+            <span className="text-muted" style={{ fontSize: 13, minWidth: 92, flex: "none" }}>
               {l.label}
             </span>
             <span

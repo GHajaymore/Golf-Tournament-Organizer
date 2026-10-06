@@ -37,20 +37,20 @@ export function DeleteAccount({ email, soleOwnerOf }: { email: string; soleOwner
         tournament, the phones you turned notifications on for, and your place in club conversations.
         It cannot be undone.
       </p>
-      <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
         What a club keeps about you stays with the club &mdash; your entries and scores in its tournaments,
         its roster details, messages you wrote in its conversations. Ask the club to remove those; it can
         do it directly.
       </p>
       {soleOwnerOf.length > 0 ? (
-        <p role="note" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>
+        <p role="note" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
           You&rsquo;re the only owner of <strong>{soleOwnerOf.join(", ")}</strong>. Give{" "}
           {soleOwnerOf.length === 1 ? "it" : "each of them"} another owner in Staff &amp; access, or delete{" "}
           {soleOwnerOf.length === 1 ? "it" : "them"} from its settings, first.
         </p>
       ) : (
         <>
-          <label htmlFor={inputId} style={{ fontSize: 12.5, fontWeight: 500 }}>
+          <label htmlFor={inputId} style={{ fontSize: 13, fontWeight: 500 }}>
             Type <strong>{email}</strong> to confirm
           </label>
           <input
@@ -76,7 +76,7 @@ export function DeleteAccount({ email, soleOwnerOf }: { email: string; soleOwner
             />
           </div>
           {error && (
-            <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>
+            <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
               {error}
             </p>
           )}

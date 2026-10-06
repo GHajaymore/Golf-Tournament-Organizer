@@ -34,7 +34,7 @@ export function RoleChangeConfirm({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-      <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.45 }}>
+      <p style={{ fontSize: 13, margin: 0, lineHeight: 1.45 }}>
         Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
         {change.lastAdmin ? (
           <span style={{ display: "block", color: "var(--color-danger)", marginTop: 2 }}>
@@ -54,11 +54,11 @@ export function RoleChangeConfirm({
           style={
             change.demotion
               ? {
-                  fontSize: 12.5,
+                  fontSize: 13,
                   color: "var(--color-danger)",
                   borderColor: "color-mix(in srgb, var(--color-danger) 50%, transparent)",
                 }
-              : { fontSize: 12.5 }
+              : { fontSize: 13 }
           }
           disabled={pending}
           onClick={onConfirm}
@@ -68,7 +68,7 @@ export function RoleChangeConfirm({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ fontSize: 12.5 }}
+          style={{ fontSize: 13 }}
           disabled={pending}
           onClick={onCancel}
         >
@@ -141,7 +141,7 @@ export function AccessClient({
     <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 4px" }}>
           <b>{roleName("admin", organizer)}</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
           scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
         </p>

@@ -814,12 +814,12 @@ export default async function DashboardPage() {
                   boxShadow: `inset 0 0 0 1px ${g.name === publishedSheet!.mine ? "var(--color-accent)" : "var(--color-divider)"}`,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{g.name}</span>
                   <span className="text-muted">Hole {startHoleNumber(g.startHole, publishedSheet!.firstHole)}{g.half ?? ""} · {g.time}</span>
                 </div>
                 {g.playerIds.map((id) => (
-                  <div key={id} style={{ fontSize: 12.5, padding: "1px 0" }}>
+                  <div key={id} style={{ fontSize: 13, padding: "1px 0" }}>
                     {nameOf.get(id) ?? "—"}
                   </div>
                 ))}
@@ -1111,7 +1111,7 @@ export default async function DashboardPage() {
                   padding: "12px 6px",
                   border: "1px solid var(--color-divider)",
                   borderRadius: "var(--radius-md)",
-                  fontSize: 12,
+                  fontSize: 13,
                   textAlign: "center",
                 }}
               >
@@ -1274,7 +1274,7 @@ export default async function DashboardPage() {
                       `isStroke` and has always printed gross, net and to-par
                       for them — so the heading contradicted the columns
                       directly below it. */}
-                  <span className="text-muted" style={{ fontSize: 12 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     {matchEvent
                       ? casualMatch
                         ? "Holes won"
@@ -1362,7 +1362,7 @@ export default async function DashboardPage() {
                 </div>
                 <div>
                   <div style={{ fontWeight: 500 }}>{currentRoundLabel}</div>
-                  <div className="text-muted" style={{ fontSize: 12 }}>{currentRoundDesc}</div>
+                  <div className="text-muted" style={{ fontSize: 13 }}>{currentRoundDesc}</div>
                 </div>
               </div>
               {/* NO ROUND, NO BAR. An empty progress bar under a round named
@@ -1372,14 +1372,14 @@ export default async function DashboardPage() {
                   which the setup checklist at the top of this same screen is
                   already telling them. */}
               {!state.boardStage ? (
-                <p className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.6 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.6 }}>
                   Add a round and the field&rsquo;s progress shows here.
                 </p>
               ) : state.boardProgress.unit === "manual" ? (
                 /* Same reason, different absence: there is no progress to draw
                    because no card is owed. Said once, here, rather than drawn
                    as an empty bar over a count of nothing. */
-                <p className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.6 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.6 }}>
                   This round is scored by hand, so no cards come in — the result is whatever the
                   committee records.
                 </p>
@@ -1401,7 +1401,7 @@ export default async function DashboardPage() {
                   An organizer wants both: how many are in, and how many are
                   still on the course. Shown only while they differ, because
                   "21 still out" under "33 of 33 certified" is noise. */}
-              <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 6 }}>
                 {state.boardProgress.certified}/{state.boardProgress.total}{" "}
                 {state.boardProgress.unit === "cards"
                   ? "scorecards certified"
@@ -1419,13 +1419,13 @@ export default async function DashboardPage() {
                   no signature is waiting on a certification, not on golf — see
                   `unreturned`. Said separately, with where it is dealt with. */}
               {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed - (state.boardProgress.unreturned ?? 0) > 0 && (
-                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>
                   {state.boardProgress.started - state.boardProgress.certified - state.boardProgress.disputed - (state.boardProgress.unreturned ?? 0)}{" "}
                   {state.boardProgress.unit === "matches" ? "still being played" : "still out on the course"}
                 </div>
               )}
               {(state.boardProgress.unreturned ?? 0) > 0 && (
-                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>
                   {state.boardProgress.unreturned} finished, not yet certified
                   {isStaff && (
                     <>
@@ -1436,7 +1436,7 @@ export default async function DashboardPage() {
                 </div>
               )}
               {state.boardProgress.disputed > 0 && (
-                <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--color-danger)" }}>
+                <div style={{ fontSize: 13, marginTop: 2, color: "var(--color-danger)" }}>
                   {state.boardProgress.disputed} disputed
                 </div>
               )}
@@ -1450,7 +1450,7 @@ export default async function DashboardPage() {
                 <span className="card-title">Bracket status</span>
                 <span className="tag tag-neutral">{bracketTileBadge}</span>
               </div>
-              <div className="text-muted" style={{ fontSize: 12, marginTop: -2 }}>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: -2 }}>
                 {straightKnockout ? "The whole field, seeded in order" : "Seeded from live group standings"}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
@@ -1568,7 +1568,7 @@ export default async function DashboardPage() {
         <div className="card-head">
           <span className="card-title">Flight standings</span>
           {flightColumns.some((gs) => gs.ranked.some((r) => advancingIds.has(r.player.id))) && (
-            <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
+            <span className="text-muted" style={{ fontSize: 13 }}>Advancing rows highlighted</span>
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginTop: 6 }}>
@@ -1576,7 +1576,7 @@ export default async function DashboardPage() {
             const shared = sharedRanks(gs.ranked);
             return (
             <div key={gs.group.id}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
               {gs.ranked.map((r) => {
                 /* Labelled across every flight, not within one — the flights
                    are four columns of one card, so a "Dave S." repeated in the

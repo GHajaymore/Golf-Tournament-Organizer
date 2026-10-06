@@ -86,7 +86,7 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
         </button>
       </div>
       {isIsoDate(start) && every === 7 && (
-        <span className="text-muted" style={{ fontSize: 12.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           Every {weekdayOf(start)}, starting {shortDate(start, locale)}.
         </span>
       )}

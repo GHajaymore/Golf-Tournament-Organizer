@@ -85,7 +85,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
               <div key={sec.label}>
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: 13,
                     letterSpacing: "0.13em",
                     textTransform: "uppercase",
                     color: "var(--color-neutral-500)",
@@ -112,7 +112,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
             <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--color-divider)", display: "flex", flexDirection: "column", gap: 10 }}>
               {role === "admin" && (
                 <div>
-                  <div className="text-muted" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5 }}>
+                  <div className="text-muted" style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5 }}>
                     Viewing as
                   </div>
                   <select
@@ -130,12 +130,12 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand, 
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-accent-900)", color: "var(--color-accent-100)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-accent-900)", color: "var(--color-accent-100)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600 }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13 }}>{name}</div>
-                  <div className="text-muted" style={{ fontSize: 11 }}>{roleLabel(viewRole)}</div>
+                  <div className="text-muted" style={{ fontSize: 13 }}>{roleLabel(viewRole)}</div>
                 </div>
                 <button type="button" className="btn btn-icon" title="Sign out" aria-label="Sign out" onClick={() => startTransition(() => signOutAction())}>
                   <Icon name="sign-out" />

@@ -77,7 +77,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
               key={opt.id}
               type="button"
               className={`btn ${view.policy === opt.id ? "btn-primary" : "btn-secondary"}`}
-              style={{ fontSize: 12.5, padding: "6px 12px" }}
+              style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={view.policy === opt.id}
               disabled={pending || !view.canEdit}
               onClick={() => run(() => saveHandicapPolicy(opt.id, view.handicap.providerId))}
@@ -86,7 +86,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             </button>
           ))}
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           {view.policy === "ghin"
             ? "Every member plays off a GHIN index. Nobody at the club enters a handicap by hand, and a member without a GHIN number can't be entered until they have one."
             : view.policy === "hybrid"
@@ -113,7 +113,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             <span
               className="pill"
               style={{
-                fontSize: 11,
+                fontSize: 13,
                 padding: "2px 8px",
                 borderRadius: 3,
                 border: "1px solid var(--color-divider)",
@@ -124,7 +124,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             </span>
           </div>
           {!connected && (
-            <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.55 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
               {view.handicap.howToEnable}
             </p>
           )}
@@ -134,7 +134,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             it does not put anybody off scratch.
           */}
           {!connected && (
-            <p style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.55, color: "var(--color-neutral-300)" }}>
+            <p style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55, color: "var(--color-neutral-300)" }}>
               Until it is connected, players keep the index already on file and the roster shows
               how old it is. Nobody is moved to zero.
             </p>
@@ -154,20 +154,20 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
           <span className="dot" />
           <span>Send finished competition rounds to {view.scores.label}</span>
         </label>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
           A posted score changes a golfer&rsquo;s official index at every club they play, and it
           cannot be taken back from here. Only complete rounds of a counting competition are sent,
           each one once, and anything refused is listed with the reason.
         </p>
         {view.scores.enabled && view.scores.status !== "ready" && (
-          <p style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.55, color: "var(--color-neutral-300)" }}>
+          <p style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55, color: "var(--color-neutral-300)" }}>
             {view.scores.howToEnable} Nothing is queued or sent until then.
           </p>
         )}
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

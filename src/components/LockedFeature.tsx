@@ -67,16 +67,16 @@ export function LockedFeature({
           <span style={{ fontSize: 13.5, fontWeight: 600 }}>{row.label}</span>
           <span
             className="tag"
-            style={{ fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase" }}
+            style={{ fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase" }}
           >
             {lockedTag(feature)}
           </span>
         </div>
-        <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+        <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
           {row.benefit}
         </p>
         {insteadOf && (
-          <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
             {insteadOf}
           </p>
         )}

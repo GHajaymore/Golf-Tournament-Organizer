@@ -53,7 +53,7 @@ export default async function AccessPage() {
             <Icon name={mail.configured ? "ph ph-warning" : "ph ph-warning-circle"} />{" "}
             {mail.configured ? "Reset emails may not reach players" : "Password reset is not working"}
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {mail.problem}
           </p>
         </div>
@@ -78,7 +78,7 @@ export default async function AccessPage() {
             <Icon name={trouble.severity === "danger" ? "ph ph-warning-circle" : "ph ph-warning"} />{" "}
             {trouble.title}
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {trouble.detail}
           </p>
         </div>

@@ -133,7 +133,7 @@ export function FlightBoard({
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-danger)" }}>
             {confirming.scored} {confirming.scored === 1 ? "match has" : "matches have"} already been scored
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             Flights decide who plays whom, so this player is re-drawn against their new flight and any
             result of theirs against the old one is discarded. Every other pairing in both flights keeps
             its result.
@@ -142,7 +142,7 @@ export function FlightBoard({
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 13 }}
               onClick={() => move(confirming.playerId, confirming.groupId, true)}
             >
               Move anyway
@@ -150,7 +150,7 @@ export function FlightBoard({
             <button
               type="button"
               className="btn btn-ghost"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 13 }}
               onClick={() => setConfirming(null)}
             >
               Cancel
@@ -184,7 +184,7 @@ export function FlightBoard({
           <Icon name={confirmed ? "ph ph-seal-check" : "ph ph-hand-grabbing"}
             style={{ fontSize: 15, color: confirmed ? "var(--color-accent-2-200)" : "var(--color-accent-200)" }}
           />
-          <span style={{ fontSize: 12.5, flex: 1, minWidth: 180, lineHeight: 1.45 }}>
+          <span style={{ fontSize: 13, flex: 1, minWidth: 180, lineHeight: 1.45 }}>
             {confirmed
               ? "Draw confirmed. Reopen it to move anyone."
               : cards.length > 1
@@ -281,10 +281,10 @@ export function FlightBoard({
                     style={{ width: 22, height: 22, flex: "none" }}
                     onClick={() => { setDraftName(g.label); setRenaming(g.id); }}
                   >
-                    <Icon name="pencil-simple" style={{ fontSize: 11 }} />
+                    <Icon name="pencil-simple" style={{ fontSize: 13 }} />
                   </button>
                 )}
-                <span className="text-muted" style={{ fontSize: 11, flex: "none" }}>
+                <span className="text-muted" style={{ fontSize: 13, flex: "none" }}>
                   {g.players.length} · avg {g.avg}
                 </span>
               </div>
@@ -297,11 +297,11 @@ export function FlightBoard({
             {leadership && g.players.length > 0 && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 {(["captain", "vice"] as const).map((role) => (
-                  <label key={role} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                  <label key={role} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
                     <span className="text-muted">{role === "captain" ? "Captain" : "Vice"}</span>
                     <select
                       className="input"
-                      style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
+                      style={{ width: "auto", fontSize: 13, padding: "2px 6px" }}
                       value={(role === "captain" ? g.captainId : g.viceCaptainId) ?? ""}
                       onChange={(e) =>
                         // Reported, not discarded: the server refuses anyone
@@ -331,12 +331,12 @@ export function FlightBoard({
                 flight too, because a club sets its divisions up before it
                 fills them. */}
             {byFlightTees && tees.length > 0 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
                 <span className="text-muted">Tees</span>
                 <select
                   className="input"
                   aria-label={`Tees for ${g.label}`}
-                  style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
+                  style={{ width: "auto", fontSize: 13, padding: "2px 6px" }}
                   value={g.teeId ?? ""}
                   disabled={locked || !canSetTees || pending}
                   onChange={(e) => {
@@ -357,7 +357,7 @@ export function FlightBoard({
             )}
 
             {g.players.length === 0 && (
-              <span className="text-muted" style={{ fontSize: 12, fontStyle: "italic" }}>
+              <span className="text-muted" style={{ fontSize: 13, fontStyle: "italic" }}>
                 Empty — drop a player here
               </span>
             )}
@@ -372,7 +372,7 @@ export function FlightBoard({
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  fontSize: 12,
+                  fontSize: 13,
                   padding: "4px 6px",
                   borderRadius: 7,
                   cursor: disabled ? "default" : "grab",
@@ -397,7 +397,7 @@ export function FlightBoard({
                     aria-label={`Move ${pl.name} to another flight`}
                     value={g.id}
                     onChange={(e) => move(pl.id, e.target.value)}
-                    style={{ width: 30, minHeight: 22, padding: "0 0 0 4px", fontSize: 11, background: "transparent", border: "none" }}
+                    style={{ width: 30, minHeight: 22, padding: "0 0 0 4px", fontSize: 13, background: "transparent", border: "none" }}
                   >
                     {cards.map((c) => (
                       <option key={c.id} value={c.id}>{c.label}</option>

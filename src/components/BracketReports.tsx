@@ -57,11 +57,11 @@ export function BracketReports({ rows }: { rows: BracketReportRow[] }) {
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>{r.round}</div>
+              <div style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{r.round}</div>
               <div style={{ fontSize: 15 }}>
                 {r.a} v {r.b}: <strong>{r.winner}</strong> won{r.result ? ` ${r.result}` : ""}
               </div>
-              <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>Reported by {r.reportedBy}</div>
+              <div style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>Reported by {r.reportedBy}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button

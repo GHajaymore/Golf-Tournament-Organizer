@@ -123,7 +123,7 @@ export function ClubCalendar({
           >
             <span style={{ fontFamily: "var(--font-heading)", fontSize: 16 }}>{m.label}</span>
             {m.count > 0 && (
-              <span className="text-muted" style={{ fontSize: 11.5 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {m.count} {m.count === 1 ? "round" : "rounds"} · in for {m.inCount}
               </span>
             )}
@@ -136,7 +136,7 @@ export function ClubCalendar({
               <div
                 key={`${d}${i}`}
                 className="text-muted"
-                style={{ textAlign: "center", fontSize: 10.5, letterSpacing: "0.06em", paddingBottom: 2 }}
+                style={{ textAlign: "center", fontSize: 13, letterSpacing: "0.06em", paddingBottom: 2 }}
               >
                 {d}
               </div>
@@ -219,7 +219,7 @@ function GlanceCell({ day }: { day: CommitmentDay }) {
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
-    fontSize: 12.5,
+    fontSize: 13,
     fontVariantNumeric: "tabular-nums",
     opacity: day.inMonth ? 1 : 0.28,
     ...ring,
@@ -299,7 +299,7 @@ function CommitmentRow({
       {c.dateLabel && (
         <span
           className="text-muted"
-          style={{ fontSize: 12, fontVariantNumeric: "tabular-nums", minWidth: 74, whiteSpace: "nowrap" }}
+          style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", minWidth: 74, whiteSpace: "nowrap" }}
         >
           {c.dateLabel}
         </span>
@@ -309,7 +309,7 @@ function CommitmentRow({
           {c.eventName}
         </span>
         {c.roundLabel && (
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {c.roundLabel}
           </span>
         )}
@@ -343,7 +343,7 @@ function CommitmentRow({
           className="tag"
           style={{
             flexShrink: 0,
-            fontSize: 11.5,
+            fontSize: 13,
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
@@ -363,7 +363,7 @@ function Legend({ tones }: { tones: DayTone[] }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
       {tones.map((tone) => (
-        <span key={tone} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+        <span key={tone} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
           <span
             aria-hidden
             style={{
@@ -377,7 +377,7 @@ function Legend({ tones }: { tones: DayTone[] }) {
               ...TONE_STYLE[tone],
             }}
           >
-            <Icon name={TONE_ICON[tone]} style={{ fontSize: 10 }} />
+            <Icon name={TONE_ICON[tone]} style={{ fontSize: 13 }} />
           </span>
           <span className="text-muted">{TONE_LABEL[tone]}</span>
         </span>

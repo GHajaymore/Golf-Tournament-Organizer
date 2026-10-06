@@ -66,7 +66,7 @@ export function ClearScores({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ fontSize: 12, padding: "3px 9px" }}
+          style={{ fontSize: 13, padding: "3px 9px" }}
           disabled={pending}
           onClick={() => {
             setConfirming(false);
@@ -78,7 +78,7 @@ export function ClearScores({
         </button>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5, maxWidth: "70ch" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5, maxWidth: "70ch" }}>
         Removes cards and match results for this round only. <strong>Registrations, flights, pairings and
         tee times are untouched</strong> — the draw stays exactly as it is, so the round can simply be
         scored again.
@@ -86,14 +86,14 @@ export function ClearScores({
 
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {all ? "Everyone in the round" : `${picked.size} selected`}
           </span>
           {!all && (
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ fontSize: 11.5, padding: "2px 8px" }}
+              style={{ fontSize: 13, padding: "2px 8px" }}
               disabled={pending}
               onClick={() => setPicked(new Set())}
             >
@@ -114,7 +114,7 @@ export function ClearScores({
           {players.map((p) => (
             <label
               key={p.id}
-              style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}
             >
               <input
                 type="checkbox"
@@ -126,18 +126,18 @@ export function ClearScores({
             </label>
           ))}
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           Select nobody to clear the whole round.
         </p>
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
       {done !== null && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> Cleared {done} card{done === 1 ? "" : "s"}.
         </p>
       )}
@@ -149,7 +149,7 @@ export function ClearScores({
           tournament by throwing, so "Yes — clear" took the page down to
           "Application error" (walked 2026-09-27). Said instead of offered. */}
       {locked ? (
-        <p style={{ fontSize: 12.5, margin: 0 }}>
+        <p style={{ fontSize: 13, margin: 0 }}>
           Setup is locked, so scores can&apos;t be cleared. Unlock setup on{" "}
           <a href="/event">Tournament details</a> first.
         </p>
@@ -159,7 +159,7 @@ export function ClearScores({
             type="button"
             className="btn"
             style={{
-              fontSize: 12.5,
+              fontSize: 13,
               color: "var(--color-danger)",
               borderColor: "color-mix(in srgb, var(--color-danger) 50%, transparent)",
             }}
@@ -176,7 +176,7 @@ export function ClearScores({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ fontSize: 12.5 }}
+            style={{ fontSize: 13 }}
             disabled={pending}
             onClick={() => setConfirming(false)}
           >
@@ -187,7 +187,7 @@ export function ClearScores({
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ fontSize: 12.5, alignSelf: "flex-start" }}
+          style={{ fontSize: 13, alignSelf: "flex-start" }}
           disabled={pending || players.length === 0}
           onClick={() => {
             setDone(null);

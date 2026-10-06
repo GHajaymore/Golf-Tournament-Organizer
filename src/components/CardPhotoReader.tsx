@@ -195,7 +195,7 @@ export function CardPhotoReader({
       {notes.length > 0 && (
         <ul
           className="text-muted"
-          style={{ fontSize: 12, margin: 0, paddingLeft: 18, lineHeight: 1.6 }}
+          style={{ fontSize: 13, margin: 0, paddingLeft: 18, lineHeight: 1.6 }}
         >
           {notes.map((n) => (
             <li key={n}>{n}</li>
@@ -203,7 +203,7 @@ export function CardPhotoReader({
         </ul>
       )}
       {orphans.length > 0 && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-warning)", lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-warning)", lineHeight: 1.5 }}>
           <Icon name="warning-circle" /> Read {orphans.length === 1 ? "a row" : "rows"} for{" "}
           <b>{orphans.join(", ")}</b>, who {orphans.length === 1 ? "is" : "are"} not in this group.
           Those scores were left out — check you photographed the right card.
@@ -214,7 +214,7 @@ export function CardPhotoReader({
           <Icon name="warning-circle" /> {error}
         </p>
       )}
-      <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
         {holeCount} holes ·{" "}
         {solo
           ? "the photo is read and not kept"

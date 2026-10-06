@@ -206,7 +206,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       </div>
 
       {error && (
-        <p style={{ fontSize: 11.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -214,7 +214,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       {note && (
         <p
           style={{
-            fontSize: 12,
+            fontSize: 13,
             margin: "8px 0 0",
             lineHeight: 1.5,
             color: note.kind === "ok" ? "var(--color-accent-2-200)" : "var(--color-accent-200)",
@@ -234,7 +234,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         // and typing LESS is the recovery. Telling somebody to check their
         // spelling would be true and useless; naming the trick is not.
         // to stop trying.
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Nothing matching that. Try fewer letters — &ldquo;heathe&rdquo; finds Heatherwoode — or the
           town it is in. Or paste your card below; it takes about twenty seconds.
         </p>
@@ -268,7 +268,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
             >
               <span style={{ minWidth: 0, fontSize: 13 }}>
                 {h.name}
-                <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
+                <span className="text-muted" style={{ marginLeft: 6, fontSize: 13 }}>
                   {/* Country included: with a worldwide directory, "Royal Golf
                       Club" is several real courses, and a non-US row has no
                       state to tell them apart with. */}
@@ -282,14 +282,14 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                 </span>
               </span>
               {h.inLibrary ? (
-                <span className="tag tag-neutral" style={{ fontSize: 11.5 }}>
+                <span className="tag tag-neutral" style={{ fontSize: 13 }}>
                   <Icon name="check" /> In your library
                 </span>
               ) : (
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13 }}
                   disabled={pending}
                   onClick={() => importOne(h)}
                 >
@@ -301,7 +301,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
           {/* ODbL 1.0 permits commercial use WITH attribution, so this is a
               condition of using the data rather than a courtesy — which is why
               it sits with the results instead of in a footer nobody reads. */}
-          <p className="text-muted" style={{ fontSize: 11, margin: "2px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
             {DIRECTORY_ATTRIBUTION}
           </p>
         </div>

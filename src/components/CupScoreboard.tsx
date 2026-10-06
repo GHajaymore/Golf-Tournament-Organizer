@@ -49,7 +49,7 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
         <TeamScore name={b.name} captain={b.captain} points={tally.b} />
       </div>
       <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 14 }}>{cupVerdictLine(board)}</p>
-      <p className="text-muted" style={{ margin: "2px 0 0", textAlign: "center", fontSize: 12.5 }}>
+      <p className="text-muted" style={{ margin: "2px 0 0", textAlign: "center", fontSize: 13 }}>
         {tally.decided} of {tally.total} {tally.total === 1 ? "match" : "matches"} decided
         {tally.inPlay > 0 ? ` · ${tally.inPlay} on the course` : ""}
       </p>
@@ -82,7 +82,7 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                   <span style={{ fontWeight: m.state.leader === "A" ? 600 : 400, minWidth: 0 }}>{m.a.join(" & ")}</span>
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: 13,
                       fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
                       textAlign: "center",
@@ -116,7 +116,7 @@ function TeamScore({ name, captain, points }: { name: string; captain: string; p
       </div>
       <div style={{ fontWeight: 600, marginTop: 4, overflowWrap: "anywhere" }}>{name}</div>
       {captain && (
-        <div className="text-muted" style={{ fontSize: 12 }}>
+        <div className="text-muted" style={{ fontSize: 13 }}>
           Captain {captain}
         </div>
       )}

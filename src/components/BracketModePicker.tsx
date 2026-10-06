@@ -52,16 +52,16 @@ export function BracketModePicker({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ marginLeft: "auto", padding: "2px 10px", fontSize: 12 }}
+            style={{ marginLeft: "auto", padding: "2px 10px", fontSize: 13 }}
             onClick={() => setOpen((o) => !o)}
           >
             {open ? "Done" : "Change"}
           </button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{current.blurb}</p>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>
       {!readOnly && locked && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
           <a href="/event">Tournament details</a> to change it.
         </p>
@@ -94,7 +94,7 @@ export function BracketModePicker({
                 }}
               >
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
-                <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 2, lineHeight: 1.4 }}>
                   {m.blurb}
                 </div>
               </button>

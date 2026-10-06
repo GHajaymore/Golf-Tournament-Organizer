@@ -308,7 +308,7 @@ export default async function StagesPage() {
             border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
           }}
         >
-          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <b>These rounds cannot be scored as set.</b> {scoring.message}{" "}
             <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Tournament details
@@ -330,7 +330,7 @@ export default async function StagesPage() {
             border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
           }}
         >
-          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <b>A course card is missing.</b> {missingCardsNote}{" "}
             <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Open the course library

@@ -76,7 +76,7 @@ export function ConfirmButton({
         <button
           type="button"
           className="btn touch-target"
-          style={{ fontSize: 12, color: "var(--color-danger)", whiteSpace: "nowrap" }}
+          style={{ fontSize: 13, color: "var(--color-danger)", whiteSpace: "nowrap" }}
           disabled={disabled}
           onClick={() => {
             setArmed(false);
@@ -89,13 +89,13 @@ export function ConfirmButton({
           ref={keepRef}
           type="button"
           className="btn btn-secondary touch-target"
-          style={{ fontSize: 12 }}
+          style={{ fontSize: 13 }}
           onClick={() => setArmed(false)}
         >
           {keepLabel}
         </button>
         {note && (
-          <span className="text-muted" style={{ fontSize: 11.5, alignSelf: "center" }}>
+          <span className="text-muted" style={{ fontSize: 13, alignSelf: "center" }}>
             {note}
           </span>
         )}

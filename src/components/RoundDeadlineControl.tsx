@@ -54,11 +54,11 @@ export function RoundDeadlineControl({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span className={`tag ${tone}`} style={{ fontSize: 11 }}>
+        <span className={`tag ${tone}`} style={{ fontSize: 13 }}>
           <Icon name={status.open ? "ph ph-lock-open" : "ph ph-lock"} /> {label[status.state]}
         </span>
         {status.overridden && (
-          <span className="text-muted" style={{ fontSize: 11 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Overriding the date
           </span>
         )}
@@ -71,7 +71,7 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === null}
-          style={{ fontSize: 12, padding: "3px 9px" }}
+          style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(null)}
         >
           Follow the date
@@ -80,7 +80,7 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === true}
-          style={{ fontSize: 12, padding: "3px 9px" }}
+          style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(true)}
         >
           <Icon name="lock" /> Close {roundLabel} now
@@ -89,14 +89,14 @@ export function RoundDeadlineControl({
           type="button"
           className="btn"
           disabled={locked || pending || current === false}
-          style={{ fontSize: 12, padding: "3px 9px" }}
+          style={{ fontSize: 13, padding: "3px 9px" }}
           onClick={() => set(false)}
         >
           <Icon name="clock-clockwise" /> Keep it open
         </button>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.45, maxWidth: "62ch" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.45, maxWidth: "62ch" }}>
         {status.state === "extended"
           ? "Scores are still being accepted even though the date has passed. Set it back to follow the date once the last card is in."
           : status.state === "closed-manual"

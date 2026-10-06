@@ -140,7 +140,7 @@ export function PrizesClient({
             lines with the amounts left at zero for the club to set; flight
             winners reads the field's actual flights. See prize-structures.ts. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          <span className="text-muted" style={{ fontSize: 12.5 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Start from a structure, then set the amounts:
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

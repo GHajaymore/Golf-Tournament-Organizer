@@ -145,7 +145,7 @@ export function AvailabilityCalendar({
           >
             <span style={{ fontFamily: "var(--font-heading)", fontSize: 15 }}>{m.label}</span>
             {m.roundCount > 0 && (
-              <span className="text-muted" style={{ fontSize: 11.5 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {m.roundCount} {m.roundCount === 1 ? "round" : "rounds"} · in for {m.inCount}
               </span>
             )}
@@ -160,7 +160,7 @@ export function AvailabilityCalendar({
               <div
                 key={`${d}${i}`}
                 className="text-muted"
-                style={{ textAlign: "center", fontSize: 10.5, letterSpacing: "0.06em", paddingBottom: 2 }}
+                style={{ textAlign: "center", fontSize: 13, letterSpacing: "0.06em", paddingBottom: 2 }}
               >
                 {d}
               </div>
@@ -208,7 +208,7 @@ export function AvailabilityCalendar({
                 key={r.stageId}
                 type="button"
                 className="btn btn-secondary touch-target"
-                style={{ fontSize: 12 }}
+                style={{ fontSize: 13 }}
                 disabled={pending || r.locked}
                 onClick={() => onAnswer(r.stageId, r.status === "in" ? "out" : "in")}
                 aria-label={`${r.label}: ${TONE_LABEL[toneOf({ iso: "", day: 0, inMonth: true, isToday: false, isPast: false, round: r })]}. Tap to change.`}
@@ -256,7 +256,7 @@ function Square({
     alignItems: "center",
     justifyContent: "center",
     gap: 1,
-    fontSize: 12.5,
+    fontSize: 13,
     fontVariantNumeric: "tabular-nums",
     opacity: day.inMonth ? 1 : 0.28,
     ...ring,
@@ -330,7 +330,7 @@ function Legend({ tones }: { tones: DayTone[] }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
       {items.map((tone) => (
-        <span key={tone} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+        <span key={tone} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
           <span
             aria-hidden
             style={{
@@ -344,7 +344,7 @@ function Legend({ tones }: { tones: DayTone[] }) {
               ...TONE_STYLE[tone],
             }}
           >
-            <Icon name={TONE_ICON[tone]} style={{ fontSize: 10 }} />
+            <Icon name={TONE_ICON[tone]} style={{ fontSize: 13 }} />
           </span>
           <span className="text-muted">{TONE_LABEL[tone]}</span>
         </span>

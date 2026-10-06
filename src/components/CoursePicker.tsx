@@ -90,7 +90,7 @@ function rowLabel(
   adding: string,
 ): React.ReactNode {
   const muted = (text: string) => (
-    <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
+    <span className="text-muted" style={{ marginLeft: 6, fontSize: 13 }}>
       {text}
     </span>
   );
@@ -556,7 +556,7 @@ export function CoursePicker({
               row.kind === "directory" && rows[i - 1]?.kind !== "directory" ? (
                 <p
                   className="text-muted"
-                  style={{ fontSize: 11, margin: 0, padding: "6px 10px 2px", lineHeight: 1.4 }}
+                  style={{ fontSize: 13, margin: 0, padding: "6px 10px 2px", lineHeight: 1.4 }}
                 >
                   Not in your courses yet — from the course directory
                 </p>
@@ -608,7 +608,7 @@ export function CoursePicker({
           })}
 
           {shown.length === 0 && found.length === 0 && !onEnterNew && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>
               {/* THREE SENTENCES, BECAUSE THEY ARE THREE DIFFERENT FACTS, and
                   the one message that used to cover all of them was false in
                   two of them.
@@ -641,7 +641,7 @@ export function CoursePicker({
             alignItems: "flex-start",
             gap: 6,
             margin: "6px 0 0",
-            fontSize: 12.5,
+            fontSize: 13,
             lineHeight: 1.5,
             color: cardNote.warn ? "var(--color-warning)" : "var(--color-text-muted)",
           }}
@@ -652,7 +652,7 @@ export function CoursePicker({
       )}
 
       {hint && (
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
           {hint}
         </p>
       )}

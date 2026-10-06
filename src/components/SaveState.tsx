@@ -80,7 +80,7 @@ export function SaveState({ status, label = "Saved" }: { status: SaveStatus; lab
       aria-live="polite"
       className="text-muted"
       style={{
-        fontSize: 11.5,
+        fontSize: 13,
         display: "inline-flex",
         alignItems: "center",
         gap: 5,

@@ -67,7 +67,7 @@ export function RescoreWarning({
         padding: "8px 10px",
         border: "1px solid var(--color-accent)",
         borderRadius: 8,
-        fontSize: 12.5,
+        fontSize: 13,
         lineHeight: 1.55,
       }}
     >

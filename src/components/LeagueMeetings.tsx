@@ -66,7 +66,7 @@ export function LeagueMeetings({
               — six is one club's choice, not a rule — so this says nothing at
               all until somebody has declared a number. */}
           {m.short && (
-            <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+            <div className="text-muted" style={{ fontSize: 13, marginTop: 4 }}>
               {m.pairings.length} of {m.expectedPairings} pairs nominated
             </div>
           )}

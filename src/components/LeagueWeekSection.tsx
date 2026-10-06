@@ -51,7 +51,7 @@ export async function LeagueWeekSection({ eventId, stageId }: { eventId: string;
         <span className="card-title" style={{ fontSize: 16 }}>
           Clubs and meetings
         </span>
-        <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+        <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
           {LEAGUE_POINTS_LABEL[system]}
         </p>
       </div>

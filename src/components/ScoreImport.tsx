@@ -97,7 +97,7 @@ export function ScoreImport({
     <div className="card elev-sm" style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Import scores from a file</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "70ch", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "70ch", lineHeight: 1.5 }}>
           Paste a CSV or drop the file in. Every row is checked against this tournament&rsquo;s field before
           anything is written.
         </p>
@@ -125,7 +125,7 @@ export function ScoreImport({
           ))}
         </div>
       ) : (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
           {active.blurb}
         </p>
       )}
@@ -134,7 +134,7 @@ export function ScoreImport({
           only shows a placeholder makes the organizer guess at heading names
           and discover the answer by failing. */}
       <details open>
-        <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
           What the file needs
         </summary>
         <div className="sc-wrap" style={{ marginBottom: 8 }}>
@@ -152,9 +152,9 @@ export function ScoreImport({
                   <td style={{ fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" }}>{c.heading}</td>
                   <td style={{ textAlign: "left" }}>
                     {c.required ? (
-                      <span className="tag tag-accent" style={{ fontSize: 10 }}>Required</span>
+                      <span className="tag tag-accent" style={{ fontSize: 13 }}>Required</span>
                     ) : (
-                      <span className="text-muted" style={{ fontSize: 11 }}>Optional</span>
+                      <span className="text-muted" style={{ fontSize: 13 }}>Optional</span>
                     )}
                   </td>
                   <td style={{ textAlign: "left", whiteSpace: "normal", lineHeight: 1.45, minWidth: 260 }}>
@@ -165,7 +165,7 @@ export function ScoreImport({
             </tbody>
           </table>
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "0 0 4px", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "0 0 4px", lineHeight: 1.5 }}>
           Row 1 is the header. Headings are matched loosely — case and spacing don&rsquo;t matter, and columns
           may appear in any order. Anything the app doesn&rsquo;t recognise is ignored rather than rejected.
         </p>
@@ -176,7 +176,7 @@ export function ScoreImport({
             borderRadius: "var(--radius-md)",
             background: "var(--color-bg)",
             boxShadow: "inset 0 0 0 1px var(--color-divider)",
-            fontSize: 11.5,
+            fontSize: 13,
             overflowX: "auto",
           }}
         >
@@ -206,10 +206,10 @@ ${active.sampleRow}`}
             }
           }}
           placeholder={templateCsv(active.key, holes)}
-          style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12, minHeight: 120 }}
+          style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13, minHeight: 120 }}
         />
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
-          <label className="btn btn-secondary" style={{ fontSize: 12, padding: "3px 9px", cursor: "pointer" }}>
+          <label className="btn btn-secondary" style={{ fontSize: 13, padding: "3px 9px", cursor: "pointer" }}>
             <Icon name="upload-simple" /> Choose a file
             <input
               type="file"
@@ -225,7 +225,7 @@ ${active.sampleRow}`}
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ fontSize: 12, padding: "3px 9px" }}
+            style={{ fontSize: 13, padding: "3px 9px" }}
             disabled={pending}
             onClick={() => setText(templateCsv(active.key, holes))}
           >
@@ -240,7 +240,7 @@ ${active.sampleRow}`}
           style={{
             padding: "10px 12px",
             borderRadius: "var(--radius-md)",
-            fontSize: 12.5,
+            fontSize: 13,
             lineHeight: 1.5,
             background:
               parsed.ready > 0
@@ -270,12 +270,12 @@ ${active.sampleRow}`}
       )}
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
       {result && (
-        <div style={{ fontSize: 12.5 }}>
+        <div style={{ fontSize: 13 }}>
           <p style={{ margin: 0, color: "var(--color-accent-2-200)" }}>
             <Icon name="check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}. They
             sit as pending until approved, the same as a typed card.
@@ -299,7 +299,7 @@ ${active.sampleRow}`}
           {pending ? "Importing…" : parsed ? `Import ${parsed.ready} row${parsed.ready === 1 ? "" : "s"}` : "Import"}
         </button>
         {parsed && parsed.ready < parsed.seen && parsed.ready > 0 && (
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             The {parsed.seen - parsed.ready} row{parsed.seen - parsed.ready === 1 ? "" : "s"} above are skipped.
           </span>
         )}

@@ -300,14 +300,14 @@ export function ReportsClient({
             )}
             <div style={{ minWidth: 0 }}>
               <span className="card-title" style={{ fontSize: 15 }}>{snapshotTitle}</span>
-              <div className="text-muted" style={{ fontSize: 12 }}>
+              <div className="text-muted" style={{ fontSize: 13 }}>
                 {[brand?.name, eventName].filter(Boolean).join(" · ")}
               </div>
               {/* Under the club and the tournament, so the three lines read as
                   one caption on the printed sheet rather than a warning bolted
                   above the table. Empty once it is genuinely final. */}
               {snapshotNote && (
-                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>
                   {snapshotNote}
                 </div>
               )}
