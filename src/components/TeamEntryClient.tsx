@@ -49,6 +49,8 @@ export interface TeamCardRow {
    */
   shots?: number[];
   strokes: (number | null)[];
+  /** Per hole, this ball picked up — match play only. See `TeamScorecard.pickedUp`. */
+  pickedUp?: boolean[];
 }
 
 export interface TeamEntryRow {
@@ -88,7 +90,14 @@ export function TeamEntryClient({
   note,
   holes,
   firstHole = 1,
+  pickUp = false,
 }: {
+  /**
+   * Match play: a ball can be PICKED UP, and a side with every ball picked up
+   * has conceded the hole (Rule 3.2b(1)). Offered only here — a medal is holed
+   * out — so the "Picked up" control appears on no stroke card.
+   */
+  pickUp?: boolean;
   /** The course's number for the first hole on the round's card — 10 on a back nine. */
   firstHole?: number;
   round: string;
@@ -139,6 +148,33 @@ export function TeamEntryClient({
   const keyFor = (teamId: string, matchId: string, playerId: string) =>
     `${teamId}:${matchId}:${playerId}`;
 
+  /** Which holes each card picked up on, as the server has them and as edited. */
+  const [picks, setPicks] = useState<Record<string, boolean[]>>(() => {
+    const seed: Record<string, boolean[]> = {};
+    for (const t of teams) {
+      for (const c of t.cards) {
+        seed[`${t.teamId}:${t.matchId}:${c.playerId}`] = Array.from({ length: holes }, (_, h) => c.pickedUp?.[h] === true);
+      }
+    }
+    return seed;
+  });
+  const picksFor = (key: string): boolean[] => picks[key] ?? new Array(holes).fill(false);
+  const setPick = (key: string, hole: number, on: boolean) => {
+    setPicks((p) => {
+      const next = [...(p[key] ?? new Array(holes).fill(false))];
+      next[hole] = on;
+      return { ...p, [key]: next };
+    });
+    // Out of the hole has no score on it.
+    if (on) {
+      setDraft((d) => {
+        const next = [...(d[key] ?? new Array(holes).fill(null))];
+        next[hole] = null;
+        return { ...d, [key]: next };
+      });
+    }
+  };
+
   /** Already parsed — `ScoreCell` does that, through `parseStroke`. */
   const setHole = (key: string, hole: number, value: number | null) => {
     setDraft((d) => {
@@ -146,6 +182,14 @@ export function TeamEntryClient({
       next[hole] = value;
       return { ...d, [key]: next };
     });
+    // A score typed onto a hole takes back a pick-up recorded there.
+    if (value != null && picks[key]?.[hole]) {
+      setPicks((p) => {
+        const next = [...(p[key] ?? [])];
+        next[hole] = false;
+        return { ...p, [key]: next };
+      });
+    }
   };
 
   /**
@@ -166,7 +210,12 @@ export function TeamEntryClient({
   /** What the hole view last saved, so "Saved." is only said while true. */
   const [savedDraft, setSavedDraft] = useState("");
   const groupDraft = group
-    ? JSON.stringify(group.rows.map(({ team, card }) => draft[keyFor(team.teamId, team.matchId, card.playerId)] ?? card.strokes))
+    ? JSON.stringify(
+        group.rows.map(({ team, card }) => {
+          const key = keyFor(team.teamId, team.matchId, card.playerId);
+          return [draft[key] ?? card.strokes, pickUp ? picksFor(key) : []];
+        }),
+      )
     : "";
 
   /**
@@ -180,11 +229,14 @@ export function TeamEntryClient({
     startTransition(async () => {
       const failed: string[] = [];
       for (const { team, card } of group.rows) {
-        const strokes = draft[keyFor(team.teamId, team.matchId, card.playerId)] ?? card.strokes;
-        if (!strokes.some((s) => s != null)) continue;
+        const key = keyFor(team.teamId, team.matchId, card.playerId);
+        const strokes = draft[key] ?? card.strokes;
+        const cardPicks = picksFor(key);
+        // Nothing on it — no score and no pick-up — is a card left alone.
+        if (!strokes.some((s) => s != null) && !(pickUp && cardPicks.some(Boolean))) continue;
         const who = card.playerId ? card.playerName : team.teamName;
         try {
-          const res = await saveTeamScorecard(team.teamId, card.playerId, team.matchId, strokes);
+          const res = await saveTeamScorecard(team.teamId, card.playerId, team.matchId, strokes, pickUp ? cardPicks : undefined);
           if (!res.ok) failed.push(`${who}: ${res.error ?? "not saved"}`);
         } catch {
           failed.push(`${who}: not saved`);
@@ -202,7 +254,7 @@ export function TeamEntryClient({
     const strokes = draft[key] ?? saved;
     setError("");
     startTransition(async () => {
-      const res = await saveTeamScorecard(teamId, playerId, matchId, strokes);
+      const res = await saveTeamScorecard(teamId, playerId, matchId, strokes, pickUp ? picksFor(key) : undefined);
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
@@ -282,6 +334,17 @@ export function TeamEntryClient({
             holes={holes}
             firstHole={firstHole}
             onSet={(key, hole, value) => setHole(key, hole, value)}
+            {...(pickUp
+              ? {
+                  pickedUp: Object.fromEntries(
+                    group.rows.map(({ team, card }) => {
+                      const key = keyFor(team.teamId, team.matchId, card.playerId);
+                      return [key, picksFor(key)];
+                    }),
+                  ),
+                  onPickUp: (key: string, hole: number, on: boolean) => setPick(key, hole, on),
+                }
+              : {})}
           />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
             {savedDraft === groupDraft && savedDraft !== "" && (
@@ -336,6 +399,7 @@ export function TeamEntryClient({
                 par={pars[i]}
                 who={c.playerId ? c.playerName : t.teamName}
                 onSet={(v) => setHole(key, i, v)}
+                {...(pickUp ? { pickedUp: picksFor(key)[i], onPickUp: (on: boolean) => setPick(key, i, on) } : {})}
               />
             );
             return (

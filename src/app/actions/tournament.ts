@@ -86,6 +86,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, capacityUnderCap, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
@@ -269,8 +270,15 @@ const ownPlayerIds = myPlayerIds;
  */
 async function assertOwnMatch(session: Session, eventId: string, matchId: string): Promise<void> {
   if (session.role !== "player") return;
-  const match = await prisma.match.findFirst({ where: { id: matchId, eventId } });
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, eventId },
+    include: { stage: { select: { type: true, lineupPublished: true } } },
+  });
   if (!match) throw new Error("Match not found.");
+  // A cup match in a lineup nobody has announced: not playable yet. Every
+  // match write a player can reach comes through here, so one check covers
+  // the hole-by-hole, the result and the card paths alike.
+  if (match.stage && lineupHidden(match.stage)) throw new Error(LINEUP_HIDDEN);
   const own = await ownPlayerIds(eventId, session.email);
   if (own.has(match.playerAId) || own.has(match.playerBId)) return;
   const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
@@ -2255,14 +2263,24 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
       // A real result supersedes a forfeit. Without this, an organizer who
       // forfeited against the wrong name and then entered the true card would
       // see the card on screen and the forfeit in the standings — the entered
-      // result silently discarded.
-      forfeitedBy: "",
+      // result silently discarded. Not in a cup — see `keepsConcession`.
+      ...(await clearsConcession(matchId)),
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
     },
   });
   await refresh();
+}
+
+/**
+ * The `forfeitedBy` a score write leaves behind: cleared, except in a cup,
+ * where a concession is the organizer's and outlives the cards the players go
+ * on saving. Spread into the write — `{}` keeps whatever is stored.
+ */
+async function clearsConcession(matchId: string): Promise<{ forfeitedBy?: string }> {
+  const m = await prisma.match.findUnique({ where: { id: matchId }, select: { stage: { select: { type: true } } } });
+  return keepsConcession(m?.stage?.type ?? "") ? {} : { forfeitedBy: "" };
 }
 
 /** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */
@@ -2301,7 +2319,7 @@ export async function applyMatchResult(
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
+    data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
 }
@@ -2365,8 +2383,18 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
    * honour it. The undo path stays open: an empty string still clears a team
    * forfeit stored before this, so nobody is stuck with one.
    */
+  /*
+   * EXCEPT IN A TEAM CUP (2026-10-06), where team results ARE aggregated: the
+   * cup board reads `forfeitedBy` against the team columns and gives the point
+   * to the other side. There the concession is the organizer's call by
+   * decision — the captain tells the committee — so a pairs match conceded at
+   * the 12th is recorded here, and the players' cards stay as they were.
+   */
   const isTeamSide = forfeitedBy === match.teamAId || forfeitedBy === match.teamBId;
-  if (forfeitedBy && isTeamSide) {
+  const cupMatch = keepsConcession(
+    (await prisma.stage.findUnique({ where: { id: match.stageId }, select: { type: true } }))?.type ?? "",
+  );
+  if (forfeitedBy && isTeamSide && !cupMatch) {
     return {
       ok: false,
       error:
@@ -2725,7 +2753,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
+    data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
 }
@@ -2750,9 +2778,18 @@ export async function saveTeamScorecard(
   playerId: string,
   matchId: string,
   strokes: (number | null)[],
+  /** Per hole, this ball picked up — match play only. See `TeamScorecard.pickedUp`. */
+  pickedUp?: boolean[],
 ): Promise<{ ok: boolean; error?: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
-  await assertOwnMatch(session, eventId, matchId);
+  try {
+    await assertOwnMatch(session, eventId, matchId);
+  } catch (e) {
+    // A draft cup lineup, said as a refusal: this action answers
+    // `{ ok, error }`, and its screen shows the error beside the card.
+    if (e instanceof Error && e.message === LINEUP_HIDDEN) return { ok: false, error: LINEUP_HIDDEN };
+    throw e;
+  }
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -2775,7 +2812,10 @@ export async function saveTeamScorecard(
   }
   if (!stageId) return { ok: false, error: "This card has no round to belong to." };
 
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true, holes: true } });
+  const stage = await prisma.stage.findUnique({
+    where: { id: stageId },
+    select: { format: true, holes: true, type: true, lineupPublished: true },
+  });
   if (!stage) return { ok: false, error: "Round not found." };
   const format = findFormat(stage.format);
 
@@ -2786,6 +2826,9 @@ export async function saveTeamScorecard(
   // the same way confirmMatch does it: the session carries an account, not an
   // entry, and the two are only linked by email.
   const isStaff = session.role === "admin" || session.role === "assistant";
+
+  // A cup lineup nobody has announced is not a match anybody can play yet.
+  if (!isStaff && lineupHidden(stage)) return { ok: false, error: LINEUP_HIDDEN };
   let callerPlayerId = "";
   if (!isStaff) {
     const own = await prisma.player.findFirst({
@@ -2819,13 +2862,35 @@ export async function saveTeamScorecard(
   // the team's score — best ball, combined, best N of four — so an
   // out-of-range stroke does not affect one player, it decides the side's
   // result and the match with it. `stage.holes` is already loaded above.
-  const cleanCard = cleanStrokes(strokes, holesPlayed(stage.holes));
-  if (!cleanCard) {
-    return { ok: false, error: strokeFault(strokes, holesPlayed(stage.holes)) };
+  const cardHoles = holesPlayed(stage.holes);
+  const cleanStrokesIn = cleanStrokes(strokes, cardHoles);
+  if (!cleanStrokesIn) {
+    return { ok: false, error: strokeFault(strokes, cardHoles) };
   }
+  /**
+   * PICKED UP, which only means something against an opponent: in match play a
+   * ball out of the hole concedes it once the side has none left (Rule
+   * 3.2b(1)). A medal has no such thing — every hole is holed out — so a
+   * pick-up on a stroke round is refused rather than stored and ignored.
+   * Validated as data, like the strokes: a `"use server"` export takes
+   * whatever the caller posts.
+   */
+  let picks: boolean[] = [];
+  if (pickedUp !== undefined) {
+    if (!Array.isArray(pickedUp) || pickedUp.length !== cardHoles || pickedUp.some((p) => typeof p !== "boolean")) {
+      return { ok: false, error: "Those picked-up holes aren't valid. Reload the card and try again." };
+    }
+    if (pickedUp.some(Boolean) && !isHeadToHead(stage.type)) {
+      return { ok: false, error: "Picking up is for match play — in a medal every hole is holed out." };
+    }
+    picks = pickedUp.some(Boolean) ? pickedUp : [];
+  }
+  // A ball picked up has no score on that hole, whatever was typed into it.
+  const cleanCard = cleanStrokesIn.map((s, h) => (picks[h] ? null : s));
 
   if (!mayReportPartialCard(settings, session.role)) {
-    const filled = cleanCard.filter((s) => typeof s === "number" && s > 0).length;
+    // A hole picked up is a hole finished, not one still to enter.
+    const filled = cleanCard.filter((s, h) => picks[h] || (typeof s === "number" && s > 0)).length;
     if (filled < cleanCard.length) {
       return { ok: false, error: "Enter the full round, then submit it." };
     }
@@ -2833,8 +2898,10 @@ export async function saveTeamScorecard(
 
   await prisma.teamScorecard.upsert({
     where: { stageId_matchId_teamId_playerId: { stageId, matchId, teamId, playerId } },
-    update: { strokes: JSON.stringify(cleanCard) },
-    create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(cleanCard) },
+    // `pickedUp` only when the caller sent it: a save from a screen that knows
+    // nothing about picking up must not wipe the marks another one recorded.
+    update: { strokes: JSON.stringify(cleanCard), ...(pickedUp !== undefined ? { pickedUp: JSON.stringify(picks) } : {}) },
+    create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(cleanCard), pickedUp: JSON.stringify(picks) },
   });
   // A side's card is aggregated net of each partner's handicap, so a team
   // round freezes on its first card like any other.
@@ -2886,6 +2953,8 @@ async function recomputeTeamMatch(
       // side plays off it. Reading the card from the round and the rating from
       // the tournament is two chains for one act.
       teeId: true,
+      // A cup session keeps an organizer's concession through a card save.
+      type: true,
     },
   });
   /**
@@ -2965,6 +3034,15 @@ async function recomputeTeamMatch(
         return [];
       }
     };
+    // Which holes this ball picked up on. Anything unreadable reads as none.
+    const picks = (s: string | undefined): boolean[] => {
+      try {
+        const v = JSON.parse(s ?? "[]") as unknown;
+        return Array.isArray(v) ? v.map((x) => x === true) : [];
+      } catch {
+        return [];
+      }
+    };
     /**
      * THE SIDE AS BALLS, because this is a MATCH.
      *
@@ -2986,12 +3064,16 @@ async function recomputeTeamMatch(
         stage?.handicapAllowance ?? 0,
         stage?.allowanceWeights,
       );
-      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp }];
+      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp, pickedUp: picks(one?.pickedUp) }];
     }
-    return members.map((m) => ({
-      strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
-      playingHandicap: playingHandicapFrom(playsOff(m.player), allowance),
-    }));
+    return members.map((m) => {
+      const card = cards.find((c) => c.playerId === m.playerId);
+      return {
+        strokes: parse(card?.strokes ?? "[]"),
+        playingHandicap: playingHandicapFrom(playsOff(m.player), allowance),
+        pickedUp: picks(card?.pickedUp),
+      };
+    });
   };
 
   const [a, b] = await Promise.all([sideCard(match.teamAId), sideCard(match.teamBId)]);
@@ -3011,8 +3093,9 @@ async function recomputeTeamMatch(
       // A real result supersedes a forfeit. Without this, an organizer who
       // forfeited against the wrong name and then entered the true card would
       // see the card on screen and the forfeit in the standings — the entered
-      // result silently discarded.
-      forfeitedBy: "",
+      // result silently discarded. Except in a cup, where the concession is
+      // the organizer's and outlives the cards — see `keepsConcession`.
+      ...(keepsConcession(stage?.type ?? "") ? {} : { forfeitedBy: "" }),
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,

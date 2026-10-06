@@ -18,7 +18,7 @@ let session: { eventId: string; email: string; name: string; role: string; viewR
 vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
-const { addCupMatch, removeCupMatch, setCupSettings } = await import("@/app/actions/cup");
+const { addCupMatch, removeCupMatch, setCupSettings, publishCupLineup } = await import("@/app/actions/cup");
 const { cupBoard } = await import("@/lib/services/cup");
 
 const prisma = new PrismaClient();
@@ -72,10 +72,24 @@ async function seed() {
   return { eventId, eur: eur.id, usa: usa.id, fourball: fourball.id, singles: singles.id, e, u, waiting };
 }
 
+/**
+ * The board everybody reads — players, the public link. Since 2026-10-06 it
+ * shows a session's matches only once its lineup is ANNOUNCED, so the score
+ * tests below announce the sessions they line up, as an organizer would.
+ */
 const board = async (eventId: string) => {
   const r = await cupBoard(eventId);
   if (!r.ok) throw new Error(`no board: ${r.reason}`);
   return r.board;
+};
+/** The organizer's own board on the Team cup screen: drafts included. */
+const staffBoard = async (eventId: string) => {
+  const r = await cupBoard(eventId, { staff: true });
+  if (!r.ok) throw new Error(`no board: ${r.reason}`);
+  return r.board;
+};
+const announce = async (...stageIds: string[]) => {
+  for (const id of stageIds) expect(await publishCupLineup(id)).toEqual({ ok: true });
 };
 const holes = (s: string) => JSON.stringify([...s.padEnd(18, "-")].map((c) => (c === "-" ? null : c)));
 
@@ -93,14 +107,21 @@ describe("setting the lineup", () => {
     const f = await seed();
     expect(await addCupMatch(f.fourball, [f.e[0], f.e[1]], [f.u[0], f.u[1]])).toEqual({ ok: true });
     expect(await addCupMatch(f.singles, [f.e[0]], [f.u[0]])).toEqual({ ok: true });
-    const b = await board(f.eventId);
+    // A draft: nobody but staff sees it, and it counts for nobody.
+    const pub = await board(f.eventId);
+    expect(pub.sessions.map((s) => [s.published, s.matches.length])).toEqual([[false, 0], [false, 0]]);
+    expect(pub.tally.total).toBe(0);
+    const b = await staffBoard(f.eventId);
     expect(b.teams.map((t) => t.name)).toEqual([`${TAG} Europe`, `${TAG} USA`]);
     expect(b.sessions.map((s) => [s.name, s.kind, s.matches.length])).toEqual([
       ["Friday fourballs", "Four-Ball", 1],
       ["Sunday singles", "Singles", 1],
     ]);
     expect(b.sessions[0].matches[0].a).toEqual([`${TAG} E1`, `${TAG} E2`]);
-    expect(b.tally).toMatchObject({ a: 0, b: 0, total: 2, notStarted: 2 });
+    // Listed for staff, and still not in the score until announced.
+    expect(b.tally.total).toBe(0);
+    await announce(f.fourball, f.singles);
+    expect((await board(f.eventId)).tally).toMatchObject({ a: 0, b: 0, total: 2, notStarted: 2 });
   });
 
   it("refuses a side from the wrong team, a player twice in a session, and an unconfirmed player", async () => {
@@ -137,6 +158,7 @@ describe("the score", () => {
     await prisma.match.create({
       data: { eventId: f.eventId, stageId: f.singles, groupId: carrier, round: 4, playerAId: f.u[3], playerBId: f.e[3], holes: holes("AAAAA" + "H".repeat(9)) },
     });
+    await announce(f.singles);
 
     const b = await board(f.eventId);
     expect(b.tally).toEqual({ a: 1.5, b: 1.5, total: 4, decided: 3, inPlay: 1, notStarted: 0 });
@@ -148,8 +170,11 @@ describe("the score", () => {
     expect(b.target).toBe(0);
     expect(b.verdict).toEqual({ kind: "open", needA: null, needB: null });
 
-    // Line the four-balls up: 5 matches → 3 to win outright.
+    // Line the four-balls up: still a draft, so still no total.
     await addCupMatch(f.fourball, [f.e[0], f.e[1]], [f.u[0], f.u[1]]);
+    expect((await board(f.eventId)).verdict).toEqual({ kind: "open", needA: null, needB: null });
+    // Announced: 5 matches → 3 to win outright.
+    await announce(f.fourball);
     const lined = await board(f.eventId);
     expect(lined.target).toBe(3);
     expect(lined.verdict).toEqual({ kind: "open", needA: 1.5, needB: 1.5 });
@@ -161,10 +186,12 @@ describe("the score", () => {
     await addCupMatch(f.singles, [f.e[1]], [f.u[1]]);
     const ms = await prisma.match.findMany({ where: { stageId: f.singles }, orderBy: { round: "asc" } });
     for (const x of ms) await prisma.match.update({ where: { id: x.id }, data: { holes: holes("AAAA" + "H".repeat(11)) } });
+    await announce(f.singles);
     // Europe 2 of 2 — "more than half" of the two matches that exist.
     expect((await board(f.eventId)).verdict).toMatchObject({ kind: "open" });
-    // CONTROL: once the four-balls are lined up (3 matches, 2 to win) it is won.
+    // CONTROL: once the four-balls are lined up and announced (3 matches, 2 to win) it is won.
     await addCupMatch(f.fourball, [f.e[2], f.e[3]], [f.u[2], f.u[3]]);
+    await announce(f.fourball);
     expect((await board(f.eventId)).verdict).toEqual({ kind: "won", by: "A" });
   });
 
@@ -179,6 +206,7 @@ describe("the score", () => {
     await addCupMatch(f.fourball, [f.e[2], f.e[3]], [f.u[2], f.u[3]]);
     const fb = await prisma.match.findFirstOrThrow({ where: { stageId: f.fourball } });
     await prisma.match.update({ where: { id: fb.id }, data: { holes: holes("H".repeat(18)) } });
+    await announce(f.singles, f.fourball);
     expect((await setCupSettings(0, "not-a-team")).ok).toBe(false);
     expect(await setCupSettings(0, f.usa)).toEqual({ ok: true });
     expect((await board(f.eventId)).verdict).toEqual({ kind: "retained", by: "B" });
@@ -203,7 +231,7 @@ describe("the score", () => {
     const first = await prisma.match.findFirst({ where: { stageId: f.singles }, orderBy: { round: "asc" } });
     await removeCupMatch(first!.id);
     await addCupMatch(f.singles, [f.e[3]], [f.u[3]]);
-    const b = await board(f.eventId);
+    const b = await staffBoard(f.eventId);
     expect(b.sessions[1].matches.map((m) => m.a[0])).toEqual([`${TAG} E2`, `${TAG} E3`, `${TAG} E4`]);
     // The numbers themselves stay distinct — a count would reuse 3, and the
     // order above would then rest on a tie-break by id.

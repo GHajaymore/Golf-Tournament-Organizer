@@ -7,7 +7,8 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { lookupFormat } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { TEAM_SESSION } from "@/lib/services/cup";
+import { TEAM_SESSION, cupBoard, sessionKind } from "@/lib/services/cup";
+import { notifyLineupPublished } from "@/lib/services/cup-notify";
 
 /**
  * THE TEAM CUP'S CONTROLS (2026-09-28): the target, the holder, and the
@@ -35,6 +36,29 @@ async function requireStaffEvent(): Promise<string> {
 async function refresh(eventId: string) {
   revalidatePath("/", "layout");
   boardChanged(eventId);
+}
+
+/**
+ * Whether any card on these sides holds a SCORE or a pick-up — not merely a
+ * row. A card saved with every hole blank is stored as eighteen nulls, which
+ * is not "[]" and is not a shot either; counting rows called a session under
+ * way that nobody had played.
+ */
+async function sidesHaveScores(sideIds: string[]): Promise<boolean> {
+  if (sideIds.length === 0) return false;
+  const cards = await prisma.teamScorecard.findMany({
+    where: { teamId: { in: sideIds } },
+    select: { strokes: true, pickedUp: true },
+  });
+  const any = (json: string, test: (v: unknown) => boolean) => {
+    try {
+      const v = JSON.parse(json) as unknown;
+      return Array.isArray(v) && v.some(test);
+    } catch {
+      return true; // unreadable: assume something is there, and keep it
+    }
+  };
+  return cards.some((c) => any(c.strokes, (s) => s !== null) || any(c.pickedUp, (x) => x === true));
 }
 
 /** The event's two teams, or null when it does not have exactly two flights. */
@@ -73,7 +97,7 @@ export async function addCupMatch(stageId: string, teamAPlayers: string[], teamB
   const eventId = await requireStaffEvent();
   const stage = await prisma.stage.findFirst({
     where: { id: String(stageId), eventId, type: TEAM_SESSION },
-    select: { id: true, format: true, holes: true, position: true },
+    select: { id: true, format: true, holes: true, position: true, description: true, lineupPublished: true },
   });
   if (!stage) return { ok: false, error: "That session isn't in this tournament." };
   const teams = await teamsOf(eventId);
@@ -141,6 +165,76 @@ export async function addCupMatch(stageId: string, teamAPlayers: string[], teamB
     });
   }
   await logAudit(eventId, "cup.lineup", `Match added: ${nameOf(a)} v ${nameOf(b)}`);
+  // Into a lineup already announced — a substitute, a late pairing — the
+  // match is public the moment it exists, so its four are told now.
+  if (stage.lineupPublished) {
+    const names = (ids: string[]) => ids.map((id) => byId.get(id)!.name);
+    await notifyLineupPublished(eventId, {
+      id: stage.id,
+      name: stage.description.trim() || "Your session",
+      kind: sessionKind(stage.format),
+      matches: [{ a: names(a), aIds: a, b: names(b), bIds: b }],
+    });
+  }
+  await refresh(eventId);
+  return { ok: true };
+}
+
+/**
+ * ANNOUNCE A SESSION'S LINEUP (Ajay, 2026-10-06: hidden until the organizer
+ * publishes it). Both teams' pairings at once — never one side first — and
+ * every player in it is told their match. Needs a lineup to announce.
+ */
+export async function publishCupLineup(stageId: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId, type: TEAM_SESSION },
+    select: { id: true, description: true, lineupPublished: true },
+  });
+  if (!stage) return { ok: false, error: "That session isn't in this tournament." };
+  if (stage.lineupPublished) return { ok: true };
+  const matches = await prisma.match.count({ where: { eventId, stageId: stage.id } });
+  if (matches === 0) return { ok: false, error: "Add this session's matches before announcing the lineup." };
+
+  await prisma.stage.update({ where: { id: stage.id }, data: { lineupPublished: true } });
+  await logAudit(eventId, "cup.lineup.publish", `Lineup announced: ${stage.description.trim() || "a session"}`);
+  const board = await cupBoard(eventId, { staff: true });
+  const session = board.ok ? board.board.sessions.find((s) => s.id === stage.id) : undefined;
+  if (session) await notifyLineupPublished(eventId, session);
+  await refresh(eventId);
+  return { ok: true };
+}
+
+/**
+ * Take an announcement back — a lineup published by mistake, before anybody
+ * has played. Refused once a match in it has a score or a concession: by then
+ * the players have the lineup and the cup has the result.
+ */
+export async function hideCupLineup(stageId: string): Promise<Result> {
+  const eventId = await requireStaffEvent();
+  const stage = await prisma.stage.findFirst({
+    where: { id: String(stageId), eventId, type: TEAM_SESSION },
+    select: { id: true, description: true },
+  });
+  if (!stage) return { ok: false, error: "That session isn't in this tournament." };
+  const matches = await prisma.match.findMany({
+    where: { eventId, stageId: stage.id },
+    select: { holes: true, forfeitedBy: true, teamAId: true, teamBId: true },
+  });
+  const started = matches.some((m) => {
+    if ((m.forfeitedBy ?? "").trim()) return true;
+    try {
+      return (JSON.parse(m.holes) as unknown[]).some((h) => h !== null);
+    } catch {
+      return true;
+    }
+  });
+  const sides = matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id): id is string => !!id);
+  if (started || (await sidesHaveScores(sides))) {
+    return { ok: false, error: "That session is under way, so its lineup stays announced." };
+  }
+  await prisma.stage.update({ where: { id: stage.id }, data: { lineupPublished: false } });
+  await logAudit(eventId, "cup.lineup.hide", `Lineup taken back: ${stage.description.trim() || "a session"}`);
   await refresh(eventId);
   return { ok: true };
 }
@@ -159,9 +253,7 @@ export async function removeCupMatch(matchId: string): Promise<Result> {
     started = true;
   }
   const sides = [m.teamAId, m.teamBId].filter((id): id is string => !!id);
-  if (!started && sides.length) {
-    started = (await prisma.teamScorecard.count({ where: { teamId: { in: sides }, NOT: { strokes: "[]" } } })) > 0;
-  }
+  if (!started && sides.length) started = await sidesHaveScores(sides);
   if (started) return { ok: false, error: "That match has scores in it, so it stays. Clear its scores first." };
   await prisma.match.delete({ where: { id: m.id } });
   if (sides.length) await prisma.team.deleteMany({ where: { id: { in: sides }, eventId } });

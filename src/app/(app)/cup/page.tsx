@@ -20,7 +20,9 @@ export const metadata = screenMetadata("/cup");
 export default async function CupPage() {
   const session = await requireScreen("cup");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
-  const result = await cupBoard(session.eventId);
+  // Staff see the draft lineups they are building; everyone else the cup as
+  // announced — the same board the players and the public link read.
+  const result = await cupBoard(session.eventId, { staff: isStaff });
 
   return (
     <>
@@ -98,8 +100,19 @@ async function StaffLineup({ eventId, board }: { eventId: string; board: CupBoar
           name: s.name,
           kind: s.kind,
           sideSize: s.sideSize,
+          published: s.published,
           busy: s.matches.flatMap((m) => m.playerIds),
-          matches: s.matches.map((m) => ({ id: m.id, a: m.a, b: m.b, started: m.state.status !== "not-started" })),
+          matches: s.matches.map((m) => ({
+            id: m.id,
+            a: m.a,
+            b: m.b,
+            started: m.state.status !== "not-started" || m.conceded !== null,
+            final: m.state.status === "final",
+            label: m.state.label,
+            aSideId: m.aSideId,
+            bSideId: m.bSideId,
+            conceded: m.conceded,
+          })),
         }))}
       />
     </section>

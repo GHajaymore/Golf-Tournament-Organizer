@@ -74,7 +74,16 @@ export function ScoreCell({
   shotsFor = "",
   onSet,
   firstHole = 1,
+  pickedUp = false,
+  onPickUp,
 }: {
+  /**
+   * MATCH PLAY ONLY (2026-10-06): this ball picked up here, shown as the "X" a
+   * paper card carries — and typed as one. Absent on every card that is holed
+   * out, so no medal grid reads an X.
+   */
+  pickedUp?: boolean;
+  onPickUp?: (on: boolean) => void;
   /** Zero-based, as the arrays are. The label says the course's number for it. */
   hole: number;
   /** The course's number for index 0 — 10 on a back nine (`firstHoleOf`). */
@@ -186,9 +195,23 @@ export function ScoreCell({
         className={`input sc-score${mark}`}
         inputMode="numeric"
         aria-label={label}
-        value={value ?? ""}
+        value={pickedUp ? "X" : value ?? ""}
         data-score-cell
         onChange={(e) => {
+          // "X" — picked up — where a card offers it. Anything else typed over
+          // an X takes the pick-up back and is read as a score.
+          if (onPickUp) {
+            const typed = e.target.value.replace(/^X/i, "").trim();
+            if (/^[xX]$/.test(e.target.value.trim())) {
+              onPickUp(true);
+              return;
+            }
+            if (pickedUp) {
+              onPickUp(false);
+              onSet(parseStroke(typed));
+              return;
+            }
+          }
           const read = parseStroke(e.target.value);
           onSet(read);
           /**

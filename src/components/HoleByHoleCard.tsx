@@ -115,7 +115,17 @@ export function HoleByHoleCard({
   showVoice = true,
   pins = [],
   firstHole = 1,
+  pickedUp,
+  onPickUp,
 }: {
+  /**
+   * MATCH PLAY ONLY: which holes each card picked up on, and the control to
+   * say so (2026-10-06). A blank is "not entered yet"; a pick-up is out of the
+   * hole, which concedes it once the whole side is out. Absent everywhere a
+   * card is holed out — every medal — so no other card grows a button.
+   */
+  pickedUp?: Record<string, boolean[]>;
+  onPickUp?: (playerId: string, hole: number, on: boolean) => void;
   /** The round's pin sheet, one entry per hole of the card. Empty for none. */
   pins?: PinSheet;
   /** The course's number for the first hole on this card — 10 on a back nine (`firstHoleOf`). */
@@ -432,29 +442,42 @@ export function HoleByHoleCard({
         )}
 
         {solo ? (
-          <SoloPad
-            player={players[0]}
-            hole={hole}
-            firstHole={firstHole}
-            par={par}
-            value={strokesOf(players[0].id)[hole] ?? null}
-            onPick={(v) => set(players[0].id, v)}
-          />
+          <>
+            <SoloPad
+              player={players[0]}
+              hole={hole}
+              firstHole={firstHole}
+              par={par}
+              value={strokesOf(players[0].id)[hole] ?? null}
+              onPick={(v) => set(players[0].id, v)}
+            />
+            {onPickUp && (
+              <PickUpToggle
+                name={players[0].name}
+                hole={holeNumber(hole, firstHole)}
+                on={pickedUp?.[players[0].id]?.[hole] === true}
+                onToggle={(on) => {
+                  onPickUp(players[0].id, hole, on);
+                  // Out of the hole is a hole finished: on to the next.
+                  if (on && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+                }}
+              />
+            )}
+          </>
         ) : (
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
             {players.map((p, idx) => {
               const value = strokesOf(p.id)[hole] ?? null;
               const shots = p.shotsOn?.(hole) ?? 0;
               const { toPar, played } = toParOf(p.id);
+              const picked = pickedUp?.[p.id]?.[hole] === true;
               return (
+                <div key={p.id} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
                 <div
-                  key={p.id}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
-                    paddingTop: 10,
-                    borderTop: "1px solid var(--color-divider)",
                   }}
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -498,7 +521,7 @@ export function HoleByHoleCard({
                   <span
                     className={`sc-score${scoreMark(value, par)}`}
                     role="img"
-                    aria-label={`${p.name}, hole ${holeNumber(hole, firstHole)}${value == null ? ", not scored" : `, ${value} strokes`}`}
+                    aria-label={`${p.name}, hole ${holeNumber(hole, firstHole)}${picked ? ", picked up" : value == null ? ", not scored" : `, ${value} strokes`}`}
                     style={{
                       // `.sc-score` is `width: 100%` for the grid cells it was
                       // written for; in this row that took 193 of 311px and
@@ -517,7 +540,7 @@ export function HoleByHoleCard({
                       color: value == null ? "var(--color-neutral-400)" : "var(--color-text)",
                     }}
                   >
-                    {value ?? "–"}
+                    {picked ? "X" : value ?? "–"}
                   </span>
                   <button
                     type="button"
@@ -528,6 +551,18 @@ export function HoleByHoleCard({
                   >
                     +
                   </button>
+                </div>
+                {/* Under the row rather than a fifth control in it: at 320px
+                    the name already shares the row with three 44px targets. */}
+                {onPickUp && (
+                  <PickUpToggle
+                    name={p.name}
+                    hole={holeNumber(hole, firstHole)}
+                    on={picked}
+                    compact
+                    onToggle={(on) => onPickUp(p.id, hole, on)}
+                  />
+                )}
                 </div>
               );
             })}
@@ -544,6 +579,44 @@ export function HoleByHoleCard({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * "Picked up" — out of the hole, in match play. A toggle, pressed state and
+ * all, so a scorer can see it is on and take it back. Its 44px height is the
+ * on-course touch minimum.
+ */
+function PickUpToggle({
+  name,
+  hole,
+  on,
+  onToggle,
+  compact = false,
+}: {
+  name: string;
+  hole: number;
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      aria-pressed={on}
+      aria-label={`${name} picked up on hole ${hole}`}
+      onClick={() => onToggle(!on)}
+      style={{
+        marginTop: compact ? 6 : 12,
+        minHeight: 44,
+        width: compact ? undefined : "100%",
+        fontSize: 14,
+        ...(on ? { borderColor: "var(--color-accent)", color: "var(--color-accent-200)", fontWeight: 600 } : {}),
+      }}
+    >
+      <Icon name={on ? "check" : "x"} /> {on ? "Picked up — tap to undo" : "Picked up"}
+    </button>
   );
 }
 

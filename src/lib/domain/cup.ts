@@ -86,6 +86,36 @@ export function yourMatchLine(s: CupMatchState, mine: CupSide): string {
   return `You're ${up} ${s.leader === mine ? "up" : "down"} thru ${thru}`;
 }
 
+/**
+ * WHO IS TOLD WHEN A SESSION'S LINEUP IS ANNOUNCED, AND WHAT.
+ *
+ * Every player in the session, each with their own match from their side —
+ * "You & Dev Blue v Gwen White & Hal White" — because the first question on
+ * reading a lineup is who you are with and who you are against. Pure; the
+ * push itself is `services/cup-notify.ts`.
+ */
+export function lineupNotices(session: {
+  name: string;
+  kind: string;
+  matches: { a: string[]; aIds: string[]; b: string[]; bIds: string[] }[];
+}): { playerId: string; title: string; body: string }[] {
+  const out: { playerId: string; title: string; body: string }[] = [];
+  const title = `Your ${session.kind.toLowerCase()} match is set`;
+  for (const m of session.matches) {
+    const tell = (ids: string[], us: string[], them: string[]) =>
+      ids.forEach((id, i) =>
+        out.push({
+          playerId: id,
+          title,
+          body: `${us.map((n, j) => (j === i ? "You" : n)).join(" & ")} v ${them.join(" & ")} · ${session.name}`,
+        }),
+      );
+    tell(m.aIds, m.a, m.b);
+    tell(m.bIds, m.b, m.a);
+  }
+  return out;
+}
+
 export interface CupTally {
   /** Points won so far — decided matches only, never a projection. */
   a: number;
