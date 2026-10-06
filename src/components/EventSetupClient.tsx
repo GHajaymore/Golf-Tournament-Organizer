@@ -9,6 +9,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 import { StickySave } from "./StickySave";
 import { TournamentJourney } from "./TournamentJourney";
 import { overallResultLabel } from "@/lib/domain/overall-result";
@@ -461,11 +462,12 @@ export function EventSetupClient({
               </option>
             ))}
           </select>
-          <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0", lineHeight: 1.5 }}>
+          {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
+          <MoreInfo short={<>Members see &ldquo;this {playNoun(f.playKind)}&rdquo;.</>} style={{ marginTop: 6 }}>
             Members see this word: &ldquo;this {playNoun(f.playKind)}&rdquo;, and the results card
             reads &ldquo;{resultHeading(f.playKind)}&rdquo;. It changes nothing about how the golf is
             scored.
-          </p>
+          </MoreInfo>
         </div>
         <div className="pair-grid">
           <div className="field">

@@ -45,6 +45,7 @@ import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
 import { StickySave } from "./StickySave";
+import FieldInfo from "./FieldInfo";
 
 export interface RoundCode {
   stageId: string;
@@ -115,12 +116,15 @@ export interface TeeOption {
  * still does what it did; they are grouped under headings that each name one
  * thing.
  */
-function Group({ title, blurb }: { title: string; blurb: string }) {
+function Group({ title, blurb, more }: { title: string; blurb: string; more?: string }) {
   return (
     <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12, marginTop: 2 }}>
-      <span style={{ fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 600 }}>{title}</span>
-      <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
-        {blurb}
+      <span style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 600 }}>{title}</span>
+      {/* The blurb is one short line; anything longer is `more`, an ⓘ away
+          (Ajay, 2026-10-05). */}
+      <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <span>{blurb}</span>
+        {more && <FieldInfo label={title}>{more}</FieldInfo>}
       </p>
     </div>
   );
@@ -154,40 +158,39 @@ function Choice<T extends string>({
           sign-up" — a stutter, and a separation that made the screen wordier
           rather than clearer. Where a group holds one control, the heading IS
           the label. */}
+      {/* The hint behind an ⓘ beside the label (2026-10-05), as the
+          options' explanations are. */}
       {label && (
-        <label>
-          {label} {hint && <span className="text-muted">· {hint}</span>}
-        </label>
+        <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <label>{label}</label>
+          {hint && <FieldInfo label={label}>{hint}</FieldInfo>}
+        </span>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+      {/* THE NAME, AND ITS EXPLANATION AN ⓘ AWAY (Ajay, 2026-10-05). Every
+          option printed its explanation underneath — sixteen of the screen's
+          twenty-five long sentences, all on at once, most about options
+          nobody was choosing. The name is the short line; `FieldInfo`, the
+          app's existing tap-to-open explainer, holds the rest. The explanation
+          is still required for every option (`settings-explained.test.ts`). */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
         {options.map((opt) => (
-          <label
-            key={opt}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 8,
-              fontSize: 13,
-              cursor: disabled ? "default" : "pointer",
-              opacity: disabled ? 0.6 : 1,
-            }}
-          >
-            <input
-              type="radio"
-              checked={value === opt}
-              disabled={disabled}
-              onChange={() => onChange(opt)}
-              style={{ marginTop: 2 }}
-            />
-            <span>
-              {labels[opt]}
-              {help?.[opt] && (
-                <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
-                  {help[opt]}
-                </span>
-              )}
-            </span>
-          </label>
+          <div key={opt} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                minHeight: 36,
+                cursor: disabled ? "default" : "pointer",
+                opacity: disabled ? 0.6 : 1,
+              }}
+            >
+              <input type="radio" checked={value === opt} disabled={disabled} onChange={() => onChange(opt)} />
+              <span>{labels[opt]}</span>
+            </label>
+            {help?.[opt] && <FieldInfo label={labels[opt]}>{help[opt]}</FieldInfo>}
+          </div>
         ))}
       </div>
     </div>
@@ -579,20 +582,31 @@ export function PlaySettings({
         />
       )}
 
-      <Group
-        title="Weekly sign-up"
-        blurb="Who is playing next week — nothing to do with scoring or sign-off. For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
-      />
+      {/* ASKED WHERE THERE IS A NEXT WEEK (Ajay, 2026-10-05). "Who is playing
+          next week" was asked of every tournament, a one-round medal included,
+          where no answer can do anything. Shown when the tournament has more
+          than one round, and ALWAYS where the setting has been moved off its
+          default — a setting in force is never hidden from the person who can
+          change it. The club's defaults keep it, for the tournaments to come. */}
+      {(mode === "organization" || rounds.length > 1 || settings.attendanceMode !== "everyone") && (
+        <>
+          <Group
+            title="Weekly sign-up"
+            blurb="Who is playing next week, round by round."
+            more="Nothing to do with scoring or sign-off. For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
+          />
 
-      <Choice
-        label=""
-        value={form.attendanceMode}
-        options={ATTENDANCE_MODES}
-        labels={ATTENDANCE_MODE_LABEL}
-        help={ATTENDANCE_MODE_HELP}
-        disabled={!canEdit || pending}
-        onChange={(v) => set("attendanceMode", v)}
-      />
+          <Choice
+            label=""
+            value={form.attendanceMode}
+            options={ATTENDANCE_MODES}
+            labels={ATTENDANCE_MODE_LABEL}
+            help={ATTENDANCE_MODE_HELP}
+            disabled={!canEdit || pending}
+            onChange={(v) => set("attendanceMode", v)}
+          />
+        </>
+      )}
 
       {/* WHAT THE SWITCH DOES TO THE PEOPLE ALREADY IN THE LEAGUE.
           Only explicit choices are stored, so every silent player's status is

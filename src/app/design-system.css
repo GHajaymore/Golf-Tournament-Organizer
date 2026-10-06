@@ -988,7 +988,9 @@ textarea.input { min-height: 90px; resize: vertical; }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   font-family: var(--font-body);
-  font-size: 12.5px; line-height: 1.5; font-weight: 400;
+  /* 14px: an explanation somebody tapped to read is read at reading size
+     (the type floor, 2026-10-05). */
+  font-size: 14px; line-height: 1.5; font-weight: 400;
   letter-spacing: 0;
   /* Explanations run to a couple of sentences; keep them left-aligned and
      in sentence case whatever the label above happens to be. */

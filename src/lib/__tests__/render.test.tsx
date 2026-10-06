@@ -7034,9 +7034,12 @@ describe("play settings name one thing per heading", () => {
     // Grouping put "Who signs off a result" directly under a heading reading
     // "Who signs off a result". Separation that makes a screen wordier rather
     // than clearer is not the point of this pass.
-    const html = await panel("tournament");
+    // Counted in the VISIBLE text: the ⓘ beside a heading is named "More
+    // about Weekly sign-up" for a screen reader (2026-10-05), which is not
+    // the screen saying it twice.
+    const visible = (await panel("tournament")).replace(/<[^>]+>/g, " ");
     for (const words of ["Who signs off a result", "Weekly sign-up"]) {
-      expect(html.split(words).length - 1, words).toBe(1);
+      expect(visible.split(words).length - 1, words).toBe(1);
     }
   });
 

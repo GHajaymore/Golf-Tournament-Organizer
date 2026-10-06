@@ -17,6 +17,7 @@ export interface ChecklistItem {
 export function SetupChecklist({
   items,
   currentPath,
+  folded = false,
 }: {
   items: ChecklistItem[];
   /**
@@ -34,11 +35,15 @@ export function SetupChecklist({
    * the link is wrong, so only the link goes.
    */
   currentPath?: string;
+  /**
+   * One line — "Setup checklist · 6 of 7 done" — with the rows a tap away.
+   * For a tournament already launched (Ajay, 2026-10-05): setup is finished
+   * and locked, and the full list sat above the settings an organizer came
+   * back to change.
+   */
+  folded?: boolean;
 }) {
-  return (
-    <div className="card elev-sm" style={{ gap: 4 }}>
-      <span className="card-title" style={{ fontSize: 15, marginBottom: 4 }}>Setup checklist</span>
-      {items.map((it) => {
+  const rows = items.map((it) => {
         // Query strings and hashes are not part of "which page is this".
         const here = currentPath !== undefined && it.href.split(/[?#]/)[0] === currentPath;
         const rowStyle = {
@@ -67,16 +72,37 @@ export function SetupChecklist({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
               {it.label}
-              {it.optional && <span className="tag tag-neutral" style={{ fontSize: 10 }}>Optional</span>}
+              {it.optional && <span className="tag tag-neutral" style={{ fontSize: 12 }}>Optional</span>}
             </div>
-            <div className="text-muted" style={{ fontSize: 12 }}>{it.detail}</div>
+            <div className="text-muted" style={{ fontSize: 13 }}>{it.detail}</div>
           </div>
           {/* No arrow on the row you are already on: it is the affordance that
               says "this goes somewhere", and here it does not. */}
           {!here && <Icon name="arrow-right" style={{ color: "var(--color-neutral-500)" }} />}
           </Row>
         );
-      })}
+      });
+
+  if (folded) {
+    const done = items.filter((it) => it.done).length;
+    return (
+      <details className="card elev-sm" style={{ gap: 4 }}>
+        <summary
+          className="touch-target"
+          style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 600 }}
+        >
+          <Icon name="ph ph-check-circle" style={{ color: "var(--color-accent-2-200)" }} />
+          Setup checklist · {done} of {items.length} done
+        </summary>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>{rows}</div>
+      </details>
+    );
+  }
+
+  return (
+    <div className="card elev-sm" style={{ gap: 4 }}>
+      <span className="card-title" style={{ fontSize: 15, marginBottom: 4 }}>Setup checklist</span>
+      {rows}
     </div>
   );
 }
