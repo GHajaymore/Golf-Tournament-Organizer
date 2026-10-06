@@ -7,9 +7,15 @@ export function cupVerdictLine(board: CupBoard): string {
   const name = (side: "A" | "B") => (side === "A" ? a.name : b.name);
   const v: CupVerdict = board.verdict;
   if (v.kind === "won") return `${name(v.by)} win the cup.`;
-  if (v.kind === "retained") return `Level — ${name(v.by)} retain the cup.`;
+  if (v.kind === "retained") {
+    // Level only when every match is in; before that the holder has simply
+    // got out of reach, which is how a cup is usually kept.
+    const level = board.tally.decided === board.tally.total && board.tally.a === board.tally.b;
+    return level ? `Level — ${name(v.by)} retain the cup.` : `${name(v.by)} retain the cup.`;
+  }
   if (v.kind === "tied") return "Level — the cup is shared.";
   if (board.tally.total === 0) return "No matches in the lineup yet.";
+  if (v.needA === null || v.needB === null) return "The points to win are set once every session is lined up.";
   return `${cupPoints(board.target)} to win · ${a.name} need ${cupPoints(v.needA)}, ${b.name} need ${cupPoints(v.needB)}.`;
 }
 

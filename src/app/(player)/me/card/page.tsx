@@ -18,6 +18,7 @@ import { roundCardFor } from "@/lib/services/round-card";
 import { teamStandings } from "@/lib/services/teams";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
+import { TEAM_SESSION } from "@/lib/services/cup";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
@@ -201,6 +202,30 @@ export default async function PlayCardPage() {
           )
         ).find((s) => s.memberIds.includes(me.playerId!) && s.played > 0) ?? null
       : null;
+
+  /**
+   * A TEAM CUP IS SCORED MATCH BY MATCH. This said "Round 1 is played as
+   * Four-Ball … Your organizer enters it" to a player in a cup whose players
+   * keep their own scores — the round's number, not the session's name, and
+   * the wrong person. Score entry opens on the player's own match.
+   */
+  if (state.stages.some((s) => s.type === TEAM_SESSION)) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          A cup is scored match by match, so there&rsquo;s no card of your own. Your matches — and the
+          button to score each one — are on Today.
+        </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "See my matches", icon: "sword" },
+            { href: "/me/board", label: "See the cup", icon: "ranking" },
+          ]}
+        />
+      </div>
+    );
+  }
 
   if (teamRound || matchRound) {
     return (

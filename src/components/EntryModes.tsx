@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
@@ -33,6 +33,12 @@ export interface EntryRound {
    * unchanged.
    */
   bracket?: boolean;
+  /**
+   * A team cup session. Its matches are the captains' lineup and nothing reads
+   * a stroke card in it, so it is entered match by match and offers no "Whole
+   * field" or spreadsheet import — both are ways to write cards it ignores.
+   */
+  cup?: boolean;
   matches: EntryMatch[];
   netMode: boolean;
   /** The committee's override for how this round's scores are recorded, or ""
@@ -109,7 +115,14 @@ export function EntryModes({
   absentByStage = {},
   casual = false,
   setupLocked = false,
+  sessionNav = null,
 }: {
+  /**
+   * A team cup's session links, under the heading. They replace the round
+   * picker: a cup's pair sessions are a different screen, so moving between
+   * sessions is navigation, not a dropdown inside this one.
+   */
+  sessionNav?: ReactNode;
   rounds: EntryRound[];
   activeIndex: number;
   /** False when this club's plan doesn't include reading a card from a photo.
@@ -208,6 +221,7 @@ export function EntryModes({
    * does for a bracket. Two dead ends for the round that decides the winner.
    */
   const bracket = !!round?.bracket;
+  const cupRound = !!round?.cup;
 
   /**
    * A TOURNAMENT WITH NO ROUNDS YET, WHICH IS EVERY TOURNAMENT FOR ITS FIRST
@@ -264,7 +278,7 @@ export function EntryModes({
               that has it open — see `screenName`. */}
           <h1 className="page-title">Score entry</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {rounds.length > 1 && (
+            {rounds.length > 1 && !sessionNav && (
               <select
                 className="input"
                 style={{ width: "auto" }}
@@ -297,7 +311,7 @@ export function EntryModes({
                 people the toggle only ever offers the wrong one of the two,
                 under a label ("Whole field") describing a field they do not
                 have. */}
-            {!casual && !bracket && (
+            {!casual && !bracket && !cupRound && (
               <div className="seg" role="radiogroup" aria-label="How to enter the scores">
                 <label className="seg-opt">
                   <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
@@ -332,7 +346,7 @@ export function EntryModes({
                 destructive control beside the card they are filling in as
                 they play. A wrong score on a quick round is fixed by typing
                 over it, which is the only correction two people need. */}
-            {isStaff && !casual && !bracket && (
+            {isStaff && !casual && !bracket && !cupRound && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -358,6 +372,8 @@ export function EntryModes({
           </div>
         </div>
       </div>
+
+      {sessionNav}
 
       {/* Before the cards, not buried under them: the questions this answers
           are the ones asked walking to the tee, not after the round. */}

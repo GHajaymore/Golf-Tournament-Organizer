@@ -143,9 +143,29 @@ describe("the score", () => {
     const reversed = b.sessions[1].matches.find((m) => m.b.includes(`${TAG} U4`))!;
     expect(reversed.a).toEqual([`${TAG} E4`]);
     expect(reversed.state).toMatchObject({ points: [0, 1], leader: "B", label: "5&4" });
-    // 4 matches → 2½ to win outright.
-    expect(b.target).toBe(2.5);
-    expect(b.verdict).toEqual({ kind: "open", needA: 1, needB: 1 });
+    // The four-ball session has no lineup yet, so "more than half" has no
+    // total to be half of: no target, nothing decided.
+    expect(b.target).toBe(0);
+    expect(b.verdict).toEqual({ kind: "open", needA: null, needB: null });
+
+    // Line the four-balls up: 5 matches → 3 to win outright.
+    await addCupMatch(f.fourball, [f.e[0], f.e[1]], [f.u[0], f.u[1]]);
+    const lined = await board(f.eventId);
+    expect(lined.target).toBe(3);
+    expect(lined.verdict).toEqual({ kind: "open", needA: 1.5, needB: 1.5 });
+  });
+
+  it("with no target set, a lead over a part-made lineup is not a win", async () => {
+    const f = await seed();
+    await addCupMatch(f.singles, [f.e[0]], [f.u[0]]);
+    await addCupMatch(f.singles, [f.e[1]], [f.u[1]]);
+    const ms = await prisma.match.findMany({ where: { stageId: f.singles }, orderBy: { round: "asc" } });
+    for (const x of ms) await prisma.match.update({ where: { id: x.id }, data: { holes: holes("AAAA" + "H".repeat(11)) } });
+    // Europe 2 of 2 — "more than half" of the two matches that exist.
+    expect((await board(f.eventId)).verdict).toMatchObject({ kind: "open" });
+    // CONTROL: once the four-balls are lined up (3 matches, 2 to win) it is won.
+    await addCupMatch(f.fourball, [f.e[2], f.e[3]], [f.u[2], f.u[3]]);
+    expect((await board(f.eventId)).verdict).toEqual({ kind: "won", by: "A" });
   });
 
   it("a named holder retains on a tie; the holder must be one of the teams", async () => {
@@ -155,6 +175,10 @@ describe("the score", () => {
     const ms = await prisma.match.findMany({ where: { stageId: f.singles }, orderBy: { round: "asc" } });
     await prisma.match.update({ where: { id: ms[0].id }, data: { holes: holes("AAAA" + "H".repeat(11)) } });
     await prisma.match.update({ where: { id: ms[1].id }, data: { holes: holes("BBBB" + "H".repeat(11)) } });
+    // And a halved four-ball, so every session is lined up and every match in.
+    await addCupMatch(f.fourball, [f.e[2], f.e[3]], [f.u[2], f.u[3]]);
+    const fb = await prisma.match.findFirstOrThrow({ where: { stageId: f.fourball } });
+    await prisma.match.update({ where: { id: fb.id }, data: { holes: holes("H".repeat(18)) } });
     expect((await setCupSettings(0, "not-a-team")).ok).toBe(false);
     expect(await setCupSettings(0, f.usa)).toEqual({ ok: true });
     expect((await board(f.eventId)).verdict).toEqual({ kind: "retained", by: "B" });

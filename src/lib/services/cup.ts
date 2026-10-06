@@ -38,6 +38,9 @@ export interface CupBoardMatch {
   b: string[];
   /** Every player in the match, both teams — who is already playing this session. */
   playerIds: string[];
+  /** Team A's player ids and Team B's, in the same order as `a` and `b`. */
+  aIds: string[];
+  bIds: string[];
   state: CupMatchState;
 }
 
@@ -66,6 +69,102 @@ export function sessionKind(format: string): string {
   const f = lookupFormat(format.trim());
   if (!f || f.sideSize <= 1) return "Singles";
   return f.name;
+}
+
+/** A session by the name the club gave it, or its place in the cup. */
+export function sessionName(s: { description: string }, index: number): string {
+  return s.description.trim() || `Session ${index + 1}`;
+}
+
+interface StageLike {
+  id: string;
+  type: string;
+  format: string;
+  description: string;
+}
+interface MatchLike {
+  stageId: string;
+  playerAId: string;
+  playerBId: string;
+  teamAId: string;
+  teamBId: string;
+  holes: string;
+  forfeitedBy?: string | null;
+}
+
+/**
+ * Which of a person's ids they play under in this tournament: their entries,
+ * matched by email the way every "me" in the app is, and the pairs those
+ * entries are in.
+ */
+export async function myCupIds(eventId: string, email: string): Promise<{ players: Set<string>; sides: Set<string> }> {
+  const players = new Set(
+    (
+      await prisma.player.findMany({
+        where: { eventId, email: { equals: email, mode: "insensitive" } },
+        select: { id: true },
+      })
+    ).map((p) => p.id),
+  );
+  const sides = players.size
+    ? new Set(
+        (
+          await prisma.teamMember.findMany({ where: { playerId: { in: [...players] } }, select: { teamId: true } })
+        ).map((t) => t.teamId),
+      )
+    : new Set<string>();
+  return { players, sides };
+}
+
+/** Whether a stored match has been decided — a result, or a concession. */
+function matchDecided(m: MatchLike): boolean {
+  if ((m.forfeitedBy ?? "").trim()) return true;
+  let holes: HoleResult[] = [];
+  try {
+    holes = JSON.parse(m.holes) as HoleResult[];
+  } catch {
+    holes = [];
+  }
+  return cupMatchState({ holes, conceded: null }).status === "final";
+}
+
+/**
+ * A TEAM CUP'S SESSIONS, FOR SCORE ENTRY: which this person may open, and
+ * which one is theirs to play now.
+ *
+ * Staff see every session and open on the active round when it is one. A
+ * player sees the sessions they have a match in and opens on the first one
+ * whose match is not yet decided — Saturday afternoon's foursomes once the
+ * morning four-ball is in — or their last match when every one is.
+ *
+ * Empty, and no default, for a tournament with no cup sessions, so nothing
+ * changes anywhere else.
+ */
+export async function cupSessionsFor<S extends StageLike>(
+  state: { event: { id: string }; stages: S[]; matches: MatchLike[]; activeStage?: S | null },
+  email: string,
+  isStaff: boolean,
+): Promise<{ sessions: Array<{ id: string; name: string; kind: string }>; defaultStage: S | null }> {
+  const cupStages = state.stages.filter((s) => s.type === TEAM_SESSION);
+  if (cupStages.length === 0) return { sessions: [], defaultStage: null };
+  const link = (s: S) => ({ id: s.id, name: sessionName(s, cupStages.indexOf(s)), kind: sessionKind(s.format) });
+
+  if (isStaff) {
+    const active = state.activeStage && state.activeStage.type === TEAM_SESSION ? state.activeStage : null;
+    const open = cupStages.find((s) => state.matches.some((m) => m.stageId === s.id && !matchDecided(m)));
+    return { sessions: cupStages.map(link), defaultStage: active ?? open ?? cupStages[0] };
+  }
+
+  const me = await myCupIds(state.event.id, email);
+  const mine = (m: MatchLike) =>
+    me.players.has(m.playerAId) || me.players.has(m.playerBId) || me.sides.has(m.teamAId) || me.sides.has(m.teamBId);
+  const myMatches = state.matches.filter((m) => cupStages.some((s) => s.id === m.stageId) && mine(m));
+  const mySessions = cupStages.filter((s) => myMatches.some((m) => m.stageId === s.id));
+  const toPlay = mySessions.find((s) => myMatches.some((m) => m.stageId === s.id && !matchDecided(m)));
+  return {
+    sessions: mySessions.map(link),
+    defaultStage: toPlay ?? mySessions[mySessions.length - 1] ?? null,
+  };
 }
 
 export async function cupBoard(eventId: string): Promise<CupBoardResult> {
@@ -156,6 +255,8 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
       a: flipped ? sb.names : sa.names,
       b: flipped ? sa.names : sb.names,
       playerIds: [...sa.ids, ...sb.ids],
+      aIds: flipped ? sb.ids : sa.ids,
+      bIds: flipped ? sa.ids : sb.ids,
       state: cupMatchState(input),
     };
     bySession.set(m.stageId, [...(bySession.get(m.stageId) ?? []), row]);
@@ -164,6 +265,8 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
   const tally = cupTally(inputs);
   const holder: CupSide | null =
     event.cupHolderGroupId === ta.id ? "A" : event.cupHolderGroupId === tb.id ? "B" : null;
+  // Every session lined up, so "more than half" is half of the real total.
+  const totalKnown = stages.every((s) => (bySession.get(s.id)?.length ?? 0) > 0);
   return {
     ok: true,
     board: {
@@ -182,8 +285,9 @@ export async function cupBoard(eventId: string): Promise<CupBoardResult> {
         };
       }),
       tally,
-      target: pointsToWin(event.cupPointsToWin, tally.total),
-      verdict: cupVerdict(tally, event.cupPointsToWin, holder),
+      // Zero when there is no target yet — see `cupVerdict`'s `totalKnown`.
+      target: event.cupPointsToWin > 0 || totalKnown ? pointsToWin(event.cupPointsToWin, tally.total) : 0,
+      verdict: cupVerdict(tally, event.cupPointsToWin, holder, totalKnown),
     },
   };
 }

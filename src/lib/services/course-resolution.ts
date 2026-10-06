@@ -135,11 +135,26 @@ export interface ResolvedCourse {
   sourceUrl?: string;
 }
 
+/**
+ * YARDAGE IS OPTIONAL. Nothing scores off it, and CLAUDE.md is explicit that
+ * it "must never be why a card is thrown away" — yet this returned null for a
+ * card with no yards, so a course with every par and stroke index printed
+ * "Par —" on the scoring screen and gave a net match no index to place its
+ * strokes on. An empty array is the shape every caller already handles for "no
+ * distances" (`roundCard?.yards ?? []`), so that is what a yardless card gets.
+ * Also an empty array when the yards do not match the card's length: a wrong
+ * yardage is still not a reason to lose the pars.
+ */
+function holeYards(json: string, holes: number): number[] {
+  const yards = parseHoleArray(json);
+  return yards && yards.length === holes ? yards : [];
+}
+
 function fromStored(c: StoredCourse, source: ResolvedCourse["source"]): ResolvedCourse | null {
   const pars = parseHoleArray(c.pars);
-  const yards = parseHoleArray(c.yards);
   const strokeIndex = parseHoleArray(c.strokeIndex);
-  if (!pars || !yards || !strokeIndex) return null;
+  if (!pars || !strokeIndex) return null;
+  const yards = holeYards(c.yards, pars.length);
   return { name: c.name, city: c.city, pars, yards, strokeIndex, source, distanceUnit: c.distanceUnit, sourceUrl: c.sourceUrl };
 }
 
@@ -149,12 +164,13 @@ function fromEvent(event: EventCourseFields): ResolvedCourse | null {
     if (resolved) return resolved;
   }
   const pars = parseHoleArray(event.customPars);
-  const yards = parseHoleArray(event.customYards);
   const strokeIndex = parseHoleArray(event.customStrokeIndex);
-  if (!pars || !yards || !strokeIndex) {
+  if (!pars || !strokeIndex) {
     const venue = soleVenueCourse(event);
     return venue ? fromStored(venue, "event") : null;
   }
+  // Optional, as on a stored course — see `holeYards`.
+  const yards = holeYards(event.customYards, pars.length);
   return {
     name: event.course || "Course",
     city: event.city,

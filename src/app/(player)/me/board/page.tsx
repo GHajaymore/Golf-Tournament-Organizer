@@ -111,12 +111,8 @@ export default async function PlayBoardPage({
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
         <CupScoreboard board={cup.board} />
-        <WayForward
-          links={[
-            { href: "/me", label: "Back to today", icon: "flag" },
-            { href: "/me/card", label: "My card", icon: "cards" },
-          ]}
-        />
+        {/* My matches, not "My card": a cup files no card of a player's own. */}
+        <WayForward links={[{ href: "/me", label: "My matches", icon: "sword" }]} />
       </div>
     );
   }

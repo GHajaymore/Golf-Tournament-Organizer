@@ -115,7 +115,18 @@ export function hasCourseData(
    * perfectly well known.
    */
   if (event.courseRef && parseHoleArray(event.courseRef.pars)) return true;
-  return !!(parseHoleArray(event.customPars) && parseHoleArray(event.customYards) && parseHoleArray(event.customStrokeIndex));
+  // Par and stroke index; yardage is optional — see `yardsFor`.
+  return !!(parseHoleArray(event.customPars) && parseHoleArray(event.customStrokeIndex));
+}
+
+/**
+ * A card's yardage, or none. Nothing scores off yardage, so a card with every
+ * par and stroke index and no yards is a card (CLAUDE.md, "Course cards"); an
+ * empty array is how every reader already spells "no distances".
+ */
+function yardsFor(json: string, holes: number): number[] {
+  const yards = parseHoleArray(json);
+  return yards && yards.length === holes ? yards : [];
 }
 
 /** The parts of a round that decide whether course data is required. */
@@ -172,24 +183,29 @@ export function resolveCourse(event: EventCourseFields): CoursePreset {
   // The id the organizer picked, before the name they picked it by.
   if (event.courseRef) {
     const pars = parseHoleArray(event.courseRef.pars);
-    const yards = parseHoleArray(event.courseRef.yards);
     const strokeIndex = parseHoleArray(event.courseRef.strokeIndex);
-    if (pars && yards && strokeIndex) {
+    if (pars && strokeIndex) {
       return {
         name: event.courseRef.name,
         city: event.courseRef.city,
         address: "",
         pars,
-        yards,
+        yards: yardsFor(event.courseRef.yards, pars.length),
         strokeIndex,
       };
     }
   }
   const pars = parseHoleArray(event.customPars);
-  const yards = parseHoleArray(event.customYards);
   const strokeIndex = parseHoleArray(event.customStrokeIndex);
-  if (pars && yards && strokeIndex) {
-    return { name: event.course || "Custom course", city: event.city, address: "", pars, yards, strokeIndex };
+  if (pars && strokeIndex) {
+    return {
+      name: event.course || "Custom course",
+      city: event.city,
+      address: "",
+      pars,
+      yards: yardsFor(event.customYards, pars.length),
+      strokeIndex,
+    };
   }
   // The tournament's only venue, when it names no card of its own — the same
   // last step `fromEvent` takes, for the reason written on `soleVenueCourse`.
@@ -198,10 +214,16 @@ export function resolveCourse(event: EventCourseFields): CoursePreset {
   const venue = event.courses?.length === 1 ? event.courses[0].course : null;
   if (venue) {
     const vPars = parseHoleArray(venue.pars);
-    const vYards = parseHoleArray(venue.yards);
     const vIndex = parseHoleArray(venue.strokeIndex);
-    if (vPars && vYards && vIndex) {
-      return { name: venue.name, city: venue.city, address: "", pars: vPars, yards: vYards, strokeIndex: vIndex };
+    if (vPars && vIndex) {
+      return {
+        name: venue.name,
+        city: venue.city,
+        address: "",
+        pars: vPars,
+        yards: yardsFor(venue.yards, vPars.length),
+        strokeIndex: vIndex,
+      };
     }
   }
   // Unknown rather than a stand-in. Falling back to a bundled course meant

@@ -2,6 +2,8 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { screenName } from "@/lib/nav";
 import { requireState } from "@/lib/page-helpers";
+import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
+import { CupScoreboard } from "@/components/CupScoreboard";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
 import { computeHighlights, standingRows, settingsOf, withBoardRound } from "@/lib/services/tournament";
@@ -123,6 +125,25 @@ export default async function LeaderboardPage({
               </>
             )}
           </p>
+        </div>
+      </>
+    );
+  }
+
+  /**
+   * A TEAM CUP'S LEADERBOARD IS THE CUP — the same board `/live` and the
+   * player's Board tab show. This screen showed a cup session's pairs as a
+   * round-robin table ("P W ½ L · PTS"), which ranks nothing a cup is decided
+   * on, so the organizer and the members were reading two different boards.
+   */
+  const cupResult = state.stages.some((s) => s.type === TEAM_SESSION) ? await cupBoard(event.id) : null;
+  if (cupResult?.ok) {
+    return (
+      <>
+        <div className="page-kicker">Overview</div>
+        <h1 className="page-title">Live leaderboard</h1>
+        <div style={{ marginTop: 16 }}>
+          <CupScoreboard board={cupResult.board} />
         </div>
       </>
     );
