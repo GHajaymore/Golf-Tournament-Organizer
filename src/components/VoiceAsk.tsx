@@ -66,7 +66,7 @@ export function VoiceAsk({ context }: { context: VoiceContext }) {
           <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />
           {listening ? "Listening…" : "Ask"}
         </button>
-        <span className="text-muted" style={{ fontSize: 12 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           “What’s my handicap for round 2?” · “Who am I playing?” · “Where do I stand?”
         </span>
       </div>
@@ -89,7 +89,7 @@ export function VoiceAsk({ context }: { context: VoiceContext }) {
           }}
         >
           {heard && (
-            <div className="text-muted" style={{ fontSize: 11.5, marginBottom: 2 }}>
+            <div className="text-muted" style={{ fontSize: 13, marginBottom: 2 }}>
               Heard: “{heard}”
             </div>
           )}

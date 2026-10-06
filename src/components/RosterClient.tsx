@@ -336,7 +336,7 @@ export function RosterClient({
             <Icon name="users-three" /> {summary.unlinked} in {eventName}{" "}
             {summary.unlinked === 1 ? "isn’t" : "aren’t"} on the roster
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             Their entries are fine and the tournament is unaffected — they were just added before the club
             list existed, so nothing here knows about them. Adding them keeps their details for next season
             instead of retyping the field.
@@ -358,12 +358,12 @@ export function RosterClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Active members</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{activeCount}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>available for any tournament</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>available for any tournament</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Inactive</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{inactiveCount}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>kept for past results</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>kept for past results</div>
         </div>
         {hasTournament && (
           <div className="card elev-sm" style={{ gap: 2 }}>
@@ -378,13 +378,13 @@ export function RosterClient({
                 <span className="text-muted" style={{ fontSize: 15 }}> of {summary.fieldSize}</span>
               )}
             </div>
-            <div className="text-muted" style={{ fontSize: 12 }}>{summary.note}</div>
+            <div className="text-muted" style={{ fontSize: 13 }}>{summary.note}</div>
           </div>
         )}
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{profile.label}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {profile.sharedRoster ? "shared roster" : "your own list of players"}
           </div>
         </div>
@@ -410,10 +410,10 @@ export function RosterClient({
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 32%, transparent)",
           }}
         >
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-danger)" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-danger)" }}>
             <Icon name="warning-circle" /> No indexes have been fetched yet
           </span>
-          <p style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}>
+          <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>
             This club plays off association indexes, and none have come through — so members below
             show no index rather than a figure. Nobody plays off scratch by accident: finish the
             handicap connection in settings, or switch the club to its own handicaps.
@@ -581,7 +581,7 @@ export function RosterClient({
             placeholder="Search name, email, number…"
             aria-label="Search members"
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }} className="text-muted">
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
             Show inactive
           </label>
@@ -607,13 +607,13 @@ export function RosterClient({
              * survived a `max-width` alone.
              */
             <label
-              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, minWidth: 0 }}
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, minWidth: 0 }}
               className="text-muted"
             >
               <span>Show</span>
               <select
                 className="input"
-                style={{ width: "auto", maxWidth: "100%", minWidth: 0, fontSize: 12, padding: "3px 8px" }}
+                style={{ width: "auto", maxWidth: "100%", minWidth: 0, fontSize: 13, padding: "3px 8px" }}
                 value={entryFilter}
                 onChange={(e) => setEntryFilter(e.target.value as "all" | "in" | "out")}
               >
@@ -683,7 +683,7 @@ export function RosterClient({
             <span>
               <b>{pick.selected}</b> selected
               {pick.problem && (
-                <span className="text-muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                <span className="text-muted" style={{ marginLeft: 6, fontSize: 13 }}>
                   · {pick.problem}
                 </span>
               )}
@@ -703,7 +703,7 @@ export function RosterClient({
               // Was a `title` only, which never appears on a phone and is not
               // announced to a screen reader — the exact weak pattern called
               // out when the draw button was fixed.
-              <span className="text-muted" style={{ fontSize: 12, flexBasis: "100%" }}>
+              <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%" }}>
                 <Icon name="lock-simple" /> The tournament is locked — unlock it on Tournament
                 details to change the field.
               </span>
@@ -764,7 +764,7 @@ export function RosterClient({
                   <td style={{ fontWeight: 500 }}>
                     {m.name}
                     {m.memberNumber && (
-                      <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                      <span className="text-muted" style={{ fontSize: 13, marginLeft: 6 }}>
                         #{m.memberNumber}
                       </span>
                     )}
@@ -773,7 +773,7 @@ export function RosterClient({
                     {m.entryStatus !== "out" && (
                       <span
                         className="tag tag-neutral"
-                        style={{ marginLeft: 6, fontSize: 10, whiteSpace: "nowrap" }}
+                        style={{ marginLeft: 6, fontSize: 13, whiteSpace: "nowrap" }}
                         title={
                           m.entryStatus === "waitlisted"
                             ? `Signed up for ${eventName}, waiting for a place`
@@ -792,7 +792,7 @@ export function RosterClient({
                     {m.status !== "active" && (
                       <span
                         className="tag tag-neutral"
-                        style={{ marginLeft: 6, fontSize: 10, whiteSpace: "nowrap" }}
+                        style={{ marginLeft: 6, fontSize: 13, whiteSpace: "nowrap" }}
                       >
                         inactive
                       </span>
@@ -833,15 +833,15 @@ export function RosterClient({
                     {hasIndex(m) ? (
                       indexLabel(m)
                     ) : (
-                      <span className="text-muted" style={{ fontSize: 12 }}>{NO_INDEX} yet</span>
+                      <span className="text-muted" style={{ fontSize: 13 }}>{NO_INDEX} yet</span>
                     )}
                   </td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>
+                  <td className="text-muted" style={{ fontSize: 13 }}>
                     {m.email || "—"}
                     {m.phone && <div>{m.phone}</div>}
                   </td>
                   <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{m.entryCount}</td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>{m.lastEvent || "—"}</td>
+                  <td className="text-muted" style={{ fontSize: 13 }}>{m.lastEvent || "—"}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {/* What this member's own approved cards say they should
                         play off. Opened one member at a time: the record costs
@@ -924,7 +924,7 @@ export function RosterClient({
             for past results" stat card gives, and the archive button that does
             it is in the same row. */}
         {visible.some((m) => m.entryCount > 0) && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.5 }}>
             <Icon name="info" /> A member who has played cannot be removed — their results
             would lose the person they belong to. Set them inactive instead: they drop out of every
             field and stay in the record.
@@ -992,14 +992,14 @@ export function ImportSummary({
           <>
             <span>{parts.length ? parts.join(" · ") : "Nothing to import — every row was already on the roster."}</span>
             {result.unknownColumns.length > 0 && (
-              <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 4 }}>
                 Ignored {result.unknownColumns.length === 1 ? "column" : "columns"}:{" "}
                 {result.unknownColumns.join(", ")}. Rename to a recognised heading and upload again to
                 bring {result.unknownColumns.length === 1 ? "it" : "them"} in.
               </div>
             )}
             {(result.missingMobile ?? 0) > 0 && (
-              <div style={{ fontSize: 12.5, marginTop: 4 }}>
+              <div style={{ fontSize: 13, marginTop: 4 }}>
                 {result.missingMobile === 1
                   ? "1 member has no mobile number yet"
                   : `${result.missingMobile} members have no mobile number yet`}
@@ -1017,7 +1017,7 @@ export function ImportSummary({
         aria-label="Dismiss"
         style={{ width: 24, height: 24, flex: "none" }}
       >
-        <Icon name="x" style={{ fontSize: 12 }} />
+        <Icon name="x" style={{ fontSize: 13 }} />
       </button>
     </div>
   );

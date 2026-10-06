@@ -86,7 +86,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
         {/* The captain is appointed in flights setup, and only where a league
             has one — so a club without one simply shows no line. */}
         {club.captainName && (
-          <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+          <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>
             Captain: {club.captainName}
           </div>
         )}
@@ -157,14 +157,14 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
                   >
                     <span>
                       {r.name}{" "}
-                      <span className="text-muted" style={{ fontSize: 12 }}>
+                      <span className="text-muted" style={{ fontSize: 13 }}>
                         ({indexLabel(r)})
                       </span>
                     </span>
                     {/* Said so, or merely assumed by the round's mode. A
                         captain reads those differently: silence under opt-out
                         is not the same as somebody answering yes. */}
-                    <span className="text-muted" style={{ fontSize: 12 }}>
+                    <span className="text-muted" style={{ fontSize: 13 }}>
                       {r.available ? (r.answered ? "Available" : "No reply") : "Out"}
                     </span>
                   </button>

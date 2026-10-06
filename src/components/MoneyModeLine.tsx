@@ -77,7 +77,7 @@ export function MoneyModeLine({
       <div className="card-head">
         <span className="card-kicker">Money in this tournament</span>
         {href && (
-          <a href={href} className="btn btn-ghost" style={{ padding: "2px 10px", fontSize: 12 }}>
+          <a href={href} className="btn btn-ghost" style={{ padding: "2px 10px", fontSize: 13 }}>
             Change <Icon name="arrow-down" />
           </a>
         )}

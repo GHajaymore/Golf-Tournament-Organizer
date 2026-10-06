@@ -56,7 +56,7 @@ export function StatCard({
         {value}
       </div>
       {sub && (
-        <div className="text-muted" style={{ fontSize: 12 }}>
+        <div className="text-muted" style={{ fontSize: 13 }}>
           {sub}
         </div>
       )}
@@ -110,7 +110,7 @@ export function FactCard({
         <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>{figure}</div>
       )}
       {note && (
-        <div className="text-muted" style={{ fontSize: 12 }}>
+        <div className="text-muted" style={{ fontSize: 13 }}>
           {note}
         </div>
       )}

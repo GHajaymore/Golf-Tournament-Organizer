@@ -117,7 +117,7 @@ export function PlanPanel({
     <div className="card elev-sm" style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Your plan</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           What you are on today, and what the other one includes.
         </p>
       </div>
@@ -134,10 +134,10 @@ export function PlanPanel({
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 32%, transparent)",
           }}
         >
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-danger)" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-danger)" }}>
             <Icon name="clock-countdown" /> Deleted when completed
           </span>
-          <p style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}>{retention}</p>
+          <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>{retention}</p>
         </div>
       )}
 
@@ -156,10 +156,10 @@ export function PlanPanel({
             background: "color-mix(in srgb, var(--color-text) 4%, transparent)",
           }}
         >
-          <span style={{ fontSize: 12.5 }}>
+          <span style={{ fontSize: 13 }}>
             <Icon name="cards" /> {usage(standing.activeEvents, "tournament running", "tournaments running")}
           </span>
-          <span style={{ fontSize: 12.5 }}>
+          <span style={{ fontSize: 13 }}>
             <Icon name="users-three" /> {usage(standing.staffSeats, terms.organizer, terms.organizers)}
           </span>
           {/* Only claimed when it is true. `enforced` is false until a payment
@@ -167,12 +167,12 @@ export function PlanPanel({
               otherwise would be a small lie on the one panel whose whole job
               is to be straight about what a club has bought. */}
           {standing.enforced && !standing.activeEvents.allowed && (
-            <span style={{ fontSize: 12.5, color: "var(--color-danger)" }}>
+            <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> Another tournament needs a bigger plan.
             </span>
           )}
           {standing.enforced && !standing.staffSeats.allowed && (
-            <span style={{ fontSize: 12.5, color: "var(--color-danger)" }}>
+            <span style={{ fontSize: 13, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> Another organizer needs a bigger plan.
             </span>
           )}
@@ -213,14 +213,14 @@ export function PlanPanel({
                       : `${price(effectivePrice(p, overrides, quoteIn))}/mo · ${price(effectiveAnnualPrice(p, overrides, quoteIn))}/yr`}
                 </span>
                 {mine && (
-                  <span className="tag" style={{ fontSize: 10 }}>You are here</span>
+                  <span className="tag" style={{ fontSize: 13 }}>You are here</span>
                 )}
               </div>
-              <p style={{ fontSize: 12, fontWeight: 500, margin: "2px 0 0" }}>{p.tagline}</p>
-              <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: "2px 0 0" }}>{p.tagline}</p>
+              <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
                 {p.blurb}
               </p>
-              <p className="text-muted" style={{ fontSize: 11.5, margin: "5px 0 0", lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "5px 0 0", lineHeight: 1.5 }}>
                 {limitLine(p)}
               </p>
             </div>
@@ -230,8 +230,8 @@ export function PlanPanel({
 
       {benefits.length > 0 && (
         <div>
-          <span style={{ fontSize: 12.5, fontWeight: 600 }}>What upgrading would add</span>
-          <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, lineHeight: 1.7 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>What upgrading would add</span>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
             {benefits.map((b) => (
               <li key={b}>{b}</li>
             ))}
@@ -260,7 +260,7 @@ export function PlanPanel({
           />
         </Suspense>
       ) : (
-        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.55 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
           Changing plan is arranged with us directly — nothing is charged through the app.
         </p>
       )}

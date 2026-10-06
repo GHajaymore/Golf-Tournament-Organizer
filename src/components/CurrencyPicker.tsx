@@ -91,19 +91,19 @@ export function CurrencyPicker({ currency }: { currency: string }) {
         ))}
       </select>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
         {/* 123456 minor units: reads 1,234.56 where there are two of them and
             123,456 where there are none, which is the whole point. */}
         Amounts appear as <b>{money(123456, value)}</b>.
       </p>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
       {saved && !error && (
-        <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-accent-2-200)" }}>
           Saved.
         </p>
       )}

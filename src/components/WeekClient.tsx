@@ -62,7 +62,7 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
   const purse = nightPurse(played.map((g) => g.view.result));
   if (!purse.final) {
     return (
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
         The night&rsquo;s purse is added up once every card is in.
       </p>
     );
@@ -80,7 +80,7 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
   const head: React.CSSProperties = {
     ...cell,
     borderTop: "none",
-    fontSize: 11.5,
+    fontSize: 13,
     fontWeight: 600,
     color: "var(--color-text-muted)",
   };
@@ -90,7 +90,7 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
     <div style={{ marginTop: 10 }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>The night&rsquo;s purse</div>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
               <th style={{ ...head, textAlign: "left" }}>Player</th>
@@ -122,7 +122,7 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
         </table>
       </div>
       {!balanced && (
-        <p role="alert" style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+        <p role="alert" style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
           The payouts do not add up to the stakes. Check the pots on Prizes &amp; payouts before
           anybody settles.
         </p>
@@ -134,14 +134,14 @@ function NightPurseTable({ games }: { games: WeekView["skins"] }) {
 function Movement({ change, isNew }: { change: number; isNew: boolean }) {
   if (isNew) {
     return (
-      <span className="tag" style={{ fontSize: 10.5, whiteSpace: "nowrap" }} title="First week counted">
+      <span className="tag" style={{ fontSize: 13, whiteSpace: "nowrap" }} title="First week counted">
         new
       </span>
     );
   }
   if (change === 0) {
     return (
-      <span className="text-muted" style={{ fontSize: 12 }}>
+      <span className="text-muted" style={{ fontSize: 13 }}>
         <span aria-hidden="true">—</span>
         <span className="sr-only">no change</span>
       </span>
@@ -151,7 +151,7 @@ function Movement({ change, isNew }: { change: number; isNew: boolean }) {
   return (
     <span
       style={{
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 600,
         whiteSpace: "nowrap",
         // Semantic, not the brand accent: this is good/bad news, and it has to
@@ -212,7 +212,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
 
   const th: React.CSSProperties = {
     textAlign: "left",
-    fontSize: 11,
+    fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: ".06em",
     fontWeight: 600,
@@ -261,7 +261,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               type="button"
               onClick={() => router.push(`${pathname}?round=${w.stageId}`)}
               className={active ? "btn btn-primary" : "btn btn-ghost"}
-              style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5 }}
+              style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 13 }}
               aria-current={active ? "true" : undefined}
               /* WHAT THE DOT MEANS, on the button rather than in a tooltip.
                  "Not scored yet" was carried by a `title` on a middle dot —
@@ -272,7 +272,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
             >
               {w.date || w.label}
               {!w.played && (
-                <span aria-hidden style={{ opacity: 0.6, marginLeft: 6, fontSize: 11 }}>
+                <span aria-hidden style={{ opacity: 0.6, marginLeft: 6, fontSize: 13 }}>
                   ·
                 </span>
               )}
@@ -356,7 +356,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                  finished, the other has two cards outstanding and somebody to
                  ring. Only a league knows how many were expected, so a
                  tournament keeps the plain count it always had. */
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {view.attendance
                   ? weekReturnsNote(view.attendance)
                   : `${view.results.length} played`}
@@ -391,7 +391,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                       <td style={{ ...td, fontWeight: r.position === 1 ? 600 : 400 }}>
                         {r.name}
                         {r.thru > 0 && r.thru < view.holes && (
-                          <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                          <span className="text-muted" style={{ fontSize: 13, marginLeft: 6 }}>
                             thru {r.thru}
                           </span>
                         )}
@@ -419,7 +419,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               kicker="The night"
               title="Skins"
               aside={
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {SKINS_NOTE(view.nightBoard.net)}
                 </span>
               }
@@ -432,7 +432,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               kicker="The night"
               title="Nassau"
               aside={
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {NASSAU_NOTE}
                 </span>
               }
@@ -452,7 +452,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
             kicker="The night"
             title="Sides"
             aside={
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {/* Counted in sides, because that is what returned a card.
                     "8 played" beside a foursomes reads as eight players. */}
                 {view.sides.filter((s) => s.played > 0).length} of {view.sides.length} sides in
@@ -486,7 +486,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                         <div>
                           {s.name}
                           {s.played > 0 && s.played < view.holes && (
-                            <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                            <span className="text-muted" style={{ fontSize: 13, marginLeft: 6 }}>
                               thru {s.played}
                             </span>
                           )}
@@ -496,7 +496,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                             Gordon" and its members are "Hattie Mwangi · Gordon
                             Pyle", so inline they ran into one another and read
                             as the same two names printed twice. */}
-                        <div className="text-muted" style={{ fontSize: 11 }}>
+                        <div className="text-muted" style={{ fontSize: 13 }}>
                           {s.members.join(" · ") || "No players"}
                         </div>
                       </td>
@@ -532,7 +532,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 : "Season standings going into this week"
             }
             aside={
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {view.standingsIncludeThisWeek
                   ? "movement since last week"
                   : "this night earns no league points"}
@@ -584,7 +584,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               title="Skins"
               aside={
                 canManageMoney ? (
-                  <Link href={`/prizes?round=${view.stageId}`} className="btn btn-ghost" style={{ fontSize: 12.5 }}>
+                  <Link href={`/prizes?round=${view.stageId}`} className="btn btn-ghost" style={{ fontSize: 13 }}>
                     Manage
                   </Link>
                 ) : undefined
@@ -598,22 +598,22 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   <div key={label} style={{ marginBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{label}</span>
-                      <span className="text-muted" style={{ fontSize: 12 }}>
+                      <span className="text-muted" style={{ fontSize: 13 }}>
                         {money(pot.result.potCents)} pot · {pot.result.playerCount} in ·{" "}
                         {pot.result.claimedSkins} skin{pot.result.claimedSkins === 1 ? "" : "s"} won
                       </span>
                       {pot.result.provisional && (
-                        <span className="tag" style={{ fontSize: 10.5 }}>provisional</span>
+                        <span className="tag" style={{ fontSize: 13 }}>provisional</span>
                       )}
                     </div>
                     {/* See `stakesGoBack`: a refund is a payout, so asking
                         "has nobody any winnings" never said stakes go back. */}
                     {stakesGoBack(pot.result) ? (
-                      <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+                      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                         Nobody won a skin — stakes go back.
                       </p>
                     ) : (
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.7 }}>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
                         {pot.result.shares
                           .filter((s) => s.wonCents > 0)
                           .map((s) => (
@@ -628,7 +628,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 ) : null,
               )}
               <NightPurseTable games={view.skins} />
-              <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
                 Calculated and recorded here. The {org.noun} settles up in person — TourneyHQ never moves money.
               </p>
             </Section>

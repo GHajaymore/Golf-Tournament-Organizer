@@ -137,18 +137,18 @@ export function RosterPicker({
     <div className="card elev-sm" style={{ gap: 10 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add from the club roster</span>
-        <Link href="/roster" className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+        <Link href="/roster" className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
           Manage members <Icon name="arrow-right" />
         </Link>
       </div>
 
       {candidates.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           The roster is empty. Everyone you add below — or import by CSV — joins it automatically, so next
           season&rsquo;s field is a few clicks rather than a retype.
         </p>
       ) : available.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Every active member is already in this field.
         </p>
       ) : (
@@ -186,7 +186,7 @@ export function RosterPicker({
           )}
 
           <label
-            style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12 }}
+            style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}
             className="text-muted"
           >
             <input
@@ -222,23 +222,23 @@ export function RosterPicker({
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                   {c.name}
                   {c.memberNumber && (
-                    <span className="text-muted" style={{ fontSize: 11, marginLeft: 5 }}>#{c.memberNumber}</span>
+                    <span className="text-muted" style={{ fontSize: 13, marginLeft: 5 }}>#{c.memberNumber}</span>
                   )}
                   {/* Said BEFORE the tick — see `missingCount` above. */}
                   {c.missing && (
-                    <span style={{ display: "block", fontSize: 11, color: "var(--color-accent-200)" }}>
+                    <span style={{ display: "block", fontSize: 13, color: "var(--color-accent-200)" }}>
                       {c.missing === "mobile" ? "Needs a mobile number" : "Needs an email address"}
                     </span>
                   )}
                 </span>
-                <span className="text-muted" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                <span className="text-muted" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
                   {indexLabel(c)}
                   {c.handicapType === "9" ? " (9)" : ""}
                 </span>
               </label>
             ))}
             {visible.length === 0 && (
-              <p className="text-muted" style={{ fontSize: 12, margin: 0, padding: "10px" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "10px" }}>
                 No members match that search.
               </p>
             )}
@@ -266,7 +266,7 @@ export function RosterPicker({
         </p>
       )}
       {result && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {/* The mark follows the sentence. See `entered` above for the run
               this was written for. */}
           {entered ? (

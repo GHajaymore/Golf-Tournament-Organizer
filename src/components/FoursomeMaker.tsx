@@ -317,7 +317,7 @@ export function FoursomeMaker({
               key={r.id}
               href={`/foursomes?round=${r.id}`}
               className={r.id === activeRoundId ? "btn btn-primary" : "btn btn-ghost"}
-              style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5, textDecoration: "none" }}
+              style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 13, textDecoration: "none" }}
               aria-current={r.id === activeRoundId ? "true" : undefined}
             >
               {r.label}
@@ -363,7 +363,7 @@ export function FoursomeMaker({
           <Icon name="shuffle" style={{ fontSize: 16, color: "var(--color-accent-200)", flex: "none" }} />
           <span style={{ minWidth: 0 }}>
             <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Re-draw this sheet</span>
-            <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+            <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.45 }}>
               Change who plays together, the order off the tee, group size or start times.
             </span>
           </span>
@@ -393,7 +393,7 @@ export function FoursomeMaker({
             organizer setting up round one should be told that rather than
             wondering why half the options are greyed. */}
         {!hasStandings && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             <Icon name="info" /> No scores posted yet, so the leaderboard options are off. They
             switch on once a round has been played — that&apos;s when re-pairing by position and drawing
             the leaders out last start to mean something.
@@ -401,11 +401,11 @@ export function FoursomeMaker({
         )}
 
         <div>
-          <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Who plays together</div>
+          <div className="text-muted" style={{ fontSize: 13, marginBottom: 6 }}>Who plays together</div>
           {bySides && (
             /* Said, because otherwise the rule buttons below look broken: in a
                team round they cannot break a side up, only order the sides. */
-            <p style={{ fontSize: 12.5, margin: "0 0 8px", lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
               <Icon name="users-three" /> Partners play together, so each group is made from whole sides
               from Teams &amp; pairs. The choice below only decides the order the sides go out in.
             </p>
@@ -432,7 +432,7 @@ export function FoursomeMaker({
               );
             })}
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {active.desc}
           </p>
           {/* Why the greyed ones are greyed, on the page. Both groups here
@@ -442,7 +442,7 @@ export function FoursomeMaker({
               named from the array rather than described as "the greyed ones",
               so the sentence cannot drift from what is actually disabled. */}
           {standingsBlocked.length > 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
               <Icon name="info" /> {listNames(standingsBlocked)}{" "}
               {standingsBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
               {standingsBlocked.length === 1 ? "it is" : "they are"} available only once a round has
@@ -452,7 +452,7 @@ export function FoursomeMaker({
         </div>
 
         <div>
-          <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Order off the tee</div>
+          <div className="text-muted" style={{ fontSize: 13, marginBottom: 6 }}>Order off the tee</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {DRAW_ORDERS.map((d) => {
               const on = d.key === order;
@@ -479,7 +479,7 @@ export function FoursomeMaker({
             {activeOrder.blurb}
           </p>
           {orderBlocked.length > 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
               <Icon name="info" /> {listNames(orderBlocked)}{" "}
               {orderBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
               {orderBlocked.length === 1 ? "it is" : "they are"} available only once a round has been
@@ -558,7 +558,7 @@ export function FoursomeMaker({
           {/* "1 groups · 1 foursome" — the count was hard-plural, and a
               four-player league week is exactly one group. The summary beside
               it already pluralises itself. */}
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {groups.length} {groups.length === 1 ? "group" : "groups"}
             {summary ? ` · ${summary}` : ""}
           </span>
@@ -609,7 +609,7 @@ export function FoursomeMaker({
             deliberately not applied — so nobody has to check the groups by
             eye to find out whether Ann got her game with Bea. */}
         {requests.length > 0 && (
-          <p role="status" className="text-muted" style={{ fontSize: 12.5, margin: "10px 0 0", lineHeight: 1.5 }}>
+          <p role="status" className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.5 }}>
             <Icon name="users-three" />{" "}
             {!requestsApply
               ? bySides
@@ -637,7 +637,7 @@ export function FoursomeMaker({
         {stageId && saveBlock && (
           <p
             style={{
-              fontSize: 12.5,
+              fontSize: 13,
               margin: "10px 0 0",
               lineHeight: 1.5,
               display: "flex",
@@ -708,7 +708,7 @@ export function FoursomeMaker({
       )}
 
       {(saveState.savedAt || saveError) && (
-        <p style={{ fontSize: 12, margin: "0 0 10px", color: saveError ? "var(--color-danger)" : "var(--color-neutral-500)" }}>
+        <p style={{ fontSize: 13, margin: "0 0 10px", color: saveError ? "var(--color-danger)" : "var(--color-neutral-500)" }}>
           {saveError ? (
             <><Icon name="warning-circle" /> {saveError}</>
           ) : (
@@ -733,9 +733,9 @@ export function FoursomeMaker({
             <div key={`${shown.source}-${i}`} className="card elev-sm" style={{ gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{g.name || `Group ${i + 1}`}</span>
-                <span className="text-muted" style={{ fontSize: 11 }}>avg {avg(gp.map((p) => p.handicap))}</span>
+                <span className="text-muted" style={{ fontSize: 13 }}>avg {avg(gp.map((p) => p.handicap))}</span>
               </div>
-              <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
+              <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 13 }}>
                 <Icon name="clock" style={{ marginRight: 4 }} />
                 {`Hole ${startHoleNumber(g.startHole, firstHole)}${g.half ?? ""} · ${g.time}`}
               </div>

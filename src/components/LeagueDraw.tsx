@@ -52,7 +52,7 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
       >
         <Icon name="shuffle" /> {drawn > 0 ? "Redraw this week" : "Draw this week"}
       </button>
-      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         Clubs meet on a round-robin rotation across the weeks, and pairs play in the order each
         club nominated them — first pair against first pair.
       </p>

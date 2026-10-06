@@ -119,7 +119,7 @@ export function LiveRefresh({
   return (
     <p
       style={{
-        fontSize: 12,
+        fontSize: 13,
         margin: compact ? 0 : "24px 0 0",
         textAlign: compact ? "left" : "center",
         // NOT `white-space: nowrap`, which is what the first version of the

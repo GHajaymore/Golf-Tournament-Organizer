@@ -139,7 +139,7 @@ export function WithdrawButton({
         </button>
       </div>
       {error && (
-        <span className="text-muted" role="alert" style={{ fontSize: 12.5 }}>
+        <span className="text-muted" role="alert" style={{ fontSize: 13 }}>
           {error}
         </span>
       )}

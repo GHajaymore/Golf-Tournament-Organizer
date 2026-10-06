@@ -118,7 +118,7 @@ export function PushToggle() {
 
   if (state === "on") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--color-text-muted)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text-muted)" }}>
         <Icon name="megaphone" style={{ color: "var(--color-accent-200)" }} />
         <span>Tee-time alerts are on.</span>
         <button
@@ -126,7 +126,7 @@ export function PushToggle() {
           onClick={disable}
           disabled={busy}
           className="btn-link"
-          style={{ fontSize: 12.5, padding: 0, background: "none", border: "none", color: "var(--color-accent-200)", cursor: "pointer", textDecoration: "underline" }}
+          style={{ fontSize: 13, padding: 0, background: "none", border: "none", color: "var(--color-accent-200)", cursor: "pointer", textDecoration: "underline" }}
         >
           {busy ? "…" : "Turn off"}
         </button>
@@ -139,13 +139,13 @@ export function PushToggle() {
       <Icon name="megaphone" style={{ color: "var(--color-accent-200)", fontSize: 20, flex: "none" }} />
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
-        <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.4 }}>
+        <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.4 }}>
           {state === "blocked"
             ? "Notifications are blocked for this site — turn them on in your browser settings to get alerts."
             : "A notification when your tee time is posted or changes — no email needed."}
         </span>
         {error && (
-          <span className="form-error" style={{ fontSize: 12, marginTop: 2 }}>
+          <span className="form-error" style={{ fontSize: 13, marginTop: 2 }}>
             {error}
           </span>
         )}

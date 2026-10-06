@@ -103,17 +103,17 @@ export function OrgNounPicker({
         ))}
       </select>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
         The sidebar reads <b style={{ color: "var(--color-text)" }}>{active.groupLabel}</b>, this
         page is called <b style={{ color: "var(--color-text)" }}>{active.settingsLabel}</b>, and
         screens say things like &ldquo;your {active.noun}&rsquo;s home course&rdquo;.
       </p>
 
       {error && (
-        <p style={{ color: "var(--color-danger)", fontSize: 12, margin: "6px 0 0" }}>{error}</p>
+        <p style={{ color: "var(--color-danger)", fontSize: 13, margin: "6px 0 0" }}>{error}</p>
       )}
       {saved && !error && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           <Icon name="check" /> Saved
         </p>
       )}

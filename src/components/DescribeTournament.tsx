@@ -103,7 +103,7 @@ export function DescribeTournament({ available = true }: { available?: boolean }
         <button type="button" className="btn btn-secondary" disabled={pending || text.trim().length < 8} onClick={ask}>
           {pending ? "Working it out…" : "Work out the rounds"}
         </button>
-        <span className="text-muted" style={{ fontSize: 11.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           Proposes rounds for you to check — creates nothing on its own.
         </span>
       </div>
@@ -113,7 +113,7 @@ export function DescribeTournament({ available = true }: { available?: boolean }
           {proposal.rounds.length > 0 && (
             <>
               <span className="card-kicker">Proposed</span>
-              <ol style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 12.5, lineHeight: 1.7 }}>
+              <ol style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 13, lineHeight: 1.7 }}>
                 {proposal.rounds.map((r, i) => (
                   <li key={i}>
                     <b>{r.format}</b> · {r.holes} holes · {r.scoringBasis}
@@ -129,7 +129,7 @@ export function DescribeTournament({ available = true }: { available?: boolean }
               button only ever creates rounds. Claiming otherwise would be the
               kind of quiet over-reach that makes a tool untrustworthy. */}
           {(proposal.allowancePct !== null || proposal.fieldSize !== null || proposal.cut) && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.6 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.6 }}>
               Also heard:
               {proposal.fieldSize !== null ? ` about ${proposal.fieldSize} players;` : ""}
               {proposal.allowancePct !== null ? ` ${proposal.allowancePct}% handicap allowance;` : ""}
@@ -150,8 +150,8 @@ export function DescribeTournament({ available = true }: { available?: boolean }
                 border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
               }}
             >
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>Worth deciding yourself</span>
-              <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, lineHeight: 1.6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Worth deciding yourself</span>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
                 {proposal.questions.map((q, i) => (
                   <li key={i}>{q}</li>
                 ))}
@@ -173,7 +173,7 @@ export function DescribeTournament({ available = true }: { available?: boolean }
       )}
 
       {done && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> {done}
         </p>
       )}

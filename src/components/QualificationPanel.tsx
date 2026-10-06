@@ -161,7 +161,7 @@ export function QualificationPanel({
            * anything and the question still gets asked at the bar.
            */}
           {countback && (
-            <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.4 }}>
+            <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.4 }}>
               Players finished level on this. The line was settled on countback.
             </span>
           )}
@@ -194,7 +194,7 @@ export function QualificationPanel({
               <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {r.name}
               </span>
-              <span className="text-muted" style={{ fontSize: 12 }}>Flight {r.flight ?? "—"}</span>
+              <span className="text-muted" style={{ fontSize: 13 }}>Flight {r.flight ?? "—"}</span>
               <span style={{ fontWeight: 600, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums", width: 40, textAlign: "right" }}>
                 {pts(r.points)}
               </span>

@@ -202,7 +202,7 @@ export function RegisterClient({
       </div>
 
       {approvalMode === "approve" && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           <Icon name="info" /> Entries for this event are confirmed by the {organizer}, so yours will be
           held for approval.
         </p>
@@ -286,7 +286,7 @@ export function RegisterClient({
                 the one people abandon; a required field with a reason is the
                 one they fill in. */}
             {requirePhone && (
-              <span className="text-muted" style={{ fontSize: 11.5 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 The {organizer} needs this to reach you on the day.
               </span>
             )}
@@ -309,7 +309,7 @@ export function RegisterClient({
           <Icon name="check" /> {pending ? "Registering…" : waitlistOnly ? "Join the waitlist" : "Register"}
         </button>
         {error && (
-          <p role="alert" style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+          <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
             <Icon name="warning-circle" /> {error}
           </p>
         )}

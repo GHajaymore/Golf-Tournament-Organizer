@@ -74,7 +74,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
             <span className="card-title" style={{ fontSize: 14 }}>
               {m.roundName}: {m.clubAName} v {m.clubBName}
             </span>
-            <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 0", lineHeight: 1.55 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>
               {m.level
                 ? "Finished level. A play-off hole settles it — record who won and the bracket moves on."
                 : m.decided?.overrode
@@ -82,7 +82,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
                   : "Won on the points. Overturning it is a committee decision and needs a reason."}
             </p>
             {m.decided && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
                 Recorded: {m.decided.winner === m.clubA ? m.clubAName : m.clubBName}
                 {m.decided.note ? ` — ${m.decided.note}` : ""}
                 {m.decided.decidedBy ? ` (${m.decided.decidedBy})` : ""}
@@ -123,7 +123,7 @@ export function PlayoffDecision({ meetings }: { meetings: DecidableMeeting[] }) 
                       placeholder="e.g. Ineligible player in the second pair"
                       onChange={(e) => setReason(e.target.value)}
                     />
-                    <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                    <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
                       Shown beside the result, to members as well as staff, with your name.
                     </p>
                   </div>

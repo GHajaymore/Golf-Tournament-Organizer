@@ -41,7 +41,7 @@ export function ManualRoundNotice({ format }: { format: string }) {
           <span className="card-title" style={{ fontSize: 16 }}>
             This round is scored by hand
           </span>
-          <span className="tag" style={{ fontSize: 10.5 }}>{format}</span>
+          <span className="tag" style={{ fontSize: 13 }}>{format}</span>
         </div>
 
         <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.7 }}>
@@ -50,7 +50,7 @@ export function ManualRoundNotice({ format }: { format: string }) {
           groupings and the prize list.
         </p>
 
-        <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7 }}>
+        <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.7 }}>
           When the result is settled, post it as an announcement and it appears on every
           player&rsquo;s dashboard.
         </p>

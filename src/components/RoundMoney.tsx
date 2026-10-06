@@ -107,7 +107,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
             minWidth: 0,
           }}
         >
-          <span className="text-muted" style={{ fontSize: 12.5, minWidth: 0, lineHeight: 1.5 }}>
+          <span className="text-muted" style={{ fontSize: 13, minWidth: 0, lineHeight: 1.5 }}>
             You&rsquo;re in {view.stake.games} {view.stake.games === 1 ? "game" : "games"} still to
             play
           </span>
@@ -139,7 +139,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
             minWidth: 0,
           }}
         >
-          <span className="text-muted" style={{ fontSize: 12.5, minWidth: 0, lineHeight: 1.5 }}>
+          <span className="text-muted" style={{ fontSize: 13, minWidth: 0, lineHeight: 1.5 }}>
             {r.label} Nassau &mdash; settled so far
           </span>
           <span
@@ -305,7 +305,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
                 {isOpen && (
                   <div style={{ padding: "4px 0 8px" }}>
                     {r.standing.length === 0 ? (
-                      <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+                      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                         No pots on this round.
                       </p>
                     ) : (
@@ -338,7 +338,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
               of it. Named rather than counted: "Round 3 is still out" is a
               fact somebody can check against the leaderboard. */}
           {outstanding && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0", lineHeight: 1.6 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0", lineHeight: 1.6 }}>
               Still being played:{" "}
               {stillPlaying
                 /**

@@ -79,10 +79,10 @@ export function OwnerDiscounts({
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
         <span className="card-title" style={{ fontSize: 15 }}>Discount codes</span>
-        <span className="text-muted" style={{ fontSize: 11.5 }}>Generate a %-off code to give a club.</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>Generate a %-off code to give a club.</span>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, margin: "8px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.5, margin: "8px 0 0" }}>
         Set the percentage and press <strong>Generate</strong>. A code is created for you to copy and send.
         A <strong>label</strong> is your own note; a <strong>limit</strong> and an <strong>expiry</strong> are
         optional. Redemption is applied at a paid upgrade, which is coming with billing — codes made now are kept.
@@ -91,7 +91,7 @@ export function OwnerDiscounts({
       {/* Generate form */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
         <span style={{ display: "inline-flex", flexDirection: "column", gap: 3 }}>
-          <label htmlFor="disc-pct" style={{ fontSize: 12, fontWeight: 600 }}>Percent off</label>
+          <label htmlFor="disc-pct" style={{ fontSize: 13, fontWeight: 600 }}>Percent off</label>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <input
               id="disc-pct"
@@ -106,7 +106,7 @@ export function OwnerDiscounts({
           </span>
         </span>
         <span style={{ display: "inline-flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
-          <label htmlFor="disc-label" style={{ fontSize: 12, fontWeight: 600 }}>Label <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span></label>
+          <label htmlFor="disc-label" style={{ fontSize: 13, fontWeight: 600 }}>Label <span className="text-muted" style={{ fontWeight: 400 }}>(optional)</span></label>
           <input
             id="disc-label"
             className="input"
@@ -117,7 +117,7 @@ export function OwnerDiscounts({
           />
         </span>
         <span style={{ display: "inline-flex", flexDirection: "column", gap: 3 }}>
-          <label htmlFor="disc-max" style={{ fontSize: 12, fontWeight: 600 }}>Limit</label>
+          <label htmlFor="disc-max" style={{ fontSize: 13, fontWeight: 600 }}>Limit</label>
           <input
             id="disc-max"
             className="input"
@@ -130,7 +130,7 @@ export function OwnerDiscounts({
           />
         </span>
         <span style={{ display: "inline-flex", flexDirection: "column", gap: 3 }}>
-          <label htmlFor="disc-exp" style={{ fontSize: 12, fontWeight: 600 }}>Expires</label>
+          <label htmlFor="disc-exp" style={{ fontSize: 13, fontWeight: 600 }}>Expires</label>
           <input
             id="disc-exp"
             className="input"
@@ -149,7 +149,7 @@ export function OwnerDiscounts({
         <div
           style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--color-surface-2)" }}
         >
-          <span className="text-muted" style={{ fontSize: 12.5 }}>New code — {made.percentOff}% off:</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>New code — {made.percentOff}% off:</span>
           <code style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 18, fontWeight: 700, letterSpacing: "0.06em" }}>
             {made.code}
           </code>
@@ -199,7 +199,7 @@ export function OwnerDiscounts({
                     className="btn btn-ghost touch-target"
                     onClick={() => toggle(c.code, !c.active)}
                     disabled={pending}
-                    style={{ fontSize: 12.5 }}
+                    style={{ fontSize: 13 }}
                   >
                     {c.active ? "Turn off" : "Turn on"}
                   </button>

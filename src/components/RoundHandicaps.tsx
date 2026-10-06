@@ -64,7 +64,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {isFrozen ? (
             <>Cards are in, so this round keeps the handicaps it was scored against.</>
           ) : overridden.length === 0 ? (
@@ -80,7 +80,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
         <button
           type="button"
           className="btn btn-secondary"
-          style={{ padding: "2px 10px", fontSize: 12 }}
+          style={{ padding: "2px 10px", fontSize: 13 }}
           onClick={() => setOpen((o) => !o)}
         >
           {open ? "Hide" : isFrozen ? "Show what it was scored off" : "Set one for this round"}
@@ -101,7 +101,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
       {/* The answer to "why is my net different in round one", volunteered
           rather than waited for. */}
       {differing.map((r) => (
-        <p key={r.playerId} className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p key={r.playerId} className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           <b style={{ color: "var(--color-text)" }}>{r.name}</b> was scored off{" "}
           {numberFor(r.frozen ?? 0)} in this round and plays off {numberFor(r.differsFromCurrent ?? 0)}{" "}
           now.
@@ -109,10 +109,10 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
       ))}
 
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>
       )}
       {note && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {note}
         </p>
       )}
@@ -120,7 +120,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {rows.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Nobody is confirmed in the field yet.
             </p>
           )}
@@ -137,7 +137,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
               }}
             >
               <span style={{ fontSize: 13, minWidth: 0, flex: "1 1 140px" }}>{r.name}</span>
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 plays off <b style={{ color: "var(--color-text)" }}>{numberFor(r.handicap)}</b>
                 {r.source === "frozen"
                   ? " — what this round was scored off"
@@ -150,7 +150,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ padding: "2px 10px", fontSize: 12 }}
+                  style={{ padding: "2px 10px", fontSize: 13 }}
                   onClick={() => {
                     setEditing(r.playerId);
                     setValue(String(r.handicap));
@@ -165,7 +165,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ padding: "2px 10px", fontSize: 12 }}
+                    style={{ padding: "2px 10px", fontSize: 13 }}
                     disabled={pending}
                     onClick={() =>
                       run(
@@ -190,7 +190,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ padding: "2px 10px", fontSize: 12 }}
+                    style={{ padding: "2px 10px", fontSize: 13 }}
                     disabled={pending}
                     onClick={() => run(() => setRoundHandicapOverride(stageId, r.playerId, null))}
                   >
@@ -212,7 +212,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                   <button
                     type="button"
                     className="btn"
-                    style={{ padding: "2px 10px", fontSize: 12 }}
+                    style={{ padding: "2px 10px", fontSize: 13 }}
                     disabled={pending}
                     onClick={() => {
                       const n = Number(value.trim());
@@ -228,7 +228,7 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    style={{ padding: "2px 10px", fontSize: 12 }}
+                    style={{ padding: "2px 10px", fontSize: 13 }}
                     onClick={() => setEditing("")}
                   >
                     Cancel

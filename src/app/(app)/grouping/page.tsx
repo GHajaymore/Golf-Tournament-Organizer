@@ -74,7 +74,7 @@ export default async function GroupingPage() {
         <p
           style={{
             display: "flex", gap: 8, alignItems: "flex-start", margin: "0 0 14px",
-            padding: "10px 12px", borderRadius: "var(--radius-md)", fontSize: 12.5, lineHeight: 1.5,
+            padding: "10px 12px", borderRadius: "var(--radius-md)", fontSize: 13, lineHeight: 1.5,
             background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 32%, transparent)",
           }}
@@ -95,7 +95,7 @@ export default async function GroupingPage() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Current flights</span>
-        <span className="text-muted" style={{ fontSize: 12 }}>Active in the tournament</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>Active in the tournament</span>
       </div>
       {cards.length === 0 ? (
         <div className="text-muted" style={{ fontSize: 13 }}>No flights yet — choose a rule and generate.</div>
@@ -132,7 +132,7 @@ export default async function GroupingPage() {
             <div key={g.id} className="card elev-sm" style={{ gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{g.label}</span>
-                <span className="text-muted" style={{ fontSize: 11 }}>avg hcp {g.avg}</span>
+                <span className="text-muted" style={{ fontSize: 13 }}>avg hcp {g.avg}</span>
               </div>
               {g.players.map((pl) => (
                 <div
@@ -151,7 +151,7 @@ export default async function GroupingPage() {
                 </div>
               ))}
               {g.players.length === 0 && (
-                <span className="text-muted" style={{ fontSize: 12 }}>No players assigned.</span>
+                <span className="text-muted" style={{ fontSize: 13 }}>No players assigned.</span>
               )}
             </div>
           ))}

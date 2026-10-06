@@ -179,12 +179,12 @@ export function MoneySetup({
         )}
 
         {locked && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Only an organization owner or admin can change this.
           </p>
         )}
 
-        <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
           {/* Says what it actually does rather than leaving the reader to
               work out what "the default" resolves to. */}
           <Icon name="info" /> A tournament that has not chosen for itself uses:{" "}
@@ -254,7 +254,7 @@ export function MoneySetup({
           put a club-wide setting two clicks deep on a per-tournament screen —
           and left Club settings, where the setup checklist sends people to
           "Decide how money works", with no money control on it at all. */}
-      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
         {/* THE SCREEN'S OWN NAME, not "Club settings".
 
             `settingsLabel` exists precisely so this cannot happen — its
@@ -274,7 +274,7 @@ export function MoneySetup({
         <a href="/organization">{profile.settingsLabel}</a>.
       </p>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
         <Icon name="info" /> In force for this tournament:{" "}
         <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[active]}</strong>
       </p>

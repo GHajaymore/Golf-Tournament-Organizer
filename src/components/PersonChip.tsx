@@ -55,7 +55,7 @@ export function PersonChip({
         padding: "0 12px",
         borderRadius: 999,
         cursor: disabled ? "default" : "pointer",
-        fontSize: 12.5,
+        fontSize: 13,
         fontWeight: on ? 600 : 500,
         color: "var(--color-text)",
         background: on ? `color-mix(in srgb, ${colour} 16%, transparent)` : "var(--color-surface)",

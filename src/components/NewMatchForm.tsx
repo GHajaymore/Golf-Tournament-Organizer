@@ -476,7 +476,7 @@ export function NewMatchForm({
     <div className="card elev-sm" style={{ gap: 16 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>What are you playing?</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           One round, scored properly. For a series of rounds, a field to flight or a tee sheet,
           set up a tournament instead.
         </p>
@@ -513,11 +513,11 @@ export function NewMatchForm({
                 <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   {active && <Icon name="check" />}
                   {f.name}
-                  <span className="text-muted" style={{ fontWeight: 500, fontSize: 11.5 }}>
+                  <span className="text-muted" style={{ fontWeight: 500, fontSize: 13 }}>
                     · {needs ? `${needs} players` : `${2}–${QUICK_ROUND_MAX_PLAYERS} players`}
                   </span>
                 </span>
-                <span className="text-muted" style={{ fontWeight: 400, fontSize: 11.5, lineHeight: 1.45 }}>
+                <span className="text-muted" style={{ fontWeight: 400, fontSize: 13, lineHeight: 1.45 }}>
                   {f.blurb}
                 </span>
               </button>
@@ -571,7 +571,7 @@ export function NewMatchForm({
           </button>
         </div>
         {useHandicaps && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
             Strokes are given by stroke index, so a course with its card filled in is needed before
             this can be scored. Playing level needs nothing.
           </p>
@@ -592,7 +592,7 @@ export function NewMatchForm({
             A guest is now a player on this round and nothing else. So the
             sentence can say the thing somebody actually wants to hear, and it
             is true. */}
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           {members.length > 0
             ? "Start typing to pick a member — their handicap comes with them. Anyone else is a guest: they play and they're scored, and they're not added to your club roster."
             : "Just names. Nobody needs an account to play, and nobody entered here is added to a club roster."}
@@ -601,7 +601,7 @@ export function NewMatchForm({
             being given, so the handicap is the second thing to type for every
             player — said once here rather than left to a placeholder. */}
         {useHandicaps && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             <Icon name="note-pencil" /> Put each player&rsquo;s handicap index beside their name — it
             decides who gets shots, and on which holes.
           </p>
@@ -614,7 +614,7 @@ export function NewMatchForm({
             partnering. A screen that pairs people silently and shows the
             result at the end has asked them to guess. */}
         {sideSize > 1 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             <Icon name="users" /> Partners are taken in the order below — the first{" "}
             {sideSize} against the next {sideSize}.
           </p>
@@ -743,7 +743,7 @@ export function NewMatchForm({
                           it is also the number somebody would otherwise be
                           recalling from memory — which is the commonest way
                           a net round is scored wrong. */}
-                      <span className="text-muted" style={{ flex: "none", fontSize: 11.5 }}>
+                      <span className="text-muted" style={{ flex: "none", fontSize: 13 }}>
                         {m.handicap}
                       </span>
                     </button>
@@ -807,7 +807,7 @@ export function NewMatchForm({
             </button>
           </div>
         ) : (
-          <p className="text-muted" style={{ fontSize: 11.5, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {exact
               ? `${chosen?.name} is ${headToHeadPhrase(sideSize)} — ${exact} players. Pick another round type for a bigger group.`
               : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament (free on ${PLANS.free.name}).`}
@@ -821,7 +821,7 @@ export function NewMatchForm({
             refused, because a scratch golfer, or friends who agree to it, is a
             real answer. */}
         {useHandicaps && scratchByDefault && (
-          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5, color: "var(--color-warning)" }} role="note">
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5, color: "var(--color-warning)" }} role="note">
             {scratchByDefault}
           </p>
         )}
@@ -856,7 +856,7 @@ export function NewMatchForm({
         </div>
         {moneyGame !== "" && (
           <>
-            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
               {moneyGames.find((g) => g.key === moneyGame)?.blurb}
             </p>
             {/* MONEY IS NOT THE ONLY THING PEOPLE PLAY FOR, and this screen
@@ -936,7 +936,7 @@ export function NewMatchForm({
                 {/* Said plainly, because the difference between this and a
                     stake is the whole point: the app keeps the score and names
                     the winner, and there is no figure for anyone to settle. */}
-                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
                   Scored and settled the same way — the app just won&rsquo;t put a figure on it. Whatever
                   you agreed is between you.
                 </p>
@@ -947,7 +947,7 @@ export function NewMatchForm({
                 because this is the moment somebody first agrees to money in
                 it, and an app that took a stake without saying so would be
                 claiming to be something it is not. */}
-            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
               {stakeKind === "money"
                 ? "Everyone playing is in. The app works out who won what and who owes whom — it never takes or moves any money."
                 : "Everyone playing is in. The app works out who won what, and records no money at all."}
@@ -961,7 +961,7 @@ export function NewMatchForm({
                 Without saying so, somebody arrives at score entry expecting
                 one thing and finds another, with no idea why. */}
             {moneyGames.find((g) => g.key === moneyGame)?.needsCards && !cardIsNatural && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
                 <Icon name="note-pencil" /> This one is worked out from the scores, so you&rsquo;ll
                 write down strokes on every hole rather than just who won it.
               </p>
@@ -1008,7 +1008,7 @@ export function NewMatchForm({
       />
 
       {(error || blocker) && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error || blocker}
         </p>
       )}
@@ -1022,7 +1022,7 @@ export function NewMatchForm({
               : "Start the match"}{" "}
           <Icon name="arrow-right" />
         </button>
-        <span className="text-muted" style={{ fontSize: 11.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {/* NAMES THE NUMBER THIS FORMAT ACTUALLY WANTS.
 
               "Two names, and you're away" was written when Match Play was
@@ -1065,7 +1065,7 @@ export function NewMatchForm({
           afterwards. The round's own screen carries the same sentence with the
           button attached; this is the version that reaches somebody while they
           are still deciding whether to type four names in here. */}
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         <Icon name="clock" /> A quick round is temporary — it&rsquo;s deleted about a day after
         you set it up, unless you keep it. Anything you want to hold on to belongs in a
         tournament.

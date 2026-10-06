@@ -53,19 +53,19 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Still to change hands</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{money(outstanding)}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             over {view.transfers.length} handover{view.transfers.length === 1 ? "" : "s"}
           </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Owed money</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{owed.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>people fronted something</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>people fronted something</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Owe money</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{owing.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {square.length > 0 ? `${square.length} already square` : "nobody square yet"}
           </div>
         </div>
@@ -77,7 +77,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         <span className="card-kicker">Where everybody stands</span>
         <div style={{ marginTop: 6 }}>
           {view.standing.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Nothing recorded yet.
             </p>
           )}
@@ -127,7 +127,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 13 }}
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -172,7 +172,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  fontSize: 12.5,
+                  fontSize: 13,
                   padding: "5px 0",
                   borderBottom: "1px solid var(--color-divider)",
                 }}
@@ -185,7 +185,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
                 {s.canRemove && (
                   <ConfirmButton
                     className="btn btn-ghost"
-                    style={{ fontSize: 11.5 }}
+                    style={{ fontSize: 13 }}
                     icon="arrow-counter-clockwise"
                     label="Undo"
                     title={`Undo ${s.fromName} to ${s.toName}`}
@@ -213,7 +213,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         type="button"
         className="btn btn-secondary"
         onClick={() => setShowLines((v) => !v)}
-        style={{ alignSelf: "flex-start", fontSize: 12.5 }}
+        style={{ alignSelf: "flex-start", fontSize: 13 }}
       >
         <Icon name={showLines ? "ph ph-caret-up" : "ph ph-caret-down"} /> The {view.expenses.length} expense
         {view.expenses.length === 1 ? "" : "s"} behind it
@@ -234,7 +234,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
             >
               <span style={{ minWidth: 0 }}>
                 <span style={{ display: "block" }}>{e.description}</span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {/* THE DIVISION, NOT THE COUNT — the same rule the player's
                       screen has had, from the same function.
 
@@ -260,7 +260,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
                       <span
                         key={s.playerId}
                         className="text-muted"
-                        style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, padding: "1px 0" }}
+                        style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, padding: "1px 0" }}
                       >
                         <span style={{ minWidth: 0 }}>{s.name}</span>
                         <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
@@ -274,7 +274,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
             </div>
           ))}
           {view.expenses.length === 0 && (
-            <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               No expenses recorded. Players add them from their own Money tab.
             </p>
           )}

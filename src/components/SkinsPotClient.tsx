@@ -162,7 +162,7 @@ export function SkinsPotClient({
           <button
             type="button"
             className="btn btn-ghost"
-            style={{ fontSize: 11.5, padding: "2px 8px" }}
+            style={{ fontSize: 13, padding: "2px 8px" }}
             onClick={() => {
               setNewName(groupKey);
               setRenaming(true);
@@ -217,7 +217,7 @@ export function SkinsPotClient({
           <button type="button" className="btn btn-secondary" onClick={() => setRenaming(false)}>
             Cancel
           </button>
-          <p className="text-muted" style={{ fontSize: 11.5, margin: 0, flexBasis: "100%", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, flexBasis: "100%", lineHeight: 1.5 }}>
             Every game under this name moves with it, and nobody loses their place — the people who
             have paid stay paid.
           </p>
@@ -240,7 +240,7 @@ export function SkinsPotClient({
         {forSomethingElse && (
           <p
             className="text-muted"
-            style={{ fontSize: 12, margin: "0 0 8px", flexBasis: "100%", lineHeight: 1.5 }}
+            style={{ fontSize: 13, margin: "0 0 8px", flexBasis: "100%", lineHeight: 1.5 }}
           >
             Playing for <b style={{ color: "var(--color-text)" }}>{view.stakeNote}</b> — no money on
             this one. Putting a buy-in in above turns it into a money game.
@@ -276,7 +276,7 @@ export function SkinsPotClient({
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12, marginLeft: "auto" }}
+            style={{ padding: "2px 10px", fontSize: 13, marginLeft: "auto" }}
             onClick={() => setPicking((o) => !o)}
           >
             {picking ? "Cancel" : "Change"}
@@ -284,12 +284,12 @@ export function SkinsPotClient({
         </div>
 
         {!picking && view.entrantIds.length > 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             {view.entrantIds.map(name).join(", ")}
           </p>
         )}
         {!picking && view.entrantIds.length === 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             Nobody yet. Add whoever put money in.
           </p>
         )}
@@ -314,7 +314,7 @@ export function SkinsPotClient({
                   type="button"
                   className="btn btn-secondary touch-target"
                   disabled={pending}
-                  style={{ fontSize: 12.5, padding: "6px 12px" }}
+                  style={{ fontSize: 13, padding: "6px 12px" }}
                   onClick={() =>
                     run(() =>
                       confirmSkinsEntry(activeStageId, view.net, view.scope, groupKey, id, true),
@@ -325,7 +325,7 @@ export function SkinsPotClient({
                 </button>
               ))}
             </div>
-            <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
               Their money isn&rsquo;t in yet, so they are not in the pot. Tap when they hand it over.
             </p>
           </div>
@@ -335,7 +335,7 @@ export function SkinsPotClient({
           <div style={{ marginTop: 8 }}>
             <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
               {view.field.map((f) => (
-                <label key={f.id} className="radio" style={{ fontSize: 12.5 }}>
+                <label key={f.id} className="radio" style={{ fontSize: 13 }}>
                   <input
                     type="checkbox"
                     checked={chosen.includes(f.id)}
@@ -345,7 +345,7 @@ export function SkinsPotClient({
                   />
                   <span className="dot" />
                   {f.name}
-                  {!f.playing && <span className="text-muted" style={{ fontSize: 10.5 }}> (no card)</span>}
+                  {!f.playing && <span className="text-muted" style={{ fontSize: 13 }}> (no card)</span>}
                 </label>
               ))}
             </div>
@@ -382,7 +382,7 @@ export function SkinsPotClient({
           <span className="card-kicker">{forSomethingElse ? "The skins" : "The pot"}</span>
           {/* The arithmetic, in full. A payout with no working shown is the
               thing a club checks against cash in a hand and distrusts. */}
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 10px", lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 10px", lineHeight: 1.6 }}>
             {forSomethingElse ? (
               <>
                 <b style={{ color: "var(--color-text)" }}>{r.claimedSkins + r.unclaimedSkins} skins</b>
@@ -423,13 +423,13 @@ export function SkinsPotClient({
           </p>
 
           {r.provisional && (
-            <p style={{ fontSize: 12, margin: "0 0 10px", color: "var(--color-accent-200)" }}>
+            <p style={{ fontSize: 13, margin: "0 0 10px", color: "var(--color-accent-200)" }}>
               <Icon name="warning-circle" /> Provisional — some holes have no score yet.
             </p>
           )}
 
           <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ fontSize: 12.5 }}>
+            <table className="table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: "left" }}>Player</th>
@@ -491,7 +491,7 @@ export function SkinsPotClient({
               their stake back, and saying so is the difference between a table
               of zeroes that looks broken and one that is obviously right. */}
           {r.claimedSkins === 0 && r.potCents > 0 && (
-            <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.5 }}>
               No hole was won outright, so there is nothing to divide — everyone takes back exactly
               what they put in.
             </p>
@@ -512,7 +512,7 @@ export function SkinsPotClient({
               </p>
             </FieldInfo>
           </div>
-          <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.8 }}>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.8 }}>
             {view.transfers.map((t, i) => (
               <li key={i}>
                 {name(t.fromPlayerId)} pays {name(t.toPlayerId)}{" "}
@@ -536,7 +536,7 @@ export function SkinsPotClient({
       {view.entrantIds.length > 0 && (
         <ConfirmButton
           className="btn btn-ghost"
-          style={{ alignSelf: "flex-start", fontSize: 12 }}
+          style={{ alignSelf: "flex-start", fontSize: 13 }}
           label="Remove this pot"
           title="Remove this pot"
           confirmLabel="Remove the pot"

@@ -48,35 +48,35 @@ export function PlanBilling({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {outcome === "success" && (
-        <p role="status" style={{ margin: 0, fontSize: 12.5, color: "var(--color-accent-2-200)" }}>
+        <p role="status" style={{ margin: 0, fontSize: 13, color: "var(--color-accent-2-200)" }}>
           <Icon name="check-circle" /> Thanks — payment received. Your plan updates here as soon as Stripe confirms it, usually within a minute.
         </p>
       )}
       {outcome === "cancelled" && (
-        <p role="status" className="text-muted" style={{ margin: 0, fontSize: 12.5 }}>
+        <p role="status" className="text-muted" style={{ margin: 0, fontSize: 13 }}>
           Checkout was cancelled. Nothing was charged.
         </p>
       )}
       {heldUntil && (
-        <p role="status" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55 }}>
+        <p role="status" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
           <Icon name="clock-countdown" /> Your paid plan has ended. Every tournament is kept until{" "}
           <strong>{heldUntil}</strong>; after that the free plan&rsquo;s terms apply. Choose a plan to keep everything.
         </p>
       )}
       {pastDue && (
-        <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>
+        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> The last payment didn&rsquo;t go through. Update the card in Manage billing — Stripe will try again.
         </p>
       )}
 
       {!canEdit ? (
-        <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>Only a club owner or admin can change the plan.</p>
+        <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>Only a club owner or admin can change the plan.</p>
       ) : hasSubscription ? (
         <div>
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => go(openBillingPortal, "portal")}>
             <Icon name="credit-card" /> {pending ? "Opening…" : "Manage billing"}
           </button>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5 }}>
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             Change plan, update the card, see invoices or cancel — on Stripe&rsquo;s secure page.
           </p>
         </div>
@@ -101,7 +101,7 @@ export function PlanBilling({
             </div>
             {/* The same reassurance the paying club reads under Manage billing,
                 said BEFORE the card is asked for, which is when it is wanted. */}
-            <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5, lineHeight: 1.5 }}>
+            <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5 }}>
               Paid on Stripe&rsquo;s secure page — TourneyHQ never sees the card. Renews until you cancel,
               which you can do any time from here.
             </p>
@@ -109,7 +109,7 @@ export function PlanBilling({
         )
       )}
       {error && (
-        <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>{error}</p>
+        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
       )}
     </div>
   );

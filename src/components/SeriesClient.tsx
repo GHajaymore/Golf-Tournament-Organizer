@@ -129,12 +129,12 @@ export function SeriesClient({
             <span className="card-title" style={{ fontSize: 15 }}>{active?.name}</span>
           )}
           {active?.status === "complete" && <span className="tag tag-neutral">Finished</span>}
-          <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+          <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
             {counted} of {events.length} {events.length === 1 ? "round" : "rounds"} counted
           </span>
         </div>
 
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {describeTable(active?.pointsTable ?? [])}
           {active && active.bestOf > 0 && ` · best ${active.bestOf} rounds count`}
           {active && active.minEvents > 0 && ` · ${active.minEvents} rounds to qualify`}
@@ -144,7 +144,7 @@ export function SeriesClient({
             leaderboard that moves with every card, and letting it shift the
             order of merit would show a season position that reverses itself. */}
         {events.some((e) => !e.counted) && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {events.filter((e) => !e.counted).map((e) => e.name).join(", ")} —{" "}
             {events.filter((e) => !e.counted).length === 1 ? "not finished yet, so it doesn't" : "not finished yet, so they don't"}{" "}
             count. Mark a tournament completed to bring it into the season.
@@ -152,7 +152,7 @@ export function SeriesClient({
         )}
 
         {unlinked > 0 && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {unlinked} {unlinked === 1 ? "entry has" : "entries have"} no roster record, so{" "}
             {unlinked === 1 ? "it isn't" : "they aren't"} tracked across the season — there is
             nothing to match {unlinked === 1 ? "it" : "them"} to next round.
@@ -164,7 +164,7 @@ export function SeriesClient({
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ padding: "2px 10px", fontSize: 12 }}
+              style={{ padding: "2px 10px", fontSize: 13 }}
               onClick={() => setShowSettings((o) => !o)}
             >
               {showSettings ? "Done" : "Scoring & rules"}
@@ -173,7 +173,7 @@ export function SeriesClient({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: "2px 10px", fontSize: 12 }}
+                style={{ padding: "2px 10px", fontSize: 13 }}
                 disabled={pending}
                 onClick={() =>
                   run(() =>
@@ -233,7 +233,7 @@ export function SeriesClient({
                 />
               </div>
             </div>
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Players tied for a position share what those places are worth between them.
               Best-of 0 counts every round. Qualify 0 ranks everyone — set it so somebody who
               played once and won doesn&apos;t top the table.
@@ -361,7 +361,7 @@ export function SeriesClient({
                           {/* Dropped rounds are shown rather than hidden: an
                               organizer fielding a query needs to see what was
                               left out and why. */}
-                          <div style={{ display: "grid", gap: 4, fontSize: 12 }}>
+                          <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
                             {s.entries.map((e) => (
                               <div
                                 key={e.eventId}
@@ -396,7 +396,7 @@ export function SeriesClient({
                 while somebody is actually unranked, so it is an answer rather
                 than a standing caveat. */}
             {active && active.minEvents > 0 && standings.some((s) => s.position == null) && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0", lineHeight: 1.5 }}>
                 A dash means not ranked yet — this season counts members with at least{" "}
                 {active.minEvents} round{active.minEvents === 1 ? "" : "s"} played.
               </p>

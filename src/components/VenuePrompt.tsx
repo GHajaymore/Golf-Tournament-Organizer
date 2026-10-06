@@ -271,7 +271,7 @@ export function VenuePrompt({
 
   const grid = (label: string, vals: string[], set: (v: string[]) => void, hint: string) => (
     <div style={{ marginTop: 10 }}>
-      <label style={{ fontSize: 12, fontWeight: 600 }}>
+      <label style={{ fontSize: 13, fontWeight: 600 }}>
         {label} <span className="text-muted" style={{ fontWeight: 400 }}>{hint}</span>
       </label>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 4, marginTop: 4 }}>
@@ -320,7 +320,7 @@ export function VenuePrompt({
           claimed and never did. */}
       {browsing && shortlist.rows.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {typed.trim() ? "Courses matching that" : `Courses this ${org.noun} has played`} — one tap uses
             its saved card.
           </span>
@@ -330,7 +330,7 @@ export function VenuePrompt({
                 key={c.id}
                 type="button"
                 className="btn btn-secondary touch-target"
-                style={{ fontSize: 12.5 }}
+                style={{ fontSize: 13 }}
                 // Sets BOTH: `chosen` is what `submit` reads for the id, and
                 // the text field follows so the screen does not go on saying
                 // "start typing" under a course that has been picked.
@@ -350,7 +350,7 @@ export function VenuePrompt({
             ))}
           </div>
           {shortlist.more > 0 && (
-            <span className="text-muted" style={{ fontSize: 11.5 }}>
+            <span className="text-muted" style={{ fontSize: 13 }}>
               {shortlist.more} more — type to narrow the list.
             </span>
           )}
@@ -377,7 +377,7 @@ export function VenuePrompt({
 
       {found?.kind === "suggest" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Did you mean one of these? Picking the right one matters — the stroke
             index decides where handicap strokes fall.
           </span>
@@ -397,7 +397,7 @@ export function VenuePrompt({
 
       {(isNew || needsCard) && (
         <>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {needsCard
               ? `${settled?.name} is in the ${org.noun}'s library with no card yet — add it once and every later round there has it.`
               : `New to this ${org.noun} — add its card once and every later round here has it.`}
@@ -423,7 +423,7 @@ export function VenuePrompt({
             <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={applyPaste}>
               <Icon name="clipboard" /> Read these rows
             </button>
-            <span className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+            <span className="text-muted" style={{ fontSize: 13, marginTop: 4 }}>
               Out, In and Total columns are ignored, so a row copied straight
               off a card or a course website works.
             </span>
@@ -440,7 +440,7 @@ export function VenuePrompt({
       {(isNew || chosen || found?.kind === "exact") && (
         <div style={{ marginTop: 6 }}>
           <span className="card-kicker">Tees played</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 6px", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 6px", lineHeight: 1.5 }}>
             Course handicap is Index × Slope ÷ 113 + (Rating − Par), so the tees
             decide how many shots change hands. Both are printed on the card.
           </p>
@@ -513,7 +513,7 @@ export function VenuePrompt({
               </label>
             ))}
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             The two halves have different pars and a different stroke index, so
             this decides which holes the shots fall on.
           </p>

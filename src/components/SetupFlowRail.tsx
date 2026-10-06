@@ -88,7 +88,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
             <b>One thing before it can go live.</b> {flow.launchBlocked}
           </p>
         ) : (
-          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
             The dashboard is where you open entries and take it live. {LAUNCH_DOES}{" "}
             {VISIBILITY_IS_ELSEWHERE}
           </p>
@@ -116,7 +116,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
     <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span className="card-kicker">Setting up</span>
-        <span className="text-muted" style={{ fontSize: 12 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {flow.doneCount} of {flow.steps.length} done
         </span>
       </div>
@@ -170,13 +170,13 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
                     border: `1px solid ${here ? "var(--color-accent)" : "var(--color-divider)"}`,
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: tone, fontWeight: 700 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: tone, fontWeight: 700 }}>
                     {s.done ? <Icon name="check-circle" weight="fill" /> : <span>{i + 1}</span>}
                     <span style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
                       {s.done ? "Done" : s.state === "current" ? "Now" : "To do"}
                     </span>
                   </span>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>
                 </Link>
               </li>
             );
@@ -189,13 +189,13 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
           Shown only while this step is unfinished, so a screen revisited to
           change a date is not told it is incomplete. */}
       {step && !step.done && (
-        <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           <b>{step.question}</b>{" "}
           <span className="text-muted">{step.missing}</span>
         </p>
       )}
       {step?.done && flow.current && (
-        <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
           {/* "Still to do", not "Next": the outstanding step is often BEHIND
               this one — anybody who reaches Rounds first has a finished
               screen pointing back at Tournament details — and calling that
@@ -256,7 +256,7 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
               disabled control with no reason is the app refusing to explain
               itself, and this is the exact moment somebody gives up. */}
           {!ready && (
-            <span className="text-muted" style={{ fontSize: 12, textAlign: "right" }}>
+            <span className="text-muted" style={{ fontSize: 13, textAlign: "right" }}>
               {step.missing}
             </span>
           )}

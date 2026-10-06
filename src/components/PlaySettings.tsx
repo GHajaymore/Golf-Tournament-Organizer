@@ -283,7 +283,7 @@ export function PlaySettings({
         <span className="card-title" style={{ fontSize: 15 }}>
           {isTournament ? "Players & scoring" : "House defaults for new tournaments"}
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
           {isTournament
             ? "How players see standings and report scores in this tournament."
             : "What a new tournament starts with. Tournaments already created keep their own settings — changing these never rewrites an event in progress."}
@@ -318,8 +318,8 @@ export function PlaySettings({
           }}
         >
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Public leaderboard link</div>
-            <code style={{ fontSize: 12, wordBreak: "break-all" }}>{shareUrl}</code>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Public leaderboard link</div>
+            <code style={{ fontSize: 13, wordBreak: "break-all" }}>{shareUrl}</code>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => copy(shareUrl, "share")}>
             <Icon name="copy" /> {copied === "share" ? "Copied" : "Copy"}
@@ -411,7 +411,7 @@ export function PlaySettings({
           {lockoutNotice({ usingCodes: usesAccessCodes(form), strandedCount }) && (
             <p
               className="text-muted"
-              style={{ fontSize: 12, margin: "-4px 0 0", lineHeight: 1.55 }}
+              style={{ fontSize: 13, margin: "-4px 0 0", lineHeight: 1.55 }}
             >
               <Icon name="warning-circle" />{" "}
               {lockoutNotice({ usingCodes: usesAccessCodes(form), strandedCount })}
@@ -527,7 +527,7 @@ export function PlaySettings({
                 unrated pick is worth saying out loud rather than leaving to be
                 discovered when the strokes come out the same off every tee. */}
             {teeId && !tees.find((t) => t.id === teeId)?.rated && (
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
                 These tees have no Course Rating or Slope, so every player is scored off their raw
                 handicap index. Add the ratings on the course to score properly.
               </p>
@@ -618,7 +618,7 @@ export function PlaySettings({
       {attendanceWarning && (
         <p
           style={{
-            fontSize: 12.5,
+            fontSize: 13,
             margin: 0,
             lineHeight: 1.55,
             padding: "9px 11px",
@@ -669,7 +669,7 @@ export function PlaySettings({
           </button>
         </StickySave>
       ) : (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Only the organizer can change these.
         </p>
       )}
@@ -678,14 +678,14 @@ export function PlaySettings({
       {isTournament && codesOn && (
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
           <span className="card-title" style={{ fontSize: 14 }}>Round Codes</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
             One code per round. Read it out on the first tee or put it on the tee sheet — players enter it,
             then pick their own name. Anyone with the code can report a score for that round, so reissue it if
             it travels beyond the field.
           </p>
 
           {rounds.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Codes appear here once the tournament has rounds. Add them on {screenName("/stages")}.
             </p>
           ) : (
@@ -710,7 +710,7 @@ export function PlaySettings({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: "3px 9px" }}
+                            style={{ fontSize: 13, padding: "3px 9px" }}
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
@@ -720,7 +720,7 @@ export function PlaySettings({
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: "3px 9px", marginLeft: 6 }}
+                            style={{ fontSize: 13, padding: "3px 9px", marginLeft: 6 }}
                             disabled={pending}
                             onClick={() =>
                               startTransition(async () => {

@@ -84,7 +84,7 @@ export function OrgBrand({
           {brand.secondary && (
             <span
               style={{
-                fontSize: 10.5,
+                fontSize: 13,
                 fontWeight: 500,
                 color: "var(--color-text-muted)",
                 overflow: "hidden",
@@ -116,7 +116,7 @@ export function OrgBrand({
       <Lockup size={size} />
       <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2, paddingLeft: indent }}>
         {tagline && (
-          <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
             {TAGLINE}
           </span>
         )}
@@ -145,7 +145,7 @@ export function OrgBrand({
                       // "Braid Hollow Men's & L…" — measured in the 2026-09-27
                       // logo audit. The phone header keeps one: a second line
                       // there is a line of the round.
-                      fontSize: 11.5,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: "var(--color-text-muted)",
                       overflow: "hidden",
@@ -154,7 +154,7 @@ export function OrgBrand({
                       WebkitBoxOrient: "vertical",
                     }
                   : {
-                      fontSize: 11.5,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: "var(--color-text-muted)",
                       overflow: "hidden",

@@ -55,7 +55,7 @@ export function BracketBoard({
         }}
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.name}</span>
-        <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{slot.seed ?? ""}</span>
+        <span style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{slot.seed ?? ""}</span>
       </button>
     );
   };
@@ -65,7 +65,7 @@ export function BracketBoard({
       <div style={{ display: "flex", gap: 26, minWidth: 640 }}>
         {view.rounds.map((rd) => (
           <div key={rd.roundIndex} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 190 }}>
-            <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)", textAlign: "center" }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)", textAlign: "center" }}>
               {rd.label}
             </div>
             {rd.matches.map((m) => (
@@ -93,23 +93,23 @@ export function BracketBoard({
                         setSavedKey(m.key);
                       });
                     }}
-                    style={{ marginTop: 4, fontSize: 11, minHeight: 26, padding: "2px 8px" }}
+                    style={{ marginTop: 4, fontSize: 13, minHeight: 26, padding: "2px 8px" }}
                   />
                 )}
                 {m.winnerId && !readOnly && savedKey === m.key && !pending && (
-                  <div role="status" className="text-muted" style={{ fontSize: 11, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div role="status" className="text-muted" style={{ fontSize: 13, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                     <Icon name="check" /> Saved
                   </div>
                 )}
                 {m.winnerId && readOnly && results[m.key] && (
-                  <div className="text-muted" style={{ fontSize: 11, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
+                  <div className="text-muted" style={{ fontSize: 13, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
                 )}
               </div>
             ))}
           </div>
         ))}
         <div style={{ flex: "none", width: 150, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
+          <div style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
           <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent-200)" }} />
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
         </div>

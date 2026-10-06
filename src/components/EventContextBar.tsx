@@ -39,11 +39,11 @@ export function EventContextBar({
     >
       <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent-200)", fontSize: 15 }} />
       <span style={{ fontWeight: 600, fontSize: 13 }}>{name || "Untitled tournament"}</span>
-      <span className="text-muted" style={{ fontSize: 12 }}>
+      <span className="text-muted" style={{ fontSize: 13 }}>
         {[dates, location].filter(Boolean).join(" · ")}
       </span>
-      <span className={`tag ${meta.tag}`} style={{ fontSize: 10 }}>
-        {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 6, marginRight: 4 }} />}
+      <span className={`tag ${meta.tag}`} style={{ fontSize: 13 }}>
+        {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
         {meta.label}
       </span>
       <div style={{ flex: 1 }} />
@@ -75,7 +75,7 @@ export function EventContextBar({
           // inside a sentence, and at 19px it was the last thing on the
           // dashboard a thumb could miss.
           className="text-muted touch-target"
-          style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
+          style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}
         >
           <Icon name="arrows-left-right" /> Switch event
         </Link>

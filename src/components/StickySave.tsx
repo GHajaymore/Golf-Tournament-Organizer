@@ -69,7 +69,7 @@ export function StickySave({
     >
       {children}
       {dirty && (
-        <span className="text-muted" style={{ fontSize: 12 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {note}
         </span>
       )}

@@ -316,7 +316,7 @@ export function EntryModes({
                  hole buttons past the edge of a phone: Score entry scrolled
                  sideways by up to 170px on six of eleven seeded tournaments,
                  on the screen an organizer uses standing on the course. */
-              <span className="text-muted" style={{ fontSize: 12, minWidth: 0, overflowWrap: "anywhere" }}>
+              <span className="text-muted" style={{ fontSize: 13, minWidth: 0, overflowWrap: "anywhere" }}>
                 <Icon name="map-pin" style={{ marginRight: 4 }} />
                 {/* The round's real format leads, because the control above
                     used to be the only thing on this screen naming a format

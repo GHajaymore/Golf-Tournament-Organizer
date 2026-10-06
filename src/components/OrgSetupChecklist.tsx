@@ -65,7 +65,7 @@ export function OrgSetupChecklist({
         <span className="card-title" style={{ fontSize: 15 }}>
           Setting up your {state.profile.noun}
         </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
           {doneCount} of {state.steps.length} done.{" "}
           {/* "Work through them in any order — nothing here is locked" was
               FALSE on a brand-new account, where three of the four rows lead
@@ -191,7 +191,7 @@ export function OrgSetupChecklist({
                   </span>
                   <span
                     className="text-muted"
-                    style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.5 }}
+                    style={{ display: "block", fontSize: 13, marginTop: 2, lineHeight: 1.5 }}
                   >
                     {step.blurb}
                   </span>
@@ -203,7 +203,7 @@ export function OrgSetupChecklist({
                   {notYet && (
                     <span
                       className="text-muted"
-                      style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
+                      style={{ display: "block", fontSize: 13, marginTop: 4, lineHeight: 1.5 }}
                     >
                       <Icon name="lock-simple" aria-hidden="true" /> {notYet}
                     </span>
@@ -211,7 +211,7 @@ export function OrgSetupChecklist({
                   {!step.done && !notYet && step.consequence && (
                     <span
                       className="text-muted"
-                      style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
+                      style={{ display: "block", fontSize: 13, marginTop: 4, lineHeight: 1.5 }}
                     >
                       <Icon name="warning-circle" aria-hidden="true" /> {step.consequence}
                     </span>
@@ -223,7 +223,7 @@ export function OrgSetupChecklist({
                     // it has been mounted.
                     <span
                       className="text-muted"
-                      style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
+                      style={{ display: "block", fontSize: 13, marginTop: 4, lineHeight: 1.5 }}
                     >
                       <Icon name="arrow-elbow-down-right" aria-hidden="true" /> You do this
                       one on this page.

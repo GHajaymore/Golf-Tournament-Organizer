@@ -338,8 +338,8 @@ body {
 }
 
 .page-kicker {
-  font-size: 10.5px;
-  letter-spacing: 0.09em;
+  font-size: 13px; /* the type floor, 2026-10-05 */
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   font-weight: 600;
   /* accent-200, not 400: 400 is solved to the 4.5 floor and read 5.5:1 on
@@ -380,7 +380,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
   padding: 3px 0;
 }
 
@@ -390,7 +390,7 @@ body {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 13px; /* two digits fit a 22px circle at 13px */
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -583,7 +583,9 @@ body {
   cursor: pointer;
   color: var(--color-neutral-500);
   text-decoration: none;
-  font-size: 10px;
+  /* 12px: under the floor on purpose — a tab bar label under its icon, the
+     platform convention (iOS sets these at 10pt). Was 10px (2026-10-05). */
+  font-size: 12px;
   font-family: var(--font-body);
 }
 .m-tab i {

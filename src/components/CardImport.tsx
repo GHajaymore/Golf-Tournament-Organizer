@@ -89,10 +89,10 @@ export function CardImport({
           disabled={pending}
           onChange={(e) => onChange(e.target.value)}
           placeholder={hint}
-          style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12.5, minHeight: 48 }}
+          style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13, minHeight: 48 }}
         />
         {problems.map((p, i) => (
-          <p key={i} style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-danger)", lineHeight: 1.45 }}>
+          <p key={i} style={{ fontSize: 13, margin: "4px 0 0", color: "var(--color-danger)", lineHeight: 1.45 }}>
             <Icon name="warning-circle" /> {p.message}
             {p.holes.length > 0 && (
               <> Check hole{p.holes.length > 1 ? "s" : ""} {p.holes.join(", ")}.</>
@@ -127,7 +127,7 @@ export function CardImport({
     <div className="card elev-sm" style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Paste a course card</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
           Copy the par, {distance.noun} and stroke-index rows straight off the course&apos;s website — totals and
           labels are stripped automatically. Everything is checked before it saves.
         </p>
@@ -216,7 +216,7 @@ export function CardImport({
             flexWrap: "wrap",
             padding: "10px 12px",
             borderRadius: "var(--radius-md)",
-            fontSize: 12.5,
+            fontSize: 13,
             background: "color-mix(in srgb, var(--color-accent-2) 12%, transparent)",
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 30%, transparent)",
           }}
@@ -231,12 +231,12 @@ export function CardImport({
       )}
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
       {saved && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> Added, and marked unverified until someone checks it against the
           real card.
         </p>
@@ -247,7 +247,7 @@ export function CardImport({
           <Icon name="plus" /> {pending ? "Adding…" : "Add course"}
         </button>
         {!ready && (pars.trim() || strokeIndex.trim()) && (
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {name.trim() ? "Fix the rows above first." : "Give the course a name."}
           </span>
         )}

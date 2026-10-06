@@ -170,7 +170,7 @@ export function EventSwitcher({
         {/* Counts TOURNAMENTS. It counted `events.length`, so a club with one
             championship and three Sunday fourballs was told it had four
             tournaments — under a heading that says exactly what it means. */}
-        <span className="text-muted" style={{ fontSize: 12 }}>{tournaments.length} total</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>{tournaments.length} total</span>
       </div>
 
       <div className="table-scroll">
@@ -191,7 +191,7 @@ export function EventSwitcher({
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
                   <td style={{ fontWeight: 500 }}>
                     {e.name || "Untitled"}
-                    <div className="text-muted" style={{ fontSize: 11 }}>{e.dates || "No dates set"}</div>
+                    <div className="text-muted" style={{ fontSize: 13 }}>{e.dates || "No dates set"}</div>
                   </td>
                   <td><span className={`tag ${s.tag}`}>{s.label}</span></td>
                   <td className="text-muted">{e.course || "—"}</td>
@@ -200,7 +200,7 @@ export function EventSwitcher({
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
                       {confirmingId === e.id ? (
                         <>
-                          <span className="text-muted" style={{ fontSize: 12 }}>Delete?</span>
+                          <span className="text-muted" style={{ fontSize: 13 }}>Delete?</span>
                           {/* NAMED. Every control in this table acted on a
                               row and said only what it did — twelve identical
                               "Delete tournament" buttons to anyone reading by
@@ -222,7 +222,7 @@ export function EventSwitcher({
                               Manage
                             </button>
                           ) : (
-                            <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
+                            <span className="text-muted" style={{ fontSize: 13 }}>No access</span>
                           )}
                           {e.isOrganizer && (
                             <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => setConfirmingId(e.id)}>
@@ -253,7 +253,7 @@ export function EventSwitcher({
         <div style={{ marginTop: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span className="card-kicker">Quick rounds</span>
-            <span className="text-muted" style={{ fontSize: 11.5 }}>
+            <span className="text-muted" style={{ fontSize: 13 }}>
               Temporary — deleted about a day after they&rsquo;re set up
             </span>
           </div>
@@ -274,7 +274,7 @@ export function EventSwitcher({
               >
                 <Icon name="clock" style={{ flex: "none" }} />
                 <span style={{ fontWeight: 500, minWidth: 0 }}>{e.name || "Untitled round"}</span>
-                <span className="text-muted" style={{ fontSize: 12 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {e.players} player{e.players === 1 ? "" : "s"}
                 </span>
                 <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
@@ -291,7 +291,7 @@ export function EventSwitcher({
                       Open
                     </button>
                   ) : (
-                    <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>No access</span>
                   )}
                   {e.isOrganizer && (
                     <button
@@ -310,7 +310,7 @@ export function EventSwitcher({
                     round somebody is mid-way through is just as permanent. */}
                 {confirmingId === e.id && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
-                    <span className="text-muted" style={{ fontSize: 12 }}>Delete this round?</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>Delete this round?</span>
                     <button
                       type="button"
                       className="btn btn-icon"
@@ -419,13 +419,13 @@ export function EventSwitcher({
           Create used to be enabled with an empty name and silently made
           "New Tournament"; now it says what it wants. */}
       {!pending && (!name.trim() || (!copyFrom && !shape)) && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           {!name.trim()
             ? "Name it first."
             : "Say how it's played — that decides what the rest of setup asks."}
         </p>
       )}
-      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{blurb}</p>
       {error && <p className="form-error">{error}</p>}
 
       {/* THE CASUAL ROUND IS NOT AN ORGANIZER FEATURE, and the card that

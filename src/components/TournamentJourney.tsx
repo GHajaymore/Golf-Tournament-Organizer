@@ -207,7 +207,7 @@ export function TournamentJourney({
       <span className="card-title" style={{ fontSize: 15 }}>
         How a tournament runs
       </span>
-      <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 2px" }}>
         {/* PHASE, NOT STEP — this card counts something else.
             On /event this sentence sits about two thousand pixels below the
             rail's "Setup is done — all 5 parts", and the rail's own progress
@@ -238,7 +238,7 @@ export function TournamentJourney({
                     borderRadius: 999,
                     display: "grid",
                     placeItems: "center",
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 600,
                     color: state === "todo" ? "var(--color-text-muted)" : "var(--color-bg)",
                     background: state === "todo" ? "transparent" : accent,
@@ -260,7 +260,7 @@ export function TournamentJourney({
                   <Icon name={phase.icon} style={{ color: state === "todo" ? "var(--color-text-muted)" : accent }} />
                   <span style={{ fontSize: 13.5, fontWeight: state === "now" ? 600 : 500 }}>{phase.title}</span>
                   {state === "now" && (
-                    <span className="tag tag-accent" style={{ fontSize: 10.5 }}>
+                    <span className="tag tag-accent" style={{ fontSize: 13 }}>
                       You are here
                     </span>
                   )}
@@ -268,12 +268,12 @@ export function TournamentJourney({
                       the top of this screen owns the detail; this owns the
                       fact that there IS detail, and how much is left. */}
                   {phase.key === "setup" && setup && !setup.complete && (
-                    <span className="text-muted" style={{ fontSize: 11.5 }}>
+                    <span className="text-muted" style={{ fontSize: 13 }}>
                       {setup.doneCount} of {setup.total} done
                     </span>
                   )}
                 </div>
-                <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0", lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0", lineHeight: 1.5 }}>
                   {phase.blurb}
                 </p>
                 {/* Chips rather than bare link text: these are up to four
@@ -320,7 +320,7 @@ export function TournamentJourney({
                           key={href}
                           href={href}
                           style={{
-                            fontSize: 11.5,
+                            fontSize: 13,
                             textDecoration: "none",
                             padding: "3px 8px",
                             borderRadius: 999,
@@ -358,7 +358,7 @@ export function TournamentJourney({
                               somebody who cannot see the difference — these
                               are the two brand colours, orange and green. */}
                           {isNext && (
-                            <span style={{ fontSize: 10, opacity: 0.85, letterSpacing: "0.04em" }}>NOW</span>
+                            <span style={{ fontSize: 13, opacity: 0.85, letterSpacing: "0.04em" }}>NOW</span>
                           )}
                         </Link>
                       );

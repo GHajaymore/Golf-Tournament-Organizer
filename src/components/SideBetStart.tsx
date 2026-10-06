@@ -235,7 +235,7 @@ export function SideBetStart({
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 12 }}>
       <span className="card-title" style={{ fontSize: 15 }}>Start a side bet</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         Yours to set up — no organizer needed. Pick the game, pick who is in, and it settles
         like every other pot into the same one number.
       </p>
@@ -248,7 +248,7 @@ export function SideBetStart({
               key={g.kind}
               type="button"
               className={`btn ${game === g.kind ? "btn-primary" : "btn-secondary"}`}
-              style={{ fontSize: 12.5, padding: "6px 12px" }}
+              style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={game === g.kind}
               onClick={() => setGame(g.kind)}
             >
@@ -256,7 +256,7 @@ export function SideBetStart({
             </button>
           ))}
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           {chosen.help}
         </p>
       </div>
@@ -273,7 +273,7 @@ export function SideBetStart({
               key={k}
               type="button"
               className={`btn ${stakeKind === k ? "btn-primary" : "btn-secondary"}`}
-              style={{ fontSize: 12.5, padding: "6px 12px" }}
+              style={{ fontSize: 13, padding: "6px 12px" }}
               aria-pressed={stakeKind === k}
               onClick={() => setStakeKind(k)}
             >
@@ -282,7 +282,7 @@ export function SideBetStart({
           ))}
         </div>
         {stakeKind === "other" && (
-          <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
             Settled the same way, with no figure on it. Whatever you agreed is between you.
           </p>
         )}
@@ -361,13 +361,13 @@ export function SideBetStart({
                       minWidth: 0,
                     }}
                   >
-                    <span className="text-muted" style={{ fontSize: 11.5, minWidth: 0 }}>
+                    <span className="text-muted" style={{ fontSize: 13, minWidth: 0 }}>
                       {b.name}
                     </span>
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      style={{ fontSize: 11, padding: "2px 8px" }}
+                      style={{ fontSize: 13, padding: "2px 8px" }}
                       onClick={() => addAll(ids)}
                     >
                       {allIn ? "None" : "All"}
@@ -388,14 +388,14 @@ export function SideBetStart({
             );
           })}
         </div>
-        <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Two players or ten, from any group. Once there are names in it, only the people in it
           can change it.
         </p>
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

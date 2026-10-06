@@ -109,7 +109,7 @@ export function DraftAssistant({
         <button type="button" className="btn btn-secondary" disabled={pending} onClick={run}>
           {pending ? "Writing…" : "Write a draft"}
         </button>
-        <span className="text-muted" style={{ fontSize: 11.5 }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           Drafts only — you edit it and post it yourself.
         </span>
       </div>
@@ -127,10 +127,10 @@ export function DraftAssistant({
                 border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
               }}
             >
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
                 <Icon name="warning" /> Check these names before you post
               </span>
-              <p style={{ margin: "6px 0 0", fontSize: 12, lineHeight: 1.6 }}>
+              <p style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.6 }}>
                 {unknown.join(", ")} — {unknown.length === 1 ? "this doesn't match" : "these don't match"}{" "}
                 anyone in this event. Either fix it, or delete that sentence.
               </p>
@@ -170,7 +170,7 @@ export function DraftAssistant({
                 padding: "10px 12px",
                 borderRadius: 10,
                 background: "var(--color-surface-2)",
-                fontSize: 11.5,
+                fontSize: 13,
                 lineHeight: 1.6,
                 whiteSpace: "pre-wrap",
                 overflowX: "auto",

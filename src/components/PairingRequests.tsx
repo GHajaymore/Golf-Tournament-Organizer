@@ -62,7 +62,7 @@ export function PairingRequests({
         <h2 id="pairing-requests" className="card-title" style={{ fontSize: 16, margin: 0 }}>
           <Icon name="users-three" /> Pairing requests
         </h2>
-        <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+        <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
           The draw keeps these together where it can (not on a draw by position). Players can ask from their
           phone.
         </p>

@@ -52,7 +52,7 @@ export function TeamMatchLeaderboard({
                 <td style={{ minWidth: 0 }}>
                   <strong>{r.name}</strong>
                   {r.members.length > 0 && (
-                    <div className="text-muted" style={{ fontSize: 11.5 }}>
+                    <div className="text-muted" style={{ fontSize: 13 }}>
                       {r.members.join(" · ")}
                     </div>
                   )}
@@ -72,7 +72,7 @@ export function TeamMatchLeaderboard({
           </tbody>
         </table>
       </div>
-      <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+      <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
         Columns: P played, W won, ½ halved, L lost. A pairing nobody has started
         yet counts for neither side.
       </p>

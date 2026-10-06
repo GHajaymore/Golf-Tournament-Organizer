@@ -118,7 +118,7 @@ export function GroupingControls({
   return (
     <div className="card elev-sm" style={{ marginBottom: 16, gap: 14 }}>
       <div>
-        <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Formation rule</div>
+        <div className="text-muted" style={{ fontSize: 13, marginBottom: 6 }}>Formation rule</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {RULES.map((r) => {
             const on = r.key === rule;
@@ -138,7 +138,7 @@ export function GroupingControls({
             );
           })}
         </div>
-        <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0" }}>{active.desc}</p>
+        <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0" }}>{active.desc}</p>
       </div>
 
       <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -164,7 +164,7 @@ export function GroupingControls({
         )}
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {/* Read "1 flights · 1 players" on a two-player tournament. The
                 count beside a Generate button is the one an organizer checks
                 before pressing it, so it is the worst place in the app for a
@@ -199,7 +199,7 @@ export function GroupingControls({
       {block && (
         <p
           style={{
-            fontSize: 12.5,
+            fontSize: 13,
             margin: 0,
             lineHeight: 1.5,
             display: "flex",
@@ -221,7 +221,7 @@ export function GroupingControls({
       )}
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -273,7 +273,7 @@ export function GroupingControls({
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <span className="card-kicker">Preview</span>
-          <span className="text-muted" style={{ fontSize: 12 }}>What “Generate flights” will produce</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>What “Generate flights” will produce</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
           {preview.map((g, i) => {
@@ -282,10 +282,10 @@ export function GroupingControls({
               <div key={g.id} style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontWeight: 600, fontSize: 13 }}>Flight {i + 1}</span>
-                  <span className="text-muted" style={{ fontSize: 11 }}>avg {avg(flightPlayers.map((p) => p.handicap))}</span>
+                  <span className="text-muted" style={{ fontSize: 13 }}>avg {avg(flightPlayers.map((p) => p.handicap))}</span>
                 </div>
                 {flightPlayers.map((p) => (
-                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }}>
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "2px 0" }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
                     <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(p)}</span>
                   </div>
@@ -296,7 +296,7 @@ export function GroupingControls({
         </div>
       </div>
 
-      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
         {drawsPairings
           ? "Generating rebuilds the round-robin schedule and clears any entered round-robin scores."
           : "Generating re-divides the field. No pairings are drawn for these rounds, so nothing scored is lost."}

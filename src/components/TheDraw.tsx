@@ -26,7 +26,7 @@ export function TheDraw({
           {d.label && (
             <div
               style={{
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: "0.09em",
                 textTransform: "uppercase",

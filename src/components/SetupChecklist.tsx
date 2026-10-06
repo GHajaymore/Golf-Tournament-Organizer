@@ -72,7 +72,7 @@ export function SetupChecklist({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
               {it.label}
-              {it.optional && <span className="tag tag-neutral" style={{ fontSize: 12 }}>Optional</span>}
+              {it.optional && <span className="tag tag-neutral" style={{ fontSize: 13 }}>Optional</span>}
             </div>
             <div className="text-muted" style={{ fontSize: 13 }}>{it.detail}</div>
           </div>

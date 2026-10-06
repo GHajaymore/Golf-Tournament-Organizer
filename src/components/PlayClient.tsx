@@ -193,7 +193,7 @@ function Shell({
             }}
           >
             <Icon name="clock" style={{ flex: "none" }} />
-            <span style={{ fontSize: 12.5, lineHeight: 1.5, minWidth: 0, flex: 1 }}>{notice}</span>
+            <span style={{ fontSize: 13, lineHeight: 1.5, minWidth: 0, flex: 1 }}>{notice}</span>
           </div>
         )}
         {children}
@@ -680,7 +680,7 @@ export function PlayClient(props: Props) {
           </>
           )}
           {error && (
-            <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
@@ -793,17 +793,17 @@ export function PlayClient(props: Props) {
             has several, and only one was ever reachable. */}
         {props.otherMatches && props.otherMatches.length > 0 && (
           <nav aria-label="Your other matches" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
+            <span className="text-muted" style={{ fontSize: 13, alignSelf: "center" }}>
               Your other matches:
             </span>
             {props.otherMatches.map((o) => (
-              <a key={o.id} href={`/play?m=${encodeURIComponent(o.id)}`} className="btn btn-secondary" style={{ fontSize: 12.5, minHeight: 44 }}>
+              <a key={o.id} href={`/play?m=${encodeURIComponent(o.id)}`} className="btn btn-secondary" style={{ fontSize: 13, minHeight: 44 }}>
                 {o.label}
               </a>
             ))}
           </nav>
         )}
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 12 }}>
+        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Tap who won each hole. {props.submitWhole
             ? "Your organizer wants the full round submitted at the end."
             : "Saves as you go."}
@@ -823,7 +823,7 @@ export function PlayClient(props: Props) {
 
       {entryMode === "result" && (
         <div className="card elev-sm" style={{ gap: 12 }}>
-          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
             The finished match, straight from the green. This replaces anything tapped hole by hole.
           </p>
           <div className="seg" style={{ width: "100%" }}>
@@ -850,7 +850,7 @@ export function PlayClient(props: Props) {
             {pending ? "Saving…" : saved ? "Saved" : "Submit result"}
           </button>
           {error && (
-            <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}
             </p>
           )}
@@ -878,7 +878,7 @@ export function PlayClient(props: Props) {
                   padding: "6px 6px 7px",
                 }}
               >
-                <div className="text-muted" style={{ fontSize: 10, marginBottom: 4, textAlign: "center" }}>
+                <div className="text-muted" style={{ fontSize: 13, marginBottom: 4, textAlign: "center" }}>
                   {holeNumber(i, props.firstHole ?? 1)}
                   {props.pars?.[i] ? ` · par ${props.pars[i]}` : ""}
                 </div>
@@ -892,7 +892,7 @@ export function PlayClient(props: Props) {
                       style={{
                         flex: 1,
                         padding: "6px 0",
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: 600,
                         borderRadius: 5,
                         cursor: "pointer",
@@ -924,12 +924,12 @@ export function PlayClient(props: Props) {
 
         {/* Where the holes are — saved as they are tapped, so there is no
             button to forget. Only a refusal offers one, to try by hand. */}
-        <p role="status" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+        <p role="status" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
           {matchQueue.status.label}
         </p>
         {/* Counted out of the ROUND's holes — render.test pins nine for a nine. */}
         {props.submitWhole && filled < holeCount && (
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             Fill all {holeCount} holes to submit — the card goes in when the last one does.
           </p>
         )}
@@ -942,11 +942,11 @@ export function PlayClient(props: Props) {
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-        <span className="text-muted" style={{ fontSize: 12 }}>Playing as {props.playerName}</span>
+        <span className="text-muted" style={{ fontSize: 13 }}>Playing as {props.playerName}</span>
         <button
           type="button"
           className="btn"
-          style={{ marginLeft: "auto", fontSize: 12, padding: "4px 10px" }}
+          style={{ marginLeft: "auto", fontSize: 13, padding: "4px 10px" }}
           onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
         >
           Sign out

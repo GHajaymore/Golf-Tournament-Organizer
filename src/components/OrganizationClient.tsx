@@ -257,7 +257,7 @@ export function OrganizationClient(props: Props) {
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{outfit.label}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {outfit.sharedRoster ? "shared with staff" : "a single organizer"}
           </div>
         </div>
@@ -268,7 +268,7 @@ export function OrganizationClient(props: Props) {
               always unlimited" — true before 2026-09-25, and wrong on Par,
               which is ten a tournament. */}
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{planFor(props.plan).name}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {planFor(props.plan).limits.playersPerEvent === null
               ? "any size of field"
               : `up to ${planFor(props.plan).limits.playersPerEvent} players a tournament`}
@@ -277,7 +277,7 @@ export function OrganizationClient(props: Props) {
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Tournaments</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{props.eventCount}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>owned by this {outfit.noun}</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>owned by this {outfit.noun}</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Staff</span>
@@ -289,7 +289,7 @@ export function OrganizationClient(props: Props) {
               next person added. The "Organization staff" table below is a
               narrower thing, and says so: club-level staff only. Without this
               line the two read as the same question with two answers. */}
-          <div className="text-muted" style={{ fontSize: 12 }}>organizers &amp; assistants, in any tournament</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>organizers &amp; assistants, in any tournament</div>
         </div>
       </div>
 
@@ -367,7 +367,7 @@ export function OrganizationClient(props: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ marginLeft: "auto", fontSize: 12 }}
+                  style={{ marginLeft: "auto", fontSize: 13 }}
                   disabled={!props.canEdit || pending}
                   onClick={() => {
                     setLogoUrl("");
@@ -414,18 +414,18 @@ export function OrganizationClient(props: Props) {
               >
                 <Icon name="upload-simple" /> {uploaded ? "Replace image" : "Upload an image"}
               </button>
-              <span className="text-muted" style={{ fontSize: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
                 {LOGO_EXT_LIST}, up to {Math.round(MAX_LOGO_BYTES / 1024)}KB
               </span>
             </div>
 
             {uploadError && (
-              <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger)" }}>
+              <p style={{ fontSize: 13, margin: "8px 0 0", color: "var(--color-danger)" }}>
                 <Icon name="warning-circle" /> {uploadError}
               </p>
             )}
 
-            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
               Upload a {LOGO_EXT_LIST} file and it is resized and kept here, so it works for players and
               on printed scorecards without depending on another website. Or, if your logo is already
               online, right-click it there and paste the image address above — an SVG works that way too.
@@ -456,7 +456,7 @@ export function OrganizationClient(props: Props) {
                 );
               })}
             </div>
-            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
               {BRAND_DISPLAY_HELP[(BRAND_DISPLAY as readonly string[]).includes(brandDisplay)
                 ? (brandDisplay as (typeof BRAND_DISPLAY)[number])
                 : "short"]}
@@ -506,7 +506,7 @@ export function OrganizationClient(props: Props) {
                   )}
                 </span>
                 {preview.secondary && (
-                  <span style={{ fontSize: 10.5, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
+                  <span style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
                 )}
               </span>
             </div>
@@ -560,7 +560,7 @@ export function OrganizationClient(props: Props) {
                 aria-label="Country"
               />
             </div>
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
               Used to prefill the city when you add a course, so local courses don&rsquo;t need retyping.
             </p>
           </div>
@@ -596,7 +596,7 @@ export function OrganizationClient(props: Props) {
               <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save changes"}
             </button>
           ) : (
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Only an organization owner or admin can change these settings.
             </p>
           )}
@@ -604,7 +604,7 @@ export function OrganizationClient(props: Props) {
 
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Preview</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "-4px 0 0" }}>
             How the header will look.
           </p>
           {/* Reads `brandLines` and `brandMonogram`, the same helpers the
@@ -662,11 +662,11 @@ export function OrganizationClient(props: Props) {
                 {preview.primary || "Your organization"}
               </span>
               {preview.secondary && (
-                <span style={{ fontSize: 10.5, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
+                <span style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
               )}
             </span>
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             If the logo doesn&rsquo;t appear, the URL may point at a page rather than an image file, or the
             host may block hotlinking.
           </p>

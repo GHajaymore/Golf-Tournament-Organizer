@@ -79,7 +79,7 @@ export function FloatClient({
         <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(total)}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>Nothing yet.</p>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>Nothing yet.</p>
       ) : (
         <div style={{ marginTop: 6 }}>
           {rows.map((l) => (
@@ -96,7 +96,7 @@ export function FloatClient({
             >
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block" }}>{l.description}</span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                <span className="text-muted" style={{ fontSize: 13 }}>
                   {[l.category, l.occurredOn, roundLabel(l.stageId), l.createdBy && `by ${l.createdBy}`]
                     .filter(Boolean)
                     .join(" · ")}
@@ -123,7 +123,7 @@ export function FloatClient({
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>The kitty</span>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 0", lineHeight: 1.55 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "-2px 0 0", lineHeight: 1.55 }}>
         What came in and what went out. One pot belonging to the tournament — nobody owes anybody here, so
         there is no settle-up. If people need to square up between themselves, that is the split ledger
         instead.
@@ -134,12 +134,12 @@ export function FloatClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">In</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{money(summary.inCents)}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>fees and collections</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>fees and collections</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Out</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{money(summary.outCents)}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>prizes, trophies, the meal</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>prizes, trophies, the meal</div>
         </div>
         <div
           className="card elev-sm"
@@ -152,7 +152,7 @@ export function FloatClient({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>
             {money(Math.abs(summary.balanceCents))}
           </div>
-          <div className="text-muted" style={{ fontSize: 12 }}>
+          <div className="text-muted" style={{ fontSize: 13 }}>
             {summary.shortfall ? "more went out than came in" : "still in the pot"}
           </div>
         </div>

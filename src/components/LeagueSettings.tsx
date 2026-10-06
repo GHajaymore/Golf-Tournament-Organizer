@@ -102,7 +102,7 @@ export function LeagueSettings({
         </select>
         <p
           className="text-muted"
-          style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}
+          style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}
         >
           {system
             ? LEAGUE_POINTS_HELP[system]
@@ -158,7 +158,7 @@ export function LeagueSettings({
           />
           <p
             className="text-muted"
-            style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}
+            style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}
           >
             Used to flag a club that is short on the night. Changing the scoring
             re-scores every week already played.
@@ -187,7 +187,7 @@ export function LeagueSettings({
           </select>
           <p
             className="text-muted"
-            style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}
+            style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}
           >
             {playoffSize === 0
               ? "The season table is the final word."

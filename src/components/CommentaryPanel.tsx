@@ -76,7 +76,7 @@ export function CommentaryPanel({
               {busy ? "Drafting…" : "AjAi draft"}
             </button>
             {!aiAvailable && (
-              <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
+              <span className="text-muted" style={{ fontSize: 13, alignSelf: "center" }}>
                 Drafting is coming with {METERED_TIER} — write your own line for now.
               </span>
             )}
@@ -104,13 +104,13 @@ export function CommentaryPanel({
           <div key={c.id} style={{ display: "flex", gap: 10, fontSize: 13, padding: "8px 0", borderBottom: "1px solid var(--color-divider)" }}>
             <div style={{ flex: 1 }}>
               <div>{c.text}</div>
-              <div className="text-muted" style={{ fontSize: 11, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                 {/* 10.5px, not 9. `.tag` is designed at 11 and this shrank it
                     to nine — small enough to be unreadable outdoors, on the one
                     label that tells a reader a machine wrote the line. */}
                 {/* The stored value stays "ai" — this is the label a reader sees, not
                     the data. Renaming the column would be a migration for a word. */}
-                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 10.5, padding: "1px 6px" }}>AjAi</span>}
+                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 13, padding: "1px 6px" }}>AjAi</span>}
                 {c.author} · {c.when}
               </div>
             </div>

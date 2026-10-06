@@ -92,7 +92,7 @@ export function SeasonPicker({ startsOn, endsOn }: { startsOn: string; endsOn: s
           style={{ flex: 1, minWidth: 0 }}
         />
       </div>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0", lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
         {!start && !end
           ? "The calendar year. Tournaments group as 2026, 2027, and so on."
           : seasonWraps(window)
@@ -101,12 +101,12 @@ export function SeasonPicker({ startsOn, endsOn }: { startsOn: string; endsOn: s
         The year you pick is ignored — a season repeats every year.
       </p>
       {error && (
-        <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
       {saved && !pending && !error && (
-        <p className="text-muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
           <Icon name="check" /> Saved.
         </p>
       )}

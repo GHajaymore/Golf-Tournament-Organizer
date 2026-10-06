@@ -180,7 +180,12 @@ h2 { font-size: 22px; letter-spacing: -0.021em; }
 h3 { font-size: 18px; }
 h4 { font-size: 16px; }
 h5 { font-size: 14px; letter-spacing: -0.008em; }
-h6 { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600; }
+/* THE TYPE FLOOR (Ajay, 2026-10-05): labels 13px, sentences 14px, read on a
+   phone in sun. Two deliberate exceptions, each said where it lives: `.table
+   th` (uppercase column heads in a table that scrolls) and `.m-tab` (the tab
+   bar, where the icon carries the meaning — platform convention). The
+   scorecard grid (`.sc`) and the print sheet keep their density on purpose. */
+h6 { font-size: 13px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600; }
 p { margin: 0 0 var(--space-3); }
 /* Links are text, so they take the accent's TEXT step. `--color-accent` is
    step 500, which reads 4.02:1 on a card for the heather palette on the dark
@@ -193,7 +198,7 @@ a { color: var(--color-accent-200); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
 figure { margin: 0; }
 figcaption {
-  font-size: 11px; margin-top: var(--space-1);
+  font-size: 13px; margin-top: var(--space-1);
   color: var(--color-text-muted);
 }
 /* The class and the token are one value now. Eight components wrote
@@ -206,7 +211,7 @@ figcaption {
  * same three declarations. An error message is the one piece of text on a form
  * that has to look identical everywhere — a refusal that renders a size
  * different from the last one reads as a different KIND of refusal. */
-.form-error { font-size: 12px; margin: 0; color: var(--color-danger); }
+.form-error { font-size: 14px; margin: 0; color: var(--color-danger); }
 :focus { outline: none; }
 /* A ring rather than a bare outline: the halo keeps the indicator visible
    where the accent happens to sit close to whatever is behind it. */
@@ -387,7 +392,7 @@ figcaption {
 
 /* — forms — */
 .field > label {
-  display: block; font-size: 12px; margin-bottom: 6px; font-weight: 500;
+  display: block; font-size: 13px; margin-bottom: 6px; font-weight: 500;
   letter-spacing: -0.004em;
   color: var(--color-text-muted); /* the one muted token, not a 72% of its own */
 }
@@ -488,7 +493,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   border-radius: var(--radius-lg); background: var(--color-surface);
 }
 .card-kicker {
-  font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase;
+  font-size: 13px; letter-spacing: 0.07em; text-transform: uppercase;
   font-weight: 600; color: var(--color-accent-200); /* 8.91:1 worst, every preset, both grounds */
 }
 .card-title {
@@ -500,9 +505,9 @@ textarea.input { min-height: 90px; resize: vertical; }
    chances for one of them to drift a pixel. `.card-title` and `.card-body`
    were already here; this is the row that holds them. */
 .card-head { display: flex; align-items: center; justify-content: space-between; }
-.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-body { margin: 0; font-size: 14px; opacity: 0.8; flex: 1; }
 .card-meta {
-  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  display: flex; align-items: center; gap: 6px; font-size: 13px;
   color: var(--color-text-muted);
 }
 .elev-sm { box-shadow: var(--shadow-sm); }
@@ -512,7 +517,7 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* — tags — */
 .tag {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 500; letter-spacing: 0.005em;
+  font-size: 13px; font-weight: 500; letter-spacing: 0.005em;
   padding: 2px 8px; line-height: 1.5;
   /* A pill, not a small rectangle. At this size a rounded rectangle just
      reads as a badly cropped box. */
@@ -566,7 +571,8 @@ textarea.input { min-height: 90px; resize: vertical; }
   font-variant-numeric: tabular-nums;
 }
 .table th {
-  text-align: left; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase;
+  /* 12px: the one label size under the floor — see the note at the top. */
+  text-align: left; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
   font-weight: 600;
   /* Was a 52% mix of its own, a third muted weight nobody had measured: 3.49:1
      on the light ground, on the smallest uppercase type in the app, naming the
@@ -733,7 +739,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.match-row-meta { font-size: 11px; color: var(--color-neutral-500); }
+.match-row-meta { font-size: 13px; color: var(--color-neutral-500); }
 
 /* ── The card itself ──────────────────────────────────────────────────── */
 
@@ -908,14 +914,14 @@ textarea.input { min-height: 90px; resize: vertical; }
 .mode-opt[aria-pressed="true"] .mode-opt-head { color: var(--color-accent-200); }
 
 .mode-opt-blurb {
-  font-size: 11.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--color-neutral-500);
 }
 
 /* The reason an option is unavailable, shown in place. Not dimmed away. */
 .mode-opt-why {
-  font-size: 11.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--color-danger);
 }

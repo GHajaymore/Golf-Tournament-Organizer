@@ -195,7 +195,7 @@ export function RoundDaySetup({
               {saved}
             </span>
           )}
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             Up to {MAX_PACES_ON} paces on and {MAX_PACES_OFF} from an edge.
           </span>
         </div>

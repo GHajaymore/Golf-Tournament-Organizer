@@ -120,7 +120,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
             {sec.label && (
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: 13,
                   letterSpacing: "0.13em",
                   textTransform: "uppercase",
                   color: "var(--color-neutral-500)",
@@ -174,7 +174,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
           <div>
             <div
               className="text-muted"
-              style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5 }}
+              style={{ fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5 }}
             >
               Viewing as
             </div>
@@ -202,7 +202,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
               color: "var(--color-accent-100)",
               display: "grid",
               placeItems: "center",
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
             }}
           >
@@ -212,7 +212,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
               rather than their clubs (2026-10-03). */}
           <Link href="/account" title="Your account" style={{ flex: 1, minWidth: 0, color: "inherit", textDecoration: "none" }}>
             <div style={{ fontSize: 13 }}>{name}</div>
-            <div className="text-muted" style={{ fontSize: 11 }}>
+            <div className="text-muted" style={{ fontSize: 13 }}>
               {roleLabel(viewRole)}
             </div>
           </Link>

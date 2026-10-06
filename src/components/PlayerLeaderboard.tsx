@@ -164,7 +164,7 @@ export function PlayerLeaderboard({
             boxShadow: "inset 3px 0 0 var(--color-accent)",
           }}
         >
-          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-muted)" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-muted)" }}>
             You
           </span>
           <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
@@ -189,7 +189,7 @@ export function PlayerLeaderboard({
       {unit && (
         <p
           className="text-muted"
-          style={{ fontSize: 11.5, margin: "0 0 6px", letterSpacing: "0.04em", textTransform: "uppercase" }}
+          style={{ fontSize: 13, margin: "0 0 6px", letterSpacing: "0.04em", textTransform: "uppercase" }}
         >
           Ranked by {unit}
         </p>
@@ -286,7 +286,7 @@ export function PlayerLeaderboard({
                 <span
                   style={{
                     display: "block",
-                    fontSize: 12.5,
+                    fontSize: 13,
                     marginTop: 2,
                     color: "var(--color-text-muted)",
                   }}
@@ -310,7 +310,7 @@ export function PlayerLeaderboard({
                 {markEachRow && r.advancing && (
                   <span
                     className="tag tag-accent"
-                    style={{ fontSize: 10.5, marginTop: 4, display: "inline-block" }}
+                    style={{ fontSize: 13, marginTop: 4, display: "inline-block" }}
                   >
                     Advancing
                   </span>
@@ -344,7 +344,7 @@ export function PlayerLeaderboard({
                 <span style={{ flex: 1, height: 1, background: "var(--color-accent)" }} />
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 700,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
@@ -366,7 +366,7 @@ export function PlayerLeaderboard({
             {showCut && cutNote && i === lastAdvancing && (
               <p
                 className="text-muted"
-                style={{ fontSize: 11.5, lineHeight: 1.5, margin: "-4px 2px 10px", textAlign: "center" }}
+                style={{ fontSize: 13, lineHeight: 1.5, margin: "-4px 2px 10px", textAlign: "center" }}
               >
                 {cutNote}
               </p>

@@ -237,8 +237,8 @@ export function TeamEntryClient({
               aria-pressed={view === v}
               style={
                 view === v
-                  ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 12.5 }
-                  : { fontSize: 12.5 }
+                  ? { color: "var(--color-accent-200)", borderColor: "var(--color-accent)", fontSize: 13 }
+                  : { fontSize: 13 }
               }
             >
               <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} /> {v === "hole" ? "Hole by hole" : "Full card"}
@@ -285,7 +285,7 @@ export function TeamEntryClient({
           />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
             {savedDraft === groupDraft && savedDraft !== "" && (
-              <span role="status" className="text-muted" style={{ fontSize: 12.5 }}>
+              <span role="status" className="text-muted" style={{ fontSize: 13 }}>
                 Saved.
               </span>
             )}
@@ -315,7 +315,7 @@ export function TeamEntryClient({
                 Plays off {t.playingHandicap}
               </span>
             )}
-            <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+            <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
               {t.played > 0 ? `${t.grossTotal} gross · ${t.netTotal} net · ${t.played} holes` : "No score yet"}
             </span>
           </div>
@@ -345,7 +345,7 @@ export function TeamEntryClient({
                     {c.playerId ? c.playerName : "Team card"}
                   </span>
                   {c.playerId !== "" && (
-                    <span className="text-muted" style={{ fontSize: 12 }}>h/cap {indexLabel(c)}</span>
+                    <span className="text-muted" style={{ fontSize: 13 }}>h/cap {indexLabel(c)}</span>
                   )}
                   <button
                     type="button"

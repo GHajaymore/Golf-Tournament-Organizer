@@ -79,7 +79,7 @@ export function TournamentClashNotice({
           Its group games
         </button>
       </div>
-      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
         Setting one up here anyway is fine — it just stays separate from that tournament.
       </p>
     </div>

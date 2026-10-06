@@ -77,7 +77,7 @@ export function AnnouncementsClient({
             <span
               id="announcement-refusal"
               role="alert"
-              style={{ fontSize: 12.5, color: "var(--color-danger)", marginTop: 4 }}
+              style={{ fontSize: 13, color: "var(--color-danger)", marginTop: 4 }}
             >
               {refusal}
             </span>
@@ -129,7 +129,7 @@ export function AnnouncementsClient({
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {a.pinned && <span className="tag tag-accent"><Icon name="push-pin" /> Pinned</span>}
               <span style={{ fontWeight: 600, fontSize: 15 }}>{a.title}</span>
-              <span className="text-muted" style={{ fontSize: 12 }}>· {a.when}</span>
+              <span className="text-muted" style={{ fontSize: 13 }}>· {a.when}</span>
               <div style={{ flex: 1 }} />
               <button
                 type="button"

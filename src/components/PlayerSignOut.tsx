@@ -30,7 +30,7 @@ export function PlayerSignOut({ name }: { name: string }) {
         aria-label="Sign out"
         title={name ? `Signed in as ${name} — sign out` : "Sign out"}
         onClick={() => setAsking(true)}
-        style={{ fontSize: 12.5, padding: "6px 10px" }}
+        style={{ fontSize: 13, padding: "6px 10px" }}
       >
         <Icon name="sign-out" style={{ fontSize: 17 }} />
       </button>

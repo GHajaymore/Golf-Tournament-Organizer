@@ -280,7 +280,7 @@ export function MessagesClient({
                 name of its own and the two are the same string, which printed
                 "Players only" twice. */}
             {view.label !== view.title && (
-              <div className="text-muted" style={{ fontSize: 11.5 }}>{view.label}</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{view.label}</div>
             )}
           </div>
         </div>
@@ -304,12 +304,12 @@ export function MessagesClient({
               }}
             >
               {!m.mine && (
-                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.75, marginBottom: 2 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.75, marginBottom: 2 }}>
                   {m.authorName || m.authorEmail}
                 </div>
               )}
               <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
-              <div style={{ fontSize: 10.5, opacity: 0.7, marginTop: 3, textAlign: "right" }}>
+              <div style={{ fontSize: 13, opacity: 0.7, marginTop: 3, textAlign: "right" }}>
                 {when(m.createdAt, locale, now)}
               </div>
             </div>
@@ -350,13 +350,13 @@ export function MessagesClient({
           </div>
         ) : (
           <div style={{ borderTop: "1px solid var(--color-divider)", padding: "10px 14px" }}>
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               This one is announcements only — your {organizer} posts here.
             </p>
           </div>
         )}
         {error && (
-          <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0, padding: "0 14px 10px" }}>{error}</p>
+          <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0, padding: "0 14px 10px" }}>{error}</p>
         )}
       </div>
     );
@@ -430,22 +430,22 @@ export function MessagesClient({
                 {/* Same as the open thread's header: the broadcast scopes have
                     no name of their own, so title and label are one string. */}
                 {t.label !== t.title && (
-                  <span className="text-muted" style={{ fontSize: 11 }}>{t.label}</span>
+                  <span className="text-muted" style={{ fontSize: 13 }}>{t.label}</span>
                 )}
               </div>
-              <div className="text-muted" style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div className="text-muted" style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {t.preview || "No messages yet"}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-              <span className="text-muted" style={{ fontSize: 11 }}>{when(t.lastMessageAt, locale, now)}</span>
+              <span className="text-muted" style={{ fontSize: 13 }}>{when(t.lastMessageAt, locale, now)}</span>
               {t.unread > 0 && (
                 <span
                   style={{
                     background: "var(--color-accent-300)",
                     color: "var(--color-on-accent)",
                     borderRadius: 999,
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 700,
                     padding: "1px 7px",
                   }}
@@ -525,13 +525,13 @@ function OptOutPanel({
           <span style={{ fontSize: 14, fontWeight: 500, display: "block" }}>
             Don&rsquo;t let other players message me directly
           </span>
-          <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+          <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
             You&rsquo;ll be taken out of the list people pick from, and nobody can start a private
             conversation with you.
           </span>
         </span>
       </label>
-      <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+      <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
         <Icon name="info" style={{ marginRight: 5 }} />
         Your {organizer} can still reach you. Tee times, delays and changes of venue go to the whole
         tournament or your flight, and this setting deliberately doesn&rsquo;t touch those — turning
@@ -555,7 +555,7 @@ function OptOutPanel({
             <span style={{ fontSize: 14, fontWeight: 500, display: "block" }}>
               Also text me tournament announcements
             </span>
-            <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+            <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
               Only what your {organizer} sends to the whole tournament, your flight or your round —
               never chat from your group, and never a direct message. Standard message and data
               rates from your carrier apply. Reply STOP to any text to turn this off.
@@ -563,7 +563,7 @@ function OptOutPanel({
           </span>
         </label>
       </div>
-      {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
+      {error && <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0 }}>{error}</p>}
     </div>
   );
 }
@@ -711,7 +711,7 @@ export function ComposePanel({
           person sets the first select to "" — a value none of its options
           carries, so it renders BLANK. The card asked "Who is this for?" and
           then showed nothing selected while a real answer was in force. */}
-      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+      <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
         {audience.direct ? "Going to " : "Going to everyone in "}
         <b>{audience.name}</b>
         {audience.detail ? ` ${audience.detail}` : "."}
@@ -745,7 +745,7 @@ export function ComposePanel({
               <span style={{ fontSize: 13.5, fontWeight: 500, display: "block" }}>
                 Also send this as a text
               </span>
-              <span className="text-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+              <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
                 Goes only to people who have agreed to texts. Everyone gets it in the app either
                 way.
               </span>
@@ -762,7 +762,7 @@ export function ComposePanel({
                 padding: "8px 10px",
                 borderRadius: 8,
                 background: "var(--color-surface-2)",
-                fontSize: 12.5,
+                fontSize: 13,
                 lineHeight: 1.7,
               }}
             >
@@ -807,12 +807,12 @@ export function ComposePanel({
           Said outright, because the consequence is that somebody does not get
           the message they were promised. */}
       {isStaff && audience.textNote && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
           <Icon name="info" /> {audience.textNote}
         </p>
       )}
 
-      {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
+      {error && <p style={{ color: "var(--color-danger)", fontSize: 13, margin: 0 }}>{error}</p>}
       <div>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={send}>
           {pending ? "Sending…" : alsoText && canText ? "Send + text" : "Send"}

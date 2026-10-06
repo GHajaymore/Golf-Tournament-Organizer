@@ -551,7 +551,7 @@ export default async function FoursomesPage({
           <span className="card-title" style={{ fontSize: 14 }}>
             <Icon name="warning-circle" /> The published sheet no longer matches the field
           </span>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             {drift.departed.length > 0 && (
               <>
                 {drift.departed.length} drawn {drift.departed.length === 1 ? "player has" : "players have"} left

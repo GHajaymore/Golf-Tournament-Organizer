@@ -200,7 +200,7 @@ export function LoginPanel({
     <p
       role="alert"
       style={{
-        fontSize: 12.5,
+        fontSize: 13,
         margin: 0,
         lineHeight: 1.5,
         display: "flex",
@@ -449,7 +449,7 @@ export function LoginPanel({
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  fontSize: 11.5,
+                  fontSize: 13,
                   color: "var(--color-accent-200)",
                   // A 44px target around 12px of text: the negative margin
                   // gives the space back so the label row does not grow. It
@@ -485,7 +485,7 @@ export function LoginPanel({
         {!login && (
           <fieldset style={{ border: "none", padding: 0, margin: 0, minWidth: 0 }}>
             <legend
-              style={{ fontSize: 12, padding: 0, marginBottom: 7, color: "var(--color-text)", fontWeight: 500 }}
+              style={{ fontSize: 13, padding: 0, marginBottom: 7, color: "var(--color-text)", fontWeight: 500 }}
             >
               What are you organizing golf for?
             </legend>
@@ -520,7 +520,7 @@ export function LoginPanel({
                   />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.label}</span>
-                    <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.5 }}>
+                    <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.5 }}>
                       {k.help}
                     </span>
                   </span>
@@ -552,7 +552,7 @@ export function LoginPanel({
             person is looking. Sign-up only: logging in agrees to nothing new.
             Links in a sentence, so they stay words rather than buttons. */}
         {!login && (
-          <p className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.55, margin: 0, textAlign: "center" }}>
+          <p className="text-muted" style={{ fontSize: 13, lineHeight: 1.55, margin: 0, textAlign: "center" }}>
             By creating an account you agree to the{" "}
             <a href="/terms" style={{ color: "var(--color-accent-200)" }}>Terms</a> and the{" "}
             <a href="/privacy" style={{ color: "var(--color-accent-200)" }}>Privacy policy</a>.
@@ -607,7 +607,7 @@ function Field({
           alignItems: "baseline",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 500,
           marginBottom: 6,
           color: "var(--color-text-muted)",
@@ -618,7 +618,7 @@ function Field({
       </span>
       {children}
       {hint && (
-        <span className="text-muted" style={{ display: "block", fontSize: 11, marginTop: 5 }}>
+        <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 5 }}>
           {hint}
         </span>
       )}
@@ -699,7 +699,7 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
         minHeight: 44,
         cursor: "pointer",
         color: "var(--color-text-muted)",
-        fontSize: 12.5,
+        fontSize: 13,
         display: "flex",
         alignItems: "center",
         gap: 5,

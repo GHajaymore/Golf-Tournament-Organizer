@@ -71,11 +71,11 @@ export function RoundApproval({
           <Icon name="check-circle" />{" "}
           {pending ? "Approving…" : `Approve ${review.ready.length} clean ${review.ready.length === 1 ? "card" : "cards"}`}
         </button>
-        <span style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>{summary}</span>
+        <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{summary}</span>
       </div>
 
       {note && (
-        <p style={{ fontSize: 12.5, margin: "10px 0 0", color: "var(--color-accent-2-200)" }}>
+        <p style={{ fontSize: 13, margin: "10px 0 0", color: "var(--color-accent-2-200)" }}>
           <Icon name="check" /> {note}
         </p>
       )}
@@ -84,7 +84,7 @@ export function RoundApproval({
         <div style={{ marginTop: 14 }}>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: 700,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
@@ -109,7 +109,7 @@ export function RoundApproval({
               >
                 <span style={{ flex: 1, minWidth: 150, fontSize: 14 }}>
                   {e.playerName}
-                  <span style={{ display: "block", fontSize: 12, color: "var(--color-neutral-400)" }}>
+                  <span style={{ display: "block", fontSize: 13, color: "var(--color-neutral-400)" }}>
                     {EXCEPTION_LABEL[e.reason]}
                     {e.reason === "incomplete" && ` — ${e.filled} of ${e.holes}`}
                   </span>
@@ -128,7 +128,7 @@ export function RoundApproval({
                         setNote(`Approved ${e.playerName}'s card individually.`);
                       })
                     }
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 13 }}
                   >
                     Approve anyway
                   </button>
@@ -144,7 +144,7 @@ export function RoundApproval({
                         setNote(`Reopened ${e.playerName}'s card.`);
                       })
                     }
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 13 }}
                   >
                     Reopen
                   </button>

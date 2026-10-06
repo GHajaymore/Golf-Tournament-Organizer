@@ -137,8 +137,8 @@ export function LifecycleBar({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span className="card-kicker">Tournament status</span>
-          <span className={`tag ${meta.tag}`} style={{ fontSize: 12 }}>
-            {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 7, marginRight: 5 }} />}
+          <span className={`tag ${meta.tag}`} style={{ fontSize: 13 }}>
+            {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 5 }} />}
             {meta.label}
           </span>
           {/* The observed state, beside the stored one rather than instead of
@@ -148,13 +148,13 @@ export function LifecycleBar({
               only the second would be this file correcting a status it has
               said all along it must only report. See LifecycleWarning.chip. */}
           {mismatch && (
-            <span className="tag tag-accent" style={{ fontSize: 12 }}>
+            <span className="tag tag-accent" style={{ fontSize: 13 }}>
               <Icon name="golf" style={{ marginRight: 5 }} />
               {mismatch.chip}
             </span>
           )}
           {locked && (
-            <span className="text-muted" style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span className="text-muted" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 5 }}>
               <Icon name="lock-simple" /> Configuration locked
             </span>
           )}
@@ -197,7 +197,7 @@ export function LifecycleBar({
             dialog that launching opens, which is where somebody deciding
             whether to press it is actually standing. */}
         {mismatch && (
-          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{mismatch.title}.</span> {mismatch.detail}
           </p>
         )}
@@ -205,7 +205,7 @@ export function LifecycleBar({
             plan deletes this tournament when it is completed, and the time to
             decide to keep it is before then. */}
         {deletesOnComplete && status !== "completed" && (
-          <p role="note" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+          <p role="note" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
             <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />{" "}
             <span style={{ fontWeight: 600 }}>Completing this tournament deletes it.</span>{" "}
             {closesOn

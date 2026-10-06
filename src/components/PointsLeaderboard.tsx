@@ -82,7 +82,7 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
             </table>
           </div>
         )}
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
           {outcome.unclaimed > 0
             ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin is" : "skins are"} still carrying — the last decided hole was tied.`
             : "Nothing carrying."}{" "}
@@ -93,12 +93,12 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
       {outcome.holes.length > 0 && (
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 14, marginBottom: 6 }}>Hole by hole</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
+          <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
             The carry is the whole game — a player who has won nothing all day can take the lot on the
             last.
           </p>
           <div className="table-scroll">
-            <table className="table" style={{ fontSize: 12 }}>
+            <table className="table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th>Hole</th>
@@ -158,7 +158,7 @@ export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
                 <span className="card-title" style={{ fontSize: 14 }}>
                   {r.aName} v {r.bName}
                 </span>
-                <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+                <span className="text-muted" style={{ fontSize: 13, marginLeft: "auto" }}>
                   {r.outcome.decided} of {r.outcome.segments.length} settled
                   {r.outcome.balance !== 0 &&
                     ` · ${r.outcome.balance > 0 ? r.aName : r.bName} up ${Math.abs(r.outcome.balance)}`}
@@ -178,10 +178,10 @@ export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
                         : `${res.lead > 0 ? r.aName : r.bName} ${Math.abs(res.lead)} up`;
                   return (
                     <div key={s.key} style={{ padding: "8px 10px", borderRadius: 8, background: "var(--color-surface-2)" }}>
-                      <div className="card-kicker" style={{ fontSize: 11 }}>{s.label}</div>
+                      <div className="card-kicker" style={{ fontSize: 13 }}>{s.label}</div>
                       <div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>{label}</div>
                       {res && !res.complete && s.played > 0 && (
-                        <div className="text-muted" style={{ fontSize: 11 }}>{s.played} played</div>
+                        <div className="text-muted" style={{ fontSize: 13 }}>{s.played} played</div>
                       )}
                     </div>
                   );
@@ -262,7 +262,7 @@ export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStabl
             </table>
           </div>
         )}
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
           Points can go negative — the format is meant to punish a blow-up hole, not floor it at zero
           the way standard Stableford does. Players who haven&apos;t returned a card are unranked
           rather than shown level on nothing.

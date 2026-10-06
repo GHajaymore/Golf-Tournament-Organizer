@@ -259,7 +259,7 @@ export function ContestsClient({
           </p>
         ))}
       </FieldInfo>
-      <span className="text-muted" style={{ fontSize: 11.5, flexBasis: "100%", lineHeight: 1.55 }}>
+      <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.55 }}>
         {POT_MODE_HELP[isPotEntryMode(mode) ? mode : "opt-in"]}
       </span>
     </div>
@@ -426,7 +426,7 @@ export function ContestsClient({
                     <FieldInfo label={row.label}>{row.help}</FieldInfo>
                   </span>
                 </span>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
                   <span className="text-muted">Stake</span>
                   <input
                     className="input"
@@ -462,7 +462,7 @@ export function ContestsClient({
                 {game && (
                   <ConfirmButton
                     className="btn btn-ghost"
-                    style={{ fontSize: 11.5 }}
+                    style={{ fontSize: 13 }}
                     icon="trash"
                     title={`Take ${row.label} off this round`}
                     confirmLabel="Take it off"
@@ -478,7 +478,7 @@ export function ContestsClient({
                   nobody has priced yet — which is a different state, and the
                   one somebody would go and fix. */}
               {forSomethingElse && game && (
-                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+                <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5 }}>
                   Playing for <b style={{ color: "var(--color-text)" }}>{game.stakeNote}</b> — the
                   result is worked out the same way, with no money on it. A stake above turns it
                   into a money game.
@@ -489,7 +489,7 @@ export function ContestsClient({
                   what is wrong and what to do, because the money is real and
                   the round it was staked on cannot decide it. */}
               {cannotSettle && (
-                <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
+                <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
                   <Icon name="warning-circle" /> Nobody plays anybody in this round, so there is no
                   match for {row.label.toLowerCase()} to be between and this stake cannot settle. Set
                   it to 0 to take it off, or move the bet to a match-play round.
@@ -533,7 +533,7 @@ export function ContestsClient({
 
               {on && (
                 <div style={{ marginTop: 8 }}>
-                  <span className="text-muted" style={{ fontSize: 11.5 }}>
+                  <span className="text-muted" style={{ fontSize: 13 }}>
                     {row.kind === "nassau"
                       ? "Applies to every match in this round at that stake per segment."
                       : `In the pot (${entered.size})`}
@@ -607,7 +607,7 @@ export function ContestsClient({
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>
                 {money(c.potCents)} pot
-                <span className="text-muted" style={{ fontSize: 12 }}> · {money(c.buyInCents)} each</span>
+                <span className="text-muted" style={{ fontSize: 13 }}> · {money(c.buyInCents)} each</span>
               </span>
             </div>
 
@@ -692,10 +692,10 @@ export function ContestsClient({
                     );
                   })}
                 {entered.size === 0 && (
-                  <span className="text-muted" style={{ fontSize: 12.5 }}>Add who paid in first.</span>
+                  <span className="text-muted" style={{ fontSize: 13 }}>Add who paid in first.</span>
                 )}
               </div>
-              <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
                 {won.size === 0
                   ? "Still open — nobody is charged or paid until it's won."
                   : won.size === 1
@@ -707,7 +707,7 @@ export function ContestsClient({
             {/* A bet with a pot against it. */}
             <ConfirmButton
               className="btn btn-secondary touch-target"
-              style={{ fontSize: 12, marginTop: 10 }}
+              style={{ fontSize: 13, marginTop: 10 }}
               label="Remove this bet"
               title="Remove this bet"
               confirmLabel="Remove the bet"
@@ -721,7 +721,7 @@ export function ContestsClient({
       )}
 
       {error && (
-        <p style={{ fontSize: 12.5, marginTop: 10, color: "var(--color-danger)" }}>
+        <p style={{ fontSize: 13, marginTop: 10, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

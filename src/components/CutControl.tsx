@@ -183,7 +183,7 @@ export function CutControl({
               Per flight
             </label>
           </div>
-          <span className="text-muted" style={{ fontSize: 12 }}>
+          <span className="text-muted" style={{ fontSize: 13 }}>
             {perFlight
               ? `${bucketSurvivors}${tiesGoThrough ? " and ties" : ""} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
               : `${survivors}${tiesGoThrough ? " and ties" : ""} of ${confirmedCount} advance into ${roundLabel}.`}
@@ -204,7 +204,7 @@ export function CutControl({
             display: "flex",
             alignItems: "flex-start",
             gap: 6,
-            fontSize: 12,
+            fontSize: 13,
             padding: "8px 10px",
             borderRadius: 8,
             background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",

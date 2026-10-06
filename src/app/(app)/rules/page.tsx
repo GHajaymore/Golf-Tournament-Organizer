@@ -103,7 +103,7 @@ export default async function RulesPage() {
                 </span>
                 <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
               </div>
-              <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
+              <p style={{ margin: "5px 0 0", fontSize: 13, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
                 <span style={{ color: "var(--color-neutral-500)" }}>{RULE_SOURCE_LABEL[r.source]}</span> · {r.why}
               </p>
             </a>
@@ -136,7 +136,7 @@ export default async function RulesPage() {
                     flexWrap: "wrap",
                   }}
                 >
-                  <span style={{ minWidth: 128, fontSize: 12.5, fontWeight: 600, color: "var(--color-neutral-400)" }}>
+                  <span style={{ minWidth: 128, fontSize: 13, fontWeight: 600, color: "var(--color-neutral-400)" }}>
                     {t.label}
                   </span>
                   <span style={{ flex: 1, minWidth: 180, fontSize: 14, lineHeight: 1.5 }}>
@@ -151,7 +151,7 @@ export default async function RulesPage() {
                           display: "flex",
                           alignItems: "center",
                           marginTop: 3,
-                          fontSize: 11.5,
+                          fontSize: 13,
                           color: "var(--color-neutral-400)",
                           textDecoration: "none",
                           borderBottom: 0,
@@ -196,7 +196,7 @@ export default async function RulesPage() {
         )}
       </Tier>
 
-      <p style={{ marginTop: 30, fontSize: 12, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+      <p style={{ marginTop: 30, fontSize: 13, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
         The Rules of Golf and the Rules of Handicapping are published by the USGA and The R&amp;A and are their
         copyright. TourneyHQ links to them and does not reproduce them. Where a Local Rule or a condition of
         competition differs, that governs — not this page.

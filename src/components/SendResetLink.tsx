@@ -41,7 +41,7 @@ export function SendResetLink({ email }: { email: string }) {
         </button>
       )}
       {state === "error" && (
-        <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>{error}</p>
+        <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
       )}
     </div>
   );
