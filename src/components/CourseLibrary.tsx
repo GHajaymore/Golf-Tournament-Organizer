@@ -23,6 +23,7 @@ import { useClubDistanceUnit } from "./DistanceUnitProvider";
 import { distanceWords, type DistanceUnit } from "@/lib/domain/distance-unit";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /** The result of asking the directory whether a course has changed. */
 interface SourceCheck {
@@ -349,11 +350,12 @@ export function CourseLibrary({
     <div className="card elev-sm" style={{ gap: 12 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Courses</span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Which venues this tournament is played on. Pick one and nobody is asked again. Pick several — a
-          multi-day event rotating courses, or a league where opponents choose their own — and you can set the
-          venue per round, or per match where it can&rsquo;t be known in advance.
-        </p>
+        {/* One line, the rest an ⓘ away (Ajay, 2026-10-05). */}
+        <MoreInfo short="Where this tournament is played." style={{ marginTop: 4 }}>
+          Pick one and nobody is asked again. Pick several — a multi-day event rotating courses, or a league
+          where opponents choose their own — and you can set the venue per round, or per match where it
+          can&rsquo;t be known in advance.
+        </MoreInfo>
       </div>
 
       {courses.length === 0 ? (
@@ -682,12 +684,12 @@ export function CourseLibrary({
       )}
 
       {courses.some((c) => !c.verified) && (
-        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
-          <Icon name="seal-question" /> An <b>unverified</b> card was imported and nobody has
-          checked it against the real one. The part that matters is the stroke index: it is invisible
-          in play, so a wrong one quietly sends handicap shots to the wrong holes for as long as the
-          course is on this list.
-        </p>
+        // One line, the reason an ⓘ away (Ajay, 2026-10-05).
+        <MoreInfo short={<><Icon name="seal-question" /> Unverified: check its stroke index against the real card.</>}>
+          An <b>unverified</b> card was imported and nobody has checked it against the real one. The
+          part that matters is the stroke index: it is invisible in play, so a wrong one quietly sends
+          handicap shots to the wrong holes for as long as the course is on this list.
+        </MoreInfo>
       )}
 
       {/* A club plays at its own course. Setting it here means every new

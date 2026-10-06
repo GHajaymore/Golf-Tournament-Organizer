@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * The "why does this field work like that" explanation, on demand.
@@ -37,6 +37,33 @@ export default function FieldInfo({
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const wrap = useRef<HTMLSpanElement>(null);
+  const panel = useRef<HTMLSpanElement>(null);
+  /**
+   * HOW FAR THE PANEL MOVES TO STAY ON THE SCREEN.
+   *
+   * The panel is centred on its icon, and its WIDTH is clamped to the
+   * viewport — which is what the stylesheet's "clamped to the viewport" meant,
+   * and it is not enough: an icon near the right edge still centres a panel
+   * that runs off it. Measured 2026-10-05 at 320px on a radio option's ⓘ:
+   * 2.5px over. So it is measured once it opens and slid back inside, with a
+   * margin either side.
+   */
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open) {
+      setShift(0);
+      return;
+    }
+    const el = panel.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 8;
+    const vw = document.documentElement.clientWidth;
+    let dx = 0;
+    if (r.right > vw - margin) dx = vw - margin - r.right;
+    if (r.left + dx < margin) dx = margin - r.left;
+    setShift(dx);
+  }, [open]);
 
   // Escape closes from anywhere, and a tap outside dismisses. Both are what
   // people already expect; neither is worth making someone hunt for a close
@@ -78,7 +105,13 @@ export default function FieldInfo({
         </svg>
       </button>
       {open && (
-        <span className="field-info-panel" id={panelId} role="note">
+        <span
+          className="field-info-panel"
+          id={panelId}
+          role="note"
+          ref={panel}
+          style={shift ? { transform: `translateX(calc(-50% + ${shift}px))` } : undefined}
+        >
           {children}
         </span>
       )}

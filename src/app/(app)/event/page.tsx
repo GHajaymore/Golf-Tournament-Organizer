@@ -20,6 +20,8 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
+import { isLaunched } from "@/lib/domain/lifecycle-state";
+import { MoreInfo } from "@/components/MoreInfo";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
@@ -224,10 +226,10 @@ export default async function EventPage({
             and the plainest evidence that it was. Managing the SET moved to
             /tournaments, which the sidebar's Club group already had the right
             heading for. */}
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Where {e.name || "this tournament"} is played, when, and how it is scored. To switch
-          between tournaments or start another, go to <Link href="/tournaments">Tournaments</Link>.
-        </p>
+        {/* Short, the rest an ⓘ away (Ajay, 2026-10-05). */}
+        <MoreInfo short="Where it's played, when, and how it's scored." style={{ marginTop: 6 }}>
+          To switch between tournaments or start another, go to <Link href="/tournaments">Tournaments</Link>.
+        </MoreInfo>
       </div>
 
 
@@ -244,7 +246,10 @@ export default async function EventPage({
           checklist is what an organizer comes back to. */}
       {!railSpeaks(flow) && (
         <div style={{ marginBottom: 16 }}>
-          <SetupChecklist items={checklist} currentPath="/event" />
+          {/* Folded to one line once the tournament is launched (2026-10-05):
+              setup is finished, and the list sat above the settings an
+              organizer comes back to change. */}
+          <SetupChecklist items={checklist} currentPath="/event" folded={isLaunched(state.event.status)} />
         </div>
       )}
 

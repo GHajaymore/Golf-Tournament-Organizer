@@ -2,6 +2,7 @@
 import { useTransition } from "react";
 import { setConfigUnlocked } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Shown on Set-up screens once the tournament is live: setup is frozen to
@@ -26,13 +27,14 @@ export function SetupLockBanner({ locked, isAdmin }: { locked: boolean; isAdmin:
     >
       <Icon name="lock-simple" style={{ fontSize: 18, color: "var(--color-accent-200)" }} />
       <div style={{ flex: 1, minWidth: 180 }}>
-        <div style={{ fontWeight: 500, fontSize: 14 }}>Setup locked</div>
-        <div className="text-muted" style={{ fontSize: 12 }}>
+        <div style={{ fontWeight: 500, fontSize: 15 }}>Setup locked</div>
+        {/* One line, the reason an ⓘ away (Ajay, 2026-10-05). */}
+        <MoreInfo short="Read-only, to protect the field and results.">
           {/* "Launched", not "live": the lock holds after the tournament is
               finished too, and a completed championship was being called live. */}
           The tournament has been launched, so setup is read-only to protect the field and results.{" "}
           {isAdmin ? "Unlock to make a correction." : "Ask the Organizer to unlock if a change is needed."}
-        </div>
+        </MoreInfo>
       </div>
       {isAdmin && (
         <button

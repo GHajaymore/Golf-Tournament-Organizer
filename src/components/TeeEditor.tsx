@@ -4,6 +4,7 @@ import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 export interface TeeRow {
   id: string;
@@ -193,11 +194,11 @@ export function TeeEditor({
       </div>
 
       {tees.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          No tees yet. Without a Course Rating and Slope, net scores use each player&apos;s raw
-          handicap index — which is a few strokes out on most courses, and further out the harder
-          the course plays.
-        </p>
+        // One line, the reason an ⓘ away (Ajay, 2026-10-05).
+        <MoreInfo warn short="No tees yet — net scores use raw handicap index.">
+          Without a Course Rating and Slope, net scores use each player&apos;s raw handicap index —
+          which is a few strokes out on most courses, and further out the harder the course plays.
+        </MoreInfo>
       ) : (
         <div className="table-scroll">
           <table className="table" style={{ fontSize: 12 }}>
@@ -432,11 +433,12 @@ export function TeeEditor({
  * render this, and there is exactly one.
  */
 export function PlaysExplainer() {
+  // The column named in a line, the working an ⓘ away (2026-10-05).
   return (
-    <p className="text-muted" style={{ fontSize: 11, margin: "10px 0 0", lineHeight: 1.5 }}>
+    <MoreInfo short={<><b>14.0 plays</b>: what a 14.0 index gets off each set.</>} style={{ marginTop: 10 }}>
       <b>14.0 plays</b> is the course handicap a 14.0 index gets off each set — worked out from
       that set&rsquo;s rating, slope and par. It is what the difference between two sets of tees
       actually costs a player.
-    </p>
+    </MoreInfo>
   );
 }
