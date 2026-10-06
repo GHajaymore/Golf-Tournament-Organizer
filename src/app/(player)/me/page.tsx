@@ -493,7 +493,7 @@ export default async function PlayTodayPage() {
                     : ""}
                 </p>
               ) : (
-                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6 }}>
+                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6 }}>
                   Your side&rsquo;s card hasn&rsquo;t been started yet.
                 </p>
               )}

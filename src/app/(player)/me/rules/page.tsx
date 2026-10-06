@@ -149,12 +149,25 @@ export default async function PlayRulesPage() {
                   }}
                 >
                   <span
-                    style={{ minWidth: 112, fontSize: 12, fontWeight: 600, color: "var(--color-neutral-400)" }}
+                    style={{ minWidth: 112, fontSize: 13, fontWeight: 600, color: "var(--color-neutral-400)" }}
                   >
                     {t.label}
                   </span>
                   <span style={{ flex: 1, minWidth: 150, fontSize: 14, lineHeight: 1.5 }}>
-                    {t.value}
+                    {/* A CHAIN READS AS A LIST (2026-10-06). A match's tiebreak
+                        is three or four steps in order, and as one line it
+                        ran to fourteen words: "Head-to-head result, then Hole
+                        differential (won − lost), then …". The order is the
+                        rule, so it is numbered. */}
+                    {t.value.split(", then ").length >= 3 ? (
+                      <ol style={{ margin: 0, paddingLeft: 20 }}>
+                        {t.value.split(", then ").map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      t.value
+                    )}
                     {r && (
                       <a
                         href={r.url}
@@ -165,7 +178,7 @@ export default async function PlayRulesPage() {
                           display: "flex",
                           alignItems: "center",
                           marginTop: 2,
-                          fontSize: 11.5,
+                          fontSize: 13,
                           color: "var(--color-neutral-400)",
                           textDecoration: "none",
                         }}

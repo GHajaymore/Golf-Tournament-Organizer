@@ -336,7 +336,8 @@ export default async function PlayBoardPage({
     <div>
       <div
         style={{
-          fontSize: 11,
+          // 13px, the label floor (2026-10-06); it was 11.
+          fontSize: 13,
           fontWeight: 700,
           letterSpacing: "0.09em",
           textTransform: "uppercase",

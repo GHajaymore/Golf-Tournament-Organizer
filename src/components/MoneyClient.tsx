@@ -1000,7 +1000,7 @@ export function MoneyClient({
       {view.transfers.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Settle up</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 10px", lineHeight: 1.5 }}>
+          <p className="text-muted" style={{ fontSize: 14, margin: "4px 0 10px", lineHeight: 1.5 }}>
             {/* SHOW THE SAVING, do not just claim it.
                 Every splitting app simplifies debts and every one of them
                 asks you to take it on faith, which is why people re-add it by
@@ -1013,8 +1013,9 @@ export function MoneyClient({
                 <b>
                   {view.transfers.length} handover{view.transfers.length === 1 ? "" : "s"}
                 </b>{" "}
-                instead of {owing} — everybody squares without {owing - view.transfers.length} of the
-                payments they would otherwise have made.{" "}
+                {/* The count IS the saving; the sentence that explained it ran
+                    to seventeen words on a phone (2026-10-06). */}
+                instead of {owing}.{" "}
               </>
             ) : (
               <>The fewest handovers that make everyone square.</>

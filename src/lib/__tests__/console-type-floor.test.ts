@@ -65,17 +65,17 @@ describe("the shared classes hold the floor", () => {
     return Number(/font-size:\s*(\d+(?:\.\d+)?)px/.exec(block)?.[1]);
   };
 
-  it.each([".card-kicker", ".page-kicker", ".tag", ".card-meta", ".match-row-meta", ".mini-row", ".rank-badge", ".mode-opt-blurb", ".mode-opt-why", ".field > label"])(
+  it.each([".card-kicker", ".page-kicker", ".tag", ".card-meta", ".match-row-meta", ".mini-row", ".rank-badge", ".mode-opt-blurb", ".mode-opt-why", ".field > label", ".table th", ".sb-head", ".sb-hole-n"])(
     "%s is at least 13px",
     (selector) => {
       expect(sizeOf(selector)).toBeGreaterThanOrEqual(13);
     },
   );
 
-  it("keeps its two deliberate exceptions at 12px, and no lower", () => {
-    // Uppercase column heads in a table that scrolls; and the tab bar, where
-    // the icon carries the meaning. Said in design-system.css beside the rule.
-    expect(sizeOf(".table th")).toBe(12);
+  it("keeps its one deliberate exception at 12px, and no lower", () => {
+    // The tab bar, where the icon carries the meaning — said in globals.css
+    // beside the rule. Table heads were the second exception until
+    // 2026-10-06: on a player's Board they are what is read.
     expect(sizeOf(".m-tab")).toBe(12);
   });
 });

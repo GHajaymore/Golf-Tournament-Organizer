@@ -106,7 +106,7 @@ describe("the published rules sheet breaks ties the way the round is scored", ()
       tiebreakers: CHAIN,
     }).find((t) => t.label === "Ties");
     expect(ties, "a medal published no tiebreak at all").toBeTruthy();
-    expect(ties!.value).toMatch(/^Countback: last 9 holes, then last 6, then last 3/);
+    expect(ties!.value).toMatch(/^Countback: last 9, 6 and 3 holes, then the final hole/);
     // And specifically NOT the match chain, which is the half that was wrong.
     expect(ties!.value).not.toMatch(/[Hh]ead-to-head/);
   });
@@ -124,7 +124,7 @@ describe("the published rules sheet breaks ties the way the round is scored", ()
       holes: 9,
       tiebreakers: CHAIN,
     }).find((t) => t.label === "Ties");
-    expect(ties!.value).toMatch(/^Countback: last 6 holes, then last 3, then the final hole/);
+    expect(ties!.value).toMatch(/^Countback: last 6 and 3 holes, then the final hole/);
     expect(ties!.value).not.toMatch(/last 9/);
   });
 

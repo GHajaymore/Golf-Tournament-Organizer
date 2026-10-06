@@ -139,7 +139,7 @@ export function PushToggle() {
       <Icon name="megaphone" style={{ color: "var(--color-accent-200)", fontSize: 20, flex: "none" }} />
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Get tee-time alerts</span>
-        <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.4 }}>
+        <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.4 }}>
           {state === "blocked"
             ? "Blocked — turn them on in your browser settings."
             : "When your tee time is posted or changes."}
