@@ -88,10 +88,10 @@ export function LocalePicker({ locale }: { locale: string }) {
       </select>
 
       <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.55 }}>
-        A tournament on 14–16 May reads{" "}
+        For example{" "}
         <b style={{ color: "var(--color-text)" }}>{formatDayRange("2026-05-14", "2026-05-16", value)}</b>
-        , and entries closing on the 7th read{" "}
-        <b style={{ color: "var(--color-text)" }}>{formatDay("2026-05-07", value)}</b>.
+        {" "}· entries close{" "}
+        <b style={{ color: "var(--color-text)" }}>{formatDay("2026-05-07", value)}</b>
       </p>
 
       {error && (

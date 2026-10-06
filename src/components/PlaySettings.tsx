@@ -46,6 +46,7 @@ import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
+import { MoreInfo } from "./MoreInfo";
 
 export interface RoundCode {
   stageId: string;
@@ -283,11 +284,15 @@ export function PlaySettings({
         <span className="card-title" style={{ fontSize: 15 }}>
           {isTournament ? "Players & scoring" : "House defaults for new tournaments"}
         </span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-          {isTournament
-            ? "How players see standings and report scores in this tournament."
-            : "What a new tournament starts with. Tournaments already created keep their own settings — changing these never rewrites an event in progress."}
-        </p>
+        {isTournament ? (
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+            How players see standings and report scores in this tournament.
+          </p>
+        ) : (
+          <MoreInfo short="Tournaments already created keep their own." style={{ marginTop: 4 }}>
+            What a new tournament starts with. Changing these never rewrites an event in progress.
+          </MoreInfo>
+        )}
       </div>
 
       <Group

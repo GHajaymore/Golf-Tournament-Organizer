@@ -20,6 +20,7 @@ import {
 import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
 import { planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Load a picked file far enough to draw it.
@@ -242,15 +243,15 @@ export function OrganizationClient(props: Props) {
             holds the theme, the house play settings, the money default and
             staff access. An intro naming one of five cards reads as a
             description of the page. */}
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          {/* `outfit.noun`, not "organization". The heading two lines up has
-              said "Club settings" since the profile landed, and this sentence
-              went on calling the same thing an organization directly beneath
-              it — on a page whose own Type card says "Golf club". Spotted by
-              Ajay, 2026-09-21. */}
-          Everything here applies to every tournament this {outfit.noun} runs — the branding on the console
-          header and printed scorecards, the look, how money works by default, and who has access.
-        </p>
+        {/* `outfit.noun`, not "organization". The heading two lines up has
+            said "Club settings" since the profile landed, and this sentence
+            went on calling the same thing an organization directly beneath
+            it — on a page whose own Type card says "Golf club". Spotted by
+            Ajay, 2026-09-21. */}
+        <MoreInfo short={`Applies to every tournament this ${outfit.noun} runs.`} style={{ marginTop: 6 }}>
+          The branding on the console header and printed scorecards, the look, how money works by
+          default, and who has access.
+        </MoreInfo>
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
@@ -425,12 +426,11 @@ export function OrganizationClient(props: Props) {
               </p>
             )}
 
-            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+            <MoreInfo short="A square or wide transparent PNG looks best." style={{ marginTop: 8 }}>
               Upload a {LOGO_EXT_LIST} file and it is resized and kept here, so it works for players and
               on printed scorecards without depending on another website. Or, if your logo is already
               online, right-click it there and paste the image address above — an SVG works that way too.
-              A square or wide transparent PNG looks best.
-            </p>
+            </MoreInfo>
           </div>
 
           <div>
@@ -561,7 +561,7 @@ export function OrganizationClient(props: Props) {
               />
             </div>
             <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-              Used to prefill the city when you add a course, so local courses don&rsquo;t need retyping.
+              Prefills the city when you add a course.
             </p>
           </div>
 
@@ -666,10 +666,12 @@ export function OrganizationClient(props: Props) {
               )}
             </span>
           </div>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            If the logo doesn&rsquo;t appear, the URL may point at a page rather than an image file, or the
-            host may block hotlinking.
-          </p>
+          {logoUrl && !uploaded && (
+            <MoreInfo short="Logo not showing?">
+              The URL may point at a page rather than an image file, or the host may block hotlinking.
+              Uploading the file instead always works.
+            </MoreInfo>
+          )}
         </div>
       </div>
     </>

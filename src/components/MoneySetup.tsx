@@ -184,13 +184,20 @@ export function MoneySetup({
           </p>
         )}
 
-        <p className="text-muted" style={{ fontSize: 13, margin: "2px 0 0" }}>
-          {/* Says what it actually does rather than leaving the reader to
-              work out what "the default" resolves to. */}
-          <Icon name="info" /> A tournament that has not chosen for itself uses:{" "}
-          <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[inherited]}</strong>.
-          {" "}Each one can still be set on its own Prizes &amp; payouts screen.
-        </p>
+        {/* Says what it actually does rather than leaving the reader to
+            work out what "the default" resolves to. */}
+        <MoreInfo
+          short={
+            <>
+              New tournaments use:{" "}
+              <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[inherited]}</strong>
+            </>
+          }
+          style={{ marginTop: 2 }}
+        >
+          A tournament that has not chosen for itself uses this. Each one can still be set on its own
+          Prizes &amp; payouts screen.
+        </MoreInfo>
       </section>
     );
   }
