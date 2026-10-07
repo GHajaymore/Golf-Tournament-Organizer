@@ -348,3 +348,36 @@ describe("what the two readers now share", () => {
     expect(r.final).toBe(false);
   });
 });
+
+/**
+ * A NASSAU IS THREE BETS, AND THE MATCH ENDING IS NOT THE LAST OF THEM
+ * (2026-10-07).
+ *
+ * Ann wins the 1st to the 5th and the 10th to the 12th, the rest halved so
+ * far. The front is hers 5&4; the overall is hers 8&6 after the 12th — a
+ * match over by the Rules (3.3a: won when a player leads by more holes than
+ * remain). The BACK nine is Ann 3 up with six to play: live. A Nassau's
+ * players walk on to the 13th to play for it, and Bea winning all six takes
+ * it 3 up — which moves the money from Bea paying $20 to Bea paying $10.
+ * Measured on a casual round's screen, which called the round's money final
+ * on the 12th green.
+ */
+describe("a round carrying a Nassau", () => {
+  const H = (s: string) => JSON.stringify([...s].map((c) => (c === "-" ? null : c)));
+  const twelve = H("AAAAAHHHHAAA------"); // overall 8&6, back nine 3 up with 6 to play
+  const eighteen = H("AAAAAHHHHAAABBBBBB"); // Bea takes the back 3 up
+  const round = (holes: string, nassau: boolean) =>
+    roundMoneyFinality({ stageId: "s1", holeCount: HOLES_18, cards: [], matches: [{ stageId: "s1", holes }], eventCompleted: false, nassau });
+
+  it("is not final while the back nine is still being played for", () => {
+    expect(round(twelve, true).final).toBe(false);
+  });
+
+  it("CONTROL: without a Nassau the same round is final at 8&6 — the match is all there is", () => {
+    expect(round(twelve, false).final).toBe(true);
+  });
+
+  it("is final once the back nine is decided too", () => {
+    expect(round(eighteen, true).final).toBe(true);
+  });
+});

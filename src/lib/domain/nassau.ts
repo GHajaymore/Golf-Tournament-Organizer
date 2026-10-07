@@ -61,3 +61,21 @@ export function playNassau(holes: HoleResult[]): NassauOutcome {
 
   return { segments, balance, decided };
 }
+
+/**
+ * EVERY BET IN THE NASSAU IS DECIDED — not just the match (2026-10-07).
+ *
+ * The overall match can be over long before the back nine is: Ann 5 up at
+ * the turn and winning the 10th, 11th and 12th closes the match 8&6 with the
+ * back-nine bet still live, and the players walk on to the 13th to play for
+ * it. Read as "the match is over", the round's money was called final on the
+ * 12th green and showed "Bea pays Ann $20.00" — then $10.00 after Bea won
+ * the back. Measured on a casual round's screen.
+ *
+ * An untouched card is not decided, the same guard `matchIsOver` keeps.
+ */
+export function nassauIsDecided(holes: HoleResult[]): boolean {
+  if (!holes.some((h) => h !== null)) return false;
+  const n = playNassau(holes);
+  return n.decided === n.segments.length;
+}
