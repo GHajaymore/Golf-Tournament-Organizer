@@ -212,8 +212,11 @@ describe("the play shell tells a code-redeemed player too", () => {
     const src = play();
     const shell = src.slice(src.indexOf("function Shell("), src.indexOf("export function PlayClient"));
     expect(shell).toMatch(/\{notice && \(/);
-    // And every surface passes it.
-    expect(src.split("<Shell brand={props.brand} notice={props.expiryNotice}>").length - 1).toBeGreaterThanOrEqual(4);
+    // And every surface passes it — and its one-line form (2026-10-07), the
+    // words the host reads on the round's own screen.
+    expect(
+      src.split("<Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>").length - 1,
+    ).toBeGreaterThanOrEqual(4);
     expect(src).not.toMatch(/<Shell brand=\{props\.brand\}>/);
   });
 

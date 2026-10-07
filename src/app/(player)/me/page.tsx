@@ -25,7 +25,7 @@ import { yourHistory } from "@/lib/domain/head-to-head";
 import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
-import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { notInItWords } from "@/lib/tournament-shape";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
@@ -420,7 +420,15 @@ export default async function PlayTodayPage() {
           the heading on every Today (measured 2026-10-06). */}
       {expiry && (
         <div style={{ marginTop: 12 }}>
-          <RoundExpiryBanner notice={expiry} canKeep={isStaff} keepRefusal={keepRefusal} />
+          {/* One line, the full sentence behind its ⓘ — the same words as the
+              round's own screen (`CasualRoundScreen`), so one warning reads one
+              way wherever it is met. */}
+          <RoundExpiryBanner
+            notice={expiry}
+            short={expiryShort(hoursLeft(state.event), isStaff)}
+            canKeep={isStaff}
+            keepRefusal={keepRefusal}
+          />
         </div>
       )}
 

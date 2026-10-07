@@ -101,6 +101,8 @@ interface Props {
    * nothing.
    */
   expiryNotice?: string;
+  /** The same warning in one line — see `Shell`. */
+  expiryShort?: string;
   /**
    * How this round is scored — gross | net | both | stableford.
    *
@@ -160,11 +162,18 @@ interface Props {
 function Shell({
   brand,
   notice,
+  short = "",
   children,
 }: {
   brand?: Brand | null;
   /** Already-worded, from `expiryNotice`. Empty renders nothing. */
   notice?: string;
+  /**
+   * The same warning in one line (`expiryShort`), with `notice` behind its ⓘ
+   * — the words the round's own screen and Today use, so a friend scoring by
+   * the code reads what the host reads.
+   */
+  short?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -194,7 +203,13 @@ function Shell({
             }}
           >
             <Icon name="clock" style={{ flex: "none" }} />
-            <span style={{ fontSize: 13, lineHeight: 1.5, minWidth: 0, flex: 1 }}>{notice}</span>
+            {short ? (
+              <MoreInfo short={short} style={{ minWidth: 0, flex: 1 }}>
+                {notice}
+              </MoreInfo>
+            ) : (
+              <span style={{ fontSize: 13, lineHeight: 1.5, minWidth: 0, flex: 1 }}>{notice}</span>
+            )}
           </div>
         )}
         {children}
@@ -325,7 +340,7 @@ export function PlayClient(props: Props) {
 
     if (players && context) {
       return (
-        <Shell brand={props.brand} notice={props.expiryNotice}>
+        <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{context.roundLabel}</div>
             <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -433,7 +448,7 @@ export function PlayClient(props: Props) {
     }
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, margin: 0, fontFamily: "var(--font-heading)" }}>Enter your score</h1>
           {/* TRUE FOR BOTH KINDS OF ROUND, because this screen cannot know
@@ -569,7 +584,7 @@ export function PlayClient(props: Props) {
     };
 
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
         <div style={{ marginBottom: 14 }}>
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -702,7 +717,7 @@ export function PlayClient(props: Props) {
 
   if (props.stage === "no-match") {
     return (
-      <Shell brand={props.brand} notice={props.expiryNotice}>
+      <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
         <div className="card elev-sm">
           <span className="card-title">No match for you in {props.roundLabel}</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
@@ -783,7 +798,7 @@ export function PlayClient(props: Props) {
   const halved = holes.filter((h) => h === "H").length;
 
   return (
-    <Shell brand={props.brand} notice={props.expiryNotice}>
+    <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
       <div style={{ marginBottom: 14 }}>
         <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
         <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>

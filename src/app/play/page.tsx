@@ -14,7 +14,7 @@ import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { isHeadToHead } from "@/lib/stage-types";
-import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { lineupHidden } from "@/lib/domain/cup-lineup";
@@ -82,6 +82,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    */
   const keepRefusal = hoursLeft(event) === null ? null : await casualKeepRefusalFor(event.id);
   const expiry = expiryNotice(hoursLeft(event), false, keepRefusal);
+  // One line, the sentence above behind its ⓘ — what the host reads too.
+  const expiryLine = expiryShort(hoursLeft(event), false);
 
   if (!match) {
     /**
@@ -165,6 +167,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         <DistanceUnitProvider unit={await distanceUnitFor(resolved, event.organizationId)}>
         <PlayClient
           expiryNotice={expiry}
+        expiryShort={expiryLine}
           stage="card"
           stageId={session.stageId}
           playerId={session.playerId}
@@ -197,6 +200,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     return (
       <PlayClient
         expiryNotice={expiry}
+        expiryShort={expiryLine}
         stage="no-match"
         brand={brand}
         playerName={session.playerName}
@@ -273,6 +277,7 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     <DistanceUnitProvider unit={await distanceUnitFor(playResolved, event.organizationId)}>
     <PlayClient
       expiryNotice={expiry}
+        expiryShort={expiryLine}
       stage="score"
       stageId={session.stageId}
       playerId={session.playerId}
