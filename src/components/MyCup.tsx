@@ -29,7 +29,7 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
   const names = (ids: string[], list: string[]) => list.map((n, i) => (ids[i] === meId ? "You" : n));
 
   return (
-    <section aria-label="Your cup" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+    <section aria-label="Your cup" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
       <span className="card-kicker">The cup</span>
       {/* keep-grid: a score side by side on a phone, not stacked. */}
       <div
@@ -42,11 +42,19 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
       </div>
       <p style={{ margin: 0, textAlign: "center", fontSize: 14 }}>{cupVerdictLine(board)}</p>
 
-      <h2 style={{ fontSize: 15, margin: "4px 0 0" }}>{mine.length === 1 ? "Your match" : "Your matches"}</h2>
+      {/* SAID ONCE (2026-10-06). With nothing announced, the verdict line
+          ("No lineup has been announced yet") and "Still to be announced"
+          below already say it; a third sentence here repeated them. The
+          heading and line belong to a cup where some sessions ARE out. */}
+      {(mine.length > 0 || board.sessions.some((s) => s.published)) && (
+        <h2 style={{ fontSize: 15, margin: "4px 0 0" }}>{mine.length === 1 ? "Your match" : "Your matches"}</h2>
+      )}
       {mine.length === 0 ? (
-        <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-          You aren&rsquo;t in an announced lineup yet. Your match appears here as soon as its session is announced.
-        </p>
+        board.sessions.some((s) => s.published) && (
+          <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            You&rsquo;re not in an announced lineup yet.
+          </p>
+        )
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
           {mine.map(({ session, match, side }) => {
@@ -100,9 +108,6 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
           .
         </p>
       )}
-      <Link className="btn btn-secondary" href="/me/board" style={{ alignSelf: "flex-start" }}>
-        Every match <Icon name="arrow-right" />
-      </Link>
     </section>
   );
 }

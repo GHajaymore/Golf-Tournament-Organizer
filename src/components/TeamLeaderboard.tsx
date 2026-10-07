@@ -3,6 +3,7 @@ import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
 import { toParText } from "@/lib/domain";
 import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
 import { MoreInfo } from "./MoreInfo";
+import { namedAfterPlayers } from "@/lib/domain/side-name";
 
 /**
  * Standings for a team round.
@@ -131,7 +132,7 @@ export function TeamStandingsTable({
                         something the name does not. */}
                     <td style={{ minWidth: "9.5em" }}>
                       <div style={{ fontWeight: 500 }}>{r.name}</div>
-                      {r.members.join(" / ") !== r.name && (
+                      {!namedAfterPlayers(r.name, r.members) && (
                         <div className="text-muted" style={{ fontSize: 13 }}>
                           {r.members.join(" · ") || "No players"}
                         </div>

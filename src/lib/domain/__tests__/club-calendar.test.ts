@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildClubCalendar, toneFor, type Commitment } from "../club-calendar";
+import { buildClubCalendar, toneFor, weekAhead, type Commitment } from "../club-calendar";
 
 /**
  * The club-wide calendar's one job: lay a member's commitments on the right
@@ -36,6 +36,38 @@ function dayOf(cal: ReturnType<typeof buildClubCalendar>, monthKey: string, iso:
   }
   return undefined;
 }
+
+/**
+ * WHAT ELSE I HAVE ON THIS WEEK, for the player's Today (2026-10-06). Values
+ * and order, over a fixture where every exclusion has a row it must drop.
+ */
+describe("weekAhead", () => {
+  const today = "2026-10-06";
+  const all = [
+    commitment({ stageId: "medal-r2", eventId: "medal", eventName: "Saturday Medal", playedOn: "2026-10-10" }),
+    commitment({ stageId: "league-w4", eventId: "league", eventName: "Thursday League", roundLabel: "Round 4", playedOn: "2026-10-08" }),
+    commitment({ stageId: "cup-a", eventId: "cup", eventName: "Autumn Cup", playedOn: "2026-10-08" }),
+    commitment({ stageId: "today", eventId: "pairs", eventName: "Pairs", playedOn: "2026-10-06" }),
+    commitment({ stageId: "day7", eventId: "late", eventName: "Late", playedOn: "2026-10-13" }),
+    commitment({ stageId: "past", eventId: "old", eventName: "Old", playedOn: "2026-10-05" }),
+    commitment({ stageId: "out", eventId: "skip", eventName: "Skipped", playedOn: "2026-10-09", status: "out" }),
+    commitment({ stageId: "undated", eventId: "nodate", eventName: "No date", playedOn: "" }),
+  ];
+
+  it("lists the other tournaments' rounds I'm playing in the next seven days, in date order", () => {
+    expect(weekAhead(all, today, "medal").map((c) => c.stageId)).toEqual(["today", "cup-a", "league-w4"]);
+  });
+
+  it("leaves the tournament I'm looking at to Today itself", () => {
+    expect(weekAhead(all, today, "league").map((c) => c.stageId)).not.toContain("league-w4");
+    expect(weekAhead(all, today, "league").map((c) => c.stageId)).toContain("medal-r2");
+  });
+
+  it("drops a week I'm out of, a day already gone, an undated round and one a week out", () => {
+    const ids = weekAhead(all, today, "nobody").map((c) => c.stageId);
+    for (const gone of ["out", "past", "undated", "day7"]) expect(ids, gone).not.toContain(gone);
+  });
+});
 
 describe("buildClubCalendar", () => {
   const today = "2026-01-01";

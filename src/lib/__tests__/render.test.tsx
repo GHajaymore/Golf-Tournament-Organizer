@@ -2860,6 +2860,22 @@ describe("stroke-play card", () => {
   it("stays unbranded when the club has set no mark", () => {
     expect(render(<StrokePlayEntry {...base} cardsByPlayer={{}} />)).not.toContain("<img");
   });
+
+  it("keeps voice on the screen and the card photo behind More, for a player", () => {
+    // Ajay, 2026-10-06: "hope the voice entry stays on main screen. scorecard
+    // picture submission can move to the extender" — for the players side.
+    const player = render(<StrokePlayEntry {...base} cardsByPlayer={{}} photoFolded />);
+    const fold = player.indexOf("Read a paper card from a photo");
+    expect(fold, "no photo extender").toBeGreaterThan(-1);
+    const details = player.lastIndexOf("<details", fold);
+    expect(details, "the photo reader is not folded").toBeGreaterThan(-1);
+    expect(player.slice(details, player.indexOf(">", details))).not.toMatch(/\bopen\b/);
+    expect(player).toContain("Voice entry");
+    expect(player.indexOf("Voice entry"), "voice is folded too").toBeLessThan(details);
+    // Staff read returned cards at the desk: open for them.
+    const staff = render(<StrokePlayEntry {...base} cardsByPlayer={{}} />);
+    expect(staff).not.toContain("Read a paper card from a photo");
+  });
 });
 
 describe("where this round was played", () => {
@@ -3641,6 +3657,8 @@ describe("a player's own availability", () => {
     whenLabel: "in 5 days",
     optDeadline: "2026-05-18",
     deadlineLabel: "Answer by Mon 18 May",
+    dayWords: "Tuesday",
+    deadlineWords: "Monday",
     status: "in" as const,
     explicit: true,
     locked: false,
@@ -8982,6 +9000,8 @@ describe("a player whose captain answers for them", () => {
     whenLabel: "in 5 days",
     optDeadline: "2026-05-18",
     deadlineLabel: "Answer by Mon 18 May",
+    dayWords: "Tuesday",
+    deadlineWords: "Monday",
     status: "in" as const,
     explicit: true,
     locked: false,

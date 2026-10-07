@@ -21,6 +21,7 @@
 
 import { monthGrids, partsOf, WEEKDAY_INITIALS } from "./month-grid";
 import { toneFor, TONE_LABEL, type DayTone } from "./availability-calendar";
+import { addDays } from "./round-dates";
 
 export { WEEKDAY_INITIALS, TONE_LABEL, toneFor };
 export type { DayTone };
@@ -98,6 +99,27 @@ export interface ClubCalendar {
    * them beside the calendar.
    */
   undated: Commitment[];
+}
+
+/**
+ * WHAT ELSE I HAVE ON THIS WEEK — the player's Today (Ajay, 2026-10-06).
+ *
+ * Today is one tournament's screen, so a member in the Thursday league AND
+ * the Saturday medal, looking at the medal, could not see Thursday. "What
+ * have I got on this week" is the first question a member's home has to
+ * answer, so the rounds in their OTHER tournaments over the next seven days
+ * sit on it, each one tap from that tournament.
+ *
+ * Only rounds they are down to play: a week they are out of is not something
+ * they have on. The active tournament's own rounds are left to Today itself,
+ * which already leads with its next one. Date order, then the calendar's own
+ * tournament-then-round order within a day.
+ */
+export function weekAhead(all: Commitment[], today: string, activeEventId: string): Commitment[] {
+  const end = addDays(today, 6);
+  return all
+    .filter((c) => c.eventId !== activeEventId && c.status === "in" && c.playedOn >= today && c.playedOn <= end)
+    .sort((a, b) => (a.playedOn === b.playedOn ? byNameThenRound(a, b) : a.playedOn < b.playedOn ? -1 : 1));
 }
 
 /** Tournament name, then round, so a day's list is stable and readable. */

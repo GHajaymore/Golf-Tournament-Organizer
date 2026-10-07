@@ -18,8 +18,20 @@ const keyFor = (id: string) => `announcement.${id}`;
  * phone has seen. That is the safe direction: a player whose storage is
  * blocked sees every notice, never none. It sits at the foot of Today, so
  * folding moves nothing above it.
+ *
+ * `earlierFold: false` is the PINNED list (2026-10-06, the one-screen Today):
+ * a pinned notice is never folded away — pinning means it outranks the rest —
+ * but once read it is ONE LINE, its title, with the text a tap away. Read
+ * before it shrinks, always: the fixture's own "Round 2 tee times are up"
+ * carries the first tee time in its body, and a title alone would hide it.
  */
-export function FoldedAnnouncements({ items }: { items: AnnouncementItem[] }) {
+export function FoldedAnnouncements({
+  items,
+  earlierFold = true,
+}: {
+  items: AnnouncementItem[];
+  earlierFold?: boolean;
+}) {
   const [seen, setSeen] = useState<Set<string> | null>(null);
 
   // Keyed on the ids, not the array: a refresh hands down a new array of the
@@ -34,8 +46,20 @@ export function FoldedAnnouncements({ items }: { items: AnnouncementItem[] }) {
   const fresh = seen ? items.filter((a) => !seen.has(a.id)) : items;
   const earlier = seen ? items.filter((a) => seen.has(a.id)) : [];
 
+  // No margin of its own: this list is Today's alone, and Today spaces its
+  // blocks itself — a margin here stacked into a 58px hole above "More".
+  if (!earlierFold) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((a) => (
+          <AnnouncementCard key={a.id} a={a} compact={!!seen?.has(a.id)} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {fresh.map((a) => (
         <AnnouncementCard key={a.id} a={a} />
       ))}

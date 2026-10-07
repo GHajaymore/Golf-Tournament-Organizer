@@ -164,6 +164,24 @@ export function relativeDay(date: IsoDate, today: IsoDate): string {
   return `in ${n} days`;
 }
 
+/**
+ * A day as a golfer says it: "today", "tomorrow", "Friday" inside the week,
+ * and the club's short date beyond it ("Tue 19 May") — never two dates to
+ * reconcile (Ajay, 2026-10-06, the In/Out redesign). "" for no date.
+ *
+ * Six days, not seven: a weekday name a full week out is the same name as
+ * this week's, and "Friday" would then mean two different days.
+ */
+export function dayInWords(date: IsoDate | "", today: IsoDate, locale: string): string {
+  if (!date || !isIsoDate(date)) return "";
+  const n = daysBetween(today, date);
+  if (n === null) return "";
+  if (n === 0) return "today";
+  if (n === 1) return "tomorrow";
+  if (n > 1 && n < 7) return weekdayOf(date);
+  return shortDate(date, locale);
+}
+
 /** Common cadences, in the words a club uses. */
 export const INTERVAL_OPTIONS = [
   { days: 7, label: "Every week" },

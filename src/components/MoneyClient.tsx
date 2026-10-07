@@ -61,10 +61,16 @@ const NO_IDS: string[] = [];
 export function MoneyClient({
   view,
   terms = golfTermsFor("us"),
+  more,
+  moreParts = [],
 }: {
   view: MoneyView;
   /** The club's golf words — cart or buggy (`golf-terms.ts`). */
   terms?: Record<GolfTerm, string>;
+  /** The page's own itemised parts — the pots, starting a side bet — for More. */
+  more?: React.ReactNode;
+  /** What `more` holds, by name, for the extender's label. */
+  moreParts?: string[];
 }) {
   const { money, plain, parse: centsFrom } = useMoney();
   const [pending, startTransition] = useTransition();
@@ -343,13 +349,126 @@ export function MoneyClient({
   );
   const shownTransfers = showAllTransfers ? [...mine, ...theirs] : mine;
 
+  /**
+   * The extender names what is in it, in the order it holds them — so a
+   * player can tell from the line whether it is worth opening. The note on how
+   * money works is always inside, which is what the bare label points at.
+   */
+  const named = [
+    view.contests.length > 0 || view.sideGames.length > 0 || unaccounted !== 0 ? "Side bets" : "",
+    view.expenses.length > 0 ? `Expenses (${view.expenses.length})` : "",
+    view.settlements.length > 0 ? "Already settled" : "",
+    ...moreParts,
+  ].filter(Boolean);
+  const moreLabel = named.length ? `More: ${named.join(" · ")}` : "More: About money";
+
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
-        {/* Not "Money": the screen's h1 says that directly above. This
-            section is the shared costs and who squares with whom. */}
-        Expenses and settling up
-      </div>
+      {/* The one number. */}
+      <section className="card elev-sm" style={{ alignItems: "center", textAlign: "center", padding: "14px 16px" }}>
+        <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
+          {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontSize: 44,
+            lineHeight: 1.1,
+            fontVariantNumeric: "tabular-nums",
+            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-200)" : "var(--color-text)",
+          }}
+        >
+          {money(Math.abs(view.netCents))}
+        </div>
+        {/* The parts, always — never make the total take it on faith. */}
+        {/* "Side bets", not "Side games". Three names for one pile of money:
+            this figure said "Side games", the section below it said "Side
+            bets", and the one under that said "Pots on the scores" — so a
+            player looking for what made up "Side games" found no section by
+            that name. "Side bets" is also what the organizer's screen calls the
+            card holding both kinds, so the two screens now agree. */}
+        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 13, color: "var(--color-neutral-400)" }}>
+          <span>Expenses {money(view.expensesCents)}</span>
+          {view.gamesCents !== 0 && <span>Side bets {money(view.gamesCents)}</span>}
+          {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
+        </div>
+      </section>
+
+      {/* Who hands what to whom. A plain list, and the copy never implies the
+          app moved anything. */}
+      {view.transfers.length > 0 && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Settle up</span>
+          {/* SHOW THE SAVING, do not just claim it.
+              Every splitting app simplifies debts and every one of them asks
+              you to take it on faith, which is why people re-add it by hand to
+              check. The count everybody WOULD have made is knowable — it is how
+              many people are not square — so it is stated beside the count
+              they now have. A reduction you can see is a reduction nobody
+              re-does on paper.
+
+              And ONLY when there is one (2026-10-06): with no saving to show,
+              "The fewest handovers that make everyone square" was two lines of
+              claim on the one screen Money now has to fit. */}
+          {owing > view.transfers.length && (
+            <p className="text-muted" style={{ fontSize: 14, margin: "4px 0 10px", lineHeight: 1.5 }}>
+              <b>
+                {view.transfers.length} handover{view.transfers.length === 1 ? "" : "s"}
+              </b>{" "}
+              instead of {owing}.
+            </p>
+          )}
+          {/* No "Your position" line here. It restated the Expenses / Side
+              bets / Settled parts printed under the one number above, in the
+              same figures, one card apart. */}
+          {shownTransfers.map((t) => (
+            <div
+              key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
+              style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
+            >
+              <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
+                {/* "You", by id: a player reading their own handover read
+                    their own name as if it were somebody else's (2026-10-06). */}
+                {t.fromPlayerId === view.playerId ? "You" : t.fromName} <Icon name="arrow-right" aria-label="pays" />{" "}
+                {t.toPlayerId === view.playerId ? "You" : t.toName}
+              </span>
+              <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
+              <button
+                type="button"
+                className="btn btn-secondary touch-target"
+                style={{ fontSize: 13 }}
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await recordSettlement(t.fromPlayerId, t.toPlayerId, t.cents);
+                    if (!res.ok) setError(res.error ?? "Couldn't record that.");
+                  })
+                }
+              >
+                Mark settled
+              </button>
+            </div>
+          ))}
+          {theirs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowAllTransfers((v) => !v)}
+              style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 13 }}
+            >
+              {showAllTransfers
+                ? "Just mine"
+                : `Show everyone else’s ${theirs.length} handover${theirs.length === 1 ? "" : "s"}`}
+            </button>
+          )}
+          {mine.length === 0 && !showAllTransfers && (
+            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+              Nothing for you to hand over or collect.
+            </p>
+          )}
+        </section>
+      )}
+
 
       {/* Add — the common case is an amount and a label. */}
       {!view.canAddExpense ? (
@@ -365,13 +484,12 @@ export function MoneyClient({
          * `addExpense` refuses the same case with the same sentence. This only
          * decides whether a control is offered.
          */
-        <p
-          className="text-muted"
-          style={{ fontSize: 13, margin: "12px 0 0", lineHeight: 1.6 }}
-        >
-          <Icon name="info" /> The {terms.organizers} add the shared costs for this one — send them
-          what you paid for and it will appear here.
-        </p>
+        // A short line, the whole sentence behind the ⓘ (2026-10-06): it was
+        // twenty words at 13px, on the screen kept to the one number.
+        <MoreInfo short={`The ${terms.organizers} add the shared costs.`} style={{ marginTop: 12 }}>
+          The {terms.organizers} add the shared costs for this one — send them what you paid for and it
+          will appear here.
+        </MoreInfo>
       ) : !adding ? (
         <button
           type="button"
@@ -720,36 +838,20 @@ export function MoneyClient({
         </section>
       )}
 
-      {/* The one number. */}
-      <section className="card elev-sm" style={{ marginTop: 8, alignItems: "center", textAlign: "center", padding: "20px 16px" }}>
-        <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-          {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: 44,
-            lineHeight: 1.1,
-            fontVariantNumeric: "tabular-nums",
-            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-200)" : "var(--color-text)",
-          }}
-        >
-          {money(Math.abs(view.netCents))}
-        </div>
-        {/* The parts, always — never make the total take it on faith. */}
-        {/* "Side bets", not "Side games". Three names for one pile of money:
-            this figure said "Side games", the section below it said "Side
-            bets", and the one under that said "Pots on the scores" — so a
-            player looking for what made up "Side games" found no section by
-            that name. "Side bets" is also what the organizer's screen calls the
-            card holding both kinds, so the two screens now agree. */}
-        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 13, color: "var(--color-neutral-400)" }}>
-          <span>Expenses {money(view.expensesCents)}</span>
-          {view.gamesCents !== 0 && <span>Side bets {money(view.gamesCents)}</span>}
-          {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
-        </div>
-      </section>
 
+
+      {/* MORE — the itemised money, behind one extender that names what is
+          in it (Ajay, 2026-10-06: Money "can be same way" as Today). The
+          screen leads with the one number and the handovers that are yours;
+          what made them up is a tap away, never gone. */}
+      <details style={{ marginTop: 4 }}>
+        <summary
+          className="touch-target"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
+        >
+          <Icon name="caret-down" aria-hidden />
+          {moreLabel}
+        </summary>
       {/* Part of what makes up the "Side bets" figure in the summary. A total a
           player cannot expand is a number they have to take on trust, and this
           is the screen that can least afford one.
@@ -995,79 +1097,6 @@ export function MoneyClient({
         </section>
       )}
 
-      {/* Who hands what to whom. A plain list, and the copy never implies the
-          app moved anything. */}
-      {view.transfers.length > 0 && (
-        <section className="card elev-sm" style={{ marginTop: 12 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>Settle up</span>
-          <p className="text-muted" style={{ fontSize: 14, margin: "4px 0 10px", lineHeight: 1.5 }}>
-            {/* SHOW THE SAVING, do not just claim it.
-                Every splitting app simplifies debts and every one of them
-                asks you to take it on faith, which is why people re-add it by
-                hand to check. The count everybody WOULD have made is knowable
-                — it is how many people are not square — so it is stated
-                beside the count they now have. A reduction you can see is a
-                reduction nobody re-does on paper. */}
-            {view.transfers.length > 0 && owing > view.transfers.length ? (
-              <>
-                <b>
-                  {view.transfers.length} handover{view.transfers.length === 1 ? "" : "s"}
-                </b>{" "}
-                {/* The count IS the saving; the sentence that explained it ran
-                    to seventeen words on a phone (2026-10-06). */}
-                instead of {owing}.{" "}
-              </>
-            ) : (
-              <>The fewest handovers that make everyone square.</>
-            )}
-          </p>
-          {/* No "Your position" line here. It restated the Expenses / Side
-              bets / Settled parts printed under the one number above, in the
-              same figures, one card apart. */}
-          {shownTransfers.map((t) => (
-            <div
-              key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
-              style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
-            >
-              <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
-                {t.fromName} <Icon name="arrow-right" aria-label="pays" /> {t.toName}
-              </span>
-              <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
-              <button
-                type="button"
-                className="btn btn-secondary touch-target"
-                style={{ fontSize: 13 }}
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await recordSettlement(t.fromPlayerId, t.toPlayerId, t.cents);
-                    if (!res.ok) setError(res.error ?? "Couldn't record that.");
-                  })
-                }
-              >
-                Mark settled
-              </button>
-            </div>
-          ))}
-          {theirs.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setShowAllTransfers((v) => !v)}
-              style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 13 }}
-            >
-              {showAllTransfers
-                ? "Just mine"
-                : `Show everyone else’s ${theirs.length} handover${theirs.length === 1 ? "" : "s"}`}
-            </button>
-          )}
-          {mine.length === 0 && !showAllTransfers && (
-            <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-              Nothing for you to hand over or collect.
-            </p>
-          )}
-        </section>
-      )}
 
       {/* The lines themselves. */}
       <section className="card elev-sm" style={{ marginTop: 12 }}>
@@ -1290,6 +1319,8 @@ export function MoneyClient({
           ))}
         </section>
       )}
+      {more}
+      </details>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { TeamMatchRow } from "@/lib/services/teams";
 import { LEAGUE_POINTS_LABEL, type LeaguePointsSystem } from "@/lib/domain/league-meeting";
+import { namedAfterPlayers } from "@/lib/domain/side-name";
 
 /**
  * THE BOARD A ROUND ROBIN OF TEAM MATCHES BELONGS ON.
@@ -51,7 +52,7 @@ export function TeamMatchLeaderboard({
                 <td>{r.played > 0 ? r.rank : "—"}</td>
                 <td style={{ minWidth: 0 }}>
                   <strong>{r.name}</strong>
-                  {r.members.length > 0 && (
+                  {r.members.length > 0 && !namedAfterPlayers(r.name, r.members) && (
                     <div className="text-muted" style={{ fontSize: 13 }}>
                       {r.members.join(" · ")}
                     </div>

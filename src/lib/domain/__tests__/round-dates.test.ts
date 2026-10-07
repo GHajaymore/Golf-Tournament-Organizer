@@ -6,7 +6,38 @@ import {
   shortDate,
   isIsoDate,
   cleanIsoDate,
+  dayInWords,
 } from "../round-dates";
+
+/**
+ * A DAY AS A GOLFER SAYS IT — the In/Out question's dates (2026-10-06).
+ * 2026-10-06 is a Tuesday.
+ */
+describe("dayInWords", () => {
+  const today = "2026-10-06";
+
+  it("says today and tomorrow", () => {
+    expect(dayInWords("2026-10-06", today, "en-GB")).toBe("today");
+    expect(dayInWords("2026-10-07", today, "en-GB")).toBe("tomorrow");
+  });
+
+  it("names the weekday inside the week", () => {
+    expect(dayInWords("2026-10-09", today, "en-GB")).toBe("Friday");
+    expect(dayInWords("2026-10-12", today, "en-GB")).toBe("Monday");
+  });
+
+  it("gives the date from seven days out, where a weekday name would mean two days", () => {
+    // Next Tuesday is "Tuesday" — the same word as today.
+    expect(dayInWords("2026-10-13", today, "en-GB")).toBe(shortDate("2026-10-13", "en-GB"));
+    // In the club's own order.
+    expect(dayInWords("2026-10-13", today, "en-US")).toBe(shortDate("2026-10-13", "en-US"));
+  });
+
+  it("says nothing for no date", () => {
+    expect(dayInWords("", today, "en-GB")).toBe("");
+    expect(dayInWords("not a date", today, "en-GB")).toBe("");
+  });
+});
 
 /**
  * A league night is a calendar day, not a moment.

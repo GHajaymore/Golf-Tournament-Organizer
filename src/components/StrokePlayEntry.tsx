@@ -79,6 +79,7 @@ export function StrokePlayEntry({
   teeGroups = [],
   shotsByPlayer = {},
   cardScanAvailable = true,
+  photoFolded = false,
   brand,
   scoringBasis = "both",
   format = "",
@@ -102,6 +103,13 @@ export function StrokePlayEntry({
   /** False when this club's plan doesn't include reading a card from a
    *  photo. Passed down so the control renders locked rather than vanishing. */
   cardScanAvailable?: boolean;
+  /**
+   * A PLAYER's screen (Ajay, 2026-10-06): voice entry stays on the main
+   * screen and reading a card from a photo goes behind an extender — players
+   * score on the course, and a photographed card is the desk's job. Staff
+   * keep it open, since reading returned cards is what they are there to do.
+   */
+  photoFolded?: boolean;
   /** The round's tee sheet: who is sharing a card with whom. Empty when no
    *  sheet has been drawn, in which case entry falls back to one player. */
   teeGroups?: Array<{ name: string; time: string; playerIds: string[] }>;
@@ -386,6 +394,28 @@ export function StrokePlayEntry({
   // went with them — a birdie ring on a hole you know you bogeyed is still
   // caught the moment it appears, now on both screens instead of one.
 
+  /** Reading a card from a photo — open for staff, behind More for a player. */
+  const photoReader = (
+    <CardPhotoReader
+      available={cardScanAvailable}
+      stageId={stageId}
+      players={cardPlayers}
+      holeCount={holes}
+      onReading={(rows) =>
+        setCards((prev) => {
+          const next = { ...prev };
+          for (const { playerId: id, strokes } of rows) {
+            // Merge rather than replace: a hole the reader could not
+            // make out must not wipe a score already typed in by hand.
+            const current = next[id] ?? new Array(holes).fill(null);
+            next[id] = current.map((existing, i) => strokes[i] ?? existing ?? null);
+          }
+          return next;
+        })
+      }
+    />
+  );
+
   return (
     <div className="card elev-sm">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -594,28 +624,19 @@ export function StrokePlayEntry({
           "coming soon" panel taking most of a screen of scrolling on every
           visit. A returned card photographed at the desk is read after the
           round, so here is where it is reached for anyway. */}
-      {cardPlayers.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <CardPhotoReader
-            available={cardScanAvailable}
-            stageId={stageId}
-            players={cardPlayers}
-            holeCount={holes}
-            onReading={(rows) =>
-              setCards((prev) => {
-                const next = { ...prev };
-                for (const { playerId: id, strokes } of rows) {
-                  // Merge rather than replace: a hole the reader could not
-                  // make out must not wipe a score already typed in by hand.
-                  const current = next[id] ?? new Array(holes).fill(null);
-                  next[id] = current.map((existing, i) => strokes[i] ?? existing ?? null);
-                }
-                return next;
-              })
-            }
-          />
-        </div>
+      {cardPlayers.length > 0 && photoFolded && (
+        <details style={{ marginTop: 14 }}>
+          <summary
+            className="touch-target"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
+          >
+            <Icon name="caret-down" aria-hidden />
+            More: Read a paper card from a photo
+          </summary>
+          <div style={{ marginTop: 10 }}>{photoReader}</div>
+        </details>
       )}
+      {cardPlayers.length > 0 && !photoFolded && <div style={{ marginTop: 14 }}>{photoReader}</div>}
     </div>
   );
 }

@@ -22,6 +22,8 @@ const round = (over: Partial<AvailabilityRound> = {}): AvailabilityRound => ({
   whenLabel: "",
   optDeadline: "",
   deadlineLabel: "Open",
+  dayWords: "",
+  deadlineWords: "",
   status: "in",
   explicit: false,
   locked: false,

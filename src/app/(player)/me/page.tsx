@@ -48,6 +48,12 @@ import { MoreInfo } from "@/components/MoreInfo";
 import { MyCup } from "@/components/MyCup";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { canEnterScores } from "@/lib/tournament-settings";
+import { clubCommitmentsFor } from "@/lib/services/club-calendar";
+import { weekAhead } from "@/lib/domain/club-calendar";
+import { dayInWords } from "@/lib/domain/round-dates";
+import { formattingForEvent } from "@/lib/services/organization";
+import { enterTournament } from "@/app/actions/auth";
+import { namedAfterPlayers } from "@/lib/domain/side-name";
 
 /**
  * Today — the player's home.
@@ -223,6 +229,8 @@ export default async function PlayTodayPage() {
       : [];
   const myIdx = sidesThisRound.findIndex((s) => s.memberIds.includes(me.playerId ?? ""));
   const mySide = myIdx >= 0 ? sidesThisRound[myIdx] : null;
+  /** My side's players, with me as "You" — matched by id, never by name. */
+  const sidePlayers = mySide ? mySide.members.map((n, i) => (mySide.memberIds[i] === me.playerId ? "You" : n)) : [];
   /**
    * And WHERE that side stands, by the board's own rule.
    *
@@ -239,6 +247,38 @@ export default async function PlayTodayPage() {
           (s) => s.played > 0,
         )[myIdx]
       : null;
+
+  /**
+   * ONE SCREEN, THEN MORE (Ajay, 2026-10-06). Today answers the moment — the
+   * round, the group, whether you're playing, where you stand, what you have
+   * on this week — and everything a player only sometimes wants sits behind
+   * one labelled extender at the bottom. What decides each placement:
+   *
+   *   In / Out        on the screen until the round is under way: before it,
+   *                   "are you playing Friday" IS the moment; once the card
+   *                   has holes, the season's weeks are not.
+   *   Leaders         on the screen only for somebody with no card of their
+   *                   own (watching, waiting) — for them the board is the
+   *                   content. A player with a card gets one position line,
+   *                   and the table behind More.
+   *   This week       the player's rounds in their OTHER tournaments over the
+   *                   next seven days — Today is one tournament, and "what
+   *                   have I got on" is not.
+   */
+  const today = todayIso();
+  const { locale } = await formattingForEvent(state.event.id);
+  const thisWeek = weekAhead(await clubCommitmentsFor(session.email), today, session.eventId);
+  /**
+   * IS THE ROUND UNDER WAY — for THIS player, whatever shape it is. Their own
+   * card has holes in, or their side's card does (a four-ball or foursomes
+   * player owns no card), or one of their matches has started. One reading,
+   * so the In / Out question and the group card leave the screen together.
+   */
+  const roundUnderWay =
+    (card?.filled ?? 0) > 0 || (mySide?.played ?? 0) > 0 || (round?.matches ?? []).some((m) => !m.notStarted);
+  const availabilityShown = Boolean(me.playerId && availability.playerId);
+  const availabilityOnScreen = availabilityShown && Boolean(availability.next) && !roundUnderWay;
+  const leadersOnScreen = !hero;
 
   const shown = leadersWithYou(boardRows, me.playerId ?? "", 5);
   const shownNames = boardNames(shown.map((s) => s.row.name));
@@ -260,6 +300,85 @@ export default async function PlayTodayPage() {
     you: row.id === me.playerId,
     gap,
   }));
+
+  /**
+   * WHO I GO OFF WITH, AND WHEN — the first-tee question. Leading the screen
+   * before the round; under More once it is under way (`roundUnderWay`),
+   * because a player on the course is standing with their group (the design
+   * table, 2026-10-06: during the round the summary is the card and the
+   * position).
+   */
+  const groupCard =
+    me.playerId && round?.group ? (
+        <section
+          className="card elev-sm"
+          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
+        >
+          {round.group.partners.length > 0 && (
+            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
+              {round.group.partners.slice(0, 3).map((p, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: "var(--color-surface-2)",
+                    border: "2px solid var(--color-surface)",
+                    marginLeft: i === 0 ? 0 : -8,
+                  }}
+                >
+                  {initialsOf(p)}
+                </span>
+              ))}
+            </span>
+          )}
+          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>
+              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
+            </span>
+            <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
+              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
+              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
+            </span>
+          </span>
+        </section>
+    ) : null;
+  const groupOnScreen = !roundUnderWay;
+
+  const expiry = expiryNotice(hoursLeft(state.event), isStaff, keepRefusal);
+
+  /** The In / Out card — on the screen or under More, never both. */
+  const availabilityCard = availabilityShown ? (
+    <div style={{ marginTop: 12 }}>
+      <RoundAvailability
+        playerId={availability.playerId}
+        next={availability.next}
+        future={availability.future}
+        past={availability.past}
+        captainOf={availability.captainOf}
+        asksPlayer={availability.asksPlayer}
+        today={today}
+        compact
+      />
+    </div>
+  ) : null;
+  /**
+   * The extender NAMES what is in it — "More: Leaders · Your rounds" — so a
+   * player knows whether it is worth opening. With nothing to name it is not
+   * drawn at all: an extender that opens onto nothing is worse than none.
+   */
+  const moreParts = [
+    !groupOnScreen && groupCard ? "Your group" : "",
+    !leadersOnScreen && leaders.length > 0 ? "Leaders" : "",
+    availabilityShown && !availabilityOnScreen ? "Your rounds" : "",
+    playWith ? "Playing partners" : "",
+  ].filter(Boolean);
+  const moreLabel = `More: ${moreParts.join(" · ")}`;
 
   return (
     <div>
@@ -296,13 +415,13 @@ export default async function PlayTodayPage() {
        * keep it", which was themselves (walked 2026-09-27). `hoursLeft` is null
        * for every tournament, so nothing mounts outside a casual round.
        */}
-      <div style={{ marginTop: 12 }}>
-        <RoundExpiryBanner
-          notice={expiryNotice(hoursLeft(state.event), isStaff, keepRefusal)}
-          canKeep={isStaff}
-          keepRefusal={keepRefusal}
-        />
-      </div>
+      {/* Only with a notice to show: an empty wrapper still took 12px under
+          the heading on every Today (measured 2026-10-06). */}
+      {expiry && (
+        <div style={{ marginTop: 12 }}>
+          <RoundExpiryBanner notice={expiry} canKeep={isStaff} keepRefusal={keepRefusal} />
+        </div>
+      )}
 
       {/**
        * PINNED NOTICES STAY ABOVE THE ROUND. `/announcements` promises the
@@ -310,7 +429,11 @@ export default async function PlayTodayPage() {
        * dashboard", and pinning is the organizer saying this one outranks
        * everything — a frost delay. Unpinned posts sit under the round.
        */}
-      <AnnouncementList items={announcements.filter((a) => a.pinned)} />
+      {announcements.some((a) => a.pinned) && (
+        <div style={{ marginTop: 12 }}>
+          <AnnouncementList items={announcements.filter((a) => a.pinned)} lineOnceRead />
+        </div>
+      )}
 
       {cup && me.playerId && (
         <MyCup board={cup} meId={me.playerId} canScore={canEnterScores(settingsOf(state.event), session.viewRole)} />
@@ -331,7 +454,7 @@ export default async function PlayTodayPage() {
        * a round nobody has created.
        */}
       {me.playerId && !round && (
-        <section aria-label="Nothing to play yet" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Nothing to play yet" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re in — nothing to play yet</span>
           {/* "No round to play" rather than "the organizer hasn't added one":
               this branches on `me.round`, which is null when there is no
@@ -352,7 +475,7 @@ export default async function PlayTodayPage() {
       {/* Awaiting approval is a kind of waiting with different words — see
           `awaitingIn` in club-events.ts. */}
       {waiting && myRow?.awaiting && (
-        <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">Your entry is awaiting approval</span>
           <MoreInfo short="No card until it's approved.">
             The {terms.organizer} approves each entry to this tournament, and yours is with them. There&rsquo;s
@@ -362,7 +485,7 @@ export default async function PlayTodayPage() {
       )}
 
       {waiting && !myRow?.awaiting && (
-        <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
           <MoreInfo short="No card until a place opens up.">
             Your name is down and the {terms.organizer} will confirm your place if one opens up. There&rsquo;s
@@ -377,7 +500,7 @@ export default async function PlayTodayPage() {
       )}
 
       {!me.playerId && !watching && !waiting && (
-        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 16 }}>
+        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 12 }}>
           So there&rsquo;s no card here. The board is still open on the next tab.
         </MoreInfo>
       )}
@@ -389,7 +512,7 @@ export default async function PlayTodayPage() {
        * and if the door is open, this is where it is.
        */}
       {watching && (
-        <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re watching this one</span>
           <MoreInfo short="You aren't entered — the board is open to read.">
             You aren&rsquo;t entered, so there&rsquo;s no card for you here. The board, the groups and the
@@ -400,14 +523,28 @@ export default async function PlayTodayPage() {
               {myRow.windowNote}
             </span>
           )}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {myRow?.canEnter && (
-              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} waitlistOnly={myRow.waitlistOnly} style={{ flex: "1 1 160px" }} />
-            )}
-            <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
-              See the board <Icon name="arrow-right" />
-            </Link>
-          </div>
+          {myRow?.canEnter && (
+            <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} waitlistOnly={myRow.waitlistOnly} />
+          )}
+        </section>
+      )}
+
+      {/* BEFORE THE ROUND, WHO AND WHEN COMES FIRST: the group, tee time and
+          start hole lead the screen, the card and "Start my card" under them.
+          Once the round is under way the group moves to More (`groupOnScreen`). */}
+      {groupOnScreen && groupCard}
+
+      {/* The sheet is out and I am not on it — entered after the draw. Said
+          plainly, so "not drawn yet" and "left off" are not the same silence;
+          in the group's own place, because it is the answer to the same
+          question. Not once the round is under way: by then it is answered. */}
+      {me.playerId && round?.offSheet && !round.group && !roundUnderWay && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
+          <MoreInfo short={`The ${terms.organizer} will add you to a group.`} style={{ marginTop: 4 }}>
+            The tee times for this round are out, and you were entered after they were drawn. The{" "}
+            {terms.organizer} adds you to a group — check back here, or ask them for your time.
+          </MoreInfo>
         </section>
       )}
 
@@ -474,14 +611,23 @@ export default async function PlayTodayPage() {
               side has a card has started, whatever the individual table says,
               and this screen used to tell them otherwise. */}
           {mySide && (
-            <section className="card elev-sm" style={{ marginTop: 18 }}>
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">
                 {mySide.played > 0 ? "Your side" : "Your side · not started"}
               </span>
-              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{mySide.name}</div>
-              <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
-                {mySide.members.join(" · ")}
+              {/* "You & Ravenswoo 2", as the cup card says "You & Bram Blue":
+                  the player is one of these names, and reading their own name
+                  as if it were a stranger's is the screen not knowing who it
+                  is talking to. A side with a name of its own keeps it, and
+                  its players are listed under it. */}
+              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>
+                {namedAfterPlayers(mySide.name, mySide.members) ? sidePlayers.join(" & ") : mySide.name}
               </div>
+              {!namedAfterPlayers(mySide.name, mySide.members) && (
+                <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
+                  {sidePlayers.join(" · ")}
+                </div>
+              )}
               {mySide.played > 0 ? (
                 <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6 }}>
                   {mySide.played >= holes ? "Round complete" : `Thru ${mySide.played}`} ·{" "}
@@ -493,18 +639,16 @@ export default async function PlayTodayPage() {
                     : ""}
                 </p>
               ) : (
-                <p className="text-muted" style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6 }}>
-                  Your side&rsquo;s card hasn&rsquo;t been started yet.
-                </p>
+                // Why it is the SIDE's card sits behind the ⓘ here — this card
+                // is the one place Today talks about it (2026-10-06).
+                <MoreInfo short="Your side’s card hasn’t been started yet.">
+                  {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
+                </MoreInfo>
               )}
-              {/* Where the rest of the field is. The board has the sides now. */}
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See every side <Icon name="arrow-right" />
-              </Link>
             </section>
           )}
           {!standing && !mySide && !round?.matches.length && !round?.tie && (
-            <section className="card elev-sm" style={{ marginTop: 18 }}>
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">
                 Your score appears once the first hole goes in.
@@ -514,7 +658,7 @@ export default async function PlayTodayPage() {
           {standing && (
             <section
               className="card elev-sm"
-              style={{ marginTop: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
+              style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
             >
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
@@ -604,9 +748,6 @@ export default async function PlayTodayPage() {
                   organizer={terms.organizer}
                 />
               )}
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See the draw <Icon name="arrow-right" />
-              </Link>
             </section>
           )}
           {/**
@@ -636,11 +777,10 @@ export default async function PlayTodayPage() {
                 You didn&rsquo;t make the cut after {round.cutOut}, so there&rsquo;s no {round.name} card for
                 you.
               </MoreInfo>
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See the board <Icon name="arrow-right" />
-              </Link>
             </section>
-          ) : (
+          ) : mySide ? null /* The side card above already says where the
+              side's card is; a second card saying "This card belongs to your
+              side" was the same fact twice (2026-10-06). */ : (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
               {round && (
@@ -656,64 +796,24 @@ export default async function PlayTodayPage() {
         </>
       )}
 
-      {/* Who I go off with. The question every player asks first — so it
-          sits straight under their own card, ABOVE the leaders (Ajay,
-          2026-10-05). It was below them, a scroll down on a phone. */}
-      {me.playerId && round?.group && (
-        <section
-          className="card elev-sm"
-          style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}
-        >
-          {round.group.partners.length > 0 && (
-            <span aria-hidden="true" style={{ display: "flex", flex: "none" }}>
-              {round.group.partners.slice(0, 3).map((p, i) => (
-                <span
-                  key={i}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: "var(--color-surface-2)",
-                    border: "2px solid var(--color-surface)",
-                    marginLeft: i === 0 ? 0 : -8,
-                  }}
-                >
-                  {initialsOf(p)}
-                </span>
-              ))}
-            </span>
-          )}
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>
-              {[round.group.name || "Your group", round.group.time].filter(Boolean).join(" · ")}
-            </span>
-            <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
-              {round.group.partners.length ? `With ${round.group.partners.join(", ")}` : "Playing on your own."}
-              {round.group.startHole > 1 ? ` · starting on hole ${round.group.startHoleNumber}` : ""}
-            </span>
-          </span>
-        </section>
-      )}
-
       {/**
        * WHERE I STAND, ON THE LEADERS BOARD. The top five and the player,
        * from `standingRows` — the Board tab's own rows — and only where the
        * Board tab would show them: the club has published standings, and the
        * round ranks individuals. The qualifier ("2 of 4 cards in — these
        * standings will change") is printed under the board it qualifies.
+       *
+       * On the screen for somebody with no card of their own; a player with a
+       * card reads one position line here and the table under More.
        */}
-      {leaders.length > 0 ? (
+      {leadersOnScreen && leaders.length > 0 && (
         <ScoreboardLeaders
           rows={leaders}
           note={standing?.note || standing?.record || ""}
           title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
         />
-      ) : (
-        hero &&
+      )}
+      {hero &&
         standing && (
           <Link
             href="/me/board"
@@ -733,7 +833,9 @@ export default async function PlayTodayPage() {
             </span>
             <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>
-                {standing.position ? "On the board" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
+                {/* Names the number beside it: "On the board" beside a bare
+                    "4" did not say the 4 was the player's place. */}
+                {standing.position ? "Your position" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
               </span>
               {(standing.note || standing.record) && (
                 <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
@@ -743,64 +845,95 @@ export default async function PlayTodayPage() {
             </span>
             <Icon name="arrow-right" />
           </Link>
-        )
-      )}
+        )}
 
-      {/* The sheet is out and I am not on it — entered after the draw. Said
-          plainly, so "not drawn yet" and "left off" are not the same silence.
-          Not once a card has holes in: by then the question is answered. */}
-      {me.playerId && round?.offSheet && !round.group && !card?.filled && (
-        <section className="card elev-sm" style={{ marginTop: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>You&rsquo;re not on the tee sheet yet</span>
-          <MoreInfo short={`The ${terms.organizer} will add you to a group.`} style={{ marginTop: 4 }}>
-            The tee times for this round are out, and you were entered after they were drawn. The{" "}
-            {terms.organizer} adds you to a group — check back here, or ask them for your time.
-          </MoreInfo>
-        </section>
-      )}
+      {/* Am I playing, and when — asked as a question until it is answered,
+          one line after (`NextRound`). On the screen until the round is under
+          way; then it joins the rest of the season under More. */}
+      {availabilityOnScreen && availabilityCard}
 
-      {/* A pairing request, while there is still a draw to ask of — no group
-          on a published sheet yet, and nothing on the card. */}
-      {playWith && (
-        <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />
-      )}
-
-      {/* Opt in to tee-time push alerts. Self-hiding: it renders nothing where
-          push isn't available and shrinks to one line once alerts are on, so it
-          is a prompt rather than a permanent card. */}
-      <div style={{ marginTop: 12 }}>
-        <PushToggle />
-      </div>
-
-      {/* The rest of what the club posted, under the player's own round. */}
+      {/* What the club posted: new ones in full, read ones folded into
+          "N earlier messages" (2026-10-05). */}
       {announcements.some((a) => !a.pinned) && (
         <div style={{ marginTop: 12 }}>
-          {/* Read once, then folded into "N earlier messages" (2026-10-05). */}
           <AnnouncementList items={announcements.filter((a) => !a.pinned)} foldSeen />
         </div>
       )}
 
-      {/* The club's tournaments and a casual round used to be two rows here.
-          Both live on the Events tab now (player-nav.ts), one tap from
-          anywhere — a row on Today was a second way to the same place. */}
+      {/* WHAT ELSE I HAVE ON THIS WEEK — my rounds in my other tournaments,
+          each one tap from that tournament's Today (`weekAhead`). */}
+      {thisWeek.length > 0 && (
+        <section aria-label="This week" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="card-kicker">Also this week</span>
+          {/* Three at most: a member in three leagues and a medal is a
+              calendar, and the Calendar tab is where a calendar lives. */}
+          {thisWeek.slice(0, 3).map((c) => (
+            <form key={c.stageId} action={enterTournament.bind(null, c.eventId, "player")}>
+              <button
+                type="submit"
+                className="btn btn-secondary"
+                style={{ width: "100%", minHeight: 48, justifyContent: "space-between", textAlign: "left", gap: 10 }}
+              >
+                <span style={{ minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                  <span style={{ fontWeight: 600 }}>
+                    {capitalise(dayInWords(c.playedOn, today, locale))}
+                    {c.roundLabel ? ` · ${c.roundLabel}` : ""}
+                  </span>
+                  <span className="text-muted" style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.eventName}
+                  </span>
+                </span>
+                <Icon name="arrow-right" />
+              </button>
+            </form>
+          ))}
+          {thisWeek.length > 3 && (
+            <Link href="/me/calendar" className="touch-target" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-accent-200)" }}>
+              {thisWeek.length - 3} more this week — see your calendar
+            </Link>
+          )}
+        </section>
+      )}
 
-      {/* Am I playing, and when. `compact`: the next round's In / Out on its
-          own, the season's calendar a tap away (Ajay, 2026-10-05) — two month
-          grids were over a screen of Today on a phone. */}
-      {me.playerId && availability.playerId && (
+      {/* MORE — what a player only sometimes wants, behind one extender that
+          names what is in it. Nothing in here needs them to act. */}
+      {moreParts.length === 0 ? (
         <div style={{ marginTop: 12 }}>
-          <RoundAvailability
-            playerId={availability.playerId}
-            next={availability.next}
-            future={availability.future}
-            past={availability.past}
-            captainOf={availability.captainOf}
-            asksPlayer={availability.asksPlayer}
-            today={todayIso()}
-            compact
-          />
+          <PushToggle />
         </div>
+      ) : (
+      <details style={{ marginTop: 4 }}>
+        <summary
+          className="touch-target"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
+        >
+          <Icon name="caret-down" aria-hidden />
+          {moreLabel}
+        </summary>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+          {!groupOnScreen && groupCard}
+          {!leadersOnScreen && leaders.length > 0 && (
+            <ScoreboardLeaders
+              rows={leaders}
+              note={standing?.note || standing?.record || ""}
+              title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
+            />
+          )}
+          {availabilityShown && !availabilityOnScreen && availabilityCard}
+          {/* A pairing request, while there is still a draw to ask of — no
+              group on a published sheet yet, and nothing on the card. */}
+          {playWith && <PlayWithPicker others={playWith.others} chosen={playWith.chosen} />}
+          {/* Tee-time alerts. Self-hiding where push isn't available, one line
+              once they are on. */}
+          <PushToggle />
+        </div>
+      </details>
       )}
     </div>
   );
+}
+
+/** "tomorrow" → "Tomorrow", for the start of a line. */
+function capitalise(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
