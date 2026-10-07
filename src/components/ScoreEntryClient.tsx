@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useRef, useTransition } from "react";
+import { useEffect, useMemo, useState, useRef, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import {
   resolveMatch,
@@ -298,7 +298,19 @@ export function ScoreEntryClient({
   openCourse = false,
   courseLibrary = [],
   firstHole: firstHoleProp = 1,
+  casual = false,
+  meId,
 }: {
+  /**
+   * A CASUAL ROUND'S MATCH (2026-10-06): one match, on the round's one screen.
+   * No list of one match to pick from, no flight-and-round label, no chooser
+   * of how to write it down at the top of the card (it is a link at the foot),
+   * no gross/net chip and no course line — the screen's own heading says what
+   * is played and where. Opens on the hole, the full card a tap away.
+   */
+  casual?: boolean;
+  /** The person holding the phone, for the mic's "me". See `HoleByHoleCard`. */
+  meId?: string;
   /** The course's number for the first hole on the round's card — 10 on a back nine. */
   firstHole?: number;
   matches: EntryMatch[];
@@ -360,7 +372,9 @@ export function ScoreEntryClient({
    * Server-rendered as the grid and switched on mount, for the hydration reason
    * StrokePlayEntry gives.
    */
-  const [cardView, setCardView] = useState<"hole" | "card">("card");
+  const [cardView, setCardView] = useState<"hole" | "card">(casual ? "hole" : "card");
+  /** The one match of a casual round — see `casual`. */
+  const soleCasualMatch = casual && matches.length === 1;
   useEffect(() => {
     if (window.matchMedia("(max-width: 767px)").matches) setCardView("hole");
   }, []);
@@ -1052,11 +1066,15 @@ export function ScoreEntryClient({
         </div>
       )}
 
-      <div className="entry-grid">
+      {/* A casual round's one match needs no list to pick it from: a list of
+          one is a card's height of "Ann v Bea · In progress" above the card
+          that says the same. */}
+      <div className={soleCasualMatch ? undefined : "entry-grid"}>
         {/* Height lives in .entry-matchlist, not here. As an inline style it
             beat the stylesheet's own narrow-screen cap, so on a single-column
             layout the list stayed 74vh tall and pushed the card below the
             fold — picking a match appeared to do nothing at all. */}
+        {!soleCasualMatch && (
         <div className="card elev-sm entry-matchlist" style={{ gap: 6 }}>
           {/* "Matches", not "Round-robin matches". This list is the matches of
               ONE ROUND, whatever type that round is — the entry page filters
@@ -1181,6 +1199,7 @@ export function ScoreEntryClient({
             </button>
           )}
         </div>
+        )}
 
         {openCourse && active.venueNeeded ? (
           <div ref={entryRef} style={{ scrollMarginTop: 60 }}>
@@ -1197,9 +1216,12 @@ export function ScoreEntryClient({
         <div className="card elev-sm" ref={entryRef} style={{ scrollMarginTop: 60 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
-              <div className="text-muted" style={{ fontSize: 13 }}>
-                {active.label}
-              </div>
+              {/* "Flight 1 · Round 1" describes a draw a casual round has none of. */}
+              {!casual && (
+                <div className="text-muted" style={{ fontSize: 13 }}>
+                  {active.label}
+                </div>
+              )}
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
                 {active.aName} <span className="text-muted" style={{ fontSize: 13 }}>vs</span> {active.bName}
               </div>
@@ -1207,6 +1229,9 @@ export function ScoreEntryClient({
                   first thing anyone checks when a card is queried, and in a
                   league with no fixed venue it is the only way to tell two
                   otherwise identical cards apart. */}
+              {/* Not on a casual round: its screen already heads itself with
+                  the course, and two friends do not query who entered a card. */}
+              {!casual && (
               <div className="text-muted" style={{ fontSize: 13, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {active.courseName && (
                   <span><Icon name="map-pin" style={{ marginRight: 3 }} />{active.courseName}</span>
@@ -1247,6 +1272,7 @@ export function ScoreEntryClient({
                   <span><Icon name="seal-check" style={{ marginRight: 3 }} />Signed off by {active.confirmedBy}</span>
                 )}
               </div>
+              )}
             </div>
             <div style={{ textAlign: "right" }}>
               {/* A DECIDED match reads as finished, not just as a bigger number.
@@ -1323,7 +1349,9 @@ export function ScoreEntryClient({
                 match can be entered another way. What has gone is the two
                 shapes they are not using, repeated down a list of forty-eight
                 matches at a third of each card. See `showModes`. */}
-            {availableModes.length > 1 ? (
+            {/* A casual round's chooser opens from the foot of the card, where
+                "Enter it a different way" sits — see below. */}
+            {casual && !showModes ? null : availableModes.length > 1 ? (
               <div className="mode-pick">
                 {(showModes ? availableModes : availableModes.filter((m) => m.key === effectiveMode)).map((m) => {
                   const off = m.key === "handicap" && !courseKnown;
@@ -1370,10 +1398,14 @@ export function ScoreEntryClient({
               </p>
             )}
 
+            {/* The casual screen's heading already says "level" or "off
+                handicaps", and the dots on the card show where the shots fall. */}
+            {!casual && (
             <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 13 }}>
               <Icon name={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
               {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
             </span>
+            )}
 
             {/* Which card this match is being scored against. Only meaningful
                 when the tournament has more than one venue — otherwise it
@@ -1382,7 +1414,8 @@ export function ScoreEntryClient({
                 played — the tournament's other venues, or any other course
                 the club has. It used to need two venues on the tournament,
                 so a one-course event could not record that a pairing moved. */}
-            {(venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) &&
+            {/* Not on a casual round: one match, played where it was set up. */}
+            {!casual && (venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) &&
               /**
                * THE TOURNAMENT ALREADY DECIDED WHERE THIS IS PLAYED.
                *
@@ -1673,13 +1706,19 @@ export function ScoreEntryClient({
           )}
 
           {effectiveMode === "handicap" && (
-            <div style={{ margin: "12px 0" }}>
+            <div style={{ margin: casual ? "0 0 12px" : "12px 0" }}>
+              {/* A casual round's two players know how a hole is won; the
+                  match state above the card says who is winning them. */}
+              {!casual && (
               <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
                 {netMode
                   ? "Enter each player's gross strokes per hole — the net winner (after handicap strokes, marked •) is worked out automatically."
                   : "Enter each player's gross strokes per hole — the lower score wins each hole, straight up."}
               </p>
-              {/* Two windows onto one card, as on a stroke round. */}
+              )}
+              {/* Two windows onto one card, as on a stroke round. On a casual
+                  round the other one is at the foot of the card. */}
+              {!casual && (
               <div style={{ display: "flex", gap: 6, margin: "0 0 12px" }}>
                 {(["hole", "card"] as const).map((v) => (
                   <button
@@ -1698,6 +1737,7 @@ export function ScoreEntryClient({
                   </button>
                 ))}
               </div>
+              )}
               {cardView === "hole" ? (
                 <HoleByHoleCard
                   players={[
@@ -1710,6 +1750,8 @@ export function ScoreEntryClient({
                   strokeIndex={strokeIndex}
                   holes={totalHoles}
                   firstHole={firstHole}
+                  // The phone's holder, by slot, so the mic hears "me".
+                  meId={meId === active.aId ? "A" : meId === active.bId ? "B" : undefined}
                   onSet={(pid, i, v) => applyStroke(pid === "A" ? "A" : "B", i, v)}
                 />
               ) : (
@@ -1953,6 +1995,30 @@ export function ScoreEntryClient({
             </div>
           )}
 
+          {casual ? (
+            /* A CASUAL MATCH'S FOOT: the other window onto the card, and the
+               other ways to write it down. No Clear beside the card being kept
+               on the course — a wrong hole is fixed by tapping it — and no
+               Leaderboard: where the match stands is on this same screen. */
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
+              {effectiveMode === "handicap" && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ minHeight: 44 }}
+                  onClick={() => setCardView(cardView === "hole" ? "card" : "hole")}
+                >
+                  <Icon name={cardView === "hole" ? "ph ph-table" : "ph ph-flag"} />{" "}
+                  {cardView === "hole" ? "See the full card" : "Back to the hole"}
+                </button>
+              )}
+              {availableModes.length > 1 && !showModes && (
+                <button type="button" className="btn btn-ghost" style={{ minHeight: 44, fontSize: 14 }} onClick={() => setShowModes(true)}>
+                  <Icon name="pencil-simple" /> Enter it a different way
+                </button>
+              )}
+            </div>
+          ) : (
           <div
             style={{
               display: "flex",
@@ -1981,6 +2047,7 @@ export function ScoreEntryClient({
               </Link>
             </div>
           </div>
+          )}
 
           {/* RECORDING A CONCESSION — the three ordinary ways a match ends
               without a card, and until now the app could record none of them.
@@ -1994,7 +2061,10 @@ export function ScoreEntryClient({
 
               Organizer-only, matching the action. Hidden once one is recorded;
               the undo lives beside the status above, where the state is. */}
-          {isAdmin && !active.forfeitedBy && (
+          {/* Folded on a casual round, under the question a friendly asks:
+              the paragraph and two buttons were a third of the card, for the
+              rare round that is given up. */}
+          {isAdmin && !active.forfeitedBy && foldIf(casual, "Somebody conceded?", (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-divider)" }}>
               <span className="card-kicker">Not played out</span>
               <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px", lineHeight: 1.55 }}>
@@ -2021,10 +2091,26 @@ export function ScoreEntryClient({
                 ))}
               </div>
             </div>
-          )}
+          ))}
         </div>
         )}
       </div>
     </>
+  );
+}
+
+/** `body` as it is, or folded under `label` — a casual round's rare controls. */
+function foldIf(fold: boolean, label: string, body: ReactNode): ReactNode {
+  if (!fold) return body;
+  return (
+    <details style={{ marginTop: 12 }}>
+      <summary
+        className="touch-target"
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, color: "var(--color-neutral-400)", listStyle: "none" }}
+      >
+        <Icon name="caret-down" aria-hidden /> {label}
+      </summary>
+      {body}
+    </details>
   );
 }

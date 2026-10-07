@@ -47,7 +47,14 @@ export function CasualRoundPanel({
   scoringBasis,
   players,
   accessCode = "",
+  bare = false,
 }: {
+  /**
+   * Inside the round screen's More (2026-10-06): no card of its own and no
+   * heading, since the fold names it, and no code, which that screen shows
+   * above the card where it is read out on the first tee.
+   */
+  bare?: boolean;
   stageId: string;
   holes: number;
   /** "gross" plays level; anything else gives shots. */
@@ -101,13 +108,18 @@ export function CasualRoundPanel({
   });
 
   return (
-    <div className="card elev-sm" style={{ gap: 14, marginBottom: 16 }}>
-      <div>
-        <span className="card-title" style={{ fontSize: 15 }}>This round</span>
-        <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
-          Change any of it while you play — nothing here is locked.
-        </p>
-      </div>
+    <div
+      className={bare ? undefined : "card elev-sm"}
+      style={bare ? { display: "flex", flexDirection: "column", gap: 14 } : { gap: 14, marginBottom: 16 }}
+    >
+      {!bare && (
+        <div>
+          <span className="card-title" style={{ fontSize: 15 }}>This round</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: "3px 0 0", lineHeight: 1.5 }}>
+            Change any of it while you play — nothing here is locked.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
@@ -224,7 +236,7 @@ export function CasualRoundPanel({
           code opens the play shell as a player of this round and nothing
           else; it is exactly as strong as handing somebody your phone, which
           is what it replaces. It goes when the round does, a day later. */}
-      {accessCode && (
+      {accessCode && !bare && (
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
           <div className="card-kicker">Everyone scores their own card</div>
           <div

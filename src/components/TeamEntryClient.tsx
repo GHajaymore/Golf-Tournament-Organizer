@@ -1,6 +1,6 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
 import { ScoreCell } from "@/components/ScorecardTable";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
@@ -91,7 +91,18 @@ export function TeamEntryClient({
   holes,
   firstHole = 1,
   pickUp = false,
+  casual = false,
+  meId,
 }: {
+  /**
+   * A CASUAL ROUND'S SIDES (2026-10-06), on its one screen: opens on the hole
+   * at every width, saves itself a moment after each tap — only the cards this
+   * phone changed — and offers the full card from its foot. The round screen's
+   * own heading says what the format is, so the note under it goes too.
+   */
+  casual?: boolean;
+  /** The person holding the phone, for the mic's "me". See `HoleByHoleCard`. */
+  meId?: string;
   /**
    * Match play: a ball can be PICKED UP, and a side with every ball picked up
    * has conceded the hole (Rule 3.2b(1)). Offered only here — a medal is holed
@@ -200,10 +211,95 @@ export function TeamEntryClient({
    * together. Grid on a desk, as before; switched on mount for the hydration
    * reason StrokePlayEntry gives.
    */
-  const [view, setView] = useState<"hole" | "card">("card");
+  const [view, setView] = useState<"hole" | "card">(casual ? "hole" : "card");
   useEffect(() => {
     if (window.matchMedia("(max-width: 767px)").matches) setView("hole");
   }, []);
+
+  /**
+   * A CASUAL ROUND'S CARDS SAVE THEMSELVES — the cards this phone changed, and
+   * no others, for the reason `StrokePlayEntry` gives: a friend keeping their
+   * own card by the round's code must not have it overwritten by this phone's
+   * stale copy. A refusal is named and not retried until the card changes or
+   * Try again is pressed.
+   */
+  const allCards = useMemo(
+    () => teams.flatMap((t) => t.cards.map((c) => ({ t, c, key: keyFor(t.teamId, t.matchId, c.playerId) }))),
+    [teams],
+  );
+  const sigOf = (key: string, stored: (number | null)[]) =>
+    JSON.stringify([draft[key] ?? stored, pickUp ? picksFor(key) : []]);
+  const lastSent = useRef<Record<string, string>>(
+    Object.fromEntries(
+      allCards.map(({ c, key }) => [
+        key,
+        JSON.stringify([[...c.strokes], pickUp ? Array.from({ length: holes }, (_, h) => c.pickedUp?.[h] === true) : []]),
+      ]),
+    ),
+  );
+  const refused = useRef("");
+  const [retry, setRetry] = useState(0);
+  const [autoNote, setAutoNote] = useState<{ text: string; at: string } | null>(null);
+  const everything = JSON.stringify([draft, picks]);
+  useEffect(() => {
+    if (!casual || pending || refused.current === everything) return;
+    const changed = allCards.filter(({ c, key }) => {
+      if (sigOf(key, c.strokes) === lastSent.current[key]) return false;
+      return (draft[key] ?? c.strokes).some((v) => v != null) || (pickUp && picksFor(key).some(Boolean));
+    });
+    if (changed.length === 0) return;
+    const timer = window.setTimeout(() => {
+      startTransition(async () => {
+        const failed: string[] = [];
+        for (const { t, c, key } of changed) {
+          const sent = sigOf(key, c.strokes);
+          const who = c.playerId ? c.playerName : t.teamName;
+          try {
+            const res = await saveTeamScorecard(t.teamId, c.playerId, t.matchId, draft[key] ?? c.strokes, pickUp ? picksFor(key) : undefined);
+            if (res.ok) lastSent.current[key] = sent;
+            else failed.push(`${who}: ${res.error ?? "not saved"}`);
+          } catch {
+            failed.push(`${who}: not saved`);
+          }
+        }
+        refused.current = failed.length ? everything : "";
+        setAutoNote({ text: failed.length ? `Not saved — ${failed.join("; ")}` : "Saved.", at: everything });
+      });
+    }, 600);
+    return () => window.clearTimeout(timer);
+    // `retry` re-arms it after a refusal; the rest is what it reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casual, everything, pending, retry]);
+  // Only while it is still true of what is on screen.
+  const autoShown = autoNote && autoNote.at === everything ? autoNote : null;
+  const autoFailed = !!autoShown && autoShown.text !== "Saved.";
+
+  /** A casual card's foot: whether it has saved, and the other window. */
+  const casualFoot = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
+      <span role="status" aria-live="polite" style={{ fontSize: 14, minWidth: 0, color: autoFailed ? "var(--color-danger)" : "var(--color-neutral-400)" }}>
+        {pending ? "Saving…" : autoShown?.text ?? ""}
+      </span>
+      <span style={{ display: "flex", gap: 8 }}>
+        {autoFailed && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ minHeight: 44 }}
+            onClick={() => {
+              refused.current = "";
+              setRetry((n) => n + 1);
+            }}
+          >
+            Try again
+          </button>
+        )}
+        <button type="button" className="btn btn-secondary" style={{ minHeight: 44 }} onClick={() => setView(view === "hole" ? "card" : "hole")}>
+          <Icon name={view === "hole" ? "ph ph-table" : "ph ph-flag"} /> {view === "hole" ? "See the full card" : "Back to the hole"}
+        </button>
+      </span>
+    </div>
+  );
   const groups = useMemo(() => holeGroups(teams), [teams]);
   const [groupKey, setGroupKey] = useState(groups[0]?.key ?? "");
   const group = groups.find((g) => g.key === groupKey) ?? groups[0];
@@ -260,11 +356,13 @@ export function TeamEntryClient({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-        {round} —{" "}
-        {note}
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: casual ? 12 : 16 }}>
+      {!casual && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          {round} —{" "}
+          {note}
+        </p>
+      )}
 
       {error && <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
 
@@ -278,7 +376,7 @@ export function TeamEntryClient({
         </div>
       )}
 
-      {teams.length > 0 && (
+      {teams.length > 0 && !casual && (
         <div style={{ display: "flex", gap: 6 }}>
           {(["hole", "card"] as const).map((v) => (
             <button
@@ -333,6 +431,12 @@ export function TeamEntryClient({
             strokeIndex={strokeIndex}
             holes={holes}
             firstHole={firstHole}
+            // The holder's own card, by its key, so the mic hears "me". A
+            // side's one card belongs to nobody in particular.
+            meId={(() => {
+              const mine = meId ? group.rows.find(({ card }) => card.playerId === meId) : undefined;
+              return mine ? keyFor(mine.team.teamId, mine.team.matchId, mine.card.playerId) : undefined;
+            })()}
             onSet={(key, hole, value) => setHole(key, hole, value)}
             {...(pickUp
               ? {
@@ -346,6 +450,9 @@ export function TeamEntryClient({
                 }
               : {})}
           />
+          {casual ? (
+            casualFoot
+          ) : (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
             {savedDraft === groupDraft && savedDraft !== "" && (
               <span role="status" className="text-muted" style={{ fontSize: 13 }}>
@@ -356,6 +463,7 @@ export function TeamEntryClient({
               <Icon name="check" /> {pending ? "Saving…" : "Save scores"}
             </button>
           </div>
+          )}
         </div>
       )}
 
@@ -411,6 +519,8 @@ export function TeamEntryClient({
                   {c.playerId !== "" && (
                     <span className="text-muted" style={{ fontSize: 13 }}>h/cap {indexLabel(c)}</span>
                   )}
+                  {/* A casual card saves itself — see `lastSent`. */}
+                  {!casual && (
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -420,6 +530,7 @@ export function TeamEntryClient({
                   >
                     {pending ? "Saving…" : "Save card"}
                   </button>
+                  )}
                 </div>
                 <div className="sc-wrap">
                   <table className="sc" style={{ minWidth: holes > 9 ? 960 : 560 }}>
@@ -501,6 +612,7 @@ export function TeamEntryClient({
           })}
         </div>
       ))}
+      {view === "card" && casual && teams.length > 0 && casualFoot}
     </div>
   );
 }

@@ -149,3 +149,17 @@ export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: 
   }
   return `This round is temporary — it's deleted about a day after it was set up. ${remedy}`;
 }
+
+/**
+ * The same warning in one line, for the casual round's one screen, where
+ * `expiryNotice`'s full sentence sits behind the ⓘ. Same three readers, same
+ * order, so the line and the sentence under it cannot disagree about who can
+ * do what: the person who can keep it is not told to ask, and the person who
+ * cannot is not shown a button.
+ */
+export function expiryShort(hours: number | null, canKeep = true, keepRefusal: string | null = null): string {
+  if (hours === null) return "";
+  const gone = hours <= 0 ? "Deleted shortly" : "Temporary — deleted after a day";
+  if (!canKeep) return `${gone}. Ask whoever set it up to keep it.`;
+  return keepRefusal ? `${gone}.` : `${gone} unless you keep it.`;
+}

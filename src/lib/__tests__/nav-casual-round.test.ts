@@ -112,7 +112,8 @@ describe("the screens the sidebar hides are closed to a typed URL too", () => {
     const guard = src.slice(src.indexOf("async function refuseTournamentScreenOnCasualRound("));
     expect(guard).toMatch(/screenAppliesToMatch\(key\)/);
     expect(guard).toMatch(/isMatch\(/);
-    expect(guard).toMatch(/redirect\("\/dashboard"\)/);
+    // The round's one screen since 2026-10-06 — see `CasualRoundScreen`.
+    expect(guard).toMatch(/redirect\("\/entry"\)/);
   });
 
   for (const fn of ["requireScreen", "requireOrgScreen"]) {
@@ -153,18 +154,56 @@ describe("what replaces them", () => {
   });
 
   it("is on the round's own screen, for whoever set it up", () => {
-    const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    expect(dash).toMatch(/matchEvent && isStaff && casualStage && \(/);
-    expect(dash).toMatch(/<CasualRoundPanel/);
+    // Behind the one screen's More since 2026-10-06, staff only.
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    expect(screen).toMatch(/isStaff && stage && \(\s*<CasualRoundPanel/);
   });
 
   it("is not on a tournament's dashboard", () => {
     // A club has its own screens for all of this, and two places to set one
-    // number is how they come to disagree.
+    // number is how they come to disagree. The dashboard sends a casual round
+    // away before it renders anything, and has no panel to show anybody else.
     const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    const at = dash.indexOf("<CasualRoundPanel");
-    expect(at).toBeGreaterThan(-1);
-    expect(dash.slice(0, at)).toMatch(/matchEvent && isStaff/);
+    expect(dash).not.toContain("<CasualRoundPanel");
+    expect(dash).toMatch(/if \(isMatch\(event\.shape\)\) redirect\("\/entry"\);/);
+  });
+});
+
+/**
+ * ONE SCREEN, NO CONSOLE (Ajay, 2026-10-06: "casual round should be just one
+ * screen including score entry for the foursome").
+ */
+describe("a casual round is one screen", () => {
+  const layout = () => readSource("src", "app", "(app)", "layout.tsx");
+
+  it("has no sidebar and no tab bar", () => {
+    const src = layout();
+    expect(src).toMatch(/const casualShell = isMatch\(event\?\.shape\)/);
+    expect(src).toMatch(/\{!casualShell && \(\s*<Sidebar/);
+    expect(src).toMatch(/\{!casualShell && \(\s*<MobileTabBar/);
+  });
+
+  it("still leads back from the pages its More opens", () => {
+    expect(layout()).toMatch(/\{casualShell && <BackToTheRound \/>\}/);
+    expect(readSource("src/components/BackToTheRound.tsx")).toMatch(/href="\/entry"/);
+  });
+
+  it("puts the card, the standing, the money and More on the round screen", () => {
+    const page = readSource("src", "app", "(app)", "entry", "page.tsx");
+    // Both ways a casual round's card is drawn — strokes and matches, and sides.
+    expect(page.split("<CasualRoundScreen").length - 1).toBe(2);
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    for (const part of ["{children}", "standing.title", "cash.anyGame", "More: "]) {
+      expect(screen, part).toContain(part);
+    }
+  });
+
+  it("keeps a tournament's console exactly as it was", () => {
+    // The control: the same layout still draws both for every other shape.
+    const src = layout();
+    expect(src).toContain("<Sidebar");
+    expect(src).toContain("<MobileTabBar");
+    expect(src).toMatch(/className=\{casualShell \? "app-main app-main-casual" : "app-main"\}/);
   });
 });
 
@@ -196,9 +235,12 @@ describe("what a casual round calls the screens it keeps", () => {
     }
   });
 
-  it("is what the dashboard's tiles ask, with the shape passed in", () => {
-    const src = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    expect(src).toMatch(/screenName\(a\.href, matchEvent\)/);
+  it("is what the round screen's links ask, with the shape passed in", () => {
+    // The dashboard's tiles asked this until it stopped showing casual rounds;
+    // the one screen's More is where a casual round's other pages are named.
+    const src = readSource("src/components/CasualRoundScreen.tsx");
+    expect(src).toMatch(/screenName\("\/reports", true\)/);
+    expect(src).toMatch(/screenName\("\/rules", true\)/);
   });
 
   it("keeps one set of screens for both readers", () => {
@@ -278,10 +320,17 @@ describe("the card screen on a casual round", () => {
     expect(src).toMatch(/Whole field/);
   });
 
-  it("heads the screen with the section the sidebar puts it in", () => {
-    // "Manage" is the tournament's word and the sidebar's section; on a casual
-    // round that section is "Playing", and the kicker follows it.
-    expect(entry()).toMatch(/\{casual \? "Playing" : "Manage"\}/);
+  it("leaves the heading to the round's own screen", () => {
+    /**
+     * It said `{casual ? "Playing" : "Manage"}` over "Score entry". Since
+     * 2026-10-06 a casual round has no sidebar for a kicker to follow, and its
+     * one screen heads itself — so the whole header is the tournament's.
+     */
+    const src = entry();
+    expect(src, "the casual kicker is back").not.toContain('"Playing"');
+    expect(src).toMatch(/\{!casual && \(\s*<div style=\{\{ marginBottom: 16 \}\}>/);
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    expect(screen).toMatch(/<h1 className="page-title">The round<\/h1>/);
   });
 
   it("still calls the screen what the sidebar calls it", () => {
@@ -427,34 +476,34 @@ describe("reading a club's lists from a casual round", () => {
  * `event-answer-vs-round-answer` again, and this time in the words rather than
  * the arithmetic — which is why no scoring test could see it.
  */
-describe("what the dashboard calls a casual round", () => {
-  const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+describe("what the round screen calls a casual round", () => {
+  /**
+   * Since 2026-10-06 these words are the one screen's, read through
+   * `casual-round.ts` — the dashboard no longer shows a casual round at all.
+   * The rule is the one it learned on 2026-09-18: a phrase true only of a
+   * MATCH is chosen by the round's basis, never by the event's shape.
+   */
+  const summary = readSource("src", "lib", "services", "casual-round.ts");
+  const screen = readSource("src/components/CasualRoundScreen.tsx");
 
   /** Phrases that are true only of a round decided hole by hole. */
-  const MATCH_ONLY = [
-    "The match",
-    "Where the match stands",
-    "Holes won",
-    "head to head",
-    "One match, decided hole by hole.",
-  ];
+  const MATCH_ONLY = ["Where the match stands", "Holes won"];
 
   it("reads the round's basis, not the event's shape", () => {
-    expect(dash, "casualMatch is gone — the words are back on the shape").toContain(
-      "const casualMatch = matchEvent && !state.boardIsStroke",
-    );
+    expect(summary).toContain("return !state.boardIsStroke;");
+    expect(summary).toContain("const isMatchRound = casualIsMatch(state);");
   });
 
   it("guards every match-only phrase with it", () => {
     const unguarded: string[] = [];
     for (const phrase of MATCH_ONLY) {
-      let at = dash.indexOf(phrase);
-      expect(at, `"${phrase}" is not on the dashboard at all — did the copy change?`).toBeGreaterThan(-1);
+      let at = summary.indexOf(phrase);
+      expect(at, `"${phrase}" is not in the summary at all — did the copy change?`).toBeGreaterThan(-1);
       while (at !== -1) {
         // The ternary that chooses it sits immediately before the string.
-        const before = dash.slice(Math.max(0, at - 220), at);
-        if (!before.includes("casualMatch")) unguarded.push(`${phrase} @${at}`);
-        at = dash.indexOf(phrase, at + 1);
+        const before = summary.slice(Math.max(0, at - 80), at);
+        if (!before.includes("isMatchRound")) unguarded.push(`${phrase} @${at}`);
+        at = summary.indexOf(phrase, at + 1);
       }
     }
     expect(
@@ -463,18 +512,24 @@ describe("what the dashboard calls a casual round", () => {
     ).toEqual([]);
   });
 
+  it("heads every format with a word true of all of them", () => {
+    // "The round" — a match is played over a round; a medal is not a match.
+    expect(screen).toContain('<h1 className="page-title">The round</h1>');
+    for (const phrase of ["The match", "head to head", ...MATCH_ONLY]) {
+      expect(screen, `the screen prints "${phrase}" itself, unguarded`).not.toContain(`"${phrase}"`);
+      expect(screen, `the screen prints "${phrase}" itself, unguarded`).not.toContain(`>${phrase}<`);
+    }
+  });
+
   it("can see the shape it is looking for", () => {
     /**
      * The control. If `readSource` returned nothing, or the phrases were
-     * reworded, the cell above would pass by finding nothing to check — and
-     * the first expectation inside it is what catches that, so this pins the
-     * instrument itself.
+     * reworded, the cell above would pass by finding nothing to check.
      */
-    expect(dash.length).toBeGreaterThan(2000);
-    expect(MATCH_ONLY.every((p) => dash.includes(p))).toBe(true);
-    // And the alternative branch exists, so the guard is a real choice rather
-    // than a phrase that is simply always printed.
-    expect(dash).toContain("Where the round stands");
-    expect(dash).toContain("Gross, net and to-par");
+    expect(summary.length).toBeGreaterThan(2000);
+    expect(MATCH_ONLY.every((p) => summary.includes(p))).toBe(true);
+    // And the alternative branch exists, so the guard is a real choice.
+    expect(summary).toContain("Where the round stands");
+    expect(summary).toContain("Gross, net and to-par");
   });
 });

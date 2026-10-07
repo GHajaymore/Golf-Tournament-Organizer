@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { expiryNotice, hoursLeft, isExpired, QUICK_ROUND_TTL_HOURS } from "@/lib/domain/round-expiry";
+import { expiryNotice, expiryShort, hoursLeft, isExpired, QUICK_ROUND_TTL_HOURS } from "@/lib/domain/round-expiry";
 import { readSource } from "./source";
 
 /**
@@ -91,10 +91,23 @@ describe("where the warning renders", () => {
   });
 
   it("is still on the console, worded for whoever can keep it", () => {
-    const dash = readSource("src/app/(app)/dashboard/page.tsx");
-    expect(dash).toMatch(/expiryNotice\(hoursLeft\(event\), isStaff, keepRefusal\)/);
-    expect(dash).toMatch(/keepRefusal=\{keepRefusal\}/);
-    expect(dash).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+    // On the casual round's one screen since 2026-10-06 — the dashboard now
+    // sends a casual round there. The full sentence sits behind the short
+    // line's ⓘ, from the same three readers in the same order.
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    expect(screen).toMatch(/notice=\{expiryNotice\(hours, isStaff, keepRefusal\)\}/);
+    expect(screen).toMatch(/short=\{expiryShort\(hours, isStaff, keepRefusal\)\}/);
+    expect(screen).toMatch(/keepRefusal=\{keepRefusal\}/);
+    expect(screen).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+  });
+
+  it("says it in one line without changing who is told what", () => {
+    // The short line must not tell the host to ask, nor the partner to keep it.
+    expect(expiryShort(10, true, null)).toBe("Temporary — deleted after a day unless you keep it.");
+    expect(expiryShort(10, false, null)).toContain("Ask whoever set it up");
+    expect(expiryShort(10, true, "On the free Par plan…")).not.toContain("keep it");
+    expect(expiryShort(0, true, null)).toContain("Deleted shortly");
+    expect(expiryShort(null)).toBe("");
   });
 });
 

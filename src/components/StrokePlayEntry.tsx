@@ -86,7 +86,19 @@ export function StrokePlayEntry({
   courseName = "",
   venueIsHome = false,
   firstHole = 1,
+  casual = false,
+  meId,
 }: {
+  /**
+   * A CASUAL ROUND'S CARD (Ajay, 2026-10-06: "just one screen including score
+   * entry for the foursome"). Hole by hole for everybody on it, the mic beside
+   * the hole, and no Save button to forget: every card changed on this phone
+   * is sent a moment after the tap. The full card is one tap away. No picker,
+   * no group select and no photo reader — one group, no desk.
+   */
+  casual?: boolean;
+  /** The person holding the phone, for the mic's "me". See `HoleByHoleCard`. */
+  meId?: string;
   /** The course's number for the first hole on the round's card — 10 on a back nine. */
   firstHole?: number;
   players: StrokePlayer[];
@@ -160,7 +172,9 @@ export function StrokePlayEntry({
    * cost is one re-render on a phone; the alternative is a console error and a
    * tree React re-creates from scratch.
    */
-  const [view, setView] = useState<"hole" | "card">("card");
+  // A casual round opens on the hole at every width — it is scored on the
+  // course, and the same answer on server and client needs no effect.
+  const [view, setView] = useState<"hole" | "card">(casual ? "hole" : "card");
   useEffect(() => {
     if (window.matchMedia("(max-width: 767px)").matches) setView("hole");
   }, []);
@@ -173,7 +187,9 @@ export function StrokePlayEntry({
    * "just this player", which is the only option when no sheet has been drawn
    * and the right one for a player posting their own round.
    */
-  const [groupIdx, setGroupIdx] = useState(-1);
+  // A casual round's one group from the first render, so the card does not
+  // open on one player and then jump to four.
+  const [groupIdx, setGroupIdx] = useState(casual && teeGroups.length > 0 ? 0 : -1);
   useEffect(() => {
     const i = teeGroups.findIndex((g) => g.playerIds.includes(playerId));
     if (i !== -1) setGroupIdx(i);
@@ -342,6 +358,67 @@ export function StrokePlayEntry({
       });
     });
 
+  /**
+   * A CASUAL CARD SAVES ITSELF — and only the cards this phone changed.
+   *
+   * A Save button at the foot of a hole-by-hole card is a round lost the day
+   * somebody walks off the 18th without pressing it. So a moment after the
+   * last tap, every card that differs from what this phone last sent goes.
+   *
+   * ONLY THOSE. The friends may be keeping their own cards on their own phones
+   * by the round's code, and sending every card on the screen would write this
+   * phone's stale copy of theirs over the holes they just entered. A card the
+   * host never touched is never sent.
+   *
+   * A refusal is shown by name, as the button's save does, and is not retried
+   * in a loop: the same card is not sent again until it changes or somebody
+   * presses Try again.
+   */
+  const lastSent = useRef<Record<string, string>>(
+    Object.fromEntries(players.map((p) => [p.id, JSON.stringify(cardsByPlayer[p.id] ?? new Array(holes).fill(null))])),
+  );
+  const refused = useRef("");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!casual || pending) return;
+    const now = JSON.stringify(cards);
+    if (refused.current === now) return;
+    const changed = players
+      .map((p) => p.id)
+      .filter(
+        (id) =>
+          JSON.stringify(cards[id] ?? []) !== lastSent.current[id] &&
+          (cards[id] ?? []).some((s) => s != null) &&
+          !isCardLocked(cardStatus[id] ?? ""),
+      );
+    if (changed.length === 0) return;
+    const timer = window.setTimeout(() => {
+      startTransition(async () => {
+        const failed: Array<{ id: string; why: string }> = [];
+        for (const id of changed) {
+          const sent = cards[id] ?? new Array(holes).fill(null);
+          try {
+            await saveScorecard(stageId, id, sent);
+            lastSent.current[id] = JSON.stringify(sent);
+          } catch (err) {
+            failed.push({ id, why: err instanceof Error && err.message ? err.message : "It didn't save — try again." });
+          }
+        }
+        refused.current = failed.length ? now : "";
+        const named = (id: string) => players.find((p) => p.id === id)?.name ?? "A card";
+        setSaved({
+          text: failed.length ? failed.map((f) => `${named(f.id)}: ${f.why}`).join(" ") : "Saved.",
+          cards: now,
+          playerId,
+        });
+      });
+    }, 600);
+    return () => window.clearTimeout(timer);
+    // `retry` re-arms it after a refusal; the rest is what it reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casual, cards, pending, retry]);
+  const autoFailed = casual && !pending && refused.current !== "" && refused.current === JSON.stringify(cards);
+
   const toggleListen = () => {
     if (listening) {
       // Stop the recogniser, not just the button — see `dictation.test.ts`.
@@ -416,8 +493,14 @@ export function StrokePlayEntry({
     />
   );
 
+  // On a casual round's hole view the card IS the group: whose card the picker
+  // chooses, and that one player's totals, describe nobody in particular —
+  // each row carries its own "+1 thru 7".
+  const onePlayerHead = !casual || view === "card";
+
   return (
     <div className="card elev-sm">
+      {onePlayerHead && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div className="field" style={{ minWidth: 220 }}>
           <label htmlFor={`${stageId}-entry-player`}>Player</label>
@@ -495,7 +578,13 @@ export function StrokePlayEntry({
           ))}
         </div>
       </div>
+      )}
 
+      {/* The whole-card dictation is not on a casual round: its card is kept a
+          hole at a time, and the mic beside the hole ("Bea five, me four") is
+          the one that fits that. */}
+      {!casual && (
+        <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
         <button
           type="button"
@@ -511,10 +600,16 @@ export function StrokePlayEntry({
       {/* What the mic does, beside the mic. One component for all four so they
           cannot drift into four different promises — see `MicNote`. */}
       <MicNote style={{ marginTop: 6 }} />
+        </>
+      )}
 
       {/* Two windows onto one card. The grid is for a desk and a stack of
           returned cards; the hole view is for a phone on the course. Both write
-          to the same state, so switching never loses a score. */}
+          to the same state, so switching never loses a score.
+
+          A casual round offers the other window from the foot of the card
+          instead — it opens on the hole and nearly always stays there. */}
+      {!casual && (
       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
         {(["hole", "card"] as const).map((v) => (
           <button
@@ -534,10 +629,11 @@ export function StrokePlayEntry({
           </button>
         ))}
       </div>
+      )}
 
       {view === "hole" ? (
-        <div style={{ marginTop: 14 }}>
-          {teeGroups.length > 0 && (
+        <div style={{ marginTop: casual ? 0 : 14 }}>
+          {teeGroups.length > 0 && !casual && (
             <div className="field" style={{ marginBottom: 14 }}>
               <label>Scoring</label>
               <select
@@ -563,6 +659,7 @@ export function StrokePlayEntry({
             strokeIndex={strokeIndex}
             holes={holes}
             firstHole={firstHole}
+            meId={meId && cardPlayers.some((p) => p.id === meId) ? meId : undefined}
             onSet={(pid, i, v) =>
               setCards((prev) => {
                 const next = [...(prev[pid] ?? new Array(holes).fill(null))];
@@ -601,6 +698,39 @@ export function StrokePlayEntry({
       </div>
       )}
 
+      {casual ? (
+        /* No Save button: the card saves itself (see `lastSent`). What is left
+           is whether it has, and the other window onto the card. */
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
+          <span style={{ fontSize: 14, color: autoFailed ? "var(--color-danger)" : "var(--color-neutral-400)", minWidth: 0 }} role="status" aria-live="polite">
+            {pending ? "Saving…" : saveNote ?? ""}
+          </span>
+          <span style={{ display: "flex", gap: 8 }}>
+            {autoFailed && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ minHeight: 44 }}
+                onClick={() => {
+                  refused.current = "";
+                  setRetry((n) => n + 1);
+                }}
+              >
+                Try again
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ minHeight: 44 }}
+              onClick={() => setView(view === "hole" ? "card" : "hole")}
+            >
+              <Icon name={view === "hole" ? "ph ph-table" : "ph ph-flag"} />{" "}
+              {view === "hole" ? "See the full card" : "Back to the hole"}
+            </button>
+          </span>
+        </div>
+      ) : (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
         <span className="text-muted" style={{ fontSize: 13 }}>
           {progressLine(card, holes)}
@@ -615,6 +745,7 @@ export function StrokePlayEntry({
           <Icon name="check" /> Save scorecard
         </button>
       </div>
+      )}
 
       {/* Another way to get a card in without typing it. It fills the grid
           above and does not save; the submit is still what writes anything.
@@ -624,7 +755,9 @@ export function StrokePlayEntry({
           "coming soon" panel taking most of a screen of scrolling on every
           visit. A returned card photographed at the desk is read after the
           round, so here is where it is reached for anyway. */}
-      {cardPlayers.length > 0 && photoFolded && (
+      {/* Not on a casual round: it is scored on the phone, and reading a
+          returned paper card is a desk's job a friendly does not have. */}
+      {cardPlayers.length > 0 && photoFolded && !casual && (
         <details style={{ marginTop: 14 }}>
           <summary
             className="touch-target"
@@ -636,7 +769,7 @@ export function StrokePlayEntry({
           <div style={{ marginTop: 10 }}>{photoReader}</div>
         </details>
       )}
-      {cardPlayers.length > 0 && !photoFolded && <div style={{ marginTop: 14 }}>{photoReader}</div>}
+      {cardPlayers.length > 0 && !photoFolded && !casual && <div style={{ marginTop: 14 }}>{photoReader}</div>}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { keepRound } from "@/app/actions/round-expiry";
 import { Icon } from "./Icon";
+import { MoreInfo } from "./MoreInfo";
 
 /**
  * Telling somebody their round is temporary, while it still is.
@@ -21,7 +22,16 @@ export function RoundExpiryBanner({
   notice,
   canKeep,
   keepRefusal = null,
+  short = "",
 }: {
+  /**
+   * The casual round's one screen (2026-10-06): the warning in one line, with
+   * the whole sentence behind the ⓘ. Still a bordered card with the clock and
+   * the button — shorter is not subtler — because the card the golfer is
+   * keeping sits directly beneath it and four lines of this pushed hole 1 off
+   * the first screen.
+   */
+  short?: string;
   /**
    * Why this round cannot be kept at all — the Par terms (`casualKeepRefusal`).
    * Then there is no button to offer anybody, and the notice already names the
@@ -66,7 +76,8 @@ export function RoundExpiryBanner({
     <div
       className="card elev-sm"
       style={{
-        marginBottom: 16,
+        marginBottom: short ? 12 : 16,
+        padding: short ? "8px 12px" : undefined,
         // `.card` is `display: flex; flex-direction: column`, so the row has to
         // be asked for. Three cards in this app came out as centred stacks
         // because an inline `display: flex` was assumed to undo that.
@@ -79,7 +90,11 @@ export function RoundExpiryBanner({
     >
       <Icon name="clock" style={{ flex: "none" }} />
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 13, lineHeight: 1.5 }}>{notice}</div>
+        {short ? (
+          <MoreInfo short={short}>{notice}</MoreInfo>
+        ) : (
+          <div style={{ fontSize: 13, lineHeight: 1.5 }}>{notice}</div>
+        )}
         {error && (
           <div style={{ fontSize: 13, marginTop: 4, color: "var(--color-danger)" }}>{error}</div>
         )}

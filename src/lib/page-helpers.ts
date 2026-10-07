@@ -139,7 +139,9 @@ export function deniedLanding(role: Session["viewRole"], key: string): string {
 async function refuseTournamentScreenOnCasualRound(eventId: string, key: string): Promise<void> {
   if (!eventId || screenAppliesToMatch(key)) return;
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
-  if (isMatch(event?.shape)) redirect("/dashboard");
+  // To the round's one screen, which since 2026-10-06 is `/entry` — the
+  // dashboard only forwards a casual round there.
+  if (isMatch(event?.shape)) redirect("/entry");
 }
 
 /** Guard a screen key against the current view-role. */
