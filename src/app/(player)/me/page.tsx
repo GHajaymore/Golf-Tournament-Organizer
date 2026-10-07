@@ -26,6 +26,7 @@ import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { notInItWords } from "@/lib/tournament-shape";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
@@ -500,7 +501,7 @@ export default async function PlayTodayPage() {
       )}
 
       {!me.playerId && !watching && !waiting && (
-        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 12 }}>
+        <MoreInfo short={`${notInItWords(state.event.shape)}.`} style={{ marginTop: 12 }}>
           So there&rsquo;s no card here. The board is still open on the next tab.
         </MoreInfo>
       )}

@@ -24,6 +24,7 @@ import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
+import { notInItWords } from "@/lib/tournament-shape";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -95,7 +96,8 @@ export default async function PlayCardPage() {
               {terms.organizer} will confirm your place if one opens up.
             </>
           ) : (
-            <>You aren&rsquo;t entered in this tournament, so there&rsquo;s no card to fill in.</>
+            // The same sentence Today says, in the words of what this is.
+            <>{notInItWords(state.event.shape)}, so there&rsquo;s no card to fill in.</>
           )}
         </p>
         <WayForward
