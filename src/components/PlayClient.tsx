@@ -70,6 +70,18 @@ interface Props {
   /** The organizer's "Voice entry" setting — off, the card offers no microphone. */
   voiceEntry?: boolean;
   /**
+   * A net match's shots per hole, from the holder's side — `mine` and the
+   * opponent's — resolved on the server exactly as the console's card does.
+   * Null for a gross match, or a card with no stroke index.
+   */
+  matchShots?: { mine: number[]; theirs: number[] } | null;
+  /**
+   * The format, when the code is for a round played by SIDES — a four-ball or
+   * foursomes, kept on one phone. This surface keeps a player's own card or
+   * match and never a side's, so it says that instead of "no match for you".
+   */
+  sideRound?: string;
+  /**
    * The player's own strokes, for a round that is scored from a card rather
    * than played against somebody.
    *
@@ -724,12 +736,25 @@ export function PlayClient(props: Props) {
     return (
       <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
         <div className="card elev-sm">
-          <span className="card-title">No match for you in {props.roundLabel}</span>
-          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-            {props.playerName}, you don&rsquo;t have a match scheduled in this round of {props.eventName}.
-            If you were given a code for a different round, enter that one instead — otherwise check with
-            your organizer.
-          </p>
+          {props.sideRound ? (
+            <>
+              {/* A side's round — see `sideRound`. Not "no match for you". */}
+              <span className="card-title">This round is kept on one phone</span>
+              <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                {props.playerName}, {props.sideRound} is scored side by side on one card, so whoever set the
+                round up keeps it for everyone. There&rsquo;s nothing to enter here — the scores are on their phone.
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="card-title">No match for you in {props.roundLabel}</span>
+              <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                {props.playerName}, you don&rsquo;t have a match scheduled in this round of {props.eventName}.
+                If you were given a code for a different round, enter that one instead — otherwise check with
+                your organizer.
+              </p>
+            </>
+          )}
           {/* A WAY FORWARD. This screen offered only "Sign out", which for a
               code holder is the same act but reads as the end of the road. The
               commonest cause is simply the wrong round's code. */}
@@ -903,6 +928,7 @@ export function PlayClient(props: Props) {
           firstHole={props.firstHole ?? 1}
           canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
           showVoice={props.voiceEntry ?? true}
+          shotsOn={props.matchShots ? (h) => ({ a: props.matchShots?.mine[h] ?? 0, b: props.matchShots?.theirs[h] ?? 0 }) : undefined}
           onPick={(i, v) => setHole(i, v)}
           onSay={(start, values) => {
             const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);

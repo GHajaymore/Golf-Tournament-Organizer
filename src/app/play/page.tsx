@@ -13,7 +13,9 @@ import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
+import { matchStrokesGiven } from "@/lib/domain/match";
 import { isHeadToHead } from "@/lib/stage-types";
+import { needsTeams } from "@/lib/formats";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -110,6 +112,31 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       // basis says, and `cardTotals` needs the format to know that.
       select: { id: true, type: true, holes: true, nine: true, scoringBasis: true, format: true, courseId: true },
     });
+
+    /**
+     * A SIDE'S ROUND IS KEPT ON ONE PHONE (2026-10-07).
+     *
+     * A four-ball or foursomes is scored side by side, and this surface keeps
+     * a player's own card or their own match — never a side's. Somebody who
+     * had a code for one was told "you don't have a match scheduled in this
+     * round of Ann & Bea v Cat & Dot": a round they were standing in. The
+     * casual round screen no longer hands the code out for these formats;
+     * this is the true sentence for anyone who has one anyway.
+     */
+    if (cardStage && needsTeams(cardStage.format)) {
+      return (
+        <PlayClient
+          expiryNotice={expiry}
+          expiryShort={expiryLine}
+          stage="no-match"
+          sideRound={cardStage.format}
+          brand={brand}
+          playerName={session.playerName}
+          eventName={event.name}
+          roundLabel={session.roundLabel}
+        />
+      );
+    }
 
     if (cardStage && !isHeadToHead(cardStage.type)) {
       const roundVenue = cardStage.courseId
@@ -256,6 +283,30 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
   });
   const iAmA = match.playerAId === session.playerId;
 
+  /**
+   * WHO GETS A SHOT WHERE, in a net match (2026-10-07).
+   *
+   * A player keeping a net match by the code taps who won each hole, and that
+   * depends on the shots — which the console's card shows as dots and this
+   * screen did not, leaving the allocation to be done in somebody's head on
+   * the 14th tee. Through the console's own two readers, so the two screens
+   * cannot disagree: `matchHandicapFor` (the PLAYING handicap for this match,
+   * not the roster index `me.handicap` carries) and `matchStrokesGiven`, over
+   * the card this screen already shows. From the holder's side: "mine" first.
+   */
+  const netMatch = isNetBasis(stage?.scoringBasis ?? "");
+  let matchShots: { mine: number[]; theirs: number[] } | null = null;
+  if (netMatch && playCard?.strokeIndex?.length) {
+    const matchState = await loadEventState(event.id);
+    const opponentId = iAmA ? match.playerBId : match.playerAId;
+    const given = matchStrokesGiven(
+      matchState?.matchHandicapFor(session.playerId, match.id) ?? 0,
+      matchState?.matchHandicapFor(opponentId, match.id) ?? 0,
+      playCard.strokeIndex,
+    );
+    matchShots = { mine: given.toA, theirs: given.toB };
+  }
+
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
   const otherIds = others.map((x) => (x.playerAId === session.playerId ? x.playerBId : x.playerAId));
@@ -313,6 +364,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
       // The same predicate the console and the server use, so a player and an
       // organizer cannot be shown a different basis for one round.
       netMode={isNetBasis(stage?.scoringBasis ?? "")}
+      matchShots={matchShots}
+      voiceEntry={settings.voiceEntry}
     />
     </DistanceUnitProvider>
   );

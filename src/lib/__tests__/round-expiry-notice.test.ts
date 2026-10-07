@@ -234,7 +234,15 @@ describe("the play shell tells a code-redeemed player too", () => {
      * caught: two right and one silently not is exactly the shape this file
      * keeps finding.
      */
-    expect(page.split("expiryNotice={expiry}").length - 1).toBe(3);
+    //
+    // Counted against the renders themselves rather than a number (2026-10-07:
+    // a fourth — the side-round note — took it from 3): every `PlayClient`
+    // except the two `stage="code"` returns has a round behind it.
+    const renders = page.split("<PlayClient").length - 1;
+    const beforeAnyRound = page.split('<PlayClient stage="code" />').length - 1;
+    expect(beforeAnyRound).toBe(2);
+    expect(renders, "the count of surfaces is a real one").toBeGreaterThanOrEqual(4);
+    expect(page.split("expiryNotice={expiry}").length - 1).toBe(renders - beforeAnyRound);
   });
 
   it("says nothing on the screen that has no round yet", () => {

@@ -7929,6 +7929,79 @@ describe("the sign-up password field", () => {
  * had no way to submit at all, and the nine cells past the end were discarded
  * on save, so the number on screen was never the number being stored either.
  */
+/**
+ * A SIDE'S ROUND ON THE ROUND CODE (2026-10-07). A four-ball's player who
+ * used the code was told "you don't have a match scheduled in this round of
+ * Ann & Bea v Cat & Dot" — a round they were standing in.
+ */
+describe("a code for a round played by sides", () => {
+  const note = (over: Record<string, unknown> = {}) =>
+    renderToStaticMarkup(
+      <PlayClient stage="no-match" playerName="zz-Bea" eventName="zz-Ann & zz-Bea v zz-Cat & zz-Dot" roundLabel="Round 1" {...over} />,
+    );
+
+  it("says the round is kept on one phone, not that the player has no match", () => {
+    const html = note({ sideRound: "Four-Ball" });
+    expect(html).toContain("This round is kept on one phone");
+    expect(html).toContain("Four-Ball is scored side by side");
+    expect(html).not.toContain("No match for you");
+    expect(html).not.toContain("match scheduled");
+  });
+
+  it("CONTROL: a round that draws pairings still says no match, where that is true", () => {
+    const html = note();
+    expect(html).toContain("No match for you in Round 1");
+    expect(html).not.toContain("kept on one phone");
+  });
+});
+
+/**
+ * WHO GETS A SHOT WHERE ON A NET MATCH KEPT BY THE CODE (2026-10-07) — the
+ * dots the console's card shows, on the answer of the player who receives.
+ */
+describe("a net match on the round code shows the shots", () => {
+  const match = {
+    id: "m1",
+    aId: "a",
+    bId: "b",
+    aName: "zz-Bea Zed",
+    bName: "zz-Ann Zed",
+    aHandicap: 12,
+    bHandicap: 8,
+    holes: new Array(18).fill(null),
+    flipped: false,
+  };
+  const play = (matchShots: { mine: number[]; theirs: number[] } | null) =>
+    renderToStaticMarkup(
+      <PlayClient
+        stage="score"
+        playerName="zz-Bea Zed"
+        eventName="zz match"
+        roundLabel="Round 1"
+        match={match}
+        holes={18}
+        pars={new Array(18).fill(4)}
+        yards={[]}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        netMode
+        matchShots={matchShots}
+      />,
+    );
+
+  it("puts the holder's shot on their own answer for the hole on screen", () => {
+    // The card opens on hole 1, SI 1: Bea receives there.
+    const html = play({ mine: [1, ...new Array(17).fill(0)], theirs: new Array(18).fill(0) });
+    expect(html).toContain("Hole 1 to you, who gets a shot");
+    expect(html).not.toContain("Hole 1 to zz-Ann Zed, who gets");
+  });
+
+  it("CONTROL: a gross match draws no dots", () => {
+    const html = play(null);
+    expect(html).toContain('aria-label="Hole 1 to you"');
+    expect(html).not.toContain("who gets a shot");
+  });
+});
+
 describe("the round-code card is drawn for the round's own holes", () => {
   const NINE_PARS = [4, 3, 5, 4, 4, 3, 4, 4, 4];
   const NINE_SI = [5, 9, 1, 3, 7, 8, 2, 4, 6];
