@@ -100,9 +100,15 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
           .
         </p>
       )}
-      <Link className="btn btn-secondary" href="/me/board" style={{ alignSelf: "flex-start" }}>
-        Every match <Icon name="arrow-right" />
-      </Link>
+      {/* "SEE EVERY MATCH", ONCE THERE IS ONE (2026-10-06). It read "Every
+          match", which names no action — the other cards on Today say "See
+          every side", "See the draw" — and it was offered before any lineup
+          was announced, opening a board with no matches on it. */}
+      {board.sessions.some((s) => s.published && s.matches.length > 0) && (
+        <Link className="btn btn-secondary" href="/me/board" style={{ alignSelf: "flex-start" }}>
+          See every match <Icon name="arrow-right" />
+        </Link>
+      )}
     </section>
   );
 }

@@ -162,6 +162,8 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     await open(page, "/me");
     await expect(cupCard(page)).toContainText("Still to be announced: Saturday four-balls, Saturday foursomes, Sunday singles.");
     await expect(cupCard(page)).not.toContainText("Bram Blue");
+    // Nothing announced, so nothing to see: no button to an empty list.
+    await expect(cupCard(page).getByRole("link", { name: /See every match/ })).toHaveCount(0);
     await page.context().clearCookies();
     await open(page, `/live/${f.shareToken}`);
     // Not Edda, who is on the board anyway as the Whites' captain.
@@ -189,6 +191,8 @@ test("a team cup, played by its players", async ({ page, baseURL }) => {
     const m = myMatch(page, "Saturday four-balls");
     await expect(m).toContainText("You & Bram Blue v Edda White & Finn White");
     await expect(m).toContainText("Not started");
+    // Announced: now there is a board of matches to go to, and the button says so.
+    await expect(cupCard(page).getByRole("link", { name: /See every match/ })).toBeVisible();
     // What it replaced — none of these belong to a cup.
     await expect(page.getByText("Your side · not started")).toHaveCount(0);
     await expect(page.getByText(/Who would you like to play with/)).toHaveCount(0);
