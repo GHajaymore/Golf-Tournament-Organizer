@@ -548,6 +548,45 @@ test.describe("a casual round at the course", () => {
     }
   });
 
+  test("a handicap corrected after the first hole is the one the round plays off", async ({ page }) => {
+    /**
+     * Both typed as 10 on the first tee; Bea is really a 20. The tee is rated
+     * 72.0 / 113 over par 72, so a 10 gets a shot on stroke index 1-10 and a
+     * 20 on every hole, two on SI 1-2. The 5th is SI 15: no shot for a 10,
+     * one for a 20.
+     *
+     * The round froze both at 10 when the first hole went in, and the
+     * correction in More saved to the roster and was ignored by the round —
+     * the panel read 20 and the card still gave Bea a 10's shots (2026-10-07).
+     */
+    await setUp(page, "Stroke Play", true, [ANN, BEA]);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const plus = page.getByRole("button", { name: /^One more stroke for/ });
+    await expect(plus.first()).toBeVisible({ timeout: 30_000 });
+    await plus.nth(0).click();
+    await plus.nth(1).click();
+    await expect(page.getByText(/\bSaved\b/).first()).toBeVisible({ timeout: 30_000 });
+
+    const beaDotsOn = async (hole: number) => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await page.locator(".hole-nav-btn").nth(hole - 1).click();
+      const row = page.getByRole("button", { name: `One more stroke for ${BEA} on hole ${hole}` }).locator("xpath=..");
+      await expect(row).toBeVisible();
+      return ((await row.innerText()).match(/•/g) ?? []).length;
+    };
+    expect(await beaDotsOn(5), "a 10 gets a shot on SI 15").toBe(0);
+
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await page.locator("summary", { hasText: /^More:/ }).click();
+    const box = page.getByRole("textbox", { name: `${BEA}'s handicap` });
+    await box.fill("20");
+    await box.press("Tab");
+    await expect(async () => {
+      expect(await beaDotsOn(5), "the round still plays Bea off the 10 typed on the first tee").toBe(1);
+    }).toPass({ timeout: 20_000 });
+    expect(await beaDotsOn(4), "a 20 gets two shots on SI 1").toBe(2);
+  });
+
   test("modified stableford, net, two players", async ({ page }) => {
     await setUp(page, "Modified Stableford", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);
