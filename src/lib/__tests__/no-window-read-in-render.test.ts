@@ -25,12 +25,17 @@ const files = (dir: string): string[] =>
     e.isDirectory() ? files(join(dir, e.name)) : e.name.endsWith(".tsx") ? [join(dir, e.name)] : [],
   );
 
-/** A value computed from `window` behind the environment check. */
-const READ = /typeof window !== ["']undefined["']\s*\?\s*window\./g;
+/**
+ * A `const` computed from the browser behind the environment check — the
+ * shape a value takes when it is read in the render rather than in an effect
+ * or a handler (those are functions, `const x = () => …`, and do not match).
+ * Choosing a HOOK this way (`? useLayoutEffect : useEffect`) is let through.
+ */
+const READ = /^\s*const \w+ = typeof (window|navigator|document) !== ["']undefined["']\s*(\?|&&)(?!\s*use[A-Z])[^\n]*/gm;
 
 export function renderReads(src: string): string[] {
   if (!/^\s*["']use client["']/.test(src)) return [];
-  return [...src.matchAll(READ)].map((m) => m[0]);
+  return [...src.matchAll(READ)].map((m) => m[0].trim());
 }
 
 describe("a client component reads the browser after it renders, not while", () => {
@@ -41,9 +46,19 @@ describe("a client component reads the browser after it renders, not while", () 
 
   it("CONTROL: catches the shape it is for, and lets a hook choice through", () => {
     expect(renderReads('"use client";\nconst o = typeof window !== "undefined" ? window.location.origin : "";')).toHaveLength(1);
+    // The LiveRefresh shape, on `navigator`, with `&&`.
+    expect(renderReads('"use client";\n  const offline = typeof navigator !== "undefined" && navigator.onLine === false;')).toHaveLength(1);
     expect(renderReads('"use client";\nconst useX = typeof window !== "undefined" ? useLayoutEffect : useEffect;')).toHaveLength(0);
+    // A function read later — an effect's helper, a handler — is fine.
+    expect(renderReads('"use client";\n  const awake = () => typeof document !== "undefined" && document.hidden;')).toHaveLength(0);
     // A server component has no hydration to mismatch.
     expect(renderReads('const o = typeof window !== "undefined" ? window.location.origin : "";')).toHaveLength(0);
+  });
+
+  it("the live board's offline label is read after hydration, and follows the signal", () => {
+    const src = readSource(join("src", "components", "LiveRefresh.tsx"));
+    expect(src).toMatch(/useSyncExternalStore\(subscribeOnline, \(\) => navigator\.onLine === false, \(\) => false\)/);
+    expect(src).toMatch(/addEventListener\("offline", onChange\)/);
   });
 
   it("the sign-up link is read after hydration", () => {
