@@ -4,7 +4,7 @@ import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } fro
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useId, useState, useRef, useEffect, useTransition } from "react";
+import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -18,6 +18,9 @@ import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+
+/** The page's origin never changes while it is open, so nothing to subscribe to. */
+const noSubscription = () => () => {};
 
 interface Signup {
   /** The set this entry plays from. Null means the round’s own. */
@@ -341,7 +344,21 @@ export function RegistrationClient({
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const registrationLink = typeof window !== "undefined" ? window.location.origin : "";
+  /**
+   * The site's address, read AFTER hydration. It was
+   * `typeof window !== "undefined" ? window.location.origin : ""` during
+   * render, so the server drew the sign-up box with "/register/…" and the
+   * browser hydrated it with "https://…/register/…" — a hydration mismatch on
+   * every visit to this screen, found sweeping client components for render-
+   * time browser reads (2026-10-06). `useSyncExternalStore` renders the
+   * server's answer first and the browser's straight after, which is the one
+   * way to read `window` in render that both sides agree on.
+   */
+  const registrationLink = useSyncExternalStore(
+    noSubscription,
+    () => window.location.origin,
+    () => "",
+  );
   // The public self-service sign-up link. Empty until registration has been
   // opened at least once (the token is minted then).
   const registerUrl = event.registrationToken ? `${registrationLink}/register/${event.registrationToken}` : "";
