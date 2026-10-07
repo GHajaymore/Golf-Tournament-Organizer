@@ -9,6 +9,7 @@ import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry"
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { casualStanding, casualMoney, casualIsMatch } from "@/lib/services/casual-round";
 import { screenName } from "@/lib/nav";
+import { needsTeams } from "@/lib/formats";
 import type { EventState } from "@/lib/services/tournament";
 
 /**
@@ -74,7 +75,12 @@ export async function CasualRoundScreen({
    * Shown beside the heading it was furniture on all eighteen holes for a
    * feature most groups never use. Named first in More, so it is found.
    */
-  const code = isStaff ? stage?.accessCode ?? "" : "";
+  //
+  // NOT FOR A SIDE'S ROUND (2026-10-07). A four-ball or foursomes is kept on
+  // one phone: the code's own surface keeps a player's card or match, never a
+  // side's, so the friend who used it was told they had no match in a round
+  // they were playing. The promise beside the code would be a false one.
+  const code = isStaff && !needsTeams(stage?.format ?? "") ? stage?.accessCode ?? "" : "";
 
   const moreParts = [
     code ? "Friends' code" : "",

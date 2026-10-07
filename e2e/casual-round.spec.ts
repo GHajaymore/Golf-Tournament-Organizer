@@ -66,6 +66,8 @@ async function setUp(
   net: boolean,
   names: string[],
   money?: { game: string; stake: string },
+  /** Each player's handicap on a net round, in the order typed; 10 for all if not given. */
+  handicaps?: number[],
 ) {
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
@@ -84,7 +86,7 @@ async function setUp(
     const box = page.getByRole("combobox", { name: `Player ${i + 1} name` });
     if (!(await box.count())) await page.getByRole("button", { name: /Add a player/ }).click();
     await box.fill(name);
-    if (net) await page.getByRole("textbox", { name: `Handicap for ${name}` }).fill("10");
+    if (net) await page.getByRole("textbox", { name: `Handicap for ${name}` }).fill(String(handicaps?.[i] ?? 10));
   }
 
   // Found by typing, the way it is at the course — not picked from a club
@@ -499,6 +501,53 @@ test.describe("a casual round at the course", () => {
     }
   });
 
+  test("a friend keeping a net match by the code sees who gets a shot, where the host's card does", async ({ page, browser, baseURL }, testInfo) => {
+    /**
+     * Ann plays off 8 and Bea off 12. The tee is rated 72.0 / 113 over par
+     * 72, so those are their course handicaps, and in match play the higher
+     * receives the difference: Bea gets four shots, on stroke index 1 to 4 —
+     * the 4th, 13th, 2nd and 11th on this card. None on the 1st (SI 7).
+     *
+     * Bea keeps the match by the code, tapping who won each hole — and that
+     * turns on the shots, which her screen did not show (2026-10-07). It must
+     * show them on the same holes as the host's own card for the same match,
+     * or the two phones disagree about who won.
+     */
+    await setUp(page, "Match Play", true, [ANN, BEA], undefined, [8, 12]);
+    // The host's card: Bea's dot on the 2nd, none on the 1st.
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const beaRow = (hole: number) =>
+      // The match card names its two players by first name.
+      page.getByRole("button", { name: new RegExp(`^One more stroke for Bea( Zed)? on hole ${hole}$`) }).locator("xpath=..");
+    await expect(beaRow(1)).toBeVisible({ timeout: 30_000 });
+    await expect(beaRow(1), "the host's card gives Bea a shot on SI 7").not.toContainText("•");
+    await page.getByRole("button", { name: /^Next/ }).click();
+    await expect(beaRow(2), "the host's card gives Bea no shot on SI 3").toContainText("•");
+
+    await page.locator("summary", { hasText: /^More: Friends/ }).click();
+    const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    try {
+      const p = await ctx.newPage();
+      await p.goto("/play");
+      await p.getByLabel("Round code").fill(code);
+      await p.getByRole("button", { name: "Continue" }).click();
+      await p.getByRole("button", { name: BEA, exact: true }).click();
+      // Hole 1 (SI 7): nobody gets a shot. Exact names — a substring match
+      // would accept ", who gets a shot" on the end and prove nothing.
+      await expect(p.getByRole("button", { name: "Hole 1 to you", exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(p.getByRole("button", { name: `Hole 1 to ${ANN}`, exact: true })).toBeVisible();
+      await p.getByRole("button", { name: "Hole 1 halved" }).click();
+      // Hole 2 (SI 3): Bea's shot, on her own answer and not on Ann's.
+      const mine2 = p.getByRole("button", { name: "Hole 2 to you, who gets a shot", exact: true });
+      await expect(mine2, "the friend's screen gives Bea no shot where the host's card does").toBeVisible();
+      await expect(mine2).toContainText("•");
+      await expect(p.getByRole("button", { name: `Hole 2 to ${ANN}`, exact: true })).toBeVisible();
+    } finally {
+      await ctx.close();
+    }
+  });
+
   test("modified stableford, net, two players", async ({ page }) => {
     await setUp(page, "Modified Stableford", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);
@@ -526,6 +575,11 @@ test.describe("a casual round at the course", () => {
     await scoreEveryHole(page, 2);
     await roundScreen(page);
     await expect(page.locator("[data-match-line]")).toHaveText(`${CAT} & ${DOT} won 2&1`);
+    // A side's round is kept on one phone, so More offers no friends' code:
+    // the code's surface has no side's card, and its promise would be false.
+    const more = page.locator("summary", { hasText: /^More:/ });
+    await expect(more).toBeVisible();
+    await expect(more, "a four-ball offers a code nobody can score with").not.toContainText("Friends");
   });
 
   test("foursomes, gross, four players", async ({ page }) => {
