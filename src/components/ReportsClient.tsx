@@ -33,7 +33,15 @@ export function ReportsClient({
   scored = true,
   hasBracket = true,
   hasTeeSheet = true,
+  casual = false,
 }: {
+  /**
+   * A casual round (2026-10-07): no flights, no draw, nobody advancing. The
+   * standings sheet leaves out the Flight and Advancing/Eliminated columns —
+   * it printed "Eliminated" against every friend in the round — and the list
+   * leaves out the flight sheet and the tee-sheet scorecards.
+   */
+  casual?: boolean;
   rows: StandingRow[];
   isStroke: boolean;
   isStableford?: boolean;
@@ -138,7 +146,9 @@ export function ReportsClient({
           : [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), parCell(r), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
-    download(`${eventName}-standings.csv`, [header, ...body]);
+    // A casual round: no Flight (column 2) and no Status (the last).
+    const shape = (row: string[]) => (casual ? row.filter((_, i) => i !== 2 && i !== row.length - 1) : row);
+    download(`${eventName}-standings.csv`, [shape(header), ...body.map(shape)]);
   };
 
   /**
@@ -187,8 +197,12 @@ export function ReportsClient({
   const standingsCsv =
     scored && extraCsv.length === 0
       ? [
-          { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
-          { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
+          casual
+            ? { label: "The round", desc: "Every player, ranked, with their score.", icon: "ph ph-table", action: fullStandings, kind: "csv" }
+            : { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
+          ...(casual
+            ? []
+            : [{ label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" }]),
         ]
       : [];
 
@@ -237,7 +251,8 @@ export function ReportsClient({
      * drawn YET is a step an organizer is about to take, so the entry stays
      * and tells them which one.
      */
-    {
+    // No tee sheet to print from on a casual round — its card is on the phone.
+    ...(casual ? [] : [{
       label: "Scorecards",
       /**
        * SAYS WHERE IT LANDS, and lands on the control rather than the page.
@@ -257,8 +272,8 @@ export function ReportsClient({
         : "Draw and save a tee sheet first — cards print one per group.",
       icon: "ph ph-cards",
       action: () => router.push(hasTeeSheet ? "/foursomes#print-scorecards" : "/foursomes"),
-      kind: "open",
-    },
+      kind: "open" as const,
+    }]),
   ];
 
   return (

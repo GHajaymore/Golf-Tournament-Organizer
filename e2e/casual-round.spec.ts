@@ -270,6 +270,34 @@ test.describe("a casual round at the course", () => {
     expect(text.match(/ pays /g)?.length, "more handovers than one bet needs").toBe(1);
   });
 
+  test("a hole entered just before leaving the screen is kept", async ({ page }) => {
+    /**
+     * The card saves itself 600ms after the last tap. Leaving inside that
+     * window cleared the timer with the screen, and the hole never went
+     * (2026-10-07) — enter the 18th, tap Export, and the round's last hole
+     * was gone. Now a waiting save goes the moment the screen does.
+     */
+    await setUp(page, "Stroke Play", false, [ANN, BEA]);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const plus = page.getByRole("button", { name: /^One more stroke for/ });
+    await expect(plus.first()).toBeVisible({ timeout: 30_000 });
+    // More open first: it is beside the card and changes nothing on it.
+    await page.locator("summary", { hasText: /^More:/ }).click();
+    const leave = page.getByRole("link", { name: /Export this round/ });
+    await expect(leave).toBeVisible();
+    // Par for both, and straight out — no wait for "Saved".
+    await plus.nth(0).click();
+    await plus.nth(1).click();
+    await leave.click();
+    await page.waitForURL(/\/reports/);
+
+    await expect(async () => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      const card = await page.locator("main").innerText();
+      expect(card.match(/\bE thru 1\b/g)?.length ?? 0, "the hole entered before leaving was lost").toBe(2);
+    }).toPass({ timeout: 20_000 });
+  });
+
   test("stroke play, gross, three players", async ({ page }) => {
     await setUp(page, "Stroke Play", false, [ANN, BEA, CAT]);
     await scoreEveryHole(page, 1);
@@ -332,6 +360,20 @@ test.describe("a casual round at the course", () => {
     );
     expect(nets.length, "no net figures on the money page").toBe(3);
     for (const n of nets) expect(n.right, `net ${n.text} is cut off`).toBeLessThanOrEqual(n.edge);
+
+    // The record of what was agreed, as the host reads it back under Export:
+    // in dollars, named as the setup named it. It read "Skins at 1000c a head".
+    await page.goto(`/reports?bust=${Date.now()}`);
+    const log = await page.locator("main").innerText();
+    expect(log).toContain("Skins at $10.00 a head, 3 in");
+    expect(log, "money in the change log in raw cents").not.toMatch(/\d+c a head/);
+    // A finished round kept on the host's phone is IN, the way its money is —
+    // it read "Cards in 0/3" and "Nothing returned for this round yet".
+    expect(log).toMatch(/cards in\s*3\/3/i);
+    expect(log).toContain("Every card is in — this is the result.");
+    expect(log).not.toMatch(/Nothing returned/);
+    // And none of a tournament's furniture: no flights, nobody advancing.
+    expect(log).not.toMatch(/\bflights\b|advancing|flight results|weekly sign-up|tee sheet/i);
 
     // And on the round's one screen, under the card, the same two handovers —
     // the money once it is final, without opening the money page.

@@ -10,6 +10,8 @@ import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
+import { money } from "@/lib/domain/money-format";
+import { currencyForEvent } from "@/lib/services/organization";
 
 /**
  * The skins pot on a league round.
@@ -150,7 +152,8 @@ export async function saveSkinsPot(
   await logAudit(
     eventId,
     "skins.pot",
-    `${potName(input.net, input.scope, groupKey)} set to ${buyIn > 0 ? `${buyIn}c a head` : note || "no stake"}`,
+    // In the round's currency: this printed "500c a head" (2026-10-07).
+    `${potName(input.net, input.scope, groupKey)} set to ${buyIn > 0 ? `${money(buyIn, await currencyForEvent(eventId))} a head` : note || "no stake"}`,
   );
   refresh();
   return { ok: true };

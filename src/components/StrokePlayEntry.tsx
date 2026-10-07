@@ -16,9 +16,10 @@ import { boardKind } from "@/lib/formats";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
-import { saveScorecard } from "@/app/actions/tournament";
+import { saveScorecard, saveScorecards } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
+import { useSaveBeforeLeaving } from "./useSaveBeforeLeaving";
 import { startDictation, type Dictation } from "@/lib/dictation";
 
 interface StrokePlayer {
@@ -379,31 +380,62 @@ export function StrokePlayEntry({
   );
   const refused = useRef("");
   const [retry, setRetry] = useState(0);
+  /** The cards this phone differs on from what it last sent. */
+  const changedIn = (snapshot: Record<string, (number | null)[]>) =>
+    players
+      .map((p) => p.id)
+      .filter(
+        (id) =>
+          JSON.stringify(snapshot[id] ?? []) !== lastSent.current[id] &&
+          (snapshot[id] ?? []).some((s) => s != null) &&
+          !isCardLocked(cardStatus[id] ?? ""),
+      );
+  /**
+   * One send at a time, each behind the last, and each asking what has
+   * changed only when its turn comes. So a card is never sent twice, and an
+   * older copy can never land after a newer one.
+   */
+  const inFlight = useRef<Promise<unknown>>(Promise.resolve());
+  const sendChanged = (snapshot: Record<string, (number | null)[]>) => {
+    const run = inFlight.current.then(async () => {
+      const ids = changedIn(snapshot);
+      if (ids.length === 0) return [];
+      const cardOf = (id: string) => snapshot[id] ?? new Array(holes).fill(null);
+      // ONE request for every card — see `saveScorecards`: a second request
+      // sent as the scorer leaves can be aborted, and its card lost.
+      try {
+        const results = await saveScorecards(stageId, ids.map((id) => ({ playerId: id, strokes: cardOf(id) })));
+        const failed: Array<{ id: string; why: string }> = [];
+        for (const r of results) {
+          if (r.ok) lastSent.current[r.playerId] = JSON.stringify(cardOf(r.playerId));
+          else failed.push({ id: r.playerId, why: r.error ?? "It didn't save — try again." });
+        }
+        return failed;
+      } catch (err) {
+        const why = err instanceof Error && err.message ? err.message : "It didn't save — try again.";
+        return ids.map((id) => ({ id, why }));
+      }
+    });
+    inFlight.current = run.catch(() => undefined);
+    return run;
+  };
+  // Leaving inside the 600ms — or while a save is still going — sends what
+  // is left then. See `useSaveBeforeLeaving`.
+  const latestCards = useRef(cards);
+  useEffect(() => {
+    latestCards.current = cards;
+  }, [cards]);
+  useSaveBeforeLeaving(() => {
+    if (casual) void sendChanged(latestCards.current);
+  });
   useEffect(() => {
     if (!casual || pending) return;
     const now = JSON.stringify(cards);
     if (refused.current === now) return;
-    const changed = players
-      .map((p) => p.id)
-      .filter(
-        (id) =>
-          JSON.stringify(cards[id] ?? []) !== lastSent.current[id] &&
-          (cards[id] ?? []).some((s) => s != null) &&
-          !isCardLocked(cardStatus[id] ?? ""),
-      );
-    if (changed.length === 0) return;
+    if (changedIn(cards).length === 0) return;
     const timer = window.setTimeout(() => {
       startTransition(async () => {
-        const failed: Array<{ id: string; why: string }> = [];
-        for (const id of changed) {
-          const sent = cards[id] ?? new Array(holes).fill(null);
-          try {
-            await saveScorecard(stageId, id, sent);
-            lastSent.current[id] = JSON.stringify(sent);
-          } catch (err) {
-            failed.push({ id, why: err instanceof Error && err.message ? err.message : "It didn't save — try again." });
-          }
-        }
+        const failed = await sendChanged(cards);
         refused.current = failed.length ? now : "";
         const named = (id: string) => players.find((p) => p.id === id)?.name ?? "A card";
         setSaved({

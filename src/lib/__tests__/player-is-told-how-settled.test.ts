@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { snapshotStanding } from "../domain/lifecycle-state";
+import { snapshotStanding, cardsIn } from "../domain/lifecycle-state";
 import { readSource } from "./source";
 
 /**
@@ -41,11 +41,28 @@ describe("the player's position says whether it can move", () => {
     // `boardProgress` is what "7 of 33 cards in" comes from, and it is the
     // number the dashboard prints beside it. Reading anything else here would
     // put two counts of one thing on two screens.
+    // Through `cardsIn` since 2026-10-07, which reads that same progress and
+    // counts a casual round's full card as in — on this screen and the sheet.
     const me = readSource("src", "lib", "services", "me.ts");
     const call = me.slice(me.indexOf("snapshotStanding("), me.indexOf("snapshotStanding(") + 320);
-    expect(call).toContain("state.boardProgress.certified");
+    expect(call).toContain("cardsIn(state.boardProgress,");
     expect(call).toContain("state.boardProgress.total");
     expect(call).toContain("state.event.status");
+    const sheet = readSource("src", "app", "(app)", "reports", "page.tsx");
+    expect(sheet, "the printed sheet counts its cards another way").toContain("cardsIn(state.boardProgress,");
+  });
+
+  it("counts a casual round's full, unsigned card as in, and only there", () => {
+    const progress = { certified: 1, unreturned: 2, unit: "cards" };
+    expect(cardsIn(progress, true)).toBe(3);
+    // A tournament's card is in when it is returned, never before.
+    expect(cardsIn(progress, false)).toBe(1);
+    // Nothing else is a card: a match round counts its finished matches.
+    expect(cardsIn({ certified: 1, unreturned: 2, unit: "matches" }, true)).toBe(1);
+    // And all of them in IS the result — a friendly is never "closed".
+    const all = snapshotStanding({ status: "live", done: 3, total: 3, unit: "cards", casual: true }).note;
+    expect(all).toBe("Every card is in — this is the result.");
+    expect(snapshotStanding({ status: "live", done: 3, total: 3, unit: "cards" }).note).toMatch(/not been closed/);
   });
 
   it("prints under the position, which is what it qualifies", () => {
