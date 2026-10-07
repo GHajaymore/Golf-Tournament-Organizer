@@ -130,6 +130,19 @@ export function reviewsScores(shape: string | null | undefined): boolean {
   return !isMatch(shape);
 }
 
+/**
+ * What somebody with no place in it is told, in the words of what it IS.
+ *
+ * "You aren't entered in this tournament" was said on a casual round — a few
+ * friends' round, set up on the first tee, which nobody "enters" and nobody
+ * calls a tournament (seen 2026-10-06 on the host's own Today). One sentence
+ * for every screen that says it, so Today and the card cannot word it two ways.
+ * No full stop: each screen ends the sentence its own way.
+ */
+export function notInItWords(shape: string | null | undefined): string {
+  return isMatch(shape) ? "You aren't playing in this round" : "You aren't entered in this tournament";
+}
+
 /** Resolve a stored value, falling back rather than throwing — an unknown
  *  shape must never stop a tournament from opening. */
 export function shapeOf(v: string | null | undefined): TournamentShape {

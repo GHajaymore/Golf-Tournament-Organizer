@@ -1,7 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { freshness, POLL_MS } from "@/lib/domain/freshness";
+
+/** Signal coming and going, for `useSyncExternalStore`. */
+function subscribeOnline(onChange: () => void): () => void {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
 
 /**
  * Keeps the public leaderboard up to date, and says how old it is.
@@ -114,7 +124,15 @@ export function LiveRefresh({
 
   const age = now === null ? 0 : now - new Date(renderedAt).getTime();
   const { label, stale } = freshness(age);
-  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  /**
+   * Whether the phone has signal, read AFTER hydration and kept up to date.
+   * It was `navigator.onLine` read during render: the server always says
+   * online, so a phone opening the board with no signal — a golfer out on the
+   * course, which is when this label matters — hydrated against the wrong
+   * HTML. And it only changed on the next render, not when the signal came
+   * back. See `no-window-read-in-render.test.ts`.
+   */
+  const offline = useSyncExternalStore(subscribeOnline, () => navigator.onLine === false, () => false);
 
   return (
     <p
