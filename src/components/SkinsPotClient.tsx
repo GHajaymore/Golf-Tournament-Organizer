@@ -391,8 +391,7 @@ export function SkinsPotClient({
               </>
             ) : (
               <>
-                {view.entrantIds.length} × {withSymbol(view.buyInCents)}
-                ={" "}
+                {view.entrantIds.length} × {withSymbol(view.buyInCents)} ={" "}
                 <b style={{ color: "var(--color-text)" }}>{withSymbol(r.potCents)}</b> over{" "}
                 {r.claimedSkins + r.unclaimedSkins} skins
                 {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}.
@@ -437,7 +436,11 @@ export function SkinsPotClient({
                   {/* Three columns of zeroes is worse than no columns: it
                       reads as a settled game in which nobody won anything. */}
                   {!forSomethingElse && <th style={{ textAlign: "right" }}>Won ({symbol})</th>}
-                  {!forSomethingElse && <th style={{ textAlign: "right" }}>In ({symbol})</th>}
+                  {/* NO "IN" COLUMN. Every entrant puts in the same buy-in
+                      (`skinsPot`), and the line above already says it —
+                      "4 × $10.00". A fifth column repeating it on every row
+                      pushed Net, the figure each player reads for, past the
+                      edge of a 393px phone (2026-10-07). */}
                   {!forSomethingElse && <th style={{ textAlign: "right" }}>Net ({symbol})</th>}
                 </tr>
               </thead>
@@ -458,8 +461,8 @@ export function SkinsPotClient({
                       {!forSomethingElse && (
                         <>
                           <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.wonCents)}</td>
-                          <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.stakeCents)}</td>
                           <td
+                            data-net
                             style={{
                               textAlign: "right",
                               fontVariantNumeric: "tabular-nums",

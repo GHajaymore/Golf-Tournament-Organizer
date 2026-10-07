@@ -600,6 +600,16 @@ textarea.input { min-height: 90px; resize: vertical; }
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
 }
+/* THE LAST COLUMN ON A SMALL PHONE (2026-10-07). Twelve pixels each side of
+   every cell is 24px a column, and on a 320px phone that is what pushed the
+   last column — a skins pot's Net, a board's To par — past the card's edge,
+   into a sideways scroll nobody knows is there. The last column is the one a
+   row is read for. Inside a card, whose own padding already holds the edge. */
+@media (max-width: 420px) {
+  .table th, .table td { padding-left: 6px; padding-right: 6px; }
+  .table tr > :first-child { padding-left: 4px; }
+  .table tr > :last-child { padding-right: 4px; }
+}
 /* A grid of inputs rather than a list of figures — the pin sheet — where the
    controls themselves carry the spacing and the default gutters would push a
    five-column row off a 320px phone. */
@@ -841,6 +851,14 @@ textarea.input { min-height: 90px; resize: vertical; }
   transition: background 90ms ease;
 }
 .sc-pick > button + button { border-top: 1px solid var(--color-divider); }
+/* One hole at a time (HoleResultCard): the same three answers side by side,
+   thumb-sized and named in full — there is a whole phone's width for them. */
+.sc-pick.sc-pick-row { flex-direction: row; }
+.sc-pick.sc-pick-row > button {
+  flex: 1 1 0; min-width: 0; min-height: 56px; padding: 6px 4px;
+  font-size: 16px; line-height: 1.2; overflow-wrap: anywhere;
+}
+.sc-pick.sc-pick-row > button + button { border-top: none; border-left: 1px solid var(--color-divider); }
 .sc-pick > button:hover { background: color-mix(in srgb, var(--color-text) 9%, transparent); }
 .sc-pick > button:focus-visible {
   outline: 2px solid var(--color-accent);

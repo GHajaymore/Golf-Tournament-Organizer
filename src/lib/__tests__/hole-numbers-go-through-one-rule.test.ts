@@ -45,7 +45,9 @@ describe("hole numbers on a card go through one rule", () => {
   const cards = [...components(), ...components("src/app")].filter((f) => drawsACard(readSource(f)));
 
   it("CONTROL: finds the components that draw a card", () => {
-    for (const known of ["ScorecardTable.tsx", "HoleByHoleCard.tsx", "TeeSheetPrint.tsx", "PlayClient.tsx", "CardConflict.tsx", "(player)/me/page.tsx"]) {
+    // HoleResultCard is the Round Code screen's match card since 2026-10-07 —
+    // the grid #707 missed — so PlayClient no longer draws one of its own.
+    for (const known of ["ScorecardTable.tsx", "HoleByHoleCard.tsx", "TeeSheetPrint.tsx", "HoleResultCard.tsx", "CardConflict.tsx", "(player)/me/page.tsx"]) {
       expect(cards.some((f) => f.endsWith(known)), `${known} not recognised as drawing a card`).toBe(true);
     }
   });
