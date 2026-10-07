@@ -4,7 +4,6 @@ import { RoundExpiryBanner } from "./RoundExpiryBanner";
 import { CasualRoundPanel } from "./CasualRoundPanel";
 import { LeaderboardTable } from "./LeaderboardTable";
 import { ModifiedStablefordTable } from "./PointsLeaderboard";
-import { MoreInfo } from "./MoreInfo";
 import { Icon } from "./Icon";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
@@ -67,7 +66,18 @@ export async function CasualRoundScreen({
   // first tee is looking at reads as something broken.
   const scored = state.boardProgress.started > 0;
 
+  /**
+   * THE FRIENDS' CODE IS IN MORE, FIRST (Ajay asked "do we need to show the
+   * code?", 2026-10-06). A casual round is usually kept on ONE phone — the
+   * marker scores the group, which is what this screen is built for — and the
+   * code matters once, on the first tee, if somebody wants their own card.
+   * Shown beside the heading it was furniture on all eighteen holes for a
+   * feature most groups never use. Named first in More, so it is found.
+   */
+  const code = isStaff ? stage?.accessCode ?? "" : "";
+
   const moreParts = [
+    code ? "Friends' code" : "",
     isStaff ? "Players & handicaps" : "",
     cash.anyGame ? "The money" : isStaff ? "Add a money game" : "",
     "Export",
@@ -86,43 +96,7 @@ export async function CasualRoundScreen({
       {/* "The round" for every format, and that is not the error the
           dashboard once made. Calling a MEDAL "the match" was a claim about
           how it is decided; every match is played over a round. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
       <h1 className="page-title" style={{ margin: 0 }}>The round</h1>
-
-      {/* THE CODE, BESIDE THE HEADING. It is read out on the first tee, so it
-          belongs where the first tee is looking — it was the fourth block of
-          the round's settings, two screens down. On the heading's line
-          because hole 1 for all four has to fit under it. */}
-      {isStaff && stage?.accessCode && (
-        <MoreInfo
-          short={
-            <span aria-label={`Friends' code ${stage.accessCode}`}>
-              {/* "Code", not "Friends' code": the long label put the code on a
-                  line of its own under the heading. The ⓘ says whose. */}
-              Code{" "}
-              <code
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
-                  fontFamily: "var(--font-heading)",
-                  padding: "2px 8px",
-                  borderRadius: 7,
-                  background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
-                  color: "var(--color-text)",
-                }}
-              >
-                {stage.accessCode}
-              </code>
-            </span>
-          }
-        >
-          The code for your friends&rsquo; phones. Read it out to the others: they open the app, tap <b>Playing today?</b> and put it in — no
-          account needed, and they pick their own name and keep their own card. Their scores show up
-          here as they go.
-        </MoreInfo>
-      )}
-      </div>
       <p className="text-muted" style={{ fontSize: 14, margin: "2px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
         {about}
       </p>
@@ -190,6 +164,31 @@ export async function CasualRoundScreen({
           More: {moreParts.join(" · ")}
         </summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
+          {code && (
+            <div aria-label="Friends' code">
+              <div className="card-kicker">Friends&rsquo; code</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
+                <code
+                  style={{
+                    fontSize: 21,
+                    fontWeight: 700,
+                    letterSpacing: "0.14em",
+                    fontFamily: "var(--font-heading)",
+                    padding: "6px 12px",
+                    borderRadius: 9,
+                    background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+                    color: "var(--color-text)",
+                  }}
+                >
+                  {code}
+                </code>
+                <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.5, minWidth: 0, flex: "1 1 200px" }}>
+                  For anybody who wants their own card on their own phone: they open the app, tap{" "}
+                  <b>Playing today?</b> and put it in — no account needed. Their scores show up here.
+                </span>
+              </div>
+            </div>
+          )}
           {isStaff && stage && (
             <CasualRoundPanel
               bare

@@ -265,8 +265,12 @@ test.describe("a casual round at the course", () => {
      * past prints something else.
      */
     await setUp(page, "Stroke Play", false, [ANN, BEA]);
-    // Above the card, where the first tee is looking (2026-10-06).
+    // First in the round screen's More, named there (2026-10-06): most groups
+    // keep one card on one phone, so the code is not on the screen all round.
     await page.goto(`/entry?bust=${Date.now()}`);
+    const more = page.locator("summary", { hasText: /^More: Friends’ code|^More: Friends' code/ });
+    await expect(more, "More does not name the friends' code").toBeVisible();
+    await more.click();
     const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
     expect(code, "the round screen shows no round code").toMatch(/^[A-Z0-9-]{6,}$/);
 

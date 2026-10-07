@@ -198,6 +198,21 @@ describe("a casual round is one screen", () => {
     }
   });
 
+  it("keeps the friends' code in More, named first, not on the screen", () => {
+    /**
+     * Ajay, 2026-10-06: "do we need to show the code?" — no. One phone keeps
+     * the group's card, which is what the screen is for; the code is for the
+     * occasional friend who wants their own card, once, on the first tee.
+     */
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    expect(screen).toMatch(/const moreParts = \[\s*code \? "Friends' code" : "",/);
+    const details = screen.indexOf("<details");
+    const firstCode = screen.indexOf("<code");
+    expect(details, "More is gone").toBeGreaterThan(-1);
+    expect(firstCode, "the code is not drawn at all").toBeGreaterThan(-1);
+    expect(firstCode, "the code is on the screen, outside More").toBeGreaterThan(details);
+  });
+
   it("keeps a tournament's console exactly as it was", () => {
     // The control: the same layout still draws both for every other shape.
     const src = layout();
