@@ -165,7 +165,7 @@ export async function CasualRoundScreen({
         </summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
           {code && (
-            <div aria-label="Friends' code">
+            <div>
               <div className="card-kicker">Friends&rsquo; code</div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
                 <code

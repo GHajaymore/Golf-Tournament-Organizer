@@ -52,7 +52,6 @@ export function EventContextBar({
           fontSize: 13,
           ...(compact ? { minWidth: 0, flex: "0 1 auto", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } : {}),
         }}
-        title={compact ? name : undefined}
       >
         {name || "Untitled tournament"}
       </span>
