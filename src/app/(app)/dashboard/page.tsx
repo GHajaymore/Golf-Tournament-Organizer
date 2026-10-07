@@ -1,8 +1,7 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { roundLabel, roundNameFor, roundNumber } from "@/lib/domain/round-label";
-import { matchLine } from "@/lib/domain/match-line";
-import type { HoleResult } from "@/lib/domain/types";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { StatCard, FactCard } from "@/components/PageHeader";
@@ -12,9 +11,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { standingRows } from "@/lib/services/tournament";
-import { usesStandardBoard, boardKind } from "@/lib/formats";
-import { ModifiedStablefordTable } from "@/components/PointsLeaderboard";
-import { modifiedStablefordBoard } from "@/lib/services/points-standings";
+import { usesStandardBoard } from "@/lib/formats";
 import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText, isBracketMode, drawBrackets } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -42,8 +39,6 @@ import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { isMatch, reviewsScores } from "@/lib/tournament-shape";
-import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
-import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { placesWithin } from "@/lib/domain/flight-places";
@@ -52,12 +47,11 @@ import { announcementsFor } from "@/lib/services/announcements";
 import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
-import { CasualRoundPanel } from "@/components/CasualRoundPanel";
 import { PlayStatusControl } from "@/components/PlayStatusControl";
 import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
-import { wipesOnCloseFor, keepItOffer, casualKeepRefusalFor } from "@/lib/services/close-terms";
+import { wipesOnCloseFor, keepItOffer } from "@/lib/services/close-terms";
 import { formatDay } from "@/lib/domain/locale";
 
 /**
@@ -108,6 +102,13 @@ export const generateMetadata = () => screenMetadataForEvent("/dashboard");
 export default async function DashboardPage() {
   const { session, state } = await requireState();
   const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
+  /**
+   * A CASUAL ROUND IS ONE SCREEN, AND IT IS NOT THIS ONE (Ajay, 2026-10-06).
+   * Its card, where it stands, the money and the round's settings are all on
+   * `/entry` — `CasualRoundScreen` — so a dashboard of the same facts beside it
+   * would be a second answer to every question on it.
+   */
+  if (isMatch(event.shape)) redirect("/entry");
 
   /**
    * The venues attached to this tournament, for the line under the title.
@@ -274,150 +275,11 @@ export default async function DashboardPage() {
    * on 2026-09-12 rather than by any test.
    */
   const currentStage = state.boardStage ?? state.stages[0];
-  /**
-   * Two people playing each other, rather than a tournament.
-   *
-   * Read from the event's own shape rather than counted off the field, which
-   * is the distinction the shape exists to keep: "two players are entered" is
-   * a fact about today and stops being true the moment a third arrives; "this
-   * was set up as a match" stays true and is what the wording should follow.
-   *
-   * Declared HERE, above the first reader, rather than beside the other
-   * role flags below. Same reason the attendance rows on the Rounds screen
-   * carry that note: a const read before its own line throws on every render
-   * of the page, and tsc does not catch it.
-   */
-  const matchEvent = isMatch(event.shape);
-  // A casual round has exactly one round in it, which is what makes a single
-  // panel the whole of its settings. The active stage rather than stages[0]:
-  // same reader every other screen uses.
-  // `boardStage`, which for a casual round is the SAME stage — there is only
-  // one — so this is not a behaviour change. It is written this way so the
-  // guard in `board-follows-the-round.audit.test.ts` needs no exception here:
-  // an allowance for "the one place that is fine" is how the next one that is
-  // not fine gets written.
-  const casualStage = matchEvent ? state.boardStage ?? state.stages[0] ?? null : null;
-
-  /**
-   * IS THIS CASUAL ROUND ACTUALLY A MATCH — which `shape` cannot tell you.
-   *
-   * `shape: "match"` is how a casual round is STORED. It was named when the
-   * quick round was only ever one person against another, and the word stuck
-   * while the screen grew four more formats: stroke play, modified Stableford,
-   * four-ball and foursomes. So every sentence below keyed off `matchEvent`
-   * described a medal as a match.
-   *
-   * Walked on 2026-09-18 after setting one up as a player: a Stroke Play
-   * round, stored `format: "stroke"` with a "Stroke Play Round" stage, was
-   * headed "The match", reported "head to head", and ranked under "Holes
-   * won" — on the dashboard a casual player lands on. The leaderboard one
-   * click away had it right all along, gross, net and to-par, because it asks
-   * the ROUND. This is `event-answer-vs-round-answer` again, in the words
-   * rather than in the arithmetic.
-   *
-   * `boardIsStroke` is the round's own basis and is what every board here
-   * already reads. `matchEvent` keeps deciding LAYOUT — what a casual round
-   * shows and hides — which is the question `shape` genuinely answers.
-   */
-  const casualMatch = matchEvent && !state.boardIsStroke;
-
-  /**
-   * A ONE-ON-ONE CASUAL MATCH IS SUMMED UP IN ONE LINE, not a points table
-   * (2026-10-04): "Bob won 7&6" where the table said REC 1-0-0 · +7 · PTS 6.5.
-   * Only when the round really is one singles match — a four-ball's sides and
-   * every tournament keep the table, which is there to compare a field.
-   */
-  /**
-   * AND A CASUAL FOUR-BALL TOO (2026-10-04) — two SIDES, one match, the same
-   * one line: "Third & Fourth won 6&5". It pointed at another screen instead
-   * ("the standings rank the sides — they're on the Live leaderboard"), on a
-   * round with exactly one result to state. The match row carries the
-   * hole-by-hole the cards were derived into, so the line reads the same holes
-   * the board does; the sides are named by their own names.
-   */
-  const oneMatch = (() => {
-    if (!casualMatch) return null;
-    const here = state.matches.filter((m) => m.stageId === state.boardStage?.id);
-    return here.length === 1 ? here[0] : null;
-  })();
-  const sideNames =
-    oneMatch && !oneMatch.playerAId && oneMatch.teamAId && oneMatch.teamBId
-      ? new Map(
-          (
-            await prisma.team.findMany({
-              where: { id: { in: [oneMatch.teamAId, oneMatch.teamBId] }, eventId: state.event.id },
-              select: { id: true, name: true },
-            })
-          ).map((t) => [t.id, t.name]),
-        )
-      : null;
-  const oneMatchLine = (() => {
-    if (!oneMatch) return "";
-    const singles = !!oneMatch.playerAId && !!oneMatch.playerBId;
-    const sides = !!sideNames && sideNames.has(oneMatch.teamAId) && sideNames.has(oneMatch.teamBId);
-    if (!singles && !sides) return "";
-    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "";
-    let holes: HoleResult[] = [];
-    try {
-      holes = JSON.parse(oneMatch.holes) as HoleResult[];
-    } catch {
-      return "";
-    }
-    return singles
-      ? matchLine({
-          aId: oneMatch.playerAId,
-          bId: oneMatch.playerBId,
-          aName: nameOf(oneMatch.playerAId),
-          bName: nameOf(oneMatch.playerBId),
-          holes,
-          forfeitedBy: oneMatch.forfeitedBy ?? "",
-        })
-      : matchLine({
-          // A team match cannot be forfeited (`forfeitMatch` refuses a side),
-          // so the card is the whole answer.
-          aId: oneMatch.teamAId,
-          bId: oneMatch.teamBId,
-          aName: sideNames!.get(oneMatch.teamAId) ?? "",
-          bName: sideNames!.get(oneMatch.teamBId) ?? "",
-          holes,
-        });
-  })();
-
-  /**
-   * A CASUAL MODIFIED STABLEFORD IS RANKED ON POINTS, here as on the board
-   * (2026-10-04). The standard table below is skipped for this format — it
-   * ranks strokes — so the card said "Nothing to rank here yet — the board
-   * fills in as scores come back" over two finished cards, while the
-   * leaderboard one tap away had them on 20 and 17. Found by the casual-round
-   * e2e spec on its first run. The same reader the leaderboard uses, on the
-   * same round's card.
-   */
-  const casualPoints =
-    matchEvent && casualStage && boardKind(casualStage.format) === "modified-stableford"
-      ? await modifiedStablefordBoard(
-          state.event.id,
-          casualStage.id,
-          state.strokeCourseFor(casualStage.id).pars,
-          state.strokeCourseFor(casualStage.id).holeDifficulty,
-        )
-      : null;
 
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
-  const currentRoundLabel = matchEvent
-    ? // "Round Robin" is the structure the app stores a match as, not
-      // anything the two people playing it would recognise. The type is a
-      // truthful label for a tournament with several kinds of round in it and
-      // a piece of internal vocabulary here.
-      //
-      // "The round" when it is not a match: four of the five formats the
-      // casual screen offers are not one, and calling a medal a match is a
-      // claim about how it is decided.
-      casualMatch
-      ? "The match"
-      : "The round"
-    : currentStage
+  const currentRoundLabel = currentStage
       ? /* THE HEADING'S WORDS, from the heading's function. This printed the
            type alone, so a one-round Scramble read "Stroke Play Round" here
            under a heading saying "Round 1 · Scramble". See `roundNameFor`. */
@@ -426,14 +288,7 @@ export default async function DashboardPage() {
         // bar and "0/0 scorecards certified". A dash is a missing VALUE; this
         // is a state, and the line under it now says what to do about it.
         "No rounds yet";
-  const currentRoundDesc = matchEvent
-    ? // A round robin of two IS the match, and telling two friends that
-      // "every player meets everyone in their flight" describes the schema
-      // rather than the golf.
-      casualMatch
-      ? "One match, decided hole by hole."
-      : "One round. Everyone returns a card."
-    : currentStage?.type === "Round Robin"
+  const currentRoundDesc = currentStage?.type === "Round Robin"
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
@@ -463,30 +318,10 @@ export default async function DashboardPage() {
   })();
 
   /**
-   * A casual round says, on its own screen, that it is temporary.
-   *
-   * `hoursLeft` returns null for anything with no expiry — which is every
-   * tournament that has ever existed — so `expiryNotice` renders nothing here
-   * and the banner does not mount. The check is the ABSENCE of an expiry
-   * rather than "is this a match", because the sweep keys on the same column:
-   * the screen and the deletion agree by reading one fact, not two.
+   * Null for anybody who runs no organization of their own. (A casual round
+   * never reaches here — it is sent to its one screen at the top.)
    */
-  const keepRefusal = hoursLeft(event) === null ? null : await casualKeepRefusalFor(event.id);
-  const expiry = expiryNotice(hoursLeft(event), isStaff, keepRefusal);
-  /**
-   * Null for anybody who runs no organization of their own — AND ON A CASUAL
-   * ROUND, whoever they are.
-   *
-   * A club is not the subject of this screen when the screen is a Sunday
-   * fourball. Somebody who opened the app to play their mate is not being
-   * asked to name a society and load a roster, and since a quick round now
-   * belongs to the person's own organization rather than their club, the
-   * checklist would be reporting on a club they are not currently inside.
-   *
-   * `isMatch` rather than a new flag: the same fact the heading, the round
-   * label and the sidebar already turn on.
-   */
-  const orgFacts = isStaff && !matchEvent ? await orgSetupFactsFor(session.email, session.name, session.eventId) : null;
+  const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name, session.eventId) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 
@@ -632,9 +467,7 @@ export default async function DashboardPage() {
       // The sidebar's own question (layout.tsx), so the Team cup shortcut is
       // offered exactly where the menu offers the screen.
       hasCup: state.stages.some((s) => s.type === TEAM_SESSION),
-      isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,      // Same list the sidebar is filtered by, so the quick actions cannot
-      // offer a match a door to Flights that the sidebar has just closed.
-      isMatch: matchEvent,
+      isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,
     })
       .flatMap((section) => section.items)
       .map((item) => item.href),
@@ -780,12 +613,6 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {/* FIRST, above everything, because it is the only thing on this screen
-          with a deadline on it. A warning that something will be deleted is
-          not useful below the fold, and the round it is about is short enough
-          that there is nothing here it should be yielding to. */}
-      <RoundExpiryBanner notice={expiry} canKeep={isStaff} keepRefusal={keepRefusal} />
-
       {/* The ORGANIZATION checklist, above the per-tournament one below it.
           Two different things and deliberately two components: this one is
           about the club or society that OWNS the tournaments — its name, its
@@ -872,17 +699,12 @@ export default async function DashboardPage() {
         }}
       >
         <div>
-          {/* A match is not a tournament, and calling its one screen a
-              "Tournament dashboard" is the app telling two friends they have
-              set up the wrong thing.
-
-              NAMED ONCE (Ajay, 2026-10-05). The tournament's name, dates and
+          {/* NAMED ONCE (Ajay, 2026-10-05). The tournament's name, dates and
               venue were printed here under the event bar that already shows
               all three on every console screen — the same two lines twice
-              at the top of a phone. */}
-          <h1 className="page-title">
-            {matchEvent ? (casualMatch ? "The match" : "The round") : "Tournament dashboard"}
-          </h1>
+              at the top of a phone. A casual round never reaches here: it is
+              one screen of its own, `CasualRoundScreen`. */}
+          <h1 className="page-title">Tournament dashboard</h1>
         </div>
         {/**
          * ONE PRIMARY ON THE SCREEN, and the lifecycle wins it when it has
@@ -902,13 +724,10 @@ export default async function DashboardPage() {
          * genuinely is the thing they came for — so it takes the weight back.
          *
          * Asked of `nextLifecycleAction` rather than re-derived, so this
-         * cannot come to disagree with the button it is deferring to. A match
-         * renders no LifecycleBar at all, hence `matchEvent` — otherwise a
-         * fourball would demote its own leaderboard for a card that is not on
-         * the screen.
+         * cannot come to disagree with the button it is deferring to.
          */}
         {(() => {
-          const lifecycleLeads = !matchEvent && isAdmin && !!lifecycleAction;
+          const lifecycleLeads = isAdmin && !!lifecycleAction;
           return (
             <div style={{ display: "flex", gap: 8 }}>
               {showEntry && (
@@ -989,7 +808,7 @@ export default async function DashboardPage() {
 
       {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
           always while it is suspended, so the way back is never hidden. */}
-      {isStaff && !matchEvent && ((isLaunched(event.status) && !isFinished(event.status)) || !!event.playSuspendedAt) && (
+      {isStaff && ((isLaunched(event.status) && !isFinished(event.status)) || !!event.playSuspendedAt) && (
         <PlayStatusControl
           suspended={!!event.playSuspendedAt}
           note={event.playSuspendedNote}
@@ -999,40 +818,8 @@ export default async function DashboardPage() {
 
       {/* PACE OF PLAY — a round played today, with timed groups on its sheet.
           The panel itself decides "today" on the committee's own clock. */}
-      {isStaff && !matchEvent && isLaunched(event.status) && !isFinished(event.status) && (
+      {isStaff && isLaunched(event.status) && !isFinished(event.status) && (
         <PaceOfPlay rounds={await paceRoundsFor(event.id)} />
-      )}
-
-      {/* A MATCH HAS NO LIFECYCLE TO RUN, so it is not offered one.
-          Draft → taking entries → ready → launch → complete is the arc of an
-          event with a field: entries open and close, a draw is published, and
-          launching is the moment the field gets to see any of it. None of
-          those steps exists for two people who agreed to play on Sunday —
-          there is nobody to open entries to, nothing to publish, and the
-          "Launch tournament" dialog would ask them to confirm their flight
-          count. The match is created live and stays unlocked; the only
-          question left, whether it is finished, is answered by the card. */}
-      {/* A CASUAL ROUND'S OWN CONTROLS, in place of a tournament's setup
-          screens. `/event`, `/registration` and `/stages` are gone from this
-          shape's sidebar — they are a club's settings, a registration desk and
-          a rounds screen with cut lines — and these three things are what a
-          fourball actually reconsiders: eighteen or nine, shots or level, and
-          a handicap somebody typed wrong. Staff only, which on a quick round
-          means whoever set it up. */}
-      {matchEvent && isStaff && casualStage && (
-        <CasualRoundPanel
-          stageId={casualStage.id}
-          holes={casualStage.holes}
-          scoringBasis={casualStage.scoringBasis}
-          accessCode={casualStage.accessCode}
-          players={state.confirmed.map((p) => ({
-            id: p.id,
-            name: p.name,
-            // Plus handicaps are stored negative and must never be shown back
-            // as "-2" — the same rule the setup form states.
-            handicap: p.handicap < 0 ? `+${Math.abs(p.handicap)}` : String(p.handicap),
-          }))}
-        />
       )}
 
       {/* STAFF FURNITURE, AND IT WAS ON EVERY PLAYER'S DASHBOARD.
@@ -1056,7 +843,7 @@ export default async function DashboardPage() {
           `isStaff` rather than `isAdmin`: an assistant runs the event and
           should see the state. Only an admin can change it, which is what the
           gates inside the component already say. */}
-      {!matchEvent && isStaff && (
+      {isStaff && (
         <LifecycleBar
           status={event.status}
           isAdmin={isAdmin}
@@ -1142,7 +929,7 @@ export default async function DashboardPage() {
                 {/* The sidebar renames three of these on a casual round; this tile
                     has to agree with it or the reader hunts for a screen that is
                     not in the list. */}
-                {screenName(a.href, matchEvent)}
+                {screenName(a.href)}
               </Link>
             ))}
           </div>
@@ -1159,41 +946,17 @@ export default async function DashboardPage() {
       ) : !unstarted && (
         <>
         <div className="stat-grid" style={{ marginBottom: 16 }}>
-          {/* "1 flights" was on this card for every one-flight tournament, and
-              a match is one flight by construction — so the plural is fixed
-              here rather than only hidden for matches. A match says what its
-              two players are actually doing instead of counting the flight
-              that exists only because the schema needs one. */}
+          {/* "1 flights" was on this card for every one-flight tournament, so
+              the plural is fixed here. */}
           <StatCard
-            label={matchEvent ? "Playing" : "Players"}
+            label="Players"
             value={state.confirmed.length}
-            sub={
-              matchEvent
-                ? // "head to head" is a claim about the format, and a casual
-                  // medal of four is not one. See `casualMatch`.
-                  casualMatch
-                  ? "head to head"
-                  : "in this round"
-                : `${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`
-            }
+            sub={`${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`}
             icon="ph ph-users-three"
           />
-          {/* TWO PEOPLE PLAYING EACH OTHER IS STILL ITS OWN SENTENCE. A quick
-              match has no schedule to be half way through, so it says whether
-              it is finished rather than how much of it is. Everything else
-              counts `boardProgress`, which knows both the number and what it
-              is counting. */}
-          {matchEvent ? (
-            <StatCard
-              label={casualMatch ? "Match" : "Round"}
-              value={state.boardProgress.certified > 0 ? "Finished" : "Not finished"}
-              // "hole by hole" is how a MATCH is decided. A medal is decided
-              // on the total, and saying otherwise on the card that reports
-              // whether it is finished is the same error as "Holes won" below.
-              sub={casualMatch ? "hole by hole" : "on the card"}
-              icon="ph ph-check-circle"
-            />
-          ) : state.boardProgress.unit === "manual" ? (
+          {/* Every tile counts `boardProgress`, which knows both the number
+              and what it is counting. */}
+          {state.boardProgress.unit === "manual" ? (
             /* A ROUND THE APP DOES NOT SCORE HAS NO CARDS COMING IN. The
                format's own entry says "no engine computes this. That is the
                point" — the committee works the result out — so "Cards in 0/16
@@ -1286,42 +1049,12 @@ export default async function DashboardPage() {
             {showStandings ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <span className="card-title">
-                    {matchEvent
-                      ? casualMatch
-                        ? "Where the match stands"
-                        : "Where the round stands"
-                      : "Live leaderboard"}
-                  </span>
-                  {/* "Overall · all flights" is a claim about scope, and a
-                      match has no other flights for this one to be all of.
-
-                      "Holes won" is a claim about the BASIS, and it was made
-                      for every casual round including the four formats that
-                      are not decided that way. The table underneath is fed
-                      `isStroke` and has always printed gross, net and to-par
-                      for them — so the heading contradicted the columns
-                      directly below it. */}
-                  <span className="text-muted" style={{ fontSize: 13 }}>
-                    {matchEvent
-                      ? casualMatch
-                        ? "Holes won"
-                        : casualPoints
-                          ? "Modified Stableford points"
-                          : "Gross, net and to-par"
-                      : "Overall · all flights"}
-                  </span>
+                  <span className="card-title">Live leaderboard</span>
+                  {/* A casual round's version of this card — "Where the match
+                      stands", "Holes won" — is on its own screen now, read
+                      through `casual-round.ts`. */}
+                  <span className="text-muted" style={{ fontSize: 13 }}>Overall · all flights</span>
                 </div>
-                {oneMatchLine ? (
-                  <p
-                    data-match-line
-                    style={{ fontFamily: "var(--font-heading)", fontSize: 22, lineHeight: 1.3, margin: "8px 0 2px", textWrap: "balance" }}
-                  >
-                    {oneMatchLine}
-                  </p>
-                ) : casualPoints ? (
-                  <ModifiedStablefordTable rows={casualPoints} bare />
-                ) : (
                 <LeaderboardTable
                   isStroke={isStroke}
                   /* `boardStage`, like the two props either side of it. All
@@ -1362,7 +1095,6 @@ export default async function DashboardPage() {
                         : "Nothing to rank here yet — the board fills in as scores come back."
                   }
                 />
-                )}
               </>
             ) : (
               <>
@@ -1591,7 +1323,7 @@ export default async function DashboardPage() {
           Stableford and a finished championship among them. The caption is now
           there only when a row is lit, and a shared flight place reads "T2",
           as it does on every board since #621. */}
-      {showStandings && !unstarted && !matchEvent && !teamRound && flightColumns.some((gs) => gs.ranked.length > 0) && (
+      {showStandings && !unstarted && !teamRound && flightColumns.some((gs) => gs.ranked.length > 0) && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div className="card-head">
           <span className="card-title">Flight standings</span>

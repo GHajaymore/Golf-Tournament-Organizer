@@ -116,7 +116,13 @@ export function EntryModes({
   casual = false,
   setupLocked = false,
   sessionNav = null,
+  meId,
 }: {
+  /**
+   * The person holding the phone, when they are in the round — a casual
+   * round's host. The mic beside the hole hears "me" as them.
+   */
+  meId?: string;
   /**
    * A team cup's session links, under the heading. They replace the round
    * picker: a cup's pair sessions are a different screen, so moving between
@@ -251,9 +257,13 @@ export function EntryModes({
             `e2e/layout.spec.ts` asserts against on every route. Caught by
             walking the screen again rather than by the suite: the layout spec
             runs on a fixture that HAS rounds. */}
-        <div className="page-kicker">{casual ? "Playing" : "Manage"}</div>
-        <h1 className="page-title">Score entry</h1>
-        <div className="card elev-sm" style={{ marginTop: 16 }}>
+        {!casual && (
+          <>
+            <div className="page-kicker">Manage</div>
+            <h1 className="page-title">Score entry</h1>
+          </>
+        )}
+        <div className="card elev-sm" style={{ marginTop: casual ? 0 : 16 }}>
           <span className="card-title" style={{ fontSize: 15 }}>No rounds yet</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
             Scores are entered against a round, so there is nothing to enter here until this
@@ -266,11 +276,14 @@ export function EntryModes({
 
   return (
     <>
+      {/* NOT ON A CASUAL ROUND (2026-10-06). Its one screen — `CasualRoundScreen`
+          — heads itself, says what is being played and where, and has no
+          round to pick, no field to import and nothing to clear; every
+          control in this header is already gated off for it. What was left
+          was a second heading over the card. */}
+      {!casual && (
       <div style={{ marginBottom: 16 }}>
-        {/* The kicker matches the sidebar section this screen sits in — and on
-            a casual round that section is "Playing", not "Manage". Nobody who
-            has just walked off the 1st is managing anything. */}
-        <div className="page-kicker">{casual ? "Playing" : "Manage"}</div>
+        <div className="page-kicker">Manage</div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           {/* NOT renamed, though it was briefly. The sidebar calls this
               screen "Score entry" on every shape, and a heading that said
@@ -372,6 +385,7 @@ export function EntryModes({
           </div>
         </div>
       </div>
+      )}
 
       {sessionNav}
 
@@ -484,6 +498,8 @@ export function EntryModes({
           // A casual round's results are never put up for review — the same
           // rule as `reviewsScores`, which is `!isMatch(shape)`, i.e. `casual`.
           reviews={!casual}
+          casual={casual}
+          meId={meId}
           venues={venues}
           openCourse={openCourse}
           courseLibrary={courseLibrary}
@@ -515,6 +531,8 @@ export function EntryModes({
           format={round.format}
           courseName={round.venue?.name || courseName}
           venueIsHome={venueIsHome}
+          casual={casual}
+          meId={meId}
         />
         </DistanceUnitProvider>
       )}

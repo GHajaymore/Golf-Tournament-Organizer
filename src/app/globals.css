@@ -473,6 +473,10 @@ body {
     padding: 14px 14px 92px !important;
     max-width: 100% !important;
   }
+  /* A casual round has no tab bar to clear — see `(app)/layout.tsx`. */
+  .app-main.app-main-casual {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  }
   .event-context-bar {
     padding: 8px 14px;
   }

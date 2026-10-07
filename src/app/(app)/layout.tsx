@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { EventContextBar } from "@/components/EventContextBar";
+import { BackToTheRound } from "@/components/BackToTheRound";
 import { navForRole } from "@/lib/nav";
 import { loadEventState } from "@/lib/services/tournament";
 import { roundNameFor } from "@/lib/domain/round-label";
@@ -202,6 +203,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const fmt = session.eventId
     ? await formattingForEvent(session.eventId)
     : { locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY };
+  /**
+   * A CASUAL ROUND HAS NO CONSOLE (Ajay, 2026-10-06: "casual round should be
+   * just one screen"). Its screen is `/entry`, which keeps the card, says where
+   * it stands and the money, and holds everything else behind its More. A
+   * sidebar and a tab bar of "Dashboard · Board · Scores" beside it were four
+   * doors to one room. The event bar stays — it names the round and is the way
+   * out to the rest of the app — and the round's other pages lead back.
+   */
+  const casualShell = isMatch(event?.shape);
 
   return (
     <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
@@ -235,17 +245,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <style dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
       {/* The club’s currency, beside its theme — one club decision read by
           every screen that writes an amount. */}
-      <Sidebar
-        sections={sections}
-        name={session.name}
-        role={session.role}
-        viewRole={session.viewRole}
-        initials={initials}
-        brand={brand}
-        organizer={organizer}
-      />
+      {!casualShell && (
+        <Sidebar
+          sections={sections}
+          name={session.name}
+          role={session.role}
+          viewRole={session.viewRole}
+          initials={initials}
+          brand={brand}
+          organizer={organizer}
+        />
+      )}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <MobileTopBar />
+        {/* The mark at every width on a casual round, where no sidebar carries it. */}
+        <MobileTopBar always={casualShell} />
         {event && (
           <EventContextBar
             name={event.name}
@@ -254,26 +267,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             city={event.city}
             status={event.status}
             canSwitch={session.viewRole === "admin"}
+            compact={casualShell}
           />
         )}
-        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "26px 30px", maxWidth: 1220 }}>
+        <main
+          className={casualShell ? "app-main app-main-casual" : "app-main"}
+          // One phone-shaped column on a casual round, at any width: it is one
+          // screen of golf, not a console to spread across a monitor.
+          style={{ flex: 1, minWidth: 0, padding: "26px 30px", maxWidth: casualShell ? 640 : 1220, ...(casualShell ? { width: "100%", margin: "0 auto" } : {}) }}
+        >
           {/* A refused visit says why — see `deniedLanding`. Suspense because it
               reads the search params, which a layout cannot. */}
           <Suspense fallback={null}>
             <DeniedNotice organizer={organizer} />
           </Suspense>
+          {casualShell && <BackToTheRound />}
           {children}
         </main>
       </div>
-      <MobileTabBar
-        sections={sections}
-        name={session.name}
-        role={session.role}
-        viewRole={session.viewRole}
-        initials={initials}
-        brand={brand}
-        organizer={organizer}
-      />
+      {!casualShell && (
+        <MobileTabBar
+          sections={sections}
+          name={session.name}
+          role={session.role}
+          viewRole={session.viewRole}
+          initials={initials}
+          brand={brand}
+          organizer={organizer}
+        />
+      )}
     </div>
     </DistanceUnitProvider>
     </OrgProfileProvider>

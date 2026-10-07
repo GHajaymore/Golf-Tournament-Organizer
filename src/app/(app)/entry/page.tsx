@@ -43,6 +43,7 @@ import { firstHoleOf } from "@/lib/domain/hole-number";
 import { TEAM_SESSION, cupSessionsFor } from "@/lib/services/cup";
 import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { CupSessionNav } from "@/components/CupSessionNav";
+import { CasualRoundScreen } from "@/components/CasualRoundScreen";
 
 export const metadata = screenMetadata("/entry");
 
@@ -57,11 +58,25 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   // A quick round, not a tournament. Read once: three things on this screen
   // turn on it and a second call would be a second answer waiting to differ.
   const casualRound = isMatch(state.event.shape);
+  /**
+   * The person holding the phone, in this round's field — so the mic beside
+   * the hole knows who "me" is ("Sam five, me four"). A casual round's host is
+   * staff, which is why the player-only `ownIds` below cannot answer it.
+   */
+  const hostPlayerId = async () =>
+    (
+      await prisma.player.findFirst({
+        where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
+        select: { id: true },
+      })
+    )?.id;
 
   // The tournament decides whether players report their own scores. The save
   // actions enforce this too — this only keeps the screen honest.
   const settings = settingsOf(state.event);
-  if (!canEnterScores(settings, session.viewRole)) redirect("/dashboard");
+  // Not back to `/dashboard` on a casual round: that sends a casual round
+  // here, and the two would hand the request to each other for ever.
+  if (!canEnterScores(settings, session.viewRole)) redirect(casualRound ? "/me" : "/dashboard");
 
   // Only demand a course when the scoring actually uses one. A community
   // match-play league has no fixed venue — opponents play wherever suits them
@@ -407,12 +422,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         .map((r) => (sideOnly ? r : { ...r, cards: r.cards.filter((c) => c.playerId === me?.id) }));
     }
 
-    return (
-      <>
-        <p className="kicker">Manage</p>
-        <h1 className="page-title">Score entry</h1>
-        {cupNav}
+    const teamEntry = (
         <TeamEntryClient
+          casual={casualRound}
           // A cup session by the name the club gave it — "Saturday foursomes" —
           // with the format beside it; any other team round by its format.
           round={
@@ -429,7 +441,28 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
           // Against an opponent, a side can pick up — and has conceded the
           // hole when nobody on it is left in. Never on a team medal.
           pickUp={teamMatchPlay && stageMatches.length > 0}
+          meId={casualRound ? (await hostPlayerId()) : undefined}
         />
+    );
+    // A casual round is one screen, with the card on it. See `CasualRoundScreen`.
+    if (casualRound) {
+      return (
+        <CasualRoundScreen
+          state={state}
+          email={session.email}
+          isStaff={isStaff}
+          courseName={resolveCourse(state.event).name || state.event.course}
+        >
+          {teamEntry}
+        </CasualRoundScreen>
+      );
+    }
+    return (
+      <>
+        <p className="kicker">Manage</p>
+        <h1 className="page-title">Score entry</h1>
+        {cupNav}
+        {teamEntry}
       </>
     );
   }
@@ -1036,9 +1069,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     }
   }
 
-  return (
+  const entry = (
     <EntryModes
       setupLocked={isSetupLocked(state.event)}
+      meId={casualRound ? await hostPlayerId() : undefined}
       sessionNav={cupNav}
       cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
       rounds={rounds}
@@ -1090,5 +1124,18 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       // as though the society owns the course.
       venueIsHome={!!brand?.homeCourseId && brand.homeCourseId === (soleVenue?.id ?? "")}
     />
+  );
+  // A casual round is one screen, with the card on it. See `CasualRoundScreen`.
+  return casualRound ? (
+    <CasualRoundScreen
+      state={state}
+      email={session.email}
+      isStaff={isStaff}
+      courseName={course.name || state.event.course}
+    >
+      {entry}
+    </CasualRoundScreen>
+  ) : (
+    entry
   );
 }

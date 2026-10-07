@@ -3215,13 +3215,19 @@ describe("saying where a tournament is played, from score entry", () => {
       expect(html.match(/<h1/g) ?? [], "exactly one h1, as every route must have").toHaveLength(1);
     });
 
-    it("calls the section Playing on a casual round, as it does when populated", async () => {
-      // The kicker follows the sidebar section, and a casual round's is
-      // "Playing" — nobody who has just walked off the 1st is managing
-      // anything. The empty state must not quietly say Manage instead.
+    it("leaves a casual round's heading to the round's own screen", async () => {
+      /**
+       * Since 2026-10-06 a casual round is ONE screen, `CasualRoundScreen`,
+       * which heads itself "The round". This component used to head it
+       * "Playing · Score entry"; doing so now would put a second h1 on the
+       * page — the one thing `e2e/layout.spec.ts` refuses on every route. Nor
+       * may it fall back to the tournament's "Manage".
+       */
       const html = await noRounds({ casual: true });
-      expect(html).toContain("Playing");
+      expect(html.match(/<h1/g) ?? [], "a second heading over the round's own").toHaveLength(0);
       expect(html).not.toContain(">Manage<");
+      // The empty state itself is still said.
+      expect(html).toContain("No rounds yet");
     });
   });
 

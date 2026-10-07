@@ -149,3 +149,25 @@ export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: 
   }
   return `This round is temporary — it's deleted about a day after it was set up. ${remedy}`;
 }
+
+/**
+ * The same warning in one line, for the casual round's one screen, where
+ * `expiryNotice`'s full sentence sits behind the ⓘ. Same three readers, same
+ * order, so the line and the sentence under it cannot disagree about who can
+ * do what: the person who can keep it is not told to ask, and the person who
+ * cannot is not shown a button.
+ */
+export function expiryShort(hours: number | null, canKeep = true): string {
+  if (hours === null) return "";
+  // SAYS WHAT HAPPENS, ACTIVELY. "Kept for a day only" was read as a
+  // statement about something kept, not as a warning that the round goes
+  // (Ajay: "dont understand this", 2026-10-06). "Deleted" is the word
+  // `expiryNotice` already insists on, because it does not read as
+  // recoverable.
+  const when = hours <= 0 ? "Being deleted soon" : "Deleted after a day";
+  // Whoever can keep it has the button beside this — Keep round, or See
+  // plans on the Par terms — so the line is ONE line at 393px (measured: the
+  // first wording wrapped to three). Whoever cannot has no button, so the
+  // line carries their remedy itself.
+  return canKeep ? `${when}.` : `${when} — ask whoever set it up to keep it.`;
+}

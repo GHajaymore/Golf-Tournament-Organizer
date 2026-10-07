@@ -47,11 +47,13 @@ describe("matchLine", () => {
   });
 
   it("is what a casual match's summary shows — singles fed the stored forfeit, a four-ball its sides' names", () => {
-    const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
-    expect(dash).toContain("if (!casualMatch) return null;");
-    expect(dash).toContain("forfeitedBy: oneMatch.forfeitedBy ?? \"\"");
-    expect(dash).toContain("aName: sideNames!.get(oneMatch.teamAId)");
-    expect(dash).toContain("{oneMatchLine ? (");
+    // Read by the casual round's one screen since 2026-10-06 (it was the
+    // dashboard's): the summary in `casual-round.ts`, printed by the screen.
+    const summary = readSource("src", "lib", "services", "casual-round.ts");
+    expect(summary).toContain("if (!isMatchRound) return null;");
+    expect(summary).toContain("forfeitedBy: oneMatch.forfeitedBy ?? \"\"");
+    expect(summary).toContain("aName: sideNames!.get(oneMatch.teamAId)");
+    expect(readSource("src", "components", "CasualRoundScreen.tsx")).toContain("{standing.matchLine ? (");
   });
 
   it("names two sides the same way it names two players", () => {

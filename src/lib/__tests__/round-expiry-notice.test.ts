@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { expiryNotice, hoursLeft, isExpired, QUICK_ROUND_TTL_HOURS } from "@/lib/domain/round-expiry";
+import { expiryNotice, expiryShort, hoursLeft, isExpired, QUICK_ROUND_TTL_HOURS } from "@/lib/domain/round-expiry";
 import { readSource } from "./source";
 
 /**
@@ -91,10 +91,27 @@ describe("where the warning renders", () => {
   });
 
   it("is still on the console, worded for whoever can keep it", () => {
-    const dash = readSource("src/app/(app)/dashboard/page.tsx");
-    expect(dash).toMatch(/expiryNotice\(hoursLeft\(event\), isStaff, keepRefusal\)/);
-    expect(dash).toMatch(/keepRefusal=\{keepRefusal\}/);
-    expect(dash).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+    // On the casual round's one screen since 2026-10-06 — the dashboard now
+    // sends a casual round there. The full sentence sits behind the short
+    // line's ⓘ, worded by the same readers for the same person.
+    const screen = readSource("src/components/CasualRoundScreen.tsx");
+    expect(screen).toMatch(/notice=\{expiryNotice\(hours, isStaff, keepRefusal\)\}/);
+    expect(screen).toMatch(/short=\{expiryShort\(hours, isStaff\)\}/);
+    expect(screen).toMatch(/keepRefusal=\{keepRefusal\}/);
+    expect(screen).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
+  });
+
+  it("says it in one line without changing who is told what", () => {
+    // Whoever can keep it has the button beside the line; the line is short.
+    // And it says what HAPPENS — "Kept for a day only" was not understood
+    // (2026-10-06).
+    expect(expiryShort(10, true)).toBe("Deleted after a day.");
+    // Whoever cannot has no button, so the line names their remedy itself —
+    // and never tells them to press something they do not have.
+    expect(expiryShort(10, false)).toBe("Deleted after a day — ask whoever set it up to keep it.");
+    expect(expiryShort(0, true)).toBe("Being deleted soon.");
+    expect(expiryShort(0, false)).toContain("ask whoever set it up");
+    expect(expiryShort(null)).toBe("");
   });
 });
 
