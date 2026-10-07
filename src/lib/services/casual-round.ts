@@ -142,6 +142,15 @@ export async function casualStanding(state: EventState): Promise<CasualStanding>
   };
 }
 
+/**
+ * What the money says while it can still change — one sentence, for the
+ * round's screen and the money page alike. A gross match is written down as
+ * who won each hole, with no card to wait for, so it waits for the match.
+ */
+export function moneyWaitsFor(state: EventState): string {
+  return `Who pays whom shows here when ${casualIsMatch(state) ? "the match is over" : "every card is in"}.`;
+}
+
 export interface CasualMoney {
   /** Whether this round has a money game at all. No game, no block. */
   anyGame: boolean;
@@ -149,6 +158,12 @@ export interface CasualMoney {
   final: boolean;
   /** "Cat Zed pays Bea Zed $10.00" — the fewest handovers, once final. */
   handovers: string[];
+  /**
+   * Where each player ends up — "+$16.67", "−$10.00", "square" — once final.
+   * The same `standing` the handovers settle, so the two cannot disagree; for
+   * the money page, which had the stakes and never the answer.
+   */
+  positions: Array<{ name: string; text: string }>;
   /** While it is live: what the person looking has riding on it, or "". */
   stake: string;
 }
@@ -188,6 +203,12 @@ export async function casualMoney(eventId: string, email: string): Promise<Casua
     anyGame: round.anyGame,
     final,
     handovers: final ? book.transfers.map((t) => `${t.fromName} pays ${t.toName} ${write(t.cents)}`) : [],
+    positions: final
+      ? book.standing.map((s) => ({
+          name: s.name,
+          text: s.netCents === 0 ? "square" : `${s.netCents > 0 ? "+" : "−"}${write(Math.abs(s.netCents))}`,
+        }))
+      : [],
     stake:
       round.stake.games > 0
         ? `You have ${write(round.stake.cents)} on ${round.stake.games === 1 ? "1 game" : `${round.stake.games} games`}.`
