@@ -626,6 +626,31 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (Object.keys(data).length === 0) return { ok: true };
   await prisma.player.update({ where: { id: playerId }, data });
 
+  /**
+   * A CASUAL ROUND TAKES THE CORRECTION (2026-10-07).
+   *
+   * A round freezes everybody's handicap when its first card comes in, and
+   * `RoundHandicap.frozen` is never rewritten — rightly, in a tournament: a
+   * committee that changes its mind after play has the override, and a
+   * played round is not re-priced by a roster edit. A casual round has no
+   * committee. Its handicaps are what the host typed on the first tee, and
+   * the panel that corrects one says "Handicaps save when you tap away" —
+   * but measured, Bea corrected from 10 to 20 after the 1st kept the shots
+   * of a 10 on every screen while the panel read 20.
+   *
+   * So on a casual round the correction un-freezes that player: the round
+   * reads the corrected figure at once, and the next card freezes it again.
+   */
+  if (data.handicap !== undefined) {
+    const shape = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
+    if (isMatch(shape?.shape)) {
+      await prisma.roundHandicap.updateMany({
+        where: { eventId, playerId, frozen: { not: null } },
+        data: { frozen: null, frozenAt: null },
+      });
+    }
+  }
+
   // Correcting a detail here corrects it on the roster too — that's the point
   // of having one record per person. Re-resolving rather than updating the
   // linked member directly, because a changed email may now identify someone
