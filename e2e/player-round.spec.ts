@@ -87,9 +87,18 @@ test.describe("the player's own round", () => {
 
     // And the pinned one is still above the player's position.
     const order = await page.evaluate(() => {
+      /**
+       * The element whose OWN text says it — a text node directly inside it —
+       * not "a leaf whose text says it". A notice read once is one line, its
+       * title with the time beside it in a child span, so the title's element
+       * is not a leaf; the leaf-only finder found nothing there and reported
+       * -1. Red on `main` on 2026-10-07 (run 37562769464, phone) and green on
+       * the re-run: which form a notice takes depends on what this phone has
+       * already shown, so the old finder passed or failed by test order.
+       */
       const y = (re: RegExp) => {
-        const el = [...document.querySelectorAll("*")].find(
-          (e) => e.children.length === 0 && re.test(e.textContent || ""),
+        const el = [...document.querySelectorAll("*")].find((e) =>
+          [...e.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && re.test(n.textContent || "")),
         );
         return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : -1;
       };
