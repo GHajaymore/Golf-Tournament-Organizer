@@ -159,10 +159,15 @@ export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: 
  */
 export function expiryShort(hours: number | null, canKeep = true): string {
   if (hours === null) return "";
-  const when = hours <= 0 ? "Deleted shortly" : "Kept for a day only";
-  // Whoever can keep it has the button beside this — Keep, or See plans on
-  // the Par terms — so the line is ONE line at 393px (measured: the first
-  // wording wrapped to three). Whoever cannot has no button, so the line
-  // carries their remedy itself.
+  // SAYS WHAT HAPPENS, ACTIVELY. "Kept for a day only" was read as a
+  // statement about something kept, not as a warning that the round goes
+  // (Ajay: "dont understand this", 2026-10-06). "Deleted" is the word
+  // `expiryNotice` already insists on, because it does not read as
+  // recoverable.
+  const when = hours <= 0 ? "Being deleted soon" : "Deleted after a day";
+  // Whoever can keep it has the button beside this — Keep round, or See
+  // plans on the Par terms — so the line is ONE line at 393px (measured: the
+  // first wording wrapped to three). Whoever cannot has no button, so the
+  // line carries their remedy itself.
   return canKeep ? `${when}.` : `${when} — ask whoever set it up to keep it.`;
 }

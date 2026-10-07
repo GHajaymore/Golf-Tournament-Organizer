@@ -112,8 +112,9 @@ export function RoundExpiryBanner({
           disabled={pending}
           onClick={keep}
         >
-          {/* "Keep it" beside the one-line form: the line says what "it" is. */}
-          {pending ? "Keeping…" : short ? "Keep it" : "Keep this round"}
+          {/* "Keep round" beside the one-line form — it says what it keeps.
+              "Keep it" left the reader to work out what "it" was. */}
+          {pending ? "Keeping…" : short ? "Keep round" : "Keep this round"}
         </button>
       )}
     </div>

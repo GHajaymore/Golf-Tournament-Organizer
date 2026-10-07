@@ -103,11 +103,13 @@ describe("where the warning renders", () => {
 
   it("says it in one line without changing who is told what", () => {
     // Whoever can keep it has the button beside the line; the line is short.
-    expect(expiryShort(10, true)).toBe("Kept for a day only.");
+    // And it says what HAPPENS — "Kept for a day only" was not understood
+    // (2026-10-06).
+    expect(expiryShort(10, true)).toBe("Deleted after a day.");
     // Whoever cannot has no button, so the line names their remedy itself —
     // and never tells them to press something they do not have.
-    expect(expiryShort(10, false)).toBe("Kept for a day only — ask whoever set it up to keep it.");
-    expect(expiryShort(0, true)).toBe("Deleted shortly.");
+    expect(expiryShort(10, false)).toBe("Deleted after a day — ask whoever set it up to keep it.");
+    expect(expiryShort(0, true)).toBe("Being deleted soon.");
     expect(expiryShort(0, false)).toContain("ask whoever set it up");
     expect(expiryShort(null)).toBe("");
   });
