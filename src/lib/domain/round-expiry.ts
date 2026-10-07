@@ -157,9 +157,12 @@ export function expiryNotice(hours: number | null, canKeep = true, keepRefusal: 
  * do what: the person who can keep it is not told to ask, and the person who
  * cannot is not shown a button.
  */
-export function expiryShort(hours: number | null, canKeep = true, keepRefusal: string | null = null): string {
+export function expiryShort(hours: number | null, canKeep = true): string {
   if (hours === null) return "";
-  const gone = hours <= 0 ? "Deleted shortly" : "Temporary — deleted after a day";
-  if (!canKeep) return `${gone}. Ask whoever set it up to keep it.`;
-  return keepRefusal ? `${gone}.` : `${gone} unless you keep it.`;
+  const when = hours <= 0 ? "Deleted shortly" : "Kept for a day only";
+  // Whoever can keep it has the button beside this — Keep, or See plans on
+  // the Par terms — so the line is ONE line at 393px (measured: the first
+  // wording wrapped to three). Whoever cannot has no button, so the line
+  // carries their remedy itself.
+  return canKeep ? `${when}.` : `${when} — ask whoever set it up to keep it.`;
 }

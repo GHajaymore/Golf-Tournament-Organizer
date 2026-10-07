@@ -78,7 +78,7 @@ export async function CasualRoundScreen({
     <>
       <RoundExpiryBanner
         notice={expiryNotice(hours, isStaff, keepRefusal)}
-        short={expiryShort(hours, isStaff, keepRefusal)}
+        short={expiryShort(hours, isStaff)}
         canKeep={isStaff}
         keepRefusal={keepRefusal}
       />
@@ -86,23 +86,23 @@ export async function CasualRoundScreen({
       {/* "The round" for every format, and that is not the error the
           dashboard once made. Calling a MEDAL "the match" was a claim about
           how it is decided; every match is played over a round. */}
-      <h1 className="page-title">The round</h1>
-      <p className="text-muted" style={{ fontSize: 14, margin: "4px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
-        {about}
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+      <h1 className="page-title" style={{ margin: 0 }}>The round</h1>
 
-      {/* THE CODE, ABOVE THE CARD. It is read out on the first tee, so it
+      {/* THE CODE, BESIDE THE HEADING. It is read out on the first tee, so it
           belongs where the first tee is looking — it was the fourth block of
-          the round's settings, two screens down. */}
+          the round's settings, two screens down. On the heading's line
+          because hole 1 for all four has to fit under it. */}
       {isStaff && stage?.accessCode && (
         <MoreInfo
-          style={{ marginTop: 6 }}
           short={
-            <span>
-              Friends&rsquo; code{" "}
+            <span aria-label={`Friends' code ${stage.accessCode}`}>
+              {/* "Code", not "Friends' code": the long label put the code on a
+                  line of its own under the heading. The ⓘ says whose. */}
+              Code{" "}
               <code
                 style={{
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: 700,
                   letterSpacing: "0.12em",
                   fontFamily: "var(--font-heading)",
@@ -117,11 +117,15 @@ export async function CasualRoundScreen({
             </span>
           }
         >
-          Read it out to the others. They open the app, tap <b>Playing today?</b> and put it in — no
+          The code for your friends&rsquo; phones. Read it out to the others: they open the app, tap <b>Playing today?</b> and put it in — no
           account needed, and they pick their own name and keep their own card. Their scores show up
           here as they go.
         </MoreInfo>
       )}
+      </div>
+      <p className="text-muted" style={{ fontSize: 14, margin: "2px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>
+        {about}
+      </p>
 
       <div style={{ marginTop: 12 }}>{children}</div>
 
@@ -139,7 +143,7 @@ export async function CasualRoundScreen({
               {standing.matchLine}
             </p>
           ) : standing.points ? (
-            <ModifiedStablefordTable rows={standing.points} bare />
+            <ModifiedStablefordTable rows={standing.points} bare compact />
           ) : (
             <LeaderboardTable
               isStroke={standing.isStroke}

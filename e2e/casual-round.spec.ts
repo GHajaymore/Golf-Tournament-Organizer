@@ -15,7 +15,7 @@ import { seedCasual, teardownCasual } from "./casual-fixture.mjs";
  *   set up    format, gross or net, the players, the course found by search
  *   score     every hole on the hole-by-hole card, as the scorer taps it
  *   keep      the card read back after a reload holds all eighteen holes
- *   result    the dashboard says who won, by what, in golf's words
+ *   result    the round's one screen says who won, by what, in golf's words
  *
  * ITS FIRST RUN FOUND TWO FAULTS THE HAND WALKS HAD NOT:
  *
@@ -127,6 +127,16 @@ async function scoreHoles(page: Page, toPar: (hole: number, card: number) => num
   const minus = page.getByRole("button", { name: /^One fewer stroke for/ });
   await expect(plus.first(), "the hole-by-hole card did not open").toBeVisible({ timeout: 30_000 });
 
+  // ONE SCREEN (2026-10-06): on the first tee every player on the card is on
+  // the phone without scrolling — measured at 393x727, where the fourth row
+  // first ended at 808. A phone shorter than that (the 568px small-phone
+  // project) cannot hold four rows of 44px targets, and is not asked to.
+  const tall = page.viewportSize()!.height >= 727;
+  if (tall) {
+    const last = await plus.last().boundingBox();
+    expect(last!.y + last!.height, "the last player on hole 1 is below the first screen").toBeLessThanOrEqual(727);
+  }
+
   for (let hole = 1; hole <= 18; hole += 1) {
     const n = await plus.count();
     for (let i = 0; i < n; i += 1) {
@@ -137,9 +147,10 @@ async function scoreHoles(page: Page, toPar: (hole: number, card: number) => num
     if (hole < 18) await page.getByRole("button", { name: /^Next/ }).click();
   }
 
-  // A stroke or team card is kept by its button; a match card by every tap.
-  const save = page.getByRole("button", { name: /^Save (scorecard|scores)/ });
-  if (await save.count()) await save.first().click();
+  // Every casual card keeps itself since 2026-10-06 — there is no Save button
+  // to press, and the test must not find one: a card that needs one is a
+  // round lost the day somebody walks off the 18th without pressing it.
+  await expect(page.getByRole("button", { name: /^Save (scorecard|scores)/ })).toHaveCount(0);
   await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByText(/\bSaved\b/).first()).toBeVisible({ timeout: 30_000 });
 
@@ -150,15 +161,28 @@ async function scoreHoles(page: Page, toPar: (hole: number, card: number) => num
   expect(thru, "the card lost holes once the screen said Saved").toEqual(thru.map(() => 18));
 }
 
-/** The dashboard a casual round lands on, read fresh, past any cache. */
-async function dashboard(page: Page) {
+/**
+ * THE ROUND'S ONE SCREEN (2026-10-06), read fresh, past any cache — reached
+ * the way a host reaches it from anywhere else in the app, through the
+ * dashboard, which sends a casual round there.
+ *
+ * It must be ONE screen: the card, where the round stands and the money on
+ * it, with no console tab bar or sidebar offering other doors to the same
+ * facts.
+ */
+async function roundScreen(page: Page) {
   await page.goto(`/dashboard?bust=${Date.now()}`);
+  await page.waitForURL(/\/entry/, { timeout: 30_000 });
   await page.waitForLoadState("networkidle");
   const text = await page.locator("main").innerText();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(wide, "the dashboard scrolls sideways").toBeLessThanOrEqual(0);
+  expect(wide, "the round screen scrolls sideways").toBeLessThanOrEqual(0);
   // A friendly has no reviewer — #773.
   expect(text).not.toMatch(/awaiting review|confirm (the )?card|dispute/i);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("The round");
+  await expect(page.getByRole("button", { name: /^One more stroke for/ }).first(), "the card is not on the round screen").toBeVisible();
+  await expect(page.locator(".m-tabbar"), "a console tab bar beside the one screen").toHaveCount(0);
+  await expect(page.locator(".app-sidebar"), "a console sidebar beside the one screen").toHaveCount(0);
   return text;
 }
 
@@ -168,7 +192,7 @@ test.describe("a casual round at the course", () => {
   test("match play, net, two players", async ({ page }) => {
     await setUp(page, "Match Play", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);
-    await dashboard(page);
+    await roundScreen(page);
     // Two down after the 6th and halved from there: over with one to play.
     await expect(page.locator("[data-match-line]")).toHaveText(`${BEA} won 2&1`);
   });
@@ -176,7 +200,7 @@ test.describe("a casual round at the course", () => {
   test("stroke play, gross, three players", async ({ page }) => {
     await setUp(page, "Stroke Play", false, [ANN, BEA, CAT]);
     await scoreEveryHole(page, 1);
-    const text = await dashboard(page);
+    const text = await roundScreen(page);
     const bea = text.search(new RegExp(`${BEA}\\s+72\\s+E\\b`));
     const cat = text.search(new RegExp(`${CAT}\\s+72\\s+E\\b`));
     const ann = text.search(new RegExp(`${ANN}\\s+74\\s+\\+2\\b`));
@@ -220,6 +244,12 @@ test.describe("a casual round at the course", () => {
     expect(text).toContain(`${CAT} pays ${BEA} $10.00`);
     expect(text).toContain(`${ANN} pays ${BEA} $1.00`);
     expect(text.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
+
+    // And on the round's one screen, under the card, the same two handovers —
+    // the money once it is final, without opening the money page.
+    const one = await roundScreen(page);
+    expect(one).toContain(`${CAT} pays ${BEA} $10.00`);
+    expect(one).toContain(`${ANN} pays ${BEA} $1.00`);
   });
 
   test("two friends score their own cards by the round code, on their own phones", async ({ page, browser, baseURL }, testInfo) => {
@@ -235,9 +265,10 @@ test.describe("a casual round at the course", () => {
      * past prints something else.
      */
     await setUp(page, "Stroke Play", false, [ANN, BEA]);
-    await page.goto(`/dashboard?bust=${Date.now()}`);
+    // Above the card, where the first tee is looking (2026-10-06).
+    await page.goto(`/entry?bust=${Date.now()}`);
     const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
-    expect(code, "the dashboard shows no round code").toMatch(/^[A-Z0-9-]{6,}$/);
+    expect(code, "the round screen shows no round code").toMatch(/^[A-Z0-9-]{6,}$/);
 
     const phone = async (name: string, birdieOn: number | null) => {
       const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
@@ -273,7 +304,7 @@ test.describe("a casual round at the course", () => {
     await phone(ANN, null);
     await phone(BEA, 5);
 
-    const text = await dashboard(page);
+    const text = await roundScreen(page);
     const bea = text.search(new RegExp(`${BEA}\\s+71\\s+[-−]1\\b`));
     const ann = text.search(new RegExp(`${ANN}\\s+72\\s+E\\b`));
     expect([bea, ann], `a friend's card did not reach the host's screen:\n${text}`).not.toContain(-1);
@@ -283,29 +314,36 @@ test.describe("a casual round at the course", () => {
   test("modified stableford, net, two players", async ({ page }) => {
     await setUp(page, "Modified Stableford", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);
-    const text = await dashboard(page);
+    const text = await roundScreen(page);
     // Ten shots on stroke index 1 to 10. Bea pars everything: ten net birdies
     // at 2 points, 20. Ann loses a point on the 3rd (index 11, no shot) and
     // holds net par on the 6th (index 5, a shot): nine net birdies less one, 17.
-    // Columns: handicap, holes, gross, points.
+    // Columns on the round screen: gross, points — the handicaps are behind
+    // More and the holes are on the card (2026-10-06).
     expect(text).not.toMatch(/Nothing to rank here yet/);
-    const bea = text.search(new RegExp(`${BEA}\\s+10\\s+18\\s+72\\s+20\\b`));
-    const ann = text.search(new RegExp(`${ANN}\\s+10\\s+18\\s+74\\s+17\\b`));
+    const bea = text.search(new RegExp(`${BEA}\\s+72\\s+20\\b`));
+    const ann = text.search(new RegExp(`${ANN}\\s+74\\s+17\\b`));
     expect([bea, ann], "a row is missing or wrong").not.toContain(-1);
     expect(ann, "fewer points ranked first").toBeGreaterThan(bea);
+    // The figure the table is RANKED on must be on the phone, not past its
+    // edge behind a sideways scroll — the first walk found it there.
+    const points = await page.getByRole("columnheader", { name: "Points" }).boundingBox();
+    const width = page.viewportSize()!.width;
+    expect(points, "no Points column").not.toBeNull();
+    expect(points!.x + points!.width, "Points is off the edge of the phone").toBeLessThanOrEqual(width);
   });
 
   test("four-ball, net, four players", async ({ page }) => {
     await setUp(page, "Four-Ball", true, [ANN, BEA, CAT, DOT]);
     await scoreEveryHole(page, 2);
-    await dashboard(page);
+    await roundScreen(page);
     await expect(page.locator("[data-match-line]")).toHaveText(`${CAT} & ${DOT} won 2&1`);
   });
 
   test("foursomes, gross, four players", async ({ page }) => {
     await setUp(page, "Foursomes", false, [ANN, BEA, CAT, DOT]);
     await scoreEveryHole(page, 1);
-    await dashboard(page);
+    await roundScreen(page);
     await expect(page.locator("[data-match-line]")).toHaveText(`${CAT} & ${DOT} won 2&1`);
   });
 });

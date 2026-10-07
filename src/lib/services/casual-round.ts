@@ -172,12 +172,22 @@ export async function casualMoney(eventId: string, email: string): Promise<Casua
     formattingForEvent(eventId),
   ]);
   const write = (cents: number) => money(cents, fmt.currency, fmt.locale);
+  /**
+   * THE ROUND'S OWN `final`, NOT `anyFinal`. `anyFinal` is "a round is final
+   * AND somebody is owed something" — the right question for a screen of
+   * winnings, and the wrong one here: a finished skins game where no hole was
+   * won outright is final and square, and read through `anyFinal` this screen
+   * went on saying "when every card is in" over eighteen holes of every card.
+   * Found on the first real walk of this screen, 2026-10-06.
+   *
+   * And a ROUND fact, so it holds for a host who set the round up for others
+   * and is not in it — `rounds[].final` reads the cards, not the viewer.
+   */
+  const final = round.rounds.length > 0 && round.rounds.every((r) => r.final);
   return {
     anyGame: round.anyGame,
-    final: round.anyFinal,
-    handovers: round.anyFinal
-      ? book.transfers.map((t) => `${t.fromName} pays ${t.toName} ${write(t.cents)}`)
-      : [],
+    final,
+    handovers: final ? book.transfers.map((t) => `${t.fromName} pays ${t.toName} ${write(t.cents)}`) : [],
     stake:
       round.stake.games > 0
         ? `You have ${write(round.stake.cents)} on ${round.stake.games === 1 ? "1 game" : `${round.stake.games} games`}.`

@@ -93,20 +93,22 @@ describe("where the warning renders", () => {
   it("is still on the console, worded for whoever can keep it", () => {
     // On the casual round's one screen since 2026-10-06 — the dashboard now
     // sends a casual round there. The full sentence sits behind the short
-    // line's ⓘ, from the same three readers in the same order.
+    // line's ⓘ, worded by the same readers for the same person.
     const screen = readSource("src/components/CasualRoundScreen.tsx");
     expect(screen).toMatch(/notice=\{expiryNotice\(hours, isStaff, keepRefusal\)\}/);
-    expect(screen).toMatch(/short=\{expiryShort\(hours, isStaff, keepRefusal\)\}/);
+    expect(screen).toMatch(/short=\{expiryShort\(hours, isStaff\)\}/);
     expect(screen).toMatch(/keepRefusal=\{keepRefusal\}/);
     expect(screen).toMatch(/await casualKeepRefusalFor\(event\.id\)/);
   });
 
   it("says it in one line without changing who is told what", () => {
-    // The short line must not tell the host to ask, nor the partner to keep it.
-    expect(expiryShort(10, true, null)).toBe("Temporary — deleted after a day unless you keep it.");
-    expect(expiryShort(10, false, null)).toContain("Ask whoever set it up");
-    expect(expiryShort(10, true, "On the free Par plan…")).not.toContain("keep it");
-    expect(expiryShort(0, true, null)).toContain("Deleted shortly");
+    // Whoever can keep it has the button beside the line; the line is short.
+    expect(expiryShort(10, true)).toBe("Kept for a day only.");
+    // Whoever cannot has no button, so the line names their remedy itself —
+    // and never tells them to press something they do not have.
+    expect(expiryShort(10, false)).toBe("Kept for a day only — ask whoever set it up to keep it.");
+    expect(expiryShort(0, true)).toBe("Deleted shortly.");
+    expect(expiryShort(0, false)).toContain("ask whoever set it up");
     expect(expiryShort(null)).toBe("");
   });
 });

@@ -117,7 +117,26 @@ export function HoleByHoleCard({
   firstHole = 1,
   pickedUp,
   onPickUp,
+  voice = false,
+  dense = false,
 }: {
+  /**
+   * HOLE 1 FOR THE WHOLE FOURSOME ON ONE PHONE SCREEN — a casual round's card
+   * (2026-10-06). Measured at 393x727 the fourth player's row ended at 808px,
+   * and a four-ball's at 985 under four "Picked up" buttons. So: a shorter
+   * hole header with the mic beside the number, the mic's notes under the
+   * rows, and the pick-ups behind one control — opened by itself whenever
+   * anybody has picked up on the hole. Scoring is every hole; picking up is
+   * occasional.
+   */
+  dense?: boolean;
+  /**
+   * Offer the mic even when nobody on the card is known to be holding the
+   * phone — a casual round's card (2026-10-06), whose voice entry stays on
+   * the main screen whoever set the round up. Names and card order ("four
+   * five three four") still resolve; only "me" needs `meId`.
+   */
+  voice?: boolean;
   /**
    * MATCH PLAY ONLY: which holes each card picked up on, and the control to
    * say so (2026-10-06). A blank is "not entered yet"; a pick-up is out of the
@@ -286,6 +305,57 @@ export function HoleByHoleCard({
     strip.scrollLeft = Math.max(0, left);
   }, [hole]);
 
+  /**
+   * Said, not tapped — a round button beside the hole rather than a
+   * full-width bar, so the pad stays above the fold on a phone. The name says
+   * what it does for a screen reader; the ring says it is listening.
+   */
+  const micOn = !!(meId || voice) && showVoice;
+  const micButton = micOn ? (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      onClick={listen}
+      aria-pressed={listening}
+      aria-label={solo ? `Say your score for hole ${holeNumber(hole, firstHole)}` : `Say the scores for hole ${holeNumber(hole, firstHole)}`}
+      style={{
+        width: 48,
+        height: 48,
+        minHeight: 48,
+        padding: 0,
+        borderRadius: "50%",
+        justifyContent: "center",
+        flex: "none",
+        boxShadow: listening ? "0 0 0 3px var(--color-accent)" : undefined,
+      }}
+    >
+      <Icon name="microphone" style={{ fontSize: 20 }} />
+    </button>
+  ) : null;
+  /* aria-live, NOT role="status": the card's save line is THE status of this
+     screen (offline.spec finds it by that role), and a hint that is always
+     there is not a status — only what was heard needs announcing, which a
+     polite live region does. */
+  const micWords = micOn ? (
+    <span style={{ fontSize: 14, lineHeight: 1.45, color: "var(--color-neutral-400)", minWidth: 0 }} aria-live="polite">
+      {listening
+        ? "Listening…"
+        : heard ||
+          (micHint.seen === true
+            ? ""
+            : solo
+              ? "Or say it: “four”, “par”, “bogey”."
+              : !meId
+                ? // Nobody here is "me", so the example must not use the word.
+                  `Or say them in card order: “${players.map((_, i) => ["four", "five", "four", "three"][i % 4]).join(", ")}”.`
+                : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
+    </span>
+  ) : null;
+
+  /** Dense: the pick-ups behind one control, open whenever one is in use. */
+  const [picksAsked, setPicksAsked] = useState(false);
+  const picksOpen = !dense || picksAsked || players.some((p) => pickedUp?.[p.id]?.[hole] === true);
+
   const holeDone = (i: number) => players.every((p) => strokesOf(p.id)[i] != null);
   const holeStarted = (i: number) => players.some((p) => strokesOf(p.id)[i] != null);
 
@@ -320,7 +390,7 @@ export function HoleByHoleCard({
     <div>
       {/* Position in the round, and which holes are in. Doubles as navigation,
           so a hole written down wrong is two taps away. */}
-      <div ref={stripRef} style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 2 }}>
+      <div ref={stripRef} style={{ display: "flex", gap: 4, marginBottom: dense ? 10 : 16, overflowX: "auto", paddingBottom: 2 }}>
         {Array.from({ length: holes }, (_, i) => {
           const done = holeDone(i);
           const part = !done && holeStarted(i);
@@ -362,25 +432,38 @@ export function HoleByHoleCard({
 
       <div
         className="card elev-sm"
-        style={{ padding: "18px 16px", touchAction: "pan-y" }}
+        style={{ padding: dense ? "14px 14px" : "18px 16px", touchAction: "pan-y" }}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: dense ? "center" : "flex-start", justifyContent: "space-between", gap: dense ? 10 : 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
               Hole
             </div>
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: 54, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 54, lineHeight: 1, fontVariantNumeric: "tabular-nums", ...(dense ? { fontSize: 42 } : {}) }}>
               {holeNumber(hole, firstHole)}
             </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 15, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          {/* Dense: the mic beside the number, where the eye already is. */}
+          {dense && micButton}
+          <div style={{ textAlign: "right", fontSize: 15, lineHeight: dense ? 1.45 : 1.6, color: "var(--color-neutral-400)" }}>
             <div>Par <strong style={{ color: "var(--color-text)", fontSize: 20 }}>{par ?? "—"}</strong></div>
             {/* A length of 0 is a card with no yardage on it, not a hole of
-                nought yards — "0 yds" on the first tee reads as a broken card. */}
-            {(yards[hole] ?? 0) > 0 && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
-            {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
+                nought yards — "0 yds" on the first tee reads as a broken card.
+                Dense puts the length and the index on one line. */}
+            {dense ? (
+              <div style={{ fontVariantNumeric: "tabular-nums" }}>
+                {[(yards[hole] ?? 0) > 0 ? `${yards[hole]} ${distance.short}` : "", strokeIndex[hole] != null ? `S.I. ${strokeIndex[hole]}` : ""]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            ) : (
+              <>
+                {(yards[hole] ?? 0) > 0 && <div style={{ fontVariantNumeric: "tabular-nums" }}>{yards[hole]} {distance.short}</div>}
+                {strokeIndex[hole] != null && <div>S.I. {strokeIndex[hole]}</div>}
+              </>
+            )}
             {/* Where the hole is cut today, from the committee's pin sheet. */}
             {pins[hole] && (
               <div style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -399,42 +482,11 @@ export function HoleByHoleCard({
             full-width bar, so the pad stays above the fold on a phone. The
             name says what it does for a screen reader; the ring says it is
             listening. */}
-        {meId && showVoice && (
+        {micOn && !dense && (
           <>
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={listen}
-              aria-pressed={listening}
-              aria-label={solo ? `Say your score for hole ${holeNumber(hole, firstHole)}` : `Say the scores for hole ${holeNumber(hole, firstHole)}`}
-              style={{
-                width: 48,
-                height: 48,
-                minHeight: 48,
-                padding: 0,
-                borderRadius: "50%",
-                justifyContent: "center",
-                flex: "none",
-                boxShadow: listening ? "0 0 0 3px var(--color-accent)" : undefined,
-              }}
-            >
-              <Icon name="microphone" style={{ fontSize: 20 }} />
-            </button>
-            {/* aria-live, NOT role="status": the card's save line is THE status
-                of this screen (offline.spec finds it by that role), and a hint
-                that is always there is not a status — only what was heard
-                needs announcing, which a polite live region does. */}
-            <span style={{ fontSize: 14, lineHeight: 1.45, color: "var(--color-neutral-400)", minWidth: 0 }} aria-live="polite">
-              {listening
-                ? "Listening…"
-                : heard ||
-                  (micHint.seen === true
-                    ? ""
-                    : solo
-                      ? "Or say it: “four”, “par”, “bogey”."
-                      : `Or say it: “${(players.find((p) => p.id !== meId)?.name ?? "").split(" ")[0] || "Sam"} five, me four”.`)}
-            </span>
+              {micButton}
+              {micWords}
             </div>
             {/* What the mic does, in the one place it is offered on this card. */}
             <MicNote style={{ marginTop: 6, marginBottom: 2 }} />
@@ -465,7 +517,7 @@ export function HoleByHoleCard({
             )}
           </>
         ) : (
-          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ marginTop: dense ? 10 : 16, display: "flex", flexDirection: "column", gap: dense ? 8 : 10 }}>
             {players.map((p, idx) => {
               const value = strokesOf(p.id)[hole] ?? null;
               const shots = p.shotsOn?.(hole) ?? 0;
@@ -554,7 +606,7 @@ export function HoleByHoleCard({
                 </div>
                 {/* Under the row rather than a fifth control in it: at 320px
                     the name already shares the row with three 44px targets. */}
-                {onPickUp && (
+                {onPickUp && picksOpen && (
                   <PickUpToggle
                     name={p.name}
                     hole={holeNumber(hole, firstHole)}
@@ -566,6 +618,25 @@ export function HoleByHoleCard({
                 </div>
               );
             })}
+            {onPickUp && !picksOpen && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ alignSelf: "flex-start", minHeight: 44, fontSize: 14 }}
+                onClick={() => setPicksAsked(true)}
+              >
+                <Icon name="x" /> Somebody picked up?
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Dense: what the mic heard, and what it does, under the rows — so
+            the rows themselves start right under the hole. */}
+        {micOn && dense && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+            {micWords}
+            <MicNote />
           </div>
         )}
       </div>

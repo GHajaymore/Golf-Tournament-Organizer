@@ -499,7 +499,8 @@ export function StrokePlayEntry({
   const onePlayerHead = !casual || view === "card";
 
   return (
-    <div className="card elev-sm">
+    // A casual round's hole view is not framed twice: the hole card is the card.
+    <div className={casual && view === "hole" ? undefined : "card elev-sm"}>
       {onePlayerHead && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div className="field" style={{ minWidth: 220 }}>
@@ -660,6 +661,8 @@ export function StrokePlayEntry({
             holes={holes}
             firstHole={firstHole}
             meId={meId && cardPlayers.some((p) => p.id === meId) ? meId : undefined}
+            voice={casual}
+            dense={casual}
             onSet={(pid, i, v) =>
               setCards((prev) => {
                 const next = [...(prev[pid] ?? new Array(holes).fill(null))];

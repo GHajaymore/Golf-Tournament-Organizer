@@ -14,7 +14,15 @@ export function EventContextBar({
   city,
   status,
   canSwitch,
+  compact = false,
 }: {
+  /**
+   * One line, whatever the name — a casual round's (2026-10-06). Its name IS
+   * its players ("Ann Zed & Bea Zed v Cat Zed & Dot Zed"), every one of them
+   * named again on the card below, and wrapping it pushed "Switch event" onto
+   * a second line and the fourth player's row off the first screen.
+   */
+  compact?: boolean;
   name: string;
   dates: string;
   course: string;
@@ -34,15 +42,27 @@ export function EventContextBar({
         gap: 10,
         borderBottom: "1px solid var(--color-divider)",
         background: "var(--color-surface)",
-        flexWrap: "wrap",
+        flexWrap: compact ? "nowrap" : "wrap",
       }}
     >
-      <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent-200)", fontSize: 15 }} />
-      <span style={{ fontWeight: 600, fontSize: 13 }}>{name || "Untitled tournament"}</span>
-      <span className="text-muted" style={{ fontSize: 13 }}>
-        {[dates, location].filter(Boolean).join(" · ")}
+      <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent-200)", fontSize: 15, flex: "none" }} />
+      <span
+        style={{
+          fontWeight: 600,
+          fontSize: 13,
+          ...(compact ? { minWidth: 0, flex: "0 1 auto", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } : {}),
+        }}
+        title={compact ? name : undefined}
+      >
+        {name || "Untitled tournament"}
       </span>
-      <span className={`tag ${meta.tag}`} style={{ fontSize: 13 }}>
+      {/* The round's screen says where it is played, under its heading. */}
+      {!compact && (
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          {[dates, location].filter(Boolean).join(" · ")}
+        </span>
+      )}
+      <span className={`tag ${meta.tag}`} style={{ fontSize: 13, flex: "none" }}>
         {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 13, marginRight: 4 }} />}
         {meta.label}
       </span>
@@ -75,7 +95,7 @@ export function EventContextBar({
           // inside a sentence, and at 19px it was the last thing on the
           // dashboard a thumb could miss.
           className="text-muted touch-target"
-          style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}
+          style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4, flex: "none", whiteSpace: "nowrap" }}
         >
           <Icon name="arrows-left-right" /> Switch event
         </Link>

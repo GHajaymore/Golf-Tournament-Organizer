@@ -219,9 +219,23 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
  * The points table WITHOUT a page heading — see `SkinsStandingsTable`.
  *
  * `bare` drops the card it sits in, for a screen that already has one — the
- * casual round's dashboard puts it inside its own "Where the round stands".
+ * casual round's screen puts it inside its own "Where the round stands".
+ *
+ * `compact` keeps the figure the table is RANKED on in view at 393px. On the
+ * casual round's first real walk (2026-10-06) Points was the sixth column and
+ * sat past the edge of the phone, behind a sideways scroll, under a table
+ * ordered by it. The holes are on the card above ("thru 18") and the
+ * handicaps behind the screen's More, so those two columns go.
  */
-export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStablefordRow[]; bare?: boolean }) {
+export function ModifiedStablefordTable({
+  rows,
+  bare = false,
+  compact = false,
+}: {
+  rows: ModStablefordRow[];
+  bare?: boolean;
+  compact?: boolean;
+}) {
   // Level on points is level. The sort falls back to gross and then to
   // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
   // and 2nd alphabetically.
@@ -238,8 +252,8 @@ export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStabl
                 <tr>
                   <th style={{ width: 40 }}>#</th>
                   <th>Player</th>
-                  <th style={{ textAlign: "right" }}>H/cap</th>
-                  <th style={{ textAlign: "right" }}>Holes</th>
+                  {!compact && <th style={{ textAlign: "right" }}>H/cap</th>}
+                  {!compact && <th style={{ textAlign: "right" }}>Holes</th>}
                   <th style={{ textAlign: "right" }}>Gross</th>
                   <th style={{ textAlign: "right" }}>Points</th>
                 </tr>
@@ -249,8 +263,8 @@ export function ModifiedStablefordTable({ rows, bare = false }: { rows: ModStabl
                   <tr key={r.playerId}>
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
                     <td style={{ fontWeight: 500 }}>{r.name}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{indexLabel(r)}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.played}</td>
+                    {!compact && <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{indexLabel(r)}</td>}
+                    {!compact && <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.played}</td>}
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {r.played > 0 ? r.gross : "—"}
                     </td>

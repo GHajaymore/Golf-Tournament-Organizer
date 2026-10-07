@@ -330,7 +330,7 @@ describe("the card screen on a casual round", () => {
     expect(src, "the casual kicker is back").not.toContain('"Playing"');
     expect(src).toMatch(/\{!casual && \(\s*<div style=\{\{ marginBottom: 16 \}\}>/);
     const screen = readSource("src/components/CasualRoundScreen.tsx");
-    expect(screen).toMatch(/<h1 className="page-title">The round<\/h1>/);
+    expect(screen).toMatch(/<h1 className="page-title"[^>]*>The round<\/h1>/);
   });
 
   it("still calls the screen what the sidebar calls it", () => {
@@ -514,7 +514,7 @@ describe("what the round screen calls a casual round", () => {
 
   it("heads every format with a word true of all of them", () => {
     // "The round" — a match is played over a round; a medal is not a match.
-    expect(screen).toContain('<h1 className="page-title">The round</h1>');
+    expect(screen).toMatch(/<h1 className="page-title"[^>]*>The round<\/h1>/);
     for (const phrase of ["The match", "head to head", ...MATCH_ONLY]) {
       expect(screen, `the screen prints "${phrase}" itself, unguarded`).not.toContain(`"${phrase}"`);
       expect(screen, `the screen prints "${phrase}" itself, unguarded`).not.toContain(`>${phrase}<`);

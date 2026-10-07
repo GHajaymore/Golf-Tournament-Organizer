@@ -1214,7 +1214,7 @@ export function ScoreEntryClient({
           </div>
         ) : (
         <div className="card elev-sm" ref={entryRef} style={{ scrollMarginTop: 60 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: casual ? "flex-start" : "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
               {/* "Flight 1 · Round 1" describes a draw a casual round has none of. */}
               {!casual && (
@@ -1222,9 +1222,13 @@ export function ScoreEntryClient({
                   {active.label}
                 </div>
               )}
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
-                {active.aName} <span className="text-muted" style={{ fontSize: 13 }}>vs</span> {active.bName}
-              </div>
+              {/* Not on a casual round: the bar over the screen is named after
+                  these two, and the card names them on every hole. */}
+              {!casual && (
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
+                  {active.aName} <span className="text-muted" style={{ fontSize: 13 }}>vs</span> {active.bName}
+                </div>
+              )}
               {/* Where, which nine, and when it was written down. This is the
                   first thing anyone checks when a card is queried, and in a
                   league with no fixed venue it is the only way to tell two
@@ -1274,7 +1278,8 @@ export function ScoreEntryClient({
               </div>
               )}
             </div>
-            <div style={{ textAlign: "right" }}>
+            {/* Left on a casual round, where it is the card's only heading. */}
+            <div style={{ textAlign: casual ? "left" : "right" }}>
               {/* A DECIDED match reads as finished, not just as a bigger number.
                   The result takes the app's own "good outcome" colour — the same
                   accent-2 the boards use for under par and an advancing player —
@@ -1298,9 +1303,14 @@ export function ScoreEntryClient({
               >
                 {statusBig}
               </div>
-              <div className="text-muted" style={{ fontSize: 13 }}>
-                {resolution.played} played · {resolution.remaining} to play
-              </div>
+              {/* Not under a line that already says it: "Bea 2 up with 15 to
+                  play" over "3 played · 15 to play" counted the same holes
+                  twice (seen on the casual round's first real walk). */}
+              {!statusBig.includes("to play") && (
+                <div className="text-muted" style={{ fontSize: 13 }}>
+                  {resolution.played} played · {resolution.remaining} to play
+                </div>
+              )}
               {/* Sits under the score the eye is already on. A failure has to
                   be loud: the number is on screen but not in the database,
                   and the person entering it has no other way to tell. */}
@@ -1336,7 +1346,10 @@ export function ScoreEntryClient({
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", flexWrap: "wrap" }}>
+          {/* On a casual round this row is empty unless the round is a nine
+              or the scorer has asked for another way to write it down — and an
+              empty row still took 24px of margin under the match state. */}
+          <div style={{ display: casual && !showModes && totalHoles !== 9 ? "none" : "flex", alignItems: "center", gap: 12, margin: "12px 0", flexWrap: "wrap" }}>
             {/* The format decides which of these exist at all; the round
                 decides which one is already selected. Both are the app's job —
                 but the choice between the shapes that remain is the
@@ -1752,6 +1765,8 @@ export function ScoreEntryClient({
                   firstHole={firstHole}
                   // The phone's holder, by slot, so the mic hears "me".
                   meId={meId === active.aId ? "A" : meId === active.bId ? "B" : undefined}
+                  voice={casual}
+                  dense={casual}
                   onSet={(pid, i, v) => applyStroke(pid === "A" ? "A" : "B", i, v)}
                 />
               ) : (

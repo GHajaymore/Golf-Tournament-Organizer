@@ -398,7 +398,8 @@ export function TeamEntryClient({
       )}
 
       {view === "hole" && group && (
-        <div className="card elev-sm" style={{ gap: 12 }}>
+        // A casual round's hole card is not framed twice.
+        <div className={casual ? undefined : "card elev-sm"} style={{ gap: 12, ...(casual ? { display: "flex", flexDirection: "column" } : {}) }}>
           {groups.length > 1 && (
             <div className="field">
               <label htmlFor="team-hole-group">Scoring</label>
@@ -437,6 +438,8 @@ export function TeamEntryClient({
               const mine = meId ? group.rows.find(({ card }) => card.playerId === meId) : undefined;
               return mine ? keyFor(mine.team.teamId, mine.team.matchId, mine.card.playerId) : undefined;
             })()}
+            voice={casual}
+            dense={casual}
             onSet={(key, hole, value) => setHole(key, hole, value)}
             {...(pickUp
               ? {

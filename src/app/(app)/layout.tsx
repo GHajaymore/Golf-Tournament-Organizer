@@ -267,6 +267,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             city={event.city}
             status={event.status}
             canSwitch={session.viewRole === "admin"}
+            compact={casualShell}
           />
         )}
         <main
