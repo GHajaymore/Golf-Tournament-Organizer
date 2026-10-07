@@ -587,6 +587,38 @@ test.describe("a casual round at the course", () => {
     expect(await beaDotsOn(4), "a 20 gets two shots on SI 1").toBe(2);
   });
 
+  test("switching to off handicaps after the first hole asks, then does it", async ({ page }) => {
+    /**
+     * The group starts level and decides on the 2nd tee to play off
+     * handicaps. Both switches in More re-score the cards already in, so the
+     * action answers "confirm first" once a card exists — and the panel threw
+     * that answer away: after the first hole the buttons did nothing, under a
+     * promise that nothing is locked (2026-10-07).
+     */
+    await setUp(page, "Stroke Play", false, [ANN, BEA]);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const plus = page.getByRole("button", { name: /^One more stroke for/ });
+    await expect(plus.first()).toBeVisible({ timeout: 30_000 });
+    await plus.nth(0).click();
+    await plus.nth(1).click();
+    await expect(page.getByText(/\bSaved\b/).first()).toBeVisible({ timeout: 30_000 });
+
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await expect(page.locator("main")).toContainText("· level");
+    await page.locator("summary", { hasText: /^More:/ }).click();
+    await page.getByRole("button", { name: "Off handicaps" }).click();
+    const ask = page.getByRole("alert").filter({ hasText: "re-scores" });
+    await expect(ask, "the switch did nothing and said nothing").toContainText(
+      "2 cards already have scores. Playing off handicaps re-scores them",
+    );
+    await ask.getByRole("button", { name: "Change it" }).click();
+    await expect(ask).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Off handicaps" })).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
+    // And the round itself says so, read fresh.
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await expect(page.locator("main")).toContainText("· off handicaps");
+  });
+
   test("modified stableford, net, two players", async ({ page }) => {
     await setUp(page, "Modified Stableford", true, [ANN, BEA]);
     await scoreEveryHole(page, 1);

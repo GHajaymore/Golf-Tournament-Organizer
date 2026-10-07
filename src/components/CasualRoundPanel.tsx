@@ -87,6 +87,35 @@ export function CasualRoundPanel({
     });
 
   /**
+   * A CHANGE THAT RE-SCORES THE CARDS ALREADY IN ASKS FIRST, AND SAYS SO
+   * (2026-10-07).
+   *
+   * Level/off handicaps and 18/9 holes both re-score every card in the round,
+   * so their actions answer `needsConfirm` once a card is in rather than
+   * writing through. `run` threw that answer away: after the first hole the
+   * buttons did nothing at all, under a panel promising "nothing here is
+   * locked". Now the answer is read and the question put to the host.
+   * Nothing is deleted either way — the strokes stay, only the result moves —
+   * which is why one tap back undoes it.
+   */
+  const [ask, setAsk] = useState<{ what: string; cards: number; apply: () => Promise<unknown> } | null>(null);
+  const change = (what: string, attempt: (force: boolean) => Promise<unknown>) =>
+    startTransition(async () => {
+      setError("");
+      setAsk(null);
+      try {
+        const res = (await attempt(false)) as { needsConfirm?: boolean; cards?: number } | undefined;
+        if (res?.needsConfirm) {
+          setAsk({ what, cards: res.cards ?? 0, apply: () => attempt(true) });
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Couldn't save that.");
+      }
+    });
+
+  /**
    * Net or level, as one yes/no.
    *
    * The round's stored basis has four values and three of them mean "shots are
@@ -138,7 +167,7 @@ export function CasualRoundPanel({
                 style={seg(holes === n)}
                 aria-pressed={holes === n}
                 disabled={pending}
-                onClick={() => run(() => setStageHoles(stageId, n))}
+                onClick={() => change(`Playing ${n} holes`, (force) => setStageHoles(stageId, n, force))}
               >
                 {n} holes
               </button>
@@ -154,7 +183,7 @@ export function CasualRoundPanel({
               style={seg(!net)}
               aria-pressed={!net}
               disabled={pending}
-              onClick={() => run(() => setStageScoringBasis(stageId, "gross"))}
+              onClick={() => change("Playing level", (force) => setStageScoringBasis(stageId, "gross", force))}
             >
               Level
             </button>
@@ -163,13 +192,33 @@ export function CasualRoundPanel({
               style={seg(net)}
               aria-pressed={net}
               disabled={pending}
-              onClick={() => run(() => setStageScoringBasis(stageId, "net"))}
+              onClick={() => change("Playing off handicaps", (force) => setStageScoringBasis(stageId, "net", force))}
             >
               Off handicaps
             </button>
           </div>
         </div>
       </div>
+
+      {ask && (
+        <div
+          role="alert"
+          style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: 9, border: "1px solid var(--color-warning)" }}
+        >
+          <p style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+            {ask.cards} {ask.cards === 1 ? "card already has" : "cards already have"} scores. {ask.what} re-scores{" "}
+            {ask.cards === 1 ? "it" : "them"} — nothing entered is lost, and you can switch back.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-primary" style={{ minHeight: 44 }} disabled={pending} onClick={() => { const apply = ask.apply; setAsk(null); run(apply); }}>
+              Change it
+            </button>
+            <button type="button" className="btn btn-secondary" style={{ minHeight: 44 }} disabled={pending} onClick={() => setAsk(null)}>
+              Keep it as it is
+            </button>
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="card-kicker">Playing</div>
