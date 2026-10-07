@@ -819,6 +819,7 @@ export function PlayerCard({
               showVoice={voiceEntry}
               pins={pins}
               firstHole={firstHole}
+              dense
             />
           ) : view === "hole" ? (
             <HoleByHoleCard
@@ -840,6 +841,8 @@ export function PlayerCard({
               showVoice={voiceEntry}
               pins={pins}
               firstHole={firstHole}
+              // Bogey on the first screen — see `HoleByHoleCard`'s `dense`.
+              dense
             />
           ) : (
             <>

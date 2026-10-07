@@ -53,7 +53,10 @@ export function GroupScoring({
   showVoice = true,
   pins = [],
   firstHole = 1,
+  dense = false,
 }: {
+  /** The hole card's compact layout — see `HoleByHoleCard`'s `dense`. */
+  dense?: boolean;
   /** The round's pin sheet, passed through to the hole card. */
   pins?: PinSheet;
   /** The course's number for the first hole on the card — 10 on a back nine. */
@@ -132,6 +135,7 @@ export function GroupScoring({
         showVoice={showVoice}
         pins={pins}
         firstHole={firstHole}
+        dense={dense}
       />
 
       {/* Where each partner's card has got to — the same words the player's

@@ -628,6 +628,10 @@ export function PlayClient(props: Props) {
             strokeIndex={props.strokeIndex ?? []}
             holes={holeCount}
             firstHole={props.firstHole ?? 1}
+            // The pad's second row — bogey, the commonest score in the
+            // amateur game — on the first screen: mic beside the hole, its
+            // notes under the pad (2026-10-07). See `HoleByHoleCard`'s `dense`.
+            dense
             onSet={(_id, hole, value) => {
               const next = Array.from({ length: holeCount }, (_, i) => card[i] ?? null);
               next[hole] = value;

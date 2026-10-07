@@ -283,6 +283,15 @@ test.describe("a casual round at the course", () => {
         await p.getByRole("button", { name: "Continue" }).click();
         await p.getByRole("button", { name, exact: true }).click();
         await expect(p.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 30_000 });
+        // BOGEY ON THE FIRST SCREEN (2026-10-07). The pad's second row — the
+        // commonest score in the amateur game — sat below the fold at 393x727
+        // under the mic's own row and notes. Measured against 727 on any phone
+        // at least that tall; the 568px small-phone cannot hold the pad.
+        if (p.viewportSize()!.height >= 727) {
+          const bogey = await p.getByRole("button", { name: /Bogey$/ }).boundingBox();
+          expect(bogey, "no Bogey on the pad").not.toBeNull();
+          expect(bogey!.y + bogey!.height, "Bogey is below the first screen").toBeLessThanOrEqual(727);
+        }
         for (let hole = 1; hole <= 18; hole += 1) {
           // The pad moves on by itself; the hole on screen is the proof it did.
           await expect(p.getByLabel(`Strokes on hole ${hole}`)).toBeVisible();
