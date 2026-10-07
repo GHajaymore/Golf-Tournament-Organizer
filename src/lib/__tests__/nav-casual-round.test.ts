@@ -128,9 +128,11 @@ describe("what replaces them", () => {
 
   it("changes the holes, the shots and the handicaps", () => {
     const src = panel();
-    expect(src).toMatch(/setStageHoles\(stageId, n\)/);
-    expect(src).toMatch(/setStageScoringBasis\(stageId, "gross"\)/);
-    expect(src).toMatch(/setStageScoringBasis\(stageId, "net"\)/);
+    // `, force` since 2026-10-07: a switch that re-scores the cards already in
+    // asks first and is then sent again forced — see `change` in the panel.
+    expect(src).toMatch(/setStageHoles\(stageId, n(, force)?\)/);
+    expect(src).toMatch(/setStageScoringBasis\(stageId, "gross"(, force)?\)/);
+    expect(src).toMatch(/setStageScoringBasis\(stageId, "net"(, force)?\)/);
     expect(src).toMatch(/updateSignup\(p\.id, \{ handicap: n \}\)/);
   });
 
