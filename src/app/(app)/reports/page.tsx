@@ -4,6 +4,7 @@ import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, standingRows, withBoardRound } from "@/lib/services/tournament";
 import { leaderboardRounds } from "@/lib/domain/leaderboard-rounds";
 import { RoundPicker } from "@/components/RoundPicker";
+import { isMatch } from "@/lib/tournament-shape";
 import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
@@ -30,7 +31,7 @@ import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { boardKindForRound } from "@/lib/stage-types";
 import { toParText } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { snapshotStanding } from "@/lib/domain/lifecycle-state";
+import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
 import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
 import { AttendanceReport } from "@/components/AttendanceReport";
 
@@ -114,9 +115,12 @@ export default async function ReportsPage({
    * from here: a skins sheet printed mid-round is exactly as provisional, and
    * naming it "Skins — net" says nothing about that either way.
    */
+  // A casual round's card is in once every hole is on it — see `cardsIn`.
+  const casual = isMatch(event.shape);
+  const cardsDone = cardsIn(state.boardProgress, casual);
   const standing = snapshotStanding({
     status: event.status,
-    done: state.boardProgress.certified,
+    done: cardsDone,
     total: state.boardProgress.total,
     unit: state.boardProgress.unit,
     /* A tournament with NO round has the same two zeroes as a round nobody
@@ -124,6 +128,7 @@ export default async function ReportsPage({
        said "Nothing returned for this round yet" on a tournament whose Rounds
        screen was still asking for a first one. */
     hasRound: !!activeStage,
+    casual,
   });
 
   let board: React.ReactNode = null;
@@ -380,12 +385,13 @@ export default async function ReportsPage({
             // later. There is no count to print for a round nothing counts.
             state.boardProgress.unit === "manual"
               ? "—"
-              : `${state.boardProgress.certified}/${state.boardProgress.total}`
+              : `${cardsDone}/${state.boardProgress.total}`
           }
           icon="ph ph-check-circle"
         />
-        <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />
-        <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />
+        {/* A casual round has no flights and nobody advances to anything. */}
+        {!casual && <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />}
+        {!casual && <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />}
       </div>
       {kind === "manual" && (
         <div style={{ marginBottom: 16 }}>
@@ -427,6 +433,7 @@ export default async function ReportsPage({
         })}
         snapshotTitle={snapshotTitle}
         snapshotNote={standing.note}
+        casual={casual}
         board={board}
         extraCsv={extraCsv}
         /* Offered only where there is something to export — a tournament that
@@ -446,9 +453,12 @@ export default async function ReportsPage({
       {/* BELOW the exports, because it is the long one. An organizer opening
           Reports wants the standings sheet first; the attendance grid is what
           they scroll to in September. */}
-      <div style={{ marginTop: 16 }}>
-        <AttendanceReport report={attendance} />
-      </div>
+      {/* A casual round has no weekly sign-up to report on. */}
+      {!casual && (
+        <div style={{ marginTop: 16 }}>
+          <AttendanceReport report={attendance} />
+        </div>
+      )}
       {/* THE RECORD, last — the tournament's audit log on screen (Ajay,
           2026-09-27). Money, results, rounds, cuts and the field, newest first. */}
       <div style={{ marginTop: 16 }}>

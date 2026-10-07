@@ -11,6 +11,8 @@ import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { logAudit } from "@/lib/services/action-shared";
 import { isHeadToHead } from "@/lib/stage-types";
+import { money } from "@/lib/domain/money-format";
+import { currencyForEvent } from "@/lib/services/organization";
 
 /**
  * The side bets the cards settle: low gross, low net, birdies, eagles, Nassau.
@@ -102,8 +104,6 @@ async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
   };
 }
 
-
-const money = (cents: number) => `${(cents / 100).toFixed(2)}`;
 
 /**
  * A Nassau and a match bet are wagers BETWEEN two sides rather than pots, so
@@ -237,8 +237,11 @@ export async function saveSideGame(
     "sidegame.save",
     // The audit line says what was actually agreed. "at £0.00" for a game
     // played for a pint is a record of the wrong thing, and this log is what
-    // anybody reconstructing a settle-up reads.
-    `${isDerivedKind(kind) ? DERIVED_LABEL[kind] : "Nassau"} ${note ? `for ${note}` : `at ${money(cents)}`}`,
+    // anybody reconstructing a settle-up reads. In the round's own currency
+    // (2026-10-07): it printed a bare "5.00", and a match bet as "Nassau".
+    `${isDerivedKind(kind) ? DERIVED_LABEL[kind] : kind === "match" ? "The match" : "Nassau"} ${
+      note ? `for ${note}` : `at ${money(cents, await currencyForEvent(eventId))}`
+    }`,
   );
   revalidatePath("/", "layout");
   return { ok: true, id: game.id };

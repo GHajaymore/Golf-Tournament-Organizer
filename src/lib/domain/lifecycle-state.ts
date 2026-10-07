@@ -471,6 +471,24 @@ export interface SnapshotStanding {
   note: string;
 }
 
+/**
+ * HOW MANY OF THE ROUND'S CARDS ARE IN — what `snapshotStanding` is given as
+ * `done`, by the printed sheet and the player's own screen alike.
+ *
+ * Certified, normally. A CASUAL round's card is in once every hole is on it
+ * (2026-10-07): nobody reviews a friendly and the host's phone never signs
+ * the cards it keeps, so counting certified printed "Cards in 0/3" and
+ * "Nothing returned for this round yet" over a finished round whose money had
+ * already settled — `roundMoneyIsFinal` counts a full card as in.
+ * `unreturned` is exactly the full-and-unsigned cards.
+ */
+export function cardsIn(
+  progress: { certified: number; unreturned?: number; unit: string },
+  casual: boolean,
+): number {
+  return casual && progress.unit === "cards" ? progress.certified + (progress.unreturned ?? 0) : progress.certified;
+}
+
 export function snapshotStanding(input: {
   /** draft | registration | ready | live | completed. */
   status: string;
@@ -504,6 +522,8 @@ export function snapshotStanding(input: {
    * a round on screen are unchanged and need not prove it.
    */
   hasRound?: boolean;
+  /** A casual round — see the all-in branch below. */
+  casual?: boolean;
 }): SnapshotStanding {
   const noun = input.noun ?? "standings";
   if (input.status === "completed") {
@@ -565,6 +585,9 @@ export function snapshotStanding(input: {
     };
   }
   if (input.done >= input.total) {
+    // A casual round is never "closed" — nobody reviews a friendly, and it is
+    // kept or deleted rather than completed — so every card in IS the result.
+    if (input.casual) return { title, note: "Every card is in — this is the result." };
     // Every card in and the tournament still open: honest, and a different
     // sentence, because "7 of 33" and "33 of 33" are not the same warning.
     return {

@@ -5,7 +5,8 @@ import { getSession, setActiveEvent } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
 import { basisFor } from "@/lib/domain/week-basis";
 import { revalidatePath } from "next/cache";
-import { personalOrganizationFor, organizationIdsForPlayer, settingsForNewEvent } from "@/lib/services/organization";
+import { personalOrganizationFor, organizationIdsForPlayer, settingsForNewEvent, currencyForEvent } from "@/lib/services/organization";
+import { money } from "@/lib/domain/money-format";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
@@ -658,8 +659,11 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
     await logAudit(
       event.id,
       "match.money",
-      `${plan.money.game.pot === "skins" ? "Skins" : plan.money.game.kind ?? "Side game"} at ` +
-        `${plan.money.stakeCents > 0 ? `${plan.money.stakeCents}c a head` : plan.money.stakeNote || "no stake"}, ` +
+      // The game as the setup screen named it, and the stake in the round's
+      // own currency. It read "Skins at 500c a head" and "birdies at …"
+      // (2026-10-07), on the Recent changes list the host reads back.
+      `${plan.money.game.label} ` +
+        `${plan.money.stakeCents > 0 ? `at ${money(plan.money.stakeCents, await currencyForEvent(event.id))} a head` : `for ${plan.money.stakeNote || "nothing"}`}, ` +
         `${playerIds.length} in`,
     );
   }

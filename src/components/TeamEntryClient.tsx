@@ -1,10 +1,11 @@
 "use client";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { saveTeamScorecard } from "@/app/actions/tournament";
+import { saveTeamScorecard, saveTeamScorecards } from "@/app/actions/tournament";
 import { ScoreCell } from "@/components/ScorecardTable";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { Icon } from "@/components/Icon";
+import { useSaveBeforeLeaving } from "@/components/useSaveBeforeLeaving";
 import { holeNumber } from "@/lib/domain/hole-number";
 
 /**
@@ -227,8 +228,11 @@ export function TeamEntryClient({
     () => teams.flatMap((t) => t.cards.map((c) => ({ t, c, key: keyFor(t.teamId, t.matchId, c.playerId) }))),
     [teams],
   );
-  const sigOf = (key: string, stored: (number | null)[]) =>
-    JSON.stringify([draft[key] ?? stored, pickUp ? picksFor(key) : []]);
+  /** The screen's cards and pick-ups at one moment — see `sendChanged`. */
+  type Snapshot = { draft: typeof draft; picks: typeof picks };
+  const picksIn = (s: Snapshot, key: string): boolean[] => s.picks[key] ?? new Array(holes).fill(false);
+  const sigIn = (s: Snapshot, key: string, stored: (number | null)[]) =>
+    JSON.stringify([s.draft[key] ?? stored, pickUp ? picksIn(s, key) : []]);
   const lastSent = useRef<Record<string, string>>(
     Object.fromEntries(
       allCards.map(({ c, key }) => [
@@ -241,27 +245,63 @@ export function TeamEntryClient({
   const [retry, setRetry] = useState(0);
   const [autoNote, setAutoNote] = useState<{ text: string; at: string } | null>(null);
   const everything = JSON.stringify([draft, picks]);
+  /** The cards this phone differs on from what it last sent. */
+  const changedIn = (s: Snapshot) =>
+    allCards.filter(({ c, key }) => {
+      if (sigIn(s, key, c.strokes) === lastSent.current[key]) return false;
+      return (s.draft[key] ?? c.strokes).some((v) => v != null) || (pickUp && picksIn(s, key).some(Boolean));
+    });
+  /**
+   * One send at a time, each behind the last, and each asking what has
+   * changed only when its turn comes — as `StrokePlayEntry` does.
+   */
+  const inFlight = useRef<Promise<unknown>>(Promise.resolve());
+  const sendChanged = (s: Snapshot) => {
+    const run = inFlight.current.then(async () => {
+      const changed = changedIn(s);
+      if (changed.length === 0) return [];
+      const whoOf = ({ t, c }: (typeof changed)[number]) => (c.playerId ? c.playerName : t.teamName);
+      // ONE request for every card — see `saveTeamScorecards`.
+      try {
+        const results = await saveTeamScorecards(
+          changed.map(({ t, c, key }) => ({
+            teamId: t.teamId,
+            playerId: c.playerId,
+            matchId: t.matchId,
+            strokes: s.draft[key] ?? c.strokes,
+            pickedUp: pickUp ? picksIn(s, key) : undefined,
+          })),
+        );
+        const failed: string[] = [];
+        changed.forEach((card, i) => {
+          const res = results[i];
+          if (res?.ok) lastSent.current[card.key] = sigIn(s, card.key, card.c.strokes);
+          else failed.push(`${whoOf(card)}: ${res?.error ?? "not saved"}`);
+        });
+        return failed;
+      } catch {
+        return changed.map((card) => `${whoOf(card)}: not saved`);
+      }
+    });
+    inFlight.current = run.catch(() => undefined);
+    return run;
+  };
+  // Leaving inside the 600ms — or while a save is still going — sends what
+  // is left then. See `useSaveBeforeLeaving`.
+  const latest = useRef<Snapshot>({ draft, picks });
+  useEffect(() => {
+    latest.current = { draft, picks };
+  }, [draft, picks]);
+  useSaveBeforeLeaving(() => {
+    if (casual) void sendChanged(latest.current);
+  });
   useEffect(() => {
     if (!casual || pending || refused.current === everything) return;
-    const changed = allCards.filter(({ c, key }) => {
-      if (sigOf(key, c.strokes) === lastSent.current[key]) return false;
-      return (draft[key] ?? c.strokes).some((v) => v != null) || (pickUp && picksFor(key).some(Boolean));
-    });
-    if (changed.length === 0) return;
+    const snapshot = { draft, picks };
+    if (changedIn(snapshot).length === 0) return;
     const timer = window.setTimeout(() => {
       startTransition(async () => {
-        const failed: string[] = [];
-        for (const { t, c, key } of changed) {
-          const sent = sigOf(key, c.strokes);
-          const who = c.playerId ? c.playerName : t.teamName;
-          try {
-            const res = await saveTeamScorecard(t.teamId, c.playerId, t.matchId, draft[key] ?? c.strokes, pickUp ? picksFor(key) : undefined);
-            if (res.ok) lastSent.current[key] = sent;
-            else failed.push(`${who}: ${res.error ?? "not saved"}`);
-          } catch {
-            failed.push(`${who}: not saved`);
-          }
-        }
+        const failed = await sendChanged(snapshot);
         refused.current = failed.length ? everything : "";
         setAutoNote({ text: failed.length ? `Not saved — ${failed.join("; ")}` : "Saved.", at: everything });
       });

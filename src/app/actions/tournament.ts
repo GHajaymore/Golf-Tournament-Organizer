@@ -366,6 +366,11 @@ async function assertEventPlayer(eventId: string, playerId: string): Promise<voi
   if (!player) throw new Error("That player isn't in this tournament.");
 }
 
+async function assertEventTeam(eventId: string, teamId: string): Promise<void> {
+  const team = await prisma.team.findFirst({ where: { id: teamId, eventId }, select: { id: true } });
+  if (!team) throw new Error("That team isn't in this tournament.");
+}
+
 /** Block structural changes once the tournament is live/completed, unless unlocked. */
 
 /**
@@ -2582,6 +2587,47 @@ export async function saveScorecard(
   return result;
 }
 
+/** The most cards one batch may carry — a casual round is eight at most. */
+const MAX_CARDS_IN_ONE_SAVE = 24;
+
+/**
+ * SEVERAL OF ONE ROUND'S CARDS IN ONE REQUEST (2026-10-07).
+ *
+ * A casual card saves every card the phone changed. It did that with one
+ * `saveScorecard` per card, one after another — and when the scorer left the
+ * screen just after a hole, the save sent on the way out reached the server
+ * for the first card and was ABORTED for the second (`net::ERR_ABORTED`,
+ * measured in the browser): the last hole of the second player was lost.
+ * One request carries them all, so there is no second request to lose.
+ *
+ * Each card still goes through `saveScorecard`, guards and all — this adds a
+ * door, not a way round one.
+ */
+export async function saveScorecards(
+  stageId: string,
+  cards: Array<{ playerId: string; strokes: (number | null)[] }>,
+): Promise<Array<{ playerId: string; ok: boolean; error?: string }>> {
+  const { eventId } = await requireScoreEntryForStage(stageId);
+  await assertEventStage(eventId, stageId);
+  if (!Array.isArray(cards) || cards.length > MAX_CARDS_IN_ONE_SAVE) {
+    return [{ playerId: "", ok: false, error: "Too many cards in one save." }];
+  }
+  const out: Array<{ playerId: string; ok: boolean; error?: string }> = [];
+  for (const card of cards) {
+    const playerId = typeof card?.playerId === "string" ? card.playerId : "";
+    try {
+      // Checked here as well as inside `saveScorecard`: the id arrived through
+      // this door, so this door says whose it is.
+      await assertEventPlayer(eventId, playerId);
+      const r = await saveScorecard(stageId, playerId, Array.isArray(card?.strokes) ? card.strokes : []);
+      out.push(r.ok ? { playerId, ok: true } : { playerId, ok: false, error: "This card was changed elsewhere — reload to see it." });
+    } catch (e) {
+      out.push({ playerId, ok: false, error: e instanceof Error && e.message ? e.message : "It didn't save — try again." });
+    }
+  }
+  return out;
+}
+
 /**
  * Net (handicap) match play: record one player's gross strokes-per-hole card
  * for the match, then re-derive the match's `holes[]` result from both
@@ -2915,6 +2961,47 @@ export async function saveTeamScorecard(
 
   await refresh();
   return { ok: true };
+}
+
+/**
+ * Several team cards in ONE request — `saveScorecards`, for a side's cards,
+ * for the same reason: a second request sent as the scorer leaves the screen
+ * can be aborted, and its card lost. Each card goes through
+ * `saveTeamScorecard`, guards and all.
+ */
+export async function saveTeamScorecards(
+  cards: Array<{ teamId: string; playerId: string; matchId: string; strokes: (number | null)[]; pickedUp?: boolean[] }>,
+): Promise<Array<{ ok: boolean; error?: string }>> {
+  const { eventId, session } = await requireScoreEntry();
+  if (!Array.isArray(cards) || cards.length > MAX_CARDS_IN_ONE_SAVE) {
+    return [{ ok: false, error: "Too many cards in one save." }];
+  }
+  const out: Array<{ ok: boolean; error?: string }> = [];
+  for (const c of cards) {
+    const teamId = typeof c?.teamId === "string" ? c.teamId : "";
+    const playerId = typeof c?.playerId === "string" ? c.playerId : "";
+    const matchId = typeof c?.matchId === "string" ? c.matchId : "";
+    try {
+      // Checked here as well as inside `saveTeamScorecard`: the ids arrived
+      // through this door, so this door says whose they are. An empty player
+      // is a shared-ball side's card, and an empty match a team stroke round.
+      await assertEventTeam(eventId, teamId);
+      if (playerId) await assertEventPlayer(eventId, playerId);
+      if (matchId) await assertOwnMatch(session, eventId, matchId);
+      out.push(
+        await saveTeamScorecard(
+          teamId,
+          playerId,
+          matchId,
+          Array.isArray(c?.strokes) ? c.strokes : [],
+          Array.isArray(c?.pickedUp) ? c.pickedUp : undefined,
+        ),
+      );
+    } catch (e) {
+      out.push({ ok: false, error: e instanceof Error && e.message ? e.message : "not saved" });
+    }
+  }
+  return out;
 }
 
 /** Rebuild a team match's hole results from the two sides' cards. */

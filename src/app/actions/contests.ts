@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth";
 import { isContestKind, CONTEST_LABEL } from "@/lib/domain/contests";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
+import { money } from "@/lib/domain/money-format";
+import { currencyForEvent } from "@/lib/services/organization";
 
 /**
  * Side bets: closest to the pin, long drive, and whatever the first tee
@@ -36,8 +38,6 @@ async function requireStaff(): Promise<{ eventId: string; name: string }> {
   return { eventId: session.eventId, name: session.name || session.email };
 }
 
-
-const money = (cents: number) => `${(cents / 100).toFixed(2)}`;
 
 /** The contest, proved to be in the caller's tournament. */
 async function contestInEvent(eventId: string, contestId: string) {
@@ -96,7 +96,7 @@ export async function addContest(input: {
     },
   });
 
-  await logAudit(eventId, "contest.add", `${name} at ${money(buyInCents)} a player`);
+  await logAudit(eventId, "contest.add", `${name} at ${money(buyInCents, await currencyForEvent(eventId))} a player`);
   revalidatePath("/", "layout");
   return { ok: true, id: contest.id };
 }

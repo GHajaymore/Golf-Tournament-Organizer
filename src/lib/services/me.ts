@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { rankedScore, withStrokeBasis } from "@/lib/domain/ranked-score";
-import { snapshotStanding } from "@/lib/domain/lifecycle-state";
+import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
+import { isMatch } from "@/lib/tournament-shape";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { roundIsStroke, isKnockoutRound } from "@/lib/stage-types";
@@ -479,9 +480,10 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           // the note on the field.
           note: snapshotStanding({
             status: state.event.status,
-            done: state.boardProgress.certified,
+            done: cardsIn(state.boardProgress, isMatch(state.event.shape)),
             total: state.boardProgress.total,
             unit: state.boardProgress.unit,
+            casual: isMatch(state.event.shape),
           }).note,
         }
       : null,
