@@ -306,7 +306,7 @@ export default async function GroupGamesPage({
           ) : (
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>
               {cash.stake ? `${cash.stake} ` : ""}
-              {moneyWaitsFor(state)}
+              {moneyWaitsFor(state, cash.nassau)}
             </p>
           )}
         </section>

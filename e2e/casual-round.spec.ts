@@ -323,6 +323,44 @@ test.describe("a casual round at the course", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("a Nassau whose overall is won early still plays the back nine for money", async ({ page }) => {
+    /**
+     * $10 a bet. Ann wins the 1st-5th and 10th-12th, the rest halved so far:
+     * the front is Ann's 5&4 and the overall Ann's 8&6 after the 12th — but
+     * the BACK nine is Ann 3 up with six to play, and they play on for it.
+     * Bea wins the 13th-18th and takes the back 3 up. Front +10 Ann, overall
+     * +10 Ann, back +10 Bea: Bea pays Ann $10.
+     *
+     * The round's money was called final on the 12th green and said "Bea
+     * pays Ann $20.00" for six holes before changing (2026-10-07).
+     */
+    await setUp(page, "Match Play", false, [ANN, BEA], { game: "Nassau", stake: "10" });
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const winner = (h: number) => ([1, 2, 3, 4, 5, 10, 11, 12].includes(h) ? ANN : h >= 13 ? BEA : null);
+    const play = async (from: number, to: number) => {
+      for (let h = from; h <= to; h += 1) {
+        const w = winner(h);
+        const answer = page.getByRole("button", { name: w ? `Hole ${h} to ${w}` : `Hole ${h} halved` });
+        await expect(answer).toBeVisible();
+        await answer.click();
+        await expect(answer).toHaveAttribute("aria-pressed", "true");
+      }
+      await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
+    };
+
+    await play(1, 12);
+    const atTwelve = await roundScreen(page);
+    await expect(page.locator("[data-match-line]")).toHaveText(new RegExp(`^${ANN} won 8&6$`, "i"));
+    expect(atTwelve, "money settled with the back nine still being played for").not.toMatch(/ pays [^\n]*\$\d/);
+    expect(atTwelve).toContain("Who pays whom shows here when the front, back and overall are all decided.");
+
+    // The card is still open for the back nine: on to the 13th.
+    await play(13, 18);
+    const done = await roundScreen(page);
+    expect(done).toContain(`${BEA} pays ${ANN} $10.00`);
+    expect(done.match(/ pays [^\n]*\$\d/g)?.length, "more handovers than the bets need").toBe(1);
+  });
+
   test("stroke play, gross, three players", async ({ page }) => {
     await setUp(page, "Stroke Play", false, [ANN, BEA, CAT]);
     await scoreEveryHole(page, 1);

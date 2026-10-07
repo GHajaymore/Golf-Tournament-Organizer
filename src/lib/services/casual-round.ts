@@ -6,7 +6,7 @@ import { usesStandardBoard, boardKind } from "@/lib/formats";
 import { modifiedStablefordBoard, type ModStablefordRow } from "@/lib/services/points-standings";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import type { StandingRow } from "@/components/LeaderboardTable";
-import { moneyFor, roundMoneyFor } from "@/lib/services/expenses";
+import { moneyFor, roundMoneyFor, nassauStagesIn } from "@/lib/services/expenses";
 import { money } from "@/lib/domain/money-format";
 import { formattingForEvent } from "@/lib/services/organization";
 
@@ -147,7 +147,11 @@ export async function casualStanding(state: EventState): Promise<CasualStanding>
  * round's screen and the money page alike. A gross match is written down as
  * who won each hole, with no card to wait for, so it waits for the match.
  */
-export function moneyWaitsFor(state: EventState): string {
+export function moneyWaitsFor(state: EventState, nassau = false): string {
+  // A Nassau is three bets, and the overall can be won 8&6 with the back
+  // nine still being played for — "when the match is over" under "won 8&6"
+  // contradicts itself. See `nassauIsDecided`.
+  if (nassau) return "Who pays whom shows here when the front, back and overall are all decided.";
   return `Who pays whom shows here when ${casualIsMatch(state) ? "the match is over" : "every card is in"}.`;
 }
 
@@ -166,6 +170,8 @@ export interface CasualMoney {
   positions: Array<{ name: string; text: string }>;
   /** While it is live: what the person looking has riding on it, or "". */
   stake: string;
+  /** The round carries a Nassau — see `moneyWaitsFor`. */
+  nassau: boolean;
 }
 
 /**
@@ -181,10 +187,14 @@ export interface CasualMoney {
  * on the first tee wants anyway.
  */
 export async function casualMoney(eventId: string, email: string): Promise<CasualMoney> {
-  const [round, book, fmt] = await Promise.all([
+  const [round, book, fmt, nassauGames] = await Promise.all([
     roundMoneyFor(eventId, email),
     moneyFor(eventId, email),
     formattingForEvent(eventId),
+    prisma.sideGame.findMany({
+      where: { eventId, kind: "nassau" },
+      select: { kind: true, stageId: true, buyInCents: true, stakeNote: true },
+    }),
   ]);
   const write = (cents: number) => money(cents, fmt.currency, fmt.locale);
   /**
@@ -209,6 +219,7 @@ export async function casualMoney(eventId: string, email: string): Promise<Casua
           text: s.netCents === 0 ? "square" : `${s.netCents > 0 ? "+" : "−"}${write(Math.abs(s.netCents))}`,
         }))
       : [],
+    nassau: nassauStagesIn(nassauGames).size > 0,
     stake:
       round.stake.games > 0
         ? `You have ${write(round.stake.cents)} on ${round.stake.games === 1 ? "1 game" : `${round.stake.games} games`}.`

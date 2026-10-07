@@ -33,6 +33,7 @@ import { skinsPotFor } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
 import { loadEventState, type HoleResultArr } from "./tournament";
 import { matchIsOver } from "../domain/match";
+import { nassauIsDecided } from "../domain/nassau";
 import { resolveCourse } from "../courses";
 import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
@@ -288,6 +289,18 @@ export interface RoundFinality {
   matchesOver: number;
 }
 
+/**
+ * The rounds that carry a Nassau anybody is playing for — a stake, or "for a
+ * pint". One reading, for both callers of `roundMoneyFinality`.
+ */
+export function nassauStagesIn(
+  games: ReadonlyArray<{ kind: string; stageId: string; buyInCents: number; stakeNote: string }>,
+): Set<string> {
+  return new Set(
+    games.filter((g) => g.kind === "nassau" && (g.buyInCents > 0 || g.stakeNote.trim() !== "")).map((g) => g.stageId),
+  );
+}
+
 export function roundMoneyFinality(input: {
   stageId: string;
   holeCount: number;
@@ -301,6 +314,12 @@ export function roundMoneyFinality(input: {
    * back to finish it.
    */
   playingIds?: ReadonlySet<string>;
+  /**
+   * The round carries a Nassau. Then a match is over, for MONEY, only when
+   * all three of its bets are decided — see `nassauIsDecided`: the overall
+   * can close 8&6 with the back nine still being played for.
+   */
+  nassau?: boolean;
 }): RoundFinality {
   const { stageId, holeCount } = input;
 
@@ -347,7 +366,8 @@ export function roundMoneyFinality(input: {
   const isOver = (m: { holes: string; forfeitedBy?: string | null }): boolean => {
     if (m.forfeitedBy) return true;
     try {
-      return matchIsOver(JSON.parse(m.holes) as HoleResultArr);
+      const holes = JSON.parse(m.holes) as HoleResultArr;
+      return input.nassau ? nassauIsDecided(holes) : matchIsOver(holes);
     } catch {
       // An unreadable card is not a finished match. Reading it as one would
       // end the round on a parse error.
@@ -634,6 +654,8 @@ async function gameNets(
       const finalByStage = new Map<string, boolean>();
       // Everyone still playing; a withdrawal's half card must not hold a pot.
       const playingIds = new Set(fieldIds);
+      // The rounds carrying a Nassau: their pots wait for its last bet too.
+      const nassauStages = nassauStagesIn(sideGames);
       const roundIsFinal = (stageId: string, holeCount: number): boolean => {
         const cached = finalByStage.get(stageId);
         if (cached !== undefined) return cached;
@@ -644,6 +666,7 @@ async function gameNets(
           matches: finalityMatches,
           eventCompleted: state.event.status === "completed",
           playingIds,
+          nassau: nassauStages.has(stageId),
         }).final;
         finalByStage.set(stageId, answer);
         return answer;
@@ -1685,6 +1708,14 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
     where: { eventId },
     select: { stageId: true, holes: true, forfeitedBy: true },
   });
+  // A round with a Nassau is final only when its last bet is — see
+  // `nassauIsDecided`. Read the way `gameNets` reads it.
+  const nassauStages = nassauStagesIn(
+    await prisma.sideGame.findMany({
+      where: { eventId, kind: "nassau" },
+      select: { kind: true, stageId: true, buyInCents: true, stakeNote: true },
+    }),
+  );
 
   const rounds: RoundMoneyRow[] = [];
   const outingTotals = new Map<string, number>();
@@ -1709,6 +1740,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       matches,
       eventCompleted: state?.event.status === "completed",
       playingIds: new Set(fieldIds),
+      nassau: nassauStages.has(stage.id),
     });
 
     // A finished round pays every pot. A round still in play pays only its
