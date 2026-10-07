@@ -17,6 +17,7 @@ import { useDistanceWords } from "@/components/DistanceUnitProvider";
 import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
+import { HoleResultCard } from "@/components/HoleResultCard";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { ScoreCell } from "@/components/ScorecardTable";
@@ -1540,7 +1541,34 @@ export function ScoreEntryClient({
             )}
           </div>
 
-          {effectiveMode === "holes" && (
+          {/* A casual match's hole results, one hole at a time — the shape every
+              other casual card opens on. The grid below is "See the full card". */}
+          {effectiveMode === "holes" && casual && cardView === "hole" && (
+            <div style={{ margin: "0 0 4px" }}>
+              <HoleResultCard
+                holes={Array.from({ length: totalHoles }, (_, i) => holes[i] ?? null)}
+                aName={active.aName}
+                bName={active.bName}
+                aLabel={aLabel}
+                bLabel={bLabel}
+                pars={pars}
+                yards={yards}
+                strokeIndex={strokeIndex}
+                firstHole={firstHole}
+                canHearNames={canHearNames}
+                // The same allocation this screen's stroke card and grid use.
+                shotsOn={netMode ? (h) => ({ a: strokesGiven.toA[h] ?? 0, b: strokesGiven.toB[h] ?? 0 }) : undefined}
+                onPick={setHole}
+                onSay={(start, values) => {
+                  const next = [...(latestHoles.current[active.id] ?? holes)];
+                  values.forEach((v, k) => { next[start + k] = v; });
+                  persist(active.id, next);
+                }}
+              />
+            </div>
+          )}
+
+          {effectiveMode === "holes" && !(casual && cardView === "hole") && (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", fontSize: 13, flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2016,7 +2044,7 @@ export function ScoreEntryClient({
                on the course — a wrong hole is fixed by tapping it — and no
                Leaderboard: where the match stands is on this same screen. */
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
-              {effectiveMode === "handicap" && (
+              {(effectiveMode === "handicap" || effectiveMode === "holes") && (
                 <button
                   type="button"
                   className="btn btn-secondary"

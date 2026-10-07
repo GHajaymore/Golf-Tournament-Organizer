@@ -177,10 +177,26 @@ async function roundScreen(page: Page) {
   const text = await page.locator("main").innerText();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(wide, "the round screen scrolls sideways").toBeLessThanOrEqual(0);
+  // Nor does a table on it hide its last column in a sideways scroll: that
+  // column — To par, Points — is the one a row is read for. Clipped at 320px
+  // by 9px until 2026-10-07.
+  const cut = await page.evaluate(() =>
+    [...document.querySelectorAll("main table tr > :last-child")].flatMap((c) => {
+      const r = c.getBoundingClientRect();
+      const wrap = (c.closest("table")!.parentElement as HTMLElement).getBoundingClientRect();
+      const edge = Math.min(wrap.right, window.innerWidth);
+      return r.width > 0 && r.right > edge + 0.5 ? [`${c.textContent?.trim()} ends ${Math.round(r.right)} > ${Math.round(edge)}`] : [];
+    }),
+  );
+  expect(cut, "a table's last column is cut off").toEqual([]);
   // A friendly has no reviewer — #773.
   expect(text).not.toMatch(/awaiting review|confirm (the )?card|dispute/i);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("The round");
-  await expect(page.getByRole("button", { name: /^One more stroke for/ }).first(), "the card is not on the round screen").toBeVisible();
+  // A stroke card's steppers, or a gross match's "who won the hole".
+  await expect(
+    page.getByRole("button", { name: /^One more stroke for|^Hole \d+ (to |halved$)/ }).first(),
+    "the card is not on the round screen",
+  ).toBeVisible();
   await expect(page.locator(".m-tabbar"), "a console tab bar beside the one screen").toHaveCount(0);
   await expect(page.locator(".app-sidebar"), "a console sidebar beside the one screen").toHaveCount(0);
   return text;
@@ -195,6 +211,63 @@ test.describe("a casual round at the course", () => {
     await roundScreen(page);
     // Two down after the 6th and halved from there: over with one to play.
     await expect(page.locator("[data-match-line]")).toHaveText(`${BEA} won 2&1`);
+  });
+
+  test("match play, gross, two players, for a tenner: who won each hole", async ({ page }) => {
+    /**
+     * A gross match among friends is written down as who won each hole, not
+     * strokes — and on the one screen that is one hole at a time, like every
+     * other casual card (2026-10-07). It opened on the organizer's 900px grid
+     * of eighteen 32px pickers, sideways-scrolling on a phone.
+     *
+     * Ann wins the 2nd and 4th, Bea the 11th, 13th and 15th, the rest are
+     * halved: Bea wins 1 up, and "the match" for $10 is one handover.
+     */
+    await setUp(page, "Match Play", false, [ANN, BEA], { game: "The match", stake: "10" });
+    await page.goto(`/entry?bust=${Date.now()}`);
+    const first = page.getByRole("button", { name: `Hole 1 to ${BEA}` });
+    await expect(first, "the hole-by-hole result card did not open").toBeVisible({ timeout: 30_000 });
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(wide, "the match card scrolls the page sideways").toBeLessThanOrEqual(0);
+    const box = (await first.boundingBox())!;
+    // Thumb-sized on every phone — the grid's pickers are 32px, for a row of
+    // eighteen — and inside the screen rather than in a sideways scroll.
+    expect(box.height, "hole 1's answers are not thumb-sized").toBeGreaterThanOrEqual(44);
+    expect(box.x + box.width, "hole 1's answers run off the screen").toBeLessThanOrEqual(page.viewportSize()!.width);
+    if (page.viewportSize()!.height >= 727) {
+      expect(box.y + box.height, "hole 1's answers are below the first screen").toBeLessThanOrEqual(727);
+    }
+
+    const winner = (h: number) => ([2, 4].includes(h) ? ANN : [11, 13, 15].includes(h) ? BEA : null);
+    for (let h = 1; h <= 18; h += 1) {
+      const w = winner(h);
+      // The card moves to the next hole by itself: wait for each one rather
+      // than tapping ahead of it, as a scorer would.
+      const answer = page.getByRole("button", { name: w ? `Hole ${h} to ${w}` : `Hole ${h} halved` });
+      await expect(answer).toBeVisible();
+      await answer.click();
+      await expect(answer).toHaveAttribute("aria-pressed", "true");
+      if (h === 9) {
+        // At the turn, read fresh: the card reopens on the 10th, the match
+        // stands where nine holes put it, and the money waits for the end —
+        // in a match's words, since there is no card to wait for.
+        await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
+        const turn = await roundScreen(page);
+        await expect(page.locator("[data-match-line]")).toHaveText(new RegExp(`^${ANN} 2 up through 9$`));
+        expect(turn).toContain("Who pays whom shows here when the match is over.");
+        expect(turn, "money settled at the turn").not.toMatch(/ pays [^\n]*\$\d/);
+        await expect(page.getByRole("button", { name: "Hole 10 halved" })).toBeVisible();
+      }
+    }
+    await expect(page.getByRole("button", { name: /^Save/ })).toHaveCount(0);
+    await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByText(/\bSaved\b/).first()).toBeVisible({ timeout: 30_000 });
+
+    // Read back past every cache: the result, then the money, on the one screen.
+    const text = await roundScreen(page);
+    await expect(page.locator("[data-match-line]")).toHaveText(new RegExp(`^${BEA} won 1 up$`, "i"));
+    expect(text).toContain(`${ANN} pays ${BEA} $10.00`);
+    expect(text.match(/ pays /g)?.length, "more handovers than one bet needs").toBe(1);
   });
 
   test("stroke play, gross, three players", async ({ page }) => {
@@ -235,8 +308,11 @@ test.describe("a casual round at the course", () => {
     // Headings are capitals on screen — CSS, which innerText reports.
     expect(text, "the money is not in the local currency").toMatch(/Won \(\$\)/i);
     expect(text).toMatch(/10 skins actually won/);
+    // Player, skins, won, net. No "in" column: everyone's in is the buy-in,
+    // which the pot line states once ("3 × $10.00").
+    expect(text).toMatch(/3 × \$10\.00 = \$30\.00/);
     const row = (name: string, skins: number, won: string, net: string) =>
-      new RegExp(`${name}\\s+${skins}\\s+${won}(\\.00)?\\s+10(\\.00)?\\s+${net}(\\.00)?\\b`);
+      new RegExp(`${name}\\s+${skins}\\s+${won}(\\.00)?\\s+${net}(\\.00)?\\b`);
     expect(text).toMatch(row(BEA, 7, "21", "\\+11"));
     expect(text).toMatch(row(ANN, 3, "9", "[-−]1"));
     expect(text).toMatch(row(CAT, 0, "0", "[-−]10"));
@@ -244,6 +320,18 @@ test.describe("a casual round at the course", () => {
     expect(text).toContain(`${CAT} pays ${BEA} $10.00`);
     expect(text).toContain(`${ANN} pays ${BEA} $1.00`);
     expect(text.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
+    // Each player's net is the figure they read for, so it is on the phone's
+    // screen without scrolling the table sideways: at 393px a fifth column
+    // pushed it past the edge (2026-10-07).
+    const nets = await page.locator("td[data-net]").evaluateAll((cells) =>
+      cells.map((c) => {
+        const box = c.getBoundingClientRect();
+        const wrap = (c.closest("table")?.parentElement ?? document.body).getBoundingClientRect();
+        return { text: c.textContent, right: Math.round(box.right), edge: Math.round(Math.min(wrap.right, innerWidth)) };
+      }),
+    );
+    expect(nets.length, "no net figures on the money page").toBe(3);
+    for (const n of nets) expect(n.right, `net ${n.text} is cut off`).toBeLessThanOrEqual(n.edge);
 
     // And on the round's one screen, under the card, the same two handovers —
     // the money once it is final, without opening the money page.
@@ -322,6 +410,51 @@ test.describe("a casual round at the course", () => {
     const ann = text.search(new RegExp(`${ANN}\\s+72\\s+E\\b`));
     expect([bea, ann], `a friend's card did not reach the host's screen:\n${text}`).not.toContain(-1);
     expect(ann, "the shot saved is not in front").toBeGreaterThan(bea);
+  });
+
+  test("a friend keeps a gross match on their own phone by the round code", async ({ page, browser, baseURL }, testInfo) => {
+    /**
+     * Bea joins Ann's match by the code and keeps the match herself, one hole
+     * at a time, from HER side: "Me" is Bea and the other answer is Ann
+     * (2026-10-07 — it was eighteen tiles of 28px "Me / ½ / Opp" buttons).
+     * Bea is the second player, so every result she taps is flipped before it
+     * is stored. Ann wins the 2nd and 4th, Bea the 11th, 13th and 15th:
+     * Bea wins 1 up on the HOST's screen. A flip that went the wrong way
+     * prints Ann.
+     */
+    await setUp(page, "Match Play", false, [ANN, BEA]);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await page.locator("summary", { hasText: /^More: Friends/ }).click();
+    const code = (await page.locator("code").filter({ hasText: /^[A-Z0-9-]{6,}$/ }).first().innerText()).trim();
+
+    const ctx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
+    try {
+      const p = await ctx.newPage();
+      await p.goto("/play");
+      await p.getByLabel("Round code").fill(code);
+      await p.getByRole("button", { name: "Continue" }).click();
+      await p.getByRole("button", { name: BEA, exact: true }).click();
+      const mine = p.getByRole("button", { name: "Hole 1 to you" });
+      await expect(mine, "the friend's match card did not open on hole 1").toBeVisible({ timeout: 30_000 });
+      const box = (await mine.boundingBox())!;
+      expect(box.height, "the friend's answers are not thumb-sized").toBeGreaterThanOrEqual(44);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), "/play scrolls sideways").toBeLessThanOrEqual(0);
+
+      for (let h = 1; h <= 18; h += 1) {
+        const name = [2, 4].includes(h) ? `Hole ${h} to ${ANN}` : [11, 13, 15].includes(h) ? `Hole ${h} to you` : `Hole ${h} halved`;
+        const answer = p.getByRole("button", { name });
+        await expect(answer).toBeVisible();
+        await answer.click();
+        await expect(answer).toHaveAttribute("aria-pressed", "true");
+      }
+      await expect(p.getByText("18/18 holes")).toBeVisible();
+      await expect(async () => {
+        await page.goto(`/entry?bust=${Date.now()}`);
+        await expect(page.locator("[data-match-line]")).toHaveText(new RegExp(`^${BEA} won 1 up$`, "i"), { timeout: 1_000 });
+      }).toPass({ timeout: 30_000 });
+    } finally {
+      await ctx.close();
+    }
   });
 
   test("modified stableford, net, two players", async ({ page }) => {

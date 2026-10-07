@@ -13,7 +13,8 @@ import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole }
 import { toParText } from "@/lib/domain";
 import { boardKind } from "@/lib/formats";
 import { certifyPrompt } from "@/lib/domain/card-approval";
-import { holeNumber } from "@/lib/domain/hole-number";
+import { HoleResultCard } from "./HoleResultCard";
+import { firstName } from "@/lib/format";
 
 interface PlayMatch {
   id: string;
@@ -877,7 +878,7 @@ export function PlayClient(props: Props) {
       )}
 
       {entryMode === "holes" && (
-      <div className="card elev-sm" style={{ gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 14, fontSize: 13 }}>
           <span><b>{won}</b> won</span>
           <span><b>{halved}</b> halved</span>
@@ -885,55 +886,32 @@ export function PlayClient(props: Props) {
           <span className="text-muted" style={{ marginLeft: "auto" }}>{filled}/{holeCount} holes</span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-          {Array.from({ length: holeCount }, (_, i) => {
-            const v = holes[i] ?? null;
-            return (
-              <div
-                key={i}
-                style={{
-                  border: "1px solid var(--color-divider)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "6px 6px 7px",
-                }}
-              >
-                <div className="text-muted" style={{ fontSize: 13, marginBottom: 4, textAlign: "center" }}>
-                  {holeNumber(i, props.firstHole ?? 1)}
-                  {props.pars?.[i] ? ` · par ${props.pars[i]}` : ""}
-                </div>
-                <div style={{ display: "flex", gap: 3 }}>
-                  {(["A", "H", "B"] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      disabled={pending}
-                      onClick={() => setHole(i, opt)}
-                      style={{
-                        flex: 1,
-                        padding: "6px 0",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        borderRadius: 5,
-                        cursor: "pointer",
-                        border: "1px solid var(--color-divider)",
-                        background:
-                          v === opt ? "var(--color-accent)" : "transparent",
-                        // On a FILLED accent the label is `--color-on-accent`,
-                        // the one token solved to clear against step 500 for
-                        // every palette. Step 100 read 1.25:1 here at worst on
-                        // the dark ground — a scoring button, on a phone, in
-                        // the sun.
-                        color: v === opt ? "var(--color-on-accent)" : "var(--color-text)",
-                      }}
-                    >
-                      {opt === "A" ? "Me" : opt === "H" ? "½" : "Opp"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {/* ONE HOLE AT A TIME (2026-10-07), the card the host's phone shows.
+            This was eighteen tiles of three 13px buttons about 28px tall —
+            "Me", "½", "Opp" — under the thumb of somebody walking off a green.
+            Slot A is always the phone's holder (see /play), so "Me" against
+            the opponent's first name, and "me" is a word the mic hears. */}
+        <HoleResultCard
+          holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
+          aName="you"
+          bName={m.bName}
+          aLabel="Me"
+          bLabel={firstName(m.bName) || "Them"}
+          pars={props.pars ?? []}
+          yards={props.yards ?? []}
+          strokeIndex={props.strokeIndex ?? []}
+          firstHole={props.firstHole ?? 1}
+          canHearNames={(firstName(m.bName) || "").toLowerCase() !== "me"}
+          showVoice={props.voiceEntry ?? true}
+          onPick={(i, v) => setHole(i, v)}
+          onSay={(start, values) => {
+            const next = Array.from({ length: holeCount }, (_, i) => holes[i] ?? null);
+            values.forEach((v, k) => { next[start + k] = v; });
+            setHoles(next);
+            setSaved(false);
+            matchQueue.push(next);
+          }}
+        />
 
         {error && (
           <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
