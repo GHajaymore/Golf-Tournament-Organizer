@@ -427,7 +427,10 @@ export function MoneyClient({
               style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
             >
               <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
-                {t.fromName} <Icon name="arrow-right" aria-label="pays" /> {t.toName}
+                {/* "You", by id: a player reading their own handover read
+                    their own name as if it were somebody else's (2026-10-06). */}
+                {t.fromPlayerId === view.playerId ? "You" : t.fromName} <Icon name="arrow-right" aria-label="pays" />{" "}
+                {t.toPlayerId === view.playerId ? "You" : t.toName}
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
               <button
@@ -841,7 +844,7 @@ export function MoneyClient({
           in it (Ajay, 2026-10-06: Money "can be same way" as Today). The
           screen leads with the one number and the handovers that are yours;
           what made them up is a tap away, never gone. */}
-      <details style={{ marginTop: 16 }}>
+      <details style={{ marginTop: 4 }}>
         <summary
           className="touch-target"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}

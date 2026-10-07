@@ -229,6 +229,8 @@ export default async function PlayTodayPage() {
       : [];
   const myIdx = sidesThisRound.findIndex((s) => s.memberIds.includes(me.playerId ?? ""));
   const mySide = myIdx >= 0 ? sidesThisRound[myIdx] : null;
+  /** My side's players, with me as "You" — matched by id, never by name. */
+  const sidePlayers = mySide ? mySide.members.map((n, i) => (mySide.memberIds[i] === me.playerId ? "You" : n)) : [];
   /**
    * And WHERE that side stands, by the board's own rule.
    *
@@ -613,11 +615,17 @@ export default async function PlayTodayPage() {
               <span className="card-kicker">
                 {mySide.played > 0 ? "Your side" : "Your side · not started"}
               </span>
-              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>{mySide.name}</div>
-              {/* The players, only where the name is not already them. */}
+              {/* "You & Ravenswoo 2", as the cup card says "You & Bram Blue":
+                  the player is one of these names, and reading their own name
+                  as if it were a stranger's is the screen not knowing who it
+                  is talking to. A side with a name of its own keeps it, and
+                  its players are listed under it. */}
+              <div style={{ marginTop: 6, fontSize: 15, fontWeight: 600 }}>
+                {namedAfterPlayers(mySide.name, mySide.members) ? sidePlayers.join(" & ") : mySide.name}
+              </div>
               {!namedAfterPlayers(mySide.name, mySide.members) && (
                 <div className="text-muted" style={{ fontSize: 14, marginTop: 2 }}>
-                  {mySide.members.join(" · ")}
+                  {sidePlayers.join(" · ")}
                 </div>
               )}
               {mySide.played > 0 ? (
@@ -633,7 +641,7 @@ export default async function PlayTodayPage() {
               ) : (
                 // Why it is the SIDE's card sits behind the ⓘ here — this card
                 // is the one place Today talks about it (2026-10-06).
-                <MoreInfo short="Your side’s card hasn’t been started yet." style={{ marginTop: 8 }}>
+                <MoreInfo short="Your side’s card hasn’t been started yet.">
                   {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
                 </MoreInfo>
               )}
@@ -825,7 +833,9 @@ export default async function PlayTodayPage() {
             </span>
             <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>
-                {standing.position ? "On the board" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
+                {/* Names the number beside it: "On the board" beside a bare
+                    "4" did not say the 4 was the player's place. */}
+                {standing.position ? "Your position" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
               </span>
               {(standing.note || standing.record) && (
                 <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>

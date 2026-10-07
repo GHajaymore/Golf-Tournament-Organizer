@@ -99,7 +99,9 @@ describe("the player's position says whether it can move", () => {
      * A third link would break it again, so it searches back from the row's
      * own label to the link that opens it.
      */
-    const rowAnchor = page.indexOf('"On the board"');
+    // "Your position" since 2026-10-06 — "On the board" beside a bare number
+    // did not say the number was the player's place.
+    const rowAnchor = page.indexOf('"Your position"');
     expect(rowAnchor, "the position row is gone").toBeGreaterThan(heroEnd);
     const rowStart = page.lastIndexOf('href="/me/board"', rowAnchor);
     const rowEnd = page.indexOf("</Link>", rowAnchor);
