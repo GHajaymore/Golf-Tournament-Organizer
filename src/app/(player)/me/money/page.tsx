@@ -197,7 +197,7 @@ export default async function MoneyPage() {
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* The heading this screen never had.
           Every other player screen opens with one — Board, My card, Rules,
           Messages — and this opened straight into "The pots" with no heading

@@ -29,7 +29,7 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
   const names = (ids: string[], list: string[]) => list.map((n, i) => (ids[i] === meId ? "You" : n));
 
   return (
-    <section aria-label="Your cup" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+    <section aria-label="Your cup" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
       <span className="card-kicker">The cup</span>
       {/* keep-grid: a score side by side on a phone, not stacked. */}
       <div
@@ -99,15 +99,6 @@ export function MyCup({ board, meId, canScore }: { board: CupBoard; meId: string
             .join(", ")}
           .
         </p>
-      )}
-      {/* "SEE EVERY MATCH", ONCE THERE IS ONE (2026-10-06). It read "Every
-          match", which names no action — the other cards on Today say "See
-          every side", "See the draw" — and it was offered before any lineup
-          was announced, opening a board with no matches on it. */}
-      {board.sessions.some((s) => s.published && s.matches.length > 0) && (
-        <Link className="btn btn-secondary" href="/me/board" style={{ alignSelf: "flex-start" }}>
-          See every match <Icon name="arrow-right" />
-        </Link>
       )}
     </section>
   );

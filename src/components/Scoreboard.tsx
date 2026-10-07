@@ -42,7 +42,7 @@ export function ScoreboardLeaders({
   title?: string;
 }) {
   return (
-    <section aria-label={title === "LEADERS" ? "Leaders" : "Qualifying"} className="sb-frame" style={{ marginTop: 14 }}>
+    <section aria-label={title === "LEADERS" ? "Leaders" : "Qualifying"} className="sb-frame" style={{ marginTop: 12 }}>
       <div className="sb-board">
         <div className="sb-title">{title}</div>
         <div className="sb-row sb-head" aria-hidden="true">
@@ -124,7 +124,7 @@ export function ScoreboardCard({
 }) {
   const filled = tiles.filter((t) => t.stroke !== null).length;
   return (
-    <section aria-label="Your round" className="sb-frame" style={{ marginTop: 14 }}>
+    <section aria-label="Your round" className="sb-frame" style={{ marginTop: 12 }}>
       <div className="sb-board" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <span style={{ color: "var(--sb-frame)", fontSize: 16, fontWeight: 700, letterSpacing: "0.12em" }}>{headline}</span>

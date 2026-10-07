@@ -46,9 +46,11 @@ export function FoldedAnnouncements({
   const fresh = seen ? items.filter((a) => !seen.has(a.id)) : items;
   const earlier = seen ? items.filter((a) => seen.has(a.id)) : [];
 
+  // No margin of its own: this list is Today's alone, and Today spaces its
+  // blocks itself — a margin here stacked into a 58px hole above "More".
   if (!earlierFold) {
     return (
-      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {items.map((a) => (
           <AnnouncementCard key={a.id} a={a} compact={!!seen?.has(a.id)} />
         ))}
@@ -57,7 +59,7 @@ export function FoldedAnnouncements({
   }
 
   return (
-    <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {fresh.map((a) => (
         <AnnouncementCard key={a.id} a={a} />
       ))}

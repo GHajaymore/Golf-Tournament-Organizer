@@ -256,6 +256,43 @@ describe("the tee time sits above the leaders on Today", () => {
   });
 });
 
+/**
+ * TODAY HAS NO BUTTON WHOSE ONLY JOB IS TO OPEN A TAB (2026-10-06).
+ *
+ * "See every match", "See every side", "See the draw", "See the board" — five
+ * cards each carried a button to the Board tab, which the tab bar offers on
+ * every screen. Ajay asked what "Every match" even was. A second way to the
+ * same place is clutter on the screen kept to the moment. The position line
+ * still links to the board: it is the player's position, content that opens.
+ */
+describe("Today does not repeat the tab bar", () => {
+  const today = readSource("src/app/(player)/me/page.tsx");
+  const cup = readSource("src/components/MyCup.tsx");
+  const tabButtons = (src: string) =>
+    [...src.matchAll(/className="btn[^"]*"[^>]*href="\/me\/(board|events|card|money)"|href="\/me\/(board|events|card|money)"[^>]*className="btn[^"]*"/g)].map((m) => m[0]);
+
+  it("finds a tab button when there is one (control)", () => {
+    expect(tabButtons('<Link className="btn btn-secondary" href="/me/board">See</Link>')).toHaveLength(1);
+  });
+
+  it("has none on Today or its cup card", () => {
+    expect(tabButtons(today), "Today").toEqual([]);
+    expect(tabButtons(cup), "MyCup").toEqual([]);
+  });
+});
+
+/**
+ * ONE RHYTHM (2026-10-06): blocks on Today sit 12px apart. They were 12, 14,
+ * 16 and 18 depending on the card, which read as gaps — Ajay: "there is still
+ * space gaps".
+ */
+describe("Today keeps one spacing between blocks", () => {
+  it("sets no block margin other than the rhythm's", () => {
+    const off = [...readSource("src/app/(player)/me/page.tsx").matchAll(/marginTop:\s*(14|16|18|20|24)\b/g)].map((m) => m[0]);
+    expect(off).toEqual([]);
+  });
+});
+
 describe("notices fold once read — on Today, and only there", () => {
   const items = [
     { id: "a", title: "Halfway house is open", body: "", pinned: false },

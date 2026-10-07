@@ -365,7 +365,7 @@ export function MoneyClient({
   return (
     <div>
       {/* The one number. */}
-      <section className="card elev-sm" style={{ marginTop: 8, alignItems: "center", textAlign: "center", padding: "14px 16px" }}>
+      <section className="card elev-sm" style={{ alignItems: "center", textAlign: "center", padding: "14px 16px" }}>
         <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
           {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
         </div>

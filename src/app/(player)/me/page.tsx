@@ -348,6 +348,8 @@ export default async function PlayTodayPage() {
     ) : null;
   const groupOnScreen = !roundUnderWay;
 
+  const expiry = expiryNotice(hoursLeft(state.event), isStaff, keepRefusal);
+
   /** The In / Out card — on the screen or under More, never both. */
   const availabilityCard = availabilityShown ? (
     <div style={{ marginTop: 12 }}>
@@ -411,13 +413,13 @@ export default async function PlayTodayPage() {
        * keep it", which was themselves (walked 2026-09-27). `hoursLeft` is null
        * for every tournament, so nothing mounts outside a casual round.
        */}
-      <div style={{ marginTop: 12 }}>
-        <RoundExpiryBanner
-          notice={expiryNotice(hoursLeft(state.event), isStaff, keepRefusal)}
-          canKeep={isStaff}
-          keepRefusal={keepRefusal}
-        />
-      </div>
+      {/* Only with a notice to show: an empty wrapper still took 12px under
+          the heading on every Today (measured 2026-10-06). */}
+      {expiry && (
+        <div style={{ marginTop: 12 }}>
+          <RoundExpiryBanner notice={expiry} canKeep={isStaff} keepRefusal={keepRefusal} />
+        </div>
+      )}
 
       {/**
        * PINNED NOTICES STAY ABOVE THE ROUND. `/announcements` promises the
@@ -425,7 +427,11 @@ export default async function PlayTodayPage() {
        * dashboard", and pinning is the organizer saying this one outranks
        * everything — a frost delay. Unpinned posts sit under the round.
        */}
-      <AnnouncementList items={announcements.filter((a) => a.pinned)} lineOnceRead />
+      {announcements.some((a) => a.pinned) && (
+        <div style={{ marginTop: 12 }}>
+          <AnnouncementList items={announcements.filter((a) => a.pinned)} lineOnceRead />
+        </div>
+      )}
 
       {cup && me.playerId && (
         <MyCup board={cup} meId={me.playerId} canScore={canEnterScores(settingsOf(state.event), session.viewRole)} />
@@ -446,7 +452,7 @@ export default async function PlayTodayPage() {
        * a round nobody has created.
        */}
       {me.playerId && !round && (
-        <section aria-label="Nothing to play yet" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Nothing to play yet" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re in — nothing to play yet</span>
           {/* "No round to play" rather than "the organizer hasn't added one":
               this branches on `me.round`, which is null when there is no
@@ -467,7 +473,7 @@ export default async function PlayTodayPage() {
       {/* Awaiting approval is a kind of waiting with different words — see
           `awaitingIn` in club-events.ts. */}
       {waiting && myRow?.awaiting && (
-        <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Awaiting approval" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">Your entry is awaiting approval</span>
           <MoreInfo short="No card until it's approved.">
             The {terms.organizer} approves each entry to this tournament, and yours is with them. There&rsquo;s
@@ -477,7 +483,7 @@ export default async function PlayTodayPage() {
       )}
 
       {waiting && !myRow?.awaiting && (
-        <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Waiting list" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re on the waiting list</span>
           <MoreInfo short="No card until a place opens up.">
             Your name is down and the {terms.organizer} will confirm your place if one opens up. There&rsquo;s
@@ -492,7 +498,7 @@ export default async function PlayTodayPage() {
       )}
 
       {!me.playerId && !watching && !waiting && (
-        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 16 }}>
+        <MoreInfo short="You aren't entered in this tournament." style={{ marginTop: 12 }}>
           So there&rsquo;s no card here. The board is still open on the next tab.
         </MoreInfo>
       )}
@@ -504,7 +510,7 @@ export default async function PlayTodayPage() {
        * and if the door is open, this is where it is.
        */}
       {watching && (
-        <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="card-title">You&rsquo;re watching this one</span>
           <MoreInfo short="You aren't entered — the board is open to read.">
             You aren&rsquo;t entered, so there&rsquo;s no card for you here. The board, the groups and the
@@ -515,14 +521,9 @@ export default async function PlayTodayPage() {
               {myRow.windowNote}
             </span>
           )}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {myRow?.canEnter && (
-              <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} waitlistOnly={myRow.waitlistOnly} style={{ flex: "1 1 160px" }} />
-            )}
-            <Link className="btn btn-secondary" href="/me/board" style={{ flex: "1 1 160px" }}>
-              See the board <Icon name="arrow-right" />
-            </Link>
-          </div>
+          {myRow?.canEnter && (
+            <EnterButton eventId={myRow.eventId} href={myRow.registrationHref} organizer={myRow.organizer} waitlistOnly={myRow.waitlistOnly} />
+          )}
         </section>
       )}
 
@@ -608,7 +609,7 @@ export default async function PlayTodayPage() {
               side has a card has started, whatever the individual table says,
               and this screen used to tell them otherwise. */}
           {mySide && (
-            <section className="card elev-sm" style={{ marginTop: 18 }}>
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">
                 {mySide.played > 0 ? "Your side" : "Your side · not started"}
               </span>
@@ -636,14 +637,10 @@ export default async function PlayTodayPage() {
                   {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
                 </MoreInfo>
               )}
-              {/* Where the rest of the field is. The board has the sides now. */}
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See every side <Icon name="arrow-right" />
-              </Link>
             </section>
           )}
           {!standing && !mySide && !round?.matches.length && !round?.tie && (
-            <section className="card elev-sm" style={{ marginTop: 18 }}>
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">
                 Your score appears once the first hole goes in.
@@ -653,7 +650,7 @@ export default async function PlayTodayPage() {
           {standing && (
             <section
               className="card elev-sm"
-              style={{ marginTop: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
+              style={{ marginTop: 12, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
             >
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: "var(--color-neutral-400)", fontWeight: 600 }}>
@@ -743,9 +740,6 @@ export default async function PlayTodayPage() {
                   organizer={terms.organizer}
                 />
               )}
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See the draw <Icon name="arrow-right" />
-              </Link>
             </section>
           )}
           {/**
@@ -775,9 +769,6 @@ export default async function PlayTodayPage() {
                 You didn&rsquo;t make the cut after {round.cutOut}, so there&rsquo;s no {round.name} card for
                 you.
               </MoreInfo>
-              <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 10 }}>
-                See the board <Icon name="arrow-right" />
-              </Link>
             </section>
           ) : mySide ? null /* The side card above already says where the
               side's card is; a second card saying "This card belongs to your
@@ -901,7 +892,7 @@ export default async function PlayTodayPage() {
           <PushToggle />
         </div>
       ) : (
-      <details style={{ marginTop: 16 }}>
+      <details style={{ marginTop: 4 }}>
         <summary
           className="touch-target"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
