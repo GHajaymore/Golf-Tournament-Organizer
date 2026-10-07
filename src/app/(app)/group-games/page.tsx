@@ -10,6 +10,8 @@ import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
+import { casualMoney, moneyWaitsFor } from "@/lib/services/casual-round";
+import { Icon } from "@/components/Icon";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
@@ -213,6 +215,34 @@ export default async function GroupGamesPage({
   const potNameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "Unknown";
   const potModeOf = (v: string) => (isPotEntryMode(v) ? v : "opt-in");
 
+  // The round's money, as its own screen reads it — see the card below.
+  const cash = casual ? await casualMoney(session.eventId, session.email) : null;
+
+  const sideGameViews = roundSideGames.map((g) => {
+    const m = potMembership(potModeOf(g.entryMode), potFieldIds, g.entrants, potStakeholderIds);
+    return {
+      id: g.id,
+      kind: g.kind,
+      buyInCents: g.buyInCents,
+      stakeNote: g.stakeNote,
+      entryMode: potModeOf(g.entryMode),
+      entrantIds: m.entrants,
+      pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+      excluded: m.excluded.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+    };
+  });
+
+  /**
+   * ONLY THE GAMES BEING PLAYED, THEN "ADD A GAME" (2026-10-07).
+   *
+   * A two-man Nassau's money screen carried an empty skins card and six stake
+   * boxes, five of them blank — and the owner read the list as "a bunch of
+   * rounds". On a casual round the games ON (a stake, a "for a pint", or
+   * anybody in) are shown; everything else is one fold below them.
+   */
+  const potOn = !!roundPot && (roundPot.buyInCents > 0 || !!roundPot.stakeNote?.trim() || roundPot.entrantIds.length > 0);
+  const sideOn = roundSideGames.some((g) => g.buyInCents > 0 || g.stakeNote.trim() !== "");
+
   const fieldForBets = [...state.confirmed]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((p) => ({ id: p.id, name: p.name }));
@@ -243,6 +273,44 @@ export default async function GroupGamesPage({
           )}
         </p>
       </div>
+
+      {/* THE ANSWER, ABOVE THE GAMES THAT PRODUCED IT (2026-10-07).
+          The round's screen links here as "The money in full", and for every
+          game but skins this page held the stakes and never the result: a
+          finished Nassau read as three stake boxes while the round's screen
+          said who pays whom. Each player's position and the handovers, from
+          the reader the round's screen uses, so the two cannot disagree. */}
+      {cash?.anyGame && (
+        <section className="card elev-sm" style={{ marginTop: 16, gap: 8 }} aria-label="Where the money ends up">
+          <span className="card-title" style={{ fontSize: 15 }}>Where the money ends up</span>
+          {cash.final ? (
+            <>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                {cash.positions.map((p) => (
+                  <li key={p.name} data-position style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 15 }}>
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
+                    <b style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{p.text}</b>
+                  </li>
+                ))}
+              </ul>
+              {cash.handovers.length > 0 ? (
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 15, lineHeight: 1.7 }}>
+                  {cash.handovers.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ margin: 0, fontSize: 15 }}>Everyone&rsquo;s square.</p>
+              )}
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>
+              {cash.stake ? `${cash.stake} ` : ""}
+              {moneyWaitsFor(state)}
+            </p>
+          )}
+        </section>
+      )}
 
       {rounds.length > 1 && week && (
         <div className="card elev-sm" style={{ marginTop: 12 }}>
@@ -304,8 +372,9 @@ export default async function GroupGamesPage({
         </div>
       )}
 
-      {/* The whole round's pot. Everyone playing is in it. */}
-      {roundPot && week && (
+      {/* The whole round's pot. Everyone playing is in it. Once it is a game
+          being played — otherwise it is under "Add a game" below. */}
+      {roundPot && week && potOn && (
         <SkinsPotClient
           rounds={rounds}
           activeStageId={week.id}
@@ -331,29 +400,12 @@ export default async function GroupGamesPage({
       {/* The round's own side games, for a casual round. Contests are empty on
           purpose: a closest-to-the-pin is a thing a club puts on for a field,
           and this screen belongs to the people playing. */}
-      {casual && week && roundSideGames.length > 0 && (
+      {casual && week && sideOn && (
         <ContestsClient
           roundLabel="this round"
           stageId={week.id}
           contests={[]}
-          sideGames={roundSideGames.map((g) => {
-            const m = potMembership(
-              potModeOf(g.entryMode),
-              potFieldIds,
-              g.entrants,
-              potStakeholderIds,
-            );
-            return {
-              id: g.id,
-              kind: g.kind,
-              buyInCents: g.buyInCents,
-              stakeNote: g.stakeNote,
-              entryMode: potModeOf(g.entryMode),
-              entrantIds: m.entrants,
-              pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
-              excluded: m.excluded.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
-            };
-          })}
+          sideGames={sideGameViews}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
           /* The intent this screen has always had, now honoured by the
              component: a closest-to-the-pin is a thing a club puts on for a
@@ -362,6 +414,7 @@ export default async function GroupGamesPage({
              rendered anyway. */
           contestsApply={false}
           headToHead={isHeadToHead(week.type)}
+          rows="on"
         />
       )}
 
@@ -385,7 +438,45 @@ export default async function GroupGamesPage({
           and a list of players, and then said no. Offered again the moment the
           organizer picks a round that plays its own ball — the picker is right
           there, which is the thing to do about it. */}
-      {week && !noPerPlayerPot && (
+      {/* EVERY GAME NOT BEING PLAYED, ONE FOLD (casual — see `potOn`). Open
+          when nothing is on yet, because then adding one is the only thing
+          this screen is for. */}
+      {casual && week && !noPerPlayerPot && (
+        <details open={!potOn && !sideOn} style={{ marginTop: 16 }}>
+          <summary
+            className="touch-target"
+            style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "var(--color-accent-200)", listStyle: "none" }}
+          >
+            <Icon name="plus" aria-hidden /> Add a game
+          </summary>
+          {roundPot && !potOn && (
+            <SkinsPotClient rounds={rounds} activeStageId={week.id} view={roundPot} groupKey="" groupLabel="Everyone in this round" />
+          )}
+          <ContestsClient
+            roundLabel="this round"
+            stageId={week.id}
+            contests={[]}
+            sideGames={sideGameViews}
+            field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+            contestsApply={false}
+            headToHead={isHeadToHead(week.type)}
+            rows="off"
+            title="More games, settled by the scores"
+          />
+          <SideBetStart
+            stageId={week.id}
+            field={fieldForBets}
+            groups={sheet?.groups ?? []}
+            taken={[
+              ...[...groupNames].map((name) => ({ name, kind: "*" })),
+              ...adHoc.map((a) => ({ name: a.name, kind: "skins" })),
+              ...sideGameKeys,
+            ]}
+          />
+        </details>
+      )}
+
+      {!casual && week && !noPerPlayerPot && (
         <SideBetStart
           stageId={week.id}
           field={fieldForBets}

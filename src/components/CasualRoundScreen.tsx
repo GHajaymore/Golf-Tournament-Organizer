@@ -7,7 +7,7 @@ import { ModifiedStablefordTable } from "./PointsLeaderboard";
 import { Icon } from "./Icon";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
-import { casualStanding, casualMoney, casualIsMatch } from "@/lib/services/casual-round";
+import { casualStanding, casualMoney, moneyWaitsFor } from "@/lib/services/casual-round";
 import { screenName } from "@/lib/nav";
 import { needsTeams } from "@/lib/formats";
 import type { EventState } from "@/lib/services/tournament";
@@ -155,10 +155,8 @@ export async function CasualRoundScreen({
                to the last green, so a running figure would be a different
                number that looked like the answer. The stake cannot move. */
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>
-              {/* A gross match is written down as who won each hole, with no
-                  card to wait for — so it waits for the match to end. */}
-              {cash.stake ? `${cash.stake} ` : ""}Who pays whom shows here when{" "}
-              {casualIsMatch(state) ? "the match is over" : "every card is in"}.
+              {cash.stake ? `${cash.stake} ` : ""}
+              {moneyWaitsFor(state)}
             </p>
           )}
         </section>

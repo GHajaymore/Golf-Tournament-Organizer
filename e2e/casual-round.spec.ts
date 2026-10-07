@@ -270,6 +270,29 @@ test.describe("a casual round at the course", () => {
     await expect(page.locator("[data-match-line]")).toHaveText(new RegExp(`^${BEA} won 1 up$`, "i"));
     expect(text).toContain(`${ANN} pays ${BEA} $10.00`);
     expect(text.match(/ pays /g)?.length, "more handovers than one bet needs").toBe(1);
+
+    // "The money in full" says the same answer, and says it in full: where
+    // each player ends up as well as the handover. It held three stake boxes
+    // and never the result for every game but skins (2026-10-07).
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const result = page.getByRole("region", { name: "Where the money ends up" });
+    await expect(result).toContainText(`${ANN} pays ${BEA} $10.00`);
+    const positions = await result.locator("[data-position]").allInnerTexts();
+    expect(positions.map((p) => p.replace(/\s+/g, " ").trim()).sort()).toEqual(
+      [`${ANN} −$10.00`, `${BEA} +$10.00`].sort(),
+    );
+
+    // Only the game being played, then "Add a game" (2026-10-07). An empty
+    // skins card and five blank stake boxes beside one $10 bet read, to the
+    // owner, as "a bunch of rounds".
+    await expect(page.getByText("The match", { exact: true })).toBeVisible();
+    for (const idle of ["Low gross", "Birdie pot", "Nassau"]) {
+      await expect(page.getByText(idle, { exact: true }), `${idle} is listed though nobody is playing it`).toBeHidden();
+    }
+    await expect(page.getByText(/Everyone in this round — Skins/)).toBeHidden();
+    await page.locator("summary", { hasText: "Add a game" }).click();
+    await expect(page.getByText("Low gross", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Everyone in this round — Skins/)).toBeVisible();
   });
 
   test("a hole entered just before leaving the screen is kept", async ({ page }) => {
@@ -349,7 +372,13 @@ test.describe("a casual round at the course", () => {
     // What they actually do on the eighteenth green: two handovers, both to Bea.
     expect(text).toContain(`${CAT} pays ${BEA} $10.00`);
     expect(text).toContain(`${ANN} pays ${BEA} $1.00`);
-    expect(text.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
+    // Counted per section: the page's own result card (2026-10-07) and the
+    // pot's settling-up say the same two handovers, and neither may add one.
+    const result = await page.getByRole("region", { name: "Where the money ends up" }).innerText();
+    expect(result.match(/ pays /g)?.length, "more handovers than the pot needs").toBe(2);
+    expect(result).toContain(`${CAT} pays ${BEA} $10.00`);
+    expect(result).toContain(`${ANN} pays ${BEA} $1.00`);
+    expect(text.match(/ pays /g)?.length, "a handover said by only one of the two").toBe(4);
     // Each player's net is the figure they read for, so it is on the phone's
     // screen without scrolling the table sideways: at 393px a fifth column
     // pushed it past the edge (2026-10-07).

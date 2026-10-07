@@ -120,7 +120,18 @@ export function ContestsClient({
   field,
   headToHead = true,
   contestsApply = true,
+  rows = "all",
+  title,
 }: {
+  /**
+   * WHICH OF THE CARD-SETTLED GAMES TO LIST (2026-10-07). "all" everywhere it
+   * always was. A casual round's money screen lists the games being PLAYED
+   * ("on") and puts the rest behind "Add a game" ("off"): six stake boxes for
+   * a two-man Nassau read, to the owner, as "a bunch of rounds".
+   */
+  rows?: "all" | "on" | "off";
+  /** The card's heading, when "Side bets — <round>" is not what it holds. */
+  title?: string;
   roundLabel: string;
   stageId: string;
   contests: ContestView[];
@@ -294,7 +305,7 @@ export function ContestsClient({
   return (
     <section className="card elev-sm" style={{ marginTop: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <span className="card-title">Side bets — {roundLabel}</span>
+        <span className="card-title">{title ?? `Side bets — ${roundLabel}`}</span>
         {contestsApply && !adding && (
           <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={pending}>
             <Icon name="plus" /> Add a bet
@@ -416,6 +427,8 @@ export function ContestsClient({
            */
           const cannotSettle = MATCH_ONLY.has(row.kind) && !headToHead;
           if (cannotSettle && !on) return null;
+          if (rows === "on" && !on) return null;
+          if (rows === "off" && on) return null;
           return (
             <div key={row.kind} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
