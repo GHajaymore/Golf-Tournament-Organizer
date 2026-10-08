@@ -12,7 +12,15 @@ import { readSource } from "./source";
  * are server pages, so the decision is pinned at source; each assertion was
  * watched fail.
  */
-const STRAIGHT = /state\.stages\.findIndex\(\(s\) => isKnockoutRound\(s\.type\)\) === 0/;
+/**
+ * THE ONE RULE, NOT ONE SPELLING OF IT (2026-10-08). This pinned the inline
+ * expression `state.stages.findIndex(...) === 0`, so the rule lived in five
+ * places — this leaderboard, the dashboard, the bracket screen, the player's
+ * Board and, missing, Today, which then showed a "QUALIFYING" table on a
+ * knockout of five. Now every screen asks `isStraightKnockout`, whose meaning
+ * is pinned in `a-bye-says-bye.test.ts`, and this pins that they ask it.
+ */
+const STRAIGHT = /isStraightKnockout\(state\.stages\)/;
 
 describe("the Live leaderboard", () => {
   const src = readSource("src/app/(app)/leaderboard/page.tsx");

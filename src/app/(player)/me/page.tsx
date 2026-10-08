@@ -27,6 +27,7 @@ import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { notInItWords, signsCards } from "@/lib/tournament-shape";
+import { isStraightKnockout } from "@/lib/stage-types";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
@@ -198,7 +199,10 @@ export default async function PlayTodayPage() {
   const boardRows =
     canSeeLeaderboard(settingsOf(state.event), session.viewRole) &&
     boardStage &&
-    boardKind(boardStage.format) === "standard"
+    boardKind(boardStage.format) === "standard" &&
+    // A straight knockout ranks nobody — the draw is the standings, and Board
+    // shows it. See `isStraightKnockout`.
+    !isStraightKnockout(state.stages)
       ? standingRows(state)
       : [];
   /**

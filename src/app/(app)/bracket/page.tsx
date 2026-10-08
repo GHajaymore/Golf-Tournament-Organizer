@@ -8,7 +8,7 @@ import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
-import { isKnockoutRound } from "@/lib/stage-types";
+import { isStraightKnockout } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -55,7 +55,7 @@ export default async function BracketPage() {
    * Said once, plainly, instead of a qualification panel reading "Top 2/flight"
    * over "8 players qualify" with no round anybody qualified in.
    */
-  const straight = state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0;
+  const straight = isStraightKnockout(state.stages);
 
   /**
    * The qualification audit, which used to be its own screen.
