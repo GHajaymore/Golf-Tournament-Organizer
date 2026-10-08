@@ -1400,7 +1400,7 @@ model Player {
   name     String
   handicap Float   @default(0)
   seed     Int
-  status   String  @default("confirmed") // confirmed | waitlisted | withdrawn
+  status   String  @default("confirmed") // confirmed | waitlisted | withdrawn | disqualified (pending: awaiting approval)
   /**
    * When this entry was moved off the waitlist into the field, if it was.
    *

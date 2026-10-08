@@ -25,6 +25,8 @@ export const FIELD_ACTIONS = [
   "entered", "registered", "added", "removed", "withdrawn", "resize-field", "approved", "promoted",
   // Who asked to be drawn with whom — a fact about the field the draw reads.
   "pairing-request",
+  // The committee's ruling, and its undoing (2026-10-08).
+  "disqualified", "reinstated",
 ] as const;
 
 const MONEY_PREFIXES = ["expense.", "fund.", "money.", "pot.", "skins.", "sidegame.", "contest.", "bet.", "prize.", "match.money"];

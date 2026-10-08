@@ -412,6 +412,8 @@ export interface StrokeStanding {
   missedCut?: string;
   /** Withdrew after beginning — WD on the sheet. See `withdrawnStandings`. */
   withdrew?: boolean;
+  /** Disqualified by the committee — DQ, the last line. See actions/disqualify.ts. */
+  disqualified?: boolean;
 }
 
 export interface EventState {
@@ -1103,9 +1105,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * they returned, and a net figure needs the handicap they played off. The
    * maps are only ever looked up by id, so an extra entry changes nobody else.
    */
-  const withdrawnIds = new Set(players.filter((p) => p.status === "withdrawn").map((p) => p.id));
+  // And DISQUALIFIED players, the same way: out of the field, results kept on
+  // the record, DQ on the sheet (2026-10-08 — see actions/disqualify.ts).
+  const leftField = (p: { status: string }) => p.status === "withdrawn" || p.status === "disqualified";
+  const withdrawnIds = new Set(players.filter(leftField).map((p) => p.id));
   const withdrawnPlayed = players.filter(
-    (p) => p.status === "withdrawn" && scorecards.some((c) => c.playerId === p.id && hasAnyHole(c.strokes)),
+    (p) => leftField(p) && scorecards.some((c) => c.playerId === p.id && hasAnyHole(c.strokes)),
   );
   const withFlightTee = [...confirmed, ...withdrawnPlayed].map((p) => ({
     ...p,
@@ -1488,12 +1493,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * card the round is waiting for.
        */
       const own = scorecards.filter((c) => c.stageId === s.id && !withdrawnIds.has(c.playerId));
-      // A cut round's field is the survivors, and one who withdrew is not
-      // returning a card: off the denominator as well. (An uncut round counts
-      // the confirmed field, which a withdrawal has already left.)
-      const withdrawnHere = s.cutEnabled
-        ? scorecards.filter((c) => c.stageId === s.id && withdrawnIds.has(c.playerId)).length
-        : 0;
+      // A cut round whose cut has been APPLIED belongs to the survivors, who
+      // each hold a card for it (`applyStrokeCut`) — so its field is those
+      // cards, less anybody who has since withdrawn or been disqualified. The
+      // rule's arithmetic (`fieldEnteringRound`) is the answer only before the
+      // cut is made; after it, "top 16 and ties" may be 17, and a survivor who
+      // leaves is one fewer card owed. (An uncut round counts the confirmed
+      // field, which a departure has already left.)
+      const cutApplied = s.cutEnabled && scorecards.some((c) => c.stageId === s.id);
       const roundHoles = holesPlayed(s.holes);
       const full = (strokes: string) => {
         try {
@@ -1525,13 +1532,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * card said "Cards in 16/28 · 57% submitted". The twelve missing cards
          * belonged to players who had been cut the day before.
          */
-        total: Math.max(
-          0,
-          fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
-            total: confirmed.length,
-            flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
-          }) - withdrawnHere,
-        ),
+        total: cutApplied
+          ? own.length
+          : fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
+              total: confirmed.length,
+              flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
+            }),
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);
@@ -2074,9 +2080,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * "the field", and a player who has left it must not be drawn, seeded or
    * counted. Only the sheet itself (`standingRows`) adds them.
    */
+  // WD, then DQ — a disqualification is the last line of a results sheet.
   const withdrawnStandings: StrokeStanding[] = withdrawnPlayed
-    .map((p) => ({ ...standingOf(p), ranked: false, rank: 0, missedCut: "", withdrew: true }))
-    .sort((x, y) => compareOnBasis(x, y, rankingBasis));
+    .map((p) => ({
+      ...standingOf(p),
+      ranked: false,
+      rank: 0,
+      missedCut: "",
+      withdrew: p.status === "withdrawn",
+      disqualified: p.status === "disqualified",
+    }))
+    .sort((x, y) => Number(!!x.disqualified) - Number(!!y.disqualified) || compareOnBasis(x, y, rankingBasis));
 
   const strokeStandings: StrokeStanding[] = confirmed
     .map(standingOf)
@@ -2885,6 +2899,7 @@ export function standingRows(state: EventState): StandingRow[] {
       missedRound: s.missedRound ?? "",
       missedCut: s.missedCut ?? "",
       withdrew: !!s.withdrew,
+      disqualified: !!s.disqualified,
     }));
   }
   /**
@@ -2944,6 +2959,7 @@ export function standingRows(state: EventState): StandingRow[] {
       missedRound: "",
       missedCut: "",
       withdrew: false,
+      disqualified: false,
     };
   });
 }
