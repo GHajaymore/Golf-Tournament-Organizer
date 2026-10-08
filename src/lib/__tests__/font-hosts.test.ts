@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 
@@ -43,6 +43,9 @@ function stylesheets(dir: string, found: string[] = []): string[] {
   }
   return found;
 }
+
+/** The display faces, since 2026-10-08 — see "no build fetches a font". */
+const FONTS = readSource("src/app/fonts.ts");
 
 const SHEETS = stylesheets(join(process.cwd(), "src")).map((f) =>
   f.slice(process.cwd().length + 1).split("\\").join("/"),
@@ -198,11 +201,96 @@ describe("the heading face has one source", () => {
      * regression that looks like nothing in a diff and like a redesign on a
      * screen.
      */
-    const layout = readSource("src/app/layout.tsx");
-    const weights = layout.match(/weight:\s*\[([^\]]*)\]/);
-    expect(weights, "no weight array found in layout.tsx").toBeTruthy();
-    for (const w of ["500", "600", "700"]) {
-      expect(weights![1], `Fraunces no longer ships weight ${w}`).toContain(w);
+    // Since 2026-10-08 every face is a variable one from `src/app/fonts.ts`,
+    // declared over a weight RANGE. Each range must cover 500 to 700 — a face
+    // declared at one weight is synthesised bold by the browser at the others.
+    const ranges = [...FONTS.matchAll(/weight:\s*"(\d+) (\d+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    expect(ranges.length, "no weight ranges found in fonts.ts").toBeGreaterThan(0);
+    for (const [lo, hi] of ranges) {
+      expect(lo <= 500 && hi >= 700, `a face covers only ${lo}–${hi}`).toBe(true);
     }
+  });
+});
+
+/** Every source file under src, found rather than named. */
+function sources(dir: string, found: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) sources(full, found);
+    else if (/\.(ts|tsx|mjs|js)$/.test(entry.name)) found.push(full);
+  }
+  return found;
+}
+
+describe("no build fetches a font", () => {
+  /**
+   * `next/font/google` served the faces same-origin, but DOWNLOADED them from
+   * Google on every build, and a failed download failed the build — four CI
+   * jobs on 2026-10-07, on commits that could not have caused it. The faces
+   * come from `@fontsource-variable/*` on disk now (see `src/app/fonts.ts`),
+   * and this keeps it that way: re-adding a Google font is one import line and
+   * reads as harmless in a diff.
+   */
+  const FILES = sources(join(process.cwd(), "src")).map((f) =>
+    f.slice(process.cwd().length + 1).split("\\").join("/"),
+  );
+
+  it("finds the font module at all", () => {
+    // The control: a sweep that matched no files would pass the next test.
+    expect(FILES).toContain("src/app/fonts.ts");
+    expect(FILES).toContain("src/app/layout.tsx");
+    expect(FONTS).toMatch(/from "next\/font\/local"/);
+  });
+
+  it("imports next/font/google nowhere", () => {
+    // The import itself, static or dynamic — not the words, which the build
+    // log fixtures in `build-retries-only-the-font-fetch.test.ts` quote.
+    const offenders = FILES.filter((f) => /(from|import\()\s*["']next\/font\/google["']/.test(readSource(f)));
+    expect(offenders, `next/font/google in: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("names font files that exist", () => {
+    const paths = [...FONTS.matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(paths.length).toBeGreaterThan(0);
+    const missing = paths.filter((p) => !existsSync(join(process.cwd(), "src/app", p)));
+    expect(missing, "a package update moved these").toEqual([]);
+  });
+
+  it("pins the font packages exactly, because fonts.ts names their files", () => {
+    const pkg = JSON.parse(readVerbatim("package.json")) as { dependencies?: Record<string, string> };
+    for (const name of ["@fontsource-variable/fraunces", "@fontsource-variable/oswald"]) {
+      expect(pkg.dependencies?.[name], name).toMatch(/^\d+\.\d+\.\d+$/);
+    }
+  });
+
+  it("gives every face its character range, and preloads only the latin ones", () => {
+    /**
+     * A face with no `unicode-range` claims every character, so the first one
+     * in the stack would take "ř" and render it as a missing glyph's fallback
+     * instead of letting the latin-ext face have it. And a preload on a range
+     * most pages never use is bytes on every first visit for nobody.
+     */
+    const faces = FONTS.split("localFont({").slice(1);
+    expect(faces.length, "Fraunces in 3 ranges, Oswald in 5").toBe(8);
+    for (const face of faces) expect(face).toMatch(/prop: "unicode-range"/);
+    const preloaded = faces.filter((f) => !/preload: false/.test(f));
+    expect(preloaded.length, "only the two latin faces preload").toBe(2);
+    for (const f of preloaded) expect(f).toMatch(/-latin-wght-normal\.woff2/);
+  });
+
+  it("keeps the fallbacks Google's build shipped, and puts each last", () => {
+    /**
+     * next/font/local computes a fallback from the file's default instance,
+     * and for Fraunces it came out at size-adjust 126.68% against the 115.45%
+     * Google published — a Cyrillic name in a heading drew visibly larger. So
+     * the two are declared in globals.css, and no face computes its own.
+     */
+    for (const face of FONTS.split("localFont({").slice(1)) expect(face).toMatch(/adjustFontFallback: false/);
+    const css = readSource("src/app/globals.css");
+    const block = (family: string) => css.match(new RegExp(`font-family:\\s*"${family}";[^}]*`))?.[0] ?? "";
+    expect(block("Fraunces Fallback")).toMatch(/local\("Times New Roman"\)[\s\S]*size-adjust:\s*115\.45%/);
+    expect(block("Oswald Fallback")).toMatch(/local\("Arial"\)[\s\S]*size-adjust:\s*81\.43%/);
+    expect(FONTS).toMatch(/"Fraunces Fallback"\)/);
+    expect(FONTS).toMatch(/"Oswald Fallback",?\s*\)/);
   });
 });

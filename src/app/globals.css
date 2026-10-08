@@ -150,6 +150,35 @@
   --font-heading-weight: 600;
 }
 
+/* THE TWO DISPLAY FACES' METRIC-MATCHED FALLBACKS, written out (2026-10-08).
+   A system face resized to the web face's proportions, so text does not jump
+   when the web face arrives — and what a heading draws a character the face
+   does not have (Fraunces has no Cyrillic) in.
+
+   These are the exact values next/font/google shipped, taken from the last
+   build that used it. next/font/local can compute its own, but measures the
+   file at its default instance: for Fraunces that came out at size-adjust
+   126.68% against Google's 115.45%, which visibly enlarged a Cyrillic name in
+   a heading. They are properties of the typefaces and do not drift.
+   `src/app/fonts.ts` puts each one last in its family's stack. */
+@font-face {
+  font-family: "Fraunces Fallback";
+  src: local("Times New Roman");
+  ascent-override: 84.71%;
+  descent-override: 22.09%;
+  line-gap-override: 0%;
+  size-adjust: 115.45%;
+}
+
+@font-face {
+  font-family: "Oswald Fallback";
+  src: local("Arial");
+  ascent-override: 146.51%;
+  descent-override: 35.49%;
+  line-gap-override: 0%;
+  size-adjust: 81.43%;
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Signature flourishes — small, reusable motifs that make the Fairway theme
    feel crafted rather than a palette swap. Kept to a handful of classes so

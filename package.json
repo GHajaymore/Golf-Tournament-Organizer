@@ -69,6 +69,8 @@
     }
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@fontsource-variable/oswald": "5.3.0",
     "@prisma/client": "^6.3.1",
     "@sentry/nextjs": "^10.76.0",
     "botid": "^1.5.11",
