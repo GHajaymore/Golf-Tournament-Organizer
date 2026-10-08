@@ -395,13 +395,30 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
    */
   const expected = rows.filter((r) => !r.absent);
   const expectedStarted = expected.filter((r) => r.thru > 0);
+  /**
+   * A ROUND COUNTED IN SIDES OR TIES IS ASKED IN SIDES OR TIES (2026-10-08).
+   *
+   * The card reading below asks each PLAYER's row how far it got, and a side
+   * round files its cards on the side (`TeamScorecard`) and a knockout its
+   * results on the draw — so every player row read thru 0 for ever and a
+   * finished best-ball read "LIVE · updated just now" over a dashboard saying
+   * "Sides in 2/2 · 100% returned". `boardProgress` already counts the round
+   * in its own unit for every other screen; this asks it the same question.
+   */
+  const progress = state.boardProgress;
+  const unitDone =
+    progress.unit === "sides" || progress.unit === "ties"
+      ? progress.total > 0 && progress.certified >= progress.total
+      : null;
   const allIn =
     declaredFinal ||
-    (roundMatches.length > 0
-      ? roundMatches.every(roundMatchIsOver)
-      : expected.length > 0 &&
-        expectedStarted.length === expected.length &&
-        expectedStarted.every((r) => r.thru >= holeCount));
+    (unitDone !== null
+      ? unitDone
+      : roundMatches.length > 0
+        ? roundMatches.every(roundMatchIsOver)
+        : expected.length > 0 &&
+          expectedStarted.length === expected.length &&
+          expectedStarted.every((r) => r.thru >= holeCount));
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
   const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];
