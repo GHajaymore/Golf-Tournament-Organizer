@@ -207,9 +207,22 @@ export function TeamsClient({
             card in Rounds & formats. They are settings of the round, and this
             screen had its own round selector — so the same round was being
             configured in two places, neither mentioning the other. */}
+        {/* WHAT THE SIDES ACTUALLY PLAY OFF, said once (2026-10-08). This
+            read "Handicap allowance 25% · split 25 / 20 / 15 / 10" for a
+            scramble — two figures, of which only the split was in force.
+            `sidePlayingHandicap`'s order decides which: a committee's own
+            split, then a flat figure, then the format's split. */}
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
-          {format.shares ? ` · split ${format.shares.join(" / ")}` : ""}
+          {format.shares && (format.sharesOverridden || !format.allowanceOverridden) ? (
+            <>
+              Handicap split <b style={{ color: "var(--color-text)" }}>{format.shares.join(" / ")}</b>
+            </>
+          ) : (
+            <>
+              Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
+              {format.sharesOneCard ? " of the combined handicaps" : ""}
+            </>
+          )}
           {format.countBest !== null ? ` · best ${format.countBest} of ${format.max}` : ""}
           {" — set on "}
           <a href="/stages">Rounds &amp; formats</a>.

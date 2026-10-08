@@ -136,6 +136,8 @@ export function RoundTeamScoring({
     ) : null;
 
   const [editingAllowance, setEditingAllowance] = useState(false);
+  /** One ball per side — `countBest` is null exactly there (see the field). */
+  const sharedBall = info.countBest === null;
   const [allowance, setAllowance] = useState("");
   const [editingShares, setEditingShares] = useState(false);
   const [shares, setShares] = useState<string[]>([]);
@@ -193,12 +195,25 @@ export function RoundTeamScoring({
 
       {/* Reads as a plain statement of what the format recommends until
           someone chooses to change it — almost every round wants the
-          recommendation, and a row of inputs would imply otherwise. */}
+          recommendation, and a row of inputs would imply otherwise.
+
+          NOT ON A FORMAT SCORED BY A SPLIT, unless a committee has already
+          put a flat figure in its place (2026-10-08). A scramble showed
+          "Handicap allowance 25%" above "Handicap split 25 / 20 / 15 / 10" —
+          two controls for one thing, and only the split was in force. Saving
+          the 25% the line displayed replaced the split with 25% of the
+          COMBINED handicaps (24 shots for a four the split plays off 16), and
+          100% — "full handicap" — gave one ball 96 shots, five a hole. */}
+      {(!info.shares || info.allowanceOverridden) && (
+      <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Handicap allowance <b style={{ color: "var(--color-text)" }}>{info.allowance}%</b>
+          {sharedBall ? " of the side's combined course handicaps" : ""}
           {info.allowanceOverridden
-            ? ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
+            ? info.shares
+              ? " — set by your committee, in place of the split below."
+              : ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
             : info.allowanceIsConvention
               ? " — the common club convention for this format, not a published standard."
               : " — the recommended allowance for this format."}
@@ -226,7 +241,11 @@ export function RoundTeamScoring({
             onChange={(e) => setAllowance(e.target.value)}
             aria-label="Handicap allowance percent"
           />
-          <span className="text-muted" style={{ fontSize: 13 }}>% of course handicap</span>
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            {/* One ball: the figure is a share of everybody's handicaps added
+                together, which "of course handicap" did not say. */}
+            {sharedBall ? "% of the side's combined course handicaps" : "% of course handicap"}
+          </span>
           <button
             type="button"
             className="btn btn-primary"
@@ -255,10 +274,12 @@ export function RoundTeamScoring({
                 );
               }}
             >
-              Back to {info.recommendedAllowance}%
+              {info.shares ? "Back to the split" : `Back to ${info.recommendedAllowance}%`}
             </button>
           )}
         </div>
+      )}
+      </>
       )}
       {warning("allowance", `${info.allowance}%`)}
 
@@ -271,7 +292,11 @@ export function RoundTeamScoring({
             Handicap split <b style={{ color: "var(--color-text)" }}>{info.shares.join(" / ")}</b>
             {info.sharesOverridden
               ? ` — set by your committee, in place of the usual ${info.recommendedShares?.join(" / ")}.`
-              : " — the recommended split for this format."}
+              : info.allowanceOverridden
+                ? // `sidePlayingHandicap`: a flat figure replaces the format's
+                  // split, so this one is not what the round plays off.
+                  " — not in force while the flat allowance above is set."
+                : " — the recommended split for this format."}
             <FieldInfo label="the handicap split">
               <p>
                 The shares are applied best player first: the first number is the percentage of the{" "}
