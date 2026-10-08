@@ -53,6 +53,7 @@ import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
 import { wipesOnCloseFor, keepItOffer } from "@/lib/services/close-terms";
 import { formatDay } from "@/lib/domain/locale";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -1336,7 +1337,7 @@ export default async function DashboardPage() {
             const shared = sharedRanks(gs.ranked);
             return (
             <div key={gs.group.id}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{flightLabel(gs.group.name, gi)}</div>
               {gs.ranked.map((r) => {
                 /* Labelled across every flight, not within one — the flights
                    are four columns of one card, so a "Dave S." repeated in the

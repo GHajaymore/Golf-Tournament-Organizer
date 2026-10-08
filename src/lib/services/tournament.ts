@@ -69,6 +69,7 @@ import { holesPlayed } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
+import { flightLabel } from "../domain/flight-label";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -2676,7 +2677,7 @@ export function standingRows(state: EventState): StandingRow[] {
 
   const flightByPlayer = new Map(
     state.groups.flatMap((g, i) =>
-      state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, `Flight ${i + 1}`] as const),
+      state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, flightLabel(g.name, i)] as const),
     ),
   );
   // A casual round keeps its players in one group so the round has somewhere

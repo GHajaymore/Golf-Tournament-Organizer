@@ -14,6 +14,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 export const metadata = screenMetadata("/registration");
 
@@ -31,7 +32,7 @@ export default async function RegistrationPage() {
   // Flight label per player, for the confirmed-field table (absorbs the old Roster screen).
   const flightByPlayer = new Map<string, string>();
   state.groups.forEach((g, i) => {
-    for (const p of state.confirmed) if (p.groupId === g.id) flightByPlayer.set(p.id, `Flight ${i + 1}`);
+    for (const p of state.confirmed) if (p.groupId === g.id) flightByPlayer.set(p.id, flightLabel(g.name, i));
   });
 
   const eventTees = await teesForEvent(state.event.id);

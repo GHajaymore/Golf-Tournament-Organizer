@@ -17,6 +17,7 @@ import {
 import { sendSms, smsConfig } from "@/lib/sms";
 import { METERED_FEATURES } from "@/lib/plans";
 import { organizationAllows } from "@/lib/services/entitlements";
+import { flightLabel } from "@/lib/domain/flight-label";
 import {
   scopeKey,
   parseScopeKey,
@@ -653,6 +654,8 @@ export async function composableScopes(
     prisma.group.findMany({
       where: { eventId: ctx.eventId, isCarrier: false },
       select: { id: true, name: true },
+      // In order, because an unnamed flight is called by its position.
+      orderBy: { position: "asc" },
     }),
     prisma.stage.findMany({
       where: { eventId: ctx.eventId },
@@ -661,7 +664,9 @@ export async function composableScopes(
     }),
     prisma.team.findMany({ where: { eventId: ctx.eventId }, select: { id: true, name: true } }),
   ]);
-  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+  // What every board calls the flight — `flightLabel`. This printed "Flight "
+  // + the name, so a flight the club named "Seniors" was "Flight Seniors".
+  const groupName = new Map(groups.map((g, i) => [g.id, flightLabel(g.name, i)]));
   /**
    * "Round 1 — Round Robin". Not `description`: that field holds a sentence
    * explaining the format ("Every player meets every other in their group over
@@ -684,7 +689,7 @@ export async function composableScopes(
     if (!parsed) continue;
     const { kind, id } = parsed;
     let label = scopeLabel(kind, ctx.orgNoun);
-    if (kind === "flight") label = `Flight ${groupName.get(id) ?? ""}`.trim();
+    if (kind === "flight") label = groupName.get(id) ?? "Flight";
     if (kind === "round") label = stageName.get(id) ?? "Round";
     if (kind === "team") label = teamName.get(id) ?? "Your team";
     if (kind === "foursome") label = `Your group — ${id.split("#")[1] ?? ""}`.trim();
@@ -713,7 +718,7 @@ export async function composableScopes(
       seen.add(key);
       out.push({ key, label, kind });
     };
-    for (const g of groups) add("flight", g.id, `Flight ${g.name}`.trim());
+    for (const g of groups) add("flight", g.id, groupName.get(g.id) ?? "Flight");
     for (const s of stages) add("round", s.id, stageName.get(s.id) ?? "Round");
     for (const t of teams) add("team", t.id, t.name);
   }
