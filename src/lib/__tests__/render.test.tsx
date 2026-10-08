@@ -3947,10 +3947,76 @@ describe("round handicap controls", () => {
     expect(html).toContain("set by your committee");
   });
 
-  it("always offers the allowance, whatever the format", async () => {
-    // Every team format prices its sides somehow, so this one is never hidden.
+  it("offers the allowance wherever it is what the sides play off", async () => {
+    // Every team format prices its sides somehow — by a flat allowance, or by
+    // a split. Four-ball is priced by the allowance, so it is offered.
     const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
-    expect(render(<RoundTeamScoring stageId="s1" info={info()} />)).toContain("Handicap allowance");
+    const fourBall = render(<RoundTeamScoring stageId="s1" info={info()} />);
+    expect(fourBall).toContain("Handicap allowance");
+    // Two balls: a percentage of each player's own handicap, said as that.
+    expect(fourBall).not.toContain("combined course handicaps");
+  });
+
+  /**
+   * ONE FIGURE FOR A FORMAT PRICED BY A SPLIT (2026-10-08).
+   *
+   * A scramble showed "Handicap allowance 25%" above "Handicap split 25 / 20 /
+   * 15 / 10". Only the split was in force, and saving the 25% the line showed
+   * replaced it with 25% of the COMBINED handicaps; 100% ("full handicap")
+   * gave one ball 96 shots.
+   */
+  const scramble = { name: "Texas Scramble", allowance: 25, recommendedAllowance: 25, allowanceIsConvention: true,
+    shares: [25, 20, 15, 10], recommendedShares: [25, 20, 15, 10], countBest: null, maxSide: 4 };
+
+  it("shows a scramble its split and not a flat allowance beside it", async () => {
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    const html = render(<RoundTeamScoring stageId="s1" info={info(scramble)} />);
+    expect(html).toContain("25 / 20 / 15 / 10");
+    expect(html).not.toContain("Handicap allowance");
+  });
+
+  it("says a committee's flat figure replaces the split, and of what", async () => {
+    // The state a club is already in if it set one — shown, labelled, and
+    // undoable, rather than hidden.
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    const html = render(
+      <RoundTeamScoring stageId="s1" info={info({ ...scramble, allowance: 100, allowanceOverridden: true })} />,
+    );
+    expect(html).toContain("Handicap allowance");
+    expect(html).toContain("of the side&#x27;s combined course handicaps");
+    expect(html).toContain("in place of the split below");
+    expect(html).toContain("not in force while the flat allowance above is set");
+  });
+});
+
+describe("the Teams screen's summary of what the sides play off", () => {
+  const base = {
+    name: "Texas Scramble", desc: "", min: 4, max: 4, sharesOneCard: true,
+    allowance: 25, recommendedAllowance: 25, allowanceOverridden: false, allowanceIsConvention: true,
+    shares: [25, 20, 15, 10], recommendedShares: [25, 20, 15, 10], sharesOverridden: false,
+    countBest: null, countBestOverridden: false,
+  };
+  it("names the split a scramble plays off, not a flat 25% beside it", async () => {
+    const { TeamsClient } = await import("@/components/TeamsClient");
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
+        format={base as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("Handicap split");
+    expect(html).toContain("25 / 20 / 15 / 10");
+    expect(html).not.toContain("Handicap allowance");
+  });
+
+  it("names a committee's flat figure, of the combined handicaps, when it is in force", async () => {
+    const { TeamsClient } = await import("@/components/TeamsClient");
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Texas Scramble" }]} activeRoundId="r1"
+        format={{ ...base, allowance: 40, allowanceOverridden: true } as never} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("Handicap allowance");
+    expect(html).toContain("40%");
+    expect(html).toContain("of the combined handicaps");
+    expect(html).not.toContain("Handicap split");
   });
 });
 
