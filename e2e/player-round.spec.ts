@@ -96,10 +96,21 @@ test.describe("the player's own round", () => {
        * the re-run: which form a notice takes depends on what this phone has
        * already shown, so the old finder passed or failed by test order.
        */
+      /**
+       * And measured at the nearest box that is LAID OUT. A notice already read
+       * folds into "N earlier messages" (`foldSeen`), so its text sits inside a
+       * closed fold with no box at all — `getBoundingClientRect` reads 0, and
+       * this asserted "below the round" against a y of 0. Red on `main` on
+       * 2026-10-08 (run 37855950632, phone), again by test order: whether the
+       * notice was read depends on what ran first. Folded, the notice is still
+       * below the round — the fold is where it sits — so the fold is measured.
+       */
       const y = (re: RegExp) => {
-        const el = [...document.querySelectorAll("*")].find((e) =>
+        let el: Element | null | undefined = [...document.querySelectorAll("*")].find((e) =>
           [...e.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && re.test(n.textContent || "")),
         );
+        if (!el) return -1;
+        while (el && el.getClientRects().length === 0) el = el.parentElement;
         return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : -1;
       };
       /**
