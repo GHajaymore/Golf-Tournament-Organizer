@@ -20,6 +20,7 @@ export function PrizesClient({
   prizes,
   players,
   flights = [],
+  byScore,
 }: {
   prizes: PrizeRow[];
   /** In FINISHING ORDER, with the board's place where the player holds one —
@@ -36,10 +37,22 @@ export function PrizesClient({
    * every option says which flight its player is in.
    */
   flights?: Array<{ label: string; players: Array<{ id: string; name: string; place?: number | null }> }>;
+  /**
+   * The field by GROSS and by NET, each numbered by its own places, or null
+   * where the board has no strokes to order by (2026-10-08). A prize named
+   * for one — "Best gross", "Best net" — opens on that order: both opened on
+   * the board's net order, so "Best gross" offered the net winner first.
+   */
+  byScore?: {
+    gross: Array<{ id: string; name: string; place?: number | null }> | null;
+    net: Array<{ id: string; name: string; place?: number | null }> | null;
+  };
 }) {
   const flightOf = new Map(flights.flatMap((f) => f.players.map((pl) => [pl.id, f.label] as const)));
-  /** The options for one prize: its flight's players first when it is a flight's prize. */
+  /** The options for one prize: in the order its own name asks for. */
   const optionsFor = (category: string) => {
+    if (/\bgross\b/i.test(category) && byScore?.gross) return byScore.gross;
+    if (/\bnet\b/i.test(category) && byScore?.net) return byScore.net;
     const flight = flights.find((f) => category.startsWith(`${f.label} — `));
     if (!flight) return players;
     const inFlight = new Set(flight.players.map((pl) => pl.id));
