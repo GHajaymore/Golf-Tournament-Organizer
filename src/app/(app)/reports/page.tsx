@@ -434,6 +434,7 @@ export default async function ReportsPage({
         snapshotTitle={snapshotTitle}
         snapshotNote={standing.note}
         casual={casual}
+        rankedOn={activeStage?.scoringBasis === "gross" ? "gross" : "net"}
         board={board}
         extraCsv={extraCsv}
         /* Offered only where there is something to export — a tournament that

@@ -297,7 +297,10 @@ export function NewMatchForm({
       // `planMatch` refuses on, so the screen and the validator agree — a
       // foursomes keeps "the match" and a Nassau, which read who won the
       // hole, and that is how a foursomes is played for money anyway.
-      !(g.needsCards && chosen && sharedBallRound(chosen.name)),
+      !(g.needsCards && chosen && sharedBallRound(chosen.name)) &&
+      // A Nassau is three bets over eighteen holes; over nine it is "the
+      // match", which is offered — see `needsEighteen`.
+      !(g.needsEighteen && holes === 9),
   );
 
 

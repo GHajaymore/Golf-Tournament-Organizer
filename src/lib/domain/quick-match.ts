@@ -217,6 +217,14 @@ export interface QuickMoneyGame {
    * cards, and settles nothing.
    */
   needsPars?: boolean;
+  /**
+   * Only over eighteen holes (2026-10-07). A Nassau is three bets — front,
+   * back and overall — and nine holes have one of them: `playNassau` pays a
+   * nine-hole round as a single bet, so offering it there under "three bets
+   * in one: the front nine, the back nine, and the match overall" promised
+   * what it would not do. On nine holes it IS "the match", which is offered.
+   */
+  needsEighteen?: boolean;
 }
 
 export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
@@ -267,6 +275,7 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
     pot: "side",
     kind: "nassau",
     matchOnly: true,
+    needsEighteen: true,
   },
 ];
 
@@ -832,6 +841,9 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
     // No game and nothing staked is "playing for nothing", which is not an error.
     if (!game && !stake && !note) return null;
     if (!game) return { error: "Pick one of the money games offered." };
+    if (game.needsEighteen && holes === 9) {
+      return { error: "A Nassau is three bets — the front nine, the back nine and the match — so it needs eighteen holes. Over nine, play “The match”." };
+    }
     /**
      * BOTH is the one thing that cannot be honoured.
      *
