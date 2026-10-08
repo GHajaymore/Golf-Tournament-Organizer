@@ -62,6 +62,16 @@ describe("why a stroke row holds no place", () => {
     expect(html).not.toContain("didn&#x27;t play");
   });
 
+  it("says WD for a player who withdrew, on both boards", () => {
+    const wd = row({ withdrew: true, thru: 27, holesOwed: 36 });
+    expect(unrankedNote(wd)).toBe("WD — withdrew");
+    const html = renderToStaticMarkup(
+      <PlayerLeaderboard isStroke isStableford={false} rows={[wd]} holes={18} unit="strokes" cutNote="" />,
+    );
+    expect(html).toContain("thru 27 · WD");
+    expect(html).not.toContain("not ranked");
+  });
+
   it("and Today does not ask a cut player for a card the cut never owed them", () => {
     const src = readSource("src/lib/services/me.ts");
     expect(src).toMatch(/const closedWithout =\s*!cutOut && stage\.closedAt != null/);
