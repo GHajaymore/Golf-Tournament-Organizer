@@ -2319,7 +2319,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       : firstDraw.second;
   const brackets = {
     winners: mainBracket,
-    consolation: buildBracket("consolation", secondField, winnersMap),
+    // A plate's field grows with the main draw's results, so its gaps are not
+    // byes yet; a split's second half is seeded once and its byes are real.
+    consolation: buildBracket("consolation", secondField, winnersMap, mode !== "plate"),
     mainLabel: firstDraw.mainLabel,
     secondLabel: firstDraw.secondLabel,
   };

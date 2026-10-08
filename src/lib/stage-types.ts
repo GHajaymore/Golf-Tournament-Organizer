@@ -295,6 +295,20 @@ export function isKnockoutRound(type: string): boolean {
 }
 
 /**
+ * A STRAIGHT KNOCKOUT — the draw is the first round, with no qualifying before
+ * it — so there is no table to rank anybody on: the standings ARE the draw.
+ *
+ * One rule (2026-10-08). The dashboard, the bracket screen and the player's
+ * Board each spelled it out inline, and Today never got a copy: a member of a
+ * knockout of five read a "QUALIFYING" table listing the whole field as "Not
+ * ranked · not started", for a tournament whose bracket screen says "No
+ * qualifying round comes before this bracket".
+ */
+export function isStraightKnockout(stages: ReadonlyArray<{ type: string }>): boolean {
+  return stages.findIndex((s) => isKnockoutRound(s.type)) === 0;
+}
+
+/**
  * Whether this tournament has a knockout in it at all.
  *
  * The question every reader actually asks, so that none of them has to spell

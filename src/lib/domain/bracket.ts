@@ -492,12 +492,25 @@ export function buildBracket(
   kind: BracketKind,
   seededPlayers: Player[],
   winners: Record<string, string>,
+  /**
+   * Whether this field is complete, so an empty opening slot is a BYE. False
+   * for a plate, which fills from the main draw's losers as results come in —
+   * an empty slot there is somebody not yet known, and stays "TBD".
+   */
+  fieldComplete = true,
 ): BracketView {
   const byId = new Map(seededPlayers.map((p) => [p.id, p]));
   const seedById = new Map(seededPlayers.map((p, i) => [p.id, i + 1]));
 
-  const slotFor = (playerId: string | null): BracketSlot => {
-    if (!playerId) return { playerId: null, seed: null, name: "TBD" };
+  /**
+   * "Bye" for a slot that can never be filled, "TBD" for one waiting on a
+   * result (2026-10-08). Both were "TBD", so a field of five read "Alder 1 v
+   * TBD" for the top seed's bye — an opponent still to be decided, when there
+   * is none and never will be. Walked as the tournament grid's knockout of five:
+   * three of the four first-round lines said TBD and only one was a match.
+   */
+  const slotFor = (playerId: string | null, bye = false): BracketSlot => {
+    if (!playerId) return { playerId: null, seed: null, name: bye ? "Bye" : "TBD" };
     const p = byId.get(playerId);
     return {
       playerId,
@@ -543,7 +556,10 @@ export function buildBracket(
       if (aId && !bId) winnerId = aId;
       else if (bId && !aId) winnerId = bId;
     }
-    first.push({ key, roundIndex: 0, matchIndex: i, a: slotFor(aId), b: slotFor(bId), winnerId });
+    // A missing seed in the opening round is a bye — unless the whole field is
+    // missing, which is a draw not yet made, not a bracket of byes.
+    const drawn = fieldComplete && seededPlayers.length > 0;
+    first.push({ key, roundIndex: 0, matchIndex: i, a: slotFor(aId, drawn), b: slotFor(bId, drawn), winnerId });
   }
   rounds.push({ label: labels[0], roundIndex: 0, matches: first });
 
@@ -567,8 +583,9 @@ export function buildBracket(
         key,
         roundIndex: round,
         matchIndex: i,
-        a: slotFor(aId),
-        b: slotFor(bId),
+        // Empty because its feeder can never produce anybody — a bye, not TBD.
+        a: slotFor(aId, fieldComplete && isByeFeeder(prev[i * 2])),
+        b: slotFor(bId, fieldComplete && isByeFeeder(prev[i * 2 + 1])),
         winnerId,
       });
     }

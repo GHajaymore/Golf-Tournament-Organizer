@@ -29,7 +29,7 @@ import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
 import { needsYouNow } from "@/lib/domain/needs-you-now";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
+import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
@@ -422,7 +422,7 @@ export default async function DashboardPage() {
    * 2/flight · cutoff ≈ 0 pts", "8 of 8 advancing" and a table of 0-0-0 rows
    * with a semi-final already decided on the bracket.
    */
-  const straightKnockout = state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0;
+  const straightKnockout = isStraightKnockout(state.stages);
 
   /**
    * WHY THE NEXT PHASE IS NOT AVAILABLE YET, for the lifecycle bar's button.

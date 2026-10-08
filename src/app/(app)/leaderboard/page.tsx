@@ -27,7 +27,7 @@ import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
-import { boardKindForRound, isKnockoutRound } from "@/lib/stage-types";
+import { boardKindForRound, isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -159,7 +159,7 @@ export default async function LeaderboardPage({
    * for a draw nobody qualified for. Who is still in, and who plays whom, IS
    * the leaderboard of a knockout; this shows it, read-only.
    */
-  if (activeStage && isKnockoutRound(activeStage.type) && state.stages.findIndex((s) => isKnockoutRound(s.type)) === 0) {
+  if (activeStage && isKnockoutRound(activeStage.type) && isStraightKnockout(state.stages)) {
     const mode: BracketMode = isBracketMode(event.bracketMode) ? event.bracketMode : "split";
     const { mainLabel, secondLabel } = drawBrackets([], mode);
     const results: Record<string, string> = {};
