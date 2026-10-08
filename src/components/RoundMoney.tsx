@@ -333,7 +333,13 @@ export function RoundMoney({
                     textAlign: "left",
                   }}
                 >
-                  <span style={{ flex: 1, fontSize: 14 }}>{r.label}</span>
+                  <span style={{ flex: 1, fontSize: 14 }}>
+                    {r.label}
+                    {/* Every card in, round not yet closed: the amounts stand
+                        unless a card is corrected before the committee closes
+                        it (2026-10-08). */}
+                    {r.provisional && <span className="text-muted"> · provisional until the round is closed</span>}
+                  </span>
                   <span
                     style={{
                       fontVariantNumeric: "tabular-nums",

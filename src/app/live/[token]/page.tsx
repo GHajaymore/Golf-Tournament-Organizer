@@ -198,10 +198,13 @@ export default async function PublicLeaderboardPage({
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                background: board.allIn ? "var(--color-neutral-400)" : "var(--color-accent)",
+                background: board.official ? "var(--color-neutral-400)" : "var(--color-accent)",
               }}
             />
-            {board.allIn ? "Final" : "Live"}
+            {/* Final only once the committee has closed the round — see
+                `official`. Every card complete is "All in": the scores are
+                there and still unofficial. */}
+            {board.official ? "Final" : board.allIn ? "All in" : "Live"}
           </div>
           <h1
             style={{
@@ -305,7 +308,7 @@ export default async function PublicLeaderboardPage({
           now". That is precisely the lie the label exists to prevent, and it
           would have no visible symptom.
         */}
-        <LiveRefresh renderedAt={new Date().toISOString()} final={board.allIn} />
+        <LiveRefresh renderedAt={new Date().toISOString()} final={board.official} allIn={board.allIn} />
       </div>
     </div>
   );

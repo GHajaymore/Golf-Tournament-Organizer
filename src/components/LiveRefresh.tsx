@@ -43,8 +43,16 @@ export function LiveRefresh({
   renderedAt,
   compact = false,
   final = false,
+  allIn = false,
 }: {
   renderedAt: string;
+  /**
+   * Every card is complete but the committee has not closed the round
+   * (2026-10-08): the scores are all there and still unofficial, so it says
+   * so — and keeps polling, because a card can still be corrected before the
+   * round is closed. `final` outranks it.
+   */
+  allIn?: boolean;
   /**
    * Every card is in, so nothing can move — the same value that puts "Final"
    * on the badge above this line.
@@ -179,6 +187,8 @@ export function LiveRefresh({
         // scored by hand has no cards to be in. What is true either way is
         // that the number on the screen is the last one there will be.
         <span>Final · these scores no longer change</span>
+      ) : allIn ? (
+        <span>All scores in · unofficial until the committee closes the round</span>
       ) : now === null ? (
         // Before the clock is read, say the durable thing rather than a time
         // that would immediately change.

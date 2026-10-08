@@ -4269,6 +4269,36 @@ describe("the organizer's Voice entry setting reaches the player's card", () => 
   });
 });
 
+describe("a Stableford card lets a player pick up (Rule 21.1b, 2026-10-08)", () => {
+  /**
+   * In Stableford a player who cannot score a point may pick up; a medal must
+   * be holed out. So the control is on a STANDARD Stableford card and on no
+   * other — not a medal, and not modified Stableford, where a double bogey
+   * costs points and there is no "cannot score" to pick up from.
+   */
+  const card = async (pointsTable: "standard" | "modified" | null) => {
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    return render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(null)}
+        pointsTable={pointsTable}
+      />,
+    );
+  };
+
+  it("offers Picked up on a standard Stableford card", async () => {
+    expect(await card("standard")).toContain("A. Moore picked up on hole 1");
+  });
+
+  it("offers it on no medal card, and no modified Stableford card (controls)", async () => {
+    expect(await card(null)).not.toContain("picked up on hole");
+    expect(await card("modified")).not.toContain("picked up on hole");
+  });
+});
+
 describe("the player's own card opens on what is already there", () => {
   /**
    * The regression this exists for was a data-loss bug, not a cosmetic one.
@@ -7792,6 +7822,23 @@ describe("what a player has riding on the round", () => {
       expect(html).not.toMatch(/no side games/i);
     });
 
+    it("calls a round's money provisional until the committee closes the round", () => {
+      // Every card in, round still open: the amounts are shown and are not yet
+      // official (2026-10-08). The control is the same round once closed.
+      const open = render(
+        <RoundMoney
+          view={{ ...base, anyGame: true, anyFinal: true, yourTotalCents: 500, rounds: [{ ...finished(1)[0], yourCents: 500, provisional: true }], stake: { games: 0, cents: 0 } }}
+        />,
+      );
+      expect(open).toMatch(/provisional until the round is closed/);
+      const closed = render(
+        <RoundMoney
+          view={{ ...base, anyGame: true, anyFinal: true, yourTotalCents: 500, rounds: [{ ...finished(1)[0], yourCents: 500, provisional: false }], stake: { games: 0, cents: 0 } }}
+        />,
+      );
+      expect(closed).not.toMatch(/provisional/);
+    });
+
     it("says there are none at all when the tournament has no pot in it", () => {
       /**
        * THE DEFECT. A club on shared costs, or a day of team rounds where a
@@ -7995,6 +8042,19 @@ describe("the live board says how old it is", () => {
     expect(html).toMatch(/no longer change/i);
     expect(html, "a finished board still calls itself live").not.toMatch(/Live ·/);
     expect(html).not.toMatch(/just now|min ago|updates on its own/i);
+  });
+
+  /**
+   * EVERY CARD IN IS NOT FINAL (2026-10-08). A stroke-play result is official
+   * when the committee closes the round; until then the scores are all there
+   * and unofficial, and the line says that rather than "no longer change".
+   */
+  it("says all scores are in and unofficial until the committee closes the round", () => {
+    const html = render(<LiveRefresh renderedAt={new Date().toISOString()} allIn />);
+    expect(html).toMatch(/All scores in · unofficial until the committee closes the round/);
+    expect(html).not.toMatch(/no longer change/i);
+    // And the committee's close outranks it.
+    expect(render(<LiveRefresh renderedAt={new Date().toISOString()} allIn final />)).toMatch(/no longer change/i);
   });
 });
 
