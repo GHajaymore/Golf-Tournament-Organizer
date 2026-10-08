@@ -393,8 +393,19 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
    * who is in and has nothing still holds the board Live, and a tournament
    * (where `absent` is undefined on every row) is judged exactly as before.
    */
-  const expected = rows.filter((r) => !r.absent);
-  const expectedStarted = expected.filter((r) => r.thru > 0);
+  /**
+   * AND THE ROUND ON SCREEN, NOT THE WHOLE TOURNAMENT (2026-10-08).
+   *
+   * A row's `thru` is the aggregate — 27 for a player nine holes into round
+   * 2 — so `thru >= holeCount` was true of everybody once they had played ONE
+   * round, and a 36-hole championship read "Final · these scores no longer
+   * change" over a player on the 10th. Asked of this round's card instead; on
+   * a one-round event the two are the same number. And a player an applied
+   * cut left out owes this round nothing, so they are not waited for.
+   */
+  const thruHere = (r: StandingRow): number => (activeStage ? state.roundThru(r.id, activeStage.id) : r.thru);
+  const expected = rows.filter((r) => !r.absent && !r.missedCut);
+  const expectedStarted = expected.filter((r) => thruHere(r) > 0);
   /**
    * A ROUND COUNTED IN SIDES OR TIES IS ASKED IN SIDES OR TIES (2026-10-08).
    *
@@ -418,7 +429,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
         ? roundMatches.every(roundMatchIsOver)
         : expected.length > 0 &&
           expectedStarted.length === expected.length &&
-          expectedStarted.every((r) => r.thru >= holeCount));
+          expectedStarted.every((r) => thruHere(r) >= holeCount));
 
   const knockoutAt = state.stages.findIndex((s) => isKnockoutRound(s.type));
   const draws = knockoutAt >= 0 ? drawnDraws(state.brackets) : [];

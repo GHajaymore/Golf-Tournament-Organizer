@@ -80,6 +80,8 @@ export interface StandingRow {
   holesOwed: number;
   /** The closed round this player has no card for, by name, or "". */
   missedRound?: string;
+  /** The round an applied cut left this player out after, by name, or "". */
+  missedCut?: string;
   /**
    * Whether a PAR was known for the holes this player has played.
    *
@@ -117,6 +119,8 @@ export function unrankedNote(r: StandingRow): string {
   // round 1, or one who did not turn up for round 2. Their card is not
   // incomplete, and saying so sent a reader looking for holes that were never
   // owed. Checked first: it is the reason when both could be said.
+  // A missed cut before either: "didn't play Round 2" read as a no-show.
+  if (r.missedCut) return `Missed the cut after ${r.missedCut}`;
   if (r.missedRound) return `Not ranked — didn't play ${r.missedRound}`;
   return r.holesOwed > r.thru
     ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
