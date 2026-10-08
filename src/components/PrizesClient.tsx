@@ -19,12 +19,32 @@ export interface PrizeRow {
 export function PrizesClient({
   prizes,
   players,
+  flights = [],
 }: {
   prizes: PrizeRow[];
   /** In FINISHING ORDER, with the board's place where the player holds one —
    *  so the winner picker opens on who actually won, not the alphabet. */
   players: Array<{ id: string; name: string; place?: number | null }>;
+  /**
+   * Each flight's own finishing order, labelled as every board labels it —
+   * empty for a field with fewer than two flights (2026-10-08).
+   *
+   * A flight's prize offered the OVERALL order: "Flight A — Winner" opened on
+   * "1. Dot Tee", the flight B player who won overall, so the top choice gave
+   * Flight A's prize to somebody not in Flight A. A prize named for a flight
+   * now lists that flight first, numbered by its place IN the flight, and
+   * every option says which flight its player is in.
+   */
+  flights?: Array<{ label: string; players: Array<{ id: string; name: string; place?: number | null }> }>;
 }) {
+  const flightOf = new Map(flights.flatMap((f) => f.players.map((pl) => [pl.id, f.label] as const)));
+  /** The options for one prize: its flight's players first when it is a flight's prize. */
+  const optionsFor = (category: string) => {
+    const flight = flights.find((f) => category.startsWith(`${f.label} — `));
+    if (!flight) return players;
+    const inFlight = new Set(flight.players.map((pl) => pl.id));
+    return [...flight.players, ...players.filter((pl) => !inFlight.has(pl.id)).map((pl) => ({ ...pl, place: null }))];
+  };
   const money = usePrizeMoney();
   const { symbol } = useMoney();
   const fid = useId();
@@ -68,12 +88,13 @@ export function PrizesClient({
         onChange={(e) => startTransition(() => setPrizeWinner(p.id, e.target.value))}
       >
         <option value="">— Not awarded —</option>
-        {players.map((pl) => (
+        {optionsFor(p.category).map((pl) => (
           <option key={pl.id} value={pl.id}>
             {/* The finishing place where the player holds one, so the winner
                 reads first. Unranked players (no card, a manual round) show as
-                just their name. */}
+                just their name. On a flighted field, the player's flight too. */}
             {pl.place ? `${pl.place}. ${pl.name}` : pl.name}
+            {flightOf.has(pl.id) ? ` · ${flightOf.get(pl.id)}` : ""}
           </option>
         ))}
       </select>

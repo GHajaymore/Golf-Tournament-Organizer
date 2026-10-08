@@ -314,23 +314,37 @@ export interface Me {
  */
 export function flightPlaceFor(state: EventState, playerId: string): string {
   if (state.groups.length < 2) return "";
-  const groupId = state.confirmed.find((p) => p.id === playerId)?.groupId ?? null;
-  const index = state.groups.findIndex((g) => g.id === groupId);
-  if (index < 0) return "";
-  const group = state.groups[index];
-  const within = state.boardIsStroke
-    ? placesWithin(state.strokeStandings.filter((s) => s.player.groupId === group.id)).map((s) => ({
-        id: s.player.id,
-        rank: s.ranked ? s.rank : 0,
-      }))
-    : (state.groupStandings.find((gs) => gs.group.id === group.id)?.ranked ?? []).map((r) => ({
-        id: r.player.id,
-        rank: r.rank,
-      }));
-  const mine = within.find((r) => r.id === playerId);
-  if (!mine || mine.rank <= 0) return "";
-  const shared = within.filter((r) => r.rank === mine.rank).length > 1;
-  return `${shared ? `T${mine.rank}` : placeOrdinal(mine.rank)} in ${flightLabel(group.name, index)}`;
+  const flight = flightStandings(state).find((f) => f.rows.some((r) => r.id === playerId));
+  if (!flight) return "";
+  const mine = flight.rows.find((r) => r.id === playerId)!;
+  if (mine.rank <= 0) return "";
+  const shared = flight.rows.filter((r) => r.rank === mine.rank).length > 1;
+  return `${shared ? `T${mine.rank}` : placeOrdinal(mine.rank)} in ${flight.label}`;
+}
+
+/**
+ * Every flight's finishing order — the places WITHIN the flight, by
+ * `placesWithin`, the rule the dashboard's flight standings and the flight
+ * results export use. 0 is "no place yet". One reader for Today's flight
+ * place and the Prizes screen's flight winners (2026-10-08), so the player
+ * told "1st in Flight A" and the prize offered for Flight A cannot disagree.
+ */
+export function flightStandings(
+  state: EventState,
+): { groupId: string; label: string; rows: { id: string; rank: number }[] }[] {
+  return state.groups.map((group, index) => ({
+    groupId: group.id,
+    label: flightLabel(group.name, index),
+    rows: state.boardIsStroke
+      ? placesWithin(state.strokeStandings.filter((s) => s.player.groupId === group.id)).map((s) => ({
+          id: s.player.id,
+          rank: s.ranked ? s.rank : 0,
+        }))
+      : (state.groupStandings.find((gs) => gs.group.id === group.id)?.ranked ?? []).map((r) => ({
+          id: r.player.id,
+          rank: r.rank,
+        })),
+  }));
 }
 
 /**

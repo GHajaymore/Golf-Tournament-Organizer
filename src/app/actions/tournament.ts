@@ -62,6 +62,7 @@ import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-da
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { flightLabel } from "@/lib/domain/flight-label";
 import {
   freezeRoundHandicaps,
   roundHandicapRows,
@@ -4525,7 +4526,10 @@ export async function applyPrizeStructure(key: string) {
     orderBy: { position: "asc" },
     select: { name: true },
   });
-  const lines = prizeStructureLines(key, { flights: flights.map((f) => f.name) });
+  // Named as every board names the flight — "Flight A — Winner", not the bare
+  // stored "A — Winner" — so the Prizes picker can match the prize to its
+  // flight and a member reading the prize list recognises their flight.
+  const lines = prizeStructureLines(key, { flights: flights.map((f, i) => flightLabel(f.name, i)) });
   // An unknown key, or a flight structure on a field with no flights, adds
   // nothing rather than a bad row — the same fail-safe as the resolver.
   if (lines.length === 0) return;
