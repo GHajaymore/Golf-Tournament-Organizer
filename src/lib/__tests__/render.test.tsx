@@ -1777,6 +1777,41 @@ describe("course library", () => {
     expect(options("Winner")[0]).toBe("1. Dot Tee · Flight B");
   });
 
+  it("offers Best gross to the best gross and Best net to the best net", async () => {
+    /**
+     * 2026-10-08: on a net medal both pickers opened on the board's NET order,
+     * so "Best gross" offered first a player who had shot 85, with the 70 —
+     * the actual best gross — third. Ann shot 70 gross; Bea 85 gross, 65 net.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(
+      <PrizesClient
+        prizes={[
+          { id: "g", category: "Best gross", detail: "", amount: 0, winnerId: null },
+          { id: "n", category: "Best net", detail: "", amount: 0, winnerId: null },
+          { id: "w", category: "Winner", detail: "", amount: 0, winnerId: null },
+        ]}
+        players={[
+          { id: "bea", name: "Bea Both", place: 1 },
+          { id: "ann", name: "Ann Both", place: 3 },
+        ]}
+        byScore={{
+          gross: [{ id: "ann", name: "Ann Both", place: 1 }, { id: "bea", name: "Bea Both", place: 2 }],
+          net: [{ id: "bea", name: "Bea Both", place: 1 }, { id: "ann", name: "Ann Both", place: 2 }],
+        }}
+      />,
+    );
+    const first = (label: string) => {
+      const at = html.indexOf(`aria-label="Winner of ${label}"`);
+      const select = html.slice(at, html.indexOf("</select>", at));
+      return [...select.matchAll(/<option value="([^"]+)">([^<]*)/g)].map((m) => m[2])[0];
+    };
+    expect(first("Best gross")).toBe("1. Ann Both");
+    expect(first("Best net")).toBe("1. Bea Both");
+    // The control: a prize named for neither keeps the board's order.
+    expect(first("Winner")).toBe("1. Bea Both");
+  });
+
   it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
     const { PrizesClient } = await import("@/components/PrizesClient");
     const html = render(<PrizesClient prizes={[]} players={[]} />);

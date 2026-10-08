@@ -22,6 +22,7 @@ import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
+import { placesByValue } from "@/lib/domain/flight-places";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 
@@ -84,6 +85,26 @@ export default async function PrizesPage({
             .map((r) => ({ id: r.id, name: nameById.get(r.id) ?? "—", place: r.rank > 0 ? r.rank : null })),
         }))
       : [];
+  /**
+   * THE FIELD BY GROSS AND BY NET, for prizes named for one (2026-10-08).
+   *
+   * "Best gross & net" makes two prizes, and both pickers opened on the
+   * board's order — net, on a net medal — so "Best gross" offered the net
+   * winner first: walked on a field where she had shot 85 and the best gross
+   * was a 70, listed third. Each list is numbered by its own places
+   * (`placesByValue`, ties shared), finished cards first. Stroke rounds only;
+   * a points or match board has no gross and net to order by.
+   */
+  const standings = usesStandardBoard(state.activeStage?.format) && state.boardIsStroke ? state.strokeStandings : [];
+  const scoreOrder = (pick: (s: (typeof standings)[number]) => number) => {
+    if (standings.length === 0) return null;
+    const rows = [...standings].sort((a, b) =>
+      a.ranked === b.ranked ? pick(a) - pick(b) : a.ranked ? -1 : 1,
+    );
+    const places = placesByValue(rows, pick, (s) => s.ranked);
+    return rows.map((s, i) => ({ id: s.player.id, name: s.player.name, place: places[i] }));
+  };
+  const prizeOrders = { gross: scoreOrder((s) => s.gross), net: scoreOrder((s) => s.net) };
   const orderedForPrizes = [...state.confirmed]
     .map((p) => ({ id: p.id, name: p.name, place: prizeRank.get(p.id) ?? null }))
     .sort((a, b) => {
@@ -274,6 +295,7 @@ export default async function PrizesPage({
         }))}
         players={orderedForPrizes}
         flights={prizeFlights}
+        byScore={prizeOrders}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this
