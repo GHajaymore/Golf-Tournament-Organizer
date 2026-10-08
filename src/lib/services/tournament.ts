@@ -641,6 +641,20 @@ export interface EventState {
    * nine got 5, because only holes whose 18-hole index was <= 9 drew one.
    */
   strokeCourseFor: (stageId: string) => { pars: number[]; holeDifficulty: number[] };
+  /**
+   * HOW MANY PLAYERS THIS ROUND'S CARDS ARE OWED BY — an individual stroke
+   * round's field, the denominator of its "Cards in N/M" — or null for a round
+   * counted in another unit (sides, matches, ties, or scored by hand).
+   *
+   * For the money (2026-10-08). A pot asked only whether the cards that EXIST
+   * were complete, so a field teeing off in two waves settled the morning's
+   * skins with the afternoon still in the clubhouse: Ann, birdie on the 1st,
+   * read "You're owed $70.00" and seven "Mark settled" buttons, four of them
+   * against players who had not hit a shot. Asked of the same `roundProgress`
+   * the boards count with, so the money is final exactly when the board says
+   * every card is in.
+   */
+  roundFieldSize: (stageId: string) => number | null;
   advancingCount: number;
   advancingIds: Set<string>;
   /**
@@ -2537,6 +2551,12 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       return playingHandicapFrom(resolved.handicap, allowance);
     },
     strokeCourseFor: courseFor,
+    roundFieldSize: (stageId: string) => {
+      const s = stages.find((x) => x.id === stageId);
+      if (!s || isManualFormat(s.format) || needsTeams(s.format) || boardKind(s.format) === "nassau") return null;
+      if (!roundIsStroke(s.type, s.format)) return null;
+      return roundProgress(s).total;
+    },
     advancingCount,
     advancingIds,
     pendingConfirmations,

@@ -31,7 +31,8 @@ import {
 } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
-import { loadEventState, type HoleResultArr } from "./tournament";
+import { loadEventState, settingsOf, type HoleResultArr, type EventState } from "./tournament";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import { matchIsOver } from "../domain/match";
 import { nassauIsDecided } from "../domain/nassau";
 import { resolveCourse } from "../courses";
@@ -320,6 +321,24 @@ export function roundMoneyFinality(input: {
    * can close 8&6 with the back nine still being played for.
    */
   nassau?: boolean;
+  /**
+   * HOW MANY COMPLETE CARDS THE ROUND IS OWED — `expectedCardsFor`, or null
+   * for a round not counted in cards (sides, matches, by hand).
+   *
+   * Without it, "every card is complete" was asked only of the cards that
+   * EXIST, and a player who has not teed off has none. So a field going out in
+   * two waves settled the morning's pots with the afternoon in the clubhouse:
+   * found 2026-10-08, a birdie on the 1st reading "You're owed $70.00" with
+   * "Mark settled" against four players who had not hit a shot — any of whom
+   * could halve that skin. "Can the amount still change": yes, so not final.
+   */
+  expectedCards?: number | null;
+  /**
+   * The committee has closed this round ("This round is finished"). The
+   * backstop for a card that is never coming — a no-show still in the field —
+   * one round wide rather than the whole tournament.
+   */
+  roundClosed?: boolean;
 }): RoundFinality {
   const { stageId, holeCount } = input;
 
@@ -404,17 +423,97 @@ export function roundMoneyFinality(input: {
    */
   const cardsCanSettle = stageMatches.length === 0;
 
+  /**
+   * AND THE WHOLE FIELD HAS A CARD — see `expectedCards`. Counted the way the
+   * board's "Cards in" is: one complete, undisputed card per player still
+   * playing.
+   */
+  const completeCards = forStage.filter((c) => {
+    if (c.disputed) return false;
+    try {
+      const arr = JSON.parse(c.strokes) as (number | null)[];
+      for (let h = 0; h < holeCount; h += 1) if (arr[h] == null) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }).length;
+  const fieldIn = input.expectedCards == null || completeCards >= input.expectedCards;
+
   return {
     holesReturned,
     matchesDone,
     matchesTotal: stageMatches.length,
     matchesOver,
     final: roundMoneyIsFinal({
-      holesReturned: cardsCanSettle ? holesReturned : 0,
+      holesReturned: cardsCanSettle && fieldIn ? holesReturned : 0,
       holeCount,
-      roundComplete: matchesDone || input.eventCompleted,
+      roundComplete: matchesDone || input.eventCompleted || !!input.roundClosed,
     }),
   };
+}
+
+/**
+ * WHO A ROUND IS STILL WAITING ON A CARD FROM — its field, as ids — or null for
+ * a round not counted in individual cards (sides, matches, by hand).
+ *
+ * The confirmed field, less anybody a weekly league has marked out of THIS
+ * round; and after a cut, only the survivors — `roundFieldSize` is the board's
+ * own "Cards in" denominator and already shrinks for one, and the cut gives
+ * every survivor a card row, so a smaller field than the entry list means the
+ * round's field is whoever has a row on it.
+ *
+ * Two readers (2026-10-08), each asking it its own question:
+ *
+ *   the round card   every one of them has returned a complete card — the
+ *                    count the board's "Cards in N/M" makes
+ *   a pot            every one of its MEMBERS among them has teed off; the
+ *                    rest of the field cannot change a pot they are not in
+ */
+async function roundFieldFor(
+  state: Pick<EventState, "roundFieldSize" | "event" | "confirmed">,
+  eventId: string,
+  stageId: string,
+  cards: ReadonlyArray<{ stageId: string; playerId: string }>,
+): Promise<Set<string> | null> {
+  const size = state.roundFieldSize(stageId);
+  if (size == null) return null;
+  let ids = state.confirmed.map((p) => p.id);
+  const mode = settingsOf(state.event as Parameters<typeof settingsOf>[0]).attendanceMode as AttendanceMode;
+  if (tracksPerRound(mode)) {
+    const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
+    const resolved = resolveAttendance(
+      mode,
+      ids,
+      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+    );
+    const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));
+    ids = ids.filter((id) => !out.has(id));
+  }
+  if (size < state.confirmed.length) {
+    const onRound = new Set(cards.filter((c) => c.stageId === stageId).map((c) => c.playerId));
+    ids = ids.filter((id) => onRound.has(id));
+  }
+  return new Set(ids);
+}
+
+/** Whether any of `ids` has yet to put a score on this round's card. */
+function anyNotStarted(
+  ids: Iterable<string>,
+  stageId: string,
+  cards: ReadonlyArray<{ stageId: string; playerId: string; strokes: string }>,
+): boolean {
+  for (const id of ids) {
+    const card = cards.find((c) => c.stageId === stageId && c.playerId === id);
+    let started = false;
+    try {
+      started = !!card && (JSON.parse(card.strokes) as (number | null)[]).some((s) => s != null);
+    } catch {
+      started = false;
+    }
+    if (!started) return true;
+  }
+  return false;
 }
 
 async function gameNets(
@@ -656,6 +755,11 @@ async function gameNets(
       const playingIds = new Set(fieldIds);
       // The rounds carrying a Nassau: their pots wait for its last bet too.
       const nassauStages = nassauStagesIn(sideGames);
+      // Each round's field, asked once per round — see `roundFieldFor`.
+      const fieldByStage = new Map<string, Set<string> | null>();
+      for (const stageId of new Set(sideGames.map((g) => g.stageId))) {
+        fieldByStage.set(stageId, await roundFieldFor(state, eventId, stageId, cards));
+      }
       const roundIsFinal = (stageId: string, holeCount: number): boolean => {
         const cached = finalByStage.get(stageId);
         if (cached !== undefined) return cached;
@@ -667,6 +771,7 @@ async function gameNets(
           eventCompleted: state.event.status === "completed",
           playingIds,
           nassau: nassauStages.has(stageId),
+          roundClosed: stageById.get(stageId)?.closedAt != null,
         }).final;
         finalByStage.set(stageId, answer);
         return answer;
@@ -852,6 +957,25 @@ async function gameNets(
           game.entrants,
           stakeholderIds,
         ).entrants;
+        /**
+         * AND EVERY MEMBER ON THE ROUND HAS TEED OFF (2026-10-08).
+         *
+         * `roundIsFinal` asks whether the cards that EXIST are complete, and a
+         * member in the afternoon wave has none yet — so the morning's pot paid
+         * out with players still to go who could change it. A member still in
+         * the round's field with no score holds the pot; anyone outside the
+         * pot cannot change it and is not waited for. The committee closing
+         * the round, or the tournament, releases a no-show.
+         */
+        const roundField = fieldByStage.get(game.stageId) ?? null;
+        if (
+          roundField &&
+          stage.closedAt == null &&
+          state.event.status !== "completed" &&
+          anyNotStarted(entrantIds.filter((id) => roundField.has(id)), game.stageId, cards)
+        ) {
+          continue;
+        }
         const potCards = cards
           .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
           .map((c) => {
@@ -1741,6 +1865,9 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       eventCompleted: state?.event.status === "completed",
       playingIds: new Set(fieldIds),
       nassau: nassauStages.has(stage.id),
+      // The round's whole field, not just the cards that exist — see the field.
+      expectedCards: state ? (await roundFieldFor(state, eventId, stage.id, cards))?.size ?? null : null,
+      roundClosed: stage.closedAt != null,
     });
 
     // A finished round pays every pot. A round still in play pays only its

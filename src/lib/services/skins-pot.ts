@@ -21,6 +21,7 @@ import {
 import { resolveCourse } from "../courses";
 import { parseTeeSheet } from "../domain/tee-sheet";
 import { roundStrokes } from "./round-cards";
+import { needsTeams } from "../formats";
 
 /**
  * A week's skins pot, resolved into money.
@@ -130,6 +131,9 @@ export async function skinsPotFor(
         nine: true,
         format: true,
         handicapAllowance: true,
+        // The committee's "this round is finished" — releases a pot held for
+        // an entrant who never teed off. See `waitingToStart`.
+        closedAt: true,
       },
     }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
@@ -467,10 +471,33 @@ export async function skinsPotFor(
    * cards made all eighteen read as played and the pot settled while the
    * sixteenth player was on the 12th tee.
    */
-  const unplayed = holesUnplayedIn(
-    inPot.map((p) => (strokesBy.get(p.id) ?? []).slice(from, to)),
-    holeCount,
-  );
+  /**
+   * AND AN ENTRANT WHO HAS NOT TEED OFF HOLDS IT TOO (2026-10-08).
+   *
+   * `holesUnplayedIn` lets an entrant with no card at all through, for reasons
+   * it gives — team formats file one card for several players, and a card
+   * that never comes would hold the pot for ever. On an INDIVIDUAL round
+   * neither applies to somebody still in the field: they are going out later,
+   * and any of them can halve the skin somebody already holds. Found with a
+   * field in two waves — a morning birdie on the 1st read "You're owed
+   * $70.00" over four "Mark settled" buttons for players still in the
+   * clubhouse.
+   *
+   * A withdrawn entrant does not hold it (their stake stays, see above), and
+   * the committee closing the round — or the tournament — releases it, which
+   * is the answer for a no-show.
+   */
+  const waitingToStart =
+    !needsTeams(stage.format) &&
+    stage.closedAt == null &&
+    event.status !== "completed" &&
+    inPot.some((p) => p.status === "confirmed" && !(strokesBy.get(p.id) ?? []).slice(from, to).some((s) => s != null));
+  const unplayed = waitingToStart
+    ? holeCount
+    : holesUnplayedIn(
+        inPot.map((p) => (strokesBy.get(p.id) ?? []).slice(from, to)),
+        holeCount,
+      );
 
   const result =
     inPot.length > 0
