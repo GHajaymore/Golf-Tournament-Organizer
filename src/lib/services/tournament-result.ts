@@ -289,6 +289,21 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
       allocationHoles,
     });
 
+    /**
+     * NOBODY HAS WON A ROUND SOMEBODY IS STILL PLAYING (2026-10-08).
+     *
+     * The first complete card was named the round's winner and the round
+     * counted "settled": a 36-hole medal's player board read "Round 2 · Ann ·
+     * 71 net" and "2 rounds · all settled" with Bea nine holes into round 2,
+     * free to shoot 65. A card that has begun and not finished means the
+     * result can still change, so the round waits — until those cards are in,
+     * or the committee closes the round and settles it on what was returned.
+     */
+    const stillOut = [...agg.values()].filter((row) => row.thru > 0 && row.thru < holes).length;
+    if (stillOut > 0 && !stage.closedAt) {
+      return { kind: "pending", label, note: `${stillOut} still on the course` };
+    }
+
     const unit = roundUnit(stage);
     const basis = (stage.scoringBasis ?? "net").toLowerCase();
     const scored = [...agg.entries()]

@@ -12,6 +12,7 @@ vi.mock("next/cache", () => ({
 
 import { liveBoard } from "@/lib/services/live-board";
 import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { resultLinesFor } from "@/lib/services/tournament-result";
 
 /**
  * A 36-HOLE MEDAL WITH A CUT, WHILE ROUND 2 IS BEING PLAYED (2026-10-08).
@@ -135,6 +136,38 @@ describe("a player who missed the cut", () => {
     const dan = (await order()).find((r) => r.name === "Dan")!;
     expect(dan.cut).toBe("");
     expect(dan.ranked).toBe(true);
+  });
+});
+
+describe("the round-by-round result on the player's board", () => {
+  const roundTwoLine = async () => {
+    const state = await loadEventState(eventId);
+    if (!state) throw new Error("the event did not load");
+    return (await resultLinesFor(state))[1];
+  };
+
+  it("names no round 2 winner while a survivor is still on the course", async () => {
+    await roundTwo(9);
+    const line = await roundTwoLine();
+    expect(line.settled, line.result).toBe(false);
+    expect(line.result).toMatch(/still on the course/);
+  });
+
+  it("names the winner once every card that began is finished — the control", async () => {
+    await roundTwo(18);
+    const line = await roundTwoLine();
+    expect(line.settled).toBe(true);
+    expect(line.result).toMatch(/Ann/);
+  });
+
+  it("settles on what was returned once the committee closes the round", async () => {
+    await roundTwo(9);
+    await prisma.stage.update({ where: { id: r2 }, data: { closedAt: new Date() } });
+    try {
+      expect((await roundTwoLine()).settled).toBe(true);
+    } finally {
+      await prisma.stage.update({ where: { id: r2 }, data: { closedAt: null } });
+    }
   });
 });
 
