@@ -20,7 +20,7 @@ import { makeBoardPublic, readPublicBoard } from "./public-board";
  *                  hole for hole, so no countback can part them: 3 go through
  *     Round 2      Alder 74, Briar 70, Cedar 73
  *     36 holes     Briar 142, Alder 144, Cedar 145; Dune and Elm unranked,
- *                  "didn't play Round 2"
+ *                  "Missed the cut after Round 1"
  *
  * A cut that took exactly two sends Cedar home; one made on entry order or
  * never made leaves Dune ranked; a board summing one round prints 70 for the
@@ -242,7 +242,9 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
       expect(i, `${cut.name} is missing from the board`).toBeGreaterThan(-1);
       expect(i, `${cut.name} missed the cut and is ranked among those who played 36`).toBeGreaterThan(Math.max(...at));
     }
-    expect(board.match(/didn't play Round 2/g)?.length, "missed-cut players are not captioned").toBe(2);
+    expect(board.match(/Missed the cut after Round 1/g)?.length, "missed-cut players are not captioned").toBe(2);
+    // Not as a no-show: they did not play round 2 because the cut sent them home.
+    expect(board).not.toMatch(/didn't play Round 2/);
   });
 
   await test.step("the link the club sends its members says the same", async () => {
@@ -263,7 +265,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     expect([...at].sort((a, b) => a - b), "the public board is not in 36-hole order").toEqual(at);
     // The cut, said to members as it is said to the committee — and below the field.
     for (const name of ["Dune Quayle", "Elm Quayle"]) {
-      const i = pub.search(new RegExp(`${name}\\s+F · didn't play Round 2`));
+      const i = pub.search(new RegExp(`${name}\\s+F · missed the cut`));
       expect(i, `${name} is not shown as missing the cut on the public board`).toBeGreaterThan(Math.max(...at));
     }
   });
