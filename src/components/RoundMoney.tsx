@@ -18,13 +18,30 @@ import { MoreInfo } from "./MoreInfo";
  * A player looking at forty pounds on the 14th who finishes with nothing has
  * been told something the app had no business claiming.
  */
-export function RoundMoney({ view }: { view: RoundMoneyView }) {
+export function RoundMoney({
+  view,
+  casual = false,
+}: {
+  view: RoundMoneyView;
+  /**
+   * A casual round (2026-10-07): one round, so "over the whole tournament"
+   * was the wrong noun and a "Round 1" line beneath only repeated the total.
+   * It says "this round" and lists everybody's position directly.
+   */
+  casual?: boolean;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   // The club's currency from the provider, not a symbol threaded in as a
   // prop. The prop carried only the SYMBOL, so it could not say how many minor
   // units the currency has — and `/ 100` assumed a hundred, which yen has not.
   const { money: fmt } = useMoney();
   const money = (cents: number) => `${cents > 0 ? "+" : ""}${fmt(cents)}`;
+  // A casual round's positions, written exactly as the round's own money page
+  // writes them (`CasualMoney.positions`): a true minus, and "square" at
+  // nothing. The host reads both screens, and "-$10.00" here against
+  // "−$10.00" there was one figure in two spellings.
+  const position = (cents: number) =>
+    cents === 0 ? "square" : `${cents > 0 ? "+" : "−"}${fmt(Math.abs(cents))}`;
   const tone = (cents: number) =>
     cents > 0 ? "var(--color-accent-2-200)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 
@@ -78,7 +95,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
    * and so a tournament that finishes gets the fuller sentence back without
    * anybody remembering to change it.
    */
-  const scope = outstanding ? " on the rounds that have finished" : " over the whole tournament";
+  const scope = casual ? " on this round" : outstanding ? " on the rounds that have finished" : " over the whole tournament";
 
   return (
     <section className="card elev-sm" style={{ gap: 10 }}>
@@ -171,8 +188,14 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
          * visible to everyone in the group and stays visible.
          */
         <MoreInfo short="You have no stake in the pots.">
-          You aren&rsquo;t in this tournament&rsquo;s field, so you have no stake in its pots. The
-          group&rsquo;s shared costs are below.
+          {casual ? (
+            <>You aren&rsquo;t playing in this round, so you have no stake in its pots.</>
+          ) : (
+            <>
+              You aren&rsquo;t in this tournament&rsquo;s field, so you have no stake in its pots. The
+              group&rsquo;s shared costs are below.
+            </>
+          )}
         </MoreInfo>
       ) : !view.anyFinal ? (
         /**
@@ -200,7 +223,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
         // away (Ajay, 2026-10-05), and a <details> may not sit inside a <p>.
         <div>
           {!view.anyGame ? (
-            <MoreInfo short="No side games in this tournament.">
+            <MoreInfo short={casual ? "No money game on this round." : "No side games in this tournament."}>
               Nothing to divide. Skins, pots and contests are set up per round, and none has been.
             </MoreInfo>
           ) : outstanding || view.rounds.length === 0 ? (
@@ -268,8 +291,29 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
             </span>
           </div>
 
+          {/* One round: everybody's position, directly — a "Round 1" line
+              would only repeat the total above. */}
+          {casual &&
+            played.flatMap((r) => r.standing).map((s) => (
+              <div
+                key={s.playerId}
+                data-position
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  fontSize: 14,
+                  padding: "3px 0",
+                  fontWeight: s.playerId === view.playerId ? 600 : 400,
+                }}
+              >
+                <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{s.name}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums", color: tone(s.netCents) }}>{position(s.netCents)}</span>
+              </div>
+            ))}
+
           {/* Then the rounds that made it up. */}
-          {played.map((r) => {
+          {!casual && played.map((r) => {
             const isOpen = open === r.stageId;
             return (
               <div key={r.stageId} style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 8 }}>

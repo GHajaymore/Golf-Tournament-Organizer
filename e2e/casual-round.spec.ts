@@ -591,6 +591,43 @@ test.describe("a casual round at the course", () => {
     expect(one).toContain(`${ANN} pays ${BEA} $1.00`);
   });
 
+  test("the host who plays reads their own money and board as one round's", async ({ page }) => {
+    /**
+     * The host left in as Player 1, the way the form prefills them, against
+     * Bea for $10 gross skins. The host birdies the 3rd, which takes the three
+     * skins carried to it; the rest are halved and unclaimed, so the host is
+     * +$10 and Bea -$10.
+     *
+     * Their player screens spoke tournament until 2026-10-07: Money said
+     * "You're up over the whole tournament" over a lone "Round 1" line that
+     * repeated the total, and Board put "Flight 1" beside both names, a word
+     * the round shows nowhere else.
+     */
+    const HOST = "Casey Fairway";
+    await setUp(page, "Stroke Play", false, [HOST, BEA], { game: "Skins", stake: "10" });
+    await scoreHoles(page, (hole, card) => (hole === 3 && card === 0 ? -1 : 0));
+
+    await page.goto(`/me/money?bust=${Date.now()}`);
+    const money = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    expect(money).toMatch(/You.re up on this round \+\$10\.00/);
+    expect(money).not.toMatch(/whole tournament|Round 1/);
+    const positionsOn = async (path: string) => {
+      await page.goto(`${path}?bust=${Date.now()}`);
+      return (await page.locator("main [data-position]").allInnerTexts()).map((p) => p.replace(/\s+/g, " ").trim()).sort();
+    };
+    const mine = await positionsOn("/me/money");
+    expect(mine).toEqual([`${BEA} −$10.00`, `${HOST} +$10.00`]);
+    // And word for word what the round's own money page says: the host reads
+    // both, and the first draft printed "-$10.00" here against "−$10.00" there.
+    expect(mine, "the player's money and the round's money spell one figure two ways").toEqual(await positionsOn("/group-games"));
+
+    await page.goto(`/me/board?bust=${Date.now()}`);
+    const board = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    // The control: the board is the round's, with both players on it.
+    expect(board).toMatch(new RegExp(`1 ${HOST} F -1 2 ${BEA} F E`));
+    expect(board).not.toContain("Flight");
+  });
+
   test("two friends score their own cards by the round code, on their own phones", async ({ page, browser, baseURL }, testInfo) => {
     /**
      * The round is set up on one phone and the code read out on the first
