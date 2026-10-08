@@ -72,6 +72,15 @@ describe("why a stroke row holds no place", () => {
     expect(html).not.toContain("not ranked");
   });
 
+  it("says DQ for a player the committee disqualified, on both boards", () => {
+    const dq = row({ disqualified: true, thru: 18 });
+    expect(unrankedNote(dq)).toBe("DQ — disqualified");
+    const html = renderToStaticMarkup(
+      <PlayerLeaderboard isStroke isStableford={false} rows={[dq]} holes={18} unit="strokes" cutNote="" />,
+    );
+    expect(html).toContain("F · DQ");
+  });
+
   it("and Today does not ask a cut player for a card the cut never owed them", () => {
     const src = readSource("src/lib/services/me.ts");
     expect(src).toMatch(/const closedWithout =\s*!cutOut && stage\.closedAt != null/);

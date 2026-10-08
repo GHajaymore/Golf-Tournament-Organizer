@@ -103,6 +103,19 @@ export interface LiveBoardView {
   /** The knockout IS the first round: the draw replaces the table. */
   straightKnockout: boolean;
   allIn: boolean;
+  /**
+   * The result is OFFICIAL: the committee has closed the round on screen, or
+   * completed the tournament (2026-10-08).
+   *
+   * Under the Rules a stroke-play result becomes official when the committee
+   * closes the competition — cards are returned, checked and accepted first.
+   * `allIn` (every card complete) printed "Final · these scores no longer
+   * change" while Today, for the same round, said the tournament had not been
+   * closed yet: one fact, two answers. So there are three states now — Live,
+   * All in (unofficial until the committee closes the round), Final — and
+   * only this one says Final.
+   */
+  official: boolean;
   roundLabel: string;
   /**
    * The rounds a viewer may switch the board to, and the one on screen — the
@@ -405,7 +418,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
    */
   const thruHere = (r: StandingRow): number => (activeStage ? state.roundThru(r.id, activeStage.id) : r.thru);
   // Nor on a player who withdrew: their card is as far as it will ever get.
-  const expected = rows.filter((r) => !r.absent && !r.missedCut && !r.withdrew);
+  const expected = rows.filter((r) => !r.absent && !r.missedCut && !r.withdrew && !r.disqualified);
   const expectedStarted = expected.filter((r) => thruHere(r) > 0);
   /**
    * A ROUND COUNTED IN SIDES OR TIES IS ASKED IN SIDES OR TIES (2026-10-08).
@@ -473,6 +486,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
     bracketResults: draws.length > 0 ? await bracketResults(event.id) : {},
     straightKnockout: knockoutAt === 0 && !!activeStage && isKnockoutRound(activeStage.type),
     allIn,
+    official: declaredFinal || activeStage?.closedAt != null,
     /* The organizer's own name for the round where they gave one, then the
        console heading's words (`roundNameFor`). This fell back to the TYPE
        alone, so a club's Scramble went out to its members as "Stroke Play
@@ -522,7 +536,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 3; // 3: `rounds` and `shownStageId`, the round picker (2026-09-27)
+export const LIVE_BOARD_SHAPE = 4; // 4: `official`, Final only once the committee closes (2026-10-08)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

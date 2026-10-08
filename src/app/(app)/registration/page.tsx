@@ -4,6 +4,8 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
+import { DisqualifyPanel } from "@/components/DisqualifyPanel";
+import { isLaunched } from "@/lib/domain/lifecycle-state";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
@@ -98,6 +100,15 @@ export default async function RegistrationPage() {
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
+      {/* THE COMMITTEE'S RULING (2026-10-08). Only once play has begun —
+          there is nothing to be disqualified from before it — and outside the
+          setup lock, since that is when the lock is on. */}
+      {isLaunched(state.event.status) && (
+        <DisqualifyPanel
+          field={state.confirmed.map((p) => ({ id: p.id, name: p.name }))}
+          disqualified={state.players.filter((p) => p.status === "disqualified").map((p) => ({ id: p.id, name: p.name }))}
+        />
+      )}
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,
           2026-09-27). A member who withdraws themselves took the confirmed
           count from 19 to 18 with nothing here saying who or when. */}

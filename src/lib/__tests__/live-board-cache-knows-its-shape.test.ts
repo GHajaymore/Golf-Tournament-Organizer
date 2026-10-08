@@ -30,12 +30,13 @@ function viewFields(): string[] {
 // The fields shape 2 was written for. When this list changes, bump
 // LIVE_BOARD_SHAPE in live-board.ts AND update both numbers here.
 // 3: `rounds` and `shownStageId`, the round picker (2026-09-27).
-const SHAPE = 3;
+// 4: `official`, Final only once the committee closes the round (2026-10-08).
+const SHAPE = 4;
 const FIELDS = [
   "name", "dates", "venue", "teamFormat", "rows", "teamRows", "teamMatchRows", "pointsSystem",
   "skins", "nassau", "modStableford", "skinsNet", "kind", "teamRound", "isStroke", "isStableford",
   "teamBasis", "holeCount", "cutNote", "unit", "manualFormat", "draws", "bracketResults",
-  "straightKnockout", "allIn", "roundLabel", "rounds", "shownStageId", "brand", "themeStyleSheet", "colorScheme",
+  "straightKnockout", "allIn", "official", "roundLabel", "rounds", "shownStageId", "brand", "themeStyleSheet", "colorScheme",
 ];
 
 describe("the public board's cache", () => {

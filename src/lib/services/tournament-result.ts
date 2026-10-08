@@ -299,8 +299,11 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
      * result can still change, so the round waits — until those cards are in,
      * or the committee closes the round and settles it on what was returned.
      */
-    // A withdrawn player's card is as far as it will get; nobody waits on it.
-    const withdrawn = new Set(state.players.filter((p) => p.status === "withdrawn").map((p) => p.id));
+    // A withdrawn (or disqualified) player's card is as far as it will get;
+    // nobody waits on it.
+    const withdrawn = new Set(
+      state.players.filter((p) => p.status === "withdrawn" || p.status === "disqualified").map((p) => p.id),
+    );
     const stillOut = [...agg.entries()].filter(
       ([playerId, row]) => row.thru > 0 && row.thru < holes && !withdrawn.has(playerId),
     ).length;

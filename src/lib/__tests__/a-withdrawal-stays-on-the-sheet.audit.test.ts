@@ -137,6 +137,26 @@ describe("a player who withdrew at the turn of round 2", () => {
     expect((await resultLinesFor(s))[1].settled).toBe(true);
   });
 
+  it("and a player the committee DISQUALIFIES is the last line, DQ, beneath the WD", async () => {
+    await prisma.player.update({ where: { id: ids.Cat }, data: { status: "disqualified" } });
+    try {
+      const s = await state();
+      const rows = standingRows(s);
+      const cat = rows.find((r) => r.id === ids.Cat)!;
+      expect(cat, "the disqualified player vanished from the sheet").toBeDefined();
+      expect(cat.disqualified).toBe(true);
+      expect(cat.withdrew).toBe(false);
+      expect(cat.ranked).toBe(false);
+      expect(rows.map((r) => r.id).slice(-2), "DQ is not the last line, beneath WD").toEqual([ids.Bea, ids.Cat]);
+      // Out of the field: not ranked, not drawn, not waited for.
+      expect(s.strokeStandings.map((x) => x.player.id)).not.toContain(ids.Cat);
+      expect(s.boardProgress.total).toBe(1);
+      expect((await liveBoard(eventId))!.allIn).toBe(true);
+    } finally {
+      await prisma.player.update({ where: { id: ids.Cat }, data: { status: "confirmed" } });
+    }
+  });
+
   it("waits for her while she is still in the field — the control", async () => {
     await prisma.player.update({ where: { id: ids.Bea }, data: { status: "confirmed" } });
     const s = await state();

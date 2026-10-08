@@ -84,6 +84,8 @@ export interface StandingRow {
   missedCut?: string;
   /** Withdrew after beginning: WD, at the foot of the sheet, without a place. */
   withdrew?: boolean;
+  /** Disqualified by the committee: DQ, the last line, without a place. */
+  disqualified?: boolean;
   /**
    * Whether a PAR was known for the holes this player has played.
    *
@@ -117,6 +119,7 @@ export interface StandingRow {
  */
 export function unrankedNote(r: StandingRow): string {
   if (r.ranked || r.thru <= 0) return "";
+  if (r.disqualified) return "DQ — disqualified";
   if (r.withdrew) return "WD — withdrew";
   // A round the committee closed, with no card for it — a player cut after
   // round 1, or one who did not turn up for round 2. Their card is not

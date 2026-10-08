@@ -113,6 +113,21 @@ export function potMembership(
    * behaves exactly as before.
    */
   stakeholderIds: string[] = fieldIds,
+  /**
+   * Who actually struck a ball in the round this pot hangs off — passed once
+   * that round's money is being SETTLED, never for a player's exposure before
+   * they tee off (2026-10-08).
+   *
+   * A sweep is taken on the first tee. In an opt-out pot silence means "in",
+   * and that was read off the field as it stands NOW: a player entered after
+   * round 1 was charged round 1's birdie pot, and a member who never turned up
+   * paid into a pot for a round they did not play. The standard is that you
+   * pay for a round you played. So, when this is given, an opt-out player with
+   * no row of their own is in only if they played. A row the organizer
+   * recorded — the cash in hand — still stands either way: a stake is paid or
+   * it is not, the same rule as `paidButGone` above.
+   */
+  played?: ReadonlySet<string>,
 ): PotMembership {
   const byId = new Map(decisions.map((d) => [d.playerId, d]));
   const inField = new Set(fieldIds);
@@ -138,6 +153,8 @@ export function potMembership(
     for (const id of fieldIds) {
       if (excludedSet.has(id)) continue;
       const row = byId.get(id);
+      // Silence is in only for somebody who played the round — see `played`.
+      if (!row && played && !played.has(id)) continue;
       // No row is the ordinary case here, and it means in and settled.
       if (!row || row.confirmed) entrants.push(id);
       else pending.push(id);

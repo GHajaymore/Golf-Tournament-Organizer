@@ -239,3 +239,38 @@ describe("what counts as a derived game", () => {
     expect(nets.find((n) => n.playerId === "b")!.netCents).toBe(-1_000);
   });
 });
+
+/**
+ * THE TWOS SWEEP (2026-10-08): one share for every 2 made, on any hole — the
+ * standard club twos. It was a one-winner prize line under a detail promising
+ * shares. A par-3 course card is used so a two is a birdie on some holes and
+ * an EAGLE on a par 4, which still counts: a two is a two.
+ */
+describe("twos pot", () => {
+  const P = [3, 4, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
+  const holes = (twosAt: number[]) => P.map((p, i) => (twosAt.includes(i) ? 2 : p));
+
+  it("divides by every two made, so two twos is two shares", () => {
+    // a: twos on two par 3s; b: one two on a par 4 (an eagle); c and d: none.
+    const nets = derivedNets(
+      pot({ kind: "twos", pars: P, cards: [card("a", holes([0, 2])), card("b", holes([1])), card("c", holes([])), card("d", holes([]))] }),
+    );
+    expect(sum(nets)).toBe(0);
+    // $40 pot, 3 twos: a takes two thirds, b one third, each less their stake.
+    expect(nets.find((n) => n.playerId === "a")!.netCents).toBe(1_667);
+    expect(nets.find((n) => n.playerId === "b")!.netCents).toBe(333);
+    expect(nets.find((n) => n.playerId === "c")!.netCents).toBe(-1_000);
+  });
+
+  it("is not a birdie pot — a birdie 3 on a par 4 is not a two (control)", () => {
+    const birdie = P.map((p, i) => (i === 1 ? 3 : p));
+    const nets = derivedNets(pot({ kind: "twos", pars: P, cards: [card("a", birdie), card("b", P), card("c", P), card("d", P)] }));
+    // Nobody made a two: every stake comes back.
+    expect(nets).toEqual([]);
+  });
+
+  it("is a kind the app knows", () => {
+    expect(isDerivedKind("twos")).toBe(true);
+    expect(DERIVED_LABEL.twos).toBe("Twos pot");
+  });
+});

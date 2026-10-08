@@ -38,10 +38,9 @@ describe("prize structures", () => {
     expect(prizeStructureLines("flight-winners", noFlights)).toHaveLength(0);
   });
 
-  it("twos and specials carry helpful detail, not just a category", () => {
-    const twos = prizeStructureLines("twos", noFlights);
-    expect(twos).toHaveLength(1);
-    expect(twos[0].detail && twos[0].detail.length).toBeGreaterThan(0);
+  it("specials carry helpful detail, and twos is a side bet rather than a one-winner line", () => {
+    // A twos sweep pays a share per two; a prize line has one winner.
+    expect(prizeStructure("twos")).toBeNull();
 
     const specials = prizeStructureLines("specials", noFlights);
     expect(specials.map((l) => l.category)).toEqual(["Nearest the pin", "Longest drive"]);

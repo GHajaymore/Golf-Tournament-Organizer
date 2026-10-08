@@ -179,9 +179,21 @@ describe("the public board over a two-round event", () => {
     expect(b!.allIn, "Final over a player on the 10th").toBe(false);
   });
 
-  it("is Final once every survivor is round, without waiting on those cut — the control", async () => {
+  it("is all in once every survivor is round, without waiting on those cut — the control", async () => {
     await roundTwo(18);
     const b = await liveBoard(eventId);
     expect(b!.allIn).toBe(true);
+    // Every card in is not the official result: the round is still open.
+    expect(b!.official, "Final before the committee closed the round").toBe(false);
+  });
+
+  it("is Final — official — once the committee closes the round", async () => {
+    await roundTwo(18);
+    await prisma.stage.update({ where: { id: r2 }, data: { closedAt: new Date() } });
+    try {
+      expect((await liveBoard(eventId))!.official).toBe(true);
+    } finally {
+      await prisma.stage.update({ where: { id: r2 }, data: { closedAt: null } });
+    }
   });
 });
