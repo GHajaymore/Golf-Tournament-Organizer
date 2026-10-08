@@ -116,7 +116,7 @@ export default async function NewMatchPage() {
   }));
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
         display: "flex",
@@ -206,6 +206,6 @@ export default async function NewMatchPage() {
           .
         </p>
       </div>
-    </div>
+    </main>
   );
 }

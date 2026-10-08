@@ -15,7 +15,7 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
         display: "flex",
@@ -33,6 +33,6 @@ export default async function ResetPasswordPage({
         <Lockup size={LOGO_SIZE.md} />
       </div>
       <ResetPasswordForm token={token ?? ""} />
-    </div>
+    </main>
   );
 }

@@ -159,7 +159,10 @@ export default async function PublicLeaderboardPage({
       }}
     >
       <style dangerouslySetInnerHTML={{ __html: board.themeStyleSheet }} />
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      {/* THE PAGE'S MAIN LANDMARK (2026-10-08). The console and the player
+          app each have one; the board a club sends every member had none, so
+          a screen reader had no way to jump to the scores. */}
+      <main style={{ maxWidth: 720, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           {/* lg, the scale's hero size. This board is the club's shopfront
               — the link that goes on the clubhouse screen and to families —
@@ -309,7 +312,7 @@ export default async function PublicLeaderboardPage({
           would have no visible symptom.
         */}
         <LiveRefresh renderedAt={new Date().toISOString()} final={board.official} allIn={board.allIn} />
-      </div>
+      </main>
     </div>
   );
 }

@@ -26,7 +26,7 @@ export default async function AccountPage() {
   const soleOwnerOf = await soleOwnedClubs(session.userId);
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
         display: "flex",
@@ -66,6 +66,6 @@ export default async function AccountPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
