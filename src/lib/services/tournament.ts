@@ -2943,6 +2943,7 @@ export function standingRows(state: EventState): StandingRow[] {
       // round — set rather than absent, so both branches have one shape.
       missedRound: "",
       missedCut: "",
+      withdrew: false,
     };
   });
 }
