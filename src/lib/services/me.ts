@@ -485,9 +485,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       revision: cardRevision(sized),
     };
   }
-  // A closed round with nothing of this player's on it — see the field.
+  // A closed round with nothing of this player's on it — see the field. Not
+  // for a player the cut left out: no card was ever owed, and "There's no
+  // Round 2 card from you" read as a card they had failed to hand in.
   const closedWithout =
-    stage.closedAt != null && (card?.filled ?? 0) === 0
+    !cutOut && stage.closedAt != null && (card?.filled ?? 0) === 0
       ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
       : "";
 

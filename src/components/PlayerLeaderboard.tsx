@@ -58,6 +58,7 @@ function cardState(r: StandingRow, holes: number): string {
   // The same reason the console gives — see `unrankedNote`. "F · not ranked"
   // on a player cut after round 1 read as a finished card that lost its place
   // for nothing.
+  if (r.missedCut) return `${played} · missed the cut`;
   return r.missedRound ? `${played} · didn't play ${r.missedRound}` : `${played} · not ranked`;
 }
 

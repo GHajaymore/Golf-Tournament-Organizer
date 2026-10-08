@@ -398,6 +398,18 @@ export interface StrokeStanding {
    * rows stay valid.
    */
   missedRound?: string;
+  /**
+   * The round this player was CUT after — "Round 1" — or "" (2026-10-08).
+   *
+   * A cut is decided the moment it is made, not when the round after it is
+   * closed. Until then a player it left out stayed ranked on their one round,
+   * so with round 2 under way the board read Dan 3rd on 74 (+3 over 18) above
+   * Cat on 152 (+10 over 36) — a missed cut placed above a player who made it,
+   * which no results sheet does. Read off the same field `strokeCutField`
+   * gives the player app: the players holding a card for the round after an
+   * applied cut. Without a place, beneath everyone who made it.
+   */
+  missedCut?: string;
 }
 
 export interface EventState {
@@ -655,6 +667,16 @@ export interface EventState {
    * every card is in.
    */
   roundFieldSize: (stageId: string) => number | null;
+  /**
+   * Holes this player has on ONE round's card (2026-10-08).
+   *
+   * A stroke row's `thru` is the whole aggregate — 27 for a player nine holes
+   * into round 2 — and the public board asked it "has everybody played the
+   * round's eighteen?". So a 36-hole championship read "Final · these scores
+   * no longer change" as soon as everybody had played ONE round, over a
+   * player still on the 10th of the second.
+   */
+  roundThru: (playerId: string, stageId: string) => number;
   advancingCount: number;
   advancingIds: Set<string>;
   /**
@@ -1933,6 +1955,28 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     return roundKicker(st?.description, roundLabel(stages, id) || "a round");
   };
 
+  /**
+   * WHO AN APPLIED CUT LEFT OUT, by the round they were cut after.
+   *
+   * The same field `strokeCutField` answers for the player app, read off rows
+   * already loaded: a round with a cut, out of a CLOSED individual stroke
+   * round, belongs to the players holding a card for it — `applyStrokeCut`
+   * gives every survivor one and nobody else. A round with no cards yet has
+   * not had its cut applied, so it says nothing about anybody.
+   */
+  const cutAfter = new Map<string, string>();
+  for (let i = 1; i < playRounds.length; i += 1) {
+    const round = playRounds[i];
+    const feeder = playRounds[i - 1];
+    if (!round.cutEnabled || !feeder.closedAt) continue;
+    if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) continue;
+    const field = new Set(scorecards.filter((c) => c.stageId === round.id).map((c) => c.playerId));
+    if (field.size === 0) continue;
+    for (const p of confirmed) {
+      if (!field.has(p.id) && !cutAfter.has(p.id)) cutAfter.set(p.id, nameOfRound(feeder.id));
+    }
+  }
+
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
@@ -1972,9 +2016,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
           ? (strokeUnit === "modified Stableford points" ? 0 : 2) * levelHoles(a)
           : 0,
         holesOwed: a.holesOwed,
-        ranked: isRanked(a) && !missedAClosedRound(a),
+        ranked: isRanked(a) && !missedAClosedRound(a) && !cutAfter.has(p.id),
         rank: 0,
         missedRound: a.thru > 0 && missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
+        missedCut: cutAfter.get(p.id) ?? "",
       };
     })
     .sort((x, y) => {
@@ -1996,8 +2041,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * Rows with no score to order by (never started, a card cut short)
          * stay after them, as they entered.
          */
-        const xMissed = x.missedRound ? 1 : 0;
-        const yMissed = y.missedRound ? 1 : 0;
+        const xMissed = x.missedRound || x.missedCut ? 1 : 0;
+        const yMissed = y.missedRound || y.missedCut ? 1 : 0;
         if (xMissed !== yMissed) return yMissed - xMissed;
         if (xMissed) return compareOnBasis(x, y, rankingBasis);
         return 0;
@@ -2559,6 +2604,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       if (!roundIsStroke(s.type, s.format)) return null;
       return roundProgress(s).total;
     },
+    roundThru: (playerId: string, stageId: string) => strokeAgg.get(playerId)?.holesPlayedByStage.get(stageId) ?? 0,
     advancingCount,
     advancingIds,
     pendingConfirmations,
@@ -2777,6 +2823,7 @@ export function standingRows(state: EventState): StandingRow[] {
       thru: s.thru,
       holesOwed: s.holesOwed,
       missedRound: s.missedRound ?? "",
+      missedCut: s.missedCut ?? "",
     }));
   }
   /**
@@ -2834,6 +2881,7 @@ export function standingRows(state: EventState): StandingRow[] {
       // A match row always holds a position, so it never missed a closed
       // round — set rather than absent, so both branches have one shape.
       missedRound: "",
+      missedCut: "",
     };
   });
 }

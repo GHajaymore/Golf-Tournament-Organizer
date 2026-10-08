@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
+import { readSource } from "./source";
 
 /**
  * A ROW WITHOUT A PLACE SAYS WHY, AND THE THREE REASONS ARE DIFFERENT.
@@ -44,5 +45,25 @@ describe("why a stroke row holds no place", () => {
     );
     expect(html).toContain("didn&#x27;t play Round 2");
     expect(html).not.toContain("F · not ranked");
+  });
+
+  /**
+   * A MISSED CUT IS NOT A NO-SHOW (2026-10-08). Once round 2 was closed a
+   * player cut after round 1 read "didn't play Round 2" on every board — a
+   * player who failed to turn up, not one the cut sent home.
+   */
+  it("says a player missed the cut, before saying what they did not play", () => {
+    const cut = row({ missedCut: "Round 1", missedRound: "Round 2" });
+    expect(unrankedNote(cut)).toBe("Missed the cut after Round 1");
+    const html = renderToStaticMarkup(
+      <PlayerLeaderboard isStroke isStableford={false} rows={[cut]} holes={18} unit="strokes" cutNote="" />,
+    );
+    expect(html).toContain("F · missed the cut");
+    expect(html).not.toContain("didn&#x27;t play");
+  });
+
+  it("and Today does not ask a cut player for a card the cut never owed them", () => {
+    const src = readSource("src/lib/services/me.ts");
+    expect(src).toMatch(/const closedWithout =\s*!cutOut && stage\.closedAt != null/);
   });
 });
