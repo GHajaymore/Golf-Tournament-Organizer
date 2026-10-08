@@ -524,6 +524,14 @@ export function snapshotStanding(input: {
   hasRound?: boolean;
   /** A casual round — see the all-in branch below. */
   casual?: boolean;
+  /**
+   * The committee has CLOSED the round on the board ("This round is
+   * finished"). Then nothing more is coming back from it, and "2 of 3 cards
+   * in — these standings will change" is false: the third card is not late,
+   * it is not coming, and the board already shows that player without a
+   * place. Walked 2026-10-08 on a 36-hole aggregate with both rounds closed.
+   */
+  roundClosed?: boolean;
 }): SnapshotStanding {
   const noun = input.noun ?? "standings";
   if (input.status === "completed") {
@@ -575,6 +583,9 @@ export function snapshotStanding(input: {
       title,
       note: "No round has been added yet — there will be nothing to report until there is something to play.",
     };
+  }
+  if (input.roundClosed && !ties) {
+    return { title, note: "The committee has closed this round — nothing more is coming in from it." };
   }
   if (input.total <= 0 || input.done <= 0) {
     return {

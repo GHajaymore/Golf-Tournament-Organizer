@@ -11,7 +11,7 @@ import { playRefusalFor } from "@/lib/services/action-shared";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
-import { writeScorecard, certifyCard } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
 import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
@@ -425,6 +425,13 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
   // tournament already under way is deliberately NOT stopped halfway.
   const notStarted = await playRefusalFor(session.eventId);
   if (notStarted) return { ok: false, error: notStarted };
+
+  // A closed round takes no more cards from a player — see `assertRoundOpen`.
+  try {
+    await assertRoundOpen(session.eventId, session.stageId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "This round is closed." };
+  }
 
   /**
    * The card is written for the player the SESSION names, never one the

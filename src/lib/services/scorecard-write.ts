@@ -219,6 +219,22 @@ export async function writeScorecard(input: {
 }
 
 /**
+ * A ROUND THE COMMITTEE HAS CLOSED TAKES NO MORE CARDS FROM PLAYERS
+ * (2026-10-08). "This round is finished" tells the board the round is over and
+ * shows anybody without a card without a place; a player saving one afterwards
+ * put themselves back on it, undoing the close without anybody deciding to.
+ * Players only — the console's `assertMayKeepCard` and the Round Code surface
+ * call it; staff are exempt, as with the cut: the committee corrects, or
+ * reopens the round.
+ */
+export async function assertRoundOpen(eventId: string, stageId: string): Promise<void> {
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { closedAt: true } });
+  if (stage?.closedAt) {
+    throw new Error("The committee has closed this round, so no more scores can be entered for it.");
+  }
+}
+
+/**
  * Refuses a signature or a dispute on a round whose cards are not signed — a
  * casual round, see `signsCards`. Every door into either act comes through
  * here: `certifyCard` for the console, the player card and the Round Code,
