@@ -90,11 +90,23 @@ export function scoringMismatch(
    * redundant guard is a second place for this rule to live, and the two would
    * eventually disagree. The behaviour is still pinned by its own test.
    */
+  /**
+   * WHAT THE MISMATCH STILL BREAKS, said as that (2026-10-08).
+   *
+   * These messages were written when every board ranked by this setting, so a
+   * mismatch really did empty the leaderboard. Boards rank each round by its
+   * OWN format now (`boardIsStroke`), and walked as the tournament grid's
+   * round robin the banner read "Nothing here can be ranked" above a table
+   * ranking all four players correctly. What still reads the setting is
+   * whatever is DECIDED from the standings — the players a knockout is seeded
+   * from and a cut is made on (`liveQualifiers`, the cut candidates) — so that
+   * is what the organizer is told.
+   */
   if (scoring === "match" && !anyHeadToHead) {
     return {
       scoring,
       message:
-        "This tournament is set to Match play, and no round in it draws opponents — so the standings have no matches to count and the leaderboard stays empty. Set Scoring to Stroke play on Tournament details.",
+        "This tournament is set to Match play, but no round in it draws opponents. The leaderboard ranks the cards, but a knockout draw or a cut made from these standings would be made on match points that nobody has earned. Set Scoring to Stroke play on Tournament details.",
     };
   }
 
@@ -102,7 +114,7 @@ export function scoringMismatch(
     return {
       scoring,
       message:
-        "This tournament is set to Stroke play, and every round in it is played head to head — so the standings look for cards that match play does not return. Set Scoring to Match play on Tournament details.",
+        "This tournament is set to Stroke play, but every round in it is played head to head. The leaderboard ranks the matches, but a knockout draw or a cut made from these standings would be made on stroke totals that match play does not produce. Set Scoring to Match play on Tournament details.",
     };
   }
 

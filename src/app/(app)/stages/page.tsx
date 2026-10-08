@@ -309,7 +309,9 @@ export default async function StagesPage() {
           }}
         >
           <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            <b>These rounds cannot be scored as set.</b> {scoring.message}{" "}
+            {/* The rounds score and rank by their own formats; what the setting
+                still decides is a draw or cut made from the standings. */}
+            <b>The Scoring setting does not match these rounds.</b> {scoring.message}{" "}
             <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Tournament details
             </Link>

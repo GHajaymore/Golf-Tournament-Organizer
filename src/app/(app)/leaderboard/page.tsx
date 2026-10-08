@@ -398,7 +398,9 @@ export default async function LeaderboardPage({
           }}
         >
           <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            <b>Nothing here can be ranked.</b> {mismatch.message}{" "}
+            {/* Not "Nothing here can be ranked" — the board below ranks each
+                round by its own format; see `scoringMismatch`. */}
+            <b>The Scoring setting does not match the rounds.</b> {mismatch.message}{" "}
             <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
               Tournament details
             </Link>
