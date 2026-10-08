@@ -10,7 +10,7 @@ import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
-import { cardPoints, type PointsTable } from "@/lib/domain/card-points";
+import { cardPoints, stablefordPickUp, type PointsTable } from "@/lib/domain/card-points";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
@@ -850,6 +850,22 @@ export function PlayerCard({
               firstHole={firstHole}
               // Bogey on the first screen — see `HoleByHoleCard`'s `dense`.
               dense
+              // STABLEFORD PICK-UP (Rule 21.1b, 2026-10-08): out of the hole
+              // with no point to play for. Recorded as net double bogey — zero
+              // points, and the handicap system's own figure for the hole — so
+              // the card can be finished. A hole already at that figure reads as
+              // picked up: it scores the same zero either way.
+              {...(pointsTable === "standard"
+                ? {
+                    pickedUp: {
+                      [playerId]: strokes.map(
+                        (v, i) => v != null && v === stablefordPickUp(pars[i] ?? 4, shotsPerHole[i] ?? 0),
+                      ),
+                    },
+                    onPickUp: (_pid: string, hole: number, on: boolean) =>
+                      setHole(hole, on ? stablefordPickUp(pars[hole] ?? 4, shotsPerHole[hole] ?? 0) : null),
+                  }
+                : {})}
             />
           ) : (
             <>

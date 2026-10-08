@@ -138,10 +138,12 @@ export function HoleByHoleCard({
    */
   voice?: boolean;
   /**
-   * MATCH PLAY ONLY: which holes each card picked up on, and the control to
-   * say so (2026-10-06). A blank is "not entered yet"; a pick-up is out of the
-   * hole, which concedes it once the whole side is out. Absent everywhere a
-   * card is holed out — every medal — so no other card grows a button.
+   * Which holes each card picked up on, and the control to say so. Two
+   * callers, both where the Rules allow it: MATCH PLAY (2026-10-06), where a
+   * pick-up is out of the hole and concedes it once the whole side is out;
+   * and a STANDARD STABLEFORD card (2026-10-08, Rule 21.1b), where it scores
+   * zero points and is recorded as net double bogey. Absent on a medal card,
+   * which must be holed out, so no other card grows a button.
    */
   pickedUp?: Record<string, boolean[]>;
   onPickUp?: (playerId: string, hole: number, on: boolean) => void;

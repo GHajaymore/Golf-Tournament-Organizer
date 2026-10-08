@@ -30,3 +30,22 @@ export function cardPoints(
   });
   return points;
 }
+
+/**
+ * THE SCORE A STABLEFORD PICK-UP IS RECORDED AS (2026-10-08).
+ *
+ * Rule 21.1b: in Stableford a player who cannot score a point on a hole may
+ * pick up; the hole scores zero points and the player is not penalised. For
+ * handicap purposes (World Handicap System) a hole not completed is recorded
+ * as net double bogey — par, plus two, plus the strokes received there — and
+ * net double bogey is exactly the score that earns zero Stableford points. So
+ * recording a pick-up as net double bogey is right twice over: the points are
+ * zero, and the card holds the figure a handicap record would put there. The
+ * card is then complete, which a blank hole never let it be.
+ *
+ * Standard Stableford only. Modified Stableford pays a NEGATIVE score for a
+ * double bogey, so there is no "cannot score" to pick up from.
+ */
+export function stablefordPickUp(par: number, strokesReceived: number): number {
+  return par + 2 + Math.max(0, Math.round(strokesReceived));
+}
