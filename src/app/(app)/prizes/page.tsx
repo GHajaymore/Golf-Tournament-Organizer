@@ -21,6 +21,7 @@ import { MoneyModeLine } from "@/components/MoneyModeLine";
 import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor } from "@/lib/services/expenses";
+import { flightStandings } from "@/lib/services/me";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 
@@ -68,6 +69,21 @@ export default async function PrizesPage({
   const prizeRank = usesStandardBoard(state.activeStage?.format)
     ? new Map(standingRows(state).filter((r) => r.ranked).map((r) => [r.id, r.rank]))
     : new Map<string, number>();
+  /**
+   * Each flight's own finishing order, for a flight's prize — see the
+   * `flights` prop. The same reader as Today's "2nd in Flight A". Only with
+   * two or more flights: one flight's order IS the overall order.
+   */
+  const nameById = new Map(state.confirmed.map((p) => [p.id, p.name]));
+  const prizeFlights =
+    state.groups.length > 1
+      ? flightStandings(state).map((f) => ({
+          label: f.label,
+          players: [...f.rows]
+            .sort((a, b) => (a.rank > 0 && b.rank > 0 ? a.rank - b.rank : a.rank > 0 ? -1 : b.rank > 0 ? 1 : 0))
+            .map((r) => ({ id: r.id, name: nameById.get(r.id) ?? "—", place: r.rank > 0 ? r.rank : null })),
+        }))
+      : [];
   const orderedForPrizes = [...state.confirmed]
     .map((p) => ({ id: p.id, name: p.name, place: prizeRank.get(p.id) ?? null }))
     .sort((a, b) => {
@@ -257,6 +273,7 @@ export default async function PrizesPage({
           winnerId: p.winnerId,
         }))}
         players={orderedForPrizes}
+        flights={prizeFlights}
       />
       {/* ONE BALL PER SIDE, SO NO PER-PLAYER POT — THE CLUB'S OWN SCREEN.
           `/group-games` said this from the day the rule landed (#495) and this

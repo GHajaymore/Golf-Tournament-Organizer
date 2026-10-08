@@ -1738,6 +1738,45 @@ describe("course library", () => {
     expect(html.split('aria-label="Amount for Club Champion"').length - 1).toBe(2);
   });
 
+  it("offers a flight's prize to that flight first, by its place in the flight", async () => {
+    /**
+     * 2026-10-08, the tournament grid's flighted medal: "Flight A — Winner"
+     * opened on "1. Dot Tee", the FLIGHT B player who won overall — so the top
+     * choice handed Flight A's prize to somebody not in Flight A. Ann won
+     * Flight A on countback; the overall prize is the control, and still opens
+     * on the overall winner.
+     */
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const players = [
+      { id: "dot", name: "Dot Tee", place: 1 },
+      { id: "ann", name: "Ann Tee", place: 2 },
+      { id: "bea", name: "Bea Tee", place: 4 },
+    ];
+    const flights = [
+      { label: "Flight A", players: [{ id: "ann", name: "Ann Tee", place: 1 }, { id: "bea", name: "Bea Tee", place: 2 }] },
+      { label: "Flight B", players: [{ id: "dot", name: "Dot Tee", place: 1 }] },
+    ];
+    const html = render(
+      <PrizesClient
+        prizes={[
+          { id: "a", category: "Flight A — Winner", detail: "", amount: 0, winnerId: null },
+          { id: "o", category: "Winner", detail: "", amount: 0, winnerId: null },
+        ]}
+        players={players}
+        flights={flights}
+      />,
+    );
+    const options = (label: string) => {
+      const at = html.indexOf(`aria-label="Winner of ${label}"`);
+      const select = html.slice(at, html.indexOf("</select>", at));
+      return [...select.matchAll(/<option value="([^"]+)">([^<]*)/g)].map((m) => m[2]);
+    };
+    expect(options("Flight A — Winner")[0]).toBe("1. Ann Tee · Flight A");
+    expect(options("Flight A — Winner")).toContain("Dot Tee · Flight B");
+    // The control: the overall prize still opens on the overall winner.
+    expect(options("Winner")[0]).toBe("1. Dot Tee · Flight B");
+  });
+
   it("CONTROL: with no prizes there is no stacked list, only the message", async () => {
     const { PrizesClient } = await import("@/components/PrizesClient");
     const html = render(<PrizesClient prizes={[]} players={[]} />);

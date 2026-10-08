@@ -52,6 +52,17 @@ function sources(dir: string, found: string[] = []): string[] {
   return found;
 }
 
+describe("a flight's prize", () => {
+  it("is named as the boards name the flight, so the picker can find it", () => {
+    // "A — Winner" from the bare stored name; the Prizes picker matches a
+    // prize to its flight by the label, and members read "Flight A".
+    const src = readSource("src/app/actions/tournament.ts");
+    const at = src.indexOf("export async function applyPrizeStructure");
+    expect(at).toBeGreaterThan(-1);
+    expect(src.slice(at, at + 1500)).toMatch(/prizeStructureLines\(key, \{ flights: flights\.map\(\(f, i\) => flightLabel\(f\.name, i\)\) \}\)/);
+  });
+});
+
 describe("no screen names a flight by its position on its own", () => {
   /**
    * The defect was seven readers each writing `Flight ${i + 1}`. The rule is
