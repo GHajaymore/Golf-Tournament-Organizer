@@ -11,6 +11,7 @@ import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { logAudit } from "@/lib/services/action-shared";
 import { money } from "@/lib/domain/money-format";
+import { isMatch } from "@/lib/tournament-shape";
 import { currencyForEvent } from "@/lib/services/organization";
 
 /**
@@ -144,11 +145,31 @@ export async function saveSkinsPot(
   // the reason `saveSideGame` gives at length.
   const note = buyIn > 0 ? "" : (input.stakeNote ?? "").trim().slice(0, STAKE_NOTE_MAX);
   const data = { buyInCents: buyIn, stakeNote: note };
-  await prisma.skinsPot.upsert({
+  const pot = await prisma.skinsPot.upsert({
     where: { stageId_net_scope_groupKey: { stageId, net: input.net, scope: input.scope, groupKey } },
     create: { eventId, stageId, net: input.net, scope: input.scope, groupKey, ...data },
     update: data,
   });
+
+  /**
+   * A CASUAL ROUND'S SKINS ARE EVERYONE'S, HOWEVER LATE THEY START
+   * (2026-10-07). Setup writes a stake for everybody playing
+   * (`match-setup.ts`); a pot started later from the money screen — under a
+   * heading saying "Everyone in this round is in" — sat at "In the pot — 0
+   * players, nobody yet". So the first time it is given something to play for
+   * with nobody in it, everybody playing goes in, as setup does. A pot that
+   * already has entrants is somebody's decision and is left alone.
+   */
+  if (groupKey === "" && (buyIn > 0 || note)) {
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
+    if (isMatch(event?.shape) && (await prisma.skinsEntry.count({ where: { potId: pot.id } })) === 0) {
+      const field = await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } });
+      await prisma.skinsEntry.createMany({
+        data: field.map((p) => ({ potId: pot.id, playerId: p.id })),
+        skipDuplicates: true,
+      });
+    }
+  }
   await logAudit(
     eventId,
     "skins.pot",

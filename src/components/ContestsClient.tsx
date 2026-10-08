@@ -122,7 +122,10 @@ export function ContestsClient({
   contestsApply = true,
   rows = "all",
   title,
+  departed = [],
 }: {
+  /** Players no longer in the field, by name — for a stake they left in a pot. */
+  departed?: Array<{ id: string; name: string }>;
   /**
    * WHICH OF THE CARD-SETTLED GAMES TO LIST (2026-10-07). "all" everywhere it
    * always was. A casual round's money screen lists the games being PLAYED
@@ -569,6 +572,17 @@ export function ContestsClient({
                           />
                         );
                       })}
+                      {/* WHO LEFT WITH THEIR STAKE IN (2026-10-07). "In the pot
+                          (4)" over three names: a player who withdrew after
+                          paying is still in the count — see `keepDefaultStakes`
+                          — and was in no chip, because the chips are the field. */}
+                      {departed
+                        .filter((p) => entered.has(p.id))
+                        .map((p) => (
+                          <span key={p.id} className="tag tag-neutral" style={{ alignSelf: "center" }}>
+                            {p.name} — left, stake kept
+                          </span>
+                        ))}
                     </div>
                   )}
                 </div>

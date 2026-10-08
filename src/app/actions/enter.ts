@@ -12,7 +12,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { ownWithdrawalOpen } from "@/lib/registration";
-import { hasPlayingHistory } from "@/lib/services/playing-history";
+import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 import { revokePlayerAccount } from "@/lib/services/player-access";
 import { drainWaitlist } from "@/lib/services/waitlist";
 import { logAudit } from "@/lib/services/action-shared";
@@ -350,6 +350,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
   for (const row of mine) {
     if (await hasPlayingHistory(eventId, row.id)) {
       await prisma.player.update({ where: { id: row.id }, data: { status: "withdrawn" } });
+      // A stake paid by default stays paid — the same as the organizer's door.
+      await keepDefaultStakes(eventId, row.id);
     } else {
       await prisma.player.delete({ where: { id: row.id } });
     }

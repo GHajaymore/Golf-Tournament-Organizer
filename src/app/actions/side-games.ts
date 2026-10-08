@@ -12,6 +12,7 @@ import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { logAudit } from "@/lib/services/action-shared";
 import { isHeadToHead } from "@/lib/stage-types";
 import { money } from "@/lib/domain/money-format";
+import { isMatch } from "@/lib/tournament-shape";
 import { currencyForEvent } from "@/lib/services/organization";
 
 /**
@@ -222,6 +223,15 @@ export async function saveSideGame(
     };
   }
 
+  /**
+   * A CASUAL ROUND'S GAME IS EVERYONE'S, HOWEVER LATE IT IS STARTED
+   * (2026-10-07). Setup creates them "everyone in" (`match-setup.ts`), and the
+   * money screen says "Everyone in this round is in". A game added from that
+   * screen mid-round took the column default — opt-in — and sat at "In the pot
+   * (0)": a $10 low net agreed on the 5th tee settled nothing. Only on CREATE,
+   * so a mode somebody chose is never overwritten by re-pricing the game.
+   */
+  const casualRound = groupKey === "" && isMatch((await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } }))?.shape);
   const game = await prisma.sideGame.upsert({
     where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
     update: { buyInCents: cents, stakeNote: note },
@@ -229,7 +239,16 @@ export async function saveSideGame(
     // the field's — or collided with the field's existing row on the unique
     // key and threw. The where clause knew about the group and the create
     // did not, which is the shape that always writes to the wrong row.
-    create: { eventId, stageId, kind, groupKey, buyInCents: cents, stakeNote: note, createdBy: name },
+    create: {
+      eventId,
+      stageId,
+      kind,
+      groupKey,
+      buyInCents: cents,
+      stakeNote: note,
+      createdBy: name,
+      ...(casualRound ? { entryMode: "opt-out" } : {}),
+    },
   });
 
   await logAudit(

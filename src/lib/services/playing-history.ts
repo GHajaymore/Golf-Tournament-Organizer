@@ -75,3 +75,51 @@ export async function hasPlayingHistory(eventId: string, playerId: string): Prom
     ties > 0
   );
 }
+
+/**
+ * WITHDRAWING IS NOT A REFUND — FOR A STAKE PAID BY DEFAULT TOO (2026-10-07).
+ *
+ * Called by both doors that withdraw a player with history, for the reason
+ * `hasPlayingHistory` lives here: they must answer identically.
+ *
+ * An "everyone in the field" pot counts a player with no entry row as IN and
+ * PAID; that is what the mode means. A withdrawal takes them out of the field,
+ * and with no row there was nothing left to say they had paid: the stake
+ * vanished. Walked on a casual round — Cat paid into a $10 birdie pot,
+ * birdied the 3rd and left at the turn, and the money read "Cat square",
+ * refunded by nobody, with the pot $10 short.
+ *
+ * An explicitly taken stake already survives a withdrawal (`potMembership`'s
+ * "paid but gone"); this writes the default one down as taken, at the moment
+ * they leave, so it becomes that same case. ONLY on rounds they have a card
+ * in: a tournament entrant who withdraws before a round never put money into
+ * its pot. A row that already exists — taken, owed, or opted out — is a
+ * decision somebody made, and is left as it is.
+ *
+ * The Nassau and the match bet are left out: they are settled by the match,
+ * not a pot, and have no entrant list to write to.
+ */
+export async function keepDefaultStakes(eventId: string, playerId: string): Promise<void> {
+  const [cards, teamCards, games] = await Promise.all([
+    prisma.scorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
+    prisma.teamScorecard.findMany({ where: { eventId, playerId }, select: { stageId: true, strokes: true } }),
+    prisma.sideGame.findMany({
+      where: { eventId, entryMode: "opt-out", kind: { notIn: ["nassau", "match"] } },
+      select: { id: true, stageId: true, entrants: { where: { playerId }, select: { id: true } } },
+    }),
+  ]);
+  const hasHole = (s: string) => {
+    try {
+      return (JSON.parse(s) as unknown[]).some((v) => v != null);
+    } catch {
+      return false;
+    }
+  };
+  const playedIn = new Set([...cards, ...teamCards].filter((c) => hasHole(c.strokes)).map((c) => c.stageId));
+  const toKeep = games.filter((g) => playedIn.has(g.stageId) && g.entrants.length === 0);
+  if (toKeep.length === 0) return;
+  await prisma.sideGameEntry.createMany({
+    data: toKeep.map((g) => ({ sideGameId: g.id, playerId, confirmed: true })),
+    skipDuplicates: true,
+  });
+}
