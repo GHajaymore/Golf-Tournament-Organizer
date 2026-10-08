@@ -128,6 +128,8 @@ export default async function ReportsPage({
        said "Nothing returned for this round yet" on a tournament whose Rounds
        screen was still asking for a first one. */
     hasRound: !!activeStage,
+    // A round the committee has closed is not still coming in.
+    roundClosed: state.boardStage?.closedAt != null,
     casual,
   });
 

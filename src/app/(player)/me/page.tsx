@@ -784,7 +784,19 @@ export default async function PlayTodayPage() {
               screen offered "Start my card" for round 2 to a player the cut
               had left out after round 1 (2026-09-26) — and saving one put
               them back on the board. */}
-          {round?.cutOut ? (
+          {/* A ROUND THE COMMITTEE HAS CLOSED, with nothing of yours on it —
+              the cut's shape one step along (2026-10-08). Not "Start my card":
+              a closed round is over, and a card saved now would undo the
+              committee's close without anybody deciding to. */}
+          {round?.closedWithout ? (
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-title" style={{ fontSize: 14 }}>{round.closedWithout} is closed</span>
+              <MoreInfo short={`There's no ${round.closedWithout} card from you.`} style={{ marginTop: 4 }}>
+                The {terms.organizer} has closed {round.closedWithout}, so nothing more can be entered for it. If
+                that&rsquo;s wrong, they can reopen it.
+              </MoreInfo>
+            </section>
+          ) : round?.cutOut ? (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>
               <MoreInfo short={`Your ${round.cutOut} score stands on the board.`} style={{ marginTop: 4 }}>

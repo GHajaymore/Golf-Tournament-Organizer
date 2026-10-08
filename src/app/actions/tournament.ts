@@ -61,7 +61,7 @@ import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
-import { writeScorecard, certifyCard, assertSignsCards, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import {
   freezeRoundHandicaps,
   roundHandicapRows,
@@ -328,6 +328,7 @@ async function assertMayKeepCard(
   if (field && !field.has(playerId)) {
     throw new Error("Only the players who made the cut have a card for this round.");
   }
+  await assertRoundOpen(eventId, stageId);
   const own = await ownPlayerIds(eventId, session.email);
   if (own.has(playerId)) return;
   const [stage, confirmed] = await Promise.all([

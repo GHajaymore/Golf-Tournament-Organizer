@@ -155,6 +155,15 @@ export interface MyRound {
    */
   cutOut: string;
   /**
+   * This round's name when the committee has CLOSED it and this player has
+   * no score on it — "" otherwise (2026-10-08). The `cutOut` shape one step
+   * along: a closed round is over, the board already shows the player without
+   * a place, and Today offered "Start my card" over "YOUR CARD · FINAL" for it
+   * — saving one would have undone the committee's decision without anybody
+   * deciding to. Walked on a 36-hole aggregate, both rounds closed.
+   */
+  closedWithout: string;
+  /**
    * Where this round is played, when the round names its own venue.
    *
    * Empty for a tournament at one course, which is most of them and needs no
@@ -462,6 +471,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       revision: cardRevision(sized),
     };
   }
+  // A closed round with nothing of this player's on it — see the field.
+  const closedWithout =
+    stage.closedAt != null && (card?.filled ?? 0) === 0
+      ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
+      : "";
 
   /**
    * Position from the same standingRows the leaderboard renders — never a
@@ -524,6 +538,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
             total: state.boardProgress.total,
             unit: state.boardProgress.unit,
             casual: isMatch(state.event.shape),
+            roundClosed: state.boardStage?.closedAt != null,
           }).note,
           flightPlace: playerId ? flightPlaceFor(state, playerId) : "",
         }
@@ -583,10 +598,12 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
        */
       ownCard:
         !cutOut &&
+        !closedWithout &&
         !needsTeams(stage.format) &&
         roundIsStroke(stage.type, stage.format) &&
         canEnterScores(settingsOf(state.event), "player"),
       cutOut,
+      closedWithout,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       offSheet: !!sheet && sheet.groups.length > 0 && !mine,
