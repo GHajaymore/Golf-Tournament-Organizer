@@ -105,7 +105,9 @@ async function roundTwo(bea: number) {
 }
 
 const order = async () => {
-  const rows = standingRows(await loadEventState(eventId));
+  const state = await loadEventState(eventId);
+  if (!state) throw new Error("the event did not load");
+  const rows = standingRows(state);
   return rows.map((r) => ({ name: Object.keys(ids).find((n) => ids[n] === r.id)!, ranked: r.ranked, rank: r.rank, cut: r.missedCut ?? "" }));
 };
 

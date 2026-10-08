@@ -1963,11 +1963,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * round, belongs to the players holding a card for it — `applyStrokeCut`
    * gives every survivor one and nobody else. A round with no cards yet has
    * not had its cut applied, so it says nothing about anybody.
+   *
+   * Only a round INSIDE these standings: ranked through round 1 — the round
+   * picker on round 1, or `applyStrokeCut` ranking the feeder to RE-MAKE the
+   * cut after a correction — nobody has missed anything yet. Without that the
+   * cut fed on itself, and a player a corrected score lifted above the line
+   * stayed out because the last cut had left them out.
    */
   const cutAfter = new Map<string, string>();
   for (let i = 1; i < playRounds.length; i += 1) {
     const round = playRounds[i];
     const feeder = playRounds[i - 1];
+    if (!strokeRoundIds.has(round.id)) continue;
     if (!round.cutEnabled || !feeder.closedAt) continue;
     if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) continue;
     const field = new Set(scorecards.filter((c) => c.stageId === round.id).map((c) => c.playerId));
