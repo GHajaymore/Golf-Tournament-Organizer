@@ -61,7 +61,7 @@ import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
-import { writeScorecard, certifyCard, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, assertSignsCards, type SaveCardResult } from "@/lib/services/scorecard-write";
 import {
   freezeRoundHandicaps,
   roundHandicapRows,
@@ -5281,6 +5281,8 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);
+  // Nobody accepts a casual card, so nobody can be asked not to.
+  await assertSignsCards(eventId);
 
   const card = await prisma.scorecard.findFirst({
     where: { eventId, stageId, playerId },

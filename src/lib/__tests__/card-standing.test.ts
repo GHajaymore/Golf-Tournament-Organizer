@@ -93,6 +93,39 @@ describe("what a player is told about their own signed card", () => {
     }
   });
 
+  /**
+   * A CASUAL CARD IS NEVER SIGNED (Ajay, 2026-10-07). Today read "Every hole
+   * in — not yet certified", waiting-coloured, one line above "Every card is
+   * in — this is the result." The complete card is DONE; every status a card
+   * can hold, including one signed before the decision, reads the same way.
+   */
+  it("calls a whole casual card done, and never asks for a signature", () => {
+    for (const status of ["entered", "certified", "disputed", ""]) {
+      for (const staff of [true, false]) {
+        const s = cardStanding(status, staff, true, false);
+        expect(s.tone, status).toBe("done");
+        expect(s.action, status).toBe("See my card");
+        expect(`${s.label} ${s.action}`, status).not.toMatch(/certif|committee|disput/i);
+      }
+    }
+  });
+
+  it("still asks a casual player for the holes on a short card", () => {
+    const s = cardStanding("entered", false, false, false);
+    expect(s.action).toBe("Finish my card");
+    expect(s.tone).toBe("waiting");
+    expect(s.label).not.toMatch(/certif/i);
+  });
+
+  it("keeps the signature for every round that signs, the control", () => {
+    expect(cardStanding("entered", false, true, true).action).toBe("Certify my card");
+    expect(cardStanding("entered", false, true).action).toBe("Certify my card");
+  });
+
+  it("Today tells cardStanding whether the round signs its cards", () => {
+    expect(readSource("src/app/(player)/me/page.tsx")).toMatch(/signsCards\(state\.event\.shape\)/);
+  });
+
   it("treats an unknown status as the unfinished one", () => {
     // The old map fell back to `entered` and that is the right direction: a
     // status this build does not recognise must not be reported as done.

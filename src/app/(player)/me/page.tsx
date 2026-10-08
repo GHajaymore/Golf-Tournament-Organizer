@@ -26,7 +26,7 @@ import { ReportTie } from "@/components/ReportTie";
 import { EnterButton } from "@/components/EnterButton";
 import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
-import { notInItWords } from "@/lib/tournament-shape";
+import { notInItWords, signsCards } from "@/lib/tournament-shape";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { nextHoleToPlay } from "@/lib/domain/next-hole";
 import { standingRows } from "@/lib/services/tournament";
@@ -158,6 +158,7 @@ export default async function PlayTodayPage() {
     !allowsAutoConfirm(settingsOf(state.event)),
     // Every hole in: the step left is signing, not finishing.
     !!card && (round?.holes ?? 0) > 0 && card.filled >= (round?.holes ?? 0),
+    signsCards(state.event.shape),
   );
   const standing = hasStandingToShow(me.standing) ? me.standing : null;
 
