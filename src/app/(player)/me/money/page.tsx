@@ -8,6 +8,7 @@ import { MoreInfo } from "@/components/MoreInfo";
 import { prisma } from "@/lib/db";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
+import { isMatch } from "@/lib/tournament-shape";
 import { SideBetStart } from "@/components/SideBetStart";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { golfTermsForEvent } from "@/lib/services/organization";
@@ -92,6 +93,8 @@ export default async function MoneyPage() {
    */
   const state = await loadEventState(session.eventId);
   const playing = playingStages(state?.stages ?? []);
+  // One round, said as one — see `RoundMoney`'s `casual`.
+  const casual = isMatch(state?.event.shape);
 
   /**
    * The round being played, and only that one.
@@ -215,7 +218,7 @@ export default async function MoneyPage() {
           player's stake in it is still being played: that is their exposure,
           which CLAUDE.md says a player walking to the first tee wants and must
           keep. Without a ledger the pots ARE the screen, as before. */}
-      {(!ledger || liveStake) && <RoundMoney view={rounds} />}
+      {(!ledger || liveStake) && <RoundMoney view={rounds} casual={casual} />}
       {ledger ? (
         <MoneyClient
           view={ledger}
@@ -223,7 +226,7 @@ export default async function MoneyPage() {
           moreParts={[!liveStake && rounds.anyGame ? "Pots" : "", sideBet ? "Side bet" : ""].filter(Boolean)}
           more={
             <>
-              {!liveStake && <RoundMoney view={rounds} />}
+              {!liveStake && <RoundMoney view={rounds} casual={casual} />}
               {sideBet}
               {recordsNote}
             </>

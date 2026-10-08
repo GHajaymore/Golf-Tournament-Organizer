@@ -68,7 +68,7 @@ import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../to
 import { holesPlayed } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
-import { reviewsScores } from "../tournament-shape";
+import { isMatch, reviewsScores } from "../tournament-shape";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -2679,7 +2679,12 @@ export function standingRows(state: EventState): StandingRow[] {
       state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, `Flight ${i + 1}`] as const),
     ),
   );
-  const flight = (id: string) => flightByPlayer.get(id) ?? "—";
+  // A casual round keeps its players in one group so the round has somewhere
+  // to hang its tee and its code. That group is plumbing, not a flight: the
+  // round never shows the word anywhere else, and "Flight 1" beside every name
+  // on the host's own board was tournament furniture on a game between friends.
+  const casual = isMatch(state.event.shape);
+  const flight = (id: string) => (casual ? undefined : flightByPlayer.get(id)) ?? "—";
 
   /**
    * Positions the cut line runs through, worked out once for every reader.
