@@ -13,6 +13,7 @@ import { FlightBoard } from "@/components/FlightBoard";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 export const metadata = screenMetadata("/grouping");
 
@@ -39,12 +40,13 @@ export default async function GroupingPage() {
       players.length === 0
         ? 0
         : Math.round((players.reduce((s, p) => s + p.handicap, 0) / players.length) * 10) / 10;
-        // The club's own name when it has set one; the positional label only as
-    // a fallback for flights nobody has renamed.
-    const label = g.name?.trim() || `Flight ${i + 1}`;
+    // What every board calls it — the club's own name, "Flight A" for a bare
+    // letter, the position only when nothing is set. See `flightLabel`.
+    const label = flightLabel(g.name, i);
     return {
       id: g.id,
       label,
+      name: g.name?.trim() ?? "",
       avg,
       players,
       captainId: g.captainId,

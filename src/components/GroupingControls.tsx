@@ -7,6 +7,7 @@ import { formGroups, flightCountFor, type FormationRule, type Player } from "@/l
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { Icon } from "./Icon";
 import { plural } from "@/lib/format";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: string }> = [
   {
@@ -281,7 +282,10 @@ export function GroupingControls({
             return (
               <div key={g.id} style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>Flight {i + 1}</span>
+                  {/* What the flight will be called once generated — "Flight A",
+                      the name `formGroups` gives it, through the reader every
+                      board uses. */}
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{flightLabel(g.name, i)}</span>
                   <span className="text-muted" style={{ fontSize: 13 }}>avg {avg(flightPlayers.map((p) => p.handicap))}</span>
                 </div>
                 {flightPlayers.map((p) => (

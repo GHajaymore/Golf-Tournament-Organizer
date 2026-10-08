@@ -845,8 +845,19 @@ export default async function PlayTodayPage() {
               <span style={{ fontSize: 14, fontWeight: 600 }}>
                 {/* Names the number beside it: "On the board" beside a bare
                     "4" did not say the 4 was the player's place. */}
-                {standing.position ? "Your position" : standing.thru > 0 ? "Not ranked yet" : "Not started"}
+                {standing.position
+                  ? standing.flightPlace
+                    ? "Your position overall"
+                    : "Your position"
+                  : standing.thru > 0
+                    ? "Not ranked yet"
+                    : "Not started"}
               </span>
+              {/* And where that leaves them in their own flight, which is what a
+                  flighted medal is won on — "2nd in Flight A" (2026-10-08). */}
+              {standing.position && standing.flightPlace && (
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{standing.flightPlace}</span>
+              )}
               {(standing.note || standing.record) && (
                 <span className="text-muted" style={{ fontSize: 14, lineHeight: 1.45 }}>
                   {standing.note || standing.record}

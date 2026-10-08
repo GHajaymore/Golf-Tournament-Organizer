@@ -32,14 +32,14 @@ export interface QualificationRow {
   name: string;
   points: number;
   advancing: boolean;
-  /** 1-based flight number, or null when the field is unflighted. */
-  flight: number | null;
+  /** The flight's label (`flightLabel`), or null when the field is unflighted. */
+  flight: string | null;
 }
 
 export interface QualificationFlight {
   id: string;
-  /** 1-based, for the heading. */
-  number: number;
+  /** What every board calls this flight — `flightLabel`. */
+  label: string;
   rows: Array<{ id: string; rank: number; name: string; points: number; advancing: boolean }>;
 }
 
@@ -194,7 +194,7 @@ export function QualificationPanel({
               <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {r.name}
               </span>
-              <span className="text-muted" style={{ fontSize: 13 }}>Flight {r.flight ?? "—"}</span>
+              <span className="text-muted" style={{ fontSize: 13 }}>{r.flight ?? "—"}</span>
               <span style={{ fontWeight: 600, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums", width: 40, textAlign: "right" }}>
                 {pts(r.points)}
               </span>
@@ -209,7 +209,7 @@ export function QualificationPanel({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
         {flights.map((f) => (
           <div key={f.id} className="card elev-sm">
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Flight {f.number}</span>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{f.label}</span>
             <table className="table" style={{ fontSize: 13 }}>
               <tbody>
                 {f.rows.map((r) => (

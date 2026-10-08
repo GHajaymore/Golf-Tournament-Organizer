@@ -11,6 +11,7 @@ import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { isKnockoutRound } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -80,7 +81,7 @@ export default async function BracketPage() {
         const draw = drawBrackets(state.qualifiers, mode);
         const flightOf = new Map(
           state.groups.flatMap((g, i) =>
-            state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, i + 1] as const),
+            state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, flightLabel(g.name, i)] as const),
           ),
         );
         return {
@@ -105,7 +106,7 @@ export default async function BracketPage() {
             })),
           flights: state.groupStandings.map((gs, gi) => ({
             id: gs.group.id,
-            number: gi + 1,
+            label: flightLabel(gs.group.name, gi),
             rows: gs.ranked.map((r) => ({
               id: r.player.id,
               rank: r.rank,

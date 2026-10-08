@@ -17,7 +17,10 @@ export interface FlightPlayer {
 
 export interface FlightCard {
   id: string;
+  /** What every screen calls it — `flightLabel`. */
   label: string;
+  /** The name as stored, which the rename box starts from: "A", not "Flight A". */
+  name?: string;
   avg: number;
   players: FlightPlayer[];
   /** Appointed leadership — see setFlightCaptain. Null = none yet. */
@@ -279,7 +282,7 @@ export function FlightBoard({
                     title={`Rename ${g.label}`}
                     aria-label={`Rename ${g.label}`}
                     style={{ width: 22, height: 22, flex: "none" }}
-                    onClick={() => { setDraftName(g.label); setRenaming(g.id); }}
+                    onClick={() => { setDraftName(g.name || g.label); setRenaming(g.id); }}
                   >
                     <Icon name="pencil-simple" style={{ fontSize: 13 }} />
                   </button>

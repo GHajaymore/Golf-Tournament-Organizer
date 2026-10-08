@@ -44,6 +44,7 @@ import { TEAM_SESSION, cupSessionsFor } from "@/lib/services/cup";
 import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { CupSessionNav } from "@/components/CupSessionNav";
 import { CasualRoundScreen } from "@/components/CasualRoundScreen";
+import { flightLabel } from "@/lib/domain/flight-label";
 
 export const metadata = screenMetadata("/entry");
 
@@ -533,7 +534,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   };
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
-  const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
+  /** A flight's label by id — `flightLabel`, the one every board uses; "" for a carrier. */
+  const flightNames = new Map(state.groups.map((g, i) => [g.id, flightLabel(g.name, i)]));
+  const flightOfMatch = (groupId: string) => flightNames.get(groupId) ?? "";
   // resolveCourse falls back to a demo preset so scoring never crashes. That
   // fallback must not be *shown*: printing one course's par and stroke index
   // over a match played somewhere else is worse than showing nothing. With no
@@ -773,11 +776,14 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
              */
             aHandicap: state.matchHandicapFor(m.playerAId, m.id),
             bHandicap: state.matchHandicapFor(m.playerBId, m.id),
-            groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
+            // The flight's own name when the match is in a flight. A match on a
+            // round's carrier — a knockout tie, a single match — is in none,
+            // and was labelled "Flight 1" by falling through `?? 0`.
+            groupName: flightOfMatch(m.groupId),
             round: m.round,
             label: cupSession
               ? `Match ${sessionOrder.get(m.id) ?? m.round}`
-              : `Flight ${(groupById.get(m.groupId) ?? 0) + 1} · Round ${m.round}`,
+              : [flightOfMatch(m.groupId), `Round ${m.round}`].filter(Boolean).join(" · "),
             // Who conceded, so the screen can say so and offer to undo it.
             // Stored on the match and read by `resolveMatch`; until now no
             // screen carried it, so no screen could show or clear one.

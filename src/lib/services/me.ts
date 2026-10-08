@@ -13,6 +13,9 @@ import { standingRows, settingsOf, type EventState } from "@/lib/services/tourna
 import { canEnterScores } from "@/lib/tournament-settings";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
+import { placesWithin } from "@/lib/domain/flight-places";
+import { flightLabel } from "@/lib/domain/flight-label";
+import { placeOrdinal } from "@/lib/format";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
 import type { HoleResult } from "@/lib/domain/types";
@@ -280,8 +283,45 @@ export interface Me {
      * exactly the split this codebase keeps finding.
      */
     note: string;
+    /**
+     * WHERE I AM IN MY FLIGHT — "2nd in Flight A", or "" (2026-10-08).
+     *
+     * A flighted medal is won per flight: a member off 24 is not playing the
+     * scratch golfer, and the prizes say so. Today printed only the overall
+     * place, so a player second in their flight read "Your position 4" and
+     * had to find their flight's rows on the board and count. Only when the
+     * field is split into more than one flight; the same `placesWithin` rule
+     * as the dashboard's flight standings and the flight results export.
+     */
+    flightPlace: string;
   } | null;
   round: MyRound | null;
+}
+
+/**
+ * This player's place within their own flight, worded — "2nd in Seniors",
+ * "T3 in Flight B" — or "" when there is nothing to say: one flight or none,
+ * no flight of their own, or no place yet.
+ */
+export function flightPlaceFor(state: EventState, playerId: string): string {
+  if (state.groups.length < 2) return "";
+  const groupId = state.confirmed.find((p) => p.id === playerId)?.groupId ?? null;
+  const index = state.groups.findIndex((g) => g.id === groupId);
+  if (index < 0) return "";
+  const group = state.groups[index];
+  const within = state.boardIsStroke
+    ? placesWithin(state.strokeStandings.filter((s) => s.player.groupId === group.id)).map((s) => ({
+        id: s.player.id,
+        rank: s.ranked ? s.rank : 0,
+      }))
+    : (state.groupStandings.find((gs) => gs.group.id === group.id)?.ranked ?? []).map((r) => ({
+        id: r.player.id,
+        rank: r.rank,
+      }));
+  const mine = within.find((r) => r.id === playerId);
+  if (!mine || mine.rank <= 0) return "";
+  const shared = within.filter((r) => r.rank === mine.rank).length > 1;
+  return `${shared ? `T${mine.rank}` : placeOrdinal(mine.rank)} in ${flightLabel(group.name, index)}`;
 }
 
 /**
@@ -485,6 +525,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
             unit: state.boardProgress.unit,
             casual: isMatch(state.event.shape),
           }).note,
+          flightPlace: playerId ? flightPlaceFor(state, playerId) : "",
         }
       : null,
     round: {
