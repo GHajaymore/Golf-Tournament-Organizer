@@ -34,7 +34,10 @@ export function ReportsClient({
   hasBracket = true,
   hasTeeSheet = true,
   casual = false,
+  rankedOn = "net",
 }: {
+  /** What the round is played for, for the casual round's compact table. */
+  rankedOn?: "gross" | "net";
   /**
    * A casual round (2026-10-07): no flights, no draw, nobody advancing. The
    * standings sheet leaves out the Flight and Advancing/Eliminated columns —
@@ -332,7 +335,13 @@ export function ReportsClient({
             <Icon name="printer" /> Print
           </button>
         </div>
-        {board ?? <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />}
+        {/* A casual round prints the table its own screen shows — the number
+            it is played for and the to-par. The full table's Net repeated the
+            Gross on a level round (nobody gets shots) and pushed To par off a
+            320px phone (2026-10-07). */}
+        {board ?? (
+          <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} compact={casual} rankedOn={rankedOn} />
+        )}
       </div>
       )}
     </div>

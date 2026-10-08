@@ -582,6 +582,22 @@ describe("setting up a round with money on it", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("refuses a Nassau over nine holes and keeps the match bet there", () => {
+    /**
+     * A Nassau is three bets — front, back, overall — and nine holes hold one
+     * of them; `playNassau` pays a nine-hole round as a single bet. Offered
+     * there under "three bets in one" it promised what it would not do
+     * (2026-10-07). Over nine it IS the match bet, which stays offered.
+     */
+    const two = [{ name: "A" }, { name: "B" }];
+    const nine = planMatch({ players: two, format: "Match Play", holes: 9, money: { game: "nassau", stakeCents: 500 } });
+    expect(nine.ok).toBe(false);
+    if (!nine.ok) expect(nine.error).toMatch(/eighteen holes/);
+    // The controls: the same Nassau over eighteen, and the match bet over nine.
+    expect(planMatch({ players: two, format: "Match Play", holes: 18, money: { game: "nassau", stakeCents: 500 } }).ok).toBe(true);
+    expect(planMatch({ players: two, format: "Match Play", holes: 9, money: { game: "match", stakeCents: 500 } }).ok).toBe(true);
+  });
+
   it("allows a Nassau on a match and refuses one on a medal", () => {
     /**
      * A Nassau is three bets on ONE match — front nine, back nine, overall —

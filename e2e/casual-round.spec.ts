@@ -571,6 +571,18 @@ test.describe("a casual round at the course", () => {
     expect(log).not.toMatch(/Nothing returned/);
     // And none of a tournament's furniture: no flights, nobody advancing.
     expect(log).not.toMatch(/\bflights\b|advancing|flight results|weekly sign-up|tee sheet/i);
+    // The table the round's own screen shows: on a level round nobody gets
+    // shots, so a Net column only repeats the Gross — and it pushed To par
+    // off a 320px phone (2026-10-07).
+    await expect(page.getByRole("columnheader", { name: "Net", exact: true })).toHaveCount(0);
+    const cutOnExport = await page.evaluate(() =>
+      [...document.querySelectorAll("main table tr > :last-child")].flatMap((c) => {
+        const r = c.getBoundingClientRect();
+        const edge = Math.min((c.closest("table")!.parentElement as HTMLElement).getBoundingClientRect().right, innerWidth);
+        return r.width > 0 && r.right > edge + 0.5 ? [`${c.textContent?.trim()} ends ${Math.round(r.right)}`] : [];
+      }),
+    );
+    expect(cutOnExport, "the export's last column is cut off").toEqual([]);
 
     // And on the round's one screen, under the card, the same two handovers —
     // the money once it is final, without opening the money page.
