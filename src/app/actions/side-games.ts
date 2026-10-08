@@ -111,7 +111,7 @@ async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
  * neither is in DERIVED_KINDS — but both are stored as side games and both
  * have to be settable here.
  */
-const KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau", "match"];
+const KINDS = ["low-gross", "low-net", "birdies", "eagles", "twos", "nassau", "match"];
 
 /** The two that are settled by the match rather than out of a pot. */
 const MATCH_BETS = new Set(["nassau", "match"]);

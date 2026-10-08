@@ -20,7 +20,7 @@ import { MoneySetup } from "@/components/MoneySetup";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
 import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
-import { moneyFor } from "@/lib/services/expenses";
+import { moneyFor, playedOnceRoundIsOver } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
 import { placesByValue } from "@/lib/domain/flight-places";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -186,6 +186,9 @@ export default async function PrizesPage({
         include: { entrants: true },
       })
     : [];
+  // Once the round is over, an opt-out pot holds only those who played it —
+  // the reading the settle-up charges by. See `playedOnceRoundIsOver`.
+  const playedOnceOver = await playedOnceRoundIsOver(session.eventId, [...contests, ...sideGames]);
 
   /**
    * The field a pot draws its members from, and a name for an id.
@@ -350,7 +353,7 @@ export default async function PrizesPage({
             // rows that exist; opt-out counts the field minus whoever said
             // otherwise, so a weekly contest needs no ticking and a player
             // entered later joins by himself.
-            const m = potMembership(modeOf(c.entryMode), fieldIds, c.entrants, stakeholderIds);
+            const m = potMembership(modeOf(c.entryMode), fieldIds, c.entrants, stakeholderIds, playedOnceOver(c.stageId));
             return {
               id: c.id,
               kind: c.kind,
@@ -369,7 +372,7 @@ export default async function PrizesPage({
             };
           })}
           sideGames={sideGames.map((g) => {
-            const m = potMembership(modeOf(g.entryMode), fieldIds, g.entrants, stakeholderIds);
+            const m = potMembership(modeOf(g.entryMode), fieldIds, g.entrants, stakeholderIds, playedOnceOver(g.stageId));
             return {
             id: g.id,
             kind: g.kind,

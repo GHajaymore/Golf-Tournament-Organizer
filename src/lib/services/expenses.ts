@@ -498,6 +498,50 @@ async function roundFieldFor(
 }
 
 /** Whether any of `ids` has yet to put a score on this round's card. */
+/** Who has a score on their card for this round — struck a ball in it. */
+function playedOn(
+  stageId: string,
+  cards: ReadonlyArray<{ stageId: string; playerId: string; strokes: string }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const c of cards) {
+    if (c.stageId !== stageId) continue;
+    try {
+      if ((JSON.parse(c.strokes) as (number | null)[]).some((s) => s != null)) ids.add(c.playerId);
+    } catch {
+      // An unreadable card is no evidence of play.
+    }
+  }
+  return ids;
+}
+
+/**
+ * Who played the round a contest hangs off, once that round is OVER — closed
+ * by the committee, or the tournament completed — and undefined otherwise.
+ *
+ * A contest pays the moment somebody ticks a winner, so it has no "every card
+ * complete" moment of its own to wait for; the committee closing the round is
+ * when "who played" is settled. Before that an opt-out contest still counts
+ * the field, which is the exposure everybody was told about. A contest on the
+ * whole outing (no round) has no round to have played in, and keeps the field.
+ * The pot screens read this too, so the ledger and the pot cannot disagree.
+ */
+export async function playedOnceRoundIsOver(
+  eventId: string,
+  contests: ReadonlyArray<{ stageId: string }>,
+): Promise<(stageId: string) => ReadonlySet<string> | undefined> {
+  if (!contests.some((c) => c.stageId)) return () => undefined;
+  const [event, stages, cards] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { status: true } }),
+    prisma.stage.findMany({ where: { eventId }, select: { id: true, closedAt: true } }),
+    roundStrokes(eventId),
+  ]);
+  const over = new Set(
+    stages.filter((s) => s.closedAt != null || event?.status === "completed").map((s) => s.id),
+  );
+  return (stageId) => (stageId && over.has(stageId) ? playedOn(stageId, cards) : undefined);
+}
+
 function anyNotStarted(
   ids: Iterable<string>,
   stageId: string,
@@ -951,12 +995,9 @@ async function gameNets(
         // audience IS the membership.
         const audience = potAudience(game.groupKey, stage.teeSheet ?? "", fieldIds);
 
-        const entrantIds = potMembership(
-          isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in",
-          audience,
-          game.entrants,
-          stakeholderIds,
-        ).entrants;
+        const mode = isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in";
+        // Who the pot is waiting on — everyone it counts in, played or not.
+        const waitingOn = potMembership(mode, audience, game.entrants, stakeholderIds).entrants;
         /**
          * AND EVERY MEMBER ON THE ROUND HAS TEED OFF (2026-10-08).
          *
@@ -972,10 +1013,19 @@ async function gameNets(
           roundField &&
           stage.closedAt == null &&
           state.event.status !== "completed" &&
-          anyNotStarted(entrantIds.filter((id) => roundField.has(id)), game.stageId, cards)
+          anyNotStarted(waitingOn.filter((id) => roundField.has(id)), game.stageId, cards)
         ) {
           continue;
         }
+        // And who it CHARGES: in an opt-out pot, only those who played the
+        // round — a late entrant or a no-show owes nothing for it.
+        const entrantIds = potMembership(
+          mode,
+          audience,
+          game.entrants,
+          stakeholderIds,
+          playedOn(game.stageId, cards),
+        ).entrants;
         const potCards = cards
           .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
           .map((c) => {
@@ -1016,6 +1066,7 @@ async function gameNets(
     where: { eventId, ...stageWhere },
     include: { entrants: true },
   });
+  const playedForContest = await playedOnceRoundIsOver(eventId, contests);
   for (const n of contestLedger(
     contests.map((c) => ({
       id: c.id,
@@ -1039,6 +1090,7 @@ async function gameNets(
         fieldIds,
         c.entrants,
         stakeholderIds,
+        playedForContest(c.stageId),
       ).entrants,
       winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
     })),
@@ -1279,6 +1331,10 @@ export async function moneyFor(
     };
   });
 
+  // Who played each round that is over — the same reading the ledger charges
+  // by, so a pot's "N in" and the settle-up beneath it cannot disagree.
+  const playedOnceOver = await playedOnceRoundIsOver(eventId, [...contestRows, ...sideGameRows]);
+
   return {
     playerId: me?.id ?? "",
     netCents: me ? standingNets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
@@ -1361,6 +1417,7 @@ export async function moneyFor(
         moneyFieldIds,
         c.entrants,
         moneyStakeholderIds,
+        playedOnceOver(c.stageId),
       );
       const shaped = {
         id: c.id,
@@ -1418,6 +1475,7 @@ export async function moneyFor(
           moneyFieldIds,
           g.entrants,
           moneyStakeholderIds,
+          playedOnceOver(g.stageId),
         );
         const kind = g.kind as DerivedKind;
         return {
@@ -1572,6 +1630,14 @@ export interface RoundMoneyRow {
   label: string;
   /** Whether the round's money can be reported yet. */
   final: boolean;
+  /**
+   * Reported, and not yet official: every card is in but the committee has
+   * not closed the round (2026-10-08). The amounts are arithmetic on the
+   * cards, so they are shown — and a card corrected before the close moves
+   * them, so they say provisional until it. Optional so hand-built rows stay
+   * valid; absent reads as official.
+   */
+  provisional?: boolean;
   /** Holes returned against holes to play, for the "still playing" line. */
   holesReturned: number;
   holeCount: number;
@@ -1898,6 +1964,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       stageId: stage.id,
       label: roundLabel(stages, stage.id),
       final,
+      provisional: final && stage.closedAt == null && state?.event.status !== "completed",
       holesReturned,
       holeCount,
       matchesTotal,

@@ -22,7 +22,7 @@ import { playNassau } from "./nassau";
 import { resolveMatch } from "./match";
 import type { HoleResult } from "./types";
 
-export const DERIVED_KINDS = ["low-gross", "low-net", "birdies", "eagles"] as const;
+export const DERIVED_KINDS = ["low-gross", "low-net", "birdies", "eagles", "twos"] as const;
 export type DerivedKind = (typeof DERIVED_KINDS)[number];
 
 export const DERIVED_LABEL: Record<DerivedKind, string> = {
@@ -30,6 +30,7 @@ export const DERIVED_LABEL: Record<DerivedKind, string> = {
   "low-net": "Low net",
   birdies: "Birdie pot",
   eagles: "Eagle pot",
+  twos: "Twos pot",
 };
 
 export const DERIVED_HELP: Record<DerivedKind, string> = {
@@ -37,6 +38,7 @@ export const DERIVED_HELP: Record<DerivedKind, string> = {
   "low-net": "Lowest net score, after handicap strokes. A tie splits it.",
   birdies: "The pot divides by every birdie made, so two birdies is two shares.",
   eagles: "The same, for eagles. Rarely won, and worth having when it is.",
+  twos: "A share for every 2 made on any hole, so two twos is two shares.",
 };
 
 export function isDerivedKind(v: string): v is DerivedKind {
@@ -98,6 +100,21 @@ export function countUnder(card: PotCard, pars: number[], under: number): number
 }
 
 /**
+ * How many holes this card scored a gross 2 on — the club "twos" sweep
+ * (2026-10-08).
+ *
+ * A two is a score of 2 on ANY hole: almost always a birdie on a par 3, and an
+ * eagle on a short par 4 counts exactly the same, which is how the sweep is
+ * run. Gross, as birdies are and for the same reason. It was a prize LINE with
+ * one winner, under a detail saying "A share for every 2 made" — a promise a
+ * single-winner line cannot keep — so it is a pot settled by the cards now,
+ * one share per two, the standard way.
+ */
+export function countTwos(card: PotCard): number {
+  return card.strokes.filter((s) => s === 2).length;
+}
+
+/**
  * Who has the lowest score, over the holes they actually returned.
  *
  * A CARD THAT IS NOT FINISHED CANNOT WIN. Comparing a nine-hole total against
@@ -147,11 +164,12 @@ export function derivedNets(pot: DerivedPot): Net[] {
     ids.forEach((id, i) => totals.set(id, (totals.get(id) ?? 0) + shares[i]));
   };
 
-  if (pot.kind === "birdies" || pot.kind === "eagles") {
+  if (pot.kind === "birdies" || pot.kind === "eagles" || pot.kind === "twos") {
     const under = pot.kind === "eagles" ? 2 : 1;
     const counts = entrants.map((id) => {
       const card = pot.cards.find((c) => c.playerId === id);
-      return card ? countUnder(card, pot.pars, under) : 0;
+      if (!card) return 0;
+      return pot.kind === "twos" ? countTwos(card) : countUnder(card, pot.pars, under);
     });
     const made = counts.reduce((a, n) => a + n, 0);
     // Nobody made one: everybody gets their stake back rather than the app

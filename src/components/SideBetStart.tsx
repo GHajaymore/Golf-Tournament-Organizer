@@ -48,6 +48,7 @@ const GAMES = [
   },
   { kind: "birdies", label: DERIVED_LABEL.birdies, help: DERIVED_HELP.birdies },
   { kind: "eagles", label: DERIVED_LABEL.eagles, help: DERIVED_HELP.eagles },
+  { kind: "twos", label: DERIVED_LABEL.twos, help: DERIVED_HELP.twos },
   { kind: "low-net", label: DERIVED_LABEL["low-net"], help: DERIVED_HELP["low-net"] },
   { kind: "low-gross", label: DERIVED_LABEL["low-gross"], help: DERIVED_HELP["low-gross"] },
 ] as const;

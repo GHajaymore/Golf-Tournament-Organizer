@@ -75,12 +75,10 @@ export const PRIZE_STRUCTURES: PrizeStructure[] = [
     blurb: "A winner in each flight the field is drawn into.",
     lines: (ctx) => ctx.flights.map((name) => ({ category: `${name} — Winner` })),
   },
-  {
-    key: "twos",
-    label: "Twos pot",
-    blurb: "A sweep for every two made on a par 3.",
-    lines: () => [{ category: "Twos", detail: "A share for every 2 made on a par 3" }],
-  },
+  // No "Twos pot" here (2026-10-08). It added a prize LINE — one winner —
+  // under a detail promising "a share for every 2 made", which a single-winner
+  // line cannot pay. A twos sweep is a pot the cards settle, one share per
+  // two: it is a side bet now (`twos` in domain/derived-games.ts).
   {
     key: "specials",
     label: "Nearest the pin & longest drive",

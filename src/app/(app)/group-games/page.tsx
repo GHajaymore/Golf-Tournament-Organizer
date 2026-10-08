@@ -11,6 +11,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
 import { casualMoney, moneyWaitsFor } from "@/lib/services/casual-round";
+import { playedOnceRoundIsOver } from "@/lib/services/expenses";
 import { Icon } from "@/components/Icon";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { ContestsClient } from "@/components/ContestsClient";
@@ -223,8 +224,10 @@ export default async function GroupGamesPage({
   const confirmedIds = new Set(state.confirmed.map((p) => p.id));
   const departedPlayers = state.players.filter((p) => !confirmedIds.has(p.id)).map((p) => ({ id: p.id, name: p.name }));
 
+  // Once the round is over, only those who played it — as the settle-up charges.
+  const playedOnceOver = await playedOnceRoundIsOver(session.eventId, roundSideGames);
   const sideGameViews = roundSideGames.map((g) => {
-    const m = potMembership(potModeOf(g.entryMode), potFieldIds, g.entrants, potStakeholderIds);
+    const m = potMembership(potModeOf(g.entryMode), potFieldIds, g.entrants, potStakeholderIds, playedOnceOver(g.stageId));
     return {
       id: g.id,
       kind: g.kind,
