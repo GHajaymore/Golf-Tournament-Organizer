@@ -890,6 +890,14 @@ reach for `next/font/local` on the strength of one bad evening — that is a rea
 app is built, traded against an upstream blip. If it becomes frequent, self-hosting the two faces
 is the fix worth costing, and then it is a decision rather than a reflex.
 
+**DONE ON 2026-10-08, AND THE FETCH IS GONE.** It struck four times on 2026-10-07, past the
+retry in `build-checked.mjs`, and the decision was made. Fraunces and Oswald now come from
+`@fontsource-variable/*` on disk through `next/font/local` (`src/app/fonts.ts`), with the same
+character ranges, the same preload, and the fallback metrics Google shipped written out in
+`globals.css`. Measured against the last Google build: 0 differing pixels across every weight,
+the italic, and every range. `font-hosts.test.ts` refuses a `next/font/google` import anywhere.
+So an error in `next/font` after that date is NOT this fault; read it as a real one.
+
 Same family as the `Client Manifest` fault two sections up and read the same way: the file it
 names is noise, and what settles it is whether another build of the same SHA succeeded.
 

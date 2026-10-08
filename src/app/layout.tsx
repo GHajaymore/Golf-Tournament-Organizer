@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { Fraunces, Oswald } from "next/font/google";
+import { displayFontVars } from "./fonts";
 /**
  * THE ICON FONT IS GONE.
  *
@@ -69,41 +69,17 @@ import { siteOrigin } from "@/lib/site";
  * belonging to the game. It is confined to headings on purpose: a serif in a
  * score column, on a phone in sun, would be a worse leaderboard.
  *
- * `next/font/google` downloads at BUILD time and serves the files
- * same-origin, so the note above still holds — there is no external font host
- * at runtime, with or without a CSP to enforce it.
+ * Fraunces and the scoreboard's Oswald (design D, chosen 2026-09-19: a
+ * condensed sans that reads like the painted tiles beside an 18th green) are
+ * read from disk too, since 2026-10-08 — see `./fonts.ts`. They used to come
+ * through `next/font/google`, which served them same-origin but FETCHED them
+ * from Google on every build, and a failed fetch failed the build.
+ *
+ * Both now carry their whole weight axis. Headings are set at 500 (the
+ * `--font-heading-weight` and a long tail of `fontWeight: 500`), 600 and 700;
+ * the Google call named exactly those three, and a variable face covers them
+ * with the same file.
  */
-const display = Fraunces({
-  subsets: ["latin"],
-  /**
-   * A narrow range: enough for a headline and a heavier one, without shipping
-   * an axis nobody uses.
-   *
-   * 500 joins 600 and 700 because it is the weight the app's HEADINGS are set
-   * in — `--font-heading-weight` and a long tail of explicit `fontWeight: 500`
-   * call sites. It used to be supplied by a second copy of Fraunces pulled
-   * from Google's CDN by `globals.css`, and that copy is gone; without 500
-   * here the browser would substitute 600 and every one of those headings
-   * would come back a shade heavier.
-   */
-  weight: ["500", "600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-/**
- * The hand-hung scoreboard's face (design D, chosen 2026-09-19): a condensed
- * sans that reads like the painted tiles beside an 18th green. Used only by
- * the scoreboard panels on the player's Today screen, through
- * `--font-scoreboard`. Three weights, latin only.
- */
-const scoreboard = Oswald({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-board",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   /**
@@ -223,7 +199,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable} ${scoreboard.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} style={displayFontVars}>
       <body>
         {/* First in the body, so every <use href="#i-…"> below it resolves
             against symbols that are already in the document. */}
