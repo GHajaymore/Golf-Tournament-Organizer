@@ -404,7 +404,8 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
    * cut left out owes this round nothing, so they are not waited for.
    */
   const thruHere = (r: StandingRow): number => (activeStage ? state.roundThru(r.id, activeStage.id) : r.thru);
-  const expected = rows.filter((r) => !r.absent && !r.missedCut);
+  // Nor on a player who withdrew: their card is as far as it will ever get.
+  const expected = rows.filter((r) => !r.absent && !r.missedCut && !r.withdrew);
   const expectedStarted = expected.filter((r) => thruHere(r) > 0);
   /**
    * A ROUND COUNTED IN SIDES OR TIES IS ASKED IN SIDES OR TIES (2026-10-08).

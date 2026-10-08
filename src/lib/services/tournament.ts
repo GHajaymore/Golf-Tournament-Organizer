@@ -410,6 +410,8 @@ export interface StrokeStanding {
    * applied cut. Without a place, beneath everyone who made it.
    */
   missedCut?: string;
+  /** Withdrew after beginning — WD on the sheet. See `withdrawnStandings`. */
+  withdrew?: boolean;
 }
 
 export interface EventState {
@@ -589,6 +591,11 @@ export interface EventState {
    */
   cutReady: { feederId: string; feederName: string; nextId: string; nextName: string } | null;
   strokeStandings: StrokeStanding[];
+  /**
+   * Players withdrawn after they began, as WD rows — NOT part of the field,
+   * so not in `strokeStandings`. Only the printed sheet adds them.
+   */
+  withdrawnStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
    *
@@ -1089,7 +1096,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * players' `groupId` are both already loaded.
    */
   const flightTeeOf = new Map(groups.map((g) => [g.id, g.teeId]));
-  const withFlightTee = confirmed.map((p) => ({
+  /**
+   * Players WITHDRAWN after they had begun — strokes on a card in this event.
+   * They are out of the field and keep their results (`removeSignup`), so they
+   * are priced here as well: their row on the sheet reads WD over the figures
+   * they returned, and a net figure needs the handicap they played off. The
+   * maps are only ever looked up by id, so an extra entry changes nobody else.
+   */
+  const withdrawnIds = new Set(players.filter((p) => p.status === "withdrawn").map((p) => p.id));
+  const withdrawnPlayed = players.filter(
+    (p) => p.status === "withdrawn" && scorecards.some((c) => c.playerId === p.id && hasAnyHole(c.strokes)),
+  );
+  const withFlightTee = [...confirmed, ...withdrawnPlayed].map((p) => ({
     ...p,
     flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null,
   }));
@@ -1463,7 +1481,19 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       };
     }
     if (roundIsStroke(s.type, s.format)) {
-      const own = scorecards.filter((c) => c.stageId === s.id);
+      /**
+       * Not a WITHDRAWN player's card (2026-10-08). It is as far as it will
+       * ever get, so it is neither "still out on the course" — which the
+       * dashboard printed for a player who had gone home at the turn — nor a
+       * card the round is waiting for.
+       */
+      const own = scorecards.filter((c) => c.stageId === s.id && !withdrawnIds.has(c.playerId));
+      // A cut round's field is the survivors, and one who withdrew is not
+      // returning a card: off the denominator as well. (An uncut round counts
+      // the confirmed field, which a withdrawal has already left.)
+      const withdrawnHere = s.cutEnabled
+        ? scorecards.filter((c) => c.stageId === s.id && withdrawnIds.has(c.playerId)).length
+        : 0;
       const roundHoles = holesPlayed(s.holes);
       const full = (strokes: string) => {
         try {
@@ -1495,10 +1525,13 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * card said "Cards in 16/28 · 57% submitted". The twelve missing cards
          * belonged to players who had been cut the day before.
          */
-        total: fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
-          total: confirmed.length,
-          flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
-        }),
+        total: Math.max(
+          0,
+          fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
+            total: confirmed.length,
+            flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
+          }) - withdrawnHere,
+        ),
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);
@@ -1984,8 +2017,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     }
   }
 
-  const strokeStandings: StrokeStanding[] = confirmed
-    .map((p) => {
+  const standingOf = (p: (typeof confirmed)[number]): StrokeStanding => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
       const net = netOf(a);
       // No card behind the round means no par, and `parThru` sums to nought
@@ -2028,7 +2060,26 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         missedRound: a.thru > 0 && missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
         missedCut: cutAfter.get(p.id) ?? "",
       };
-    })
+  };
+
+  /**
+   * THE PLAYERS WHO WITHDREW, as a results sheet lists them: WD, beneath
+   * everybody, over the figures they returned and without a place
+   * (2026-10-08). A withdrawal keeps its results — `removeSignup` says so in
+   * the audit line — and every board then dropped the player entirely, round
+   * 1 score and all, because the sheet was built from the confirmed field.
+   *
+   * Kept OUT of `strokeStandings` on purpose: the cut, the foursome draw, the
+   * next stage's seeding and the dashboard's cut preview all read that list as
+   * "the field", and a player who has left it must not be drawn, seeded or
+   * counted. Only the sheet itself (`standingRows`) adds them.
+   */
+  const withdrawnStandings: StrokeStanding[] = withdrawnPlayed
+    .map((p) => ({ ...standingOf(p), ranked: false, rank: 0, missedCut: "", withdrew: true }))
+    .sort((x, y) => compareOnBasis(x, y, rankingBasis));
+
+  const strokeStandings: StrokeStanding[] = confirmed
+    .map(standingOf)
     .sort((x, y) => {
       // Unranked rows go to the bottom, together — a player who returned no
       // card and a player whose card stopped short are both on the sheet
@@ -2574,6 +2625,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     nextUnplayedRound,
     cutReady,
     strokeStandings,
+    withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,
     // so `boardIsNet` and this caption cannot disagree.
@@ -2805,7 +2857,8 @@ export function standingRows(state: EventState): StandingRow[] {
   );
 
   if (state.boardIsStroke) {
-    return state.strokeStandings.map((s) => ({
+    // The field, then anybody who withdrew after beginning — WD, at the foot.
+    return [...state.strokeStandings, ...(state.withdrawnStandings ?? [])].map((s) => ({
       id: s.player.id,
       rank: s.rank,
       ranked: s.ranked,
@@ -2831,6 +2884,7 @@ export function standingRows(state: EventState): StandingRow[] {
       holesOwed: s.holesOwed,
       missedRound: s.missedRound ?? "",
       missedCut: s.missedCut ?? "",
+      withdrew: !!s.withdrew,
     }));
   }
   /**
@@ -2889,6 +2943,7 @@ export function standingRows(state: EventState): StandingRow[] {
       // round — set rather than absent, so both branches have one shape.
       missedRound: "",
       missedCut: "",
+      withdrew: false,
     };
   });
 }

@@ -82,6 +82,8 @@ export interface StandingRow {
   missedRound?: string;
   /** The round an applied cut left this player out after, by name, or "". */
   missedCut?: string;
+  /** Withdrew after beginning: WD, at the foot of the sheet, without a place. */
+  withdrew?: boolean;
   /**
    * Whether a PAR was known for the holes this player has played.
    *
@@ -115,6 +117,7 @@ export interface StandingRow {
  */
 export function unrankedNote(r: StandingRow): string {
   if (r.ranked || r.thru <= 0) return "";
+  if (r.withdrew) return "WD — withdrew";
   // A round the committee closed, with no card for it — a player cut after
   // round 1, or one who did not turn up for round 2. Their card is not
   // incomplete, and saying so sent a reader looking for holes that were never
