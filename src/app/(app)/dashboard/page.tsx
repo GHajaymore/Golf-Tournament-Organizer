@@ -8,7 +8,7 @@ import { StatCard, FactCard } from "@/components/PageHeader";
 import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
-import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
+import { canSeeLeaderboard, canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
@@ -23,6 +23,8 @@ import { currentRoundCut, survivorsWithTies } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
+import { RoundReadyCard } from "@/components/RoundReadyCard";
+import { roundReadyToClose } from "@/lib/domain/round-ready";
 import { NeedsYouNow } from "@/components/NeedsYouNow";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
@@ -316,6 +318,21 @@ export default async function DashboardPage() {
       through,
       missed: Math.max(0, asOf.strokeStandings.length - through),
     };
+  })();
+
+  /**
+   * THE ROUND ON THE BOARD, READY FOR THE COMMITTEE TO CLOSE (2026-10-08).
+   * Closing is what makes a result official, so once there is nothing left to
+   * wait for the dashboard says so — see `roundReadyToClose`. Not when the cut
+   * card is up: closing a round a cut is taken out of IS approving the cut,
+   * and that card says so in its own words.
+   */
+  const readyToClose = (() => {
+    const stage = state.boardStage;
+    if (!isStaff || cutPreview || !stage || event.status === "completed") return null;
+    const needsApproval = reviewsScores(event.shape) && !allowsAutoConfirm(settingsOf(event));
+    const ready = roundReadyToClose({ ...state.boardProgress, needsApproval, closed: stage.closedAt != null });
+    return ready ? { stageId: stage.id, roundName: roundLabel(state.stages, stage.id) || "the round" } : null;
   })();
 
   /**
@@ -765,7 +782,9 @@ export default async function DashboardPage() {
               : {}),
           })}
         >
-          {cutPreview && (
+          {/* ONE expression, so nothing to show is `null` and not `[null, null]`
+              — NeedsYouNow hides itself only when its children are empty. */}
+          {cutPreview ? (
             <CutReadyCard
               feederId={cutPreview.feederId}
               feederName={cutPreview.feederName}
@@ -774,7 +793,9 @@ export default async function DashboardPage() {
               through={cutPreview.through}
               missed={cutPreview.missed}
             />
-          )}
+          ) : readyToClose ? (
+            <RoundReadyCard stageId={readyToClose.stageId} roundName={readyToClose.roundName} />
+          ) : null}
         </NeedsYouNow>
       )}
 

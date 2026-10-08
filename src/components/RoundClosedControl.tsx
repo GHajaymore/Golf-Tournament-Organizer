@@ -50,7 +50,7 @@ export function RoundClosedControl({
                 // worth, so nothing about the board changes here. Saying so is
                 // better than a control whose effect is invisible.
                 "Marks the round as played. On a points round this changes nobody's position — a missed round already costs the points it was worth."
-              : "Tell the board the round is over. Anybody without a card for it is then shown without a place, the same as a card that stopped short — they have not completed the competition. Leave it unticked while cards are still coming in."}
+              : "Tell the board the round is over, which makes its result official — the public board reads Final rather than All in. Anybody without a card for it is then shown without a place, the same as a card that stopped short — they have not completed the competition. Leave it unticked while cards are still coming in."}
           </span>
         </span>
       </label>
