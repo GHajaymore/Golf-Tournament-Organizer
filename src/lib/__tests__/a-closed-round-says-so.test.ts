@@ -27,6 +27,14 @@ describe("the standings note", () => {
     expect(s.note).toMatch(/ties decided/);
   });
 
+  it("is said once on Today — under the Leaders board when that is on screen", () => {
+    // The position card and the Leaders board both printed it, so a player
+    // with no card of their own read the same sentence twice, two inches apart.
+    const src = readSource("src/app/(player)/me/page.tsx");
+    expect(src).toMatch(/standing\.note && !\(leadersOnScreen && leaders\.length > 0\)/);
+    expect(src).toMatch(/<ScoreboardLeaders[\s\S]{0,80}note=\{standing\?\.note/);
+  });
+
   it("is told by both screens that print it", () => {
     for (const f of ["src/lib/services/me.ts", "src/app/(app)/reports/page.tsx"]) {
       expect(readSource(f), f).toMatch(/roundClosed: state\.boardStage\?\.closedAt != null/);

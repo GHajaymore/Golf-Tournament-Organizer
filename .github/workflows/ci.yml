@@ -328,6 +328,14 @@ jobs:
         # `--with-deps` installs system libraries OUTSIDE the cached directory,
         # so it has to run even on a cache hit — but with the browser already
         # present it is seconds rather than a download.
+        #
+        # A TIME LIMIT, because on 2026-10-08 the apt step behind `--with-deps`
+        # hung on archive.ubuntu.com for 29 minutes and the job's own timeout
+        # killed it before a test ran (#832, End-to-end (desktop); the re-run
+        # passed). Ten minutes is far more than a healthy install takes, and a
+        # hang now fails in ten rather than thirty — and fails HERE, naming the
+        # step, instead of reading as a cancelled test run.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end
