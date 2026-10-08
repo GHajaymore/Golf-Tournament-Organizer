@@ -88,7 +88,7 @@ import { phoneRequiredFor, capacityUnderCap, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
-import { hasPlayingHistory } from "@/lib/services/playing-history";
+import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
@@ -701,6 +701,8 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
  * them, while `state.players` keeps the row so the matches they did play still
  * have a name on them.
  */
+// `keepDefaultStakes` beside it: a stake paid by default is not refunded by
+// leaving — see there.
 // `hasPlayingHistory` — whether removing this person would DESTROY something —
 // lives in services/playing-history.ts, shared with the member's own
 // `withdrawMyEntry` so both doors keep a player with history the same way.
@@ -714,6 +716,7 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
 
   if (played) {
     await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
+    await keepDefaultStakes(eventId, playerId);
   } else {
     await prisma.player.delete({ where: { id: playerId } });
   }

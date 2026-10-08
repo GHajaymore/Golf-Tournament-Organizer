@@ -361,6 +361,134 @@ test.describe("a casual round at the course", () => {
     expect(done.match(/ pays [^\n]*\$\d/g)?.length, "more handovers than the bets need").toBe(1);
   });
 
+  test("a player who leaves at the turn keeps their stake and what they made", async ({ page }) => {
+    /**
+     * A $10 birdie pot, everyone in. Cat birdies the 3rd and walks off after
+     * the 9th; Ann birdies the 12th. Cat's $10 stays in — withdrawing is not a
+     * refund — so the $40 pot divides by the two birdies made: Ann +$10, Cat
+     * +$10, Bea and Dot -$10.
+     *
+     * Cat read "square" (2026-10-07): her default stake vanished with her
+     * place in the field, and Ann's one birdie took a $30 pot.
+     */
+    await setUp(page, "Stroke Play", false, [ANN, BEA, CAT, DOT], { game: "Birdie pot", stake: "10" });
+    const toPar = (h: number, name: string) => ((h === 3 && name === CAT) || (h === 12 && name === ANN) ? -1 : 0);
+    const play = async (from: number, to: number) => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await page.locator(".hole-nav-btn").nth(from - 1).click();
+      for (let h = from; h <= to; h += 1) {
+        const plus = page.getByRole("button", { name: new RegExp(`^One more stroke for .* on hole ${h}$`) });
+        await expect(plus.first()).toBeVisible();
+        const names = await plus.evaluateAll((bs) =>
+          bs.map((b) => (b.getAttribute("aria-label") ?? "").replace(/^One more stroke for (.*) on hole \d+$/, "$1")),
+        );
+        for (const name of names) {
+          const more = page.getByRole("button", { name: `One more stroke for ${name} on hole ${h}` });
+          const fewer = page.getByRole("button", { name: `One fewer stroke for ${name} on hole ${h}` });
+          await more.click();
+          const d = toPar(h, name);
+          for (let k = 0; k < Math.abs(d); k += 1) await (d > 0 ? more : fewer).click();
+        }
+        if (h < 18) await page.getByRole("button", { name: /^Next/ }).click();
+      }
+      await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
+      await expect(page.getByText(/\bSaved\b/).first()).toBeVisible({ timeout: 30_000 });
+    };
+
+    await play(1, 9);
+    await page.goto(`/entry?bust=${Date.now()}`);
+    await page.locator("summary", { hasText: /^More:/ }).click();
+    await page.getByRole("button", { name: `Take ${CAT} out of this round` }).click();
+    await page.getByRole("button", { name: "Take them out" }).click();
+    await expect(page.getByRole("button", { name: `Take ${CAT} out of this round` })).toHaveCount(0, { timeout: 20_000 });
+    await play(10, 18);
+
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const result = page.getByRole("region", { name: "Where the money ends up" });
+    const positions = (await result.locator("[data-position]").allInnerTexts()).map((p) => p.replace(/\s+/g, " ").trim()).sort();
+    expect(positions, "the leaver's stake was refunded or their birdie lost").toEqual(
+      [`${ANN} +$10.00`, `${CAT} +$10.00`, `${BEA} −$10.00`, `${DOT} −$10.00`].sort(),
+    );
+    // And the pot names who is in it, the leaver included.
+    await expect(page.getByText(`${CAT} — left, stake kept`)).toBeVisible();
+  });
+
+  test("skins off handicaps: one shot wins a hole, and the carry follows it", async ({ page }) => {
+    /**
+     * Ann and Bea off 0, Cat off 1 — her one shot on stroke index 1, the 4th.
+     * Gross par everywhere but Ann's birdie on the 18th. Holes 1-3 tie and
+     * carry; Cat's net 3 on the 4th wins it outright, four skins. Holes 5-17
+     * tie and carry into the 18th, which Ann wins: fourteen. $30 over 18
+     * skins: Ann $23.33 (+$13.33), Cat $6.67 (-$3.33), Bea -$10.
+     *
+     * A gross reading pays Cat nothing; a carry that does not carry pays one
+     * skin each; dividing by holes rather than skins won leaves $0 behind.
+     */
+    await setUp(page, "Stroke Play", true, [ANN, BEA, CAT], { game: "Skins", stake: "10" }, [0, 0, 1]);
+    await scoreHoles(page, (hole, card) => (hole === 18 && card === 0 ? -1 : 0));
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const text = await page.locator("main").innerText();
+    expect(text).toMatch(/Skins — net/i);
+    const row = (name: string, skins: number, won: string, net: string) =>
+      new RegExp(`${name}\\s+${skins}\\s+${won}\\s+${net}\\b`);
+    expect(text).toMatch(row(ANN, 14, "23\\.33", "\\+13\\.33"));
+    expect(text).toMatch(row(CAT, 4, "6\\.67", "[-−]3\\.33"));
+    expect(text).toMatch(row(BEA, 0, "0\\.00", "[-−]10\\.00"));
+  });
+
+  test("a game added mid-round is everyone's, and two games settle as one", async ({ page }) => {
+    /**
+     * A $5 birdie pot set up with the round; a $10 low net added from the
+     * money page, the way four friends agree it on the 5th tee. Ann and Bea
+     * off 0, Cat and Dot off 4. Ann birdies the 1st (71); Cat and Dot make
+     * two bogeys each (74 gross, 70 net); Bea pars round (72).
+     *
+     *   low net    Cat and Dot tie on 70 and split $40: +$10 each, Ann and
+     *              Bea -$10
+     *   birdies    Ann's one birdie takes $20: +$15, the rest -$5
+     *   together   Ann +$5, Cat +$5, Dot +$5, Bea -$15 — one settle-up
+     *
+     * A game added later sat at "In the pot (0)" and settled nothing, under a
+     * heading saying "Everyone in this round is in" (2026-10-07). Skins
+     * started later did the same.
+     */
+    await setUp(page, "Stroke Play", true, [ANN, BEA, CAT, DOT], { game: "Birdie pot", stake: "5" }, [0, 0, 4, 4]);
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const fold = page.locator("details", { has: page.locator("summary", { hasText: "Add a game" }) });
+    if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await page.locator("summary", { hasText: "Add a game" }).click();
+    const lowNet = page.locator("div").filter({ has: page.getByText("Low net", { exact: true }) }).last().locator('input[placeholder="0.00"]');
+    await lowNet.fill("10");
+    await lowNet.press("Tab");
+    await expect(async () => {
+      await page.goto(`/group-games?bust=${Date.now()}`);
+      const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+      const at = text.indexOf("Low net");
+      expect(text.slice(at, at + 400), "a game added mid-round started with nobody in it").toContain("In the pot (4)");
+    }).toPass({ timeout: 20_000 });
+
+    // Skins started later is everyone's too.
+    if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await page.locator("summary", { hasText: "Add a game" }).click();
+    await page.getByLabel(/Buy-in/).fill("2");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(async () => {
+      await page.goto(`/group-games?bust=${Date.now()}`);
+      await expect(page.getByText(/In the pot — 4 players/i)).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 20_000 });
+    // Take the skins back off, so the figures below are the two games'.
+    await page.getByLabel(/Buy-in/).fill("0");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForLoadState("networkidle");
+
+    await scoreHoles(page, (hole, card) =>
+      hole === 1 && card === 0 ? -1 : (card === 2 && (hole === 5 || hole === 6)) || (card === 3 && (hole === 7 || hole === 8)) ? 1 : 0,
+    );
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const positions = (await page.getByRole("region", { name: "Where the money ends up" }).locator("[data-position]").allInnerTexts())
+      .map((p) => p.replace(/\s+/g, " ").trim())
+      .sort();
+    expect(positions).toEqual([`${ANN} +$5.00`, `${BEA} −$15.00`, `${CAT} +$5.00`, `${DOT} +$5.00`].sort());
+  });
+
   test("stroke play, gross, three players", async ({ page }) => {
     await setUp(page, "Stroke Play", false, [ANN, BEA, CAT]);
     await scoreEveryHole(page, 1);
@@ -718,6 +846,24 @@ test.describe("a casual round at the course", () => {
     const more = page.locator("summary", { hasText: /^More:/ });
     await expect(more).toBeVisible();
     await expect(more, "a four-ball offers a code nobody can score with").not.toContainText("Friends");
+  });
+
+  test("a four-ball played for $10 a man settles man to man", async ({ page }) => {
+    /**
+     * Ann & Bea drop a shot each on the 3rd and 6th; everything else is par.
+     * Cat & Dot win those two holes and halve the rest: 2 up with one to
+     * play after the 17th, so won 2&1. "The match" at $10 a man: each loser
+     * pays a winner $10 — Ann -$10, Bea -$10, Cat +$10, Dot +$10.
+     */
+    await setUp(page, "Four-Ball", false, [ANN, BEA, CAT, DOT], { game: "The match", stake: "10" });
+    await scoreEveryHole(page, 2);
+    await roundScreen(page);
+    await expect(page.locator("[data-match-line]")).toHaveText(`${CAT} & ${DOT} won 2&1`);
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    const positions = (await page.getByRole("region", { name: "Where the money ends up" }).locator("[data-position]").allInnerTexts())
+      .map((p) => p.replace(/\s+/g, " ").trim())
+      .sort();
+    expect(positions).toEqual([`${ANN} −$10.00`, `${BEA} −$10.00`, `${CAT} +$10.00`, `${DOT} +$10.00`].sort());
   });
 
   test("foursomes, gross, four players", async ({ page }) => {

@@ -218,6 +218,11 @@ export default async function GroupGamesPage({
   // The round's money, as its own screen reads it — see the card below.
   const cash = casual ? await casualMoney(session.eventId, session.email) : null;
 
+  // Everyone with a row who is no longer playing — named on a pot they left a
+  // stake in (see `keepDefaultStakes`).
+  const confirmedIds = new Set(state.confirmed.map((p) => p.id));
+  const departedPlayers = state.players.filter((p) => !confirmedIds.has(p.id)).map((p) => ({ id: p.id, name: p.name }));
+
   const sideGameViews = roundSideGames.map((g) => {
     const m = potMembership(potModeOf(g.entryMode), potFieldIds, g.entrants, potStakeholderIds);
     return {
@@ -407,6 +412,7 @@ export default async function GroupGamesPage({
           contests={[]}
           sideGames={sideGameViews}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+            departed={departedPlayers}
           /* The intent this screen has always had, now honoured by the
              component: a closest-to-the-pin is a thing a club puts on for a
              field, and this screen belongs to the people playing. Passing an
@@ -458,6 +464,7 @@ export default async function GroupGamesPage({
             contests={[]}
             sideGames={sideGameViews}
             field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+            departed={departedPlayers}
             contestsApply={false}
             headToHead={isHeadToHead(week.type)}
             rows="off"
