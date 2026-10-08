@@ -684,7 +684,11 @@ export default async function PlayTodayPage() {
                 {standing.record && (
                   <div style={{ fontSize: 14, color: "var(--color-neutral-400)", marginTop: 3 }}>{standing.record}</div>
                 )}
-                {standing.note && (
+                {/* Once, under the board it qualifies (2026-10-08). With the
+                    Leaders board on this screen too, the same sentence —
+                    "This round is all in…", "The committee has closed this
+                    round…" — was printed here and again two inches below. */}
+                {standing.note && !(leadersOnScreen && leaders.length > 0) && (
                   <div style={{ fontSize: 14, color: "var(--color-neutral-400)", marginTop: 5, lineHeight: 1.5 }}>
                     {standing.note}
                   </div>
