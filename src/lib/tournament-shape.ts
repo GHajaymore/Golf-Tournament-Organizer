@@ -131,6 +131,30 @@ export function reviewsScores(shape: string | null | undefined): boolean {
 }
 
 /**
+ * WHETHER A PLAYER SIGNS THEIR CARD — never, for a casual round.
+ *
+ * Ajay, 2026-10-07: "no certification for casual card." Signing is Rule 3.3b's
+ * statement to a COMMITTEE that the scores are right, and a casual round has
+ * none: its money settles once every hole is in (`cardsIn`), and its result is
+ * the cards as entered. So Today told the host "Every hole in — not yet
+ * certified" in a waiting colour, one line above "Every card is in — this is
+ * the result.", and asked for a signature that changed nothing.
+ *
+ * Disputing goes with it. "Something on this card is wrong" asks a committee
+ * not to accept a card, and nobody accepts one here (`reviewsScores`). A
+ * friend who finds a wrong score corrects it; the card is open all round.
+ *
+ * Enforced in `certifyCard` and `disputeScorecard`, not only by the screens
+ * hiding the buttons: an action is a public endpoint.
+ */
+export function signsCards(shape: string | null | undefined): boolean {
+  return !isMatch(shape);
+}
+
+/** What the server says to a signature or a dispute on a casual card. */
+export const NO_SIGNING_REFUSAL = "A casual round's cards aren't signed — the card counts as it's entered.";
+
+/**
  * What somebody with no place in it is told, in the words of what it IS.
  *
  * "You aren't entered in this tournament" was said on a casual round — a few

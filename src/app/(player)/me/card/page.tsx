@@ -24,7 +24,7 @@ import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
 import { parsePinSheet } from "@/lib/domain/pin-sheet";
 import { firstHoleOf } from "@/lib/domain/hole-number";
-import { notInItWords } from "@/lib/tournament-shape";
+import { notInItWords, signsCards } from "@/lib/tournament-shape";
 
 export const metadata = screenMetadata("/me/card");
 
@@ -393,6 +393,8 @@ export default async function PlayCardPage() {
       // stops there, and saying "it's with the committee now" is a wait that
       // never ends. A casual round is exactly that case.
       staffApproves={!allowsAutoConfirm(settings)}
+      // A casual card is never signed or disputed — `signsCards`.
+      signs={signsCards(state.event.shape)}
       // The club's badge at the head of the card, so the card a player holds
       // carries the mark that is on the paper one.
       brand={brand}

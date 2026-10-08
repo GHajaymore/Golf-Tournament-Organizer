@@ -203,7 +203,23 @@ export interface CardStanding {
   action: string;
 }
 
-export function cardStanding(status: string, staffApproves: boolean, complete = false): CardStanding {
+export function cardStanding(
+  status: string,
+  staffApproves: boolean,
+  complete = false,
+  /** False on a casual round, whose cards are never signed — `signsCards`. */
+  signs = true,
+): CardStanding {
+  /**
+   * A CASUAL CARD IS DONE WHEN ITS HOLES ARE (Ajay, 2026-10-07: "no
+   * certification for casual card"). Asked before the status, because a card
+   * signed before that decision still holds "certified" and is no different.
+   */
+  if (!signs) {
+    return complete
+      ? { label: "Every hole in — that's your card", tone: "done", action: "See my card" }
+      : { label: "Not every hole in yet", tone: "waiting", action: "Finish my card" };
+  }
   if (status === "approved") return { label: "Approved", tone: "done", action: "" };
   // Someone says this card is wrong. It is the player's to look at, and it is
   // emphatically not "finish" — every hole may already be on it.

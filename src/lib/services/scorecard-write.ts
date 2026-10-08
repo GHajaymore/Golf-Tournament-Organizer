@@ -7,6 +7,7 @@ import { mayReportPartialCard, type TournamentSettings } from "@/lib/tournament-
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { holesPlayed } from "../domain/handicap";
+import { signsCards, NO_SIGNING_REFUSAL } from "../tournament-shape";
 
 /**
  * Writing one player's stroke card — everything except who is allowed to.
@@ -218,6 +219,17 @@ export async function writeScorecard(input: {
 }
 
 /**
+ * Refuses a signature or a dispute on a round whose cards are not signed — a
+ * casual round, see `signsCards`. Every door into either act comes through
+ * here: `certifyCard` for the console, the player card and the Round Code,
+ * and `disputeScorecard` for the one way to say a card is wrong.
+ */
+export async function assertSignsCards(eventId: string): Promise<void> {
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } });
+  if (event && !signsCards(event.shape)) throw new Error(NO_SIGNING_REFUSAL);
+}
+
+/**
  * Signing a card — Rule 3.3b, and the same three lines wherever it is done.
  *
  * Lifted out of `certifyScorecard` for the reason that action already states:
@@ -242,6 +254,7 @@ export async function certifyCard(input: {
   playerId: string;
   by: string;
 }): Promise<void> {
+  await assertSignsCards(input.eventId);
   // Scoped on eventId as well as the pair: the (stageId, playerId) unique key
   // is caller-supplied, and without the event in the filter it would name a
   // row in any tournament. Same hole that saveScorecard had.

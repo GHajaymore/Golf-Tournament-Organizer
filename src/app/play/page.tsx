@@ -16,6 +16,7 @@ import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { matchStrokesGiven } from "@/lib/domain/match";
 import { isHeadToHead } from "@/lib/stage-types";
 import { needsTeams } from "@/lib/formats";
+import { signsCards } from "@/lib/tournament-shape";
 import { expiryNotice, expiryShort, hoursLeft } from "@/lib/domain/round-expiry";
 import { casualKeepRefusalFor } from "@/lib/services/close-terms";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -218,6 +219,8 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
           /* Whether a signed card then waits for a committee. A casual round is
              set to player confirmation because there is not one. */
           staffApproves={!allowsAutoConfirm(settings)}
+          // A casual card is never signed — `signsCards`.
+          signs={signsCards(event.shape)}
           voiceEntry={settings.voiceEntry}
         />
         </DistanceUnitProvider>

@@ -69,6 +69,7 @@ export function PlayerCard({
   initialRevision = "",
   savePartial = true,
   staffApproves = true,
+  signs = true,
   partners = [],
   startHole = 1,
   pointsTable = null,
@@ -171,6 +172,12 @@ export function PlayerCard({
    * genuinely coming.
    */
   staffApproves?: boolean;
+  /**
+   * Whether this card is signed at all — false on a casual round
+   * (`signsCards`), which then has no certify, no dispute and no Rule 3.3b
+   * cite. Default true, the direction that keeps a tournament's signature.
+   */
+  signs?: boolean;
 }) {
   const [strokes, setStrokes] = useState<(number | null)[]>(() =>
     Array.from({ length: holes }, (_, i) => initialStrokes[i] ?? null),
@@ -991,7 +998,15 @@ export function PlayerCard({
               above already says "9 of 18 holes in"; the button appears when
               it can be pressed, which is still never on an unfinished card —
               certifying one would claim holes nobody played were right. */}
-          {(complete || state === "certified") && (
+          {/* A casual card is done when its holes are, and says so in place
+              of the signature it no longer asks for (2026-10-07). */}
+          {!signs && complete && (
+            <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55 }}>
+              <Icon name="check" /> Every hole in — that&rsquo;s your card. Change a score any time if
+              it&rsquo;s wrong.
+            </p>
+          )}
+          {signs && (complete || state === "certified") && (
             <>
               <button
                 type="button"
@@ -1030,7 +1045,7 @@ export function PlayerCard({
               approved one is locked — `disputeScorecard` refuses it, so a
               button here would be one that only ever errors — and a disputed
               one is already said. */}
-          {state !== "disputed" && filled > 0 && (
+          {signs && state !== "disputed" && filled > 0 && (
             <div style={{ marginTop: 10 }}>
               {/* A plain line rather than a full-width button: the door has
                   to be there, it does not have to be the loudest thing under
@@ -1048,7 +1063,7 @@ export function PlayerCard({
               />
             </div>
           )}
-          {state === "disputed" && (
+          {signs && state === "disputed" && (
             <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.55, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> Flagged as wrong. The committee won&rsquo;t accept it until
               it&rsquo;s sorted.
@@ -1065,9 +1080,11 @@ export function PlayerCard({
               <Icon name="book-open" /> Rules
             </summary>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 2 }}>
-              <span>
-                <RuleCite rule="scorecardCertification" fontSize={14} />
-              </span>
+              {signs && (
+                <span>
+                  <RuleCite rule="scorecardCertification" fontSize={14} />
+                </span>
+              )}
               {rulesHref && (
                 <Link
                   href={rulesHref}

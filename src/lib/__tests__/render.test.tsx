@@ -4199,6 +4199,28 @@ describe("the player's own card opens on what is already there", () => {
     const certify = html.match(/<button[^>]*btn-primary[^>]*>/)?.[0] ?? "";
     expect(html).toContain("Certify my card");
     expect(certify, "Certify should be pressable on a complete card").not.toContain("disabled");
+    // And the dispute door and the Rule 3.3b cite are on a card that signs.
+    expect(html).toContain("Something on this card is wrong");
+    expect(html).toMatch(/3\.3b/);
+  });
+
+  it("asks a casual card for no signature and no dispute", async () => {
+    // Ajay, 2026-10-07: "no certification for casual card." The same complete
+    // card as the control above, on a round that does not sign: done, and
+    // told so, with nothing to press and no committee to flag a card to.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(4)} signs={false}
+      />,
+    );
+    expect(html).not.toContain("Certify my card");
+    expect(html).not.toContain("Something on this card is wrong");
+    expect(html).not.toMatch(/3\.3b/);
+    expect(html).toContain("Every hole in — that’s your card");
   });
 
   it("normalises a card longer than the round", async () => {

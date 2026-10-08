@@ -162,6 +162,12 @@ interface Props {
    * does not exist and never arrives.
    */
   staffApproves?: boolean;
+  /**
+   * Whether this card is signed at all — false on a casual round
+   * (`signsCards`, Ajay 2026-10-07). Default true: a tournament's card keeps
+   * its signature whatever an un-updated caller sends.
+   */
+  signs?: boolean;
 }
 
 /**
@@ -684,7 +690,14 @@ export function PlayClient(props: Props) {
               greyed button under the pad for the whole round said nothing it
               did not. Never on an unfinished card — certifying one would claim
               holes nobody played were right. */}
-          {(cardComplete || certified) && (
+          {/* A casual card is done when its holes are — no signature. */}
+          {props.signs === false && cardComplete && (
+            <p style={{ fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+              <Icon name="check" /> Every hole in — that&rsquo;s your card. Change a score any time if
+              it&rsquo;s wrong.
+            </p>
+          )}
+          {props.signs !== false && (cardComplete || certified) && (
           <>
           <button
             type="button"

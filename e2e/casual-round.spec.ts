@@ -626,6 +626,17 @@ test.describe("a casual round at the course", () => {
     // The control: the board is the round's, with both players on it.
     expect(board).toMatch(new RegExp(`1 ${HOST} F -1 2 ${BEA} F E`));
     expect(board).not.toContain("Flight");
+
+    // NO SIGNATURE (Ajay, 2026-10-07). Today read "Every hole in — not yet
+    // certified" one line above "Every card is in — this is the result."
+    // Today and the card both say the card is done, and offer nothing to
+    // sign or to flag to a committee there is not.
+    for (const path of ["/me", "/me/card"]) {
+      await page.goto(`${path}?bust=${Date.now()}`);
+      const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+      expect(text, path).toMatch(/Every hole in — that.s your card/i);
+      expect(text, path).not.toMatch(/certif|Something on this card is wrong/i);
+    }
   });
 
   test("two friends score their own cards by the round code, on their own phones", async ({ page, browser, baseURL }, testInfo) => {
@@ -674,18 +685,16 @@ test.describe("a casual round at the course", () => {
           await p.getByRole("button", { name: hole === birdieOn ? /Birdie$/ : /Par$/ }).click();
         }
         await expect(p.getByText("18/18 holes")).toBeVisible();
-        // Reached the host AS PLAYED, before anybody signs anything — the
-        // round is followed hole by hole. (Certifying saves the card too, so
-        // without this a phone that never sent a hole would still pass.)
+        // Reached the host AS PLAYED — the round is followed hole by hole.
         await expect(async () => {
           await page.goto(`/entry?bust=${Date.now()}`);
           const host = await page.locator("main").innerText();
           expect(host).toMatch(new RegExp(`${name.split(" ")[0]}\\n[^\\n]*thru 18`));
         }).toPass({ timeout: 30_000 });
-        await p.getByRole("button", { name: /Certify my card/ }).click();
-        await expect(p.getByRole("button", { name: /Certified/ })).toBeVisible({ timeout: 20_000 });
-        // A friendly: the card is final the moment it is signed.
-        await expect(p.getByText(/nobody else has to accept it/)).toBeVisible();
+        // A casual card is not signed (Ajay, 2026-10-07): the last hole in is
+        // the card done, and it says so with nothing more to press.
+        await expect(p.getByText(/Every hole in — that.s your card/)).toBeVisible();
+        await expect(p.getByRole("button", { name: /Certif/ })).toHaveCount(0);
       } finally {
         await ctx.close();
       }
