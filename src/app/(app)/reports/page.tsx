@@ -214,7 +214,7 @@ export default async function ReportsPage({
     const basis = weekBasis(activeStage.scoringBasis, activeStage.format);
     board = (
       <EmbeddedBoard note={teamBoardNote(activeStage.format, teams.length, basis)}>
-        <TeamStandingsTable basis={basis} rows={teams} />
+        <TeamStandingsTable basis={basis} rows={teams} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [

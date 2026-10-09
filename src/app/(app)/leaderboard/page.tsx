@@ -227,6 +227,7 @@ export default async function LeaderboardPage({
         format={activeStage.format}
         basis={weekBasis(activeStage.scoringBasis, activeStage.format)}
         rows={standings}
+        roundClosed={activeStage.closedAt != null}
       />,
     );
   }
