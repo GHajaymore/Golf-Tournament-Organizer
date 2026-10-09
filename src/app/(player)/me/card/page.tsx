@@ -140,6 +140,29 @@ export default async function PlayCardPage() {
     );
   }
 
+  /**
+   * OUT OF THIS LEAGUE WEEK (2026-10-08) — they said they can't make it. Not
+   * an empty pad: Today is where they change their answer, and the card is
+   * offered again the moment they say they're playing.
+   */
+  if (me.round.outThisWeek) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          You&rsquo;re down as not playing {me.round.outThisWeek}, so there&rsquo;s no card for you this week.
+          Changed your mind? Say you&rsquo;re playing on Today and your card appears here.
+        </p>
+        <WayForward
+          links={[
+            { href: "/me", label: "Back to today", icon: "flag" },
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+          ]}
+        />
+      </div>
+    );
+  }
+
   if (!canEnterScores(settings, session.viewRole)) {
     return (
       <div>

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { meFor } from "@/lib/services/me";
 
 /**
  * A LEAGUE WEEK IS COUNTED AGAINST WHO IS IN IT (2026-10-08).
@@ -95,5 +96,40 @@ describe("a league week with somebody out of it", () => {
     const s = await state();
     expect(s.boardProgress.total).toBe(4);
     expect(standingRows(s).find((r) => r.id === ids.Dan)!.absent).toBeFalsy();
+  });
+});
+
+describe("the player who is out of the week, on their own screen", () => {
+  /**
+   * Walked as the grid's L2: Dan played week 1, the committee closed it, and
+   * Dan said he can't make week 2. Today showed "YOUR CARD · FINAL · NET E" —
+   * last week's result — over week 2's empty tiles with "Start my card".
+   */
+  it("is told he is not playing this week, and is not offered the card", async () => {
+    await prisma.stage.update({ where: { id: week1 }, data: { closedAt: new Date() } });
+    await prisma.scorecard.create({ data: { eventId, stageId: week1, playerId: ids.Dan, strokes: JSON.stringify(PARS), status: "approved" } });
+    const week2 = (await prisma.stage.findFirst({ where: { eventId, position: 1 } }))!.id;
+    await prisma.roundAttendance.create({ data: { eventId, stageId: week2, playerId: ids.Dan, status: "out", decidedBy: "player" } });
+    // Week 2 under way: the other three are out on the course.
+    for (const n of ["Ann", "Bea", "Cat"]) {
+      await prisma.scorecard.create({
+        data: { eventId, stageId: week2, playerId: ids[n], strokes: JSON.stringify(PARS.map((p, i) => (i < 9 ? p : null))) },
+      });
+    }
+    try {
+      const me = await meFor(await state(), `${TAG}.dan@example.invalid`.toLowerCase());
+      expect(me.round?.stageId).toBe(week2);
+      expect(me.round?.outThisWeek, "not told he is out of the week").toBeTruthy();
+      expect(me.round?.ownCard, "offered the card for a week he said he can't make").toBe(false);
+      // And the control: once he says he is playing, the card is his again.
+      await prisma.roundAttendance.updateMany({ where: { eventId, stageId: week2, playerId: ids.Dan }, data: { status: "in" } });
+      const back = await meFor(await state(), `${TAG}.dan@example.invalid`.toLowerCase());
+      expect(back.round?.outThisWeek).toBe("");
+      expect(back.round?.ownCard).toBe(true);
+    } finally {
+      await prisma.roundAttendance.deleteMany({ where: { eventId } });
+      await prisma.scorecard.deleteMany({ where: { eventId, OR: [{ playerId: ids.Dan }, { stageId: week2 }] } });
+      await prisma.stage.update({ where: { id: week1 }, data: { closedAt: null } });
+    }
   });
 });

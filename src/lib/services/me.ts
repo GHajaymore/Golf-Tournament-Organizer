@@ -164,6 +164,14 @@ export interface MyRound {
    */
   closedWithout: string;
   /**
+   * This round's name when the player is OUT of this league week and has
+   * nothing on its card — "" otherwise (2026-10-08). Today offered "Start my
+   * card" under last week's "FINAL · NET E" to somebody who had said they
+   * could not make it. They are told they are down as not playing, and the
+   * sign-up card beside it is how they change their mind.
+   */
+  outThisWeek: string;
+  /**
    * Where this round is played, when the round names its own venue.
    *
    * Empty for a tournament at one course, which is most of them and needs no
@@ -492,6 +500,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     !cutOut && stage.closedAt != null && (card?.filled ?? 0) === 0
       ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
       : "";
+  // Out of this league week with nothing on its card — see the field.
+  const outThisWeek =
+    !cutOut && !closedWithout && state.outOn(stage.id).has(playerId) && (card?.filled ?? 0) === 0
+      ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
+      : "";
 
   /**
    * Position from the same standingRows the leaderboard renders — never a
@@ -615,11 +628,13 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       ownCard:
         !cutOut &&
         !closedWithout &&
+        !outThisWeek &&
         !needsTeams(stage.format) &&
         roundIsStroke(stage.type, stage.format) &&
         canEnterScores(settingsOf(state.event), "player"),
       cutOut,
       closedWithout,
+      outThisWeek,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       offSheet: !!sheet && sheet.groups.length > 0 && !mine,

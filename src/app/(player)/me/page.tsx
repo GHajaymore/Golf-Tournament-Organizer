@@ -818,6 +818,19 @@ export default async function PlayTodayPage() {
                 that&rsquo;s wrong, they can reopen it.
               </MoreInfo>
             </section>
+          ) : round?.outThisWeek ? (
+            // Out of this league week (2026-10-08). Not "Start my card" under
+            // last week's result: they said they can't make it, and the
+            // sign-up card on this screen is where they change their mind.
+            <section className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-title" style={{ fontSize: 14 }}>
+                You&rsquo;re not playing {round.outThisWeek}
+              </span>
+              <MoreInfo short="You're down as not playing this week." style={{ marginTop: 4 }}>
+                You&rsquo;re down as not playing {round.outThisWeek}, so there&rsquo;s no card for you this week.
+                Changed your mind? Say you&rsquo;re playing and your card appears here.
+              </MoreInfo>
+            </section>
           ) : round?.cutOut ? (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>
