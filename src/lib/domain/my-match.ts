@@ -53,6 +53,12 @@ export interface MatchSides {
   forfeitedBy?: string | null;
   /** Names, by player id. */
   nameOf: (id: string) => string;
+  /**
+   * The committee has closed the round (2026-10-08, grid cell T50). A match
+   * with nothing on it is then NOT PLAYED, not "Not started" over "Nothing yet
+   * — it fills in hole by hole": no hole is coming.
+   */
+  roundClosed?: boolean;
 }
 
 /**
@@ -93,6 +99,7 @@ export function myMatchView(m: MatchSides): MyMatchView | null {
   const r = resolveMatch(m.holes);
   const started = m.holes.some((h) => h !== null);
   if (!started) {
+    if (m.roundClosed) return { opponent, state: "Not played", ahead: null, complete: false, notStarted: false };
     return { opponent, state: "Not started", ahead: null, complete: false, notStarted: true };
   }
 

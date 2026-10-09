@@ -300,7 +300,9 @@ export default async function PlayTodayPage() {
     id: row.id,
     pos: positionLabel(row, boardRows),
     name: shownNames[i],
-    thru: thruTile(row, holesPlayed(boardStage?.holes)),
+    // A match board has no "thru": every row read "not started" aloud,
+    // including a player three matches up (grid cell T50).
+    thru: state.boardIsStroke ? thruTile(row, holesPlayed(boardStage?.holes)) : "",
     absent: !!row.absent,
     /* The same figure the Board tab shows, off the same unit — these two
        screens printing different numbers for one round is the fault
