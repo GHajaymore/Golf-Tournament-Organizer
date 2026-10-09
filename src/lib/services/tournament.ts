@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
-import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
@@ -2181,9 +2181,31 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     s.rank = level ? strokeStandings[i - 1].rank : i + 1;
   }
 
+  /**
+   * WHICH COMPETITION QUALIFIES THE DRAW — the round before the bracket, in
+   * its own unit (2026-10-08).
+   *
+   * A match-play draw fed by a stroke-play qualifier takes its field from the
+   * qualifying CARDS: that is a club championship, 36 holes of qualifying and
+   * then the knockout. This asked the EVENT's format instead, so a match-format
+   * event read its match-points table — nobody had played a match, the table
+   * was its zero initialiser, and the top N by SEED were drawn while the
+   * qualifying cards sat unread (`docs/deferred-register.md`, measured
+   * 2026-09-12 and left as a product question; decided as the golf answer).
+   *
+   * The qualifier is the LAST round the field plays before the bracket — a
+   * single match is two players and not a qualifier (`isStructuralStage`).
+   * With no bracket, or nothing before it, the event's format decides as it
+   * always has.
+   */
+  const qualifyingRound = [...feeders].reverse().find((s) => !isStructuralStage(s.type)) ?? null;
+  const qualifiesOnCards = qualifyingRound
+    ? roundIsStroke(qualifyingRound.type, qualifyingRound.format) && !isManualFormat(qualifyingRound.format)
+    : isStroke;
+
   // Qualification: format-aware — top N by net (stroke) or points (match), per flight or overall.
   let qualifierIds: Set<string>;
-  if (isStroke) {
+  if (qualifiesOnCards) {
     // Ranked, not merely started. A card that stopped short holds no position,
     // and a player with no position cannot take a qualifying place off somebody
     // who has one — which is exactly how a board and an engine come to disagree
@@ -2386,7 +2408,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
      */
     cards: playedCards,
   });
-  const liveQualifiers = isStroke
+  // Seeded in the qualifier's own order — the same answer as who qualified.
+  const liveQualifiers = qualifiesOnCards
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
     : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
 

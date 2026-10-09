@@ -781,7 +781,19 @@ round selector is still the shape if the answer is yes, and it is still a
 product question. What has changed is that the default is no longer a round the
 field finished three weeks ago.
 
-### Which round seeds a bracket, when the tournament has several kinds
+### Which round seeds a bracket, when the tournament has several kinds — DECIDED AND SHIPPED 2026-10-08
+**Decided as the golf answer (Ajay delegated the scoring calls on 2026-10-08):
+a knockout is qualified and seeded by the LAST round the field plays before
+the bracket, in that round's own unit.** A stroke-play qualifier is read off its
+cards and a round robin off its match points, whatever the EVENT's format says,
+and a single match is structure rather than a qualifier (`isStructuralStage`).
+This is the club championship's shape: 36 holes of qualifying, then the draw.
+`qualifiesOnCards` in `services/tournament.ts`, pinned by
+`a-bracket-is-seeded-from-its-qualifier.audit.test.ts`, whose cards run against
+the seeds, for both who qualifies and the seeding order (1 v 4, 2 v 3).
+
+The original entry follows.
+
 **Found 2026-09-12 on the seeded Demo Cup's PUBLIC board, and NOT fixed — it
 decides who plays in a knockout, which is not a 4am call.**
 
