@@ -273,15 +273,15 @@ export default async function PublicLeaderboardPage({
                `<h1>` is the tournament's name. See EmbeddedBoard. */
         board.teamRound ? (
           <EmbeddedBoard note={teamBoardNote(board.teamFormat, board.teamRows.length, board.teamBasis)}>
-            <TeamStandingsTable basis={board.teamBasis} rows={board.teamRows} />
+            <TeamStandingsTable basis={board.teamBasis} rows={board.teamRows} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "skins" && board.skins ? (
           <EmbeddedBoard note={SKINS_NOTE(board.skinsNet)}>
-            <SkinsStandingsTable board={board.skins} />
+            <SkinsStandingsTable board={board.skins} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "nassau" && board.nassau ? (
           <EmbeddedBoard note={NASSAU_NOTE}>
-            <NassauMatches rows={board.nassau} />
+            <NassauMatches rows={board.nassau} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "modified-stableford" && board.modStableford ? (
           <EmbeddedBoard note={MOD_STABLEFORD_NOTE}>

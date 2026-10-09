@@ -186,6 +186,8 @@ export default async function PlayTodayPage() {
 
   /** The round's pars, for marking the tiles — the card page's own reading. */
   const roundStage = round ? (state.stages.find((s) => s.id === round.stageId) ?? null) : null;
+  // The side's round, closed by the committee — see the side card (T51).
+  const sideRoundClosed = roundStage?.closedAt != null;
   const roundCard = await roundCardFor(state, roundStage, holes);
   /** 10 on a back nine, so the tiles and "Finish my card · hole N" read the course's holes. */
   const todayFirstHole = roundCard.known ? firstHoleOf(roundCard.card) : 1;
@@ -655,7 +657,7 @@ export default async function PlayTodayPage() {
           {mySide && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">
-                {mySide.played > 0 ? "Your side" : "Your side · not started"}
+                {mySide.played > 0 ? "Your side" : sideRoundClosed ? "Your side · did not play" : "Your side · not started"}
               </span>
               {/* "You & Ravenswoo 2", as the cup card says "You & Bram Blue":
                   the player is one of these names, and reading their own name
@@ -680,6 +682,12 @@ export default async function PlayTodayPage() {
                     ? ` · ${placeLabel(myPlace)} of ${sidesThisRound.length} sides`
                     : ""}
                 </p>
+              ) : sideRoundClosed ? (
+                // Closed with nothing from the side (grid cell T51): no card is
+                // coming, so "hasn't been started yet" was a promise.
+                <MoreInfo short={`The ${terms.organizer} has closed this round; there's no card from your side.`}>
+                  Nothing more can be entered for it. If that&rsquo;s wrong, speak to the {terms.organizer}.
+                </MoreInfo>
               ) : (
                 // Why it is the SIDE's card sits behind the ⓘ here — this card
                 // is the one place Today talks about it (2026-10-06).

@@ -214,7 +214,7 @@ export default async function ReportsPage({
     const basis = weekBasis(activeStage.scoringBasis, activeStage.format);
     board = (
       <EmbeddedBoard note={teamBoardNote(activeStage.format, teams.length, basis)}>
-        <TeamStandingsTable basis={basis} rows={teams} />
+        <TeamStandingsTable basis={basis} rows={teams} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [
@@ -243,7 +243,7 @@ export default async function ReportsPage({
     snapshotTitle = `Skins — ${net ? "net" : "gross"}`;
     board = (
       <EmbeddedBoard note={SKINS_NOTE(net)}>
-        <SkinsStandingsTable board={skins} />
+        <SkinsStandingsTable board={skins} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [
@@ -268,7 +268,7 @@ export default async function ReportsPage({
     snapshotTitle = "Nassau results";
     board = (
       <EmbeddedBoard note={NASSAU_NOTE}>
-        <NassauMatches rows={nassau} />
+        <NassauMatches rows={nassau} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [

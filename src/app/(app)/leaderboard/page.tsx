@@ -227,6 +227,7 @@ export default async function LeaderboardPage({
         format={activeStage.format}
         basis={weekBasis(activeStage.scoringBasis, activeStage.format)}
         rows={standings}
+        roundClosed={activeStage.closedAt != null}
       />,
     );
   }
@@ -243,10 +244,10 @@ export default async function LeaderboardPage({
       const board = await skinsBoard(
         session.eventId, activeStage.id, holes, net, c.holeDifficulty,
       );
-      return withPicker(<SkinsLeaderboard board={board} net={net} />);
+      return withPicker(<SkinsLeaderboard board={board} net={net} roundClosed={activeStage.closedAt != null} />);
     }
     if (kind === "nassau") {
-      return withPicker(<NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />);
+      return withPicker(<NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} roundClosed={activeStage.closedAt != null} />);
     }
     if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(

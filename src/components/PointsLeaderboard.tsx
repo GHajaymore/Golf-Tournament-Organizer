@@ -18,7 +18,7 @@ export const SKINS_NOTE = (net: boolean) =>
 export const NASSAU_NOTE =
   "Nassau · front nine, back nine and the full eighteen.";
 
-export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boolean }) {
+export function SkinsLeaderboard({ board, net, roundClosed = false }: { board: SkinsBoard; net: boolean; roundClosed?: boolean }) {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -28,7 +28,7 @@ export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boole
           {SKINS_NOTE(net)}
         </p>
       </div>
-      <SkinsStandingsTable board={board} />
+      <SkinsStandingsTable board={board} roundClosed={roundClosed} />
     </>
   );
 }
@@ -42,7 +42,19 @@ export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boole
  * net medal — "1st on 57 net" — while `positionsExist` in `formats.ts` says in
  * its own words that "a skins round pays holes, not places".
  */
-export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
+export function SkinsStandingsTable({
+  board,
+  roundClosed = false,
+}: {
+  board: SkinsBoard;
+  /**
+   * The committee has closed the round (2026-10-08, grid cell T53). Nothing
+   * carries out of a closed round — skins tied through the last hole were not
+   * won — so "15 skins are still carrying … decided so far" under FINAL
+   * promised them to a hole that is not coming.
+   */
+  roundClosed?: boolean;
+}) {
   const { outcome, nameById } = board;
   const played = outcome.holes.length;
   // Two players on the same number of skins are level — the sort's fallback is
@@ -84,10 +96,9 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
           </div>
         )}
         <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
-          {outcome.unclaimed > 0
-            ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin is" : "skins are"} still carrying — the last decided hole was tied.`
-            : "Nothing carrying."}{" "}
-          {played} {played === 1 ? "hole" : "holes"} decided so far.
+          {roundClosed
+            ? `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin was" : "skins were"} never won — the round ended on a tie. ` : ""}${played} ${played === 1 ? "hole" : "holes"} decided.`
+            : `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin is" : "skins are"} still carrying — the last decided hole was tied.` : "Nothing carrying."} ${played} ${played === 1 ? "hole" : "holes"} decided so far.`}
         </p>
       </div>
 
@@ -128,7 +139,7 @@ export function SkinsStandingsTable({ board }: { board: SkinsBoard }) {
   );
 }
 
-export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
+export function NassauLeaderboard({ rows, roundClosed = false }: { rows: NassauMatchRow[]; roundClosed?: boolean }) {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -138,18 +149,27 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
           {NASSAU_NOTE}
         </p>
       </div>
-      <NassauMatches rows={rows} />
+      <NassauMatches rows={rows} roundClosed={roundClosed} />
     </>
   );
 }
 
 /** The Nassau matches WITHOUT a page heading — see `SkinsStandingsTable`. */
-export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
+export function NassauMatches({
+  rows,
+  roundClosed = false,
+}: {
+  rows: NassauMatchRow[];
+  /** Closed by the committee: no match is still to come (grid cell T54, 2026-10-08). */
+  roundClosed?: boolean;
+}) {
   return (
     <>
       {rows.length === 0 ? (
         <div className="card elev-sm">
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>No matches in this round yet.</p>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {roundClosed ? "No matches were played in this round." : "No matches in this round yet."}
+          </p>
         </div>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>

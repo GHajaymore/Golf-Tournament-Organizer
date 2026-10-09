@@ -15,10 +15,13 @@ export function TeamLeaderboard({
   format,
   basis,
   rows,
+  roundClosed = false,
 }: {
   format: string;
   basis: WeekBasis;
   rows: TeamStanding[];
+  /** See `TeamStandingsTable`. */
+  roundClosed?: boolean;
 }) {
   return (
     <>
@@ -29,7 +32,7 @@ export function TeamLeaderboard({
           {teamBoardNote(format, rows.length, basis)}
         </p>
       </div>
-      <TeamStandingsTable basis={basis} rows={rows} />
+      <TeamStandingsTable basis={basis} rows={rows} roundClosed={roundClosed} />
     </>
   );
 }
@@ -68,9 +71,16 @@ export function teamBoardNote(format: string, sides: number, basis: WeekBasis): 
 export function TeamStandingsTable({
   basis,
   rows,
+  roundClosed = false,
 }: {
   basis: WeekBasis;
   rows: TeamStanding[];
+  /**
+   * The committee has closed this round (2026-10-08, grid cell T51). Then a
+   * side with no holes did not play, and "1 of 2 sides have started" under
+   * FINAL read as a round still going — it says who returned a card.
+   */
+  roundClosed?: boolean;
 }) {
   const started = rows.filter((r) => r.played > 0);
   const stableford = basis === "stableford";
@@ -189,7 +199,9 @@ export function TeamStandingsTable({
           short={
             (stableford ? "Stableford points." : basis === "gross" ? "Decided on gross." : "Decided on net.") +
             (started.length > 0 && started.length < rows.length
-              ? ` ${started.length} of ${rows.length} sides have started.`
+              ? roundClosed
+                ? ` ${started.length} of ${rows.length} sides returned a card.`
+                : ` ${started.length} of ${rows.length} sides have started.`
               : "")
           }
         >
