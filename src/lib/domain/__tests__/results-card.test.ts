@@ -6,6 +6,8 @@ import {
   scoreOf,
   thruOf,
   sideRowsForCard,
+  rowsForBoardKind,
+  type BoardKindView,
   CARD_ROWS,
   type BoardForCard,
 } from "@/lib/domain/results-card";
@@ -401,8 +403,81 @@ describe("a team round's card", () => {
 });
 
 describe("the share image", () => {
-  it("builds a team round's card from its sides", () => {
+  it("builds its card from the board's own kind, cup included", () => {
     const src = readSource("src/app/live/[token]/opengraph-image.tsx");
-    expect(src).toMatch(/board\.teamRound\s*\?\s*\(\{[^]*?rows: sideRowsForCard\(board\.teamRows, board\.teamBasis, board\.holeCount\)/);
+    expect(src).toMatch(/const kind = board \? rowsForBoardKind\(board, !!cup\?\.ok\) : \{\}/);
+    expect(src).toMatch(/\.\.\.\(kind\.rows \? \{ rows: kind\.rows \} : \{\}\)/);
+    expect(src).toMatch(/\{card\.note \|\| /);
+  });
+});
+
+/**
+ * THE CARD FOLLOWS THE BOARD'S KIND (2026-10-09). The page draws one of nine
+ * tables; the card read the stroke rows for every one of them.
+ */
+describe("rowsForBoardKind", () => {
+  const view = (over: Partial<BoardKindView> = {}): BoardKindView => ({
+    kind: "standard",
+    teamRound: false,
+    teamRows: [],
+    teamBasis: "gross",
+    holeCount: 18,
+    skins: null,
+    modStableford: null,
+    nassau: null,
+    manualFormat: false,
+    straightKnockout: false,
+    ...over,
+  });
+
+  it("leaves the stroke board's own rows alone — the control", () => {
+    expect(rowsForBoardKind(view(), false)).toEqual({});
+  });
+
+  it("ranks a skins night on skins won, ties shared, nobody placed on none", () => {
+    const k = rowsForBoardKind(
+      view({
+        kind: "skins",
+        skins: {
+          outcome: { standings: [{ playerId: "a", skins: 3 }, { playerId: "b", skins: 3 }, { playerId: "c", skins: 0 }] },
+          nameById: { a: "zz-Ann", b: "zz-Bea", c: "zz-Cat" },
+        },
+      }),
+      false,
+    );
+    const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");
+    expect(c.kind === "standings" && c.rows.map((r) => [r.place, r.name, r.score])).toEqual([
+      ["T1", "zz-Ann", "3 skins"],
+      ["T1", "zz-Bea", "3 skins"],
+    ]);
+  });
+
+  it("ranks Modified Stableford on its points table", () => {
+    const k = rowsForBoardKind(
+      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18 }, { name: "zz-Bea", points: 7, played: 9 }] }),
+      false,
+    );
+    const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");
+    expect(c.kind === "standings" && c.rows.map((r) => [r.place, r.score, r.thru])).toEqual([
+      ["1", "12 pts", "F"],
+      ["2", "7 pts", "9"],
+    ]);
+  });
+
+  it("does not rank a board of matches or a draw, and says where the result is", () => {
+    const cases: [Partial<BoardKindView>, boolean][] = [
+      [{ kind: "nassau", nassau: [{}] }, false],
+      [{ kind: "team-match" }, false],
+      [{ straightKnockout: true }, false],
+      [{ manualFormat: true }, false],
+      [{}, true],
+    ];
+    for (const [over, cup] of cases) {
+      const k = rowsForBoardKind(view(over), cup);
+      expect(k.rows, JSON.stringify(over)).toEqual([]);
+      expect(k.note, JSON.stringify(over)).toBeTruthy();
+      const c = resultsCard({ ...board(), rows: k.rows!, note: k.note }, "public", "zz-club");
+      expect(c.kind === "standings" && c.note).toBe(k.note);
+    }
   });
 });

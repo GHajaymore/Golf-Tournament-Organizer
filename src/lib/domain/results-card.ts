@@ -50,6 +50,8 @@ export type ResultsCard =
       /** How many more are in the field below the rows shown. */
       more: number;
       live: boolean;
+      /** Said instead of rows where the board draws matches or a bracket. */
+      note: string;
     }
   | {
       /**
@@ -122,6 +124,8 @@ export interface BoardForCard {
   official?: boolean;
   /** Every card expected is complete. */
   allIn?: boolean;
+  /** See `rowsForBoardKind`: where the result is, when it is not rows. */
+  note?: string;
 }
 
 /**
@@ -175,6 +179,80 @@ export function sideRowsForCard(
     pts: "",
     record: "",
   })) as BoardForCard["rows"];
+}
+
+/**
+ * THE CARD FOLLOWS THE BOARD'S KIND (2026-10-09). `/live` draws one of nine
+ * tables — a cup, a draw, a manual notice, team matches, sides, skins, a
+ * Nassau, Modified Stableford, or the stroke board — and this card read the
+ * stroke rows for all nine: a skins night previewed a to-par the page never
+ * prints, and a Nassau "No scores in yet" over three settled bets.
+ *
+ * Where the page ranks rows, so does the card, off the page's own table.
+ * Where it draws matches or a bracket, the card says where the result is
+ * rather than inventing a ranking — rule 1: never show what the board would
+ * not.
+ */
+export interface BoardKindView {
+  kind: string;
+  teamRound: boolean;
+  teamRows: Parameters<typeof sideRowsForCard>[0];
+  teamBasis: WeekBasis;
+  holeCount: number;
+  skins: { outcome: { standings: readonly { playerId: string; skins: number }[] }; nameById: Record<string, string> } | null;
+  modStableford: readonly { name: string; points: number; played: number }[] | null;
+  nassau: readonly unknown[] | null;
+  manualFormat: boolean;
+  straightKnockout: boolean;
+}
+
+export function rowsForBoardKind(
+  view: BoardKindView,
+  cup: boolean,
+): { rows?: BoardForCard["rows"]; note?: string; ranksOnStrokes?: { isStableford: boolean; unit: string } } {
+  if (cup) return { rows: [], note: "The match scores are on the board." };
+  if (view.straightKnockout) return { rows: [], note: "The draw and its results are on the board." };
+  if (view.manualFormat) return { rows: [], note: "Results are posted by the organizer." };
+  if (view.kind === "team-match") return { rows: [], note: "The match results are on the board." };
+  if (view.teamRound) {
+    return {
+      rows: sideRowsForCard(view.teamRows, view.teamBasis, view.holeCount),
+      ranksOnStrokes: {
+        isStableford: view.teamBasis === "stableford",
+        unit: view.teamBasis === "net" ? "net strokes" : "gross strokes",
+      },
+    };
+  }
+  if (view.kind === "skins" && view.skins) {
+    const st = view.skins.outcome.standings;
+    const places = placesByValue(st, (s) => s.skins, (s) => s.skins > 0);
+    return {
+      rows: st.map((s, i) => ({
+        rank: places[i] ?? 0,
+        name: view.skins!.nameById[s.playerId] ?? "",
+        ranked: places[i] != null,
+        // Preformatted, as a match record is: the figure skins are won in.
+        record: `${s.skins} ${s.skins === 1 ? "skin" : "skins"}`,
+        thru: "",
+      })),
+    };
+  }
+  if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Three bets — front, back and overall — on the board." };
+  if (view.kind === "modified-stableford" && view.modStableford) {
+    const ms = view.modStableford;
+    const places = placesByValue(ms, (r) => r.points, (r) => r.played > 0);
+    return {
+      rows: ms.map((r, i) => ({
+        rank: places[i] ?? 0,
+        name: r.name,
+        ranked: places[i] != null,
+        record: `${r.points} pts`,
+        thru: r.played,
+        holesOwed: view.holeCount,
+      })),
+    };
+  }
+  return {};
 }
 
 /** A row the cut, a withdrawal, a DQ or the week's attendance took off the course. */
@@ -318,6 +396,7 @@ export function resultsCard(
     subtitle,
     rows,
     more: Math.max(0, counted - rows.length),
+    note: clean(board.note ?? ""),
     // "Live" only while somebody is still out there. A finished tournament
     // labelled live is the kind of small lie that makes the rest look unsafe.
     live: !board.official && !board.allIn && board.rows.some((r) => {

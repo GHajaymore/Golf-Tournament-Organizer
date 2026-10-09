@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/db";
 import { liveBoard } from "@/lib/services/live-board";
-import { resultsCard, sideRowsForCard, type BoardForCard } from "@/lib/domain/results-card";
+import { resultsCard, rowsForBoardKind, type BoardForCard } from "@/lib/domain/results-card";
+import { cupBoard } from "@/lib/services/cup";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { SHARE_CARD } from "@/lib/themes";
 
@@ -78,19 +79,19 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const board = event?.leaderboardVisibility === "public" ? await liveBoard(event.id) : null;
   const club = board?.brand?.name ?? "";
 
-  // A team round's result is its SIDES — the individual rows are empty for it
-  // (T72). Read as the page's team table reads them.
+  // The card follows the board's kind, as the page does — a team round's
+  // sides, a skins night's skins, a cup's matches (`rowsForBoardKind`). The
+  // cup is asked the same way the page asks it.
+  const cup = board ? await cupBoard(event!.id) : null;
+  const kind = board ? rowsForBoardKind(board, !!cup?.ok) : {};
   const card = resultsCard(
     board
-      ? board.teamRound
-        ? ({
-            ...board,
-            rows: sideRowsForCard(board.teamRows, board.teamBasis, board.holeCount),
-            isStroke: true,
-            isStableford: board.teamBasis === "stableford",
-            unit: board.teamBasis === "net" ? "net strokes" : "gross strokes",
-          } as unknown as BoardForCard)
-        : ({ ...board, rows: board.rows } as unknown as BoardForCard)
+      ? ({
+          ...board,
+          ...(kind.rows ? { rows: kind.rows } : {}),
+          ...(kind.ranksOnStrokes ? { isStroke: true, ...kind.ranksOnStrokes } : {}),
+          note: kind.note ?? "",
+        } as unknown as BoardForCard)
       : null,
     event?.leaderboardVisibility ?? "",
     club,
@@ -212,7 +213,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
           ))}
           {card.rows.length === 0 ? (
             <div style={{ display: "flex", color: MUTED, fontSize: 30, paddingTop: 18 }}>
-              No scores in yet — the board goes live as cards come in.
+              {card.note || "No scores in yet — the board goes live as cards come in."}
             </div>
           ) : null}
         </div>
