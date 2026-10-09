@@ -29,6 +29,12 @@ export interface LeaderTile {
   you: boolean;
   /** A break before this row — the player, below the leaders. */
   gap: boolean;
+  /**
+   * Out of this league week. The tile reads "–" either way; what is SAID
+   * differs, as on the Board tab — "not started" is somebody who may still
+   * walk in, and an absentee will not (2026-10-08, grid cell L3).
+   */
+  absent?: boolean;
 }
 
 export function ScoreboardLeaders({
@@ -61,7 +67,7 @@ export function ScoreboardLeaders({
                     role (Lighthouse aria-prohibited-attr, 2026-10-01) — and with
                     every tile below aria-hidden, the row then read as nothing. */}
                 <span className="sr-only">
-                  {`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}
+                  {`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.absent ? "not playing this week" : r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}
                 </span>
                 <span className="sb-tile" aria-hidden="true">{r.pos}</span>
                 {/* The NAME gives way, never "YOU". One string clipped from the

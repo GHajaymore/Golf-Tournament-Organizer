@@ -128,7 +128,8 @@ import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, logAudit, playRefusalFor } from "@/lib/services/action-shared";
+import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
+import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
@@ -2602,6 +2603,26 @@ export async function saveScorecard(
    * deliberately did NOT go with it: this action asks `requireScoreEntry`
    * and three scoping asserts, and the play surface asks something else.
    */
+  /**
+   * A COMMITTEE CORRECTION GOES ON THE RECORD, hole by hole (2026-10-08).
+   *
+   * Staff only, and only on a card that has been approved before or sits in a
+   * round the committee has closed — the cards whose figures were already a
+   * result. A secretary typing the day's cards in is not correcting anything,
+   * and forty lines saying so would bury the one that matters. `approvedAt`
+   * survives a reopen on purpose (see `reopenScorecard`), which is what lets
+   * this tell a correction from a first entry. See `holesChanged`.
+   */
+  const correcting =
+    session.role !== "player"
+      ? await Promise.all([
+          prisma.scorecard.findFirst({
+            where: { eventId, stageId, playerId },
+            select: { strokes: true, approvedAt: true },
+          }),
+          prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { closedAt: true, nine: true } }),
+        ])
+      : null;
   const result = await writeScorecard({
     eventId,
     stageId,
@@ -2611,6 +2632,25 @@ export async function saveScorecard(
     role: session.role,
     expectedRevision,
   });
+  if (result.ok && correcting) {
+    const [before, stage] = correcting;
+    if (before && (before.approvedAt || stage?.closedAt)) {
+      let was: (number | null)[] = [];
+      try {
+        was = JSON.parse(before.strokes) as (number | null)[];
+      } catch {
+        was = [];
+      }
+      const changed = holesChanged(was, strokes, stage?.nine === "back" ? 10 : 1);
+      if (changed) {
+        await logAudit(
+          eventId,
+          "card.correct",
+          `${playerId}'s ${await roundWordsFor(eventId, stageId)} card corrected — ${changed}`,
+        );
+      }
+    }
+  }
   // The cache belongs to the caller: this action serves the console, and the
   // play surface revalidates something else entirely.
   if (result.ok) await refresh();
@@ -5302,7 +5342,9 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   // no matchId to hang the row on. The match-play counterpart has logged its
   // disputes since it existed and stroke play logged nothing at all — the
   // format where one person enters three other people's rounds.
-  await logAudit(eventId, "card.dispute", `Card disputed — round ${stageId}, player ${playerId}`);
+  // The player by id — `recentChanges` turns it back into their name — and the
+  // round by its words, since any other id reads as a departed player.
+  await logAudit(eventId, "card.dispute", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card disputed`);
   await refresh();
   return { ok: true };
 }
@@ -5328,6 +5370,9 @@ export async function approveScorecard(stageId: string, playerId: string) {
     where: { id: card.id },
     data: { status: "approved", approvedBy: session.email, approvedAt: new Date() },
   });
+  // The act that turns strokes into a result goes on the record — see
+  // `holesChanged` for the walk that found it never did.
+  await logAudit(eventId, "card.approve", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card approved`);
   await refresh();
   return { ok: true };
 }
@@ -5393,6 +5438,12 @@ export async function approveRound(stageId: string) {
       where: { id: { in: review.ready.map((c) => c.id) } },
       data: { status: "approved", approvedBy: session.email, approvedAt: new Date() },
     });
+    const n = review.ready.length;
+    await logAudit(
+      eventId,
+      "card.approve",
+      `${n} ${n === 1 ? "card" : "cards"} approved for ${await roundWordsFor(eventId, stageId)}`,
+    );
   }
 
   await refresh();
@@ -5422,6 +5473,7 @@ export async function reopenScorecard(stageId: string, playerId: string) {
   if (!card) throw new Error("There's no card to reopen.");
 
   await prisma.scorecard.update({ where: { id: card.id }, data: { status: "entered" } });
+  await logAudit(eventId, "card.reopen", `${playerId}'s ${await roundWordsFor(eventId, stageId)} card reopened for correction`);
   await refresh();
   return { ok: true };
 }

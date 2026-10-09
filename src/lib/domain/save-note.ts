@@ -63,3 +63,22 @@ export function visibleSaveNote(
   if (saved.playerId !== playerId) return "";
   return saved.text;
 }
+
+/**
+ * WHAT TO SAY WHEN APPROVED CARDS WERE SKIPPED (2026-10-08).
+ *
+ * An approved card is left alone rather than written — reopening it is the
+ * committee's act. The note used to open "Saved." regardless, so a committee
+ * correcting one approved card after the round read "Saved. Bea — already
+ * approved, so left unchanged" with their correction still on the screen and
+ * nothing written: the first word is the one a hurried reader takes. "Saved"
+ * now opens the note only when some OTHER card on the screen actually was.
+ */
+export function lockedSaveNote(lockedNames: string[], othersSaved: number): string {
+  const who = lockedNames.join(", ");
+  const one = lockedNames.length === 1;
+  const reopen = `An organizer can reopen ${one ? "it" : "them"} below to correct ${one ? "it" : "them"}.`;
+  return othersSaved > 0
+    ? `Saved — except ${who}: already approved, so left unchanged. ${reopen}`
+    : `Not saved — ${who} ${one ? "is" : "are"} already approved. ${reopen}`;
+}

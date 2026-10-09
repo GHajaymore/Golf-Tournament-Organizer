@@ -301,6 +301,7 @@ export default async function PlayTodayPage() {
     pos: positionLabel(row, boardRows),
     name: shownNames[i],
     thru: thruTile(row, holesPlayed(boardStage?.holes)),
+    absent: !!row.absent,
     /* The same figure the Board tab shows, off the same unit — these two
        screens printing different numbers for one round is the fault
        `rankedScore` was extracted to stop. */
@@ -822,6 +823,10 @@ export default async function PlayTodayPage() {
             // Out of this league week (2026-10-08). Not "Start my card" under
             // last week's result: they said they can't make it, and the
             // sign-up card on this screen is where they change their mind.
+            // When that card is ON this screen for this round it already says
+            // so, with the Change button — a second card was the same fact
+            // twice (grid cell L3), so this one steps aside.
+            availabilityOnScreen && availability.next?.stageId === round.stageId ? null : (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>
                 You&rsquo;re not playing {round.outThisWeek}
@@ -831,6 +836,7 @@ export default async function PlayTodayPage() {
                 Changed your mind? Say you&rsquo;re playing and your card appears here.
               </MoreInfo>
             </section>
+            )
           ) : round?.cutOut ? (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>

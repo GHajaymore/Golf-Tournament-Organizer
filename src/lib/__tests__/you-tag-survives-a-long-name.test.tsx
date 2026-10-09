@@ -57,3 +57,18 @@ describe("the player's own row on the leaders card", () => {
     expect(rule(".sb-you-tag")).toMatch(/flex:\s*none/);
   });
 });
+
+/**
+ * WHAT THE ROW SAYS ALOUD FOR A PLAYER OUT OF THE WEEK (2026-10-08, grid L3).
+ * The tile reads "–" for both; the spoken line said "not started" for a league
+ * player who is not coming, where the Board tab says "not playing this week".
+ */
+describe("a row for somebody out of this league week", () => {
+  it("is read as not playing this week, not as not started", () => {
+    const out = renderToStaticMarkup(<ScoreboardLeaders rows={[tile({ thru: "–", absent: true })]} />);
+    expect(out).toContain("not playing this week");
+    expect(out).not.toContain("not started");
+    // The control: somebody in who has not teed off yet.
+    expect(renderToStaticMarkup(<ScoreboardLeaders rows={[tile({ thru: "–" })]} />)).toContain("not started");
+  });
+});

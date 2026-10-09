@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { DeniedNotice } from "@/components/DeniedNotice";
 import { requireSession } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
+import { hasLeftTheField } from "@/lib/domain/left-the-field";
 import { playerAppShut } from "@/lib/domain/lifecycle-state";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme, DEFAULT_CLUB_THEME } from "@/lib/themes";
@@ -118,6 +119,21 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   // Which tournament every tab is showing, and the way to the others. The same
   // rows the events list renders, so the two cannot disagree about a door.
   const switcher = switcherFor(await clubEventsFor(session.email), session.eventId ?? null, isStaff);
+  /**
+   * Watching, but with money on the record — a player who withdrew or was
+   * disqualified after paying into a pot (2026-10-08). They are not in the
+   * field, and they may still owe: the Money page reads them (`roundMoneyFor`),
+   * so the tab is theirs. See `hasLeftTheField`.
+   */
+  const leftWithMoney =
+    moneyOn && !!switcher.current?.watching && !!session.eventId
+      ? (
+          await prisma.player.findMany({
+            where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+            select: { status: true },
+          })
+        ).some((p) => hasLeftTheField(p.status))
+      : false;
   /**
    * The club's currency, for the player half too.
    *
@@ -278,7 +294,9 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           that is true of somebody WAITING for one as much as of a spectator.
           Both named, because `watching` stopped covering the waiting list when
           the two were separated — see `isWaiting`. */}
-      <PlayTabs showMoney={moneyOn && !switcher.current?.watching && !switcher.current?.waiting} />
+      <PlayTabs
+        showMoney={moneyOn && (!switcher.current?.watching || leftWithMoney) && !switcher.current?.waiting}
+      />
     </div>
     </CurrencyProvider>
   );

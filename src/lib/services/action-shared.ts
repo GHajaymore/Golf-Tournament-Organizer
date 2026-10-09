@@ -3,6 +3,7 @@ import { configurationLocked, PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle
 import { playRefusal } from "@/lib/domain/phase-gate";
 import { prisma } from "../db";
 import { getSession } from "../auth";
+import { roundLabel } from "@/lib/domain/round-label";
 
 /**
  * The two things nearly every server action does, written once.
@@ -155,4 +156,21 @@ export async function logAudit(
   await prisma.auditLog.create({
     data: { eventId, matchId: opts.matchId ?? null, actor, action, detail },
   });
+}
+
+/**
+ * A round as an audit line names it — its own description, or "Round 2".
+ *
+ * NOT its id. `recentChanges` turns every id in a line that is not a player's
+ * into "someone no longer in the field", so a line carrying a round's id read
+ * "Card disputed — round someone no longer in the field".
+ */
+export async function roundWordsFor(eventId: string, stageId: string): Promise<string> {
+  const stages = await prisma.stage.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true, type: true, position: true, description: true },
+  });
+  const stage = stages.find((s) => s.id === stageId);
+  return stage?.description || roundLabel(stages, stageId) || "a round";
 }
