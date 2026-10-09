@@ -1,6 +1,7 @@
 import { toParCell } from "@/lib/domain/ranked-score";
 import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { FlipTableBody } from "./FlipList";
+import { todaysThru } from "@/lib/domain/scoreboard";
 
 export interface StandingRow {
   id: string;
@@ -78,6 +79,15 @@ export interface StandingRow {
   thru: number;
   /** Holes the counted cards cover, so "thru" can read "14 of 18". */
   holesOwed: number;
+  /**
+   * Holes on THIS round's card, and the round's length — set only when the
+   * tournament has more than one round (2026-10-09, grid cell T67). A golf
+   * board's "thru" is today's round: Round 2 under way showed a player who
+   * had not started it as "F" (their Round 1 card was complete) and another
+   * "thru 27". Absent on a one-round board, where the two are the same.
+   */
+  roundThru?: number;
+  roundHoles?: number;
   /** The closed round this player has no card for, by name, or "". */
   missedRound?: string;
   /** The round an applied cut left this player out after, by name, or "". */
@@ -299,7 +309,14 @@ export function LeaderboardTable({
                   )}
                 </td>
                 {showFlight && <td>{r.flight}</td>}
-                {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
+                {/* Today's round, as the public board and the player's read it
+                    — "Thru 36" against a player not yet started on Round 2
+                    was the tournament's count (T67). */}
+                {!compact && (
+                  <td style={{ textAlign: "center", ...num }}>
+                    {todaysThru(r, r.holesOwed).thru > 0 ? todaysThru(r, r.holesOwed).thru : "—"}
+                  </td>
+                )}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
                 {!isStableford && (
                   <td style={{ textAlign: "right", ...num }}>

@@ -104,8 +104,8 @@ export interface WeekView {
    * kind of answer for both until it carried theirs.
    */
   nightBoard:
-    | { kind: "skins"; net: boolean; board: SkinsBoard }
-    | { kind: "nassau"; rows: NassauMatchRow[] }
+    | { kind: "skins"; net: boolean; board: SkinsBoard; closed: boolean }
+    | { kind: "nassau"; rows: NassauMatchRow[]; closed: boolean }
     | null;
   /**
    * What the night is decided on — see `week-basis.ts`.
@@ -479,9 +479,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       kind: "skins",
       net,
       board: await skinsBoard(eventId, stage.id, stage.holes, net, stageCard.holeDifficulty),
+      closed: stage.closedAt != null,
     };
   } else if (nightKind === "nassau") {
-    nightBoard = { kind: "nassau", rows: await nassauBoard(eventId, stage.id) };
+    nightBoard = { kind: "nassau", rows: await nassauBoard(eventId, stage.id), closed: stage.closedAt != null };
   }
 
   /**

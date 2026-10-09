@@ -234,7 +234,9 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
       .map((f) => ({ ...f, total: 2 * PAR + f.r1 + f.r2! }))
       .sort((a, b) => a.total - b.total);
     expect(made.map((f) => f.total)).toEqual([142, 144, 145]);
-    const at = made.map((f) => board.search(new RegExp(`${f.name}\\s+36\\s+${f.total}\\b`)));
+    // Thru is TODAY's round, as on /live and the player's board (T67): 18,
+    // complete, beside the 36-hole total. The total is the guarantee here.
+    const at = made.map((f) => board.search(new RegExp(`${f.name}\\s+18\\s+${f.total}\\b`)));
     expect(at, `a player who made the cut is missing or carries the wrong 36-hole total:\n${board}`).not.toContain(-1);
     expect([...at].sort((a, b) => a - b), "the board is not in 36-hole order").toEqual(at);
     for (const cut of FIELD.filter((f) => f.r2 === undefined)) {

@@ -268,6 +268,25 @@ export function isSkinsScope(v: string): v is SkinsScope {
   return v === "full" || v === "front" || v === "back";
 }
 
+/**
+ * THE POTS A GROUP ACTUALLY HAS, read off the stored rows (2026-10-09, T69).
+ *
+ * A pot is keyed on (round, net, scope, group), so asking for one fixed pair
+ * finds an EMPTY pot beside a real one under another pair — exactly what the
+ * Group games screen did. `offerDefault` gives a group with no pot yet the
+ * net full-round game to start; a bet that exists only as rows passes false.
+ */
+export function potsOfGroup(
+  rows: readonly { groupKey: string; net: boolean; scope: string }[],
+  groupKey: string,
+  offerDefault: boolean,
+): { net: boolean; scope: SkinsScope }[] {
+  const games = rows
+    .filter((p) => p.groupKey === groupKey)
+    .map((p) => ({ net: p.net, scope: isSkinsScope(p.scope) ? p.scope : ("full" as SkinsScope) }));
+  return games.length || !offerDefault ? games : [{ net: true, scope: "full" }];
+}
+
 export const SCOPE_LABEL: Record<SkinsScope, string> = {
   full: "All 18",
   front: "Front 9",

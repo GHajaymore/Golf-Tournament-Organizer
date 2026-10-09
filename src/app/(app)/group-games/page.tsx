@@ -18,6 +18,7 @@ import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { golfTermsForEvent } from "@/lib/services/organization";
+import { potsOfGroup, type SkinsScope } from "@/lib/domain/skins-pot";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -101,12 +102,36 @@ export default async function GroupGamesPage({
    * available from the card's own controls once it exists — this is the
    * starting point, not the whole menu.
    */
+  /**
+   * EVERY POT A GROUP HAS, NOT THE ONE THIS SCREEN EXPECTS (2026-10-09, grid
+   * cell T69). A pot is keyed on (round, net, scope, group), and this asked
+   * each group for its net full-round pot only. Choosing "Front 9" on the card
+   * and saving created a SECOND pot under (net, front) — which the settle-up
+   * reads and this screen never showed again, so the choice appeared not to
+   * stick and the money sat where nobody could see it. Prizes was taught the
+   * same thing for the field's pots; this is the group half.
+   *
+   * A group with no pot yet still offers the default one to start.
+   */
+  const groupPotRows = week
+    ? await prisma.skinsPot.findMany({
+        where: { stageId: week.id, groupKey: { not: "" } },
+        select: { groupKey: true, net: true, scope: true },
+        orderBy: [{ groupKey: "asc" }, { scope: "asc" }, { net: "asc" }],
+      })
+    : [];
+  const potKey = (name: string, g: { net: boolean; scope: SkinsScope }) =>
+    `${name}-${g.net ? "net" : "gross"}-${g.scope}`;
+
   const pots = week
     ? await Promise.all(
-        groups.map(async (g) => ({
-          group: g,
-          view: await skinsPotFor(session.eventId, week.id, true, "full", g.name),
-        })),
+        groups.flatMap((g) =>
+          potsOfGroup(groupPotRows, g.name, true).map(async (game) => ({
+            group: g,
+            key: potKey(g.name, game),
+            view: await skinsPotFor(session.eventId, week.id, game.net, game.scope, g.name),
+          })),
+        ),
       )
     : [];
 
@@ -120,22 +145,17 @@ export default async function GroupGamesPage({
    * than disappear with the money in them.
    */
   const groupNames = new Set(groups.map((g) => g.name));
-  const adHocRows = week
-    ? await prisma.skinsPot.findMany({
-        where: { stageId: week.id, groupKey: { not: "" } },
-        select: { groupKey: true },
-        distinct: ["groupKey"],
-        orderBy: { groupKey: "asc" },
-      })
-    : [];
+  // One name per bet, however many pots it runs.
+  const adHocNames = [...new Set(groupPotRows.map((r) => r.groupKey))].filter((k) => !groupNames.has(k));
   const adHoc = week
     ? await Promise.all(
-        adHocRows
-          .filter((r) => !groupNames.has(r.groupKey))
-          .map(async (r) => ({
-            name: r.groupKey,
-            view: await skinsPotFor(session.eventId, week.id, true, "full", r.groupKey),
+        adHocNames.flatMap((name) =>
+          potsOfGroup(groupPotRows, name, false).map(async (game) => ({
+            name,
+            key: potKey(name, game),
+            view: await skinsPotFor(session.eventId, week.id, game.net, game.scope, name),
           })),
+        ),
       )
     : [];
 
@@ -392,10 +412,10 @@ export default async function GroupGamesPage({
         />
       )}
 
-      {pots.map(({ group, view }) =>
+      {pots.map(({ group, key, view }) =>
         view ? (
           <SkinsPotClient
-            key={group.name}
+            key={key}
             rounds={rounds}
             activeStageId={week!.id}
             view={view}
@@ -428,10 +448,10 @@ export default async function GroupGamesPage({
       )}
 
       {/* The bets that cross fourballs, after the fourballs' own. */}
-      {adHoc.map(({ name, view }) =>
+      {adHoc.map(({ name, key, view }) =>
         view ? (
           <SkinsPotClient
-            key={name}
+            key={key}
             rounds={rounds}
             activeStageId={week!.id}
             view={view}
@@ -479,7 +499,7 @@ export default async function GroupGamesPage({
             groups={sheet?.groups ?? []}
             taken={[
               ...[...groupNames].map((name) => ({ name, kind: "*" })),
-              ...adHoc.map((a) => ({ name: a.name, kind: "skins" })),
+              ...adHocNames.map((name) => ({ name, kind: "skins" })),
               ...sideGameKeys,
             ]}
           />
@@ -493,7 +513,7 @@ export default async function GroupGamesPage({
           groups={sheet?.groups ?? []}
           taken={[
             ...[...groupNames].map((name) => ({ name, kind: "*" })),
-            ...adHoc.map((a) => ({ name: a.name, kind: "skins" })),
+            ...adHocNames.map((name) => ({ name, kind: "skins" })),
             ...sideGameKeys,
           ]}
         />

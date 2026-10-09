@@ -5813,6 +5813,17 @@ describe("side bets", () => {
         );
       };
 
+      /**
+       * A POT OVER A NINE SAYS WHICH NINE (2026-10-09, T69). A group's
+       * front-nine pot and its full-round pot both read "Skins — gross", one
+       * above the other; so would a league's front and back pots on Prizes.
+       */
+      it("names the nine in the heading, and says nothing for all eighteen", async () => {
+        expect(await skins({ scope: "front" })).toMatch(/card-title[^>]*>[^<]*Skins — net · Front 9</);
+        expect(await skins({ scope: "back" })).toMatch(/card-title[^>]*>[^<]*Skins — net · Back 9</);
+        expect(await skins()).toMatch(/card-title[^>]*>[^<]*Skins — net</);
+      });
+
       it("still shows who won the skins", async () => {
         const html = await skins();
         expect(html, "the count that decides it").toContain("3 skins");

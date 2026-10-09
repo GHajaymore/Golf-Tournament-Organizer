@@ -74,8 +74,10 @@ describe("the Leaders note", () => {
 describe("Today between rounds", () => {
   const src = () => readSource("src/app/(player)/me/page.tsx");
   it("does not give the new round's card the closed round's label or total", () => {
-    expect(src()).toMatch(/scoreLabel: movedOn \? undefined : standing\?\.scoreLabel/);
-    expect(src()).toMatch(/total=\{\(movedOn \? "" : standing\?\.scoreText\) \|\| "–"\}/);
+    // `freshCard` is moved-on OR a blank card in the board's own round (T67).
+    expect(src()).toMatch(/const freshCard = movedOn \|\| blankCard;/);
+    expect(src()).toMatch(/scoreLabel: freshCard \? undefined : standing\?\.scoreLabel/);
+    expect(src()).toMatch(/total=\{\(freshCard \? "" : standing\?\.scoreText\) \|\| "–"\}/);
   });
   it("names the closed round in the note", () => {
     expect(src()).toMatch(/is closed — these standings are after it\./);
@@ -93,5 +95,18 @@ describe("Today's card with nothing on it", () => {
     expect(src).toMatch(/const blankCard = !card \|\| card\.filled === 0;/);
     expect(src).toMatch(/label: blankCard\s*\?\s*"Start my card"/);
     expect(src).toMatch(/footer=\{blankCard \? "Nothing returned yet\." : cardState\.label\}/);
+  });
+});
+
+/**
+ * THE LEAGUE WEEK SHEET'S NIGHT BOARD (2026-10-09). The same skins and Nassau
+ * tables as the leaderboard, rendered without being told the round was
+ * closed — so a closed skins night read "still carrying … decided so far".
+ */
+describe("the week sheet's skins and Nassau", () => {
+  it("are told when the night is closed", () => {
+    const src = readSource("src/components/WeekClient.tsx");
+    expect(src).toMatch(/<SkinsStandingsTable board=\{view\.nightBoard\.board\} roundClosed=\{view\.nightBoard\.closed\}/);
+    expect(src).toMatch(/<NassauMatches rows=\{view\.nightBoard\.rows\} roundClosed=\{view\.nightBoard\.closed\}/);
   });
 });

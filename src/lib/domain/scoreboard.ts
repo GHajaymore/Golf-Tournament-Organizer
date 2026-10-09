@@ -106,10 +106,46 @@ export function positionLabel(
  * The THRU tile: holes played, "F" when the card is in, "–" before a shot.
  * The same thresholds as the Board tab's "thru 14" / "F".
  */
-export function thruTile(row: Pick<BoardRow, "thru" | "holesOwed" | "absent">, holes: number): string {
+export function thruTile(
+  row: Pick<BoardRow, "thru" | "holesOwed" | "absent"> & TodayFields,
+  holes: number,
+): string {
   if (row.absent || row.thru <= 0) return "–";
-  const owed = row.holesOwed > 0 ? row.holesOwed : holes;
-  return row.thru >= owed ? "F" : String(row.thru);
+  const today = todaysThru(row, holes);
+  if (today.thru <= 0) return "–";
+  return today.thru >= today.owed ? "F" : String(today.thru);
+}
+
+/** The fields `todaysThru` reads — all optional, so a one-round row needs none. */
+export interface TodayFields {
+  roundThru?: number;
+  roundHoles?: number;
+  missedCut?: string;
+  missedRound?: string;
+  withdrew?: boolean;
+  disqualified?: boolean;
+}
+
+/**
+ * HOW FAR THROUGH TODAY'S ROUND (2026-10-09, grid cell T67).
+ *
+ * A golf board's "thru" is the round being played, not the tournament: with
+ * Round 2 under way the board read "F" against a player who had not started
+ * it (their only card, Round 1, was complete) and "thru 27" against one nine
+ * holes in. Where the row carries `roundThru` (more than one round) and the
+ * player is IN this round, that is the count; a player the cut, a withdrawal,
+ * a DQ or a missed closed round took out of it keeps the tournament count, so
+ * their reason still reads against a finished card.
+ */
+export function todaysThru(
+  row: Pick<BoardRow, "thru" | "holesOwed"> & TodayFields,
+  holes: number,
+): { thru: number; owed: number } {
+  const inRound =
+    row.roundThru !== undefined && !row.missedCut && !row.missedRound && !row.withdrew && !row.disqualified;
+  return inRound
+    ? { thru: row.roundThru!, owed: row.roundHoles && row.roundHoles > 0 ? row.roundHoles : holes }
+    : { thru: row.thru, owed: row.holesOwed > 0 ? row.holesOwed : holes };
 }
 
 /**
