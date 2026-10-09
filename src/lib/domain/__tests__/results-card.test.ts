@@ -5,9 +5,13 @@ import {
   fitSubtitle,
   scoreOf,
   thruOf,
+  sideRowsForCard,
+  rowsForBoardKind,
+  type BoardKindView,
   CARD_ROWS,
   type BoardForCard,
 } from "@/lib/domain/results-card";
+import { readSource } from "@/lib/__tests__/source";
 
 /**
  * The share-link preview.
@@ -250,5 +254,233 @@ describe("the three things the first rendered card got wrong", () => {
     // A cut must not end mid-separator, which reads as a rendering fault.
     const out = fitSubtitle("A".repeat(70) + " · Blue Ash Golf Course · May 2026");
     expect(out).not.toMatch(/[·\s]…$/);
+  });
+});
+
+/**
+ * ROWS AS THE LIVE BOARD ACTUALLY SENDS THEM (2026-10-09). `liveBoard` rows
+ * carry numbers — `thru: 18, holesOwed: 18` — not the "F" strings the fixture
+ * above uses. Read raw, a finished tournament's preview printed "18" where the
+ * page says F and was called Live for ever, because "F" never arrived.
+ */
+describe("a card built from the board's own numbers", () => {
+  const real = (rows: BoardForCard["rows"], over: Partial<BoardForCard> = {}) =>
+    resultsCard({ ...board(), rows, ...over }, "public", "zz-club");
+  const row = (name: string, over: Partial<BoardForCard["rows"][number]>) =>
+    ({ rank: 1, name, toPar: "E", ranked: true, thru: 18, holesOwed: 18, ...over }) as BoardForCard["rows"][number];
+
+  it("says F for a complete card and is not live once everybody is in", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Bea", { rank: 2 })]);
+    expect(c.kind === "standings" && c.rows.map((r) => r.thru)).toEqual(["F", "F"]);
+    expect(c.kind === "standings" && c.live).toBe(false);
+  });
+
+  it("is live while a card is part-played — the control", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Bea", { rank: 2, thru: 9 })]);
+    expect(c.kind === "standings" && c.rows[1].thru).toBe("9");
+    expect(c.kind === "standings" && c.live).toBe(true);
+  });
+
+  it("reads today's round on a multi-round board, as the page does", () => {
+    const c = real([
+      row("zz-Ann", { thru: 36, holesOwed: 36, roundThru: 18, roundHoles: 18 }),
+      row("zz-Bea", { rank: 2, thru: 27, holesOwed: 36, roundThru: 9, roundHoles: 18 }),
+      row("zz-Cat", { rank: 2, thru: 18, holesOwed: 18, roundThru: 0, roundHoles: 18 }),
+    ]);
+    expect(c.kind === "standings" && c.rows.map((r) => r.thru)).toEqual(["F", "9", ""]);
+  });
+
+  it("is not live once the board is official, or every card is in", () => {
+    const part = [row("zz-Ann", { thru: 9 })];
+    for (const over of [{ official: true }, { allIn: true }]) {
+      const c = real(part, over);
+      expect(c.kind === "standings" && c.live, JSON.stringify(over)).toBe(false);
+    }
+  });
+
+  it("does not count a player the cut or a withdrawal took off the course", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Wes", { rank: 0, ranked: false, thru: 9, withdrew: true })]);
+    expect(c.kind === "standings" && c.live).toBe(false);
+  });
+});
+
+/**
+ * THE SCORE THE BOARD RANKS ON (2026-10-09, T69). A standings row always
+ * carries a Stableford `points` figure, so a gross medal's preview read
+ * "37 pts / 36 pts" while the page it opens ranked the same players -1 / E.
+ */
+describe("the card prints the board's own statistic", () => {
+  const medal = (over: Record<string, unknown> = {}) =>
+    ({
+      rank: 1, name: "zz-Ann", ranked: true, started: true, thru: 18, holesOwed: 18,
+      toPar: -1, parKnown: true, gross: 70, net: 64, points: 37, pts: "", record: "", ...over,
+    }) as unknown as BoardForCard["rows"][number];
+  const score = (unit: string, isStableford = false, row = medal()) =>
+    resultsCard({ ...board(), rows: [row], isStroke: true, isStableford, unit }, "public", "zz-club");
+  const first = (c: ReturnType<typeof resultsCard>) => (c.kind === "standings" ? c.rows[0].score : "");
+
+  it("a gross medal shows its to-par, not points", () => {
+    expect(first(score("gross strokes"))).toBe("-1");
+  });
+
+  it("a net medal shows the to-par the engine hands it, not points", () => {
+    // `standingRows` has already put a net board's toPar on the net basis
+    // (`toParOnBasis`); readers print it, they do not subtract again.
+    expect(first(score("net strokes", false, medal({ toPar: -7 })))).toBe("-7");
+  });
+
+  it("a Stableford board shows points — the control", () => {
+    expect(first(score("Stableford points", true))).toBe("37 pts");
+  });
+
+  it("a player not started shows nothing", () => {
+    expect(first(score("gross strokes", false, medal({ started: false, thru: 0 })))).toBe("");
+  });
+
+  it("marks a shared place the way the board does", () => {
+    const c = resultsCard(
+      { ...board(), rows: [medal(), medal({ name: "zz-Eve" }), medal({ name: "zz-Bea", rank: 3, toPar: 0 })], isStroke: true, unit: "gross strokes" },
+      "public",
+      "zz-club",
+    );
+    expect(c.kind === "standings" && c.rows.map((r) => r.place)).toEqual(["T1", "T1", "3"]);
+  });
+});
+
+/**
+ * A TEAM ROUND'S CARD IS ITS SIDES (2026-10-09, T72). The board's individual
+ * rows are empty on a team round, so the card read "No scores in yet" over a
+ * foursomes with a side nine holes in.
+ */
+describe("a team round's card", () => {
+  // Gross and net orders deliberately OPPOSITE, so a card ranked on the wrong
+  // basis cannot pass by accident.
+  const sides = [
+    { name: "zz-Ann & Bea", gross: 70, net: 66, points: 0, played: 18, toPar: -1 },
+    { name: "zz-Cat & Dot", gross: 74, net: 62, points: 0, played: 18, toPar: 3 },
+    { name: "zz-Eve & Fay", gross: 36, net: 36, points: 0, played: 9, toPar: 0 },
+    { name: "zz-Gus & Hal", gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+  ];
+  const card = (basis: "gross" | "net") =>
+    resultsCard(
+      { ...board(), rows: sideRowsForCard(sides, basis, 18), isStroke: true, unit: `${basis} strokes` },
+      "public",
+      "zz-club",
+    );
+
+  it("lists the sides that have played, with today's thru", () => {
+    const c = card("gross");
+    expect(c.kind).toBe("standings");
+    if (c.kind !== "standings") return;
+    // In the order the engine hands them; the side with no card is not placed.
+    expect(c.rows.map((r) => [r.name, r.thru])).toEqual([
+      ["zz-Ann & Bea", "F"],
+      ["zz-Cat & Dot", "F"],
+      ["zz-Eve & Fay", "9"],
+    ]);
+    expect(c.live, "a side is nine holes in").toBe(true);
+  });
+
+  it("shares a place where the round's own basis has two sides level", () => {
+    // The engine hands the sides in board order; the card places them as the
+    // page's table does. Level on NET, apart on gross.
+    const level = [
+      { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18, toPar: -7 },
+      { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18, toPar: -7 },
+    ];
+    const places = (basis: "gross" | "net") => {
+      const c = resultsCard({ ...board(), rows: sideRowsForCard(level, basis, 18), isStroke: true, unit: `${basis} strokes` }, "public", "zz-club");
+      return c.kind === "standings" ? c.rows.map((r) => r.place) : [];
+    };
+    expect(places("net")).toEqual(["T1", "T1"]);
+    expect(places("gross")).toEqual(["1", "2"]);
+  });
+
+  it("leaves a side with no card unplaced", () => {
+    const c = card("gross");
+    expect(c.kind === "standings" && c.rows.some((r) => r.name === "zz-Gus & Hal")).toBe(false);
+  });
+});
+
+describe("the share image", () => {
+  it("builds its card from the board's own kind, cup included", () => {
+    const src = readSource("src/app/live/[token]/opengraph-image.tsx");
+    expect(src).toMatch(/const kind = board \? rowsForBoardKind\(board, !!cup\?\.ok\) : \{\}/);
+    expect(src).toMatch(/\.\.\.\(kind\.rows \? \{ rows: kind\.rows \} : \{\}\)/);
+    expect(src).toMatch(/\{card\.note \|\| /);
+  });
+});
+
+/**
+ * THE CARD FOLLOWS THE BOARD'S KIND (2026-10-09). The page draws one of nine
+ * tables; the card read the stroke rows for every one of them.
+ */
+describe("rowsForBoardKind", () => {
+  const view = (over: Partial<BoardKindView> = {}): BoardKindView => ({
+    kind: "standard",
+    teamRound: false,
+    teamRows: [],
+    teamBasis: "gross",
+    holeCount: 18,
+    skins: null,
+    modStableford: null,
+    nassau: null,
+    manualFormat: false,
+    straightKnockout: false,
+    ...over,
+  });
+
+  it("leaves the stroke board's own rows alone — the control", () => {
+    expect(rowsForBoardKind(view(), false)).toEqual({});
+  });
+
+  it("ranks a skins night on skins won, ties shared, nobody placed on none", () => {
+    const k = rowsForBoardKind(
+      view({
+        kind: "skins",
+        skins: {
+          outcome: { standings: [{ playerId: "a", skins: 3 }, { playerId: "b", skins: 3 }, { playerId: "c", skins: 0 }] },
+          nameById: { a: "zz-Ann", b: "zz-Bea", c: "zz-Cat" },
+        },
+      }),
+      false,
+    );
+    const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");
+    expect(c.kind === "standings" && c.rows.map((r) => [r.place, r.name, r.score])).toEqual([
+      ["T1", "zz-Ann", "3 skins"],
+      ["T1", "zz-Bea", "3 skins"],
+    ]);
+  });
+
+  it("ranks Modified Stableford on its points table", () => {
+    const k = rowsForBoardKind(
+      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18 }, { name: "zz-Bea", points: 7, played: 9 }] }),
+      false,
+    );
+    const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");
+    expect(c.kind === "standings" && c.rows.map((r) => [r.place, r.score, r.thru])).toEqual([
+      ["1", "12 pts", "F"],
+      ["2", "7 pts", "9"],
+    ]);
+  });
+
+  it("does not rank a board of matches or a draw, and says where the result is", () => {
+    const cases: [Partial<BoardKindView>, boolean][] = [
+      [{ kind: "nassau", nassau: [{}] }, false],
+      [{ kind: "team-match" }, false],
+      [{ straightKnockout: true }, false],
+      [{ manualFormat: true }, false],
+      [{}, true],
+    ];
+    for (const [over, cup] of cases) {
+      const k = rowsForBoardKind(view(over), cup);
+      expect(k.rows, JSON.stringify(over)).toEqual([]);
+      expect(k.note, JSON.stringify(over)).toBeTruthy();
+      // A pointer, never a claim: a Nassau nobody played previewed "Three
+      // bets — front, back and overall — on the board" (T54).
+      expect(k.note, JSON.stringify(over)).toMatch(/^(Open the board for |Results are posted by the organizer\.$)/);
+      const c = resultsCard({ ...board(), rows: k.rows!, note: k.note }, "public", "zz-club");
+      expect(c.kind === "standings" && c.note).toBe(k.note);
+    }
   });
 });

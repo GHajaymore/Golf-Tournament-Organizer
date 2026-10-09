@@ -4,6 +4,7 @@ import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParCell } from "@/lib/domain/ranked-score";
 import { toCsv, exportStatus, exportRank } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
+import { todaysThru } from "@/lib/domain/scoreboard";
 import { Icon } from "./Icon";
 
 function download(filename: string, rows: string[][]) {
@@ -146,6 +147,9 @@ export function ReportsClient({
   // A row with no holes has no score: a 0 in a spreadsheet reads as one, and a
   // no-show exported "0,0" for gross and net (grid cell T58, 2026-10-09).
   const blankIfNone = (r: StandingRow, n: number) => (r.thru > 0 ? String(n) : "");
+  // Today's round, through the console's own reader — the console said 18 / 9
+  // / — under "Thru" while this file said 36 / 27 / 18 (T67, 2026-10-09).
+  const thruCell = (r: StandingRow) => String(todaysThru(r, r.holesOwed).thru);
 
   const fullStandings = () => {
     const header = isStroke
@@ -156,8 +160,8 @@ export function ReportsClient({
     const body = rows.map((r) =>
       isStroke
         ? isStableford
-          ? [rankCell(r), r.name, r.flight, String(r.thru), blankIfNone(r, r.gross), blankIfNone(r, r.points), status(r)]
-          : [rankCell(r), r.name, r.flight, String(r.thru), blankIfNone(r, r.gross), blankIfNone(r, r.net), parCell(r), status(r)]
+          ? [rankCell(r), r.name, r.flight, thruCell(r), blankIfNone(r, r.gross), blankIfNone(r, r.points), status(r)]
+          : [rankCell(r), r.name, r.flight, thruCell(r), blankIfNone(r, r.gross), blankIfNone(r, r.net), parCell(r), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
     // A casual round: no Flight (column 2) and no Status (the last).

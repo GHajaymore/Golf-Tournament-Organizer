@@ -22,9 +22,16 @@
  * than inferred from a rendered PNG.
  */
 
+import { todaysThru } from "./scoreboard";
+import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
+import { placesByValue } from "./flight-places";
+import { valueOnBasis, type WeekBasis } from "./week-basis";
+
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
   rank: number;
+  /** "1", "T3" — as the board prints the place. */
+  place: string;
   name: string;
   /** Pre-formatted score for this format: "-4", "+2", "15 pts", "3-0-0". */
   score: string;
@@ -43,6 +50,8 @@ export type ResultsCard =
       /** How many more are in the field below the rows shown. */
       more: number;
       live: boolean;
+      /** Said instead of rows where the board draws matches or a bracket. */
+      note: string;
     }
   | {
       /**
@@ -95,8 +104,159 @@ export interface BoardForCard {
     points?: string | number | null;
     record?: string | null;
     thru?: string | number | null;
+    /** Whether the row has a result yet — see `RankedRow`. */
+    started?: boolean;
+    /** The board's own fields for "how far round" — see `cardThru`. */
+    holesOwed?: number;
+    roundThru?: number;
+    roundHoles?: number;
+    missedCut?: string;
+    missedRound?: string;
+    withdrew?: boolean;
+    disqualified?: boolean;
+    absent?: boolean;
   }>;
+  /** What the board ranks on, as `LiveBoardView` says it — see `scoreOf`. */
+  isStroke?: boolean;
+  isStableford?: boolean;
+  unit?: string;
+  /** The committee has made it official — see `LiveBoardView.official`. */
+  official?: boolean;
+  /** Every card expected is complete. */
+  allIn?: boolean;
+  /** See `rowsForBoardKind`: where the result is, when it is not rows. */
+  note?: string;
 }
+
+/**
+ * HOW FAR ROUND, READ THE WAY THE BOARD READS IT (2026-10-09).
+ *
+ * The live board's rows carry a NUMBER — `thru: 18, holesOwed: 18` — and the
+ * board turns that into "F". This card read the number raw, so a finished
+ * tournament's preview printed "18" where the page says F, "36 / 27" on a
+ * board reading "F / thru 9", and — because "F" never appeared — called every
+ * finished tournament Live. Its tests passed on rows carrying "F" strings,
+ * which the real board never sends. So a numeric row goes through
+ * `todaysThru`, the board's own reader; a string row is taken as written.
+ */
+export function cardThru(row: BoardForCard["rows"][number]): string {
+  if (typeof row.thru === "number" && typeof row.holesOwed === "number") {
+    const t = todaysThru({ ...row, thru: row.thru, holesOwed: row.holesOwed }, row.holesOwed);
+    if (t.thru <= 0) return "";
+    return t.thru >= t.owed ? "F" : String(t.thru);
+  }
+  return thruOf(row.thru);
+}
+
+/**
+ * A TEAM ROUND'S SIDES, AS CARD ROWS (2026-10-09, T72).
+ *
+ * A team round files its result per SIDE, so the board's individual rows are
+ * empty for it — and the card, reading only those, told a chat "No scores in
+ * yet" over a foursomes with a side nine holes in. These are the rows the
+ * page's own team table draws: placed by `placesByValue` on the round's basis
+ * (so a shared place is shared), with the side's to-par, which the engine has
+ * already put on that basis.
+ */
+export function sideRowsForCard(
+  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number }[],
+  basis: WeekBasis,
+  holes: number,
+): BoardForCard["rows"] {
+  const places = placesByValue(sides, (s) => valueOnBasis(basis, s), (s) => s.played > 0);
+  return sides.map((s, i) => ({
+    rank: places[i] ?? 0,
+    name: s.name,
+    ranked: places[i] != null,
+    started: s.played > 0,
+    thru: s.played,
+    holesOwed: holes,
+    toPar: s.toPar,
+    parKnown: true,
+    points: s.points,
+    gross: s.gross,
+    net: s.net,
+    pts: "",
+    record: "",
+  })) as BoardForCard["rows"];
+}
+
+/**
+ * THE CARD FOLLOWS THE BOARD'S KIND (2026-10-09). `/live` draws one of nine
+ * tables — a cup, a draw, a manual notice, team matches, sides, skins, a
+ * Nassau, Modified Stableford, or the stroke board — and this card read the
+ * stroke rows for all nine: a skins night previewed a to-par the page never
+ * prints, and a Nassau "No scores in yet" over three settled bets.
+ *
+ * Where the page ranks rows, so does the card, off the page's own table.
+ * Where it draws matches or a bracket, the card says where the result is
+ * rather than inventing a ranking — rule 1: never show what the board would
+ * not.
+ */
+export interface BoardKindView {
+  kind: string;
+  teamRound: boolean;
+  teamRows: Parameters<typeof sideRowsForCard>[0];
+  teamBasis: WeekBasis;
+  holeCount: number;
+  skins: { outcome: { standings: readonly { playerId: string; skins: number }[] }; nameById: Record<string, string> } | null;
+  modStableford: readonly { name: string; points: number; played: number }[] | null;
+  nassau: readonly unknown[] | null;
+  manualFormat: boolean;
+  straightKnockout: boolean;
+}
+
+export function rowsForBoardKind(
+  view: BoardKindView,
+  cup: boolean,
+): { rows?: BoardForCard["rows"]; note?: string; ranksOnStrokes?: { isStableford: boolean; unit: string } } {
+  if (cup) return { rows: [], note: "Open the board for the match scores." };
+  if (view.straightKnockout) return { rows: [], note: "Open the board for the draw." };
+  if (view.manualFormat) return { rows: [], note: "Results are posted by the organizer." };
+  if (view.kind === "team-match") return { rows: [], note: "Open the board for the matches." };
+  if (view.teamRound) {
+    return {
+      rows: sideRowsForCard(view.teamRows, view.teamBasis, view.holeCount),
+      ranksOnStrokes: {
+        isStableford: view.teamBasis === "stableford",
+        unit: view.teamBasis === "net" ? "net strokes" : "gross strokes",
+      },
+    };
+  }
+  if (view.kind === "skins" && view.skins) {
+    const st = view.skins.outcome.standings;
+    const places = placesByValue(st, (s) => s.skins, (s) => s.skins > 0);
+    return {
+      rows: st.map((s, i) => ({
+        rank: places[i] ?? 0,
+        name: view.skins!.nameById[s.playerId] ?? "",
+        ranked: places[i] != null,
+        // Preformatted, as a match record is: the figure skins are won in.
+        record: `${s.skins} ${s.skins === 1 ? "skin" : "skins"}`,
+        thru: "",
+      })),
+    };
+  }
+  if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Open the board for the Nassau." };
+  if (view.kind === "modified-stableford" && view.modStableford) {
+    const ms = view.modStableford;
+    const places = placesByValue(ms, (r) => r.points, (r) => r.played > 0);
+    return {
+      rows: ms.map((r, i) => ({
+        rank: places[i] ?? 0,
+        name: r.name,
+        ranked: places[i] != null,
+        record: `${r.points} pts`,
+        thru: r.played,
+        holesOwed: view.holeCount,
+      })),
+    };
+  }
+  return {};
+}
+
+/** A row the cut, a withdrawal, a DQ or the week's attendance took off the course. */
+const offTheCourse = (r: BoardForCard["rows"][number]) => !!(r.missedCut || r.withdrew || r.disqualified || r.absent);
 
 /**
  * The score a share card shows, which is whatever this format's board shows.
@@ -106,9 +266,31 @@ export interface BoardForCard {
  * than no picture. Empty when the row has nothing to say yet — a player who
  * has not started has no score, and "0" or "E" would both be a claim.
  */
-export function scoreOf(row: BoardForCard["rows"][number]): string {
+export function scoreOf(
+  row: BoardForCard["rows"][number],
+  board?: Pick<BoardForCard, "isStroke" | "isStableford" | "unit">,
+): string {
   const record = clean(String(row.record ?? ""));
   if (record) return record;
+
+  /**
+   * THE FIGURE THE BOARD RANKS ON, through the board's own reader (2026-10-09,
+   * T69). A standings row ALWAYS carries a Stableford `points` figure, so the
+   * branch below printed "37 pts / 36 pts" on a gross medal the page ranks as
+   * -1 / E — a different statistic on the picture than on the page it opens.
+   * Where the board says what it ranks on, `rankedScore` answers, exactly as
+   * it does on /live.
+   */
+  if (board?.isStroke && typeof row.toPar === "number") {
+    if (row.started === false) return "";
+    const text = rankedScore(row as unknown as RankedRow, {
+      isStroke: true,
+      isStableford: !!board.isStableford,
+      isNet: unitIsNet(board.unit),
+    }).text;
+    if (text === "–") return "";
+    return board.isStableford ? `${text} pts` : text;
+  }
 
   const points = row.points;
   if (points !== null && points !== undefined && clean(String(points)) !== "") {
@@ -184,14 +366,18 @@ export function resultsCard(
     };
   }
 
-  const rows: CardRow[] = board.rows
-    .filter((r) => r.ranked !== false)
+  // A place two players hold is "T1" on the board, so it is here — counted
+  // over every ranked row, not the five shown.
+  const ranked = board.rows.filter((r) => r.ranked !== false);
+  const shared = (rank: number) => ranked.filter((r) => r.rank === rank).length > 1;
+  const rows: CardRow[] = ranked
     .slice(0, CARD_ROWS)
     .map((r) => ({
       rank: r.rank,
+      place: shared(r.rank) ? `T${r.rank}` : String(r.rank),
       name: fitName(r.name),
-      score: scoreOf(r),
-      thru: thruOf(r.thru),
+      score: scoreOf(r, board),
+      thru: cardThru(r),
     }));
 
   const counted = board.rows.filter((r) => r.ranked !== false).length;
@@ -210,10 +396,12 @@ export function resultsCard(
     subtitle,
     rows,
     more: Math.max(0, counted - rows.length),
+    note: clean(board.note ?? ""),
     // "Live" only while somebody is still out there. A finished tournament
     // labelled live is the kind of small lie that makes the rest look unsafe.
-    live: board.rows.some((r) => {
-      const t = thruOf(r.thru);
+    live: !board.official && !board.allIn && board.rows.some((r) => {
+      if (offTheCourse(r)) return false;
+      const t = cardThru(r);
       return t !== "" && t !== "F";
     }),
   };
