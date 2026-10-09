@@ -52,7 +52,10 @@ describe("what the sheet is allowed to claim", () => {
      */
     const full = at({ status: "live", done: 33, total: 33 });
     expect(full.title).not.toMatch(/final/i);
-    expect(full.note).toMatch(/not been closed/i);
+    // Says it can still change, and names the act that settles it — the
+    // committee closing the round (2026-10-08) — rather than a fixed phrase.
+    expect(full.note).toMatch(/unofficial/i);
+    expect(full.note).toMatch(/committee closes/i);
     // And it does NOT claim cards are missing, which would be its own untruth.
     expect(full.note).not.toMatch(/33 of 33/);
   });
