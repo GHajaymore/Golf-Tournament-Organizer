@@ -1167,7 +1167,9 @@ export async function moneyFor(
     }),
     prisma.settlement.findMany({ where: { eventId }, orderBy: { settledAt: "desc" } }),
     prisma.player.findMany({
-      where: { eventId, status: { in: ["confirmed", "withdrawn"] } },
+      // Disqualified with withdrawn: both left the field and both can still
+      // owe a share of a cost already spent (see `hasLeftTheField`).
+      where: { eventId, status: { in: ["confirmed", "withdrawn", "disqualified"] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),

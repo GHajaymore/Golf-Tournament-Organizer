@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { roundMoneyFor } from "@/lib/services/expenses";
+import { roundMoneyFor, moneyFor } from "@/lib/services/expenses";
 
 /**
  * A PLAYER WHO LEFT THE FIELD STILL HAS THEIR MONEY (2026-10-08).
@@ -94,5 +94,31 @@ describe("a disqualified player who paid into the skins", () => {
 
   it("and somebody with no entry at all is still nobody — the control", async () => {
     expect((await roundMoneyFor(eventId, at("stranger"))).playerId).toBe("");
+  });
+});
+
+describe("a disqualified player's share of a cost", () => {
+  /**
+   * The split ledger read confirmed AND withdrawn players, not disqualified —
+   * so Cat's share of the buggies, split four ways, read "No longer in the
+   * field" on everybody's ledger and gave Cat no figure of her own.
+   */
+  it("is hers on her ledger and named on everyone else's", async () => {
+    const field = await prisma.player.findMany({ where: { eventId }, select: { id: true, name: true } });
+    const ann = field.find((p) => p.name.endsWith("Ann"))!;
+    await prisma.expense.create({
+      data: {
+        eventId,
+        description: "Buggies",
+        amountCents: 4000,
+        paidBy: ann.id,
+        shares: { create: field.map((p) => ({ playerId: p.id, weight: 1 })) },
+      },
+    });
+    const cat = await moneyFor(eventId, at("Cat"));
+    expect(cat.used).toBe(true);
+    expect(cat.standing.find((s) => s.name === `${TAG} Cat`), "Cat is not on the ledger by name").toBeTruthy();
+    const annView = await moneyFor(eventId, at("Ann"));
+    expect(annView.standing.map((s) => s.name)).not.toContain("No longer in the field");
   });
 });
