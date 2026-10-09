@@ -252,3 +252,50 @@ describe("the three things the first rendered card got wrong", () => {
     expect(out).not.toMatch(/[·\s]…$/);
   });
 });
+
+/**
+ * ROWS AS THE LIVE BOARD ACTUALLY SENDS THEM (2026-10-09). `liveBoard` rows
+ * carry numbers — `thru: 18, holesOwed: 18` — not the "F" strings the fixture
+ * above uses. Read raw, a finished tournament's preview printed "18" where the
+ * page says F and was called Live for ever, because "F" never arrived.
+ */
+describe("a card built from the board's own numbers", () => {
+  const real = (rows: BoardForCard["rows"], over: Partial<BoardForCard> = {}) =>
+    resultsCard({ ...board(), rows, ...over }, "public", "zz-club");
+  const row = (name: string, over: Partial<BoardForCard["rows"][number]>) =>
+    ({ rank: 1, name, toPar: "E", ranked: true, thru: 18, holesOwed: 18, ...over }) as BoardForCard["rows"][number];
+
+  it("says F for a complete card and is not live once everybody is in", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Bea", { rank: 2 })]);
+    expect(c.kind === "standings" && c.rows.map((r) => r.thru)).toEqual(["F", "F"]);
+    expect(c.kind === "standings" && c.live).toBe(false);
+  });
+
+  it("is live while a card is part-played — the control", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Bea", { rank: 2, thru: 9 })]);
+    expect(c.kind === "standings" && c.rows[1].thru).toBe("9");
+    expect(c.kind === "standings" && c.live).toBe(true);
+  });
+
+  it("reads today's round on a multi-round board, as the page does", () => {
+    const c = real([
+      row("zz-Ann", { thru: 36, holesOwed: 36, roundThru: 18, roundHoles: 18 }),
+      row("zz-Bea", { rank: 2, thru: 27, holesOwed: 36, roundThru: 9, roundHoles: 18 }),
+      row("zz-Cat", { rank: 2, thru: 18, holesOwed: 18, roundThru: 0, roundHoles: 18 }),
+    ]);
+    expect(c.kind === "standings" && c.rows.map((r) => r.thru)).toEqual(["F", "9", ""]);
+  });
+
+  it("is not live once the board is official, or every card is in", () => {
+    const part = [row("zz-Ann", { thru: 9 })];
+    for (const over of [{ official: true }, { allIn: true }]) {
+      const c = real(part, over);
+      expect(c.kind === "standings" && c.live, JSON.stringify(over)).toBe(false);
+    }
+  });
+
+  it("does not count a player the cut or a withdrawal took off the course", () => {
+    const c = real([row("zz-Ann", {}), row("zz-Wes", { rank: 0, ranked: false, thru: 9, withdrew: true })]);
+    expect(c.kind === "standings" && c.live).toBe(false);
+  });
+});

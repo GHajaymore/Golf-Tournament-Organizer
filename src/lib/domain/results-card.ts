@@ -22,6 +22,8 @@
  * than inferred from a rendered PNG.
  */
 
+import { todaysThru } from "./scoreboard";
+
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
   rank: number;
@@ -95,8 +97,44 @@ export interface BoardForCard {
     points?: string | number | null;
     record?: string | null;
     thru?: string | number | null;
+    /** The board's own fields for "how far round" — see `cardThru`. */
+    holesOwed?: number;
+    roundThru?: number;
+    roundHoles?: number;
+    missedCut?: string;
+    missedRound?: string;
+    withdrew?: boolean;
+    disqualified?: boolean;
+    absent?: boolean;
   }>;
+  /** The committee has made it official — see `LiveBoardView.official`. */
+  official?: boolean;
+  /** Every card expected is complete. */
+  allIn?: boolean;
 }
+
+/**
+ * HOW FAR ROUND, READ THE WAY THE BOARD READS IT (2026-10-09).
+ *
+ * The live board's rows carry a NUMBER — `thru: 18, holesOwed: 18` — and the
+ * board turns that into "F". This card read the number raw, so a finished
+ * tournament's preview printed "18" where the page says F, "36 / 27" on a
+ * board reading "F / thru 9", and — because "F" never appeared — called every
+ * finished tournament Live. Its tests passed on rows carrying "F" strings,
+ * which the real board never sends. So a numeric row goes through
+ * `todaysThru`, the board's own reader; a string row is taken as written.
+ */
+export function cardThru(row: BoardForCard["rows"][number]): string {
+  if (typeof row.thru === "number" && typeof row.holesOwed === "number") {
+    const t = todaysThru({ ...row, thru: row.thru, holesOwed: row.holesOwed }, row.holesOwed);
+    if (t.thru <= 0) return "";
+    return t.thru >= t.owed ? "F" : String(t.thru);
+  }
+  return thruOf(row.thru);
+}
+
+/** A row the cut, a withdrawal, a DQ or the week's attendance took off the course. */
+const offTheCourse = (r: BoardForCard["rows"][number]) => !!(r.missedCut || r.withdrew || r.disqualified || r.absent);
 
 /**
  * The score a share card shows, which is whatever this format's board shows.
@@ -191,7 +229,7 @@ export function resultsCard(
       rank: r.rank,
       name: fitName(r.name),
       score: scoreOf(r),
-      thru: thruOf(r.thru),
+      thru: cardThru(r),
     }));
 
   const counted = board.rows.filter((r) => r.ranked !== false).length;
@@ -212,8 +250,9 @@ export function resultsCard(
     more: Math.max(0, counted - rows.length),
     // "Live" only while somebody is still out there. A finished tournament
     // labelled live is the kind of small lie that makes the rest look unsafe.
-    live: board.rows.some((r) => {
-      const t = thruOf(r.thru);
+    live: !board.official && !board.allIn && board.rows.some((r) => {
+      if (offTheCourse(r)) return false;
+      const t = cardThru(r);
       return t !== "" && t !== "F";
     }),
   };
