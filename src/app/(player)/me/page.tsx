@@ -16,7 +16,7 @@ import { Icon } from "@/components/Icon";
 import { teamStandings } from "@/lib/services/teams";
 import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
 import { weekBasis, valueOnBasis, isStablefordRound } from "@/lib/domain/week-basis";
-import { roundKicker } from "@/lib/domain/round-label";
+import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote, yourCardShort } from "@/lib/domain/your-card";
 import { myTieLine } from "@/lib/domain/my-tie";
@@ -168,7 +168,28 @@ export default async function PlayTodayPage() {
     !!card && (round?.holes ?? 0) > 0 && card.filled >= (round?.holes ?? 0),
     signsCards(state.event.shape),
   );
-  const standing = hasStandingToShow(me.standing) ? me.standing : null;
+  /**
+   * MOVED ON TO THE NEXT ROUND (2026-10-09, grid cell T66). Once the committee
+   * closes the round on the board, `meFor` hands the player the next open
+   * round — but the standing is still the board's, after the closed round. So
+   * its note ("The committee has closed this round") must name that round, or
+   * it reads as Round 2 closed under a Round 2 heading; and the card headline
+   * must not wear the closed round's "FINAL · GROSS E" over an empty card.
+   */
+  const movedOn = !!round && !!state.boardStage && round.stageId !== state.boardStage.id;
+  /**
+   * A CARD WITH NOTHING ON IT IS NOT A CARD IN PROGRESS (grid cell T66e).
+   * Making a cut gives every survivor a blank card for the next round, and a
+   * card that merely EXISTS read "FINISH MY CARD · HOLE 1 · Entered, not yet
+   * certified" — nothing had been entered. Until a hole is in, it reads like
+   * no card at all: "Start my card", "Nothing returned yet."
+   */
+  const blankCard = !card || card.filled === 0;
+  const standingBase = hasStandingToShow(me.standing) ? me.standing : null;
+  const standing =
+    movedOn && standingBase
+      ? { ...standingBase, note: `${roundLabel(state.stages, state.boardStage!.id)} is closed — these standings are after it.` }
+      : standingBase;
 
   /**
    * THE HERO IS FOR A ROUND THE PLAYER SCORES THEMSELVES.
@@ -602,14 +623,16 @@ export default async function PlayTodayPage() {
       {hero && (
         <ScoreboardCard
           headline={heroHeadline({
-            scoreLabel: standing?.scoreLabel,
-            filled: card?.filled,
-            holesOwed: standing?.holesOwed ?? 0,
-            thru: standing?.thru ?? 0,
+            // Moved on: this card is the new round's, and nothing on it yet —
+            // not the closed round's standing (see `movedOn`).
+            scoreLabel: movedOn ? undefined : standing?.scoreLabel,
+            filled: movedOn ? card?.filled || undefined : card?.filled,
+            holesOwed: movedOn ? 0 : (standing?.holesOwed ?? 0),
+            thru: movedOn ? 0 : (standing?.thru ?? 0),
             roundHoles: holes,
             tournamentOver: state.event.status === "completed",
           })}
-          total={standing?.scoreText || "–"}
+          total={(movedOn ? "" : standing?.scoreText) || "–"}
           tiles={strokes.map((s, i) => ({
             // The course's number — 10-18 on a back nine (`firstHoleOf`).
             n: holeNumber(i, todayFirstHole),
@@ -620,10 +643,10 @@ export default async function PlayTodayPage() {
             next: card !== null && cardState.action === "Finish my card" && next === i + 1,
           }))}
           action={
-            !card || cardState.action
+            blankCard || cardState.action
               ? {
                   href: "/me/card",
-                  label: !card
+                  label: blankCard
                     ? "Start my card"
                     : cardState.action === "Finish my card" && next !== null
                       ? `${cardState.action} · hole ${startHoleNumber(next, todayFirstHole)}`
@@ -634,7 +657,7 @@ export default async function PlayTodayPage() {
           // The card's state only: "thru 9" is already the panel's headline
           // and the tiles show which holes are in, so "9 of 18 holes in" was
           // the same fact a third time.
-          footer={card ? cardState.label : "Nothing returned yet."}
+          footer={blankCard ? "Nothing returned yet." : cardState.label}
         />
       )}
 

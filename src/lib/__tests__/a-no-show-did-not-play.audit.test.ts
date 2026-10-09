@@ -157,3 +157,28 @@ describe("the highlight once the tournament is completed (grid cell T59)", () =>
     }
   });
 });
+
+describe("between rounds — the closed round is over (grid cell T66)", () => {
+  /**
+   * Round 1 closed, Round 2 not begun: Bea's Today and My card stayed on her
+   * approved Round 1 card, so on the morning of Round 2 there was nothing to
+   * start. Her round is the next open one.
+   */
+  it("hands the player the next open round, card and all", async () => {
+    const r2 = await prisma.stage.create({
+      data: { eventId, position: 1, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross" },
+    });
+    try {
+      const bea = await meFor((await loadEventState(eventId))!, at("Bea"));
+      expect(bea.round?.stageId, "still on the closed round").toBe(r2.id);
+      expect(bea.round?.ownCard).toBe(true);
+      // The control: with Round 1 still open, Round 1 is hers.
+      await prisma.stage.update({ where: { id: stageId }, data: { closedAt: null } });
+      const open = await meFor((await loadEventState(eventId))!, at("Bea"));
+      expect(open.round?.stageId).toBe(stageId);
+    } finally {
+      await prisma.stage.update({ where: { id: stageId }, data: { closedAt: new Date() } });
+      await prisma.stage.delete({ where: { id: r2.id } });
+    }
+  });
+});

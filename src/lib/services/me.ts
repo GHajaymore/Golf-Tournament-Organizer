@@ -369,7 +369,23 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   const playerId = [...ids][0] ?? null;
   const player = playerId ? state.confirmed.find((p) => p.id === playerId) ?? null : null;
 
-  const stage = state.boardStage;
+  /**
+   * THE NEXT ROUND, ONCE THE COMMITTEE HAS CLOSED THIS ONE (2026-10-09, grid
+   * cell T66). The board stays on the last round PLAYED — that is the right
+   * thing for a leaderboard between rounds — but a player's Today and My card
+   * are about what they do next. A 36-hole medal with Round 1 closed and Round
+   * 2 not yet begun showed Bea "Round 1 · YOUR CARD · FINAL" and My card her
+   * approved Round 1 card: on the morning of Round 2 there was nothing to
+   * start. A closed round is over; the player's round is the next open one.
+   * (A cut is still honoured there — `cutOut` below — and a completed
+   * tournament has no next round.)
+   */
+  const boardIdx = state.boardStage ? state.playRounds.findIndex((s) => s.id === state.boardStage!.id) : -1;
+  const nextOpen =
+    state.boardStage?.closedAt != null && state.event.status !== "completed" && boardIdx >= 0
+      ? (state.playRounds.slice(boardIdx + 1).find((s) => s.closedAt == null) ?? null)
+      : null;
+  const stage = nextOpen ?? state.boardStage;
   if (!playerId || !stage) {
     return { playerId, name: player?.name ?? "", standing: null, round: null };
   }
