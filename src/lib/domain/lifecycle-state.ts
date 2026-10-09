@@ -601,11 +601,15 @@ export function snapshotStanding(input: {
     if (input.casual) return { title, note: "Every card is in — this is the result." };
     // Every card in and the tournament still open: honest, and a different
     // sentence, because "7 of 33" and "33 of 33" are not the same warning.
+    // Named as the act that makes it official (2026-10-08): a round's result
+    // is official when the committee closes THE ROUND; a decided draw, when
+    // the tournament is completed. "The tournament has not been closed" sent
+    // a committee looking at the wrong control for a round's result.
     return {
       title,
       note: ties
-        ? "Every tie drawn has been decided, but the tournament has not been closed yet."
-        : "This round is all in, but the tournament has not been closed yet.",
+        ? "Every tie drawn has been decided — unofficial until the committee completes the tournament."
+        : "This round is all in — unofficial until the committee closes it.",
     };
   }
   return {
