@@ -1,6 +1,7 @@
 import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { cutLineIndex } from "@/lib/domain/cut";
+import { todaysThru } from "@/lib/domain/scoreboard";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
 
@@ -55,8 +56,9 @@ function cardState(r: StandingRow, holes: number): string {
   // robin, so one player has three matches inside one round — eighteen holes
   // returned is a third of their round, and calling it "F" would tell somebody
   // still on the course that they had finished.
-  const owed = r.holesOwed > 0 ? r.holesOwed : holes;
-  const played = r.thru >= owed ? "F" : `thru ${r.thru}`;
+  // Today's round on a multi-round board — see `todaysThru` (grid cell T67).
+  const today = todaysThru(r, holes);
+  const played = today.thru <= 0 ? "not started" : today.thru >= today.owed ? "F" : `thru ${today.thru}`;
   if (r.ranked) return played;
   // The same reason the console gives — see `unrankedNote`. "F · not ranked"
   // on a player cut after round 1 read as a finished card that lost its place

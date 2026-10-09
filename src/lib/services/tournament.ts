@@ -3002,6 +3002,10 @@ export function standingRows(state: EventState): StandingRow[] {
       points: s.points,
       thru: s.thru,
       holesOwed: s.holesOwed,
+      // Today's round, where there is more than one — see `roundThru`.
+      ...(state.boardStage && state.playRounds.length > 1
+        ? { roundThru: state.roundThru(s.player.id, state.boardStage.id), roundHoles: holesPlayed(state.boardStage.holes) }
+        : {}),
       missedRound: s.missedRound ?? "",
       missedCut: s.missedCut ?? "",
       withdrew: !!s.withdrew,
@@ -3060,6 +3064,11 @@ export function standingRows(state: EventState): StandingRow[] {
       points: s?.points ?? 0,
       thru: s?.thru ?? 0,
       holesOwed: s?.holesOwed ?? 0,
+      // Same shape as a stroke row: `thru` above is the stroke aggregate, so
+      // today's share of it comes from the same place.
+      ...(state.boardStage && state.playRounds.length > 1
+        ? { roundThru: state.roundThru(r.player.id, state.boardStage.id), roundHoles: holesPlayed(state.boardStage.holes) }
+        : {}),
       // A match row always holds a position, so it never missed a closed
       // round — set rather than absent, so both branches have one shape.
       missedRound: "",

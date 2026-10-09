@@ -185,6 +185,13 @@ export default async function PlayTodayPage() {
    * no card at all: "Start my card", "Nothing returned yet."
    */
   const blankCard = !card || card.filled === 0;
+  /**
+   * The card panel speaks for THIS round's card. Moved on, or nothing on it
+   * yet, it must not wear the tournament standing's label and total: Round 2
+   * under way read "YOUR CARD · FINAL · GROSS E" over a player's empty Round 2
+   * card (grid cell T67) — the "Final" was their Round 1.
+   */
+  const freshCard = movedOn || blankCard;
   const standingBase = hasStandingToShow(me.standing) ? me.standing : null;
   const standing =
     movedOn && standingBase
@@ -625,14 +632,14 @@ export default async function PlayTodayPage() {
           headline={heroHeadline({
             // Moved on: this card is the new round's, and nothing on it yet —
             // not the closed round's standing (see `movedOn`).
-            scoreLabel: movedOn ? undefined : standing?.scoreLabel,
-            filled: movedOn ? card?.filled || undefined : card?.filled,
-            holesOwed: movedOn ? 0 : (standing?.holesOwed ?? 0),
-            thru: movedOn ? 0 : (standing?.thru ?? 0),
+            scoreLabel: freshCard ? undefined : standing?.scoreLabel,
+            filled: freshCard ? card?.filled || undefined : card?.filled,
+            holesOwed: freshCard ? 0 : (standing?.holesOwed ?? 0),
+            thru: freshCard ? 0 : (standing?.thru ?? 0),
             roundHoles: holes,
             tournamentOver: state.event.status === "completed",
           })}
-          total={(movedOn ? "" : standing?.scoreText) || "–"}
+          total={(freshCard ? "" : standing?.scoreText) || "–"}
           tiles={strokes.map((s, i) => ({
             // The course's number — 10-18 on a back nine (`firstHoleOf`).
             n: holeNumber(i, todayFirstHole),

@@ -119,3 +119,32 @@ describe("a player with no card for a closed round", () => {
     expect(unrankedNote(early)).toBe("");
   });
 });
+
+/**
+ * TODAY'S ROUND ON A MULTI-ROUND BOARD (2026-10-09, grid cell T67). Round 2
+ * under way: a player who had not started it read "F" (Round 1 complete) and
+ * one nine holes in read "thru 27". The board reads today's round; a player
+ * the cut took out keeps the tournament count, so "missed the cut" still sits
+ * against a finished card.
+ */
+describe("thru on a board two rounds in", () => {
+  const two = (over: Partial<StandingRow>) => row({ ranked: true, rank: 1, thru: 18, holesOwed: 18, roundHoles: 18, ...over });
+  const html = (rows: StandingRow[]) =>
+    renderToStaticMarkup(<PlayerLeaderboard isStroke isStableford={false} rows={rows} holes={18} unit="strokes" cutNote="" />);
+
+  it("calls a player who has not begun today's round not started, not F", () => {
+    const out = html([two({ roundThru: 0 })]);
+    expect(out).toContain("not started");
+    expect(out).not.toMatch(/>F</);
+  });
+
+  it("counts today's holes, not the tournament's", () => {
+    expect(html([two({ thru: 27, holesOwed: 36, roundThru: 9 })])).toContain("thru 9");
+    expect(html([two({ thru: 36, holesOwed: 36, roundThru: 18 })])).not.toContain("thru");
+  });
+
+  it("a one-round board and a missed cut are read as before — the controls", () => {
+    expect(html([row({ ranked: true, rank: 1, thru: 9, holesOwed: 18 })])).toContain("thru 9");
+    expect(html([row({ thru: 18, holesOwed: 18, roundThru: 0, roundHoles: 18, missedCut: "Round 1" })])).toContain("F · missed the cut");
+  });
+});

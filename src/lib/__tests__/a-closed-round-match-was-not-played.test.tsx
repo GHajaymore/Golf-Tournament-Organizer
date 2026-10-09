@@ -74,8 +74,10 @@ describe("the Leaders note", () => {
 describe("Today between rounds", () => {
   const src = () => readSource("src/app/(player)/me/page.tsx");
   it("does not give the new round's card the closed round's label or total", () => {
-    expect(src()).toMatch(/scoreLabel: movedOn \? undefined : standing\?\.scoreLabel/);
-    expect(src()).toMatch(/total=\{\(movedOn \? "" : standing\?\.scoreText\) \|\| "–"\}/);
+    // `freshCard` is moved-on OR a blank card in the board's own round (T67).
+    expect(src()).toMatch(/const freshCard = movedOn \|\| blankCard;/);
+    expect(src()).toMatch(/scoreLabel: freshCard \? undefined : standing\?\.scoreLabel/);
+    expect(src()).toMatch(/total=\{\(freshCard \? "" : standing\?\.scoreText\) \|\| "–"\}/);
   });
   it("names the closed round in the note", () => {
     expect(src()).toMatch(/is closed — these standings are after it\./);

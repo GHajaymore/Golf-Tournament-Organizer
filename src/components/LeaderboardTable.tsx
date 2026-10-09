@@ -78,6 +78,15 @@ export interface StandingRow {
   thru: number;
   /** Holes the counted cards cover, so "thru" can read "14 of 18". */
   holesOwed: number;
+  /**
+   * Holes on THIS round's card, and the round's length — set only when the
+   * tournament has more than one round (2026-10-09, grid cell T67). A golf
+   * board's "thru" is today's round: Round 2 under way showed a player who
+   * had not started it as "F" (their Round 1 card was complete) and another
+   * "thru 27". Absent on a one-round board, where the two are the same.
+   */
+  roundThru?: number;
+  roundHoles?: number;
   /** The closed round this player has no card for, by name, or "". */
   missedRound?: string;
   /** The round an applied cut left this player out after, by name, or "". */
