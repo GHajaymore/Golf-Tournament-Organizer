@@ -2032,6 +2032,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const missedClosedRoundId = (a: StrokeAgg): string | null =>
     stableford ? null : (closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null);
   const missedAClosedRound = (a: StrokeAgg): boolean => missedClosedRoundId(a) !== null;
+  /**
+   * The closed round to NAME, whatever the board ranks on (2026-10-08, grid
+   * cell T49). A points board keeps the missed-week player ranked — the
+   * missing points already cost them — so `missedClosedRoundId` is null for
+   * Stableford. But a player with no card at all for the only closed round
+   * still read "not started" under FINAL. The words are not the ranking: this
+   * only ever surfaces where the row is unranked or has nothing on it.
+   */
+  const closedRoundNotPlayed = (a: StrokeAgg): string | null =>
+    closedRoundIds.find((id) => (a.holesPlayedByStage.get(id) ?? 0) === 0) ?? null;
   const nameOfRound = (id: string): string => {
     const st = stages.find((s) => s.id === id);
     // The description only where it is a name — see `roundKicker`. Every round
@@ -2109,7 +2119,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         holesOwed: a.holesOwed,
         ranked: isRanked(a) && !missedAClosedRound(a) && !cutAfter.has(p.id),
         rank: 0,
-        missedRound: a.thru > 0 && missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
+        // Whether or not they played anything at all: a player with no card
+        // for a closed round did not play it, and a FINAL board read "not
+        // started" over them (grid cell T48, 2026-10-08).
+        missedRound: closedRoundNotPlayed(a) ? nameOfRound(closedRoundNotPlayed(a)!) : "",
         missedCut: cutAfter.get(p.id) ?? "",
       };
   };
@@ -2159,8 +2172,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * Rows with no score to order by (never started, a card cut short)
          * stay after them, as they entered.
          */
-        const xMissed = x.missedRound || x.missedCut ? 1 : 0;
-        const yMissed = y.missedRound || y.missedCut ? 1 : 0;
+        // A score to order by, not merely a missed round: since 2026-10-08 a
+        // player with NO card at all carries `missedRound` too (it is what the
+        // board says of them), and with nothing to compare they sorted first.
+        const xMissed = (x.missedRound || x.missedCut) && x.thru > 0 ? 1 : 0;
+        const yMissed = (y.missedRound || y.missedCut) && y.thru > 0 ? 1 : 0;
         if (xMissed !== yMissed) return yMissed - xMissed;
         if (xMissed) return compareOnBasis(x, y, rankingBasis);
         return 0;

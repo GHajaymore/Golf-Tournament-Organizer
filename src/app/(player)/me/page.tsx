@@ -687,7 +687,10 @@ export default async function PlayTodayPage() {
               )}
             </section>
           )}
-          {!standing && !mySide && !round?.matches.length && !round?.tie && (
+          {/* Not on a round the committee has closed without a card from them:
+              no first hole is coming, and the closed-round card below says so
+              (grid cell T48). */}
+          {!standing && !mySide && !round?.matches.length && !round?.tie && !round?.closedWithout && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">

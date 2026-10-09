@@ -86,3 +86,34 @@ describe("why a stroke row holds no place", () => {
     expect(src).toMatch(/const closedWithout =\s*!cutOut && stage\.closedAt != null/);
   });
 });
+
+/**
+ * A NO-SHOW ON A CLOSED ROUND DID NOT PLAY IT (2026-10-08, grid cell T48).
+ * Entered, never teed off, and the committee closed the round: the public
+ * board read FINAL over "Dan · not started" — somebody who may still walk in —
+ * and the console a row of dashes. Both now say what happened.
+ */
+describe("a player with no card for a closed round", () => {
+  const noShow = row({ thru: 0, gross: 0, net: 0, toPar: 0, started: false, missedRound: "Round 1" });
+
+  it("reads 'didn't play Round 1' on the player's board and the public link", () => {
+    const html = renderToStaticMarkup(
+      <PlayerLeaderboard isStroke isStableford={false} rows={[noShow]} holes={18} unit="strokes" cutNote="" />,
+    );
+    expect(html).toContain("didn&#x27;t play Round 1");
+    expect(html).not.toContain("not started");
+  });
+
+  it("is captioned on the console", () => {
+    expect(unrankedNote(noShow)).toBe("Didn't play Round 1");
+  });
+
+  it("while a round still open is 'not started' — the control", () => {
+    const early = row({ thru: 0, gross: 0, net: 0, toPar: 0, started: false, missedRound: "" });
+    const html = renderToStaticMarkup(
+      <PlayerLeaderboard isStroke isStableford={false} rows={[early]} holes={18} unit="strokes" cutNote="" />,
+    );
+    expect(html).toContain("not started");
+    expect(unrankedNote(early)).toBe("");
+  });
+});

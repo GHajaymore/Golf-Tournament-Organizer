@@ -496,14 +496,16 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   // A closed round with nothing of this player's on it — see the field. Not
   // for a player the cut left out: no card was ever owed, and "There's no
   // Round 2 card from you" read as a card they had failed to hand in.
-  const closedWithout =
-    !cutOut && stage.closedAt != null && (card?.filled ?? 0) === 0
-      ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
-      : "";
+  // Named in a SENTENCE — "Round 1 is closed", "You're not playing Round 2" —
+  // so by its number even in a one-round event, as the board names it ("didn't
+  // play Round 1"). `roundNumberLabel` drops the number there and fell back to
+  // the TYPE: "Stroke Play Round is closed" (grid cell T48, 2026-10-08).
+  const inSentence = roundKicker(stage.description, roundLabel(state.stages, stage.id) || "This round");
+  const closedWithout = !cutOut && stage.closedAt != null && (card?.filled ?? 0) === 0 ? inSentence : "";
   // Out of this league week with nothing on its card — see the field.
   const outThisWeek =
     !cutOut && !closedWithout && state.outOn(stage.id).has(playerId) && (card?.filled ?? 0) === 0
-      ? roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round")
+      ? inSentence
       : "";
 
   /**

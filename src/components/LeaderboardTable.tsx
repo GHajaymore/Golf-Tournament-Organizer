@@ -118,7 +118,10 @@ export interface StandingRow {
  * yet to tee off would bury the two or three this is for.
  */
 export function unrankedNote(r: StandingRow): string {
-  if (r.ranked || r.thru <= 0) return "";
+  if (r.ranked) return "";
+  // No card at all for a round the committee closed — said, not left as a
+  // row of dashes (grid cell T48, 2026-10-08).
+  if (r.thru <= 0) return r.missedRound ? `Didn't play ${r.missedRound}` : "";
   if (r.disqualified) return "DQ — disqualified";
   if (r.withdrew) return "WD — withdrew";
   // A round the committee closed, with no card for it — a player cut after
