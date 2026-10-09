@@ -696,6 +696,14 @@ export interface EventState {
   advancingCount: number;
   advancingIds: Set<string>;
   /**
+   * Whether this round decides who goes on at all — a knockout fed by it, or
+   * a cut into the next round (2026-10-09). Without one nobody is "advancing",
+   * so `advancingIds` is empty for EVERY player, and the standings export read
+   * "Eliminated" against the winner of an ordinary medal. Read it before
+   * saying Advancing or Eliminated.
+   */
+  qualifying: boolean;
+  /**
    * How many results are waiting for a sign-off, across the whole tournament.
    *
    * The total; `reviewing` beside it says what it is made of, because "36" on
@@ -2356,11 +2364,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // With neither a knockout nor a round cut, nobody is advancing yet.
   const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
+  // Whether anybody CAN advance — see `EventState.qualifying`.
+  let qualifying = hasKnockout;
   if (hasKnockout) {
     advancingIds = qualifierIds;
   } else {
     const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
     const cutRule = currentRoundCutRule(playRounds, activePlayIdx);
+    qualifying = !!cutRule;
     if (!cutRule) {
       advancingIds = new Set<string>();
     } else {
@@ -2766,6 +2777,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     outOn,
     advancingCount,
     advancingIds,
+    qualifying,
     pendingConfirmations,
     reviewing,
     resultsIn: played,

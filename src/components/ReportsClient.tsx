@@ -32,6 +32,7 @@ export function ReportsClient({
   board,
   scored = true,
   hasBracket = true,
+  qualifying = true,
   hasTeeSheet = true,
   casual = false,
   rankedOn = "net",
@@ -104,6 +105,11 @@ export function ReportsClient({
    */
   hasBracket?: boolean;
   /**
+   * Whether this round decides who goes on — see `EventState.qualifying`.
+   * Defaults to true, so a caller not yet taught keeps its old statuses.
+   */
+  qualifying?: boolean;
+  /**
    * Whether any round has a SAVED tee sheet, which is what the printable
    * cards are built from — see the Scorecards entry below.
    *
@@ -127,7 +133,7 @@ export function ReportsClient({
    */
   // A row without a place says WHY — DQ, WD, a missed cut — and a blank rank,
   // never 0. See `exportStatus` (2026-10-08).
-  const status = (r: StandingRow) => exportStatus(r);
+  const status = (r: StandingRow) => exportStatus(r, qualifying);
   const rankCell = (r: StandingRow) => exportRank(r);
 
   /**
@@ -137,6 +143,9 @@ export function ReportsClient({
    * and gets mailed to a committee. See `toParCell`.
    */
   const parCell = (r: StandingRow) => toParCell(r);
+  // A row with no holes has no score: a 0 in a spreadsheet reads as one, and a
+  // no-show exported "0,0" for gross and net (grid cell T58, 2026-10-09).
+  const blankIfNone = (r: StandingRow, n: number) => (r.thru > 0 ? String(n) : "");
 
   const fullStandings = () => {
     const header = isStroke
@@ -147,8 +156,8 @@ export function ReportsClient({
     const body = rows.map((r) =>
       isStroke
         ? isStableford
-          ? [rankCell(r), r.name, r.flight, String(r.thru), String(r.gross), String(r.points), status(r)]
-          : [rankCell(r), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), parCell(r), status(r)]
+          ? [rankCell(r), r.name, r.flight, String(r.thru), blankIfNone(r, r.gross), blankIfNone(r, r.points), status(r)]
+          : [rankCell(r), r.name, r.flight, String(r.thru), blankIfNone(r, r.gross), blankIfNone(r, r.net), parCell(r), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
     // A casual round: no Flight (column 2) and no Status (the last).
@@ -180,19 +189,28 @@ export function ReportsClient({
    */
   const groupResults = () => {
     const scoreCol = isStroke ? (isStableford ? "Points" : "Net") : "Points";
-    const scoreVal = (r: StandingRow) => (isStroke ? String(isStableford ? r.points : r.net) : r.pts);
+    // No card, no score: a blank, not a 0 that reads as one (grid cell T58).
+    const scoreVal = (r: StandingRow) =>
+      isStroke ? (r.thru > 0 ? String(isStableford ? r.points : r.net) : "") : r.pts;
     const flights = [...new Set(rows.map((r) => r.flight))].sort((a, b) => a.localeCompare(b));
     download(`${eventName}-flight-results.csv`, [
       ["Flight", "Rank", "Player", scoreCol, "Status"],
-      ...flights.flatMap((f) =>
-        placesWithin(rows.filter((r) => r.flight === f)).map((r) => [
-          f,
-          String(r.rank),
-          r.name,
-          scoreVal(r),
-          status(r),
-        ]),
-      ),
+      /**
+       * Places for the rows that HOLD one (2026-10-09, grid cell T58). Every
+       * row was renumbered, so a disqualified player and a no-show shared
+       * "3rd" in a flight of three — on the file a flight prize is awarded
+       * from. A stroke row without a place keeps a blank rank, as the full
+       * standings export does (`exportRank`).
+       */
+      ...flights.flatMap((f) => {
+        const inFlight = rows.filter((r) => r.flight === f);
+        const holds = (r: StandingRow) => !isStroke || (r.ranked && r.rank > 0);
+        const placed = placesWithin(inFlight.filter(holds));
+        return [
+          ...placed.map((r) => [f, String(r.rank), r.name, scoreVal(r), status(r)]),
+          ...inFlight.filter((r) => !holds(r)).map((r) => [f, "", r.name, scoreVal(r), status(r)]),
+        ];
+      }),
     ]);
   };
 

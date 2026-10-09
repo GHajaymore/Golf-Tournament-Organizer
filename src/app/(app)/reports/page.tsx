@@ -13,7 +13,8 @@ import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
-import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
+import { weekBasis, isStablefordRound, valueOnBasis } from "@/lib/domain/week-basis";
+import { placesByValue } from "@/lib/domain/flight-places";
 import {
   SkinsStandingsTable,
   NassauMatches,
@@ -224,16 +225,21 @@ export default async function ReportsPage({
         filename: `${event.name}-team-standings.csv`,
         rows: [
           ["Rank", "Team", "Players", "Playing handicap", "Thru", "Gross", stableford ? "Points" : "Net", "To par"],
-          ...teams.map((t, i) => [
-            String(i + 1),
-            t.name,
-            t.members.join(" / "),
-            String(t.playingHandicap),
-            String(t.played),
-            String(t.gross),
-            String(stableford ? t.points : t.net),
-            toParText(t.toPar),
-          ]),
+          /* The board's places, not the list index (2026-10-09, grid cell
+             T51): a side with no card took 2nd at gross 0, net 0, to par E,
+             and two sides level were 1st and 2nd. No card, no place, no
+             figures — blanks, as the board prints dashes. */
+          ...((places) =>
+            teams.map((t, i) => [
+              places[i] != null ? String(places[i]) : "",
+              t.name,
+              t.members.join(" / "),
+              String(t.playingHandicap),
+              String(t.played),
+              t.played > 0 ? String(t.gross) : "",
+              t.played > 0 ? String(stableford ? t.points : t.net) : "",
+              t.played > 0 ? toParText(t.toPar) : "",
+            ]))(placesByValue(teams, (t) => valueOnBasis(basis, t), (t) => t.played > 0)),
         ],
       },
     ];
@@ -317,14 +323,18 @@ export default async function ReportsPage({
         filename: `${event.name}-modified-stableford.csv`,
         rows: [
           ["Rank", "Player", "Handicap", "Thru", "Gross", "Points"],
-          ...mod.map((r, i) => [
-            String(i + 1),
-            r.name,
-            String(r.handicap),
-            String(r.played),
-            String(r.gross),
-            String(r.points),
-          ]),
+          // The board's places (`ModifiedStablefordTable`), not the index:
+          // ties shared, and no place or figures for a player with no card —
+          // a no-show exported 4th at gross 0 (grid cell T52, 2026-10-09).
+          ...((places) =>
+            mod.map((r, i) => [
+              places[i] != null ? String(places[i]) : "",
+              r.name,
+              String(r.handicap),
+              String(r.played),
+              r.played > 0 ? String(r.gross) : "",
+              r.played > 0 ? String(r.points) : "",
+            ]))(placesByValue(mod, (r) => r.points, (r) => r.played > 0)),
         ],
       },
     ];
@@ -411,6 +421,7 @@ export default async function ReportsPage({
            same two stage types — a medal that ends at the last round has no
            bracket to print. */
         hasBracket={hasKnockoutStage(state.stages)}
+        qualifying={state.qualifying}
         /**
          * Whether a tee sheet has been SAVED for any round, because that is
          * what the printable cards are built from.

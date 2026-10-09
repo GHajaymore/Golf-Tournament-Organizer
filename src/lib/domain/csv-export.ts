@@ -71,6 +71,8 @@ export interface ExportRowStatus {
   missedCut?: string;
   withdrew?: boolean;
   disqualified?: boolean;
+  /** The closed round this player has no card for — "Round 1" — or "". */
+  missedRound?: string;
 }
 
 /**
@@ -81,10 +83,20 @@ export interface ExportRowStatus {
  * neither their status nor what a committee would write. A tie for the last
  * qualifying place is neither Advancing nor Eliminated until it is settled.
  */
-export function exportStatus(r: ExportRowStatus): string {
+export function exportStatus(r: ExportRowStatus, qualifying = true): string {
   if (r.disqualified) return "DQ";
   if (r.withdrew) return "WD";
   if (r.missedCut) return "Missed the cut";
+  // A player with no card for a closed round did not play it — the board's
+  // own words (grid cell T48), not "Eliminated".
+  if (r.missedRound) return `Didn't play ${r.missedRound}`;
+  /**
+   * NOTHING TO ADVANCE TO, NOTHING TO BE ELIMINATED FROM (2026-10-09).
+   * Advancing is a cut or a knockout ahead of this round; without one
+   * `advancing` is false for everybody, and an ordinary medal's export read
+   * "Eliminated" against its winner. A ranked row then has nothing to note.
+   */
+  if (!qualifying) return r.ranked ? "" : "Not ranked";
   if (r.tiedAtCut) return "Tied — play-off to decide";
   return r.advancing ? "Advancing" : "Eliminated";
 }

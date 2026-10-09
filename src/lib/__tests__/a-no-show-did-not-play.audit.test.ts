@@ -122,3 +122,22 @@ describe("the same no-show on a Stableford round (grid cell T49)", () => {
     }
   });
 });
+
+describe("whether this medal decides who goes on (2026-10-09)", () => {
+  it("does not — one round, no cut, no knockout — so nobody exports as Eliminated", async () => {
+    expect((await loadEventState(eventId))!.qualifying).toBe(false);
+  });
+});
+
+describe("the same medal with a cut into a second round — the control", () => {
+  it("does decide who goes on", async () => {
+    const r2 = await prisma.stage.create({
+      data: { eventId, position: 1, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross", cutEnabled: true, cutMode: "count", cutCount: 1 },
+    });
+    try {
+      expect((await loadEventState(eventId))!.qualifying).toBe(true);
+    } finally {
+      await prisma.stage.delete({ where: { id: r2.id } });
+    }
+  });
+});
