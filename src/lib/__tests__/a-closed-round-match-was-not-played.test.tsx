@@ -81,3 +81,17 @@ describe("Today between rounds", () => {
     expect(src()).toMatch(/is closed — these standings are after it\./);
   });
 });
+
+/**
+ * A BLANK CARD READS AS NO CARD (grid cell T66e). The cut gives survivors a
+ * blank Round 2 card, which read "FINISH MY CARD · HOLE 1 · Entered, not yet
+ * certified" with nothing entered.
+ */
+describe("Today's card with nothing on it", () => {
+  it("offers Start my card and says nothing is returned", () => {
+    const src = readSource("src/app/(player)/me/page.tsx");
+    expect(src).toMatch(/const blankCard = !card \|\| card\.filled === 0;/);
+    expect(src).toMatch(/label: blankCard\s*\?\s*"Start my card"/);
+    expect(src).toMatch(/footer=\{blankCard \? "Nothing returned yet\." : cardState\.label\}/);
+  });
+});

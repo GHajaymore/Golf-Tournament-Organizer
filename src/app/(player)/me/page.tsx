@@ -177,6 +177,14 @@ export default async function PlayTodayPage() {
    * must not wear the closed round's "FINAL · GROSS E" over an empty card.
    */
   const movedOn = !!round && !!state.boardStage && round.stageId !== state.boardStage.id;
+  /**
+   * A CARD WITH NOTHING ON IT IS NOT A CARD IN PROGRESS (grid cell T66e).
+   * Making a cut gives every survivor a blank card for the next round, and a
+   * card that merely EXISTS read "FINISH MY CARD · HOLE 1 · Entered, not yet
+   * certified" — nothing had been entered. Until a hole is in, it reads like
+   * no card at all: "Start my card", "Nothing returned yet."
+   */
+  const blankCard = !card || card.filled === 0;
   const standingBase = hasStandingToShow(me.standing) ? me.standing : null;
   const standing =
     movedOn && standingBase
@@ -635,10 +643,10 @@ export default async function PlayTodayPage() {
             next: card !== null && cardState.action === "Finish my card" && next === i + 1,
           }))}
           action={
-            !card || cardState.action
+            blankCard || cardState.action
               ? {
                   href: "/me/card",
-                  label: !card
+                  label: blankCard
                     ? "Start my card"
                     : cardState.action === "Finish my card" && next !== null
                       ? `${cardState.action} · hole ${startHoleNumber(next, todayFirstHole)}`
@@ -649,7 +657,7 @@ export default async function PlayTodayPage() {
           // The card's state only: "thru 9" is already the panel's headline
           // and the tiles show which holes are in, so "9 of 18 holes in" was
           // the same fact a third time.
-          footer={card ? cardState.label : "Nothing returned yet."}
+          footer={blankCard ? "Nothing returned yet." : cardState.label}
         />
       )}
 
