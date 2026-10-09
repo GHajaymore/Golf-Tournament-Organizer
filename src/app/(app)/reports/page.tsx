@@ -13,7 +13,8 @@ import { recentChanges } from "@/lib/services/recent-changes";
 import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
-import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
+import { weekBasis, isStablefordRound, valueOnBasis } from "@/lib/domain/week-basis";
+import { placesByValue } from "@/lib/domain/flight-places";
 import {
   SkinsStandingsTable,
   NassauMatches,
@@ -224,16 +225,21 @@ export default async function ReportsPage({
         filename: `${event.name}-team-standings.csv`,
         rows: [
           ["Rank", "Team", "Players", "Playing handicap", "Thru", "Gross", stableford ? "Points" : "Net", "To par"],
-          ...teams.map((t, i) => [
-            String(i + 1),
-            t.name,
-            t.members.join(" / "),
-            String(t.playingHandicap),
-            String(t.played),
-            String(t.gross),
-            String(stableford ? t.points : t.net),
-            toParText(t.toPar),
-          ]),
+          /* The board's places, not the list index (2026-10-09, grid cell
+             T51): a side with no card took 2nd at gross 0, net 0, to par E,
+             and two sides level were 1st and 2nd. No card, no place, no
+             figures — blanks, as the board prints dashes. */
+          ...((places) =>
+            teams.map((t, i) => [
+              places[i] != null ? String(places[i]) : "",
+              t.name,
+              t.members.join(" / "),
+              String(t.playingHandicap),
+              String(t.played),
+              t.played > 0 ? String(t.gross) : "",
+              t.played > 0 ? String(stableford ? t.points : t.net) : "",
+              t.played > 0 ? toParText(t.toPar) : "",
+            ]))(placesByValue(teams, (t) => valueOnBasis(basis, t), (t) => t.played > 0)),
         ],
       },
     ];

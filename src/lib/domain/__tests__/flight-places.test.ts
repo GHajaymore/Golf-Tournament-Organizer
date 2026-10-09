@@ -111,7 +111,11 @@ describe("the flight results export", () => {
   const src = () => readSource("src/components/ReportsClient.tsx");
 
   it("numbers the flight with the board's rule", () => {
-    expect(src()).toMatch(/placesWithin\(rows\.filter\(\(r\) => r\.flight === f\)\)/);
+    // Within the flight, and — since 2026-10-09 — only over the rows that
+    // hold a place, so a DQ or a no-show takes no number (grid cell T58).
+    const s = src();
+    expect(s).toMatch(/const inFlight = rows\.filter\(\(r\) => r\.flight === f\)/);
+    expect(s).toMatch(/placesWithin\(inFlight\.filter\(holds\)\)/);
   });
 
   it("no longer exports the overall rank under a per-flight heading", () => {
