@@ -32,6 +32,7 @@ import { needsYouNow } from "@/lib/domain/needs-you-now";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
+import { playOverOf } from "@/lib/domain/tournament-switcher";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
@@ -839,8 +840,11 @@ export default async function DashboardPage() {
       )}
 
       {/* SUSPEND PLAY (Rule 5.7) — while the tournament is being played, and
-          always while it is suspended, so the way back is never hidden. */}
-      {isStaff && ((isLaunched(event.status) && !isFinished(event.status)) || !!event.playSuspendedAt) && (
+          always while it is suspended, so the way back is never hidden. Not
+          once every round is closed: there is no play left to stop, and the
+          button sat beside "8/8 scorecards certified" (T69). */}
+      {isStaff &&
+        ((isLaunched(event.status) && !isFinished(event.status) && !playOverOf(state.stages)) || !!event.playSuspendedAt) && (
         <PlayStatusControl
           suspended={!!event.playSuspendedAt}
           note={event.playSuspendedNote}

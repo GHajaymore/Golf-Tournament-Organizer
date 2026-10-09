@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { switcherFor, isWatching, openCardOf, playOverOf, type SwitchableRow } from "@/lib/domain/tournament-switcher";
 import { BAND_LABEL, type EventBand } from "@/lib/domain/club-event-card";
+import { readSource } from "./source";
 
 const row = (eventId: string, band: EventBand, over: Partial<SwitchableRow> = {}): SwitchableRow => ({
   eventId,
@@ -157,6 +158,11 @@ describe("the tournament switcher", () => {
     expect(playOverOf([])).toBe(false);
     // A legacy row nobody plays (the removed Qualification Stage) does not hold it open.
     expect(playOverOf([{ type: "Stroke Play Round", closedAt: closed }, { type: "Qualification Stage", closedAt: null }])).toBe(true);
+  });
+
+  it("and the dashboard stops offering to suspend play that is over — unless it is suspended", () => {
+    const src = readSource("src/app/(app)/dashboard/page.tsx");
+    expect(src).toMatch(/!isFinished\(event\.status\) && !playOverOf\(state\.stages\)\) \|\| !!event\.playSuspendedAt/);
   });
 });
 
