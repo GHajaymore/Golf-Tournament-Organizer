@@ -32,6 +32,7 @@ export function ReportsClient({
   board,
   scored = true,
   hasBracket = true,
+  qualifying = true,
   hasTeeSheet = true,
   casual = false,
   rankedOn = "net",
@@ -104,6 +105,11 @@ export function ReportsClient({
    */
   hasBracket?: boolean;
   /**
+   * Whether this round decides who goes on — see `EventState.qualifying`.
+   * Defaults to true, so a caller not yet taught keeps its old statuses.
+   */
+  qualifying?: boolean;
+  /**
    * Whether any round has a SAVED tee sheet, which is what the printable
    * cards are built from — see the Scorecards entry below.
    *
@@ -127,7 +133,7 @@ export function ReportsClient({
    */
   // A row without a place says WHY — DQ, WD, a missed cut — and a blank rank,
   // never 0. See `exportStatus` (2026-10-08).
-  const status = (r: StandingRow) => exportStatus(r);
+  const status = (r: StandingRow) => exportStatus(r, qualifying);
   const rankCell = (r: StandingRow) => exportRank(r);
 
   /**

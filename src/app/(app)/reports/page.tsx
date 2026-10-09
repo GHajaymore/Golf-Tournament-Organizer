@@ -411,6 +411,7 @@ export default async function ReportsPage({
            same two stage types — a medal that ends at the last round has no
            bracket to print. */
         hasBracket={hasKnockoutStage(state.stages)}
+        qualifying={state.qualifying}
         /**
          * Whether a tee sheet has been SAVED for any round, because that is
          * what the printable cards are built from.
