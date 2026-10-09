@@ -152,6 +152,13 @@ describe("thru on a board two rounds in", () => {
     expect(console(row({ ranked: true, rank: 1, thru: 14, holesOwed: 18 }))).toBe("14");
   });
 
+  it("and so does the standings CSV, which said 36 / 27 / 18 under the same heading", () => {
+    const src = readSource("src/components/ReportsClient.tsx");
+    expect(src).toMatch(/const thruCell = \(r: StandingRow\) => String\(todaysThru\(r, r\.holesOwed\)\.thru\)/);
+    expect(src.match(/r\.flight, thruCell\(r\), blankIfNone/g)?.length, "both stroke rows").toBe(2);
+    expect(src).not.toMatch(/String\(r\.thru\)/);
+  });
+
   it("a one-round board and a missed cut are read as before — the controls", () => {
     expect(html([row({ ranked: true, rank: 1, thru: 9, holesOwed: 18 })])).toContain("thru 9");
     expect(html([row({ thru: 18, holesOwed: 18, roundThru: 0, roundHoles: 18, missedCut: "Round 1" })])).toContain("F · missed the cut");
