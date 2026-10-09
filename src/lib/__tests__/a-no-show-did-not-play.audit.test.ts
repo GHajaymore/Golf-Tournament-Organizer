@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { loadEventState, standingRows, computeHighlights } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
 
 /**
@@ -138,6 +138,22 @@ describe("the same medal with a cut into a second round — the control", () => 
       expect((await loadEventState(eventId))!.qualifying).toBe(true);
     } finally {
       await prisma.stage.delete({ where: { id: r2.id } });
+    }
+  });
+});
+
+describe("the highlight once the tournament is completed (grid cell T59)", () => {
+  it("names a winner, not a leader — and while live, a leader (the control)", async () => {
+    const live = computeHighlights((await loadEventState(eventId))!).find((h) => h.icon === "🏆")!;
+    expect(live.title).toBe("Leader");
+    expect(live.text).toMatch(/ leads at /);
+    await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
+    try {
+      const done = computeHighlights((await loadEventState(eventId))!).find((h) => h.icon === "🏆")!;
+      expect(done.title).toBe("Winner");
+      expect(done.text, "'leads' over a board headed Final").toMatch(/ won at /);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { status: "live" } });
     }
   });
 });

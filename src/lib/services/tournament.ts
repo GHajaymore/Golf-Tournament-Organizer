@@ -3117,6 +3117,11 @@ function highlightsOf(state: EventState): Highlight[] {
     if (!scored.length) return out;
     const stableford = isStablefordRound(state.activeStage?.scoringBasis, state.activeStage?.format);
     const lead = scored[0];
+    // A COMPLETED tournament has a winner, not a leader (2026-10-09, grid
+    // cell T59): "leads at -2" over a board headed Final.
+    const done = state.event.status === "completed";
+    const verb = done ? "won" : "leads";
+    const leaderTitle = done ? "Winner" : "Leader";
     if (stableford) {
       /**
        * The points AND the holes they came off, because one without the other
@@ -3133,8 +3138,8 @@ function highlightsOf(state: EventState): Highlight[] {
       const thru = lead.thru > 0 ? ` from ${lead.thru} holes` : "";
       out.push({
         icon: "🏆",
-        title: "Leader",
-        text: `${lead.player.name} leads on ${lead.points} Stableford pts${thru}.`,
+        title: leaderTitle,
+        text: `${lead.player.name} ${verb} on ${lead.points} Stableford pts${thru}.`,
       });
     } else {
       /**
@@ -3167,7 +3172,7 @@ function highlightsOf(state: EventState): Highlight[] {
        */
       const netBoard = unitIsNet(state.strokeUnitLabel);
       const total = netBoard ? ` (net ${lead.net})` : lead.parKnown ? ` (${lead.gross})` : "";
-      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par}${total}.` });
+      out.push({ icon: "🏆", title: leaderTitle, text: `${lead.player.name} ${verb} at ${par}${total}.` });
     }
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
