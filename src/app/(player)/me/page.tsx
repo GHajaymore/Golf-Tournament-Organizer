@@ -546,10 +546,17 @@ export default async function PlayTodayPage() {
        */}
       {watching && (
         <section aria-label="Watching" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-          <span className="card-title">You&rsquo;re watching this one</span>
-          <MoreInfo short="You aren't entered — the board is open to read.">
-            You aren&rsquo;t entered, so there&rsquo;s no card for you here. The board, the groups and the
-            notices are all open to read.
+          {/* Withdrew (2026-10-08, grid cell T45): they WERE entered, and a
+              row kept for its score or money — so "You aren't entered" would
+              be false, the rule `verify-player-states` asserts. */}
+          <span className="card-title">
+            {myRow?.withdrew ? "You withdrew from this tournament" : <>You&rsquo;re watching this one</>}
+          </span>
+          <MoreInfo
+            short={myRow?.withdrew ? "There's no card for you — the board is open to read." : "You aren't entered — the board is open to read."}
+          >
+            {myRow?.withdrew ? <>You withdrew</> : <>You aren&rsquo;t entered</>}, so there&rsquo;s no card for you
+            here. The board, the groups and the notices are all open to read.
           </MoreInfo>
           {myRow?.windowNote && (
             <span className="text-muted" style={{ fontSize: 13 }}>
