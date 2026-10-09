@@ -38,10 +38,13 @@ export interface Winner {
 }
 
 export type RoundOutcome =
-  /** A medal, a Stableford, anything ranked by a card. */
-  | { kind: "stroke"; label: string; winners: Winner[]; unit?: string }
+  /**
+   * A medal, a Stableford, anything ranked by a card. `unofficial`: every card
+   * is in and the committee has not closed the round — see `OutingLine.unofficial`.
+   */
+  | { kind: "stroke"; label: string; winners: Winner[]; unit?: string; unofficial?: boolean }
   /** A round played by sides rather than by people. */
-  | { kind: "team"; label: string; winners: Winner[] }
+  | { kind: "team"; label: string; winners: Winner[]; unofficial?: boolean }
   /** One match, decided or halved. */
   | { kind: "match"; label: string; winner: string; loser: string; margin: string }
   /** Scored by hand — the committee posts the result. */
@@ -56,6 +59,15 @@ export interface OutingLine {
   result: string;
   /** True once this round's result can no longer change. */
   settled: boolean;
+  /**
+   * ALL IN, NOT YET OFFICIAL (2026-10-08). A card round's result is official
+   * when the committee closes the round — the ruling the public board's "All
+   * in · unofficial" already states. This panel counted every complete round
+   * "settled", so a league's board read "2 rounds · all settled" two lines
+   * above "unofficial until the committee closes it" (grid cells L3, T47).
+   * The leader is still named — that is who is winning — and marked so.
+   */
+  unofficial?: boolean;
 }
 
 /** "A and B", "A, B and C" — a tie is shared, never broken here. */
@@ -86,17 +98,17 @@ export function tournamentResult(rounds: readonly RoundOutcome[]): OutingLine[] 
   return rounds.map((round) => {
     switch (round.kind) {
       case "stroke":
+      case "team": {
+        const named = round.winners.some((w) => w.name.trim().length > 0);
+        const unofficial = named && !!round.unofficial;
+        const line = winnersLine(round.winners, round.kind === "stroke" ? round.unit ?? "" : "", "Tied:");
         return {
           label: round.label,
-          result: winnersLine(round.winners, round.unit ?? "", "Tied:"),
-          settled: round.winners.some((w) => w.name.trim().length > 0),
+          result: unofficial ? `${line} · unofficial` : line,
+          settled: named && !unofficial,
+          ...(unofficial ? { unofficial } : {}),
         };
-      case "team":
-        return {
-          label: round.label,
-          result: winnersLine(round.winners, "", "Tied:"),
-          settled: round.winners.some((w) => w.name.trim().length > 0),
-        };
+      }
       case "match": {
         // "halved" is a result, not a winner, and reads as a sentence of its
         // own: nobody "beat" anybody by it.
@@ -136,8 +148,11 @@ export function tournamentResult(rounds: readonly RoundOutcome[]): OutingLine[] 
 export function resultSummary(lines: readonly OutingLine[]): string {
   if (lines.length === 0) return "Nothing played yet";
   const settled = lines.filter((l) => l.settled).length;
+  const unofficial = lines.filter((l) => l.unofficial).length;
   const rounds = `${lines.length} round${lines.length === 1 ? "" : "s"}`;
+  // A round all in and awaiting the committee is neither settled nor nothing.
+  const allIn = unofficial > 0 ? ` · ${unofficial} all in, unofficial` : "";
   if (settled === lines.length) return `${rounds} · all settled`;
-  if (settled === 0) return `${rounds} · nothing settled yet`;
-  return `${rounds} · ${settled} settled`;
+  if (settled === 0) return unofficial > 0 ? `${rounds}${allIn}` : `${rounds} · nothing settled yet`;
+  return `${rounds} · ${settled} settled${allIn}`;
 }

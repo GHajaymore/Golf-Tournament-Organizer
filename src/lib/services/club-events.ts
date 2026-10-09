@@ -91,6 +91,12 @@ export interface ClubEventRow {
   awaiting: boolean;
   /** The committee disqualified them — not entered, and not offered the form again. */
   disqualified?: boolean;
+  /**
+   * They withdrew, and their row is kept because it carries a score or money
+   * (2026-10-08, grid cell T45). Words only: what they may do next is whatever
+   * `canEnter` already says. Without it Today told them "You aren't entered".
+   */
+  withdrew?: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
@@ -240,6 +246,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
    * row beside the ruling and undo it. `enterTournament` refuses it too.
    */
   const ruledOutIn = new Set(mine.filter((p) => p.status === "disqualified").map((p) => p.eventId));
+  const withdrewIn = new Set(mine.filter((p) => p.status === "withdrawn").map((p) => p.eventId));
 
   /**
    * THE MEMBER'S OWN CARDS STILL WAITING ON THEM — `openCardOf` has the rule.
@@ -418,6 +425,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       waiting,
       awaiting,
       disqualified,
+      withdrew: !entered && !waiting && !disqualified && withdrewIn.has(event.id),
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
       organizer,
       canWithdraw:

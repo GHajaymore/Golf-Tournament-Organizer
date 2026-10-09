@@ -254,7 +254,15 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
      */
     if (needsTeams(stage.format)) {
       const unit = roundUnit(stage);
-      const played = (teamRows.get(stage.id) ?? []).filter((t) => t.played > 0);
+      const sideHoles = holesPlayed(stage.holes);
+      const begun = (teamRows.get(stage.id) ?? []).filter((t) => t.played > 0);
+      // The stroke path's rule, for sides: a side part-way round can still
+      // change the result, so nobody has won it yet (2026-10-08).
+      const sidesOut = begun.filter((t) => t.played < sideHoles).length;
+      if (sidesOut > 0 && !stage.closedAt && state.event.status !== "completed") {
+        return { kind: "pending", label, note: `${sidesOut} ${sidesOut === 1 ? "side" : "sides"} still on the course` };
+      }
+      const played = begun.filter((t) => t.played >= sideHoles);
       if (played.length === 0) return { kind: "pending", label };
       const value = (t: (typeof played)[number]) =>
         unit.higherWins ? t.points : unit.label === "gross" ? t.gross : t.net;
@@ -267,6 +275,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
         winners: played
           .filter((t) => value(t) === best)
           .map((t) => ({ name: t.name, score: `${best} ${unit.label}` })),
+        unofficial: !stage.closedAt && state.event.status !== "completed",
       };
     }
 
@@ -340,9 +349,12 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
     // A round played by sides is reported as sides won it — the card above is
     // still one player's, so the name is theirs; the kind is what stops a
     // screen ranking a team round as an individual one.
+    // All in is not official until the committee closes the round, or
+    // completes the tournament (2026-10-08) — see `OutingLine.unofficial`.
+    const unofficial = !stage.closedAt && state.event.status !== "completed";
     return needsTeams(stage.format)
-      ? { kind: "team", label, winners }
-      : { kind: "stroke", label, winners, unit: unit.label };
+      ? { kind: "team", label, winners, unofficial }
+      : { kind: "stroke", label, winners, unit: unit.label, unofficial };
   });
 
   return tournamentResult(outcomes);

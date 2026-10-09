@@ -156,8 +156,11 @@ describe("the round-by-round result on the player's board", () => {
   it("names the winner once every card that began is finished — the control", async () => {
     await roundTwo(18);
     const line = await roundTwoLine();
-    expect(line.settled).toBe(true);
     expect(line.result).toMatch(/Ann/);
+    // Named, and unofficial until the committee closes the round (2026-10-08);
+    // the next case is the close.
+    expect(line.unofficial).toBe(true);
+    expect(line.settled).toBe(false);
   });
 
   it("settles on what was returned once the committee closes the round", async () => {

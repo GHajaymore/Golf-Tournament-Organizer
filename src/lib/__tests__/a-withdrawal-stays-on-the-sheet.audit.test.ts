@@ -134,7 +134,11 @@ describe("a player who withdrew at the turn of round 2", () => {
     expect(s.boardProgress.total, "the withdrawn survivor is still owed a card").toBe(2);
     expect(s.boardProgress.started - s.boardProgress.certified, "a withdrawn card counted as still out").toBe(0);
     expect((await liveBoard(eventId))!.allIn, "the board waits on a player who went home").toBe(true);
-    expect((await resultLinesFor(s))[1].settled).toBe(true);
+    // Not waited for: the round names its result — unofficial until the
+    // committee closes it (2026-10-08), but not "still on the course".
+    const line = (await resultLinesFor(s))[1];
+    expect(line.result).not.toMatch(/still on the course/);
+    expect(line.unofficial).toBe(true);
   });
 
   it("and a player the committee DISQUALIFIES is the last line, DQ, beneath the WD", async () => {

@@ -102,6 +102,9 @@ export default async function PlayCardPage() {
               You were disqualified from this tournament, so there&rsquo;s no card for you. Speak to the{" "}
               {terms.organizer} if you think that&rsquo;s wrong.
             </>
+          ) : !isStaff && myRow?.withdrew ? (
+            // Withdrew (2026-10-08, grid T45): entered once, so not "not in it".
+            <>You withdrew from this tournament, so there&rsquo;s no card for you.</>
           ) : (
             // The same sentence Today says, in the words of what this is.
             <>{notInItWords(state.event.shape)}, so there&rsquo;s no card to fill in.</>

@@ -196,6 +196,10 @@ async function walk(label, user, eventId, expect) {
       if (!text.includes("disqualified")) fail(where, "a disqualified player is not told so");
       if (text.includes("Enter this tournament")) fail(where, "offered a disqualified player the way back in");
     }
+    // WITHDREW (2026-10-08): they were entered, so they are told what they did.
+    if (expect.withdrew && path !== "/me/board" && !text.includes("You withdrew")) {
+      fail(where, "a player who withdrew is not told so");
+    }
     if (expect.noRound) {
       if (text.includes("first hole goes in")) fail(where, "promised a hole in a tournament with no round");
       if (text.includes("against your opponent")) fail(where, "named an opponent in a tournament with no round");
@@ -280,6 +284,19 @@ async function main() {
     entered: true,
     rowStatus: "disqualified",
     disqualified: true,
+  });
+
+  // Withdrew mid-tournament with a card already returned, so the row is kept
+  // (2026-10-08, grid cell T45: Today said "You aren't entered").
+  const leaver = await makeMember(org.id, "leaver");
+  const wd = await enter(playing.id, leaver, "withdrawn");
+  await prisma.scorecard.create({
+    data: { eventId: playing.id, stageId: stage.id, playerId: wd.id, strokes: JSON.stringify(PARS) },
+  });
+  await walk("playing/withdrawn", leaver, playing.id, {
+    entered: true,
+    rowStatus: "withdrawn",
+    withdrew: true,
   });
 
   /**
