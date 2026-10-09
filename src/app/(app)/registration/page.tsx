@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { DisqualifyPanel } from "@/components/DisqualifyPanel";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
+import { isWeeklyRound } from "@/lib/stage-types";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
@@ -107,6 +108,8 @@ export default async function RegistrationPage() {
         <DisqualifyPanel
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name }))}
           disqualified={state.players.filter((p) => p.status === "disqualified").map((p) => ({ id: p.id, name: p.name }))}
+          // The dashboard's own test for a league: more than one weekly round.
+          league={state.stages.filter((s) => isWeeklyRound(s.type)).length > 1}
         />
       )}
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,

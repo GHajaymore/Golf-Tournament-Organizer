@@ -9839,3 +9839,23 @@ describe("the group's cards offer a pick-up for every row on a Stableford round 
     expect(await group(false)).not.toContain("picked up");
   });
 });
+
+describe("the Disqualification panel in a league (2026-10-08)", () => {
+  /**
+   * In a season of weekly rounds each week is its own competition, and this
+   * panel takes a player out of the WHOLE season. It says so before anybody
+   * presses it, with the per-week remedy. A one-off tournament does not.
+   */
+  const panel = async (league: boolean) => {
+    const { DisqualifyPanel } = await import("@/components/DisqualifyPanel");
+    return render(<DisqualifyPanel field={[{ id: "p1", name: "zz-Ann" }]} disqualified={[]} league={league} />);
+  };
+
+  it("warns that it removes them from the whole season", async () => {
+    expect(await panel(true)).toMatch(/takes them out of the whole season/);
+  });
+
+  it("and says nothing of seasons on an ordinary tournament — the control", async () => {
+    expect(await panel(false)).not.toMatch(/season/);
+  });
+});
