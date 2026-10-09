@@ -67,6 +67,37 @@ test("entering a hole advances and updates the running score", async ({ page }) 
   await expect(page.locator('[aria-label*=", complete"]')).toHaveCount(before + 1);
 });
 
+/**
+ * A DOUBLE-TAP KEEPS THE SCORE (2026-10-09). The pad toggled: tapping the
+ * chosen value cleared it, and the card moves on 160ms after a tap — so a
+ * double-tap set the hole, cleared it, then advanced past a blank hole with
+ * nothing said. Walked on a member's phone: her first two holes, gone.
+ */
+test("a double-tap on a score keeps it", async ({ page }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  const scored = page.locator('[aria-label*=", complete"]');
+  const before = await scored.count();
+
+  const hole = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const par = page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
+  await par.click();
+  await par.click();
+  try {
+    // Past the advance and the save's debounce.
+    await page.waitForTimeout(1500);
+    await expect(scored, "the second tap cleared the hole the first one set").toHaveCount(before + 1);
+  } finally {
+    // Put the shared fixture back — the other projects read "thru 9" off it.
+    // Cleared the deliberate way: back to that hole, empty "Other".
+    const n = hole!.replace(/\D+/g, "");
+    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
+    await page.waitForTimeout(1500);
+    await expect(scored).toHaveCount(before);
+  }
+});
+
 test("the board a player sees matches the one the share link shows", async ({ page, context }) => {
   // Both render PlayerLeaderboard from the same standings. If these ever
   // differ, meFor and standingRows have drifted apart — which is the failure

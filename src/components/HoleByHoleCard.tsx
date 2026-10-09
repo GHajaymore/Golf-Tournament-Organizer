@@ -737,7 +737,14 @@ function SoloPad({
             <button
               key={rel}
               type="button"
-              onClick={() => onPick(chosen ? null : n)}
+              // A tap SETS the score, it never clears it (2026-10-09). This
+              // toggled: tapping the chosen value again cleared the hole. With
+              // the card moving on 160ms after a tap, a double-tap on "4 Par" —
+              // a glove, a bump in the cart — set the 4, cleared it, then
+              // advanced anyway, and the hole was silently blank: walked on a
+              // member's phone, both of her first two holes gone. Clearing is
+              // still there, deliberately, by emptying "Other".
+              onClick={() => onPick(n)}
               aria-pressed={chosen}
               style={{
                 // 56px: above the 44px touch minimum, with a glove on.
