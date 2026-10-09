@@ -1,4 +1,6 @@
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, standingRows } from "@/lib/services/tournament";
+import { standingsFactLines } from "@/lib/domain/standings-facts";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 import { skinsSeasonFor } from "@/lib/services/skins-pot";
 import { currencyForEvent } from "@/lib/services/organization";
 import { money as formatMoney } from "@/lib/domain/money-format";
@@ -33,11 +35,6 @@ export interface DraftFacts {
    them in the wrong currency is wrong in front of the people it is about.
    Resolved per call from the club, below, rather than baked in. */
 
-function toPar(n: number): string {
-  if (n === 0) return "level";
-  return n > 0 ? `+${n}` : `${n}`;
-}
-
 /**
  * Assemble what is true about an event right now.
  *
@@ -69,16 +66,19 @@ export async function draftFactsFor(eventId: string): Promise<DraftFacts> {
 
   // Stroke and match tournaments rank on different things; say which, because
   // "leading by two" means strokes in one and holes in the other.
-  if (state.isStroke && state.strokeStandings.length > 0) {
+  // The BOARD's rows, through the board's readers — see `standingsFactLines`.
+  const board = state.boardIsStroke
+    ? standingsFactLines(standingRows(state), {
+        isStableford: state.boardStage ? isStablefordRound(state.boardStage.scoringBasis, state.boardStage.format) : false,
+        unit: state.strokeUnitLabel,
+      })
+    : null;
+  if (board && board.lines.length > 0) {
     note("");
-    note("Leaderboard (stroke play, best first):");
-    for (const s of state.strokeStandings.slice(0, 10)) {
-      names.add(s.player.name);
-      note(
-        `  ${s.rank}. ${s.player.name} — gross ${s.gross}, net ${s.net}, ${toPar(s.toPar)}, through ${s.thru}`,
-      );
-    }
-  } else if (state.overall.length > 0) {
+    note(board.heading);
+    for (const line of board.lines) note(line);
+    for (const n of board.names) names.add(n);
+  } else if (!state.boardIsStroke && state.overall.length > 0) {
     note("");
     note("Standings (match play points, best first):");
     for (const r of state.overall.slice(0, 10)) {
