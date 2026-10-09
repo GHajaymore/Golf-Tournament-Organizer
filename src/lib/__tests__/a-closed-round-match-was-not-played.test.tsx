@@ -63,3 +63,21 @@ describe("the Leaders note", () => {
     expect(readSource("src/app/(player)/me/page.tsx")).not.toMatch(/standing\?\.note \|\| standing\?\.record/);
   });
 });
+
+/**
+ * MOVED ON TO THE NEXT ROUND (2026-10-09, grid cell T66). Between rounds the
+ * player's Today shows the next open round, but the standing is still the
+ * board's, after the closed one: the card headline read "FINAL · GROSS E" over
+ * an empty Round 2 card, and "The committee has closed this round" sat under
+ * a Round 2 heading. Walked on the built server; this pins the wiring.
+ */
+describe("Today between rounds", () => {
+  const src = () => readSource("src/app/(player)/me/page.tsx");
+  it("does not give the new round's card the closed round's label or total", () => {
+    expect(src()).toMatch(/scoreLabel: movedOn \? undefined : standing\?\.scoreLabel/);
+    expect(src()).toMatch(/total=\{\(movedOn \? "" : standing\?\.scoreText\) \|\| "–"\}/);
+  });
+  it("names the closed round in the note", () => {
+    expect(src()).toMatch(/is closed — these standings are after it\./);
+  });
+});
