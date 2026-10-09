@@ -5,6 +5,7 @@ import { isOwner } from "@/lib/owner";
 import { revalidatePath } from "next/cache";
 import { PLANS, LIMIT_KEYS, isValidPercentOff, type PlanKey, type LimitKey } from "@/lib/plans";
 import { savePricingOverride } from "@/lib/services/platform-pricing";
+import { drainWaitlist } from "@/lib/services/waitlist";
 import { saveLimitOverride } from "@/lib/services/platform-limits";
 import { createDiscount, setDiscountActive } from "@/lib/services/platform-discounts";
 
@@ -59,6 +60,18 @@ export async function setClubPlan(clubName: string, plan: string): Promise<Owner
     // No row is a club that predates the terms, so a new row keeps it so.
     create: { organizationId: org.id, plan, planTermsApply: false },
   });
+  /**
+   * A HIGHER CAP OPENS PLACES (2026-10-09). Players put on a waiting list only
+   * because the old plan's field was full are owed those places now, in the
+   * order they queued. `drainWaitlist` still holds every field to the
+   * organizer's own capacity and the new plan's cap, so a downgrade, or a
+   * field the organizer chose to keep small, promotes nobody.
+   */
+  const open = await prisma.event.findMany({
+    where: { organizationId: org.id, status: { notIn: ["completed"] } },
+    select: { id: true },
+  });
+  for (const e of open) await drainWaitlist(e.id);
   revalidatePath("/owner");
   return { ok: true, club: org.name };
 }

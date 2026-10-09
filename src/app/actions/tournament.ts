@@ -85,7 +85,7 @@ import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
-import { phoneRequiredFor, capacityUnderCap, PLANS } from "@/lib/plans";
+import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
@@ -1129,14 +1129,12 @@ export async function saveEvent(data: {
       // actually set a positive fixed capacity, otherwise every save was
       // silently converting "open" into "capacity 1" the moment anyone hit Save.
       //
-      // Then held to the plan's field cap where one is enforced: on Free, "open"
-      // and anything above ten are stored as ten, so every intake, promotion
-      // and waitlist path — all of which read this column — stops at the cap
-      // without each having to be told (`fieldCapFor`).
-      capacity: capacityUnderCap(
-        data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
-        event ? await fieldCapFor(event.organizationId) : null,
-      ),
+      // STORED AS THE ORGANIZER SET IT, and held to the plan's cap where it is
+      // READ (2026-10-09). This stored the cap — "open" on Par became ten — so
+      // a club that later moved up a tier kept a ten-player field it never
+      // chose. Every intake, promotion and waitlist path reads through
+      // `effectiveCapacity` / `fieldCapFor`; see `createTournament`.
+      capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
       // `sideStyle` is no longer written. Tournament details stopped asking
       // "how do people play?" — see the note where that field stood — and the
@@ -3845,7 +3843,9 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   const created = await prisma.event.create({
     data: {
       ...carried,
-      capacity: capacityUnderCap(carried.capacity, fieldCap),
+      // The organizer's number, carried as it was; the cap is applied on read
+      // (see `createTournament`), so a copy made on Par still holds ten.
+      capacity: carried.capacity,
       manualPlayerCount:
         fieldCap === null ? carried.manualPlayerCount : Math.min(carried.manualPlayerCount, fieldCap),
       name: clean,
@@ -4099,9 +4099,18 @@ export async function createEvent(
       city: "",
       address: "",
       regDeadline: "",
-      // Open field by default — or the plan's cap where one is enforced, so a
-      // Free club's tournament holds ten from the start.
-      capacity: await effectiveCapacity(organizationId, 0),
+      /**
+       * AN OPEN FIELD, AND THE PLAN'S CAP APPLIED WHEN IT IS READ (2026-10-09).
+       *
+       * This stored the cap itself — ten, on Par — and a stored number is the
+       * organizer's, not the plan's: a club that created its championship on
+       * Par and then moved to Eagle imported 120 members and found 10
+       * confirmed and 110 on a waiting list, in a tier with no cap at all.
+       * Every intake and promotion path already reads through
+       * `effectiveCapacity` / `fieldCapFor`, so a Par club's field still holds
+       * ten — `a-downgraded-field-holds-its-cap` is that guarantee.
+       */
+      capacity: 0,
       status: "draft",
       shape,
       /**
