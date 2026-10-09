@@ -17,7 +17,7 @@ import {
 } from "../domain/club-event-card";
 import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
-import { openCardOf, type OpenCard } from "../domain/tournament-switcher";
+import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-switcher";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
 import { capacityUnderCap } from "../plans";
@@ -60,6 +60,8 @@ export interface ClubEventRow {
   seriesName: string;
   /** draft | registration | ready | live | completed. */
   eventStatus: string;
+  /** Every round is closed — see `playOverOf`. */
+  playOver: boolean;
   /** "Open", "Closed", "Full" — the same word the console uses. */
   statusLabel: string;
   /** One sentence saying why, for the ones that are shut. */
@@ -198,7 +200,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       series: { select: { name: true } },
       organization: { select: { locale: true, country: true, golfTerms: true } },
       // The rounds' own days — see `roundDaysOf` below.
-      stages: { select: { playedOn: true, type: true } },
+      stages: { select: { playedOn: true, type: true, closedAt: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -417,6 +419,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       venue: venueOf(event.course, event.city),
       seriesName: event.series?.name ?? "",
       eventStatus: event.status,
+      playOver: playOverOf(event.stages),
       statusLabel: status.label,
       statusDetail: status.detail,
       entryDates: entryDatesOf(event.regOpens, event.regDeadline, event.status, locale),
