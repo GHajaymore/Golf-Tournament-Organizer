@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { switcherFor, isWatching, openCardOf, type SwitchableRow } from "@/lib/domain/tournament-switcher";
+import { switcherFor, isWatching, openCardOf, playOverOf, type SwitchableRow } from "@/lib/domain/tournament-switcher";
 import { BAND_LABEL, type EventBand } from "@/lib/domain/club-event-card";
+import { readSource } from "./source";
 
 const row = (eventId: string, band: EventBand, over: Partial<SwitchableRow> = {}): SwitchableRow => ({
   eventId,
@@ -137,6 +138,31 @@ describe("the tournament switcher", () => {
       false,
     );
     expect(s.current?.note).toBe("You’re in · Playing now");
+  });
+
+  /**
+   * EVERY ROUND CLOSED, TOURNAMENT NOT YET COMPLETED (2026-10-09, T69). The
+   * header said "Playing now" over a board reading FINAL.
+   */
+  it("says play is complete once every round is closed, and not before", () => {
+    const at = (playOver: boolean) =>
+      switcherFor([row("medal", "entered", { eventStatus: "live", playOver })], "medal", false).current?.note;
+    expect(at(true)).toBe("You’re in · Play complete");
+    expect(at(false)).toBe("You’re in · Playing now");
+  });
+
+  it("counts only playing rounds, and a tournament with none has not been played", () => {
+    const closed = new Date();
+    expect(playOverOf([{ type: "Stroke Play Round", closedAt: closed }])).toBe(true);
+    expect(playOverOf([{ type: "Stroke Play Round", closedAt: closed }, { type: "Stroke Play Round", closedAt: null }])).toBe(false);
+    expect(playOverOf([])).toBe(false);
+    // A legacy row nobody plays (the removed Qualification Stage) does not hold it open.
+    expect(playOverOf([{ type: "Stroke Play Round", closedAt: closed }, { type: "Qualification Stage", closedAt: null }])).toBe(true);
+  });
+
+  it("and the dashboard stops offering to suspend play that is over — unless it is suspended", () => {
+    const src = readSource("src/app/(app)/dashboard/page.tsx");
+    expect(src).toMatch(/!isFinished\(event\.status\) && !playOverOf\(state\.stages\)\) \|\| !!event\.playSuspendedAt/);
   });
 });
 

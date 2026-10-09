@@ -1,4 +1,5 @@
 import { byBand, type EventBand } from "./club-event-card";
+import { isPlayingRound } from "../stage-types";
 
 /**
  * WHICH TOURNAMENT THE PLAY SHELL IS SHOWING, AND WHERE ELSE A MEMBER CAN GO.
@@ -40,6 +41,8 @@ export interface SwitchableRow {
    * caller without it behaves as before.
    */
   eventStatus?: string;
+  /** Every round closed by the committee — see `playOverOf`. Optional, as above. */
+  playOver?: boolean;
   /**
    * The member's own stroke card in this tournament that still needs them —
    * see `openCardOf`. Optional so a caller without it behaves as before.
@@ -86,6 +89,18 @@ export function openCardOf(strokesJson: string, holes: number, roundClosed: bool
   const thru = raw.slice(0, holes).filter((v) => typeof v === "number" && v > 0).length;
   if (thru === 0) return null;
   return { thru, complete: thru >= holes };
+}
+
+/**
+ * NOTHING LEFT TO PLAY (2026-10-09, grid cell T69). Every round closed by the
+ * committee while the tournament itself is still `live` — the organizer has
+ * not marked it completed yet. The header said "You’re in · Playing now" over
+ * a board reading FINAL, for as long as nobody pressed Complete. A tournament
+ * with no rounds has not been played, so it is not over.
+ */
+export function playOverOf(stages: readonly { type: string; closedAt: Date | null }[]): boolean {
+  const rounds = stages.filter((s) => isPlayingRound(s.type));
+  return rounds.length > 0 && rounds.every((s) => s.closedAt != null);
 }
 
 export interface SwitcherEntry {
@@ -163,7 +178,9 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
       : `Your card · thru ${card.thru}`
     : row.band === "entered"
       ? row.eventStatus === "live"
-        ? "Playing now"
+        ? row.playOver
+          ? "Play complete"
+          : "Playing now"
         : ""
       : row.bandLabel;
   return [who, what].filter(Boolean).join(" · ");
