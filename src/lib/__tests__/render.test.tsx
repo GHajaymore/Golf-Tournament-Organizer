@@ -8056,6 +8056,12 @@ describe("the live board says how old it is", () => {
     // And the committee's close outranks it.
     expect(render(<LiveRefresh renderedAt={new Date().toISOString()} allIn final />)).toMatch(/no longer change/i);
   });
+
+  it("says a decided knockout waits on the tournament, not on a round nobody can close", () => {
+    const html = render(<LiveRefresh renderedAt={new Date().toISOString()} allIn knockout />);
+    expect(html).toMatch(/Every tie decided · unofficial until the committee completes the tournament/);
+    expect(html).not.toMatch(/closes the round/);
+  });
 });
 
 /**
@@ -9609,6 +9615,12 @@ describe("the play card's totals", () => {
     expect(html.indexOf("stableford")).toBeLessThan(html.indexOf("</b> gross"));
   });
 
+  it("lets a round-code player pick up on a Stableford round, and nowhere else (2026-10-08)", async () => {
+    // Rule 21.1b — the charity day's Stableford is scored by round code.
+    expect(await card({ scoringBasis: "stableford" })).toContain("picked up on hole");
+    expect(await card({ scoringBasis: "gross" }), "a medal must be holed out").not.toContain("picked up on hole");
+  });
+
   it("does not show a to-par figure on a Stableford round", async () => {
     // The number the format exists to stop a first-timer reading.
     const html = await card({ scoringBasis: "stableford" });
@@ -9790,5 +9802,40 @@ describe("a card that states one fact", () => {
      */
     const out = html(<FactCard title="Advancing" figure={0} />);
     expect(out).toMatch(/font-family:var\(--font-heading\)[^"]*"[^>]*>0</);
+  });
+});
+
+describe("the group's cards offer a pick-up for every row on a Stableford round (2026-10-08)", () => {
+  /**
+   * The marker keeping the foursome's cards is who records a partner's
+   * pick-up (Rule 21.1b). In the dense view the toggles sit behind one
+   * "Somebody picked up?" control, so that control is the marker here.
+   */
+  const group = async (offerPickUp: boolean) => {
+    const { GroupScoring } = await import("@/components/GroupScoring");
+    return render(
+      <GroupScoring
+        stageId="s1"
+        holes={18}
+        pars={new Array(18).fill(4)}
+        yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        me={{ id: "p1", name: "zz-Ann Marker", shotsOn: () => 0 }}
+        myStrokes={new Array(18).fill(null)}
+        onSetMine={() => {}}
+        partners={[{ id: "p2", name: "zz-Bea Partner", strokes: new Array(18).fill(null), revision: "" }]}
+        holding={() => false}
+        dense
+        offerPickUp={offerPickUp}
+      />,
+    );
+  };
+
+  it("on a standard Stableford card", async () => {
+    expect(await group(true)).toContain("Somebody picked up?");
+  });
+
+  it("and not on a medal card — the control", async () => {
+    expect(await group(false)).not.toContain("picked up");
   });
 });
