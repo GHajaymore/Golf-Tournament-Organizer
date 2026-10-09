@@ -2109,7 +2109,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         holesOwed: a.holesOwed,
         ranked: isRanked(a) && !missedAClosedRound(a) && !cutAfter.has(p.id),
         rank: 0,
-        missedRound: a.thru > 0 && missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
+        // Whether or not they played anything at all: a player with no card
+        // for a closed round did not play it, and a FINAL board read "not
+        // started" over them (grid cell T48, 2026-10-08).
+        missedRound: missedClosedRoundId(a) ? nameOfRound(missedClosedRoundId(a)!) : "",
         missedCut: cutAfter.get(p.id) ?? "",
       };
   };
@@ -2159,8 +2162,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * Rows with no score to order by (never started, a card cut short)
          * stay after them, as they entered.
          */
-        const xMissed = x.missedRound || x.missedCut ? 1 : 0;
-        const yMissed = y.missedRound || y.missedCut ? 1 : 0;
+        // A score to order by, not merely a missed round: since 2026-10-08 a
+        // player with NO card at all carries `missedRound` too (it is what the
+        // board says of them), and with nothing to compare they sorted first.
+        const xMissed = (x.missedRound || x.missedCut) && x.thru > 0 ? 1 : 0;
+        const yMissed = (y.missedRound || y.missedCut) && y.thru > 0 ? 1 : 0;
         if (xMissed !== yMissed) return yMissed - xMissed;
         if (xMissed) return compareOnBasis(x, y, rankingBasis);
         return 0;

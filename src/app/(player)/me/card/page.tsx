@@ -144,6 +144,30 @@ export default async function PlayCardPage() {
   }
 
   /**
+   * CLOSED WITH NOTHING FROM THEM (2026-10-08, grid cell T48). The committee
+   * closed the round and this player returned no card. The page offered an
+   * empty 18-hole pad that `assertRoundOpen` refuses on the first save — a
+   * card nobody can hand in. Today already says it; this says the same.
+   */
+  if (me.round.closedWithout) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          The {terms.organizer} has closed {me.round.closedWithout}, and there&rsquo;s no card from you for it, so
+          nothing more can be entered. If that&rsquo;s wrong, speak to the {terms.organizer}.
+        </p>
+        <WayForward
+          links={[
+            { href: "/me/board", label: "See the board", icon: "ranking" },
+            { href: "/me", label: "Back to today", icon: "flag" },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  /**
    * OUT OF THIS LEAGUE WEEK (2026-10-08) — they said they can't make it. Not
    * an empty pad: Today is where they change their answer, and the card is
    * offered again the moment they say they're playing.

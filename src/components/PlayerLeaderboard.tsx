@@ -46,6 +46,9 @@ function cardState(r: StandingRow, holes: number): string {
    * it has itself called "not started" — see `absent` on StandingRow.
    */
   if (r.absent) return "not playing this week";
+  // Nothing at all, on a round the committee has CLOSED: they did not play it,
+  // and nobody is still to walk in (grid cell T48, 2026-10-08).
+  if (r.thru <= 0 && r.missedRound) return `didn't play ${r.missedRound}`;
   if (r.thru <= 0) return "not started";
   // Against what this row's own cards cover, falling back to the round's hole
   // count for a row that has none. A Round Robin stage holds the whole round
