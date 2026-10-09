@@ -97,3 +97,16 @@ describe("Today's card with nothing on it", () => {
     expect(src).toMatch(/footer=\{blankCard \? "Nothing returned yet\." : cardState\.label\}/);
   });
 });
+
+/**
+ * THE LEAGUE WEEK SHEET'S NIGHT BOARD (2026-10-09). The same skins and Nassau
+ * tables as the leaderboard, rendered without being told the round was
+ * closed — so a closed skins night read "still carrying … decided so far".
+ */
+describe("the week sheet's skins and Nassau", () => {
+  it("are told when the night is closed", () => {
+    const src = readSource("src/components/WeekClient.tsx");
+    expect(src).toMatch(/<SkinsStandingsTable board=\{view\.nightBoard\.board\} roundClosed=\{view\.nightBoard\.closed\}/);
+    expect(src).toMatch(/<NassauMatches rows=\{view\.nightBoard\.rows\} roundClosed=\{view\.nightBoard\.closed\}/);
+  });
+});

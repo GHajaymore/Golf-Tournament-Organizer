@@ -219,6 +219,23 @@ describe("a skins league night", () => {
     expect(view!.empty).toBe(false);
     expect(view!.weeks.find((w) => w.stageId === skinsId)!.played).toBe(true);
   });
+
+  /**
+   * A CLOSED NIGHT IS OVER (2026-10-09). Every other skins and Nassau board is
+   * told when its round is closed; this sheet was not, so a closed skins night
+   * read "skins are still carrying … decided so far".
+   */
+  it("knows when the committee has closed it", async () => {
+    const before = await weekViewFor(eventId, skinsId);
+    expect(before!.nightBoard?.closed, "an open night read as closed").toBe(false);
+    await prisma.stage.update({ where: { id: skinsId }, data: { closedAt: new Date() } });
+    try {
+      const after = await weekViewFor(eventId, skinsId);
+      expect(after!.nightBoard?.closed).toBe(true);
+    } finally {
+      await prisma.stage.update({ where: { id: skinsId }, data: { closedAt: null } });
+    }
+  });
 });
 
 describe("a Nassau league night", () => {

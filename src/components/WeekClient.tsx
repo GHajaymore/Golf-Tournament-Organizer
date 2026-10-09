@@ -425,7 +425,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 </span>
               }
             >
-              <SkinsStandingsTable board={view.nightBoard.board} />
+              <SkinsStandingsTable board={view.nightBoard.board} roundClosed={view.nightBoard.closed} />
             </Section>
           )}
           {view.nightBoard?.kind === "nassau" && (
@@ -438,7 +438,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 </span>
               }
             >
-              <NassauMatches rows={view.nightBoard.rows} />
+              <NassauMatches rows={view.nightBoard.rows} roundClosed={view.nightBoard.closed} />
             </Section>
           )}
 
