@@ -1,6 +1,7 @@
 import { toParCell } from "@/lib/domain/ranked-score";
 import { holdsPosition, placeText, sharedRanks } from "@/lib/domain/shared-position";
 import { FlipTableBody } from "./FlipList";
+import { todaysThru } from "@/lib/domain/scoreboard";
 
 export interface StandingRow {
   id: string;
@@ -308,7 +309,14 @@ export function LeaderboardTable({
                   )}
                 </td>
                 {showFlight && <td>{r.flight}</td>}
-                {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
+                {/* Today's round, as the public board and the player's read it
+                    — "Thru 36" against a player not yet started on Round 2
+                    was the tournament's count (T67). */}
+                {!compact && (
+                  <td style={{ textAlign: "center", ...num }}>
+                    {todaysThru(r, r.holesOwed).thru > 0 ? todaysThru(r, r.holesOwed).thru : "—"}
+                  </td>
+                )}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
                 {!isStableford && (
                   <td style={{ textAlign: "right", ...num }}>

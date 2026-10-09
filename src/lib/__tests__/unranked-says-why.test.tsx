@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
+import { LeaderboardTable, unrankedNote, type StandingRow } from "@/components/LeaderboardTable";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { readSource } from "./source";
 
@@ -141,6 +141,15 @@ describe("thru on a board two rounds in", () => {
   it("counts today's holes, not the tournament's", () => {
     expect(html([two({ thru: 27, holesOwed: 36, roundThru: 9 })])).toContain("thru 9");
     expect(html([two({ thru: 36, holesOwed: 36, roundThru: 18 })])).not.toContain("thru");
+  });
+
+  it("and the console's Thru column says the same", () => {
+    const console = (r: StandingRow) =>
+      renderToStaticMarkup(<LeaderboardTable isStroke rows={[r]} />).match(/<td style="text-align:center[^>]*>([^<]*)</)?.[1];
+    expect(console(two({ thru: 27, holesOwed: 36, roundThru: 9 }))).toBe("9");
+    expect(console(two({ roundThru: 0 }))).toBe("—");
+    // The control: a one-round row keeps its count.
+    expect(console(row({ ranked: true, rank: 1, thru: 14, holesOwed: 18 }))).toBe("14");
   });
 
   it("a one-round board and a missed cut are read as before — the controls", () => {
