@@ -6,6 +6,7 @@ import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-
 import { resolveMatch } from "@/lib/domain/match";
 import type { HoleResult } from "@/lib/domain/types";
 import { formGroups, flightCountFor } from "@/lib/domain/grouping";
+import { tournamentResult, resultSummary } from "@/lib/domain/tournament-result";
 
 /**
  * THE SOCIETY OUTING: FORTY PLAYERS, THREE DIFFERENT GAMES IN ONE DAY.
@@ -169,5 +170,35 @@ describe("forty players, three games, one tournament", () => {
     // A structural stage (a bracket's scaffolding) would not count; all three
     // of these are rounds somebody walked.
     expect(ROUNDS.filter((r) => isPlayingRound(r.type)).length).toBe(3);
+  });
+});
+
+/**
+ * ALL IN IS NOT SETTLED (2026-10-08). A card round's result is official when
+ * the committee closes the round. The panel counted every complete round
+ * "settled", so a league board read "2 rounds · all settled" two lines above
+ * "unofficial until the committee closes it" (grid cells L3, T47).
+ */
+describe("a round all in and not yet closed", () => {
+  const ann = [{ name: "Ann", score: "34" }];
+
+  it("names the leader, says unofficial, and is not counted settled", () => {
+    const [line] = tournamentResult([{ kind: "stroke", label: "Round 2", winners: ann, unit: "gross", unofficial: true }]);
+    expect(line.result).toBe("Ann · 34 gross · unofficial");
+    expect(line.settled).toBe(false);
+    expect(line.unofficial).toBe(true);
+  });
+
+  it("the summary says so rather than 'all settled'", () => {
+    const lines = tournamentResult([
+      { kind: "stroke", label: "Round 1", winners: ann, unit: "gross" },
+      { kind: "stroke", label: "Round 2", winners: ann, unit: "gross", unofficial: true },
+    ]);
+    expect(resultSummary(lines)).toBe("2 rounds · 1 settled · 1 all in, unofficial");
+  });
+
+  it("a closed round — the control — is settled, with no mark", () => {
+    const [line] = tournamentResult([{ kind: "team", label: "Round 1", winners: [{ name: "Reds", score: "60 net" }] }]);
+    expect(line).toEqual({ label: "Round 1", result: "Reds · 60 net", settled: true });
   });
 });
