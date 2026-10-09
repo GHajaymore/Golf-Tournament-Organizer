@@ -3283,7 +3283,13 @@ function highlightsOf(state: EventState): Highlight[] {
 
   const leader = state.overall[0];
   if (leader && leader.stats.played > 0) {
-    out.push({ icon: "🏆", title: "Leader", text: `${leader.player.name} leads on ${fmt(leader.stats.totalPoints)} pts.` });
+    // A completed tournament has a winner — the stroke branch's rule (T59).
+    const done = state.event.status === "completed";
+    out.push({
+      icon: "🏆",
+      title: done ? "Winner" : "Leader",
+      text: `${leader.player.name} ${done ? "won" : "leads"} on ${fmt(leader.stats.totalPoints)} pts.`,
+    });
   }
 
   // Longest current win streak across the field.

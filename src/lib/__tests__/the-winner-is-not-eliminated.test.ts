@@ -66,3 +66,15 @@ describe("the other exports take the board's places", () => {
     expect(reports()).not.toMatch(/String\(i \+ 1\)/);
   });
 });
+
+/**
+ * A COMPLETED TOURNAMENT HAS A WINNER on both highlight branches (grid cells
+ * T59, T60). The stroke branch is asserted against real rows in
+ * a-no-show-did-not-play.audit.test.ts; this pins the match branch's twin.
+ */
+describe("the match-play highlight once completed", () => {
+  it("says Winner / won when the tournament is completed", () => {
+    const src = readSource("src/lib/services/tournament.ts");
+    expect(src).toMatch(/title: done \? "Winner" : "Leader",\s*text: `\$\{leader\.player\.name\} \$\{done \? "won" : "leads"\} on/);
+  });
+});
