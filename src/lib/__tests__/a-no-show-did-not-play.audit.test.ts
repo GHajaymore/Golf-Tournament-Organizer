@@ -99,3 +99,26 @@ describe("a player who never teed off in a closed round", () => {
     }
   });
 });
+
+describe("the same no-show on a Stableford round (grid cell T49)", () => {
+  /**
+   * A points board deliberately keeps a missed-week player RANKED — the points
+   * they did not score already cost them — so the missed-round rule skipped
+   * Stableford, and Dan read "not started" under FINAL. The words are named
+   * now; the ranking rule is untouched.
+   */
+  it("names the round he did not play, and still ranks the players who did", async () => {
+    await prisma.stage.update({ where: { id: stageId }, data: { format: "Stableford", scoringBasis: "net" } });
+    try {
+      const rows = standingRows((await loadEventState(eventId))!);
+      expect(rows.find((r) => r.id === ids.Dan)!.missedRound).toBe("Round 1");
+      for (const n of ["Ann", "Bea"]) {
+        const r = rows.find((x) => x.id === ids[n])!;
+        expect(r.ranked, `${n} lost a place`).toBe(true);
+        expect(r.missedRound).toBe("");
+      }
+    } finally {
+      await prisma.stage.update({ where: { id: stageId }, data: { format: "Individual Stroke Play", scoringBasis: "gross" } });
+    }
+  });
+});
