@@ -15,7 +15,7 @@ import {
 import { boardKind } from "@/lib/formats";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
-import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
+import { visibleSaveNote, lockedSaveNote, type SavedNote } from "@/lib/domain/save-note";
 import { saveScorecard, saveScorecards } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
@@ -349,9 +349,7 @@ export function StrokePlayEntry({
                 : ""
             }`
           : locked.length
-          ? `Saved. ${locked
-              .map((id) => named(id))
-              .join(", ")} — already approved, so left unchanged. An organizer can reopen it below.`
+          ? lockedSaveNote(locked.map(named), targets.length - locked.length)
           : "Saved.",
         // What was actually sent, and who was on screen when it was.
         cards: JSON.stringify(cards),

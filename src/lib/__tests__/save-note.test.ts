@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
+import { visibleSaveNote, lockedSaveNote, type SavedNote } from "@/lib/domain/save-note";
 import { readSource } from "./source";
 
 /**
@@ -71,7 +71,7 @@ describe("how long Saved. is allowed to stay on the screen", () => {
      * names cards that were skipped. Truncating or re-deriving it here would
      * be a second copy of wording the caller already owns.
      */
-    const long = "Saved. Ada Byron — already approved, so left unchanged. An organizer can reopen it below.";
+    const long = "Not saved — Ada Byron is already approved. An organizer can reopen it below to correct it.";
     expect(visibleSaveNote(note({ text: long }), '{"a":[4,4],"b":[null,null]}', "a")).toBe(long);
   });
 
@@ -110,5 +110,40 @@ describe("what the entry screen does with it", () => {
     const s = src();
     expect(s).toMatch(/cards: JSON\.stringify\(cards\)/);
     expect(s).toMatch(/playerId,/);
+  });
+});
+
+/**
+ * AN APPROVED CARD IS SKIPPED, AND THE NOTE MAY NOT OPEN WITH "SAVED" OVER IT.
+ *
+ * Walked 2026-10-08 (grid cell T11): the committee corrected Bea's 2nd hole
+ * after the round was closed, pressed Save, and read "Saved. Bea Fix —
+ * already approved, so left unchanged" with the correction still on screen.
+ * Nothing had been written; the board and the skins money were unchanged.
+ */
+describe("when approved cards are skipped", () => {
+  it("says Not saved when the approved card was the only one", () => {
+    const note = lockedSaveNote(["Bea Fix"], 0);
+    expect(note).toMatch(/^Not saved/);
+    expect(note).not.toMatch(/^Saved/);
+    expect(note).toContain("Bea Fix is already approved");
+    expect(note).toMatch(/reopen it below/);
+  });
+
+  it("says Saved only when another card on the screen was", () => {
+    const note = lockedSaveNote(["Bea Fix"], 3);
+    expect(note).toMatch(/^Saved — except Bea Fix/);
+  });
+
+  it("speaks of several cards in the plural", () => {
+    expect(lockedSaveNote(["Ann", "Bea"], 0)).toBe(
+      "Not saved — Ann, Bea are already approved. An organizer can reopen them below to correct them.",
+    );
+  });
+
+  it("is what the entry screen says, with the count of cards it actually sent", () => {
+    expect(readSource("src/components/StrokePlayEntry.tsx")).toMatch(
+      /lockedSaveNote\(locked\.map\(named\), targets\.length - locked\.length\)/,
+    );
   });
 });
