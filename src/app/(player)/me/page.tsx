@@ -896,7 +896,7 @@ export default async function PlayTodayPage() {
       {leadersOnScreen && leaders.length > 0 && (
         <ScoreboardLeaders
           rows={leaders}
-          note={standing?.note || standing?.record || ""}
+          note={standing?.note || ""}
           title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
         />
       )}
@@ -1013,7 +1013,7 @@ export default async function PlayTodayPage() {
           {!leadersOnScreen && leaders.length > 0 && (
             <ScoreboardLeaders
               rows={leaders}
-              note={standing?.note || standing?.record || ""}
+              note={standing?.note || ""}
               title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
             />
           )}

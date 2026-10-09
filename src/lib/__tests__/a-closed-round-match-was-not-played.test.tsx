@@ -51,3 +51,15 @@ describe("the Leaders panel on a match board", () => {
     expect(renderToStaticMarkup(<ScoreboardLeaders rows={[tile({ thru: "–" })]} />)).toContain("not started");
   });
 });
+
+/**
+ * NO BARE RECORD UNDER THE LEADERS (2026-10-09, grid cell T60). The panel's
+ * note fell back to the player's record when there was no progress note —
+ * which is exactly a completed tournament — so Today printed "0-0-2" on its
+ * own beneath the board, a repeat of the record already in the position card.
+ */
+describe("the Leaders note", () => {
+  it("is the progress note or nothing", () => {
+    expect(readSource("src/app/(player)/me/page.tsx")).not.toMatch(/standing\?\.note \|\| standing\?\.record/);
+  });
+});
