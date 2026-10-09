@@ -61,3 +61,35 @@ export function csvCell(value: string | number | null | undefined): string {
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
+
+/** The few facts about a standings row that say where it stands. */
+export interface ExportRowStatus {
+  rank: number;
+  ranked: boolean;
+  advancing?: boolean;
+  tiedAtCut?: boolean;
+  missedCut?: string;
+  withdrew?: boolean;
+  disqualified?: boolean;
+}
+
+/**
+ * A ROW'S STATUS IN THE STANDINGS EXPORT (2026-10-08).
+ *
+ * The same reasons the boards print, in the copy that outlives the screen: a
+ * disqualified, withdrawn or cut player exported as "Eliminated", which is
+ * neither their status nor what a committee would write. A tie for the last
+ * qualifying place is neither Advancing nor Eliminated until it is settled.
+ */
+export function exportStatus(r: ExportRowStatus): string {
+  if (r.disqualified) return "DQ";
+  if (r.withdrew) return "WD";
+  if (r.missedCut) return "Missed the cut";
+  if (r.tiedAtCut) return "Tied — play-off to decide";
+  return r.advancing ? "Advancing" : "Eliminated";
+}
+
+/** No place is a blank cell, never a 0 — a spreadsheet reads 0 as a rank. */
+export function exportRank(r: ExportRowStatus): string {
+  return r.ranked && r.rank > 0 ? String(r.rank) : "";
+}
