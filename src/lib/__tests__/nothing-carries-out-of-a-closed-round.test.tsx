@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SkinsStandingsTable } from "@/components/PointsLeaderboard";
+import { SkinsStandingsTable, NassauMatches } from "@/components/PointsLeaderboard";
 import type { SkinsBoard } from "@/lib/services/points-standings";
 import { readSource } from "./source";
 
@@ -44,5 +44,23 @@ describe("the skins board over a closed round", () => {
       expect(readSource(f), f).toMatch(/<SkinsStandingsTable board=\{[^}]+\} roundClosed=\{/);
     }
     expect(readSource("src/app/(app)/leaderboard/page.tsx")).toMatch(/<SkinsLeaderboard [^>]*\sroundClosed=\{/);
+  });
+});
+
+/**
+ * And a Nassau round closed with no matches drawn read "No matches in this
+ * round yet" under FINAL (grid cell T54) — a promise of matches to come.
+ */
+describe("the Nassau board over a closed round", () => {
+  const nassau = (roundClosed: boolean) =>
+    renderToStaticMarkup(createElement(NassauMatches, { rows: [], roundClosed }));
+
+  it("says no matches were played", () => {
+    expect(nassau(true)).toContain("No matches were played in this round.");
+    expect(nassau(true)).not.toContain("yet");
+  });
+
+  it("says 'yet' while the round is open — the control", () => {
+    expect(nassau(false)).toContain("No matches in this round yet.");
   });
 });

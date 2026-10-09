@@ -247,7 +247,7 @@ export default async function LeaderboardPage({
       return withPicker(<SkinsLeaderboard board={board} net={net} roundClosed={activeStage.closedAt != null} />);
     }
     if (kind === "nassau") {
-      return withPicker(<NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />);
+      return withPicker(<NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} roundClosed={activeStage.closedAt != null} />);
     }
     if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(

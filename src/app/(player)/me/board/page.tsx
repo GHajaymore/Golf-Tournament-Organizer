@@ -268,7 +268,7 @@ export default async function PlayBoardPage({
             {points.kind === "skins" ? (
               <SkinsStandingsTable board={points.board} roundClosed={stage?.closedAt != null} />
             ) : points.kind === "nassau" ? (
-              <NassauMatches rows={points.rows} />
+              <NassauMatches rows={points.rows} roundClosed={stage?.closedAt != null} />
             ) : (
               <ModifiedStablefordTable rows={points.rows} />
             )}

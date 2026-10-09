@@ -281,7 +281,7 @@ export default async function PublicLeaderboardPage({
           </EmbeddedBoard>
         ) : board.kind === "nassau" && board.nassau ? (
           <EmbeddedBoard note={NASSAU_NOTE}>
-            <NassauMatches rows={board.nassau} />
+            <NassauMatches rows={board.nassau} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "modified-stableford" && board.modStableford ? (
           <EmbeddedBoard note={MOD_STABLEFORD_NOTE}>

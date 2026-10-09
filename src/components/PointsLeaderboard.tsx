@@ -139,7 +139,7 @@ export function SkinsStandingsTable({
   );
 }
 
-export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
+export function NassauLeaderboard({ rows, roundClosed = false }: { rows: NassauMatchRow[]; roundClosed?: boolean }) {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -149,18 +149,27 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
           {NASSAU_NOTE}
         </p>
       </div>
-      <NassauMatches rows={rows} />
+      <NassauMatches rows={rows} roundClosed={roundClosed} />
     </>
   );
 }
 
 /** The Nassau matches WITHOUT a page heading — see `SkinsStandingsTable`. */
-export function NassauMatches({ rows }: { rows: NassauMatchRow[] }) {
+export function NassauMatches({
+  rows,
+  roundClosed = false,
+}: {
+  rows: NassauMatchRow[];
+  /** Closed by the committee: no match is still to come (grid cell T54, 2026-10-08). */
+  roundClosed?: boolean;
+}) {
   return (
     <>
       {rows.length === 0 ? (
         <div className="card elev-sm">
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>No matches in this round yet.</p>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {roundClosed ? "No matches were played in this round." : "No matches in this round yet."}
+          </p>
         </div>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>

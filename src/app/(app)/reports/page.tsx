@@ -268,7 +268,7 @@ export default async function ReportsPage({
     snapshotTitle = "Nassau results";
     board = (
       <EmbeddedBoard note={NASSAU_NOTE}>
-        <NassauMatches rows={nassau} />
+        <NassauMatches rows={nassau} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [
