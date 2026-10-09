@@ -31,6 +31,13 @@ import { formattingForEvent } from "@/lib/services/organization";
 
 export interface AvailabilityRound {
   stageId: string;
+  /**
+   * The committee has closed this round (2026-10-08). A closed round is OVER,
+   * dated or not: an undated league week stayed "next" after it was played and
+   * closed, so Today asked "Round 1 · Are you playing?" about a finished week
+   * while the round actually coming up went unasked. Optional, absent = open.
+   */
+  closed?: boolean;
   /** "Round 3" — the league's own numbering, in season order. */
   label: string;
   /** The day it is played, ISO, or "" when the round has no fixed day. */
@@ -141,8 +148,9 @@ export function splitBySchedule(
   const ahead: AvailabilityRound[] = [];
   for (const r of rounds) {
     // No date means no way to know it has gone, so it stays ahead. Guessing
-    // would hide a round a player still has to answer for.
-    if (r.playedOn && r.playedOn < today) past.push(r);
+    // would hide a round a player still has to answer for. A CLOSED round is
+    // the committee saying it has gone, which is not a guess.
+    if (r.closed || (r.playedOn && r.playedOn < today)) past.push(r);
     else ahead.push(r);
   }
   return { next: ahead[0] ?? null, future: ahead.slice(1), past };
@@ -200,6 +208,7 @@ export async function availabilityFor(
     const locked = !playerMayChange(r.optDeadline, now);
     return {
       stageId: r.id,
+      closed: r.closedAt != null,
       label: roundLabel(state.stages, r.id),
       playedOn,
       dateLabel: playedOn ? shortDate(playedOn, locale) : "",
