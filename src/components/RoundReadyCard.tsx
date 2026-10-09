@@ -14,7 +14,16 @@ import { useAction } from "./useAction";
  * there is nothing left to wait for (`roundReadyToClose`). Same shape as
  * `CutReadyCard`, which does this for a round a cut is taken out of.
  */
-export function RoundReadyCard({ stageId, roundName }: { stageId: string; roundName: string }) {
+export function RoundReadyCard({
+  stageId,
+  roundName,
+  allInWords = "Every card is in",
+}: {
+  stageId: string;
+  roundName: string;
+  /** In the round's own unit — "Every match is finished" on a match round (`roundReadyWord`). */
+  allInWords?: string;
+}) {
   const { pending, error, run } = useAction();
   return (
     <section
@@ -24,7 +33,7 @@ export function RoundReadyCard({ stageId, roundName }: { stageId: string; roundN
     >
       <span className="card-kicker">{roundName}</span>
       <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.4 }}>
-        Every card is in — close {roundName} to make the result official.
+        {allInWords} — close {roundName} to make the result official.
       </p>
       <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
         Until then the public board reads &ldquo;All in · unofficial&rdquo;. Closing it makes the result final for

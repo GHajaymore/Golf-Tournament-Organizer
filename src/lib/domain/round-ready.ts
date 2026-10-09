@@ -26,8 +26,15 @@ export interface RoundReadyInput {
 }
 
 export function roundReadyToClose(r: RoundReadyInput): boolean {
-  if (r.closed || r.unit === "manual" || r.total <= 0) return false;
+  // Not a knockout either: its results are the draw, and a decided final is
+  // the end of the TOURNAMENT — the dashboard's Complete, not a round's close.
+  if (r.closed || r.unit === "manual" || r.unit === "ties" || r.total <= 0) return false;
   if (r.certified < r.total) return false;
   if (r.unit === "cards" && r.needsApproval && r.approved < r.total) return false;
   return true;
+}
+
+/** What "everything is in" is called for this round — a card, a side's card or a match. */
+export function roundReadyWord(unit: RoundReadyInput["unit"]): string {
+  return unit === "matches" ? "Every match is finished" : unit === "sides" ? "Every side's card is in" : "Every card is in";
 }

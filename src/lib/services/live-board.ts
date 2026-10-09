@@ -116,6 +116,12 @@ export interface LiveBoardView {
    * only this one says Final.
    */
   official: boolean;
+  /**
+   * The round on screen is the knockout (2026-10-08). Its results are the
+   * draw, and there is no round to close: a decided final is official when the
+   * committee completes the TOURNAMENT, so the board says that instead.
+   */
+  knockoutRound: boolean;
   roundLabel: string;
   /**
    * The rounds a viewer may switch the board to, and the one on screen — the
@@ -487,6 +493,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
     straightKnockout: knockoutAt === 0 && !!activeStage && isKnockoutRound(activeStage.type),
     allIn,
     official: declaredFinal || activeStage?.closedAt != null,
+    knockoutRound: !!activeStage && isKnockoutRound(activeStage.type),
     /* The organizer's own name for the round where they gave one, then the
        console heading's words (`roundNameFor`). This fell back to the TYPE
        alone, so a club's Scramble went out to its members as "Stroke Play
@@ -536,7 +543,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 4; // 4: `official`, Final only once the committee closes (2026-10-08)
+export const LIVE_BOARD_SHAPE = 5; // 5: `knockoutRound`, a decided draw's own words (2026-10-08)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

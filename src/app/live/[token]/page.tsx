@@ -311,7 +311,12 @@ export default async function PublicLeaderboardPage({
           now". That is precisely the lie the label exists to prevent, and it
           would have no visible symptom.
         */}
-        <LiveRefresh renderedAt={new Date().toISOString()} final={board.official} allIn={board.allIn} />
+        <LiveRefresh
+          renderedAt={new Date().toISOString()}
+          final={board.official}
+          allIn={board.allIn}
+          knockout={board.knockoutRound}
+        />
       </main>
     </div>
   );
