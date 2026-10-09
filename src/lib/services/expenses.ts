@@ -564,7 +564,7 @@ function anyNotStarted(
 async function gameNets(
   eventId: string,
   onlyStageId?: string,
-): Promise<{ nets: Net[]; nassauNets: Net[]; lines: GameLine[] }> {
+): Promise<{ nets: Net[]; nassauNets: Net[]; lines: GameLine[]; pots: Array<{ gameId: string; nets: Net[] }> }> {
   /**
    * TWO lists, because a withdrawal separates two questions.
    *
@@ -601,6 +601,8 @@ async function gameNets(
    * this is the only settled money that surfaces before the round is final.
    */
   const nassauTotals = new Map<string, number>();
+  // Each card-settled pot's own outcome, as it is added in — see `sidePotResults`.
+  const sidePots: Array<{ gameId: string; nets: Net[] }> = [];
   /**
    * The itemised half.
    *
@@ -1049,13 +1051,15 @@ async function gameNets(
             return { playerId: c.playerId, strokes, strokesReceived: received };
           });
 
-        for (const n of derivedNets({
+        const potNets = derivedNets({
           kind: game.kind,
           buyInCents: game.buyInCents,
           entrantIds,
           cards: potCards,
           pars,
-        })) {
+        });
+        sidePots.push({ gameId: game.id, nets: potNets });
+        for (const n of potNets) {
           add(n.playerId, n.netCents);
         }
       }
@@ -1103,7 +1107,24 @@ async function gameNets(
     nets: [...totals.entries()].map(([playerId, netCents]) => ({ playerId, netCents })),
     nassauNets: [...nassauTotals.entries()].map(([playerId, netCents]) => ({ playerId, netCents })),
     lines,
+    pots: sidePots,
   };
+}
+
+/**
+ * WHAT EACH CARD-SETTLED POT PAID, for the organizer (2026-10-09).
+ *
+ * Walked as grid cell T59: a Twos pot settled, every player's own Money
+ * screen right — and the committee's Prizes screen showed only the stake and
+ * who was in. Unless the tournament splits costs in the app (which brings the
+ * full ledger), the organizer had no screen naming who made the twos or who
+ * is owed what, the very thing they pay out at the bar. Read off `gameNets`,
+ * the same pass that pays the players, so the two cannot disagree; a pot that
+ * is not final yet is simply absent.
+ */
+export async function sidePotResults(eventId: string, stageId: string): Promise<Map<string, Net[]>> {
+  const { pots } = await gameNets(eventId, stageId);
+  return new Map(pots.map((p) => [p.gameId, p.nets]));
 }
 
 /**

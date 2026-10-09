@@ -5700,7 +5700,8 @@ describe("side bets", () => {
       expect(html, "no Nassau row").not.toContain('aria-label="More about Nassau"');
       // And the sentence above the rows stops advertising it, or it sends
       // somebody looking for a row that is not there.
-      expect(html).toContain("birdies, eagles are worked out");
+      // (Twos joined the list on 2026-10-09 — it was a row the sentence omitted.)
+      expect(html).toContain("birdies, eagles, twos are worked out");
       // The pots that DO settle on a medal are untouched — this is not
       // "hide the derived games".
       expect(html).toContain("Low gross");
@@ -9857,5 +9858,41 @@ describe("the Disqualification panel in a league (2026-10-08)", () => {
 
   it("and says nothing of seasons on an ordinary tournament — the control", async () => {
     expect(await panel(false)).not.toMatch(/season/);
+  });
+});
+
+/**
+ * WHAT A CARD-SETTLED POT PAID, on the organizer's Prizes screen (2026-10-09,
+ * grid cell T59). It showed the stake and who was in, never the outcome — the
+ * thing the committee pays out. The figures come from `sidePotResults`.
+ */
+describe("a settled side bet on the Prizes screen", () => {
+  const field = [
+    { id: "p1", name: "zz-Ann Reyes", playing: true },
+    { id: "p2", name: "zz-Bo Kite", playing: true },
+  ];
+  const twos = (result?: Array<{ playerId: string; name: string; netCents: number }>) => ({
+    id: "g1", kind: "twos", buyInCents: 500, stakeNote: "", entrantIds: ["p1", "p2"], pending: [],
+    entryMode: "opt-out", excluded: [], result,
+  });
+  const html = async (result?: Array<{ playerId: string; name: string; netCents: number }>) => {
+    const { ContestsClient } = await import("@/components/ContestsClient");
+    return render(<ContestsClient roundLabel="Round 1" stageId="s1" field={field} contests={[]} sideGames={[twos(result)]} />);
+  };
+
+  it("names who won and what everyone is owed or owes", async () => {
+    const out = await html([
+      { playerId: "p1", name: "zz-Ann Reyes", netCents: 500 },
+      { playerId: "p2", name: "zz-Bo Kite", netCents: -500 },
+    ]);
+    expect(out).toContain("zz-Ann Reyes +$5.00 · zz-Bo Kite −$5.00");
+  });
+
+  it("says the stakes go back when nobody won it", async () => {
+    expect(await html([{ playerId: "p1", name: "zz-Ann Reyes", netCents: 0 }])).toContain("Nobody won it — every stake goes back.");
+  });
+
+  it("says nothing of a result while it can still change — the control", async () => {
+    expect(await html(undefined)).not.toMatch(/Nobody won it|\+\$5\.00/);
   });
 });

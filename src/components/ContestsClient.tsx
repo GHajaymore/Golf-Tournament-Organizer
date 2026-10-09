@@ -108,6 +108,12 @@ export interface SideGameView {
   entrantIds: string[];
   /** Put their own name down from the app and still owe the cash. */
   pending: { playerId: string; name: string }[];
+  /**
+   * What the pot paid, once its round is final — each player's net, named
+   * (2026-10-09, grid cell T59). Absent while it can still change. See
+   * `sidePotResults`: the same pass that pays the players' Money screens.
+   */
+  result?: Array<{ playerId: string; name: string; netCents: number }>;
   entryMode: string;
   excluded: { playerId: string; name: string }[];
 }
@@ -404,7 +410,7 @@ export function ContestsClient({
           {/* Names only what is actually offered below. A round with no
               matches does not show the Nassau row, and a sentence advertising
               a bet the screen does not carry sends somebody looking for it. */}
-          Low gross, low net, birdies, eagles{headToHead ? " and the Nassau are" : " are"} worked out
+          Low gross, low net, birdies, eagles, twos{headToHead ? " and the Nassau are" : " are"} worked out
           from the cards — set the stake and who is in, and the money follows the scoring. Nobody
           types a winner.
         </MoreInfo>
@@ -584,6 +590,19 @@ export function ContestsClient({
                           </span>
                         ))}
                     </div>
+                  )}
+                  {/* WHAT IT PAID, once the round is final (grid cell T59): the
+                      organizer pays this out, and had no screen saying it. */}
+                  {game?.result && (
+                    <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>
+                      {game.result.every((r) => r.netCents === 0)
+                        ? "Nobody won it — every stake goes back."
+                        : game.result
+                            .filter((r) => r.netCents !== 0)
+                            .sort((a, b) => b.netCents - a.netCents)
+                            .map((r) => `${r.name} ${r.netCents > 0 ? "+" : "−"}${money(Math.abs(r.netCents))}`)
+                            .join(" · ")}
+                    </p>
                   )}
                 </div>
               )}
