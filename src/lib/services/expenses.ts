@@ -41,6 +41,7 @@ import { holeStrokesReceived, allocationHoles } from "../domain";
 import { roundStrokes } from "./round-cards";
 import { holesPlayed } from "../domain/handicap";
 import { canAddExpense, resolveExpenseEntry } from "../domain/expense-entry";
+import { hasLeftTheField } from "../domain/left-the-field";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -1864,8 +1865,21 @@ async function stakeFor(
  */
 export async function roundMoneyFor(eventId: string, email: string): Promise<RoundMoneyView> {
   const state = await loadEventState(eventId);
-  const me = entryFor(state?.confirmed ?? [], email);
-  const nameOf = new Map((state?.confirmed ?? []).map((p) => [p.id, p.name]));
+  /**
+   * SOMEBODY WHO LEFT THE FIELD STILL HAS THEIR MONEY (2026-10-08).
+   *
+   * Walked as grid cell T44: Cat played, paid into the skins and was then
+   * disqualified. A disqualified player forfeits the stake — the standard
+   * ruling, and what the pot does — so the console's settle-up read "Cat pays
+   * Ann $10.00". Cat's own Money screen bounced her to Today, because only
+   * CONFIRMED players were looked for, and Ann's listed her as "Unknown". A
+   * withdrawn player whose stake was already taken is the same person.
+   * Confirmed first, so a member entered twice is read as the live entry.
+   */
+  const me =
+    entryFor(state?.confirmed ?? [], email) ??
+    entryFor((state?.players ?? []).filter((p) => hasLeftTheField(p.status)), email);
+  const nameOf = new Map((state?.players ?? []).map((p) => [p.id, p.name]));
 
   const stages = (state?.stages ?? []).filter((s) => isPlayingRound(s.type));
   /**
