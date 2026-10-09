@@ -46,3 +46,23 @@ describe("Reports hands the export the answer", () => {
     expect(readSource("src/components/ReportsClient.tsx")).toMatch(/exportStatus\(r, qualifying\)/);
   });
 });
+
+/**
+ * AND THE EXPORTS RANK ONLY ROWS THAT HOLD A PLACE (2026-10-09). Read off the
+ * real files: a DQ and a no-show shared "3rd" in flight-results, a side with no
+ * card was 2nd in team-standings at gross 0 / net 0 / E, and the Modified
+ * Stableford and team files numbered by list index. Each now takes the board's
+ * own places and leaves a no-card row blank.
+ */
+describe("the other exports take the board's places", () => {
+  const reports = () => readSource("src/app/(app)/reports/page.tsx");
+  it("team standings", () => {
+    expect(reports()).toMatch(/placesByValue\(teams, \(t\) => valueOnBasis\(basis, t\), \(t\) => t\.played > 0\)/);
+  });
+  it("modified Stableford", () => {
+    expect(reports()).toMatch(/placesByValue\(mod, \(r\) => r\.points, \(r\) => r\.played > 0\)/);
+  });
+  it("neither numbers by list index any more", () => {
+    expect(reports()).not.toMatch(/String\(i \+ 1\)/);
+  });
+});

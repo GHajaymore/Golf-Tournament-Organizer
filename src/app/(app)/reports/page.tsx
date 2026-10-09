@@ -323,14 +323,18 @@ export default async function ReportsPage({
         filename: `${event.name}-modified-stableford.csv`,
         rows: [
           ["Rank", "Player", "Handicap", "Thru", "Gross", "Points"],
-          ...mod.map((r, i) => [
-            String(i + 1),
-            r.name,
-            String(r.handicap),
-            String(r.played),
-            String(r.gross),
-            String(r.points),
-          ]),
+          // The board's places (`ModifiedStablefordTable`), not the index:
+          // ties shared, and no place or figures for a player with no card —
+          // a no-show exported 4th at gross 0 (grid cell T52, 2026-10-09).
+          ...((places) =>
+            mod.map((r, i) => [
+              places[i] != null ? String(places[i]) : "",
+              r.name,
+              String(r.handicap),
+              String(r.played),
+              r.played > 0 ? String(r.gross) : "",
+              r.played > 0 ? String(r.points) : "",
+            ]))(placesByValue(mod, (r) => r.points, (r) => r.played > 0)),
         ],
       },
     ];
