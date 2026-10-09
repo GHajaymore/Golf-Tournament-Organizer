@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParCell } from "@/lib/domain/ranked-score";
-import { toCsv } from "@/lib/domain/csv-export";
+import { toCsv, exportStatus, exportRank } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
 import { Icon } from "./Icon";
 
@@ -125,8 +125,10 @@ export function ReportsClient({
    * published countback, so neither player is Advancing or Eliminated yet and
    * the export must not claim they are.
    */
-  const status = (r: StandingRow) =>
-    r.tiedAtCut ? "Tied — play-off to decide" : r.advancing ? "Advancing" : "Eliminated";
+  // A row without a place says WHY — DQ, WD, a missed cut — and a blank rank,
+  // never 0. See `exportStatus` (2026-10-08).
+  const status = (r: StandingRow) => exportStatus(r);
+  const rankCell = (r: StandingRow) => exportRank(r);
 
   /**
    * A to-par only where there is a par to be under — through the same reader
@@ -145,8 +147,8 @@ export function ReportsClient({
     const body = rows.map((r) =>
       isStroke
         ? isStableford
-          ? [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.points), status(r)]
-          : [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), parCell(r), status(r)]
+          ? [rankCell(r), r.name, r.flight, String(r.thru), String(r.gross), String(r.points), status(r)]
+          : [rankCell(r), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), parCell(r), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
     // A casual round: no Flight (column 2) and no Status (the last).

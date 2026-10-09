@@ -244,5 +244,23 @@ export async function roundStrokes(eventId: string, stageId?: string): Promise<P
     take(c.slot === "A" ? c.match.playerAId : c.match.playerBId, c.match.stageId, c.strokes);
   }
   for (const c of team) take(c.playerId, c.stageId, c.strokes);
-  return out;
+
+  /**
+   * A DISQUALIFIED PLAYER'S CARD WINS NOTHING (2026-10-08).
+   *
+   * Disqualified from the competition is no score in it (Rule 3.3b), and the
+   * side games are played off that same card: a player DQ'd for signing a card
+   * lower than they took must not then collect the skins it shows. So their
+   * strokes are left out here, under every pot at once. Their STAKE is not —
+   * a stake is paid or it is not (`potMembership`'s `paidButGone`), and being
+   * disqualified is not a refund.
+   *
+   * Disqualified only. A withdrawal is a different act with its own settled
+   * rules for the money (`keepDefaultStakes`, the casual round's leaver), and
+   * `roundMoneyFinality` already waits only on the playing field.
+   */
+  const dq = await prisma.player.findMany({ where: { eventId, status: "disqualified" }, select: { id: true } });
+  if (dq.length === 0) return out;
+  const ruledOut = new Set(dq.map((p) => p.id));
+  return out.filter((r) => !ruledOut.has(r.playerId));
 }

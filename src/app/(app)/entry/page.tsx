@@ -1070,7 +1070,9 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         playerName: me.name,
         handicapByRound,
         opponentByRound,
-        position: idx >= 0 ? { rank: rows[idx].rank, of: rows.length } : undefined,
+        // "Of" the field: a WD or DQ row on the sheet is not somebody to beat.
+        position:
+          idx >= 0 ? { rank: rows[idx].rank, of: rows.filter((r) => !r.withdrew && !r.disqualified).length } : undefined,
       };
     }
   }

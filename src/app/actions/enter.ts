@@ -133,6 +133,23 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * the schema and has zero rows in the development database, so no walk of
    * the player's states had ever reached it.
    */
+  /**
+   * A DISQUALIFIED PLAYER CANNOT ENTER AGAIN (2026-10-08). A withdrawal may
+   * re-enter — that is the flow above — but a disqualification is the
+   * committee's ruling, and a fresh confirmed row beside it would undo the
+   * ruling with one tap. Reinstating is the committee's, on Registration.
+   */
+  const ruledOut = await prisma.player.findFirst({
+    where: { eventId, email: { equals: session.email, mode: "insensitive" }, status: "disqualified" },
+    select: { id: true },
+  });
+  if (ruledOut) {
+    return {
+      ok: false,
+      error: "The committee disqualified you from this tournament, so you can't enter it again. Speak to the organizer if that's wrong.",
+    };
+  }
+
   const already = await prisma.player.findFirst({
     where: {
       eventId,
