@@ -243,7 +243,7 @@ export default async function ReportsPage({
     snapshotTitle = `Skins — ${net ? "net" : "gross"}`;
     board = (
       <EmbeddedBoard note={SKINS_NOTE(net)}>
-        <SkinsStandingsTable board={skins} />
+        <SkinsStandingsTable board={skins} roundClosed={activeStage.closedAt != null} />
       </EmbeddedBoard>
     );
     extraCsv = [

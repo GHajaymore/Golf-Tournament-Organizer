@@ -266,7 +266,7 @@ export default async function PlayBoardPage({
         {points && (
           <div style={{ marginTop: 14 }}>
             {points.kind === "skins" ? (
-              <SkinsStandingsTable board={points.board} />
+              <SkinsStandingsTable board={points.board} roundClosed={stage?.closedAt != null} />
             ) : points.kind === "nassau" ? (
               <NassauMatches rows={points.rows} />
             ) : (

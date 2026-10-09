@@ -277,7 +277,7 @@ export default async function PublicLeaderboardPage({
           </EmbeddedBoard>
         ) : board.kind === "skins" && board.skins ? (
           <EmbeddedBoard note={SKINS_NOTE(board.skinsNet)}>
-            <SkinsStandingsTable board={board.skins} />
+            <SkinsStandingsTable board={board.skins} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "nassau" && board.nassau ? (
           <EmbeddedBoard note={NASSAU_NOTE}>
