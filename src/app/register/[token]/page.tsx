@@ -40,7 +40,7 @@ const pageStyle: React.CSSProperties = {
 
 function NotOpen() {
   return (
-    <div style={pageStyle}>
+    <main style={pageStyle}>
       <div style={{ maxWidth: 440, margin: "0 auto", paddingTop: "12vh", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
           <OrgBrand brand={null} tagline />
@@ -55,7 +55,7 @@ function NotOpen() {
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -73,7 +73,7 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
   const venueLine = [view.dates, view.venue].filter(Boolean).join(" · ");
 
   return (
-    <div style={pageStyle}>
+    <main style={pageStyle}>
       <div style={{ maxWidth: 460, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={view.brand} tagline />
@@ -113,6 +113,6 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           they are handled in our <a href="/privacy">privacy notice</a>.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

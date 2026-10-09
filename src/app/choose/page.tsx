@@ -116,7 +116,7 @@ export default async function ChooseTournamentPage({
   const greeting = chooseGreeting({ tournaments: accounts.length, lastOpenRemoved: gone, clubName: club?.name ?? null });
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
         display: "flex",
@@ -368,7 +368,7 @@ export default async function ChooseTournamentPage({
         />
 
       </div>
-    </div>
+    </main>
   );
 }
 

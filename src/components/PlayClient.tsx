@@ -196,7 +196,9 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <div
+    // The page's main landmark: /play is its own page, outside the player
+    // app's layout, so nothing above it supplies one (2026-10-08).
+    <main
       style={{
         minHeight: "100vh",
         background: "var(--color-bg)",
@@ -233,7 +235,7 @@ function Shell({
         )}
         {children}
       </div>
-    </div>
+    </main>
   );
 }
 
