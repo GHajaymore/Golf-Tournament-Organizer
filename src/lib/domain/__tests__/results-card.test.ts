@@ -476,6 +476,9 @@ describe("rowsForBoardKind", () => {
       const k = rowsForBoardKind(view(over), cup);
       expect(k.rows, JSON.stringify(over)).toEqual([]);
       expect(k.note, JSON.stringify(over)).toBeTruthy();
+      // A pointer, never a claim: a Nassau nobody played previewed "Three
+      // bets — front, back and overall — on the board" (T54).
+      expect(k.note, JSON.stringify(over)).toMatch(/^(Open the board for |Results are posted by the organizer\.$)/);
       const c = resultsCard({ ...board(), rows: k.rows!, note: k.note }, "public", "zz-club");
       expect(c.kind === "standings" && c.note).toBe(k.note);
     }

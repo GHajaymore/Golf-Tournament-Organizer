@@ -210,10 +210,10 @@ export function rowsForBoardKind(
   view: BoardKindView,
   cup: boolean,
 ): { rows?: BoardForCard["rows"]; note?: string; ranksOnStrokes?: { isStableford: boolean; unit: string } } {
-  if (cup) return { rows: [], note: "The match scores are on the board." };
-  if (view.straightKnockout) return { rows: [], note: "The draw and its results are on the board." };
+  if (cup) return { rows: [], note: "Open the board for the match scores." };
+  if (view.straightKnockout) return { rows: [], note: "Open the board for the draw." };
   if (view.manualFormat) return { rows: [], note: "Results are posted by the organizer." };
-  if (view.kind === "team-match") return { rows: [], note: "The match results are on the board." };
+  if (view.kind === "team-match") return { rows: [], note: "Open the board for the matches." };
   if (view.teamRound) {
     return {
       rows: sideRowsForCard(view.teamRows, view.teamBasis, view.holeCount),
@@ -237,7 +237,7 @@ export function rowsForBoardKind(
       })),
     };
   }
-  if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Three bets — front, back and overall — on the board." };
+  if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Open the board for the Nassau." };
   if (view.kind === "modified-stableford" && view.modStableford) {
     const ms = view.modStableford;
     const places = placesByValue(ms, (r) => r.points, (r) => r.played > 0);
