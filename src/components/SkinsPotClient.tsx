@@ -147,7 +147,11 @@ export function SkinsPotClient({
         <span className="card-title" style={{ fontSize: 15 }}>
           {/* The group's name leads when there is one, because on a page of
               several pots "Skins — net" four times over names nothing. */}
-          {groupLabel ? `${groupLabel} — ` : ""}Skins &mdash; {view.net ? "net" : "gross"}
+          {/* And the nine, when it is not all eighteen: a group's front-nine
+              and full-round pots read identically, one above the other. */}
+          {`${groupLabel ? `${groupLabel} — ` : ""}Skins — ${view.net ? "net" : "gross"}${
+            view.scope !== "full" ? ` · ${SCOPE_LABEL[view.scope]}` : ""
+          }`}
         </span>
         {/*
           Renaming, offered only on a NAMED bet.
