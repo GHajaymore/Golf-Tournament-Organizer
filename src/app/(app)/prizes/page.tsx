@@ -20,7 +20,7 @@ import { MoneySetup } from "@/components/MoneySetup";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
 import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
-import { moneyFor, playedOnceRoundIsOver } from "@/lib/services/expenses";
+import { moneyFor, playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
 import { placesByValue } from "@/lib/domain/flight-places";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -189,6 +189,8 @@ export default async function PrizesPage({
   // Once the round is over, an opt-out pot holds only those who played it —
   // the reading the settle-up charges by. See `playedOnceRoundIsOver`.
   const playedOnceOver = await playedOnceRoundIsOver(session.eventId, [...contests, ...sideGames]);
+  // What each card-settled pot paid, once final — see `sidePotResults`.
+  const potResults = week ? await sidePotResults(session.eventId, week.id) : new Map<string, never[]>();
 
   /**
    * The field a pot draws its members from, and a name for an id.
@@ -392,6 +394,7 @@ export default async function PrizesPage({
             // And who still owes, so there is somewhere to collect it from.
             pending: m.pending.map((playerId) => ({ playerId, name: nameOf(playerId) })),
             excluded: m.excluded.map((playerId) => ({ playerId, name: nameOf(playerId) })),
+            result: potResults.get(g.id)?.map((n) => ({ ...n, name: nameOf(n.playerId) })),
             };
           })}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
