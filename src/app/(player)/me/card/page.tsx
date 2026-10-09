@@ -95,6 +95,13 @@ export default async function PlayCardPage() {
               You&rsquo;re on the waiting list for this tournament, so there&rsquo;s no card yet. The{" "}
               {terms.organizer} will confirm your place if one opens up.
             </>
+          ) : !isStaff && myRow?.disqualified ? (
+            // Disqualified (2026-10-08): they have a row, so "not in it" would
+            // be false — the ruling is what they are told, as on Today.
+            <>
+              You were disqualified from this tournament, so there&rsquo;s no card for you. Speak to the{" "}
+              {terms.organizer} if you think that&rsquo;s wrong.
+            </>
           ) : (
             // The same sentence Today says, in the words of what this is.
             <>{notInItWords(state.event.shape)}, so there&rsquo;s no card to fill in.</>
