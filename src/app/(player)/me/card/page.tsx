@@ -177,8 +177,18 @@ export default async function PlayCardPage() {
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          You&rsquo;re down as not playing {me.round.outThisWeek}, so there&rsquo;s no card for you this week.
-          Changed your mind? Say you&rsquo;re playing on Today and your card appears here.
+          {me.round.closed ? (
+            // Closed since (grid cell L4) — nothing left to change.
+            <>
+              You were down as not playing {me.round.outThisWeek}, and the {terms.organizer} has closed it, so
+              there&rsquo;s no card for you.
+            </>
+          ) : (
+            <>
+              You&rsquo;re down as not playing {me.round.outThisWeek}, so there&rsquo;s no card for you this week.
+              Changed your mind? Say you&rsquo;re playing on Today and your card appears here.
+            </>
+          )}
         </p>
         <WayForward
           links={[
