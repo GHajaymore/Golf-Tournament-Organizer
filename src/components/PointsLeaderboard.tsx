@@ -97,8 +97,8 @@ export function SkinsStandingsTable({
         )}
         <p className="text-muted" style={{ fontSize: 13, marginTop: 8 }}>
           {roundClosed
-            ? `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin was" : "skins were"} never won — the round ended on a tie. ` : ""}${played} ${played === 1 ? "hole" : "holes"} decided.`
-            : `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin is" : "skins are"} still carrying — the last decided hole was tied.` : "Nothing carrying."} ${played} ${played === 1 ? "hole" : "holes"} decided so far.`}
+            ? `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin was" : "skins were"} never won — the round ended on a tie. ` : ""}${played} ${played === 1 ? "hole" : "holes"} played.`
+            : `${outcome.unclaimed > 0 ? `${outcome.unclaimed} ${outcome.unclaimed === 1 ? "skin is" : "skins are"} still carrying — the last hole played was tied.` : "Nothing carrying."} ${played} ${played === 1 ? "hole" : "holes"} played so far.`}
         </p>
       </div>
 
