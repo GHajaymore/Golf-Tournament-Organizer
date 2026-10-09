@@ -65,6 +65,7 @@ import {
 } from "../domain";
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import { holesPlayed } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
@@ -686,6 +687,12 @@ export interface EventState {
    * player still on the 10th of the second.
    */
   roundThru: (playerId: string, stageId: string) => number;
+  /**
+   * Who is OUT of this round under weekly sign-up — empty for a tournament
+   * without it (2026-10-08). Read by the card count and the standings rows,
+   * so every board says what the public one already did.
+   */
+  outOn: (stageId: string) => ReadonlySet<string>;
   advancingCount: number;
   advancingIds: Set<string>;
   /**
@@ -1023,6 +1030,40 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // results frozen under whatever was in force when the card was entered.
   const matchTiebreakers = parseMatchTiebreakers(event.matchTiebreakers);
   const confirmed = players.filter((p) => p.status === "confirmed");
+
+  /**
+   * WHO IS OUT OF A LEAGUE WEEK, read once for every counter and every row
+   * (2026-10-08).
+   *
+   * Only the public board asked (`withAttendance` in live-board.ts), so on a
+   * league night with an opt-out the board read "All in", Dan "not playing
+   * this week", while Reports, the dashboard and Today said "3 of 4 cards in —
+   * these standings will change" — waiting on a card nobody was coming to
+   * return — and the player's own board called Dan "not started". The answer
+   * is the same `resolveAttendance` the public board uses, here at the sink.
+   * A tournament without weekly sign-up asks no question and nobody is out.
+   */
+  const attendanceMode = settingsOf(event).attendanceMode as AttendanceMode;
+  const attendanceRows = tracksPerRound(attendanceMode)
+    ? await prisma.roundAttendance.findMany({
+        where: { eventId },
+        select: { stageId: true, playerId: true, status: true, decidedBy: true },
+      })
+    : [];
+  const outByStage = new Map<string, Set<string>>();
+  const outOn = (stageId: string): Set<string> => {
+    if (!tracksPerRound(attendanceMode)) return new Set();
+    const cached = outByStage.get(stageId);
+    if (cached) return cached;
+    const resolved = resolveAttendance(
+      attendanceMode,
+      confirmed.map((p) => p.id),
+      attendanceRows.filter((r) => r.stageId === stageId),
+    );
+    const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));
+    outByStage.set(stageId, out);
+    return out;
+  };
   const venuesById = new Map(venues.map((c) => [c.id, c]));
 
   /**
@@ -1532,12 +1573,17 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * card said "Cards in 16/28 · 57% submitted". The twelve missing cards
          * belonged to players who had been cut the day before.
          */
+        // Less anybody out of this league week with no card for it — they owe
+        // the round nothing (see `outOn`). One who played anyway is counted.
         total: cutApplied
           ? own.length
-          : fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
-              total: confirmed.length,
-              flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
-            }),
+          : Math.max(
+              0,
+              fieldEnteringRound(playRounds, playRounds.findIndex((r) => r.id === s.id), {
+                total: confirmed.length,
+                flights: groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length),
+              }) - [...outOn(s.id)].filter((id) => !own.some((c) => c.playerId === id)).length,
+            ),
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);
@@ -2701,6 +2747,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       return roundProgress(s).total;
     },
     roundThru: (playerId: string, stageId: string) => strokeAgg.get(playerId)?.holesPlayedByStage.get(stageId) ?? 0,
+    outOn,
     advancingCount,
     advancingIds,
     pendingConfirmations,
@@ -2893,9 +2940,17 @@ export function standingRows(state: EventState): StandingRow[] {
     ).flatMap((t) => t.playerIds),
   );
 
+  // Out of the league week on the board — "not playing this week" rather than
+  // "not started". Set only where somebody is out, so a tournament without
+  // weekly sign-up keeps `absent` undefined on every row (see live-board.ts).
+  const outHere = state.boardStage && state.outOn ? state.outOn(state.boardStage.id) : new Set<string>();
   if (state.boardIsStroke) {
     // The field, then anybody who withdrew after beginning — WD, at the foot.
     return [...state.strokeStandings, ...(state.withdrawnStandings ?? [])].map((s) => ({
+      // Out, and no card THIS week (the aggregate `thru` counts earlier weeks).
+      ...(outHere.size > 0
+        ? { absent: outHere.has(s.player.id) && state.roundThru(s.player.id, state.boardStage!.id) === 0 }
+        : {}),
       id: s.player.id,
       rank: s.rank,
       ranked: s.ranked,
