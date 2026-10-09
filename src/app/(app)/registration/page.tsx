@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { DisqualifyPanel } from "@/components/DisqualifyPanel";
 import { isLaunched } from "@/lib/domain/lifecycle-state";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
@@ -107,6 +108,10 @@ export default async function RegistrationPage() {
         <DisqualifyPanel
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name }))}
           disqualified={state.players.filter((p) => p.status === "disqualified").map((p) => ({ id: p.id, name: p.name }))}
+          // A league is a field that changes week to week — attendance tracked
+          // per round. Not "more than one stroke round": a 36-hole
+          // championship is that too, and there a DQ IS for every round.
+          league={tracksPerRound(settingsOf(state.event).attendanceMode as AttendanceMode)}
         />
       )}
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,

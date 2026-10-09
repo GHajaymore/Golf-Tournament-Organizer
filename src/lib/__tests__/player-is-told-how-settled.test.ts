@@ -62,7 +62,10 @@ describe("the player's position says whether it can move", () => {
     // And all of them in IS the result — a friendly is never "closed".
     const all = snapshotStanding({ status: "live", done: 3, total: 3, unit: "cards", casual: true }).note;
     expect(all).toBe("Every card is in — this is the result.");
-    expect(snapshotStanding({ status: "live", done: 3, total: 3, unit: "cards" }).note).toMatch(/not been closed/);
+    // A tournament's all-in is not the result until the committee closes the round.
+    expect(snapshotStanding({ status: "live", done: 3, total: 3, unit: "cards" }).note).toMatch(
+      /unofficial until the committee closes it/,
+    );
   });
 
   it("prints under the position, which is what it qualifies", () => {

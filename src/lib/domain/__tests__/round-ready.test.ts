@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roundReadyToClose, type RoundReadyInput } from "../round-ready";
+import { roundReadyToClose, roundReadyWord, type RoundReadyInput } from "../round-ready";
 
 const base: RoundReadyInput = { unit: "cards", total: 4, certified: 4, approved: 4, needsApproval: true, closed: false };
 
@@ -20,9 +20,19 @@ describe("a round ready for the committee to close", () => {
     expect(roundReadyToClose({ ...base, unit: "matches", certified: 2, approved: 0 })).toBe(false);
   });
 
-  it("is never ready when closed already, scored by hand, or owed nothing (controls)", () => {
+  it("is never ready when closed already, scored by hand, a knockout, or owed nothing (controls)", () => {
     expect(roundReadyToClose({ ...base, closed: true })).toBe(false);
     expect(roundReadyToClose({ ...base, unit: "manual" })).toBe(false);
+    // A decided final ends the TOURNAMENT; there is no round to close.
+    expect(roundReadyToClose({ ...base, unit: "ties", approved: 0 })).toBe(false);
     expect(roundReadyToClose({ ...base, total: 0, certified: 0, approved: 0 })).toBe(false);
+  });
+});
+
+describe("what the close card calls everything being in", () => {
+  it("names the round's own unit — no cards on a match round or a side's day", () => {
+    expect(roundReadyWord("cards")).toBe("Every card is in");
+    expect(roundReadyWord("matches")).toBe("Every match is finished");
+    expect(roundReadyWord("sides")).toBe("Every side's card is in");
   });
 });

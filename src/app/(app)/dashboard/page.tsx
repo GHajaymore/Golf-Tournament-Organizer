@@ -24,7 +24,7 @@ import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
-import { roundReadyToClose } from "@/lib/domain/round-ready";
+import { roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow } from "@/components/NeedsYouNow";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
@@ -332,7 +332,13 @@ export default async function DashboardPage() {
     if (!isStaff || cutPreview || !stage || event.status === "completed") return null;
     const needsApproval = reviewsScores(event.shape) && !allowsAutoConfirm(settingsOf(event));
     const ready = roundReadyToClose({ ...state.boardProgress, needsApproval, closed: stage.closedAt != null });
-    return ready ? { stageId: stage.id, roundName: roundLabel(state.stages, stage.id) || "the round" } : null;
+    return ready
+      ? {
+          stageId: stage.id,
+          roundName: roundLabel(state.stages, stage.id) || "the round",
+          allInWords: roundReadyWord(state.boardProgress.unit),
+        }
+      : null;
   })();
 
   /**
@@ -794,7 +800,11 @@ export default async function DashboardPage() {
               missed={cutPreview.missed}
             />
           ) : readyToClose ? (
-            <RoundReadyCard stageId={readyToClose.stageId} roundName={readyToClose.roundName} />
+            <RoundReadyCard
+              stageId={readyToClose.stageId}
+              roundName={readyToClose.roundName}
+              allInWords={readyToClose.allInWords}
+            />
           ) : null}
         </NeedsYouNow>
       )}

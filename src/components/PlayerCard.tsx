@@ -827,6 +827,8 @@ export function PlayerCard({
               pins={pins}
               firstHole={firstHole}
               dense
+              // The partners' pick-ups as well as the holder's (Rule 21.1b).
+              offerPickUp={pointsTable === "standard"}
             />
           ) : view === "hole" ? (
             <HoleByHoleCard

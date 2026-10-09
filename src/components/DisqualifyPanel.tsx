@@ -15,7 +15,15 @@ import { ConfirmButton } from "./ConfirmButton";
 export function DisqualifyPanel({
   field,
   disqualified,
+  league = false,
 }: {
+  /**
+   * A season of weekly rounds (2026-10-08). There, each week is its own
+   * competition: a DQ for one week's card is no score THAT week, not removal
+   * from the season — which is what this does. Said before anybody presses it,
+   * with the per-week remedy, rather than discovered on the season table.
+   */
+  league?: boolean;
   /** Players still in the field, who may be ruled out. */
   field: Array<{ id: string; name: string }>;
   /** Players already disqualified, who may be reinstated. */
@@ -46,6 +54,13 @@ export function DisqualifyPanel({
         A disqualified player has no score for the competition. They show as DQ at the foot of every board, keep
         no place, and leave the field and any pot not yet settled. Their cards stay on the record.
       </p>
+      {league && (
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-warning)", fontWeight: 600 }}>
+          This is a league: disqualifying here takes them out of the whole season. For one week&rsquo;s card,
+          empty that week&rsquo;s card on Score entry instead — they score nothing for that week, as if they
+          had missed it.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ flex: 1, minWidth: 160 }}>
           <label htmlFor={`${fid}-player`}>Player</label>

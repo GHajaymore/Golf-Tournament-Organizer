@@ -132,3 +132,24 @@ describe("splitting the season around today", () => {
     expect(past).toEqual([]);
   });
 });
+
+describe("a closed round is over, dated or not (2026-10-08)", () => {
+  /**
+   * An undated league week stayed "next" after the committee closed it, so
+   * Today asked "Round 1 · Are you playing?" about a finished week and never
+   * asked about Round 2. Closing a round is the committee saying it has gone.
+   */
+  it("moves a closed, undated round into the past and asks about the next one", () => {
+    const view = splitBySchedule([
+      round({ stageId: "r1", label: "Round 1", closed: true }),
+      round({ stageId: "r2", label: "Round 2" }),
+    ]);
+    expect(view.next?.stageId).toBe("r2");
+    expect(view.past.map((r) => r.stageId)).toEqual(["r1"]);
+  });
+
+  it("keeps an undated round that is still open ahead — the control", () => {
+    const view = splitBySchedule([round({ stageId: "r1" }), round({ stageId: "r2" })]);
+    expect(view.next?.stageId).toBe("r1");
+  });
+});

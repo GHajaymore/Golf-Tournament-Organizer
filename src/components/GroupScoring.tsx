@@ -5,6 +5,7 @@ import { saveScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
 import { cardRevision, type SyncStatus } from "@/lib/domain/pending-card";
 import type { PinSheet } from "@/lib/domain/pin-sheet";
+import { stablefordPickUp } from "@/lib/domain/card-points";
 
 export interface GroupPartner {
   id: string;
@@ -54,7 +55,16 @@ export function GroupScoring({
   pins = [],
   firstHole = 1,
   dense = false,
+  offerPickUp = false,
 }: {
+  /**
+   * A STANDARD STABLEFORD round: every row on the hole may pick up (Rule
+   * 21.1b), recorded as that player's own net double bogey — zero points, the
+   * handicap system's figure for the hole (`stablefordPickUp`). The marker
+   * keeping the foursome's cards is exactly who records a partner's pick-up,
+   * so this is the group view's as much as the holder's own (2026-10-08).
+   */
+  offerPickUp?: boolean;
   /** The hole card's compact layout — see `HoleByHoleCard`'s `dense`. */
   dense?: boolean;
   /** The round's pin sheet, passed through to the hole card. */
@@ -136,6 +146,23 @@ export function GroupScoring({
         pins={pins}
         firstHole={firstHole}
         dense={dense}
+        {...(offerPickUp
+          ? (() => {
+              const shotsOf = (id: string, h: number) =>
+                id === me.id ? (me.shotsOn?.(h) ?? 0) : (partners.find((p) => p.id === id)?.shots?.[h] ?? 0);
+              const all: Record<string, (number | null)[]> = { [me.id]: myStrokes, ...cards };
+              return {
+                pickedUp: Object.fromEntries(
+                  Object.entries(all).map(([id, strokes]) => [
+                    id,
+                    strokes.map((v, i) => v != null && v === stablefordPickUp(pars[i] ?? 4, shotsOf(id, i))),
+                  ]),
+                ),
+                onPickUp: (id: string, hole: number, on: boolean) =>
+                  setHole(id, hole, on ? stablefordPickUp(pars[hole] ?? 4, shotsOf(id, hole)) : null),
+              };
+            })()
+          : {})}
       />
 
       {/* Where each partner's card has got to — the same words the player's

@@ -44,7 +44,10 @@ export function LiveRefresh({
   compact = false,
   final = false,
   allIn = false,
+  knockout = false,
 }: {
+  /** A knockout's draw is all decided: it waits on the tournament, not a round. */
+  knockout?: boolean;
   renderedAt: string;
   /**
    * Every card is complete but the committee has not closed the round
@@ -187,6 +190,8 @@ export function LiveRefresh({
         // scored by hand has no cards to be in. What is true either way is
         // that the number on the screen is the last one there will be.
         <span>Final · these scores no longer change</span>
+      ) : allIn && knockout ? (
+        <span>Every tie decided · unofficial until the committee completes the tournament</span>
       ) : allIn ? (
         <span>All scores in · unofficial until the committee closes the round</span>
       ) : now === null ? (

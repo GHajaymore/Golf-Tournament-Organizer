@@ -12,6 +12,8 @@ import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole } from "@/lib/domain/stroke";
 import { toParText } from "@/lib/domain";
 import { boardKind } from "@/lib/formats";
+import { isStablefordRound } from "@/lib/domain/week-basis";
+import { stablefordPickUp } from "@/lib/domain/card-points";
 import { certifyPrompt } from "@/lib/domain/card-approval";
 import { HoleResultCard } from "./HoleResultCard";
 import { firstName } from "@/lib/format";
@@ -663,6 +665,25 @@ export function PlayClient(props: Props) {
             }}
             meId="me"
             showVoice={props.voiceEntry ?? true}
+            // STABLEFORD PICK-UP (Rule 21.1b, 2026-10-08) — the round code is
+            // how the charity day's Stableford is scored, so a player here may
+            // pick up exactly as on their own card: net double bogey, zero
+            // points, the card finished. Standard Stableford only.
+            {...(isStablefordRound(props.scoringBasis, props.roundFormat) &&
+            boardKind(props.roundFormat ?? "") !== "modified-stableford"
+              ? {
+                  pickedUp: {
+                    me: card.map((v, i) => v != null && v === stablefordPickUp(pars[i] ?? 4, props.shots?.[i] ?? 0)),
+                  },
+                  onPickUp: (_id: string, hole: number, on: boolean) => {
+                    const next = Array.from({ length: holeCount }, (_, i) => card[i] ?? null);
+                    next[hole] = on ? stablefordPickUp(pars[hole] ?? 4, props.shots?.[hole] ?? 0) : null;
+                    setCard(next);
+                    setSaved(false);
+                    cardQueue.push(next);
+                  },
+                }
+              : {})}
           />
 
           {/* Where the card is — the same words the signed-in card uses. */}
