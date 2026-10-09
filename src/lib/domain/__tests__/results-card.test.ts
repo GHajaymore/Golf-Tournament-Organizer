@@ -299,3 +299,46 @@ describe("a card built from the board's own numbers", () => {
     expect(c.kind === "standings" && c.live).toBe(false);
   });
 });
+
+/**
+ * THE SCORE THE BOARD RANKS ON (2026-10-09, T69). A standings row always
+ * carries a Stableford `points` figure, so a gross medal's preview read
+ * "37 pts / 36 pts" while the page it opens ranked the same players -1 / E.
+ */
+describe("the card prints the board's own statistic", () => {
+  const medal = (over: Record<string, unknown> = {}) =>
+    ({
+      rank: 1, name: "zz-Ann", ranked: true, started: true, thru: 18, holesOwed: 18,
+      toPar: -1, parKnown: true, gross: 70, net: 64, points: 37, pts: "", record: "", ...over,
+    }) as unknown as BoardForCard["rows"][number];
+  const score = (unit: string, isStableford = false, row = medal()) =>
+    resultsCard({ ...board(), rows: [row], isStroke: true, isStableford, unit }, "public", "zz-club");
+  const first = (c: ReturnType<typeof resultsCard>) => (c.kind === "standings" ? c.rows[0].score : "");
+
+  it("a gross medal shows its to-par, not points", () => {
+    expect(first(score("gross strokes"))).toBe("-1");
+  });
+
+  it("a net medal shows the to-par the engine hands it, not points", () => {
+    // `standingRows` has already put a net board's toPar on the net basis
+    // (`toParOnBasis`); readers print it, they do not subtract again.
+    expect(first(score("net strokes", false, medal({ toPar: -7 })))).toBe("-7");
+  });
+
+  it("a Stableford board shows points — the control", () => {
+    expect(first(score("Stableford points", true))).toBe("37 pts");
+  });
+
+  it("a player not started shows nothing", () => {
+    expect(first(score("gross strokes", false, medal({ started: false, thru: 0 })))).toBe("");
+  });
+
+  it("marks a shared place the way the board does", () => {
+    const c = resultsCard(
+      { ...board(), rows: [medal(), medal({ name: "zz-Eve" }), medal({ name: "zz-Bea", rank: 3, toPar: 0 })], isStroke: true, unit: "gross strokes" },
+      "public",
+      "zz-club",
+    );
+    expect(c.kind === "standings" && c.rows.map((r) => r.place)).toEqual(["T1", "T1", "3"]);
+  });
+});

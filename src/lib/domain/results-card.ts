@@ -23,10 +23,13 @@
  */
 
 import { todaysThru } from "./scoreboard";
+import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
 
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
   rank: number;
+  /** "1", "T3" — as the board prints the place. */
+  place: string;
   name: string;
   /** Pre-formatted score for this format: "-4", "+2", "15 pts", "3-0-0". */
   score: string;
@@ -97,6 +100,8 @@ export interface BoardForCard {
     points?: string | number | null;
     record?: string | null;
     thru?: string | number | null;
+    /** Whether the row has a result yet — see `RankedRow`. */
+    started?: boolean;
     /** The board's own fields for "how far round" — see `cardThru`. */
     holesOwed?: number;
     roundThru?: number;
@@ -107,6 +112,10 @@ export interface BoardForCard {
     disqualified?: boolean;
     absent?: boolean;
   }>;
+  /** What the board ranks on, as `LiveBoardView` says it — see `scoreOf`. */
+  isStroke?: boolean;
+  isStableford?: boolean;
+  unit?: string;
   /** The committee has made it official — see `LiveBoardView.official`. */
   official?: boolean;
   /** Every card expected is complete. */
@@ -144,9 +153,31 @@ const offTheCourse = (r: BoardForCard["rows"][number]) => !!(r.missedCut || r.wi
  * than no picture. Empty when the row has nothing to say yet — a player who
  * has not started has no score, and "0" or "E" would both be a claim.
  */
-export function scoreOf(row: BoardForCard["rows"][number]): string {
+export function scoreOf(
+  row: BoardForCard["rows"][number],
+  board?: Pick<BoardForCard, "isStroke" | "isStableford" | "unit">,
+): string {
   const record = clean(String(row.record ?? ""));
   if (record) return record;
+
+  /**
+   * THE FIGURE THE BOARD RANKS ON, through the board's own reader (2026-10-09,
+   * T69). A standings row ALWAYS carries a Stableford `points` figure, so the
+   * branch below printed "37 pts / 36 pts" on a gross medal the page ranks as
+   * -1 / E — a different statistic on the picture than on the page it opens.
+   * Where the board says what it ranks on, `rankedScore` answers, exactly as
+   * it does on /live.
+   */
+  if (board?.isStroke && typeof row.toPar === "number") {
+    if (row.started === false) return "";
+    const text = rankedScore(row as unknown as RankedRow, {
+      isStroke: true,
+      isStableford: !!board.isStableford,
+      isNet: unitIsNet(board.unit),
+    }).text;
+    if (text === "–") return "";
+    return board.isStableford ? `${text} pts` : text;
+  }
 
   const points = row.points;
   if (points !== null && points !== undefined && clean(String(points)) !== "") {
@@ -222,13 +253,17 @@ export function resultsCard(
     };
   }
 
-  const rows: CardRow[] = board.rows
-    .filter((r) => r.ranked !== false)
+  // A place two players hold is "T1" on the board, so it is here — counted
+  // over every ranked row, not the five shown.
+  const ranked = board.rows.filter((r) => r.ranked !== false);
+  const shared = (rank: number) => ranked.filter((r) => r.rank === rank).length > 1;
+  const rows: CardRow[] = ranked
     .slice(0, CARD_ROWS)
     .map((r) => ({
       rank: r.rank,
+      place: shared(r.rank) ? `T${r.rank}` : String(r.rank),
       name: fitName(r.name),
-      score: scoreOf(r),
+      score: scoreOf(r, board),
       thru: cardThru(r),
     }));
 

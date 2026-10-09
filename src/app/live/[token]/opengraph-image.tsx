@@ -173,7 +173,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
                 borderBottom: i === 0 ? "none" : `1px solid ${DIVIDER}`,
               }}
             >
-              <div style={{ display: "flex", color: MUTED, fontSize: 28, width: 44, fontWeight: 600 }}>{r.rank}</div>
+              <div style={{ display: "flex", color: MUTED, fontSize: 28, width: 60, fontWeight: 600 }}>{r.place}</div>
               <div
                 style={{
                   color: TEXT,
