@@ -12,6 +12,7 @@ vi.mock("next/cache", () => ({
 import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
 import { liveBoard } from "@/lib/services/live-board";
+import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
 
 /**
  * A LEAGUE WEEK IS COUNTED AGAINST WHO IS IN IT (2026-10-08).
@@ -161,6 +162,65 @@ describe("a captains league whose list was never sent", () => {
       expect(board.allIn, "the board waits on nobody — the three who are in have returned cards").toBe(true);
     } finally {
       await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "opt-out" } });
+    }
+  });
+});
+
+describe("'Who turned out' in a captains league whose list was never sent (2026-10-09)", () => {
+  /**
+   * Reports' attendance grid and its CSV marked every player who returned a
+   * card "Out (default)" with a season "In" of 0 — L3's own Reports page read
+   * "Ann – – · IN 0" for a player who played both weeks. A card is proof of
+   * turning out.
+   */
+  it("counts a returned card as turning out, and leaves the absentee out", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "captains" } });
+    try {
+      const report = await attendanceReport((await loadEventState(eventId))!);
+      const row = (n: string) => report.rows.find((r) => r.playerId === ids[n])!;
+      expect(row("Ann").cells[0].played).toBe(true);
+      expect(row("Ann").cells[0].status, "played, but read as out").toBe("in");
+      expect(row("Dan").cells[0].status, "the absentee — the control").toBe("out");
+      expect(report.rounds[0].in).toBe(3);
+      const csv = attendanceCsvRows(report);
+      expect(csv.find((r) => r[0] === `${TAG} Ann`)![1]).toBe("Played");
+      expect(csv.find((r) => r[0] === `${TAG} Dan`)![1]).toBe("Out (default)");
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "opt-out" } });
+    }
+  });
+});
+
+describe("a week the player sat out, once the committee has closed it (grid cell L4)", () => {
+  /**
+   * Today read "Round 2 is closed · There's no Round 2 card from you" to a
+   * player who had said they could not make Round 2 — a card they "failed to
+   * hand in", for a week they rightly sat out. The out-of-week answer is asked
+   * first; the closed-round wording is for a player who was in and returned
+   * nothing.
+   */
+  it("says they sat it out, not that their card is missing", async () => {
+    const week2 = (await prisma.stage.findFirst({ where: { eventId, position: 1 } }))!.id;
+    await prisma.roundAttendance.create({ data: { eventId, stageId: week2, playerId: ids.Dan, status: "out", decidedBy: "player" } });
+    // Week 2 played by the other three, so it is the round Today is about.
+    for (const n of ["Ann", "Bea", "Cat"]) {
+      await prisma.scorecard.create({ data: { eventId, stageId: week2, playerId: ids[n], strokes: JSON.stringify(PARS), status: "approved" } });
+    }
+    await prisma.stage.updateMany({ where: { eventId }, data: { closedAt: new Date() } });
+    try {
+      const me = await meFor(await state(), `${TAG}.dan@example.invalid`.toLowerCase());
+      expect(me.round?.stageId).toBe(week2);
+      expect(me.round?.outThisWeek).toBeTruthy();
+      expect(me.round?.closedWithout, "told his card is missing for a week he sat out").toBe("");
+      expect(me.round?.closed).toBe(true);
+      // The control: had he been IN, a closed week with no card is "no card from you".
+      await prisma.roundAttendance.deleteMany({ where: { eventId } });
+      const inButAbsent = await meFor(await state(), `${TAG}.dan@example.invalid`.toLowerCase());
+      expect(inButAbsent.round?.closedWithout).toBeTruthy();
+    } finally {
+      await prisma.roundAttendance.deleteMany({ where: { eventId } });
+      await prisma.scorecard.deleteMany({ where: { eventId, stageId: week2 } });
+      await prisma.stage.updateMany({ where: { eventId }, data: { closedAt: null } });
     }
   });
 });

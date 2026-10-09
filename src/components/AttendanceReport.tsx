@@ -103,32 +103,38 @@ export function AttendanceReport({ report }: { report: Report }) {
                        accessible name carries it even though the glyph is
                        terse. */
                     title={
-                      c.explicit
-                        ? `${c.status === "in" ? "In" : "Out"}${c.decidedBy ? ` — recorded by ${c.decidedBy}` : ""}`
-                        : `${c.status === "in" ? "In" : "Out"} by default — never answered`
+                      // A returned card says they turned out, whatever the
+                      // sign-up said (2026-10-09) — see `played`.
+                      c.played
+                        ? "Played — returned a card"
+                        : c.explicit
+                          ? `${c.status === "in" ? "In" : "Out"}${c.decidedBy ? ` — recorded by ${c.decidedBy}` : ""}`
+                          : `${c.status === "in" ? "In" : "Out"} by default — never answered`
                     }
                   >
                     <span
                       role="img"
                       aria-label={
-                        c.explicit
-                          ? c.status === "in"
-                            ? "In"
-                            : "Out"
-                          : c.status === "in"
-                            ? "In by default"
-                            : "Out by default"
+                        c.played
+                          ? "Played"
+                          : c.explicit
+                            ? c.status === "in"
+                              ? "In"
+                              : "Out"
+                            : c.status === "in"
+                              ? "In by default"
+                              : "Out by default"
                       }
                       style={{
                         // Solid for a stated answer, outlined for a default —
                         // the same vocabulary the calendar uses, so a member
                         // and a secretary read one language.
                         color: c.status === "in" ? "var(--color-accent-2-200)" : "var(--color-text-muted)",
-                        opacity: c.explicit ? 1 : 0.55,
-                        fontWeight: c.explicit ? 700 : 400,
+                        opacity: c.explicit || c.played ? 1 : 0.55,
+                        fontWeight: c.explicit || c.played ? 700 : 400,
                       }}
                     >
-                      {c.status === "in" ? (c.explicit ? "✓" : "·") : c.explicit ? "✕" : "–"}
+                      {c.played ? "✓" : c.status === "in" ? (c.explicit ? "✓" : "·") : c.explicit ? "✕" : "–"}
                     </span>
                   </td>
                 ))}

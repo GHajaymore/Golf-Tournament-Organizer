@@ -40,6 +40,8 @@ export default async function RegistrationPage() {
 
   const eventTees = await teesForEvent(state.event.id);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
+  // Kept rows only — a withdrawal with no history is deleted, not kept.
+  const withdrawn = state.players.filter((p) => p.status === "withdrawn").map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <>
@@ -113,6 +115,29 @@ export default async function RegistrationPage() {
           // championship is that too, and there a DQ IS for every round.
           league={tracksPerRound(settingsOf(state.event).attendanceMode as AttendanceMode)}
         />
+      )}
+      {/* WHO WITHDREW (2026-10-09, grid cell T45). Removing a player who has
+          already played keeps them as withdrawn — "their results are kept" —
+          and then they were on no list on this page: not the field, not the
+          waitlist, nowhere. A disqualification has its own line above; a
+          withdrawal had none. Their scores and any money still stand. */}
+      {withdrawn.length > 0 && (
+        <section
+          aria-label="Withdrawn"
+          className="card elev-sm"
+          style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}
+        >
+          <span className="card-title">Withdrawn ({withdrawn.length})</span>
+          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
+            Out of the field. Their scores and any money they owe or are owed stay on the record; they show as WD
+            at the foot of the board.
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
+            {withdrawn.map((p) => (
+              <li key={p.id}>{p.name}</li>
+            ))}
+          </ul>
+        </section>
       )}
       {/* WHO CAME AND WENT — the field's lines from the audit log (Ajay,
           2026-09-27). A member who withdraws themselves took the confirmed

@@ -848,13 +848,28 @@ export default async function PlayTodayPage() {
             // twice (grid cell L3), so this one steps aside.
             availabilityOnScreen && availability.next?.stageId === round.stageId ? null : (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
-              <span className="card-title" style={{ fontSize: 14 }}>
-                You&rsquo;re not playing {round.outThisWeek}
-              </span>
-              <MoreInfo short="You're down as not playing this week." style={{ marginTop: 4 }}>
-                You&rsquo;re down as not playing {round.outThisWeek}, so there&rsquo;s no card for you this week.
-                Changed your mind? Say you&rsquo;re playing and your card appears here.
-              </MoreInfo>
+              {round.closed ? (
+                // The week is over and closed (grid cell L4): past tense, and
+                // no offer to change an answer that can no longer change.
+                <>
+                  <span className="card-title" style={{ fontSize: 14 }}>
+                    You didn&rsquo;t play {round.outThisWeek}
+                  </span>
+                  <MoreInfo short={`You were down as not playing, and the ${terms.organizer} has closed it.`} style={{ marginTop: 4 }}>
+                    Nothing is owed for a week you sat out.
+                  </MoreInfo>
+                </>
+              ) : (
+                <>
+                  <span className="card-title" style={{ fontSize: 14 }}>
+                    You&rsquo;re not playing {round.outThisWeek}
+                  </span>
+                  <MoreInfo short="You're down as not playing this week." style={{ marginTop: 4 }}>
+                    You&rsquo;re down as not playing {round.outThisWeek}, so there&rsquo;s no card for you this week.
+                    Changed your mind? Say you&rsquo;re playing and your card appears here.
+                  </MoreInfo>
+                </>
+              )}
             </section>
             )
           ) : round?.cutOut ? (
@@ -896,7 +911,7 @@ export default async function PlayTodayPage() {
       {leadersOnScreen && leaders.length > 0 && (
         <ScoreboardLeaders
           rows={leaders}
-          note={standing?.note || standing?.record || ""}
+          note={standing?.note || ""}
           title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
         />
       )}
@@ -1013,7 +1028,7 @@ export default async function PlayTodayPage() {
           {!leadersOnScreen && leaders.length > 0 && (
             <ScoreboardLeaders
               rows={leaders}
-              note={standing?.note || standing?.record || ""}
+              note={standing?.note || ""}
               title={standingLabels({ position: "", thru: 0, knockout: round?.knockout }).board}
             />
           )}

@@ -171,6 +171,8 @@ export interface MyRound {
    * sign-up card beside it is how they change their mind.
    */
   outThisWeek: string;
+  /** The committee has closed this round — so a player cannot now change their answer for it. */
+  closed: boolean;
   /**
    * Where this round is played, when the round names its own venue.
    *
@@ -506,11 +508,15 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   // player's own, so a player who played two matches was told "There's no
   // Round 1 card from you" and My card hid their matches (grid cell T50).
   const filesOwnCard = roundIsStroke(stage.type, stage.format) && !needsTeams(stage.format);
-  const closedWithout =
-    !cutOut && filesOwnCard && stage.closedAt != null && (card?.filled ?? 0) === 0 ? inSentence : "";
-  // Out of this league week with nothing on its card — see the field.
+  // Out of this league week with nothing on its card — see the field. Asked
+  // BEFORE the closed-round case (2026-10-09, grid cell L4): a player who said
+  // they could not make a week the committee has since closed did nothing
+  // wrong, and "There's no Round 2 card from you" read as a card they failed
+  // to hand in.
   const outThisWeek =
-    !cutOut && !closedWithout && state.outOn(stage.id).has(playerId) && (card?.filled ?? 0) === 0
+    !cutOut && state.outOn(stage.id).has(playerId) && (card?.filled ?? 0) === 0 ? inSentence : "";
+  const closedWithout =
+    !cutOut && !outThisWeek && filesOwnCard && stage.closedAt != null && (card?.filled ?? 0) === 0
       ? inSentence
       : "";
 
@@ -643,6 +649,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       cutOut,
       closedWithout,
       outThisWeek,
+      closed: stage.closedAt != null,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       offSheet: !!sheet && sheet.groups.length > 0 && !mine,
