@@ -5,9 +5,11 @@ import {
   fitSubtitle,
   scoreOf,
   thruOf,
+  sideRowsForCard,
   CARD_ROWS,
   type BoardForCard,
 } from "@/lib/domain/results-card";
+import { readSource } from "@/lib/__tests__/source";
 
 /**
  * The share-link preview.
@@ -340,5 +342,67 @@ describe("the card prints the board's own statistic", () => {
       "zz-club",
     );
     expect(c.kind === "standings" && c.rows.map((r) => r.place)).toEqual(["T1", "T1", "3"]);
+  });
+});
+
+/**
+ * A TEAM ROUND'S CARD IS ITS SIDES (2026-10-09, T72). The board's individual
+ * rows are empty on a team round, so the card read "No scores in yet" over a
+ * foursomes with a side nine holes in.
+ */
+describe("a team round's card", () => {
+  // Gross and net orders deliberately OPPOSITE, so a card ranked on the wrong
+  // basis cannot pass by accident.
+  const sides = [
+    { name: "zz-Ann & Bea", gross: 70, net: 66, points: 0, played: 18, toPar: -1 },
+    { name: "zz-Cat & Dot", gross: 74, net: 62, points: 0, played: 18, toPar: 3 },
+    { name: "zz-Eve & Fay", gross: 36, net: 36, points: 0, played: 9, toPar: 0 },
+    { name: "zz-Gus & Hal", gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+  ];
+  const card = (basis: "gross" | "net") =>
+    resultsCard(
+      { ...board(), rows: sideRowsForCard(sides, basis, 18), isStroke: true, unit: `${basis} strokes` },
+      "public",
+      "zz-club",
+    );
+
+  it("lists the sides that have played, with today's thru", () => {
+    const c = card("gross");
+    expect(c.kind).toBe("standings");
+    if (c.kind !== "standings") return;
+    // In the order the engine hands them; the side with no card is not placed.
+    expect(c.rows.map((r) => [r.name, r.thru])).toEqual([
+      ["zz-Ann & Bea", "F"],
+      ["zz-Cat & Dot", "F"],
+      ["zz-Eve & Fay", "9"],
+    ]);
+    expect(c.live, "a side is nine holes in").toBe(true);
+  });
+
+  it("shares a place where the round's own basis has two sides level", () => {
+    // The engine hands the sides in board order; the card places them as the
+    // page's table does. Level on NET, apart on gross.
+    const level = [
+      { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18, toPar: -7 },
+      { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18, toPar: -7 },
+    ];
+    const places = (basis: "gross" | "net") => {
+      const c = resultsCard({ ...board(), rows: sideRowsForCard(level, basis, 18), isStroke: true, unit: `${basis} strokes` }, "public", "zz-club");
+      return c.kind === "standings" ? c.rows.map((r) => r.place) : [];
+    };
+    expect(places("net")).toEqual(["T1", "T1"]);
+    expect(places("gross")).toEqual(["1", "2"]);
+  });
+
+  it("leaves a side with no card unplaced", () => {
+    const c = card("gross");
+    expect(c.kind === "standings" && c.rows.some((r) => r.name === "zz-Gus & Hal")).toBe(false);
+  });
+});
+
+describe("the share image", () => {
+  it("builds a team round's card from its sides", () => {
+    const src = readSource("src/app/live/[token]/opengraph-image.tsx");
+    expect(src).toMatch(/board\.teamRound\s*\?\s*\(\{[^]*?rows: sideRowsForCard\(board\.teamRows, board\.teamBasis, board\.holeCount\)/);
   });
 });

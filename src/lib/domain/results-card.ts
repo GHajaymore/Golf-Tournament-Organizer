@@ -24,6 +24,8 @@
 
 import { todaysThru } from "./scoreboard";
 import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
+import { placesByValue } from "./flight-places";
+import { valueOnBasis, type WeekBasis } from "./week-basis";
 
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
@@ -140,6 +142,39 @@ export function cardThru(row: BoardForCard["rows"][number]): string {
     return t.thru >= t.owed ? "F" : String(t.thru);
   }
   return thruOf(row.thru);
+}
+
+/**
+ * A TEAM ROUND'S SIDES, AS CARD ROWS (2026-10-09, T72).
+ *
+ * A team round files its result per SIDE, so the board's individual rows are
+ * empty for it — and the card, reading only those, told a chat "No scores in
+ * yet" over a foursomes with a side nine holes in. These are the rows the
+ * page's own team table draws: placed by `placesByValue` on the round's basis
+ * (so a shared place is shared), with the side's to-par, which the engine has
+ * already put on that basis.
+ */
+export function sideRowsForCard(
+  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number }[],
+  basis: WeekBasis,
+  holes: number,
+): BoardForCard["rows"] {
+  const places = placesByValue(sides, (s) => valueOnBasis(basis, s), (s) => s.played > 0);
+  return sides.map((s, i) => ({
+    rank: places[i] ?? 0,
+    name: s.name,
+    ranked: places[i] != null,
+    started: s.played > 0,
+    thru: s.played,
+    holesOwed: holes,
+    toPar: s.toPar,
+    parKnown: true,
+    points: s.points,
+    gross: s.gross,
+    net: s.net,
+    pts: "",
+    record: "",
+  })) as BoardForCard["rows"];
 }
 
 /** A row the cut, a withdrawal, a DQ or the week's attendance took off the course. */
