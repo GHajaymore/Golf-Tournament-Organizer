@@ -174,7 +174,11 @@ const roundMatchIsOver = storedMatchIsOver;
  */
 async function withAttendance(
   eventId: string,
-  state: { event: { attendanceMode?: string }; confirmed: { id: string }[] },
+  state: {
+    event: { attendanceMode?: string };
+    confirmed: { id: string }[];
+    roundThru: (playerId: string, stageId: string) => number;
+  },
   stageId: string,
   rows: StandingRow[],
 ): Promise<StandingRow[]> {
@@ -188,7 +192,16 @@ async function withAttendance(
     explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
   );
   const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));
-  return rows.map((r) => ({ ...r, absent: out.has(r.id) }));
+  /**
+   * A CARD IS PROOF OF PLAYING (2026-10-08). Under captains and opt-in a
+   * player nobody answered for resolves OUT, and a captain's list is often
+   * sent late or not at all — so walked as grid cell L3, a captains league
+   * whose three players had all returned week 2's cards read "not playing
+   * this week" on every row of this board and stayed LIVE, while Reports and
+   * the dashboard said all in. The rule `standingRows` uses: absent only with
+   * nothing on this round's card.
+   */
+  return rows.map((r) => ({ ...r, absent: out.has(r.id) && state.roundThru(r.id, stageId) === 0 }));
 }
 
 async function gather(eventId: string, roundId: string): Promise<LiveBoardView | null> {

@@ -448,6 +448,11 @@ function NextRound({
       : `on ${r.dayWords}`
     : r.label;
   const about = [r.dateLabel, r.label].filter(Boolean).join(" · ");
+  // What `about` adds beneath a title that already names the round by `when`.
+  // An undated round is `when` = "Round 2" AND `about` = "Round 2", and the
+  // captain's line read "Your captain has you out Round 2 / Round 2" (grid
+  // cell L3, 2026-10-08).
+  const aboutBeyondWhen = about === when ? "" : about;
   const playing = status === "in";
 
   const buttons = (filled: boolean) => (
@@ -517,7 +522,7 @@ function NextRound({
           ? `Your captain has you playing ${when}`
           : `Your captain has you out ${when}`
         : "Your captain hasn't sent the side in yet",
-      <MoreInfo short={about || r.label}>{explanation}</MoreInfo>,
+      <MoreInfo short={aboutBeyondWhen || (explicit ? "Sent in by your captain" : r.label)}>{explanation}</MoreInfo>,
     );
   }
 
@@ -533,7 +538,7 @@ function NextRound({
     return line(
       playing ? "check-circle" : "x-circle",
       `You're ${playing ? "" : "not "}playing ${when}`,
-      about,
+      aboutBeyondWhen,
       <button
         type="button"
         className="btn btn-ghost touch-target"
