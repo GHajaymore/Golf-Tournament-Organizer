@@ -83,7 +83,9 @@ describe("why a stroke row holds no place", () => {
 
   it("and Today does not ask a cut player for a card the cut never owed them", () => {
     const src = readSource("src/lib/services/me.ts");
-    expect(src).toMatch(/const closedWithout =\s*!cutOut && stage\.closedAt != null/);
+    // The guarantee is `!cutOut` leading the condition; what else it asks
+    // (a round of cards, closed) may grow — see T50.
+    expect(src).toMatch(/const closedWithout =\s*!cutOut &&[^;]*stage\.closedAt != null/);
   });
 });
 

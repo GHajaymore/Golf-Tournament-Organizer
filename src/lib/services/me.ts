@@ -434,6 +434,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         holes: holeResults,
         forfeitedBy: m.forfeitedBy,
         nameOf,
+        roundClosed: stage.closedAt != null,
       });
     })
     .filter((v): v is MyMatchView => v !== null);
@@ -501,7 +502,12 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   // play Round 1"). `roundNumberLabel` drops the number there and fell back to
   // the TYPE: "Stroke Play Round is closed" (grid cell T48, 2026-10-08).
   const inSentence = roundKicker(stage.description, roundLabel(state.stages, stage.id) || "This round");
-  const closedWithout = !cutOut && stage.closedAt != null && (card?.filled ?? 0) === 0 ? inSentence : "";
+  // A round of CARDS only: match play and a side's round file no card of the
+  // player's own, so a player who played two matches was told "There's no
+  // Round 1 card from you" and My card hid their matches (grid cell T50).
+  const filesOwnCard = roundIsStroke(stage.type, stage.format) && !needsTeams(stage.format);
+  const closedWithout =
+    !cutOut && filesOwnCard && stage.closedAt != null && (card?.filled ?? 0) === 0 ? inSentence : "";
   // Out of this league week with nothing on its card — see the field.
   const outThisWeek =
     !cutOut && !closedWithout && state.outOn(stage.id).has(playerId) && (card?.filled ?? 0) === 0

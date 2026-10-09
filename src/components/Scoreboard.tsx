@@ -67,7 +67,7 @@ export function ScoreboardLeaders({
                     role (Lighthouse aria-prohibited-attr, 2026-10-01) — and with
                     every tile below aria-hidden, the row then read as nothing. */}
                 <span className="sr-only">
-                  {`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.absent ? "not playing this week" : r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, ${r.total}`}
+                  {`${r.pos === "–" ? "Not ranked" : `Position ${r.pos}`}, ${r.you ? "you" : r.name}, ${r.absent ? "not playing this week, " : r.thru === "" ? "" : `${r.thru === "F" ? "finished" : r.thru === "–" ? "not started" : `thru ${r.thru}`}, `}${r.total}`}
                 </span>
                 <span className="sb-tile" aria-hidden="true">{r.pos}</span>
                 {/* The NAME gives way, never "YOU". One string clipped from the
@@ -78,7 +78,7 @@ export function ScoreboardLeaders({
                   <span className="sb-name-text">{r.name}</span>
                   {r.you && <span className="sb-you-tag">&nbsp;· YOU</span>}
                 </span>
-                <span className="sb-tile" aria-hidden="true">{r.thru}</span>
+                <span className="sb-tile" aria-hidden="true">{r.thru || "–"}</span>
                 <span className={`sb-tile${r.under ? " sb-under" : ""}`} aria-hidden="true">{r.total}</span>
               </div>
             </li>
