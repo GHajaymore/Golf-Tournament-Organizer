@@ -109,7 +109,14 @@ export default async function PlayTodayPage() {
   const isStaff = session.role === "admin" || session.role === "assistant";
   // Only a casual round has an expiry to keep; asked only then.
   const keepRefusal = hoursLeft(state.event) === null ? null : await casualKeepRefusalFor(state.event.id);
-  const watching = !me.playerId && isWatching(myRow, isStaff);
+  /**
+   * DISQUALIFIED (2026-10-08). They have a row in this event, so "You aren't
+   * in this tournament" would be false — the rule `verify-player-states`
+   * asserts — and "You're watching this one" would offer them the door back
+   * in. They are told the ruling, and pointed at the committee.
+   */
+  const ruledOut = !me.playerId && !isStaff && !!myRow?.disqualified;
+  const watching = !me.playerId && !ruledOut && isWatching(myRow, isStaff);
   /**
    * ON THE WAITING LIST — a third state, and until 2026-09-20 there were two.
    *
@@ -513,7 +520,18 @@ export default async function PlayTodayPage() {
         </section>
       )}
 
-      {!me.playerId && !watching && !waiting && (
+      {ruledOut && (
+        <section aria-label="Disqualified" className="card elev-sm" style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="card-title">You were disqualified from this tournament</span>
+          <MoreInfo short={`The ${terms.organizer} has the reason.`}>
+            The committee ruled you out of this competition, so there&rsquo;s no card or place for you here. If
+            you think that&rsquo;s wrong, speak to the {terms.organizer} — they can reinstate you. The board is
+            still open to read.
+          </MoreInfo>
+        </section>
+      )}
+
+      {!me.playerId && !watching && !waiting && !ruledOut && (
         <MoreInfo short={`${notInItWords(state.event.shape)}.`} style={{ marginTop: 12 }}>
           So there&rsquo;s no card here. The board is still open on the next tab.
         </MoreInfo>

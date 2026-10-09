@@ -187,6 +187,15 @@ async function walk(label, user, eventId, expect) {
       if (text.includes("waiting list")) fail(where, "told somebody awaiting approval they are on a waiting list");
       if (!text.includes("approv")) fail(where, "somebody awaiting approval is not told so");
     }
+    /**
+     * DISQUALIFIED (2026-10-08). They have a row, so the first rule holds for
+     * them — and they are told the RULING, not offered the door back in: an
+     * Enter button there would undo the committee's decision with one tap.
+     */
+    if (expect.disqualified && path !== "/me/board") {
+      if (!text.includes("disqualified")) fail(where, "a disqualified player is not told so");
+      if (text.includes("Enter this tournament")) fail(where, "offered a disqualified player the way back in");
+    }
     if (expect.noRound) {
       if (text.includes("first hole goes in")) fail(where, "promised a hole in a tournament with no round");
       if (text.includes("against your opponent")) fail(where, "named an opponent in a tournament with no round");
@@ -260,6 +269,18 @@ async function main() {
     waiting: true,
   });
   await walk("playing/stranger", stranger, playing.id, { entered: false, mustSayNotEntered: true });
+
+  // Ruled out by the committee mid-tournament, with a card already returned.
+  const ruledOut = await makeMember(org.id, "ruledout");
+  const dq = await enter(playing.id, ruledOut, "disqualified");
+  await prisma.scorecard.create({
+    data: { eventId: playing.id, stageId: stage.id, playerId: dq.id, strokes: JSON.stringify(PARS) },
+  });
+  await walk("playing/disqualified", ruledOut, playing.id, {
+    entered: true,
+    rowStatus: "disqualified",
+    disqualified: true,
+  });
 
   /**
    * NO TOURNAMENT AT ALL — the state every new club's members are in first.

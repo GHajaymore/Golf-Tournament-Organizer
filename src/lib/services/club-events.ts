@@ -89,6 +89,8 @@ export interface ClubEventRow {
    * a place. Words only — every rule reads `waiting`.
    */
   awaiting: boolean;
+  /** The committee disqualified them — not entered, and not offered the form again. */
+  disqualified?: boolean;
   /** Where the sign-up form lives, when there is one to offer. */
   registrationHref: string;
   /**
@@ -232,6 +234,12 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
    * a queue they were never in (walked 2026-09-28).
    */
   const awaitingIn = new Set(mine.filter((p) => p.status === "pending").map((p) => p.eventId));
+  /**
+   * DISQUALIFIED BY THE COMMITTEE (2026-10-08): not entered, not waiting, and
+   * NOT offered the entry form — entering again would put a fresh confirmed
+   * row beside the ruling and undo it. `enterTournament` refuses it too.
+   */
+  const ruledOutIn = new Set(mine.filter((p) => p.status === "disqualified").map((p) => p.eventId));
 
   /**
    * THE MEMBER'S OWN CARDS STILL WAITING ON THEM — `openCardOf` has the rule.
@@ -335,7 +343,8 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
      * form to send anybody to, however healthy the deadline looks.
      */
     const waiting = !entered && waitingIn.has(event.id);
-    const canEnter = !entered && !waiting && status.acceptingEntries && event.registrationOpen;
+    const disqualified = !entered && ruledOutIn.has(event.id);
+    const canEnter = !entered && !waiting && !disqualified && status.acceptingEntries && event.registrationOpen;
     // `waiting` was computed above and used only to decide `canEnter`; not
     // passing it here is what made a waiting-list place read as "Closed".
     const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
@@ -408,6 +417,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       entered,
       waiting,
       awaiting,
+      disqualified,
       registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
       organizer,
       canWithdraw:

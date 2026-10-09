@@ -14,6 +14,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { enterThisTournament } from "@/app/actions/enter";
+import { clearRateLimit } from "@/lib/rate-limit";
 
 /**
  * A MEMBER PUTS THEIR NAME DOWN WITHOUT FILLING ANYTHING IN.
@@ -93,6 +94,7 @@ let open = "";
 let full = "";
 let approves = "";
 let otherClub = "";
+let ruled = "";
 
 beforeAll(async () => {
   await cleanup();
@@ -132,6 +134,7 @@ beforeAll(async () => {
   });
 
   open = (await tournament(org.id, "open with room")).id;
+  ruled = (await tournament(org.id, "ruled out")).id;
   full = (await tournament(org.id, "full", { capacity: 1 })).id;
   approves = (await tournament(org.id, "approve mode", { registrationApproval: "approve" })).id;
   otherClub = (await tournament(away.id, "not my club")).id;
@@ -266,6 +269,22 @@ describe("the event id comes from the caller", () => {
     expect(await entryIn(otherClub), "they entered another club's tournament").toBeNull();
     // And the refusal says nothing about whether that tournament exists.
     expect(res.error).not.toContain("club");
+  });
+
+  it("refuses a member the committee disqualified from it — a tap must not undo the ruling", async () => {
+    // 2026-10-08. A withdrawal may re-enter; a disqualification is a ruling,
+    // and a fresh confirmed row beside it would undo it.
+    await prisma.player.create({
+      data: { eventId: ruled, name: `${TAG} Roster Name`, email: session.email, seed: 1, status: "disqualified" },
+    });
+    // The attempts above spend this member's entry allowance; the refusal under
+    // test sits behind it, so give it a fresh window.
+    await clearRateLimit("register-email", session.email);
+    const res = await enterThisTournament(ruled);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/disqualified/);
+    const live = await prisma.player.count({ where: { eventId: ruled, status: { not: "disqualified" } } });
+    expect(live, "a disqualified member entered again").toBe(0);
   });
 
   it("refuses an id that is not a tournament at all", async () => {
