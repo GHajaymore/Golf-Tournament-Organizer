@@ -12,6 +12,7 @@ vi.mock("next/cache", () => ({
 import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
 import { liveBoard } from "@/lib/services/live-board";
+import { attendanceReport, attendanceCsvRows } from "@/lib/services/attendance-report";
 
 /**
  * A LEAGUE WEEK IS COUNTED AGAINST WHO IS IN IT (2026-10-08).
@@ -159,6 +160,31 @@ describe("a captains league whose list was never sent", () => {
       const absent = board.rows.filter((r) => r.absent).map((r) => r.id);
       expect(absent, "a player with a card called absent").toEqual([ids.Dan]);
       expect(board.allIn, "the board waits on nobody — the three who are in have returned cards").toBe(true);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "opt-out" } });
+    }
+  });
+});
+
+describe("'Who turned out' in a captains league whose list was never sent (2026-10-09)", () => {
+  /**
+   * Reports' attendance grid and its CSV marked every player who returned a
+   * card "Out (default)" with a season "In" of 0 — L3's own Reports page read
+   * "Ann – – · IN 0" for a player who played both weeks. A card is proof of
+   * turning out.
+   */
+  it("counts a returned card as turning out, and leaves the absentee out", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "captains" } });
+    try {
+      const report = await attendanceReport((await loadEventState(eventId))!);
+      const row = (n: string) => report.rows.find((r) => r.playerId === ids[n])!;
+      expect(row("Ann").cells[0].played).toBe(true);
+      expect(row("Ann").cells[0].status, "played, but read as out").toBe("in");
+      expect(row("Dan").cells[0].status, "the absentee — the control").toBe("out");
+      expect(report.rounds[0].in).toBe(3);
+      const csv = attendanceCsvRows(report);
+      expect(csv.find((r) => r[0] === `${TAG} Ann`)![1]).toBe("Played");
+      expect(csv.find((r) => r[0] === `${TAG} Dan`)![1]).toBe("Out (default)");
     } finally {
       await prisma.event.update({ where: { id: eventId }, data: { attendanceMode: "opt-out" } });
     }

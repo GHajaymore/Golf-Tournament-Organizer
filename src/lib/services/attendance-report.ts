@@ -60,6 +60,16 @@ export interface AttendanceReportCell {
   explicit: boolean;
   /** Who recorded it — "" when nobody has. */
   decidedBy: string;
+  /**
+   * They RETURNED A CARD for this round (2026-10-09). A card is proof of
+   * turning out, whatever the sign-up said — the rule the public board has
+   * followed since #841. Under captains or opt-in nobody answered for resolves
+   * OUT, so a captains league whose list was never sent read "Out (default)"
+   * against every player who played, with a season "In" total of 0, on the
+   * sheet titled "Who turned out". A played cell counts as in. Optional so
+   * hand-built rows stay valid; absent reads as not played.
+   */
+  played?: boolean;
 }
 
 export interface AttendanceReportRow {
@@ -133,29 +143,16 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
     ]),
   );
 
-  // The club's own date order — see `shortDate`.
-  const { locale } = await formattingForEvent(state.event.id);
-  const reportRounds: AttendanceReportRound[] = rounds.map((r) => {
-    const summary = byStage.get(r.id)!;
-    const playedOn = cleanIsoDate(r.playedOn);
-    return {
-      stageId: r.id,
-      label: roundLabel(state.stages, r.id),
-      playedOn,
-      dateLabel: playedOn ? shortDate(playedOn, locale) : "",
-      in: summary.in,
-      out: summary.out,
-      inByDefault: summary.inByDefault,
-    };
-  });
-
   const rows: AttendanceReportRow[] = confirmed.map((p) => {
-    const cells = rounds.map((r) => {
+    const cells = rounds.map((r): AttendanceReportCell => {
       const row = byStage.get(r.id)?.rows.find((x) => x.playerId === p.id);
+      // A card on this round is proof of turning out — see `played`.
+      const played = state.roundThru(p.id, r.id) > 0;
       return {
-        status: row?.status ?? "out",
+        status: played ? "in" : (row?.status ?? "out"),
         explicit: row?.explicit ?? false,
         decidedBy: row?.decidedBy ?? "",
+        played,
       };
     });
     return {
@@ -164,6 +161,24 @@ export async function attendanceReport(state: EventState): Promise<AttendanceRep
       cells,
       inCount: cells.filter((c) => c.status === "in").length,
       answered: cells.filter((c) => c.explicit).length,
+    };
+  });
+
+  // The column totals count the CELLS, so a player who played is in the
+  // round's "in" — the same reading as their row (see `played`).
+  // The club's own date order — see `shortDate`.
+  const { locale } = await formattingForEvent(state.event.id);
+  const reportRounds: AttendanceReportRound[] = rounds.map((r, i) => {
+    const cells = rows.map((row) => row.cells[i]);
+    const playedOn = cleanIsoDate(r.playedOn);
+    return {
+      stageId: r.id,
+      label: roundLabel(state.stages, r.id),
+      playedOn,
+      dateLabel: playedOn ? shortDate(playedOn, locale) : "",
+      in: cells.filter((c) => c.status === "in").length,
+      out: cells.filter((c) => c.status === "out").length,
+      inByDefault: cells.filter((c) => c.status === "in" && !c.explicit && !c.played).length,
     };
   });
 
@@ -197,7 +212,9 @@ export function attendanceCsvRows(report: AttendanceReport): string[][] {
   ];
   const body = report.rows.map((row) => [
     row.name,
-    ...row.cells.map((c) => (c.explicit ? (c.status === "in" ? "In" : "Out") : c.status === "in" ? "In (default)" : "Out (default)")),
+    ...row.cells.map((c) =>
+      c.played ? "Played" : c.explicit ? (c.status === "in" ? "In" : "Out") : c.status === "in" ? "In (default)" : "Out (default)",
+    ),
     String(row.inCount),
     String(row.answered),
   ]);
