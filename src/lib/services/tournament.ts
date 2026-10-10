@@ -1364,7 +1364,30 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   const playedStage = playRounds[playedIdx] ?? null;
   const orderOf = (s: DbStage | null) => (s ? playRounds.findIndex((r) => r.id === s.id) : -1);
-  const boardStage = orderOf(playedStage) > orderOf(activeStage) ? playedStage : activeStage;
+  const lastPlayed = orderOf(playedStage) > orderOf(activeStage) ? playedStage : activeStage;
+  /**
+   * PAST A CLOSED ROUND ONCE THE NEXT ONE IS READY TO PLAY (2026-10-09).
+   *
+   * Walked on a 120-player championship the morning after the cut: Round 1
+   * closed, 40 Round 2 cards handed out by the cut, the Round 2 sheet
+   * published — and the console still said Round 1 everywhere. The sidebar
+   * read "Round 1 · Stroke play", the dashboard "Round 1 tee sheet · 30
+   * groups" and "Cards in 118/119", and Score entry opened on a closed round,
+   * while every player's phone (`meFor`) said "Playing now · Round 2". Same
+   * tournament, two answers to "which round are we on".
+   *
+   * The board stays on a closed round until the next one is PREPARED — the
+   * cut has given it cards, or its draw is out — because between the two a
+   * closed round's result is the newest thing there is to read. After that the
+   * committee is running the next round, and so is everybody else.
+   */
+  const prepared = (s: DbStage) =>
+    s.teeSheetPublished || scorecards.some((c) => c.stageId === s.id) || matches.some((m) => m.stageId === s.id);
+  const nextReady =
+    lastPlayed?.closedAt && event.status !== "completed"
+      ? playRounds.slice(orderOf(lastPlayed) + 1).find((s) => s.closedAt == null)
+      : undefined;
+  const boardStage = nextReady && prepared(nextReady) ? nextReady : lastPlayed;
   const boardIsStroke = boardStage ? roundIsStroke(boardStage.type, boardStage.format) : isStroke;
 
   /**

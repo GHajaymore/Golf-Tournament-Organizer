@@ -730,7 +730,9 @@ export default async function PlayTodayPage() {
           {/* Not on a round the committee has closed without a card from them:
               no first hole is coming, and the closed-round card below says so
               (grid cell T48). */}
-          {!standing && !mySide && !round?.matches.length && !round?.tie && !round?.closedWithout && (
+          {/* Nor for somebody the cut left out: no first hole is coming for
+              them either, and "Missed the cut" below says why (2026-10-09). */}
+          {!standing && !mySide && !round?.matches.length && !round?.tie && !round?.closedWithout && !round?.cutOut && (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-kicker">Not started</span>
               <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }} className="text-muted">
@@ -905,7 +907,12 @@ export default async function PlayTodayPage() {
           ) : round?.cutOut ? (
             <section className="card elev-sm" style={{ marginTop: 12 }}>
               <span className="card-title" style={{ fontSize: 14 }}>Missed the cut</span>
-              <MoreInfo short={`Your ${round.cutOut} score stands on the board.`} style={{ marginTop: 4 }}>
+              {/* "Your score stands" only where there IS one — a member who
+                  returned no card was told it about a score that does not exist. */}
+              <MoreInfo
+                short={standing ? `Your ${round.cutOut} score stands on the board.` : `No ${round.cutOut} card was returned for you.`}
+                style={{ marginTop: 4 }}
+              >
                 You didn&rsquo;t make the cut after {round.cutOut}, so there&rsquo;s no {round.name} card for
                 you.
               </MoreInfo>

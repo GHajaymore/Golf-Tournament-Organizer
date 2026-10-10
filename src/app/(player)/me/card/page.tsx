@@ -19,6 +19,7 @@ import { teamStandings } from "@/lib/services/teams";
 import { CardTrustNote } from "@/components/CardTrustNote";
 import { WayForward } from "@/components/WayForward";
 import { MoreInfo } from "@/components/MoreInfo";
+import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { TEAM_SESSION } from "@/lib/services/cup";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWaiting } from "@/lib/domain/tournament-switcher";
@@ -131,7 +132,10 @@ export default async function PlayCardPage() {
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           You didn&rsquo;t make the cut after {me.round.cutOut}, so there&rsquo;s no {me.round.name} card
-          for you. Your {me.round.cutOut} score stands on the board.
+          for you.{" "}
+          {hasStandingToShow(me.standing)
+            ? `Your ${me.round.cutOut} score stands on the board.`
+            : `No ${me.round.cutOut} card was returned for you.`}
         </p>
         <WayForward
           links={[

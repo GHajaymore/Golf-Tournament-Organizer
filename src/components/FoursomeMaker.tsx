@@ -419,7 +419,14 @@ export function FoursomeMaker({
                   key={a.key}
                   type="button"
                   disabled={off}
-                  onClick={() => setAlgo(a.key)}
+                  onClick={() => {
+                    setAlgo(a.key);
+                    // A draw by position goes out LEADERS LAST unless the
+                    // organizer has chosen an order of their own (2026-10-09):
+                    // walked on a 36-hole championship, "By position" put the
+                    // leader in the 8:00 group, first off.
+                    if (a.key === "standings" && order === "as-formed") setOrder("leaders-last");
+                  }}
                   className="btn"
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,

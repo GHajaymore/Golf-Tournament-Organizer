@@ -39,6 +39,7 @@ function row(i: number): ClubEventRow {
     bandLabel: "Open",
     when: "upcoming",
     openCard: null,
+    cutOut: false,
     windowNote: "",
     yourStatus: "",
     progress: null,

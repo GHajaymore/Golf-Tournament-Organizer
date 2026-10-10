@@ -406,7 +406,13 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
    * after the draw simply drops out instead of appearing.
    */
   const sheet = stage.teeSheetPublished ? parseTeeSheet(stage.teeSheet) : null;
-  const mine = sheet?.groups.find((g) => g.playerIds.includes(playerId)) ?? null;
+  // Whether the stroke cut into this round left this player out — see the
+  // field's note. Null field means the round is open to everybody. Asked
+  // before the tee group: somebody the cut left out has no tee time in it,
+  // even on a sheet drawn before the cut was made (2026-10-09).
+  const cutField = await strokeCutField(state.event.id, stage.id);
+  const madeIt = !cutField || cutField.has(playerId);
+  const mine = (madeIt ? sheet?.groups.find((g) => g.playerIds.includes(playerId)) : null) ?? null;
   const group = mine
     ? {
         name: mine.name,
@@ -457,10 +463,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     })
     .filter((v): v is MyMatchView => v !== null);
 
-  // Whether the stroke cut into this round left this player out — see the
-  // field's note. Null field means the round is open to everybody.
-  const cutField = await strokeCutField(state.event.id, stage.id);
-  const cutOut = cutField && !cutField.has(playerId) ? await cutFeederName(state.event.id, stage.id) : "";
+  const cutOut = madeIt ? "" : await cutFeederName(state.event.id, stage.id);
 
   // And the knockout's version of the same question, read off the draw.
   let tie: MyTie | null = null;

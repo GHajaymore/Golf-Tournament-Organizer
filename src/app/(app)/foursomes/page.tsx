@@ -19,6 +19,7 @@ import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { parseTeeSheet, teeSheetDrift } from "@/lib/domain/tee-sheet";
+import { strokeCutField } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
@@ -179,6 +180,16 @@ export default async function FoursomesPage({
       decidedBy: r.decidedBy,
     }));
   }
+
+  /**
+   * AND A ROUND A CUT HAS BEEN MADE INTO IS DRAWN FROM THOSE WHO MADE IT
+   * (2026-10-09). Walked on a 120-player championship cut to 40: the Round 2
+   * sheet drew all 119, forty three-balls, and a player who missed the cut read
+   * "Missed the cut" over "Group 1 · 8:00 AM". `strokeCutField` is the field the
+   * cut made — the players holding a card for the round — and null before it.
+   */
+  const cutField = stage ? await strokeCutField(session.eventId, stage.id) : null;
+  if (cutField) field = field.filter((p) => cutField.has(p.id));
 
   /**
    * PAIRING REQUESTS for this round's field — each request once, whichever of
