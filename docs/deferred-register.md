@@ -326,6 +326,35 @@ bug. The file explaining a defect becomes the first hit of every sweep for it.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
+### "One card for the side" on a gross four-ball cannot be saved — FOUND 2026-10-10
+
+`teamEntryChoices` offers `side-only` on a two-ball format scored gross
+(Four-Ball, Best Ball, Shamble), and the Rounds screen saves it. The entry
+screen then honours it: one card per side, `playerId: ""`, with a running
+total from `singleBallTeamCard`. Nothing after that does:
+
+    saveTeamScorecard   refuses it — `format.ball === "individual" && playerId === ""`
+                        returns "Four-Ball needs a card for each partner."
+    teamStandings       branches on `format.ball`, so it reads the members' own
+                        cards and never the side's — the board, /live, Reports,
+                        the week sheet and the result all go through it
+    recomputeTeamMatch  the same `format.ball` branch
+    importTeamScores    files per-player rows, the shape the board reads
+
+So the setting is a trap: the card cannot be saved, and would not be scored if
+it were. Measured read-only against the development database the same day:
+**no stage has ever stored a `scoreInput`**, so no round is in this state yet.
+
+Left out of the decision-5 batch because the fix belongs at the SINK, not in
+eight callers: `teamStandings` should read the round's `scoreInput` itself
+(`resolveTeamEntry`), and the save, the match recompute and the import follow
+it. The one real question is a best-TWO side-only card, whose per-hole figure
+is two balls and whose par is therefore twice the hole's. Settle that
+(scale par by `countBest`, or offer side-only only where one ball counts)
+before writing it. Withdrawing the option instead is the cheaper answer, but
+it is a designed and documented choice (`sideOnlyCost`), so fix rather than
+remove unless something says otherwise.
+
 ### `isStroke` is the EVENT's format — MEASURED AND CLOSED 2026-09-23
 
 **Measured on Ajay's instruction to open the sites before proposing anything,

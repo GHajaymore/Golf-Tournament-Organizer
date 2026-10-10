@@ -5,7 +5,7 @@ import { findFormat, sideSizeRange } from "../formats";
 import { holesPlayed } from "../domain/handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
-import { weekBasis, compareOnBasis } from "../domain/week-basis";
+import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
 import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
 import { isLeaguePointsSystem } from "../domain/league-meeting";
@@ -450,15 +450,16 @@ export async function teamStandings(
    * side printed first. Read off the seeded festival's gross scramble on
    * 2026-09-20: 69, 71, 70, 72 down the page, in net order.
    *
-   * `compareOnBasis` is the same comparison the individual boards use, so a
-   * gross team round and a gross medal now agree about which way is winning.
+   * `compareTeamRows` reads the round's basis the way the individual boards
+   * do — relative to par while the round is on — so a gross team round and a
+   * gross medal agree about which way is winning, at every hole.
    */
   const order = weekBasis(basis, format);
   return rows.sort((a, b) => {
     // A side with no card yet has nothing to rank, and a gross of zero would
     // otherwise put it top.
     if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
-    return compareOnBasis(order, a, b) || a.name.localeCompare(b.name);
+    return compareTeamRows(order, a, b) || a.name.localeCompare(b.name);
   });
 }
 

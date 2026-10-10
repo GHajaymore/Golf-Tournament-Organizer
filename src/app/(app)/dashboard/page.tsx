@@ -752,7 +752,8 @@ export default async function DashboardPage() {
          * cannot come to disagree with the button it is deferring to.
          */}
         {(() => {
-          const lifecycleLeads = isAdmin && !!lifecycleAction;
+          // Not a Reopen: on a finished tournament the result leads, and reopening is a remedy.
+          const lifecycleLeads = isAdmin && !!lifecycleAction && lifecycleAction.to !== "live";
           return (
             <div style={{ display: "flex", gap: 8 }}>
               {showEntry && (

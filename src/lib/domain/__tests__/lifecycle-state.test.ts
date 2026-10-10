@@ -221,8 +221,14 @@ describe("what to do next", () => {
     expect(nextLifecycleAction({ status: "live", resultsIn: 99 })?.label).toBe("Complete tournament");
   });
 
-  it("has nothing left to offer a finished tournament", () => {
-    expect(nextLifecycleAction({ status: "completed", resultsIn: 99 })).toBeNull();
+  it("offers a finished tournament its Reopen, to correct a card (2026-10-10)", () => {
+    // It offered nothing, so a result finalized by mistake — or a card found
+    // wrong at the prize-giving — had no way back on screen.
+    expect(nextLifecycleAction({ status: "completed", resultsIn: 99 })).toEqual({
+      label: "Reopen tournament",
+      kind: "status",
+      to: "live",
+    });
   });
 
   it("only ever offers one thing", () => {

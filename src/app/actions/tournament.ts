@@ -123,7 +123,7 @@ import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
-import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
+import { findFormat, inputChoices, isPlayable, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
@@ -4417,6 +4417,16 @@ export async function setEventStatus(
     data: { status: s, completedAt: s === "completed" ? now : null },
   });
   /**
+   * AND THE CONSOLE STAYS ON IT (2026-10-10). With no active-event cookie — a
+   * fresh device, a new browser — the console shows the organizer's tournament
+   * being played NOW (`landingEvent`). Completing it stops it being that, so
+   * the very next screen silently became a different live tournament of the
+   * club's: walked as a secretary who pressed Complete and then read another
+   * event's leaderboard, at the moment the prizes were to be awarded from this
+   * one. Pinned here, by the act that would otherwise move them.
+   */
+  await setActiveEvent(eventId);
+  /**
    * COMPLETING CLOSES EVERY ROUND STILL OPEN — Ajay's call, 2026-09-26.
    *
    * A round is over when the organizer says so (#577), and marking the
@@ -5143,6 +5153,111 @@ export async function importScores(
   // row: freezing is a fact about the round, and the first row already decided
   // it.
   if (returned) await freezeRoundHandicaps(eventId, stageId);
+
+  await refresh();
+  return { ok: written > 0, written, problems: problems.length ? problems : undefined };
+}
+
+/**
+ * A TEAM ROUND'S CARDS FROM A FILE (2026-10-10).
+ *
+ * A 120-player four-ball comes back as a spreadsheet the same as a medal does,
+ * and the import refused it: `importScores` writes `Scorecard`, which a team
+ * round never reads, so the only route was typing sixty sides by hand. Every
+ * club system imports a team round the same way it imports a medal — one row
+ * per card — and so does this:
+ *
+ *   - a format where each partner plays their own ball (four-ball, best-ball):
+ *     a row per PLAYER, filed on that player's side;
+ *   - a shared ball (scramble, foursomes, greensomes): a row per SIDE, named
+ *     by the side or by any one of its players — one card for the side.
+ *
+ * Gross only. A net figure converts back through the round's team allowance,
+ * which differs by format and, on a shared ball, is the side's handicap rather
+ * than anybody's own — a conversion that would be stored and could not be
+ * recomputed. The importer offers only the gross shape on a team round.
+ *
+ * Staff only, and a public endpoint like every `"use server"` export: each row
+ * is re-resolved against this round's own sides, and anything else is reported
+ * rather than written. A side in a team match files its card on that match,
+ * which is then re-scored from both sides' cards, as a typed card is.
+ */
+export async function importTeamScores(
+  stageId: string,
+  rows: Array<{ playerId?: string; teamId?: string; strokes?: (number | null)[] }>,
+): Promise<ScoreImportOutcome> {
+  const eventId = await requireStaffEvent();
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
+  if (!stage) return { ok: false, written: 0, error: "That round isn't in this tournament." };
+  if (!needsTeams(stage.format)) {
+    return { ok: false, written: 0, error: "This round isn't played in sides." };
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, written: 0, error: "Nothing to import." };
+  if (rows.length > 1000) {
+    return { ok: false, written: 0, error: "That file has too many rows to be a single round." };
+  }
+
+  const format = findFormat(stage.format);
+  const shared = format.ball === "single";
+  const holes = holesPlayed(stage.holes);
+  const teams = await prisma.team.findMany({
+    where: { eventId, OR: [{ stageId }, { stageId: null }] },
+    select: { id: true, members: { select: { playerId: true } } },
+  });
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const sideOf = new Map<string, string>();
+  for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.id);
+  const matches = await prisma.match.findMany({
+    where: { eventId, stageId },
+    select: { id: true, stageId: true, teamAId: true, teamBId: true },
+  });
+  const matchOf = (teamId: string) => matches.find((m) => m.teamAId === teamId || m.teamBId === teamId);
+
+  const problems: string[] = [];
+  const done = new Set<string>();
+  const touched = new Map<string, (typeof matches)[number]>();
+  let written = 0;
+  let returned = false;
+
+  for (const row of rows) {
+    // Narrowed to this round's own sides: an id from anywhere else is not in
+    // either map, and the row is reported below rather than written.
+    const playerId = typeof row?.playerId === "string" && sideOf.has(row.playerId) ? row.playerId : "";
+    const teamId =
+      typeof row?.teamId === "string" && teamById.has(row.teamId) ? row.teamId : (sideOf.get(playerId) ?? "");
+    if (!teamId) {
+      problems.push("A row named someone who isn't on a side in this round.");
+      continue;
+    }
+    if (!shared && !playerId) {
+      problems.push(`${format.name} needs a card for each partner — a row per player, not per side.`);
+      continue;
+    }
+    const cardPlayer = shared ? "" : playerId;
+    const key = `${teamId}:${cardPlayer}`;
+    if (done.has(key)) {
+      problems.push(shared ? "Two rows were for the same side; the first was kept." : "Two rows were for the same player; the first was kept.");
+      continue;
+    }
+    // Coerced hole by hole, exactly as `importScores` does it.
+    const strokes = (Array.isArray(row.strokes) ? row.strokes : [])
+      .slice(0, holes)
+      .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+    const match = matchOf(teamId);
+    const matchId = match?.id ?? "";
+    await prisma.teamScorecard.upsert({
+      where: { stageId_matchId_teamId_playerId: { stageId, matchId, teamId, playerId: cardPlayer } },
+      update: { strokes: JSON.stringify(strokes) },
+      create: { eventId, stageId, matchId, teamId, playerId: cardPlayer, strokes: JSON.stringify(strokes) },
+    });
+    done.add(key);
+    if (match) touched.set(match.id, match);
+    if (isReturnedCard(strokes)) returned = true;
+    written += 1;
+  }
+
+  if (returned) await freezeRoundHandicaps(eventId, stageId);
+  for (const m of touched.values()) await recomputeTeamMatch(eventId, m, stage.format, holes);
 
   await refresh();
   return { ok: written > 0, written, problems: problems.length ? problems : undefined };

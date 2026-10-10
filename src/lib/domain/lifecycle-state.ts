@@ -429,6 +429,9 @@ export function nextLifecycleAction(facts: {
   if (facts.status === "registration") return { label: "Mark ready", kind: "status", to: "ready" };
   if (facts.status === "ready") return { label: "Launch tournament", kind: "launch" };
   if (facts.status === "live") return { label: "Complete tournament", kind: "status", to: "completed" };
+  // A finished tournament can be reopened to correct a card — the committee's
+  // remedy everywhere, and `setEventStatus` already allows it (2026-10-10).
+  if (facts.status === "completed") return { label: "Reopen tournament", kind: "status", to: "live" };
   return null;
 }
 

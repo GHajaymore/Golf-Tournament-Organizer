@@ -4,7 +4,7 @@ import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
 import { roundHandicapOf } from "@/lib/domain/round-handicap";
-import { effectiveAllowance, effectiveCountBest, teamsForStage } from "@/lib/services/teams";
+import { effectiveAllowance, effectiveCountBest, teamsForStage, teamStandings } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
 import { isHeadToHead } from "@/lib/stage-types";
 import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
@@ -378,6 +378,41 @@ export default async function FoursomesPage({
   const sideOf = new Map<string, string>();
   for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.name);
   /**
+   * A PAIRS ROUND IS DRAWN BY THE SIDES' POSITION (2026-10-10). Round 2 of a
+   * two-round better-ball goes out leaders last, like any championship — but
+   * "By position" read the INDIVIDUAL stroke standings, which a team round
+   * never fills, so it stayed greyed out. Each member is given their side's
+   * place in the previous team round of the event, read through
+   * `teamStandings` exactly as the team board reads it, and the draw orders
+   * whole sides by it (`sidesByStandings`).
+   */
+  const sideStandings: Standing[] = await (async () => {
+    if (!stage || teams.length === 0) return [];
+    const rounds = playingStages(state.stages);
+    const prior = rounds
+      .slice(0, rounds.findIndex((r) => r.id === stage.id))
+      .reverse()
+      .find((r) => needsTeams(r.format));
+    if (!prior) return [];
+    // The same card the team board prices that round on, so the draw and the
+    // board cannot disagree about who leads.
+    const card = state.strokeCourseFor(prior.id);
+    const rows = await teamStandings(
+      session.eventId,
+      prior.id,
+      prior.format,
+      card.pars,
+      card.holeDifficulty,
+      prior.scoringBasis,
+      prior.handicapAllowance,
+      prior.allowanceWeights,
+      prior.countBest,
+    );
+    return rows
+      .filter((r) => r.played > 0)
+      .flatMap((r, i) => r.memberIds.map((playerId) => ({ playerId, position: i + 1 })));
+  })();
+  /**
    * A MATCH IS PLAYED OFF THE LOWEST HANDICAP IN IT, so the card has to know
    * which match a side is in before it can print a single dot.
    *
@@ -588,7 +623,7 @@ export default async function FoursomesPage({
         sides={teams.map((t) => t.members.map((m) => m.playerId))}
         // "7 foursomes · 1 twosome", or "7 fourballs · 1 two-ball" for a UK club.
         terms={await golfTermsForEvent(session.eventId)}
-        standings={standings}
+        standings={sideStandings.length > 0 ? sideStandings : standings}
         holes={holes}
         stageId={stage?.id ?? ""}
         savedAt={stage ? parseTeeSheet(stage.teeSheet)?.savedAt ?? "" : ""}

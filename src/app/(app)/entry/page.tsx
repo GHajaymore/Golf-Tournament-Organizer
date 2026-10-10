@@ -29,6 +29,7 @@ import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/do
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard, matchStrokesPerHole } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
+import { TeamScoreImport } from "@/components/TeamScoreImport";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
@@ -465,6 +466,16 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
         <p className="kicker">Manage</p>
         <h1 className="page-title">Score entry</h1>
         {cupNav}
+        {/* A team round comes back as a spreadsheet as often as a medal does. */}
+        {isStaff && teams.length > 0 && (
+          <TeamScoreImport
+            stageId={activeStage.id}
+            format={activeStage.format}
+            holes={holeCount}
+            field={teams.flatMap((t) => t.members.map((m) => ({ id: m.playerId, name: m.name })))}
+            team={{ shared: sideOnlyFormat, sides: teams.map((t) => ({ id: t.id, name: t.name })) }}
+          />
+        )}
         {teamEntry}
       </>
     );

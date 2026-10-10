@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
-import { importScores } from "@/app/actions/tournament";
+import { importScores, importTeamScores } from "@/app/actions/tournament";
 import {
   parseScoreCsv,
   importShapesFor,
@@ -12,6 +12,9 @@ import {
 } from "@/lib/domain/score-import";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
+
+/** A side, among the names a row can match — never a player id. */
+const SIDE = "side:";
 
 /**
  * Bulk score import.
@@ -31,8 +34,15 @@ export function ScoreImport({
   format,
   holes,
   field,
+  team,
   onDone,
 }: {
+  /**
+   * A TEAM ROUND (2026-10-10): its sides, and whether a side plays one ball.
+   * Gross cards only — see `importTeamScores`. On a shared ball a row may
+   * name the side itself, so the sides join the names a row can match.
+   */
+  team?: { shared: boolean; sides: { id: string; name: string }[] };
   stageId: string;
   /** The round's format — decides which file shapes are even offered. */
   format: string;
@@ -40,7 +50,11 @@ export function ScoreImport({
   field: FieldPlayer[];
   onDone?: () => void;
 }) {
-  const allowed = useMemo(() => importShapesFor(format), [format]);
+  const allowed = useMemo<ScoreImportShape[]>(() => (team ? ["strokes"] : importShapesFor(format)), [format, team]);
+  const names = useMemo(
+    () => (team?.shared ? [...team.sides.map((t) => ({ id: SIDE + t.id, name: t.name })), ...field] : field),
+    [team, field],
+  );
   const [shape, setShape] = useState<ScoreImportShape>(allowed[0]);
   const [text, setText] = useState("");
   const [result, setResult] = useState<{ written: number; problems?: string[] } | null>(null);
@@ -52,8 +66,8 @@ export function ScoreImport({
 
   // Parsed live, so the verdict is visible before anything is committed.
   const parsed = useMemo(
-    () => (text.trim() ? parseScoreCsv(text, active.key, field, holes) : null),
-    [text, active.key, field, holes],
+    () => (text.trim() ? parseScoreCsv(text, active.key, names, holes) : null),
+    [text, active.key, names, holes],
   );
 
   const readFile = (file: File) => {
@@ -82,7 +96,16 @@ export function ScoreImport({
               winner: r.winner,
               margin: r.margin,
             }));
-      const res = await importScores(stageId, active.key, rows);
+      const res = team
+        ? await importTeamScores(
+            stageId,
+            parsed.strokeRows.map((r) =>
+              r.playerId.startsWith(SIDE)
+                ? { teamId: r.playerId.slice(SIDE.length), strokes: r.strokes }
+                : { playerId: r.playerId, strokes: r.strokes },
+            ),
+          )
+        : await importScores(stageId, active.key, rows);
       if (!res.ok) {
         setError(res.error ?? "Nothing could be imported.");
         return;
@@ -105,6 +128,13 @@ export function ScoreImport({
           Paste a CSV or drop the file in. Every row is checked against this tournament&rsquo;s field before
           anything is written.
         </p>
+        {team && (
+          <p style={{ fontSize: 13, margin: "6px 0 0", maxWidth: "70ch", lineHeight: 1.5 }}>
+            {team.shared
+              ? "One row per side, gross. In the Player column, put the side's name or one of its players."
+              : "One row per player, gross. Each card goes on that player's side."}
+          </p>
+        )}
       </div>
 
       {/* Only the shapes this format can score. A Stableford round has no hole

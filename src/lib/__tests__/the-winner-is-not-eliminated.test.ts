@@ -57,7 +57,8 @@ describe("Reports hands the export the answer", () => {
 describe("the other exports take the board's places", () => {
   const reports = () => readSource("src/app/(app)/reports/page.tsx");
   it("team standings", () => {
-    expect(reports()).toMatch(/placesByValue\(teams, \(t\) => valueOnBasis\(basis, t\), \(t\) => t\.played > 0\)/);
+    // `teamPlaceValue`: the figure `teamStandings` sorts on (2026-10-10).
+    expect(reports()).toMatch(/placesByValue\(teams, \(t\) => teamPlaceValue\(basis, t\), \(t\) => t\.played > 0\)/);
   });
   it("modified Stableford", () => {
     expect(reports()).toMatch(/placesByValue\(mod, \(r\) => r\.points, \(r\) => r\.played > 0\)/);
