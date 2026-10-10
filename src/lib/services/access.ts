@@ -333,6 +333,36 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
     }
   }
 
+  /**
+   * AND A MEMBER ON THE CLUB'S ROSTER IS ONE OF ITS MEMBERS (2026-10-10).
+   *
+   * A society imported its 110 members — names, emails, handicaps — and every
+   * one of them who signed in read "No tournaments yet": the roster is a list
+   * the organizer keeps, and only an `OrganizationMember` row (a join request
+   * approved) opened the club's calendar. Every club system links the two by
+   * email; that IS how "sign in and enter" works for a club's membership.
+   *
+   * What it grants is what the block above grants a member: the club's
+   * tournaments, to watch and to enter themselves — `player`, never staff, and
+   * never an upgrade of an explicit role. It is no wider than the public
+   * sign-up link, which takes anyone's name and email already; card writes are
+   * gated on the player's OWN entry (`assertOwnCard`), not on this. An INACTIVE
+   * roster row (a lapsed member) grants nothing.
+   */
+  const rostered = await prisma.member.findMany({
+    where: { email: { equals: email, mode: "insensitive" }, status: "active", NOT: { email: "" } },
+    select: { organizationId: true },
+  });
+  if (rostered.length) {
+    const clubEvents = await prisma.event.findMany({
+      where: { organizationId: { in: [...new Set(rostered.map((m) => m.organizationId))] } },
+      select: { id: true },
+    });
+    for (const e of clubEvents) {
+      if (!byEvent.has(e.id)) byEvent.set(e.id, { eventId: e.id, role: "player", source: "organization" });
+    }
+  }
+
   return [...byEvent.values()];
 }
 
