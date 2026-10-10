@@ -98,6 +98,34 @@ test("a double-tap on a score keeps it", async ({ page }) => {
   }
 });
 
+/**
+ * A TWO-DIGIT SCORE TYPED AT A HUMAN PACE IS THAT SCORE (2026-10-09). "Other"
+ * moved the card on at every keystroke, so a 10 typed as "1" … "0" recorded
+ * an ACE on a par 4 and threw the "0" at the next hole — walked on a member's
+ * phone: GROSS 1, TO PAR -3.
+ */
+test("a 10 typed slowly into Other is a 10, on the hole it was typed on", async ({ page }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  const other = page.locator("#hbh-other");
+  const label = (await other.getAttribute("aria-label"))!;
+  const n = label.replace(/\D+/g, "");
+  await other.click();
+  await page.keyboard.type("1");
+  await page.waitForTimeout(400);
+  await page.keyboard.type("0");
+  try {
+    await page.waitForTimeout(800);
+    await expect(page.locator("#hbh-other"), "the card moved on mid-number").toHaveAttribute("aria-label", label);
+    await expect(page.locator("#hbh-other")).toHaveValue("10");
+  } finally {
+    // Back as it was, for the projects that read the fixture after this one.
+    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.getByRole("textbox", { name: label }).fill("");
+    await page.waitForTimeout(1500);
+  }
+});
+
 test("the board a player sees matches the one the share link shows", async ({ page, context }) => {
   // Both render PlayerLeaderboard from the same standings. If these ever
   // differ, meFor and standingRows have drifted apart — which is the failure

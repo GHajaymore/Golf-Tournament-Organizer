@@ -227,7 +227,35 @@ export function HoleByHoleCard({
 
   const par = pars[hole];
   const solo = players.length === 1;
-  const go = (next: number) => setHole(Math.max(0, Math.min(holes - 1, next)));
+
+  /**
+   * ONE PENDING ADVANCE, CANCELLED BY ANYTHING THAT MOVES THE CARD (2026-10-09).
+   *
+   * Each score set a bare 160ms timer to `go(hole + 1)`, captured at the hole
+   * it was set on and cancelled by nothing. A player who moved on themselves —
+   * the strip, Next — inside that window was yanked back by the stale timer,
+   * and their next score landed on the hole behind: walked on a member's card,
+   * the 12th's 3 written over the 11th. So there is one timer, any navigation
+   * clears it, and when it fires it advances only from the hole it was set on.
+   */
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAdvance = () => {
+    if (advance.current) clearTimeout(advance.current);
+    advance.current = null;
+  };
+  useEffect(() => cancelAdvance, []);
+  const go = (next: number) => {
+    cancelAdvance();
+    setHole(Math.max(0, Math.min(holes - 1, next)));
+  };
+  const advanceFrom = (from: number) => {
+    cancelAdvance();
+    if (from >= holes - 1) return;
+    advance.current = setTimeout(() => {
+      advance.current = null;
+      setHole((h) => (h === from ? from + 1 : h));
+    }, 160);
+  };
 
   const strokesOf = (id: string) => cards[id] ?? new Array(holes).fill(null);
 
@@ -244,12 +272,20 @@ export function HoleByHoleCard({
     return { toPar: total, played };
   };
 
-  const set = (playerId: string, v: number | null) => {
+  /**
+   * `moveOn` is false while a score is being TYPED: "10" arrives as "1" then
+   * "0", and advancing on the "1" recorded a 10 as an ace and threw the "0" at
+   * the next hole (walked 2026-10-09: GROSS 1, TO PAR -3 on a par 4). The pad's
+   * buttons are one deliberate value each and move on; the typed box moves on
+   * at Enter.
+   */
+  const set = (playerId: string, v: number | null, moveOn = true) => {
     onSet(playerId, hole, v);
     // Only advance on a solo card. On a group card the scorer is part way
     // through the hole and moving the screen out from under them would be
     // actively hostile.
-    if (solo && v != null && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+    if (solo && moveOn && v != null) advanceFrom(hole);
+    else cancelAdvance();
   };
 
   /**
@@ -503,7 +539,8 @@ export function HoleByHoleCard({
               firstHole={firstHole}
               par={par}
               value={strokesOf(players[0].id)[hole] ?? null}
-              onPick={(v) => set(players[0].id, v)}
+              onPick={(v, moveOn) => set(players[0].id, v, moveOn)}
+              onDone={() => advanceFrom(hole)}
             />
             {onPickUp && (
               <PickUpToggle
@@ -513,7 +550,8 @@ export function HoleByHoleCard({
                 onToggle={(on) => {
                   onPickUp(players[0].id, hole, on);
                   // Out of the hole is a hole finished: on to the next.
-                  if (on && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+                  if (on) advanceFrom(hole);
+                  else cancelAdvance();
                 }}
               />
             )}
@@ -700,6 +738,7 @@ function SoloPad({
   par,
   value,
   onPick,
+  onDone,
   firstHole = 1,
 }: {
   player: CardPlayer;
@@ -708,7 +747,10 @@ function SoloPad({
   firstHole?: number;
   par: number | undefined;
   value: number | null;
-  onPick: (v: number | null) => void;
+  /** `moveOn` false while a score is still being typed — see `set`. */
+  onPick: (v: number | null, moveOn?: boolean) => void;
+  /** The typed score is finished (Enter): move on as a tap would. */
+  onDone?: () => void;
 }) {
   const shots = player.shotsOn?.(hole) ?? 0;
   return (
@@ -774,7 +816,10 @@ function SoloPad({
           className={`input sc-score${scoreMark(value, par)}`}
           inputMode="numeric"
           value={value ?? ""}
-          onChange={(e) => onPick(parseStroke(e.target.value))}
+          onChange={(e) => onPick(parseStroke(e.target.value), false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && value != null) onDone?.();
+          }}
           aria-label={`Strokes on hole ${holeNumber(hole, firstHole)}`}
           style={{ width: 76, minHeight: 44, textAlign: "center", fontSize: 17, fontVariantNumeric: "tabular-nums" }}
         />
