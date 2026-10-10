@@ -141,8 +141,16 @@ export function todaysThru(
   row: Pick<BoardRow, "thru" | "holesOwed"> & TodayFields,
   holes: number,
 ): { thru: number; owed: number } {
+  /**
+   * A MISSED ROUND IS NOT TODAY'S ROUND (2026-10-10). `missedRound` names any
+   * closed round the player has no card for, and was read as "not in today's
+   * round" — so a league member who missed week 2 and played week 3 read
+   * "thru 18" on a nine-hole league: the tournament count, against everybody
+   * else's 9. Out of today's round only when today's card is empty too.
+   */
+  const missedToday = !!row.missedRound && !row.roundThru;
   const inRound =
-    row.roundThru !== undefined && !row.missedCut && !row.missedRound && !row.withdrew && !row.disqualified;
+    row.roundThru !== undefined && !row.missedCut && !missedToday && !row.withdrew && !row.disqualified;
   return inRound
     ? { thru: row.roundThru!, owed: row.roundHoles && row.roundHoles > 0 ? row.roundHoles : holes }
     : { thru: row.thru, owed: row.holesOwed > 0 ? row.holesOwed : holes };

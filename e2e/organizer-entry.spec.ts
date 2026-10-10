@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -48,12 +49,12 @@ test("a member enters from the link, signs in, and scores their own card", async
   await page.context().addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   // The member's own phone: nobody signed in.
   const memberCtx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
   const member = await memberCtx.newPage();
-  member.on("pageerror", (e) => errors.push(`member ${new URL(member.url()).pathname}: ${String(e)}`));
+  watchPageErrors(member, errors, "member");
 
   try {
     let link = "";

@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Browser, type TestInfo } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 
 /**
@@ -50,7 +51,7 @@ test("a player reports their knockout tie; the organizer approves it and the dra
   test.setTimeout(360_000);
   await page.context().addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("a four-player knockout, launched", async () => {
     await open(page, "/choose");
@@ -96,8 +97,8 @@ test("a player reports their knockout tie; the organizer approves it and the dra
   const alderCtx = await phoneOf(browser, testInfo, baseURL!, "Alder Quayle");
   const dune = await duneCtx.newPage();
   const alder = await alderCtx.newPage();
-  dune.on("pageerror", (e) => errors.push(`dune ${new URL(dune.url()).pathname}: ${String(e)}`));
-  alder.on("pageerror", (e) => errors.push(`alder ${new URL(alder.url()).pathname}: ${String(e)}`));
+  watchPageErrors(dune, errors, "dune");
+  watchPageErrors(alder, errors, "alder");
 
   try {
     await test.step("Dune reports beating the top seed, 2&1", async () => {

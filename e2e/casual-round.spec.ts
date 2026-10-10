@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedCasual, teardownCasual } from "./casual-fixture.mjs";
 
 /**
@@ -71,7 +72,7 @@ async function setUp(
 ) {
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await page.goto("/match/new");
   await page.getByRole("button", { name: new RegExp(`^${format}\\b`) }).click();

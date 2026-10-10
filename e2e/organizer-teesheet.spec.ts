@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -50,7 +51,7 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
   test.setTimeout(360_000);
   await page.context().addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("a one-round medal with six players, launched", async () => {
     await open(page, "/choose");
@@ -102,7 +103,7 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
   const fernIndex = FIELD.findIndex((p) => p.name === MEMBER);
   await memberCtx.addCookies([{ name: "ng_session", value: await memberSession(medalEmail(fernIndex), MEMBER), url: baseURL! }]);
   const member = await memberCtx.newPage();
-  member.on("pageerror", (e) => errors.push(`member ${new URL(member.url()).pathname}: ${String(e)}`));
+  watchPageErrors(member, errors, "member");
 
   try {
     await test.step("before it is published, the member sees no tee time", async () => {

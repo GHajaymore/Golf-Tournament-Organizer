@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedCup, teardownCup, PARS, CUP_EVENT } from "./cup-fixture.mjs";
 
 /**
@@ -147,7 +148,7 @@ const myMatch = (page: Page, session: string) => cupCard(page).getByRole("listit
 test("a team cup, played by its players", async ({ page, baseURL }) => {
   test.setTimeout(480_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("the captains' lineup for Saturday, still a draft", async () => {
     await as(page, baseURL!, "organizer");

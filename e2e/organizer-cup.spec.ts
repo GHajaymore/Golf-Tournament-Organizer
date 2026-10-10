@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -43,7 +44,7 @@ async function open(page: Page, path: string) {
 test("a new organizer sets up a team cup", async ({ page }) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("create it from the team cup starting point", async () => {
     await open(page, "/choose");

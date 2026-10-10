@@ -765,6 +765,16 @@ two dialogs in the app are measured in `e2e/dialog.spec.ts`, and
 kind — so a later change making this one a proper modal would resolve the
 scroll-to and should be noticed rather than discovered.
 
+**AND A FOURTH: React #418, a hydration mismatch, on a screen your change did not
+touch.** `/me`, a knockout, `/cup`, `/stages` — never the same screen twice, cleared
+every time by `gh run rerun --failed`. On 2026-10-10 six runs of the two specs it
+last hit, against a DEV server that prints the full diff, did not produce it once.
+So every spec now records page errors through `e2e/page-errors.ts`, which on a
+#418 re-fetches the URL and logs where the server's text and the hydrated page's
+text first part, as a `[hydration #418]` line in the job log. Read that line
+before re-running: it is the only evidence this fault has ever left. "server and
+client text are identical" means the mismatch was in markup or attributes.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the

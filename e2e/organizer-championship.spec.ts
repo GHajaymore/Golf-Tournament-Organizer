@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
 
@@ -96,7 +97,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
   test.setTimeout(480_000);
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("create the tournament: a series of rounds", async () => {
     await open(page, "/choose");
