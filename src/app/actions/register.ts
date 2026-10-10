@@ -3,6 +3,7 @@ import { teeMatcherFor } from "@/lib/services/handicaps";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
@@ -68,7 +69,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // hammering one link; the email cap stops one person submitting over and over.
   const byToken = await checkRateLimit("register-token", cleanToken);
   if (!byToken.allowed) return { ok: false, error: byToken.message };
-  const byEmail = await checkRateLimit("register-email", person.email);
+  const byEmail = await checkRateLimit("register-email", entryLimitKey(person.email, cleanToken));
   if (!byEmail.allowed) return { ok: false, error: byEmail.message };
 
   // findFirst, not findUnique: registrationToken's uniqueness is a PARTIAL index

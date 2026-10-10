@@ -99,6 +99,12 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * hour absorbs a genuine double-tap or a typo-and-retry; beyond that it is
    * someone poking at the form, and they wait.
    */
+  //
+  // PER TOURNAMENT, not per address (2026-10-10) — see `entryLimitKey`. Keyed
+  // on the email alone, the "no reason to register many times" above was true
+  // of one tournament and false of a season: a society member entering the
+  // calendar the evening it went up was told "Too many registration attempts"
+  // at the seventh event, by a cap written for a double-tap.
   "register-email": { limit: 6, windowMs: 60 * MINUTE },
   /** Reading a scorecard photograph costs money per call, so this is a
    *  spend limit as much as an abuse one. Forty an hour covers a full field
@@ -304,4 +310,20 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "join-request":
       return `Too many requests to join. Wait ${wait} and try again.`;
   }
+}
+
+/**
+ * WHAT `register-email` COUNTS: one person's attempts at ONE tournament.
+ *
+ * The cap is there for a double-tap, a typo-and-retry, or somebody poking at
+ * one form — all of them about a single tournament. Counting every tournament
+ * together refused a member entering a published season in one sitting. The
+ * link itself keeps its own budget (`register-token`), so a script working one
+ * address across many links still meets a cap on every one of them.
+ *
+ * `tournament` is whatever names it at the call site: the event id, or the
+ * public link's token.
+ */
+export function entryLimitKey(email: string, tournament: string): string {
+  return `${email.trim().toLowerCase()}|${tournament}`;
 }

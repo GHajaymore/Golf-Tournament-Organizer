@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { entryLimitKey } from "@/lib/domain/rate-limit";
 import { accessibleEvents } from "@/lib/services/access";
 import { decideIntake, approvalModeOf, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
@@ -68,7 +69,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
 
   // Counted before the lookup, like every other limiter here: a refusal then
   // costs the caller a query they do not get.
-  const limit = await checkRateLimit("register-email", session.email);
+  const limit = await checkRateLimit("register-email", entryLimitKey(session.email, eventId));
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const reachable = await accessibleEvents(session.email);
@@ -315,7 +316,7 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
 
-  const limit = await checkRateLimit("register-email", session.email);
+  const limit = await checkRateLimit("register-email", entryLimitKey(session.email, eventId));
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const reachable = await accessibleEvents(session.email);
