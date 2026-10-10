@@ -297,6 +297,11 @@ describe("a stroke-play cut", () => {
     });
     const state = await loadEventState(eventId);
     expect((await meFor(state!, `${lower}-d@example.invalid`)).round?.group).toBeNull();
+    // Nor "you're not on the tee sheet yet — the organizer will add you".
+    await prisma.stage.update({ where: { id: r2 }, data: { teeSheet: JSON.stringify(sheet([id.a, id.b, id.c])) } });
+    const after = await loadEventState(eventId);
+    expect((await meFor(after!, `${lower}-d@example.invalid`)).round?.offSheet).toBe(false);
+    expect((await meFor(after!, `${lower}-n1@example.invalid`)).round?.offSheet, "a no-show the cut left out").toBe(false);
     expect((await meFor(state!, `${lower}-a@example.invalid`)).round?.group?.time, "control: a survivor").toBe("8:00 AM");
   });
 

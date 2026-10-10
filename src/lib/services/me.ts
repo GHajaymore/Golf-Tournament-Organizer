@@ -671,7 +671,8 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       closed: stage.closedAt != null,
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
-      offSheet: !!sheet && sheet.groups.length > 0 && !mine,
+      // Not somebody the cut left out: nobody is going to add them to a group.
+      offSheet: madeIt && !!sheet && sheet.groups.length > 0 && !mine,
       matches: myMatches,
       tie,
       tieReport,
