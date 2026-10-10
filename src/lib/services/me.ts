@@ -11,7 +11,7 @@ import { strokeCutField, cutFeederName } from "@/lib/services/stroke-cut";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
-import { filledHoles } from "@/lib/domain/card-approval";
+import { cardIsFinished, filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
 import { placesWithin } from "@/lib/domain/flight-places";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -385,7 +385,38 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     state.boardStage?.closedAt != null && state.event.status !== "completed" && boardIdx >= 0
       ? (state.playRounds.slice(boardIdx + 1).find((s) => s.closedAt == null) ?? null)
       : null;
-  const stage = nextOpen ?? state.boardStage;
+  let stage = nextOpen ?? state.boardStage;
+  /**
+   * AND PAST A ROUND I HAVE FINISHED, ONCE THE NEXT ONE IS READY (2026-10-10).
+   *
+   * The rule above waits for the committee to close the round. Most don't, the
+   * same evening: Sunday morning of an undated two-day championship, Round 1
+   * still open and Round 2's sheet published, the board rightly stays on Round
+   * 1 — and so did every player's My card and Today, showing a finished card
+   * with no way to start Round 2. Walked on a three-week league: the first
+   * member to score week 2 was handed week 1's full card, and typed over it.
+   *
+   * A card with every hole filled is not a round to play. When mine is, and the
+   * next open round is prepared the way `boardStage` reads it (its sheet is
+   * published or cards are in), my round is that one. A card still being
+   * played, or a next round nobody has set up, changes nothing.
+   *
+   * As far as it holds, not one step: in a league nobody closes, week 3 can
+   * find the board still on week 1 and a member with weeks 1 and 2 both done.
+   */
+  if (!nextOpen && playerId && stage && state.event.status !== "completed" && boardIdx >= 0) {
+    for (let from = boardIdx; stage && !needsTeams(stage.format); ) {
+      const after = state.playRounds.slice(from + 1).find((s) => s.closedAt == null) ?? null;
+      if (!after) break;
+      const [mine, nextCards] = await Promise.all([
+        prisma.scorecard.findFirst({ where: { stageId: stage.id, playerId }, select: { strokes: true } }),
+        after.teeSheetPublished ? Promise.resolve(1) : prisma.scorecard.count({ where: { stageId: after.id } }),
+      ]);
+      if (!cardIsFinished(mine?.strokes, holesPlayed(stage.holes)) || nextCards === 0) break;
+      stage = after;
+      from = state.playRounds.findIndex((s) => s.id === after.id);
+    }
+  }
   if (!playerId || !stage) {
     return { playerId, name: player?.name ?? "", standing: null, round: null };
   }

@@ -124,6 +124,20 @@ export function filledHoles(strokes: (number | null)[], holes: number): number {
 }
 
 /**
+ * Every hole of the round has a score — a stored card (its JSON) the player
+ * has finished, whatever its status. Unreadable or absent reads as not.
+ */
+export function cardIsFinished(strokes: string | null | undefined, holes: number): boolean {
+  if (!strokes || holes <= 0) return false;
+  try {
+    const parsed = JSON.parse(strokes) as unknown;
+    return Array.isArray(parsed) && filledHoles(parsed as (number | null)[], holes) >= holes;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Split a round's cards into the ones a blanket approval may take and the ones
  * it may not.
  *

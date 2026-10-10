@@ -314,8 +314,10 @@ ${active.sampleRow}`}
       {result && (
         <div style={{ fontSize: 13 }}>
           <p style={{ margin: 0, color: "var(--color-accent-2-200)" }}>
-            <Icon name="check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}. They
-            sit as pending until approved, the same as a typed card.
+            <Icon name="check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}.{" "}
+            {team
+              ? "They are on the board."
+              : "Finished cards are in as returned. Accept them under Approve this round."}
           </p>
           {result.problems?.map((p, i) => (
             <p key={i} style={{ margin: "4px 0 0", color: "var(--color-danger)" }}>
