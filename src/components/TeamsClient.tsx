@@ -114,6 +114,8 @@ export function TeamsClient({
   const busy = pending || locked;
   const [newName, setNewName] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
+  // Said after a draw that also gave the same sides to rounds that had none.
+  const [drawNote, setDrawNote] = useState("");
   const [confirmMatches, setConfirmMatches] = useState(false);
   const [addingTo, setAddingTo] = useState("");
 
@@ -175,6 +177,11 @@ export function TeamsClient({
       }
       setConfirmDraw(false);
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
+      setDrawNote(
+        res.ok && res.alsoRounds
+          ? `The same sides were given to ${res.alsoRounds === 1 ? "the other round" : `the other ${res.alsoRounds} rounds`} in this format, which had none.`
+          : "",
+      );
     });
   };
 
@@ -247,6 +254,11 @@ export function TeamsClient({
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>
+      )}
+      {drawNote && !error && (
+        <p className="text-muted" role="status" style={{ fontSize: 13, margin: 0 }}>
+          {drawNote}
+        </p>
       )}
 
       {league && (

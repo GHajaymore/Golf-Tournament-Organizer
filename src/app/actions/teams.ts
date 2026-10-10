@@ -382,6 +382,8 @@ export interface DrawResult extends TeamResult {
   /** Set when the draw would replace sides that already exist. */
   needsConfirm?: boolean;
   existing?: number;
+  /** How many OTHER rounds of this format had no sides and were given the same ones. */
+  alsoRounds?: number;
 }
 
 /**
@@ -442,17 +444,36 @@ export async function autoDrawTeams(
    */
   const sides = snakeDraw(players, findFormat(stage.format).sideSize, sideSizeRange(stage.format));
 
-  for (let i = 0; i < sides.length; i += 1) {
-    const team = await prisma.team.create({
-      data: { eventId, stageId, name: `Team ${i + 1}`, seed: i + 1 },
-    });
-    await prisma.teamMember.createMany({
-      data: sides[i].map((p, pos) => ({ teamId: team.id, playerId: p.id, position: pos })),
-    });
+  /**
+   * AND THE SAME PAIRS FOR EVERY OTHER ROUND OF THIS FORMAT THAT HAS NONE
+   * (2026-10-10). A two-round better-ball is the same sixty pairs twice. Walked
+   * on a club's: the secretary drew sides for Round 1, launched — which locks
+   * setup — and Round 2 had no sides at all. Its tee sheet was then drawn
+   * player by player and split every partnership, with nothing on screen to
+   * say why, and drawing Round 2's sides meant unlocking setup mid-event.
+   *
+   * Only rounds with NO sides yet are filled, so a club that pairs differently
+   * each round keeps what it built; and only rounds with no team cards, which a
+   * round without sides cannot have anyway.
+   */
+  const others = await prisma.stage.findMany({
+    where: { eventId, id: { not: stageId }, format: stage.format, type: { not: CUP_SESSION } },
+    select: { id: true, _count: { select: { teams: true } } },
+  });
+  const empty = others.filter((s) => s._count.teams === 0).map((s) => s.id);
+  for (const round of [stageId, ...empty]) {
+    for (let i = 0; i < sides.length; i += 1) {
+      const team = await prisma.team.create({
+        data: { eventId, stageId: round, name: `Team ${i + 1}`, seed: i + 1 },
+      });
+      await prisma.teamMember.createMany({
+        data: sides[i].map((p, pos) => ({ teamId: team.id, playerId: p.id, position: pos })),
+      });
+    }
   }
 
   await refresh();
-  return { ok: true };
+  return { ok: true, alsoRounds: empty.length };
 }
 
 /**
