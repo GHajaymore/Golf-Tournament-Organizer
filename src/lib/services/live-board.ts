@@ -21,6 +21,7 @@ import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
 import { holesPlayed } from "../domain/handicap";
 import { storedMatchIsOver } from "../domain/match";
+import { eventPairTotals, type EventPairTotals } from "./pair-totals";
 
 /**
  * Everything the public board shows, computed once and shared by the crowd.
@@ -60,6 +61,8 @@ export interface LiveBoardView {
   teamFormat: string;
   rows: ReturnType<typeof standingRows>;
   teamRows: Awaited<ReturnType<typeof teamStandings>>;
+  /** The pairs' total over every team round, when there is one — see `eventPairTotals`. */
+  pairTotals: EventPairTotals | null;
   /** Sides ranked on their MATCHES, for a head-to-head team round. Empty
    *  otherwise — the board branches on `kind`, not on this being non-empty. */
   teamMatchRows: Awaited<ReturnType<typeof teamMatchBoard>>;
@@ -481,6 +484,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
           [soleVenueCourse(event)?.name, soleVenueCourse(event)?.city].filter(Boolean).join(", "),
     rows,
     teamRows,
+    pairTotals: teamRound ? await eventPairTotals(state) : null,
     teamMatchRows,
     pointsSystem,
     skins,
@@ -556,7 +560,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 5; // 5: `knockoutRound`, a decided draw's own words (2026-10-08)
+export const LIVE_BOARD_SHAPE = 6; // 6: `pairTotals`, a pairs event's total over its rounds (2026-10-10)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

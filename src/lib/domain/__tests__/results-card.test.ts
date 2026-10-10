@@ -383,13 +383,15 @@ describe("a team round's card", () => {
 
   it("shares a place where the round's own basis has two sides level", () => {
     // The engine hands the sides in board order; the card places them as the
-    // page's table does. Level on NET, apart on gross.
-    const level = [
-      { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18, toPar: -7 },
-      { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18, toPar: -7 },
-    ];
+    // page's table does. Level on NET, apart on gross. A side's to-par is on
+    // the round's own basis (`toParOnBasis`), and the table places on it.
+    const level = (basis: "gross" | "net") =>
+      [
+        { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18 },
+        { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18 },
+      ].map((s) => ({ ...s, toPar: (basis === "gross" ? s.gross : s.net) - 71 }));
     const places = (basis: "gross" | "net") => {
-      const c = resultsCard({ ...board(), rows: sideRowsForCard(level, basis, 18), isStroke: true, unit: `${basis} strokes` }, "public", "zz-club");
+      const c = resultsCard({ ...board(), rows: sideRowsForCard(level(basis), basis, 18), isStroke: true, unit: `${basis} strokes` }, "public", "zz-club");
       return c.kind === "standings" ? c.rows.map((r) => r.place) : [];
     };
     expect(places("net")).toEqual(["T1", "T1"]);

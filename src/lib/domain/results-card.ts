@@ -25,7 +25,7 @@
 import { todaysThru } from "./scoreboard";
 import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
 import { placesByValue } from "./flight-places";
-import { valueOnBasis, type WeekBasis } from "./week-basis";
+import { teamPlaceValue, type WeekBasis } from "./week-basis";
 
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
@@ -163,7 +163,7 @@ export function sideRowsForCard(
   basis: WeekBasis,
   holes: number,
 ): BoardForCard["rows"] {
-  const places = placesByValue(sides, (s) => valueOnBasis(basis, s), (s) => s.played > 0);
+  const places = placesByValue(sides, (s) => teamPlaceValue(basis, s), (s) => s.played > 0);
   return sides.map((s, i) => ({
     rank: places[i] ?? 0,
     name: s.name,

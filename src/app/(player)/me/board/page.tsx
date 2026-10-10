@@ -15,7 +15,8 @@ import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { resultLinesFor } from "@/lib/services/tournament-result";
 import { teamStandings } from "@/lib/services/teams";
-import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import { PairTotalsTable, TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import { eventPairTotals } from "@/lib/services/pair-totals";
 import {
   SkinsStandingsTable,
   NassauMatches,
@@ -237,6 +238,9 @@ export default async function PlayBoardPage({
             stage.countBest,
           )
         : null;
+    // The pairs' total over the event's team rounds — the board the organizer
+    // and the public link show above the round, so a member reads it too.
+    const pairs = sides ? await eventPairTotals(state) : null;
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
@@ -276,6 +280,7 @@ export default async function PlayBoardPage({
         )}
         {sides && (
           <div style={{ marginTop: 14 }}>
+            {pairs && <PairTotalsTable totals={pairs} />}
             <TeamStandingsTable
               basis={weekBasis(stage?.scoringBasis, stage?.format)}
               rows={sides}

@@ -11,7 +11,7 @@ import {
   NASSAU_NOTE,
   MOD_STABLEFORD_NOTE,
 } from "@/components/PointsLeaderboard";
-import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
+import { PairTotalsTable, TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
 import { EmbeddedBoard } from "@/components/EmbeddedBoard";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
@@ -273,6 +273,7 @@ export default async function PublicLeaderboardPage({
                `<h1>` is the tournament's name. See EmbeddedBoard. */
         board.teamRound ? (
           <EmbeddedBoard note={teamBoardNote(board.teamFormat, board.teamRows.length, board.teamBasis)}>
+            {board.pairTotals && <PairTotalsTable totals={board.pairTotals} />}
             <TeamStandingsTable basis={board.teamBasis} rows={board.teamRows} roundClosed={board.official} />
           </EmbeddedBoard>
         ) : board.kind === "skins" && board.skins ? (

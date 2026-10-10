@@ -32,9 +32,10 @@ function viewFields(): string[] {
 // 3: `rounds` and `shownStageId`, the round picker (2026-09-27).
 // 4: `official`, Final only once the committee closes the round (2026-10-08).
 // 5: `knockoutRound`, a decided draw says it waits on the tournament (2026-10-08).
-const SHAPE = 5;
+// 6: `pairTotals`, a pairs event's total over its rounds (2026-10-10).
+const SHAPE = 6;
 const FIELDS = [
-  "name", "dates", "venue", "teamFormat", "rows", "teamRows", "teamMatchRows", "pointsSystem",
+  "name", "dates", "venue", "teamFormat", "rows", "teamRows", "pairTotals", "teamMatchRows", "pointsSystem",
   "skins", "nassau", "modStableford", "skinsNet", "kind", "teamRound", "isStroke", "isStableford",
   "teamBasis", "holeCount", "cutNote", "unit", "manualFormat", "draws", "bracketResults",
   "straightKnockout", "allIn", "official", "knockoutRound", "roundLabel", "rounds", "shownStageId", "brand", "themeStyleSheet", "colorScheme",

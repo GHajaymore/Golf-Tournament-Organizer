@@ -261,6 +261,36 @@ export function valueOnBasis(
   return basis === "gross" ? row.gross : row.net;
 }
 
+/**
+ * A TEAM BOARD'S ORDER — RELATIVE TO PAR WHILE THE ROUND IS ON (2026-10-10).
+ *
+ * The team board compared raw totals, so in the middle of a round a side
+ * through 9 on 33 led a side through 18 on 68 — three under against four
+ * under, the wrong way round, on the board members follow as the round is
+ * played. The individual board has always ranked relative to the holes played
+ * (`scoreOnBasis`), and a team row's `toPar` is already on the round's own
+ * basis (`toParOnBasis`). Once every side is round the par subtracted is the
+ * same for all of them, so a finished order is unchanged. Stableford keeps its
+ * points.
+ */
+export function compareTeamRows(
+  basis: WeekBasis,
+  a: { gross: number; net: number; points: number; toPar: number },
+  b: { gross: number; net: number; points: number; toPar: number },
+): number {
+  if (basis === "stableford") return compareOnBasis(basis, a, b);
+  return a.toPar - b.toPar || compareOnBasis(basis, a, b);
+}
+
+/**
+ * The figure a team board's `#` column places on, matching `compareTeamRows`:
+ * points for Stableford, the to-par otherwise. Placing on the raw net while
+ * ordering on the to-par would number a part-played board out of sequence.
+ */
+export function teamPlaceValue(basis: WeekBasis, row: { points: number; toPar: number }): number {
+  return basis === "stableford" ? row.points : row.toPar;
+}
+
 /** Which way a season total is best: points high, strokes low. */
 export function directionOnBasis(basis: WeekBasis): "asc" | "desc" {
   return basis === "stableford" ? "desc" : "asc";

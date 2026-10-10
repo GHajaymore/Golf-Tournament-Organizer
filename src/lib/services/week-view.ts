@@ -23,6 +23,7 @@ import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
   valueOnBasis,
+  teamPlaceValue,
   directionOnBasis,
   compareNight,
   nightLevel,
@@ -315,7 +316,8 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * 3rd here. One of those is wrong on any convention, and it is the new one.
    *
    * The figure is `teamStandings`' own sort key — points for a Stableford,
-   * otherwise net — so the places run in the order the rows are already in.
+   * otherwise the to-par on the round's basis (`teamPlaceValue`) — so the
+   * places run in the order the rows are already in.
    */
   const sides: WeekSide[] = (() => {
     // `valueOnBasis`, so a gross team round places on gross. Written as
@@ -324,7 +326,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     // one rule, all three missing the same third case.
     const places = placesByValue(
       sideRows,
-      (s) => valueOnBasis(weekBasis(stage.scoringBasis, stage.format), s),
+      (s) => teamPlaceValue(weekBasis(stage.scoringBasis, stage.format), s),
       (s) => s.played > 0,
     );
     return sideRows.map((s, i) => ({ ...s, position: places[i] ?? null }));

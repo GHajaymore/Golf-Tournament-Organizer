@@ -1,5 +1,6 @@
 import type { TeamStanding } from "@/lib/services/teams";
-import { valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
+import { teamPlaceValue, valueOnBasis, type WeekBasis } from "@/lib/domain/week-basis";
+import type { EventPairTotals } from "@/lib/services/pair-totals";
 import { toParText } from "@/lib/domain";
 import { placesByValue, placeTexts } from "@/lib/domain/flight-places";
 import { MoreInfo } from "./MoreInfo";
@@ -16,12 +17,15 @@ export function TeamLeaderboard({
   basis,
   rows,
   roundClosed = false,
+  totals = null,
 }: {
   format: string;
   basis: WeekBasis;
   rows: TeamStanding[];
   /** See `TeamStandingsTable`. */
   roundClosed?: boolean;
+  /** The pairs' total over every team round, when there is one (`eventPairTotals`). */
+  totals?: EventPairTotals | null;
 }) {
   return (
     <>
@@ -32,6 +36,12 @@ export function TeamLeaderboard({
           {teamBoardNote(format, rows.length, basis)}
         </p>
       </div>
+      {totals && <PairTotalsTable totals={totals} />}
+      {totals && (
+        <h2 className="card-title" style={{ fontSize: 15, margin: "0 0 8px" }}>
+          This round
+        </h2>
+      )}
       <TeamStandingsTable basis={basis} rows={rows} roundClosed={roundClosed} />
     </>
   );
@@ -98,7 +108,7 @@ export function TeamStandingsTable({
    * `#` column agreed with the sort and both were wrong together.
    */
   // "T1" for a shared place, as every other board prints it — see `placeTexts`.
-  const places = placeTexts(placesByValue(rows, (r) => valueOnBasis(basis, r), (r) => r.played > 0));
+  const places = placeTexts(placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0));
 
   return (
     <>
@@ -215,5 +225,71 @@ export function TeamStandingsTable({
         </MoreInfo>
       </div>
     </>
+  );
+}
+
+/**
+ * THE PAIRS' TOTAL OVER EVERY TEAM ROUND (2026-10-10) — see `pairTotals`.
+ *
+ * A 36-hole pairs event is won on this table, so it leads the board and the
+ * round's own table follows it. One column per round prints that round's
+ * ranked figure, then the total and (for strokes) its to-par — the total is
+ * what the `#` column places on.
+ */
+export function PairTotalsTable({ totals }: { totals: EventPairTotals }) {
+  const { basis, labels, rows } = totals;
+  const stableford = basis === "stableford";
+  const places = placeTexts(placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0));
+  const num = { textAlign: "right", fontVariantNumeric: "tabular-nums" } as const;
+  return (
+    <div className="card elev-sm" style={{ marginBottom: 16 }}>
+      <h2 className="card-title" style={{ fontSize: 15, margin: "0 0 8px" }}>
+        Total over {labels.length} rounds
+      </h2>
+      <div className="table-scroll">
+        <table className="table" style={{ fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>#</th>
+              <th>Side</th>
+              {labels.map((l) => (
+                <th key={l} style={num}>{l}</th>
+              ))}
+              <th style={num}>{stableford ? "Points" : "Total"}</th>
+              {!stableford && <th style={num}>To par</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.key}>
+                <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
+                <td style={{ minWidth: "9.5em" }}>
+                  <div style={{ fontWeight: 500 }}>{r.name}</div>
+                  {!namedAfterPlayers(r.name, r.members) && (
+                    <div className="text-muted" style={{ fontSize: 13 }}>{r.members.join(" · ")}</div>
+                  )}
+                </td>
+                {r.rounds.map((v, j) => (
+                  <td key={labels[j]} style={num}>{v ?? "—"}</td>
+                ))}
+                <td style={{ ...num, fontWeight: stableford ? 600 : 400 }}>
+                  {r.played > 0 ? valueOnBasis(basis, r) : "—"}
+                </td>
+                {!stableford && (
+                  <td style={{ ...num, fontWeight: 600 }}>{r.played > 0 ? toParText(r.toPar) : "—"}</td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <MoreInfo
+        style={{ marginTop: 8 }}
+        short={stableford ? "Ranked on total points." : "Ranked on the total to par."}
+      >
+        The same pairs played every round, so their rounds are added together, as a 36-hole medal
+        is. Each round&apos;s figure is the one on that round&apos;s own board.
+      </MoreInfo>
+    </div>
   );
 }

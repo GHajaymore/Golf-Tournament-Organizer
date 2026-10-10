@@ -25,6 +25,7 @@ import { boardIntro, boardFootnote, boardShowsHighlights, boardShowsCommentary }
 import { unitIsNet } from "@/lib/domain/ranked-score";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings, teamMatchBoard } from "@/lib/services/teams";
+import { eventPairTotals } from "@/lib/services/pair-totals";
 import { TeamMatchLeaderboard } from "@/components/TeamMatchLeaderboard";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { boardKindForRound, isKnockoutRound, isStraightKnockout } from "@/lib/stage-types";
@@ -228,6 +229,7 @@ export default async function LeaderboardPage({
         basis={weekBasis(activeStage.scoringBasis, activeStage.format)}
         rows={standings}
         roundClosed={activeStage.closedAt != null}
+        totals={await eventPairTotals(state)}
       />,
     );
   }
