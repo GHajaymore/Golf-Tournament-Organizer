@@ -169,6 +169,26 @@ describe("a stroke-play cut", () => {
     expect((await loadEventState(eventId))!.cutReady).toBeNull();
   });
 
+  /**
+   * A DISQUALIFIED PLAYER'S CARD IS NOT A RESULT ANYONE IS WAITING ON
+   * (2026-10-09). Walked on a 120-player championship: a player DQ'd for not
+   * holing out kept the cut refused on "1 card needs your approval" — her
+   * twelve holes — while the dashboard counted the confirmed field as all in.
+   */
+  it("is not held up by the card of a player who has left the field", async () => {
+    const { strokeCutRefusal } = await import("@/lib/services/stroke-cut");
+    try {
+      for (const gone of ["disqualified", "withdrawn"]) {
+        await prisma.player.update({ where: { id: id.d }, data: { status: gone } });
+        expect(await strokeCutRefusal(eventId, r1), `${gone}: their card still blocks the cut`).toBeNull();
+      }
+    } finally {
+      await prisma.player.update({ where: { id: id.d }, data: { status: "confirmed" } });
+    }
+    // The control: back in the field, the same card is waiting on the committee.
+    expect(await strokeCutRefusal(eventId, r1)).toMatch(/1 card needs your approval/);
+  });
+
   it("is asked for on the dashboard once every card is approved", async () => {
     await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.d }, data: { status: "approved" } });
     const ready = (await loadEventState(eventId))!.cutReady;
