@@ -4417,6 +4417,16 @@ export async function setEventStatus(
     data: { status: s, completedAt: s === "completed" ? now : null },
   });
   /**
+   * AND THE CONSOLE STAYS ON IT (2026-10-10). With no active-event cookie — a
+   * fresh device, a new browser — the console shows the organizer's tournament
+   * being played NOW (`landingEvent`). Completing it stops it being that, so
+   * the very next screen silently became a different live tournament of the
+   * club's: walked as a secretary who pressed Complete and then read another
+   * event's leaderboard, at the moment the prizes were to be awarded from this
+   * one. Pinned here, by the act that would otherwise move them.
+   */
+  await setActiveEvent(eventId);
+  /**
    * COMPLETING CLOSES EVERY ROUND STILL OPEN — Ajay's call, 2026-09-26.
    *
    * A round is over when the organizer says so (#577), and marking the
