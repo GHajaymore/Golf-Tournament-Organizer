@@ -40,6 +40,30 @@ describe("allocatedStrokes", () => {
   });
 });
 
+describe("which ball counts depends on the round's basis (2026-10-10)", () => {
+  // Scratch makes a bogey 5 on the stroke-index-1 hole; the 18-handicapper
+  // makes a 6 with two shots there, a net 4. Pars elsewhere.
+  const scratch = member("scratch", [5, 4, 4, 4, 4, 4, 4, 4, 4], 0);
+  const high = member("high", [6, 5, 5, 5, 5, 5, 5, 5, 5], 18);
+
+  it("a GROSS four-ball counts the lower gross ball — the scratch 5, not the 6", () => {
+    const card = aggregateTeamCard([scratch, high], PARS_9, SI_9, 100, 1, "gross");
+    expect(card.holes[0]).toMatchObject({ gross: 5, playerId: "scratch" });
+    // Every hole the lower gross: 5 + eight 4s.
+    expect(card.grossTotal).toBe(37);
+    expect(card.toPar).toBe(1);
+  });
+
+  it("CONTROL: a NET four-ball counts the lower net ball — the 6 for a net 4", () => {
+    const card = aggregateTeamCard([scratch, high], PARS_9, SI_9, 100, 1, "net");
+    expect(card.holes[0]).toMatchObject({ net: 4, gross: 6, playerId: "high" });
+  });
+
+  it("and net is what an unspecified basis means, as it always was", () => {
+    expect(aggregateTeamCard([scratch, high], PARS_9, SI_9, 100).holes[0].playerId).toBe("high");
+  });
+});
+
 describe("aggregate team card (four-ball / best ball)", () => {
   it("takes the better net score on each hole", () => {
     const a = member("a", [5, 4, 6, 4, 4, 4, 4, 4, 4], 0);

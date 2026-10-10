@@ -70,6 +70,16 @@ export function aggregateTeamCard(
   strokeIndex: number[],
   allowancePct: number,
   countBest = 1,
+  /**
+   * WHICH BALL COUNTS — the better GROSS ball on a gross round (2026-10-10).
+   * Rule-wise a gross four-ball side scores the lower gross of its balls on
+   * each hole; this always took the lower NET, so a scratch player's par lost
+   * to a 30-handicapper's double bogey on a hole where the high player got two
+   * shots. Walked on a club's gross four-ball: a side read 81 gross where its
+   * own better balls made 74. Anything but exactly "gross" takes the net branch
+   * — every other basis is scored off handicap strokes.
+   */
+  basis: "gross" | "net" = "net",
 ): TeamCard {
   const holeCount = pars.length;
   const perPlayerStrokes = new Map(
@@ -100,7 +110,8 @@ export function aggregateTeamCard(
       // Lowest net counts. Gross breaks a net tie so the hole credits the
       // better actual score rather than whoever the input order happened to
       // put first — otherwise a team's card would depend on roster order.
-      .sort((a, b) => a.net - b.net || a.gross - b.gross);
+      // On a gross round, the other way about: lowest gross, net breaking it.
+      .sort((a, b) => (basis === "gross" ? a.gross - b.gross || a.net - b.net : a.net - b.net || a.gross - b.gross));
 
     if (candidates.length === 0) {
       holes.push({ net: null, gross: null, playerId: "", points: 0 });
