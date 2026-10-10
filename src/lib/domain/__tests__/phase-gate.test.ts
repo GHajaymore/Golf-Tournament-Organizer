@@ -112,15 +112,15 @@ describe("going live", () => {
 });
 
 describe("declaring it finished", () => {
-  it("refuses while cards are still waiting to be signed off", () => {
+  it("refuses while results are still waiting to be signed off — cards or matches", () => {
     const r = finishRefusal({ pendingConfirmations: 3, disputed: 0 });
-    expect(r).toContain("3 cards are still waiting");
+    expect(r).toContain("3 results are still waiting");
     expect(r).toContain("Score entry");
   });
 
-  it("says it in the singular for one card", () => {
+  it("says it in the singular for one result", () => {
     const r = finishRefusal({ pendingConfirmations: 1, disputed: 0 });
-    expect(r).toContain("1 card is still waiting");
+    expect(r).toContain("1 result is still waiting");
     expect(r).toContain("Approve or correct it");
   });
 
