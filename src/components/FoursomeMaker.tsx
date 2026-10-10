@@ -20,6 +20,7 @@ import {
   groupByStandings,
   orderGroups,
   positionLookup,
+  sidesByStandings,
   startSlots,
   type DrawOrder,
   type Standing,
@@ -175,10 +176,11 @@ export function FoursomeMaker({
     let formed;
     if (bySides) {
       // Whole sides, never split. The rule above only decides their ORDER:
-      // shuffled for Random, as drawn on the Teams screen otherwise (the
+      // shuffled for Random, the board's for By position (each pair stands
+      // where it finished), as drawn on the Teams screen otherwise (the
       // automatic draw has already balanced the sides by handicap).
       const onASide = new Set(playingSides.flat());
-      const sideOrder = [...playingSides];
+      const sideOrder = algo === "standings" ? sidesByStandings(playingSides, positionOf) : [...playingSides];
       if (algo === "random") {
         // Fisher–Yates on the sheet's own seeded generator, so "Reshuffle"
         // deals a new order and the same seed deals the same one.

@@ -317,3 +317,21 @@ export function startSlots(
     startHole: 1,
   }));
 }
+
+/**
+ * WHOLE SIDES IN BOARD ORDER — a pairs round drawn by position (2026-10-10).
+ *
+ * A side's place is its best-placed member's, which for sides kept from the
+ * previous round is the side's own place. Unplaced sides follow, in the order
+ * they came; `groupBySides` then packs them into groups without splitting one,
+ * and `orderGroups` decides leaders out first or last.
+ */
+export function sidesByStandings(
+  sides: readonly (readonly string[])[],
+  positionOf: (playerId: string) => number,
+): string[][] {
+  return sides
+    .map((s, i) => ({ s: [...s], i, pos: Math.min(...s.map(positionOf)) }))
+    .sort((a, b) => (a.pos === b.pos ? a.i - b.i : a.pos - b.pos))
+    .map((d) => d.s);
+}
