@@ -388,6 +388,7 @@ export async function teamStandings(
             strokeIndex,
             effectiveAllowance(format, allowanceOverride),
             effectiveCountBest(format, countBestOverride),
+            basis.trim().toLowerCase() === "gross" ? "gross" : "net",
           );
     return {
       teamId: t.id,

@@ -15,6 +15,7 @@ vi.mock("next/cache", () => ({
 
 import { enterThisTournament } from "@/app/actions/enter";
 import { clearRateLimit } from "@/lib/rate-limit";
+import { entryLimitKey } from "@/lib/domain/rate-limit";
 
 /**
  * A MEMBER PUTS THEIR NAME DOWN WITHOUT FILLING ANYTHING IN.
@@ -279,7 +280,7 @@ describe("the event id comes from the caller", () => {
     });
     // The attempts above spend this member's entry allowance; the refusal under
     // test sits behind it, so give it a fresh window.
-    await clearRateLimit("register-email", session.email);
+    await clearRateLimit("register-email", entryLimitKey(session.email, ruled));
     const res = await enterThisTournament(ruled);
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/disqualified/);

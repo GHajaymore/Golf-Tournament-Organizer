@@ -1074,7 +1074,8 @@ describe("open (self-service) registration defends its own endpoint", () => {
     // must run before the database is touched, so a refusal costs no query and
     // reveals nothing about whether the event exists.
     expect(body).toMatch(/checkRateLimit\("register-token", cleanToken\)/);
-    expect(body).toMatch(/checkRateLimit\("register-email", person\.email\)/);
+    // Per person PER TOURNAMENT (2026-10-10) — see `entryLimitKey`.
+    expect(body).toMatch(/checkRateLimit\("register-email", entryLimitKey\(person\.email, cleanToken\)\)/);
     // The event lookup comes after both checks.
     const tokenAt = body.indexOf('checkRateLimit("register-token"');
     const emailAt = body.indexOf('checkRateLimit("register-email"');

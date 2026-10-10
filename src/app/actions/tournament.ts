@@ -2912,13 +2912,26 @@ export async function saveTeamScorecard(
   pickedUp?: boolean[],
 ): Promise<{ ok: boolean; error?: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
-  try {
-    await assertOwnMatch(session, eventId, matchId);
-  } catch (e) {
-    // A draft cup lineup, said as a refusal: this action answers
-    // `{ ok, error }`, and its screen shows the error beside the card.
-    if (e instanceof Error && e.message === LINEUP_HIDDEN) return { ok: false, error: LINEUP_HIDDEN };
-    throw e;
+  /**
+   * ONLY AGAINST A MATCH (2026-10-10). A team STROKE round — a four-ball or a
+   * best-ball medal — has no match, and `matchId` is empty; asking
+   * `assertOwnMatch` about it threw "Match not found." for every member, so no
+   * player could save their own four-ball card anywhere, and the throw took the
+   * whole screen down ("This screen didn't load"). Walked on a club's 120-player
+   * four-ball. Staff never reached it — `assertOwnMatch` waves them through —
+   * which is why committee entry worked and hid it. A player's right to THIS
+   * card is checked below: on the side, and their own card.
+   *
+   * And answered, not thrown: this action returns `{ ok, error }` and its screen
+   * shows the error beside the card.
+   */
+  if (matchId) {
+    try {
+      await assertOwnMatch(session, eventId, matchId);
+    } catch (e) {
+      if (e instanceof Error) return { ok: false, error: e.message };
+      throw e;
+    }
   }
 
   const team = await prisma.team.findUnique({

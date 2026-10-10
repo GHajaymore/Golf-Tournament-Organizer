@@ -58,6 +58,15 @@ describe("the hand-hung scoreboard", () => {
     expect(leadersWithYou(rows, "zz", 3).map((x) => x.row.id)).toEqual(["a", "b", "c"]);
   });
 
+  /** A waitlisted society member's Today, the day before the round (2026-10-10). */
+  it("hangs nobody before anybody has a place", () => {
+    const before = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id, ranked: false }));
+    expect(leadersWithYou(before, "f", 5)).toEqual([]);
+    // The control: one card in, and the board hangs — the unranked rest included.
+    const one = before.map((r, i) => ({ ...r, ranked: i === 2 }));
+    expect(leadersWithYou(one, "f", 5).map((x) => x.row.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+
   it("marks a hole against its par, and never without one", () => {
     expect(tileMark(3, 4)).toBe("under");
     expect(tileMark(5, 4)).toBe("over");

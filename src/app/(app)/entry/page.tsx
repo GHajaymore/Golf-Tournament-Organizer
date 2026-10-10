@@ -370,6 +370,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               teamStrokeIndex,
               teamAllowance,
               effectiveCountBest(activeStage.format, activeStage.countBest),
+              // The same ball the board counts — see `aggregateTeamCard`.
+              activeStage.scoringBasis.trim().toLowerCase() === "gross" ? "gross" : "net",
             );
       rows.push({
         teamId,

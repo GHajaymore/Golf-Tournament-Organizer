@@ -1,7 +1,7 @@
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
+import { isManualFormat, needsTeams, boardKind, findFormat } from "@/lib/formats";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
@@ -302,6 +302,17 @@ export default async function PlayCardPage() {
   }
 
   if (teamRound || matchRound) {
+    /**
+     * A TEAM ROUND IS SCORED BY ITS PLAYERS TOO (2026-10-10). This read "Your
+     * organizer enters it" — and this page is only reached where players DO
+     * report their own scores (the refusal above returns first). Score entry
+     * already takes a four-ball partner's own card and a shared-ball side's one
+     * card from a player (`saveTeamScorecard`, and `/entry` shows a player
+     * exactly the cards they may save). Walked on a 120-player club four-ball:
+     * sixty pairs on the course and every member told the secretary would type
+     * their card in.
+     */
+    const ownBall = teamRound && !!stage && findFormat(stage.format).ball === "individual";
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
@@ -314,16 +325,22 @@ export default async function PlayCardPage() {
             myCardedSide
               ? `Your side's card is in: ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
               : teamRound
-                ? "This card belongs to your side."
+                ? ownBall
+                  ? "Keep your own card; the better ball counts for your side."
+                  : "Your side keeps one card; either of you enters it."
                 : "Match play: no card of your own."
           }
         >
           {teamRound
-            ? `${me.round.name} is played as ${stage?.format}, so the card belongs to your side rather than to you individually.`
+            ? ownBall
+              ? `${me.round.name} is played as ${stage?.format}: everyone plays their own ball, and the better score of the two counts for the side on every hole.`
+              : `${me.round.name} is played as ${stage?.format}: the side plays one ball, so it has one card between you.`
             : `${me.round.name} is match play, so your score is recorded against your opponent rather than as your own card.`}{" "}
           {myCardedSide
             ? `Your side's card is in: ${myCardedSide.name} went round in ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
-            : `Your ${terms.organizer} enters it, and it appears on the board as soon as it’s in.`}
+            : teamRound
+              ? "It appears on the board as soon as it’s in."
+              : `Your ${terms.organizer} enters it, and it appears on the board as soon as it’s in.`}
         </MoreInfo>
         {/* A way forward out of what was otherwise a dead end.
             A player taps "My card" on a match-play round, is told the card is
@@ -332,6 +349,9 @@ export default async function PlayCardPage() {
             offered first, and only when there is one to offer. */}
         <WayForward
           links={[
+            ...(teamRound && stage
+              ? [{ href: `/entry?round=${stage.id}`, label: ownBall ? "Enter my card" : "Enter our side's card", icon: "pencil-simple" }]
+              : []),
             ...(me.round.matches.length > 0
               ? [
                   {

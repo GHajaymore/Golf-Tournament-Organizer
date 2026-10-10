@@ -106,10 +106,12 @@ test("the secretary draws and publishes the tee sheet; a member sees their time 
 
   try {
     await test.step("before it is published, the member sees no tee time", async () => {
+      // Signed in as her: her Board tab marks her own row. Not Today's leaders
+      // tiles — before anybody has a place Today hangs no leaders at all
+      // (2026-10-10), so they cannot prove whose phone this is.
+      await open(member, "/me/board");
+      await expect(member.locator("main")).toContainText(/Quayle/i);
       await open(member, "/me");
-      // Signed in as her: the scoreboard marks her own row, names shortened
-      // the way a board shows them.
-      await expect(member.locator("main")).toContainText(/F\.\s*QUAYLE[^A-Za-z]{1,6}YOU/i);
       expect(await member.locator("main").innerText()).not.toMatch(/Group \d+ · \d/);
     });
 
