@@ -613,11 +613,17 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       // apart, and worse than useless while this screen was showing the wrong
       // one. The number is what the play shell and the score-entry picker
       // already call it.
-      label: roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.type || "This round"),
+      //
+      // And on a ONE-round event, where there is no number, the FORMAT before
+      // the type (2026-10-10): a society's Saturday Stableford told every
+      // member "You're in · Stroke Play Round" — the stage's internal type,
+      // which is "Stroke Play Round" for a Stableford, a scramble and a medal
+      // alike. The format is the thing they are about to play.
+      label: roundKicker(stage.description, roundNumberLabel(state, stage.id) || stage.format || stage.type || "This round"),
       // The same fallbacks WITHOUT the description — see the note on the field.
       // "This round" last, because a sentence needs a noun and every other
       // candidate here may legitimately be empty.
-      name: roundNumberLabel(state, stage.id) || stage.type || "This round",
+      name: roundNumberLabel(state, stage.id) || stage.format || stage.type || "This round",
       holes,
       /**
        * A match is scored against an opponent and a team round on the side's
