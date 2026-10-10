@@ -82,6 +82,14 @@ export function LifecycleBar({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /**
+   * COMPLETING AND REOPENING ARE CONFIRMED (2026-10-10). Completing publishes
+   * the result as final and closes every open round; it took one click, and
+   * nothing on screen undid it. Every club system asks before it finalizes, and
+   * lets the committee reopen to correct a card — so both ask here, and the
+   * completed tournament offers its Reopen.
+   */
+  const [confirmingStatus, setConfirmingStatus] = useState<"completed" | "live" | null>(null);
   const [pending, startTransition] = useTransition();
   /**
    * What the server said when it refused.
@@ -162,7 +170,7 @@ export function LifecycleBar({
           {isAdmin && action && (
             <button
               type="button"
-              className="btn btn-primary"
+              className={action.to === "live" ? "btn btn-secondary" : "btn btn-primary"}
               disabled={pending || !!blockedReason}
               // The reason travels with the control, so a disabled button is
               // never a dead end somebody has to guess at.
@@ -177,6 +185,10 @@ export function LifecycleBar({
                 if (!to) return;
                 if (to === "completed" && deletesOnComplete) {
                   setConfirmingDelete(true);
+                  return;
+                }
+                if (to === "completed" || (to === "live" && status === "completed")) {
+                  setConfirmingStatus(to);
                   return;
                 }
                 startTransition(async () => {
@@ -320,6 +332,47 @@ export function LifecycleBar({
                 }
               >
                 <Icon name="trash" /> Complete and delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmingStatus && (
+        <div className="dialog-backdrop" onClick={() => setConfirmingStatus(null)}>
+          <div
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="status-dialog-title"
+            aria-describedby="status-dialog-body"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="dialog-title" id="status-dialog-title">
+              {confirmingStatus === "completed" ? `Complete “${summary.name}”?` : `Reopen “${summary.name}”?`}
+            </div>
+            <div className="dialog-body" id="status-dialog-body">
+              {confirmingStatus === "completed"
+                ? "The result becomes final: every round still open is closed, and the boards read Final. You can reopen it from here to correct a card."
+                : "The boards stop reading Final. Rounds stay closed — re-open one on Rounds & formats to change its cards — and you can complete the tournament again afterwards."}
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirmingStatus(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending}
+                onClick={() => {
+                  const to = confirmingStatus;
+                  startTransition(async () => {
+                    const res = await setEventStatus(to);
+                    setConfirmingStatus(null);
+                    if (res?.needsDeleteConfirm) setConfirmingDelete(true);
+                    else if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+                  });
+                }}
+              >
+                {confirmingStatus === "completed" ? "Complete tournament" : "Reopen tournament"}
               </button>
             </div>
           </div>
