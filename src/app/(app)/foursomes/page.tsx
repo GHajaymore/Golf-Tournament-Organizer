@@ -18,7 +18,7 @@ import type { Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
-import { parseTeeSheet, teeSheetDrift } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sheet";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
@@ -563,19 +563,10 @@ export default async function FoursomesPage({
             <Icon name="warning-circle" /> The published sheet no longer matches the field
           </span>
           <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-            {drift.departed.length > 0 && (
-              <>
-                {drift.departed.length} drawn {drift.departed.length === 1 ? "player has" : "players have"} left
-                the field, leaving {drift.shortGroups.length === 1 ? "" : "these groups"} short
-                {drift.shortGroups.length > 0 ? `: ${drift.shortGroups.join(", ")}` : ""}.{" "}
-              </>
-            )}
-            {drift.undrawn.length > 0 && (
-              <>
-                {drift.undrawn.length} confirmed {drift.undrawn.length === 1 ? "player has" : "players have"} no
-                tee time.{" "}
-              </>
-            )}
+            {driftSentence(
+              drift,
+              new Set(cutField ? state.confirmed.filter((p) => !cutField.has(p.id)).map((p) => p.id) : []),
+            )}{" "}
             Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
             it is correct but shorter than you drew it.
           </p>
