@@ -12,6 +12,9 @@ import { isStraightKnockout } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
 import { flightLabel } from "@/lib/domain/flight-label";
+import { qualifyingCutoffText } from "@/lib/domain/cut";
+import { toParText } from "@/lib/domain/stroke";
+import { pts } from "@/lib/format";
 
 export const metadata = screenMetadata("/bracket");
 
@@ -84,7 +87,7 @@ export default async function BracketPage() {
             state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, flightLabel(g.name, i)] as const),
           ),
         );
-        return {
+        const common = {
           rule:
             state.event.qualifyMode === "overall"
               ? `Top ${state.event.qualifyOverall} overall`
@@ -95,6 +98,51 @@ export default async function BracketPage() {
           secondLabel: draw.secondLabel,
           toSecond: draw.second.length,
           cutoff: state.overallCutoff,
+        };
+        /**
+         * QUALIFIED ON CARDS, SHOWN ON CARDS (2026-10-10). The rows below are
+         * match-play standings, which a medal or a Stableford qualifier never
+         * fills: a 120-player qualifier into a 64-man knockout listed the field
+         * in handicap order on 0 points each, beside a draw correctly seeded off
+         * the cards. On cards, the rows are the stroke standings in the order
+         * that seeded the draw, with the score that decided it.
+         */
+        if (state.qualifiesOnCards) {
+          const stableford = state.qualifyingCutoff?.kind === "stableford";
+          const figure = (s: (typeof state.strokeStandings)[number]) => (stableford ? s.points : s.toParShown);
+          const shown = (s: (typeof state.strokeStandings)[number]) =>
+            !s.ranked ? "—" : stableford ? `${s.points} pts` : toParText(s.toParShown);
+          return {
+            ...common,
+            cutoffText: qualifyingCutoffText(state.qualifyingCutoff, pts),
+            qualifiers: state.strokeStandings
+              .filter((s) => state.advancingIds.has(s.player.id))
+              .map((s) => ({
+                id: s.player.id,
+                name: s.player.name,
+                points: figure(s),
+                shown: shown(s),
+                advancing: true,
+                flight: flightOf.get(s.player.id) ?? null,
+              })),
+            flights: state.groups.map((g, gi) => ({
+              id: g.id,
+              label: flightLabel(g.name, gi),
+              rows: state.strokeStandings
+                .filter((s) => s.player.groupId === g.id)
+                .map((s) => ({
+                  id: s.player.id,
+                  rank: s.rank,
+                  name: s.player.name,
+                  points: figure(s),
+                  shown: shown(s),
+                  advancing: state.advancingIds.has(s.player.id),
+                })),
+            })),
+          };
+        }
+        return {
+          ...common,
           qualifiers: state.overall
             .filter((r) => state.advancingIds.has(r.player.id))
             .map((r) => ({

@@ -19,7 +19,7 @@ import { todayIso } from "@/lib/deadline";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
-import { currentRoundCut, survivorsWithTies } from "@/lib/domain/cut";
+import { currentRoundCut, survivorsWithTies, qualifyingCutoffText } from "@/lib/domain/cut";
 import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
@@ -105,7 +105,7 @@ export const generateMetadata = () => screenMetadataForEvent("/dashboard");
 
 export default async function DashboardPage() {
   const { session, state } = await requireState();
-  const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
+  const { event, groupStandings, advancingCount, brackets } = state;
   /**
    * A CASUAL ROUND IS ONE SCREEN, AND IT IS NOT THIS ONE (Ajay, 2026-10-06).
    * Its card, where it stands, the money and the round's settings are all on
@@ -1248,7 +1248,13 @@ export default async function DashboardPage() {
                 <span className="tag tag-neutral">{bracketTileBadge}</span>
               </div>
               <div className="text-muted" style={{ fontSize: 13, marginTop: -2 }}>
-                {straightKnockout ? "The whole field, seeded in order" : "Seeded from live group standings"}
+                {/* Off the qualifier's CARDS when it was a medal (2026-10-10):
+                    "group standings" described a draw that no group decided. */}
+                {straightKnockout
+                  ? "The whole field, seeded in order"
+                  : state.qualifiesOnCards
+                    ? "Seeded from the qualifying round"
+                    : "Seeded from live group standings"}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
@@ -1315,7 +1321,7 @@ export default async function DashboardPage() {
                    every state and stays. `qualifyingSettled` is decided in
                    `loadEventState` so this and the Qualification watch cannot
                    disagree about whether the race is live. */
-                note={`Cutoff line ≈ ${overallCutoff === null ? "—" : pts(overallCutoff)} pts${
+                note={`Cutoff line ≈ ${qualifyingCutoffText(state.qualifyingCutoff, pts)}${
                   state.qualifyingSettled ? "" : " · updates live with scores"
                 }`}
               />
