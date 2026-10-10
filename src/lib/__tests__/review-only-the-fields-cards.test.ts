@@ -31,6 +31,29 @@ describe("cardsForReview", () => {
     expect(needsAttention(reviewCards(out)).map((v) => v.playerName)).toEqual(["Dee"]);
   });
 
+  /**
+   * THE DECISIONS FIRST (2026-10-10): on a second 120-player championship the
+   * dispute and the short card were listed among 114 cards waiting only for a
+   * signature, in whatever order the cards were loaded.
+   */
+  it("lists the dispute, then the short card, before the cards only waiting to be signed", () => {
+    const loaded = {
+      zed: full, // unsigned
+      amy: full, // unsigned
+      odile: full, // disputed
+      lettice: twelve, // holes missing
+    };
+    const named = [
+      { id: "zed", name: "Zed" },
+      { id: "amy", name: "Amy" },
+      { id: "odile", name: "Odile" },
+      { id: "lettice", name: "Lettice" },
+    ];
+    const status = { zed: "entered", amy: "entered", odile: "disputed", lettice: "entered" };
+    const order = needsAttention(reviewCards(cardsForReview(loaded, status, named, 18))).map((v) => `${v.playerName}:${v.reason}`);
+    expect(order).toEqual(["Odile:disputed", "Lettice:incomplete", "Amy:not-certified", "Zed:not-certified"]);
+  });
+
   it("reads an unknown status as entered, and keeps the round's length", () => {
     const [ann] = cardsForReview({ ann: full }, {}, field, 9);
     expect(ann).toMatchObject({ status: "entered", holes: 9, playerName: "Ann" });
