@@ -7,6 +7,7 @@ import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
+import { oneCardPerSide } from "../domain/team-entry";
 import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
 import { isLeaguePointsSystem } from "../domain/league-meeting";
 import type { HoleResult } from "../domain/types";
@@ -353,12 +354,23 @@ export async function teamStandings(
   countBestOverride = 0,
 ): Promise<TeamStanding[]> {
   const f = findFormat(format);
-  const [teams, cards] = await Promise.all([
+  const [teams, cards, stageRow] = await Promise.all([
     // The card's own length. This passed a hard 18 until 2026-08-09, which
     // priced a nine-hole team round off eighteen-hole handicaps.
     teamsForStage(eventId, stageId, format, allowanceOverride, holesPlayed(pars.length), weightsOverride),
     prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
+    // How the committee said this round is written down — read HERE, at the
+    // sink, so none of the eight callers can forget it (`oneCardPerSide`).
+    prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoreInput: true } }),
   ]);
+  /**
+   * ONE CARD FOR THE SIDE ON A TWO-BALL ROUND (2026-10-10): the committee's
+   * choice on a gross four-ball. The card holds the side's counted score per
+   * hole, so it is read as one ball off no handicap — the option exists only
+   * on gross — against par for every ball that counts.
+   */
+  const sideCardOnTwoBalls = f.ball !== "single" && oneCardPerSide(format, stageRow?.scoreInput, basis);
+  const countBest = effectiveCountBest(format, countBestOverride);
 
   const parse = (s: string): (number | null)[] => {
     try {
@@ -378,18 +390,25 @@ export async function teamStandings(
             t.playingHandicap,
             strokeIndex,
           )
-        : aggregateTeamCard(
-            t.members.map((m) => ({
-              playerId: m.playerId,
-              strokes: parse(own.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
-              courseHandicap: m.handicap,
-            })),
-            pars,
-            strokeIndex,
-            effectiveAllowance(format, allowanceOverride),
-            effectiveCountBest(format, countBestOverride),
-            basis.trim().toLowerCase() === "gross" ? "gross" : "net",
-          );
+        : sideCardOnTwoBalls
+          ? singleBallTeamCard(
+              parse(own.find((c) => c.playerId === "")?.strokes ?? "[]"),
+              pars.map((p) => p * Math.max(1, countBest)),
+              0,
+              strokeIndex,
+            )
+          : aggregateTeamCard(
+              t.members.map((m) => ({
+                playerId: m.playerId,
+                strokes: parse(own.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
+                courseHandicap: m.handicap,
+              })),
+              pars,
+              strokeIndex,
+              effectiveAllowance(format, allowanceOverride),
+              countBest,
+              basis.trim().toLowerCase() === "gross" ? "gross" : "net",
+            );
     return {
       teamId: t.id,
       name: t.name,

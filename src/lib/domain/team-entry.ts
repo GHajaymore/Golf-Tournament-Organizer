@@ -108,6 +108,25 @@ export function resolveTeamEntry(
 }
 
 /**
+ * WHETHER THIS ROUND FILES ONE CARD PER SIDE (2026-10-10) — the question every
+ * writer and reader of a team card asks, answered once.
+ *
+ * They asked `format.ball` instead, so a gross four-ball the committee set to
+ * "one card for the side" opened that card on the entry screen, and then the
+ * save refused it ("needs a card for each partner") and the board read only
+ * the partners' cards — the setting saved, shown, and dead. A shared ball is
+ * always one card; a two-ball format is one card exactly when the committee
+ * chose it, which `resolveTeamEntry` already decides (and only on gross).
+ */
+export function oneCardPerSide(
+  formatName: string,
+  override?: string | null,
+  scoringBasis = "gross",
+): boolean {
+  return resolveTeamEntry(formatName, override, scoringBasis) === "side-only";
+}
+
+/**
  * What choosing `side-only` costs, where it is a choice at all.
  *
  * Under WHS a four-ball score is acceptable for handicapping when the player's

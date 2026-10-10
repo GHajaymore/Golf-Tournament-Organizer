@@ -473,7 +473,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
             format={activeStage.format}
             holes={holeCount}
             field={teams.flatMap((t) => t.members.map((m) => ({ id: m.playerId, name: m.name })))}
-            team={{ shared: sideOnlyFormat, sides: teams.map((t) => ({ id: t.id, name: t.name })) }}
+            team={{ shared: sideOnly, sides: teams.map((t) => ({ id: t.id, name: t.name })) }}
           />
         )}
         {teamEntry}

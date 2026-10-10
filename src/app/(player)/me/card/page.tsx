@@ -1,7 +1,8 @@
 import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
-import { isManualFormat, needsTeams, boardKind, findFormat } from "@/lib/formats";
+import { isManualFormat, needsTeams, boardKind } from "@/lib/formats";
+import { oneCardPerSide } from "@/lib/domain/team-entry";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundIsStroke } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
@@ -312,7 +313,8 @@ export default async function PlayCardPage() {
      * sixty pairs on the course and every member told the secretary would type
      * their card in.
      */
-    const ownBall = teamRound && !!stage && findFormat(stage.format).ball === "individual";
+    // Whose card it is follows the committee's entry setting (`oneCardPerSide`).
+    const ownBall = teamRound && !!stage && !oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>My card</h1>
