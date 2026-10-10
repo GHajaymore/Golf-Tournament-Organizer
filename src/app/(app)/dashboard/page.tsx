@@ -1248,7 +1248,13 @@ export default async function DashboardPage() {
                 <span className="tag tag-neutral">{bracketTileBadge}</span>
               </div>
               <div className="text-muted" style={{ fontSize: 13, marginTop: -2 }}>
-                {straightKnockout ? "The whole field, seeded in order" : "Seeded from live group standings"}
+                {/* Off the qualifier's CARDS when it was a medal (2026-10-10):
+                    "group standings" described a draw that no group decided. */}
+                {straightKnockout
+                  ? "The whole field, seeded in order"
+                  : state.qualifiesOnCards
+                    ? "Seeded from the qualifying round"
+                    : "Seeded from live group standings"}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
