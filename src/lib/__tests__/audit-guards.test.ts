@@ -1457,6 +1457,8 @@ describe("a round freezes the handicaps it is scored against", () => {
      */
     expect(stores.map((a) => a.name).sort()).toEqual([
       "importScores",
+      // A team round's file (2026-10-10).
+      "importTeamScores",
       "saveMatchScorecard",
       "saveTeamScorecard",
       "writeScorecard",
