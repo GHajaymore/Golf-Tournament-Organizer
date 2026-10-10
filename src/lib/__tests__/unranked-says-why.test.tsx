@@ -143,6 +143,18 @@ describe("thru on a board two rounds in", () => {
     expect(html([two({ thru: 36, holesOwed: 36, roundThru: 18 })])).not.toContain("thru");
   });
 
+  it("counts today's holes for a league member who missed an EARLIER week (2026-10-10)", () => {
+    // Weeks 1 and 3 of a nine-hole league played, week 2 missed and closed:
+    // 18 holes in the season, 9 today. The board read "thru 18".
+    const absentee = row({ ranked: true, rank: 1, thru: 18, holesOwed: 18, roundThru: 9, roundHoles: 9, missedRound: "Round 2" });
+    const console = renderToStaticMarkup(<LeaderboardTable isStroke rows={[absentee]} />).match(/<td style="text-align:center[^>]*>([^<]*)</)?.[1];
+    // Today's 9, as every member who played all three weeks reads.
+    expect(console).toBe("9");
+    // The control: missing TODAY's round still keeps the tournament count.
+    const notToday = row({ thru: 18, holesOwed: 18, roundThru: 0, roundHoles: 9, missedRound: "Round 3" });
+    expect(html([notToday])).not.toContain("not started");
+  });
+
   it("and the console's Thru column says the same", () => {
     const console = (r: StandingRow) =>
       renderToStaticMarkup(<LeaderboardTable isStroke rows={[r]} />).match(/<td style="text-align:center[^>]*>([^<]*)</)?.[1];
