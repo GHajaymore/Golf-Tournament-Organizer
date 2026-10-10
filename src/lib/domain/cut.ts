@@ -596,3 +596,18 @@ export function cutLineIndex(rows: ReadonlyArray<{ advancing: boolean }>): numbe
   for (let i = 0; i < last; i += 1) if (!rows[i].advancing) return null;
   return last;
 }
+
+/**
+ * THE QUALIFYING LINE AS A PERSON READS IT (2026-10-10) — "+16" off a medal,
+ * "31 pts" off a Stableford, "10.5 pts" off match points. One writer for the
+ * dashboard note and the bracket's qualification panel, so the two cannot
+ * print the same line in different units.
+ */
+export function qualifyingCutoffText(
+  cutoff: { kind: "pts" | "stableford" | "toPar"; value: number } | null,
+  formatPts: (n: number) => string,
+): string {
+  if (!cutoff) return "—";
+  if (cutoff.kind === "toPar") return cutoff.value === 0 ? "E" : cutoff.value > 0 ? `+${cutoff.value}` : `${cutoff.value}`;
+  return `${formatPts(cutoff.value)} pts`;
+}

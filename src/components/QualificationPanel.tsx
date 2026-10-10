@@ -31,6 +31,8 @@ export interface QualificationRow {
   id: string;
   name: string;
   points: number;
+  /** The score as printed, when it is not match points — "+16", "31 pts". */
+  shown?: string;
   advancing: boolean;
   /** The flight's label (`flightLabel`), or null when the field is unflighted. */
   flight: string | null;
@@ -40,7 +42,7 @@ export interface QualificationFlight {
   id: string;
   /** What every board calls this flight — `flightLabel`. */
   label: string;
-  rows: Array<{ id: string; rank: number; name: string; points: number; advancing: boolean }>;
+  rows: Array<{ id: string; rank: number; name: string; points: number; shown?: string; advancing: boolean }>;
 }
 
 export function QualificationPanel({
@@ -51,6 +53,7 @@ export function QualificationPanel({
   secondLabel,
   toSecond,
   cutoff,
+  cutoffText,
   qualifiers,
   flights,
 }: {
@@ -64,6 +67,8 @@ export function QualificationPanel({
   toSecond: number;
   /** Null when nothing has been played, so no line has formed. */
   cutoff: number | null;
+  /** The line in the qualifier's own unit (`qualifyingCutoffText`); when set, it replaces the points figure. */
+  cutoffText?: string;
   qualifiers: QualificationRow[];
   flights: QualificationFlight[];
 }) {
@@ -139,9 +144,9 @@ export function QualificationPanel({
           </div>
         )}
         <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
-          <span className="card-kicker">Cutoff pts</span>
+          <span className="card-kicker">{cutoffText !== undefined ? "Cutoff" : "Cutoff pts"}</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>
-            {cutoff === null ? "—" : pts(cutoff)}
+            {cutoffText ?? (cutoff === null ? "—" : pts(cutoff))}
           </div>
           {/**
            * THE NUMBER ALONE IS TRUE AND INCOMPLETE.
@@ -196,7 +201,7 @@ export function QualificationPanel({
               </span>
               <span className="text-muted" style={{ fontSize: 13 }}>{r.flight ?? "—"}</span>
               <span style={{ fontWeight: 600, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums", width: 40, textAlign: "right" }}>
-                {pts(r.points)}
+                {r.shown ?? pts(r.points)}
               </span>
             </div>
           ))}
@@ -222,7 +227,7 @@ export function QualificationPanel({
                       </span>
                     </td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                      {pts(r.points)}
+                      {r.shown ?? pts(r.points)}
                     </td>
                   </tr>
                 ))}

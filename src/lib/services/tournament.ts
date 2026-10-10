@@ -732,6 +732,10 @@ export interface EventState {
    */
   resultsIn: number;
   overallCutoff: number | null;
+  /** Whether the knockout's field comes from a round's CARDS (a medal or a Stableford) rather than match points. */
+  qualifiesOnCards: boolean;
+  /** The qualifying line in the qualifier's own unit — see where it is computed. Null before anybody qualifies. */
+  qualifyingCutoff: { kind: "pts" | "stableford" | "toPar"; value: number } | null;
   /**
    * The draw, and what the club calls each half of it. The labels are
    * optional only so hand-built test states stay valid; `loadEventState`
@@ -2547,6 +2551,25 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     .filter((rp) => qualifierIds.has(rp.player.id))
     .map((rp) => rp.stats.totalPoints);
   const overallCutoff = advTotals.length ? Math.min(...advTotals) : null;
+  /**
+   * THE QUALIFYING LINE IN THE QUALIFIER'S OWN UNIT (2026-10-10).
+   *
+   * `overallCutoff` is match points, read off `overall` — which a stroke-play
+   * qualifier never fills. Walked on a club's Matchplay Championship (120 in a
+   * medal, the top 64 into the knockout): the dashboard read "Cutoff line ≈ 0
+   * pts" and the bracket's qualification table listed the field in handicap
+   * order on 0 points apiece, while the draw beside it was seeded correctly off
+   * the cards. So: on cards, the worst score that got through, on the board's
+   * own figure — points on a Stableford, to-par otherwise.
+   */
+  const qualifyingCutoff: EventState["qualifyingCutoff"] = (() => {
+    if (!qualifiesOnCards) return overallCutoff === null ? null : { kind: "pts", value: overallCutoff };
+    const through = strokeStandings.filter((s) => qualifierIds.has(s.player.id) && s.ranked);
+    if (through.length === 0) return null;
+    return isStablefordRound(qualifyingRound?.scoringBasis, qualifyingRound?.format)
+      ? { kind: "stableford", value: Math.min(...through.map((s) => s.points)) }
+      : { kind: "toPar", value: Math.max(...through.map((s) => s.toParShown)) };
+  })();
   const winnersMap: Record<string, string> = {};
   for (const bw of bracketWinners) winnersMap[bw.key] = bw.winnerId;
 
@@ -2834,6 +2857,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     reviewing,
     resultsIn: played,
     overallCutoff,
+    qualifiesOnCards,
+    qualifyingCutoff,
     brackets,
     drawFrozen: drawnIds !== null,
     qualifyingSettled,
