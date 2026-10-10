@@ -123,10 +123,23 @@ export async function strokeCutRefusal(eventId: string, feederId: string): Promi
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
   const staffApproves = !allowsAutoConfirm(settingsOf(event));
-  const cards = await prisma.scorecard.findMany({
-    where: { eventId, stageId: feederId },
-    select: { status: true, strokes: true },
-  });
+  /**
+   * ONLY THE FIELD'S CARDS (2026-10-09). A disqualified or withdrawn player's
+   * card stays on the record but is nobody's result: walked on a 120-player
+   * championship, a player DQ'd for not holding out kept the cut waiting on
+   * "1 card needs your approval" — her twelve holes — while the dashboard,
+   * counting the confirmed field through `roundProgress`, said 117 of 119
+   * were in. Same field as the dashboard now, so the two cannot disagree.
+   */
+  const field = new Set(
+    (await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map((p) => p.id),
+  );
+  const cards = (
+    await prisma.scorecard.findMany({
+      where: { eventId, stageId: feederId },
+      select: { status: true, strokes: true, playerId: true },
+    })
+  ).filter((c) => field.has(c.playerId));
   const blockers = cutBlockers(cards, staffApproves);
   return blockers.total > 0 ? cutBlockedSentence(blockers, nameOf(pair.all, pair.feeder)) : null;
 }

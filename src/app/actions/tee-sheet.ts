@@ -7,6 +7,7 @@ import { parseTeeSheet, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee
 import { roundLabel } from "@/lib/domain/round-label";
 import { notifyTeeTimesPublished } from "@/lib/services/tee-time-notify";
 import { firstHoleForRound } from "@/lib/domain/hole-number";
+import { strokeCutField } from "@/lib/services/stroke-cut";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -86,7 +87,15 @@ export async function saveTeeSheet(
     where: { eventId: session.eventId, status: "confirmed" },
     select: { id: true },
   });
-  const problems = validateTeeSheet(clean, new Set(confirmed.map((p) => p.id)));
+  // A round a cut has been made into is played by those who made it — the
+  // screen draws from them, and a caller sending anybody else is refused here.
+  const cutField = await strokeCutField(session.eventId, stageId);
+  const field = confirmed.map((p) => p.id).filter((id) => !cutField || cutField.has(id));
+  const confirmedIds = new Set(confirmed.map((p) => p.id));
+  if (cutField && clean.groups.some((g) => g.playerIds.some((id) => confirmedIds.has(id) && !cutField.has(id)))) {
+    return { ok: false, error: "That sheet includes a player who missed the cut — this round is for those who made it." };
+  }
+  const problems = validateTeeSheet(clean, new Set(field));
   if (problems.length) return { ok: false, error: problems[0] };
 
   await prisma.stage.update({

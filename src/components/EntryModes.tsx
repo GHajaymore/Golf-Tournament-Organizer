@@ -8,6 +8,7 @@ import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import type { CardBrand } from "@/components/ScorecardTable";
 import { RoundApproval } from "@/components/RoundApproval";
+import { cardsForReview } from "@/lib/domain/card-approval";
 import { RoundVenue } from "@/components/RoundVenue";
 import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
@@ -563,14 +564,7 @@ export function EntryModes({
         <RoundApproval
           stageId={round.stroke.stageId}
           isAdmin={isAdmin}
-          cards={Object.entries(round.stroke.cardsByPlayer).map(([playerId, strokes]) => ({
-            id: playerId,
-            playerId,
-            playerName: players.find((p) => p.id === playerId)?.name ?? "Unknown player",
-            status: round.stroke.cardStatus[playerId] ?? "entered",
-            strokes,
-            holes: round.stroke.holes,
-          }))}
+          cards={cardsForReview(round.stroke.cardsByPlayer, round.stroke.cardStatus, players, round.stroke.holes)}
         />
       )}
     </>

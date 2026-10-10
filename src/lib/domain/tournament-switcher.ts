@@ -48,6 +48,8 @@ export interface SwitchableRow {
    * see `openCardOf`. Optional so a caller without it behaves as before.
    */
   openCard?: OpenCard | null;
+  /** Missed the cut into the round being played now. Optional, as above. */
+  cutOut?: boolean;
 }
 
 /** A card of the member's that is started and not yet signed. */
@@ -180,7 +182,9 @@ function noteOf(row: SwitchableRow, isStaff: boolean): string {
       ? row.eventStatus === "live"
         ? row.playOver
           ? "Play complete"
-          : "Playing now"
+          : row.cutOut
+            ? "Missed the cut"
+            : "Playing now"
         : ""
       : row.bandLabel;
   return [who, what].filter(Boolean).join(" · ");

@@ -102,6 +102,25 @@ export function cutBlockers(
   return { awaitingApproval, notReturned, disputed, total: awaitingApproval + notReturned + disputed };
 }
 
+/**
+ * HOW FAR A CUT ROUND IS FROM BEING MADE, in the terms `roundReadyForCut` reads
+ * — counted over the cards `cutBlockers` judges, so the dashboard asking for the
+ * cut and `setRoundClosed` refusing it cannot disagree (2026-10-09).
+ *
+ * Walked on a 120-player championship: every returned card approved, closing
+ * the round would have made the cut, and the dashboard never asked — because it
+ * counted final cards against the whole field, and one player had not turned
+ * up. A player with no card is not a card anybody waits on (see `cutBlockers`);
+ * they miss the cut, and the prompt says so (`noCard`).
+ */
+export function cutProgress(
+  cards: ReadonlyArray<{ status: string; strokes: string }>,
+  staffApproves: boolean,
+): { final: number; total: number } {
+  const played = cards.filter((c) => hasAnyStroke(c.strokes)).length;
+  return { final: played - cutBlockers(cards, staffApproves).total, total: played };
+}
+
 function hasAnyStroke(json: string): boolean {
   try {
     return (JSON.parse(json) as unknown[]).some((v) => typeof v === "number" && v > 0);

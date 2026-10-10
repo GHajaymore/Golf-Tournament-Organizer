@@ -300,3 +300,26 @@ export function certifyPrompt(complete: boolean, holes: number, staffApproves: b
     ? "Certifying says these hole scores are correct. The committee accepts it after that."
     : "Certifying says these hole scores are correct. That is the card — nobody else has to accept it.";
 }
+
+/**
+ * THE CARDS A COMMITTEE REVIEWS: the field's, and nobody else's (2026-10-09).
+ *
+ * A disqualified or withdrawn player's card stays on the record, but no result
+ * is waiting on it. Walked on a 120-player championship: a player DQ'd for not
+ * holing out left twelve holes here as "Unknown player — Holes missing", the
+ * one card the panel said needed attention, while the cut it seemed to be
+ * holding up (`strokeCutRefusal`) had already stopped counting it.
+ */
+export function cardsForReview(
+  cardsByPlayer: Record<string, (number | null)[]>,
+  status: Record<string, string>,
+  field: ReadonlyArray<{ id: string; name: string }>,
+  holes: number,
+): CardForReview[] {
+  const names = new Map(field.map((p) => [p.id, p.name]));
+  return Object.entries(cardsByPlayer).flatMap(([playerId, strokes]) => {
+    const playerName = names.get(playerId);
+    if (playerName === undefined) return [];
+    return [{ id: playerId, playerId, playerName, status: status[playerId] ?? "entered", strokes, holes }];
+  });
+}

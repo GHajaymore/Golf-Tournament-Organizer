@@ -36,9 +36,11 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setRoundClosed, saveScorecard } from "@/app/actions/tournament";
+import { saveTeeSheet } from "@/app/actions/tee-sheet";
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { loadEventState } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
+import { clubEventsFor } from "@/lib/services/club-events";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-STROKE-CUT";
@@ -128,10 +130,21 @@ beforeAll(async () => {
     });
   }
 
+  // Four entrants who never return a card — no-shows, or a field still out.
+  for (const [i, who] of ["n1", "n2", "n3", "n4"].entries()) {
+    id[who] = (
+      await prisma.player.create({
+        data: { eventId, name: `${TAG} ${who}`, email: `${lower}-${who}@example.invalid`, seed: 10 + i, status: "confirmed", handicap: 0 },
+        select: { id: true },
+      })
+    ).id;
+  }
+
   adminUser = (await prisma.user.create({ data: { email: `${lower}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} Admin`, email: `${lower}-admin@example.invalid`, role: "admin" } });
   dUser = (await prisma.user.create({ data: { email: `${lower}-d@example.invalid`, name: `${TAG} d`, password: "x:unusable" }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} d`, email: `${lower}-d@example.invalid`, role: "player" } });
+  await prisma.account.create({ data: { eventId, name: `${TAG} a`, email: `${lower}-a@example.invalid`, role: "player" } });
 });
 
 afterAll(async () => {
@@ -169,15 +182,64 @@ describe("a stroke-play cut", () => {
     expect((await loadEventState(eventId))!.cutReady).toBeNull();
   });
 
+  /**
+   * A DISQUALIFIED PLAYER'S CARD IS NOT A RESULT ANYONE IS WAITING ON
+   * (2026-10-09). Walked on a 120-player championship: a player DQ'd for not
+   * holing out kept the cut refused on "1 card needs your approval" — her
+   * twelve holes — while the dashboard counted the confirmed field as all in.
+   */
+  it("is not held up by the card of a player who has left the field", async () => {
+    const { strokeCutRefusal } = await import("@/lib/services/stroke-cut");
+    try {
+      for (const gone of ["disqualified", "withdrawn"]) {
+        await prisma.player.update({ where: { id: id.d }, data: { status: gone } });
+        expect(await strokeCutRefusal(eventId, r1), `${gone}: their card still blocks the cut`).toBeNull();
+      }
+    } finally {
+      await prisma.player.update({ where: { id: id.d }, data: { status: "confirmed" } });
+    }
+    // The control: back in the field, the same card is waiting on the committee.
+    expect(await strokeCutRefusal(eventId, r1)).toMatch(/1 card needs your approval/);
+  });
+
   it("is asked for on the dashboard once every card is approved", async () => {
     await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.d }, data: { status: "approved" } });
+    /**
+     * PLAYERS WITH NO CARD DO NOT HOLD IT UP, and are named (2026-10-09).
+     * Walked on a 120-player championship: every returned card approved, and
+     * no prompt, because one entrant never turned up. Closing was allowed
+     * (`strokeCutRefusal` waits on cards, not on people); the dashboard asked
+     * for every entrant's card, so the two disagreed.
+     *
+     * The control is the other half of the same rule: with FOUR of eight
+     * cardless the field is still on the course, and asking for the cut then
+     * would send half of it home.
+     */
+    expect((await loadEventState(eventId))!.cutReady, "half the field has no card yet").toBeNull();
+    await prisma.player.update({ where: { id: id.n4 }, data: { status: "withdrawn" } });
     const ready = (await loadEventState(eventId))!.cutReady;
     expect(ready).toMatchObject({ feederId: r1, feederName: "Round 1", nextId: r2, nextName: "Round 2" });
+    expect(ready!.noCard.sort()).toEqual([`${TAG} n1`, `${TAG} n2`, `${TAG} n3`]);
+    // And the refusal agrees: nothing stands in the way of closing.
+    const { strokeCutRefusal } = await import("@/lib/services/stroke-cut");
+    expect(await strokeCutRefusal(eventId, r1)).toBeNull();
   });
 
   it("is made when round 1 closes: top 2 and ties get round 2 cards, nobody else", async () => {
     await as(adminUser);
+    expect((await loadEventState(eventId))!.boardStage?.id, "round 1 is still being decided").toBe(r1);
     expect(await setRoundClosed(r1, true)).toEqual({ ok: true });
+    /**
+     * AND THE CONSOLE MOVES ON WITH IT (2026-10-09). The cut has handed Round 2
+     * its field, so Round 2 is the round being run — the dashboard, sidebar and
+     * Score entry said Round 1 the morning after while every phone said
+     * Round 2. Nobody has hit a shot in it yet; that is not the question.
+     */
+    expect((await loadEventState(eventId))!.boardStage?.id, "the cut prepared round 2").toBe(r2);
+    // The player app's header: whoever the cut left out is not "Playing now".
+    const row = async (email: string) => (await clubEventsFor(email)).find((e) => e.eventId === eventId);
+    expect((await row(`${lower}-d@example.invalid`))?.cutOut).toBe(true);
+    expect((await row(`${lower}-a@example.invalid`))?.cutOut, "control: a survivor").toBe(false);
     // Made, so the dashboard stops asking.
     expect((await loadEventState(eventId))!.cutReady).toBeNull();
     expect(await r2Holders()).toEqual(["a", "b", "c"]);
@@ -210,6 +272,39 @@ describe("a stroke-play cut", () => {
     expect(await r2Holders()).toEqual(["a", "b", "c"]);
   });
 
+  /**
+   * ROUND 2'S TEE SHEET IS FOR THOSE WHO MADE IT (2026-10-09). Walked on a
+   * 120-player championship cut to 40: the sheet drew all 119, and a player who
+   * missed the cut read "Missed the cut" over "Group 1 · 8:00 AM".
+   */
+  it("draws round 2 from those who made it, and gives the others no tee time", async () => {
+    await as(adminUser);
+    const sheet = (ids: string[]) => ({
+      savedAt: "",
+      startType: "tee",
+      groups: [{ name: "Group 1", startHole: 1, time: "8:00 AM", playerIds: ids }],
+    });
+    const refused = await saveTeeSheet(r2, sheet([id.a, id.b, id.c, id.d]), true);
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? "" : refused.error).toMatch(/missed the cut/);
+    // The control: the same sheet without her is accepted.
+    expect(await saveTeeSheet(r2, sheet([id.a, id.b, id.c]), true)).toEqual({ ok: true });
+
+    // A sheet drawn BEFORE the cut still has her on it: she is shown no tee time.
+    await prisma.stage.update({
+      where: { id: r2 },
+      data: { teeSheet: JSON.stringify(sheet([id.a, id.b, id.c, id.d])), teeSheetPublished: true },
+    });
+    const state = await loadEventState(eventId);
+    expect((await meFor(state!, `${lower}-d@example.invalid`)).round?.group).toBeNull();
+    // Nor "you're not on the tee sheet yet — the organizer will add you".
+    await prisma.stage.update({ where: { id: r2 }, data: { teeSheet: JSON.stringify(sheet([id.a, id.b, id.c])) } });
+    const after = await loadEventState(eventId);
+    expect((await meFor(after!, `${lower}-d@example.invalid`)).round?.offSheet).toBe(false);
+    expect((await meFor(after!, `${lower}-n1@example.invalid`)).round?.offSheet, "a no-show the cut left out").toBe(false);
+    expect((await meFor(state!, `${lower}-a@example.invalid`)).round?.group?.time, "control: a survivor").toBe("8:00 AM");
+  });
+
   it("is re-made on the corrected standings when round 1 closes again", async () => {
     await as(adminUser);
     // B has started round 2; C has not. D's round 1 was mis-entered: 68, not 80.
@@ -223,5 +318,45 @@ describe("a stroke-play cut", () => {
     // Now D (68) and A (70) are the top 2. C's EMPTY card goes; B's card has a
     // score on it and is never removed — that is golf somebody played.
     expect(await r2Holders()).toEqual(["a", "b", "d"]);
+  });
+});
+
+describe("the round the console is on, past a closed round", () => {
+  it("stays on the closed round until the next one is prepared, then moves", async () => {
+    // Two rounds, no cut, Round 1 played and closed. Nothing on Round 2 yet:
+    // the closed round's result is the newest thing there is to read.
+    const org = await prisma.organization.create({ data: { name: `${TAG} plain club`, kind: "club" }, select: { id: true } });
+    const ev = await prisma.event.create({
+      data: {
+        name: `${TAG} plain medal`,
+        organizationId: org.id,
+        status: "live",
+        format: "stroke",
+        dates: "",
+        course: "",
+        city: "",
+        address: "",
+        regDeadline: "",
+        shareToken: `${TAG}-plain-share`,
+        customPars: JSON.stringify(PARS),
+        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+      select: { id: true },
+    });
+    const base = { eventId: ev.id, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "gross" };
+    const p1 = (await prisma.stage.create({ data: { ...base, position: 0, description: "Round 1", closedAt: new Date() }, select: { id: true } })).id;
+    const p2 = (await prisma.stage.create({ data: { ...base, position: 1, description: "Round 2" }, select: { id: true } })).id;
+    const pl = await prisma.player.create({
+      data: { eventId: ev.id, name: `${TAG} plain`, email: `${lower}-plain@example.invalid`, seed: 1, status: "confirmed", handicap: 0 },
+      select: { id: true },
+    });
+    await prisma.scorecard.create({ data: { eventId: ev.id, stageId: p1, playerId: pl.id, strokes: JSON.stringify(card(72)), status: "approved" } });
+
+    expect((await loadEventState(ev.id))!.boardStage?.id, "nothing prepared for round 2").toBe(p1);
+    await prisma.stage.update({ where: { id: p2 }, data: { teeSheetPublished: true } });
+    expect((await loadEventState(ev.id))!.boardStage?.id, "round 2's draw is out").toBe(p2);
+    // And a completed tournament never moves on: there is no next round to run.
+    await prisma.event.update({ where: { id: ev.id }, data: { status: "completed" } });
+    expect((await loadEventState(ev.id))!.boardStage?.id).toBe(p1);
   });
 });

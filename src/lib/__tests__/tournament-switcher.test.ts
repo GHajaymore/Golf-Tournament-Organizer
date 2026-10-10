@@ -151,6 +151,17 @@ describe("the tournament switcher", () => {
     expect(at(false)).toBe("You’re in · Playing now");
   });
 
+  /**
+   * CUT, WHILE THE ROUND IS BEING PLAYED (2026-10-09). Walked on a 120-player
+   * championship: everybody who missed the cut read "Playing now".
+   */
+  it("says a member missed the cut, not that they are playing", () => {
+    const at = (cutOut: boolean) =>
+      switcherFor([row("medal", "entered", { eventStatus: "live", cutOut })], "medal", false).current?.note;
+    expect(at(true)).toBe("You’re in · Missed the cut");
+    expect(at(false)).toBe("You’re in · Playing now");
+  });
+
   it("counts only playing rounds, and a tournament with none has not been played", () => {
     const closed = new Date();
     expect(playOverOf([{ type: "Stroke Play Round", closedAt: closed }])).toBe(true);

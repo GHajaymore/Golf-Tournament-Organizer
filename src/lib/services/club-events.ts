@@ -18,6 +18,7 @@ import {
 import { venueOf } from "./registration";
 import { seasonWindow, type SeasonWindow } from "../domain/club-season";
 import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-switcher";
+import { isPlayingRound } from "../stage-types";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
 import { capacityUnderCap } from "../plans";
@@ -131,6 +132,8 @@ export interface ClubEventRow {
   when: "upcoming" | "now" | "finished";
   /** This member's stroke card here that is started and not yet signed — see `openCardOf`. */
   openCard: OpenCard | null;
+  /** Entered, and missed the cut into the round being played now. */
+  cutOut: boolean;
   /** "Closes in 9 days" / "Entries open tomorrow", or "". */
   windowNote: string;
   /** Where THIS member stands — "You're on the waiting list…" — or "". */
@@ -200,7 +203,10 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       series: { select: { name: true } },
       organization: { select: { locale: true, country: true, golfTerms: true } },
       // The rounds' own days — see `roundDaysOf` below.
-      stages: { select: { playedOn: true, type: true, closedAt: true } },
+      stages: {
+        select: { id: true, playedOn: true, type: true, closedAt: true, cutEnabled: true },
+        orderBy: { position: "asc" },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -279,6 +285,38 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // round is the one they were last writing on.
     if (open && (!had || open.thru > had.thru)) openCardIn.set(c.eventId, open);
   }
+
+  /**
+   * CUT, WHILE THE ROUND THEY MISSED IS BEING PLAYED (2026-10-09). Walked on a
+   * 120-player championship the morning after the cut: everybody who missed it
+   * read "You’re in · Playing now" over a Today that said "Missed the cut".
+   *
+   * A cut has been made into a round when the round before it is closed and
+   * the cut has handed it cards (`applyStrokeCut`); a member with none of
+   * those cards did not make it. Asked of the round still open only, so once
+   * the committee closes it the tournament reads as everybody else's does.
+   */
+  const cutRounds = events.flatMap((e) => {
+    const rounds = e.stages.filter((s) => isPlayingRound(s.type));
+    return rounds.flatMap((s, i) =>
+      i > 0 && s.cutEnabled && s.closedAt == null && rounds[i - 1].closedAt != null ? [{ eventId: e.id, stageId: s.id }] : [],
+    );
+  });
+  const cutCards = cutRounds.length
+    ? await prisma.scorecard.findMany({
+        where: { stageId: { in: cutRounds.map((r) => r.stageId) } },
+        select: { stageId: true, playerId: true },
+      })
+    : [];
+  const mineIds = new Set(myPlayerIds);
+  const cutOutIn = new Set(
+    cutRounds
+      .filter((r) => {
+        const own = cutCards.filter((c) => c.stageId === r.stageId);
+        return own.length > 0 && !own.some((c) => mineIds.has(c.playerId));
+      })
+      .map((r) => r.eventId),
+  );
 
   /**
    * WHETHER THERE IS ANYTHING BEHIND THE LINK, COUNTED RATHER THAN ASSUMED.
@@ -371,6 +409,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       bandLabel: awaiting ? "Awaiting approval" : bandLabelFor(band, status.state),
       when: whenOf(event.status),
       openCard: entered ? (openCardIn.get(event.id) ?? null) : null,
+      cutOut: entered && cutOutIn.has(event.id),
       /**
        * WHERE THIS MEMBER STANDS, separately from the entry window.
        *
