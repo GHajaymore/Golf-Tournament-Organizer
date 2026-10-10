@@ -67,6 +67,65 @@ test("entering a hole advances and updates the running score", async ({ page }) 
   await expect(page.locator('[aria-label*=", complete"]')).toHaveCount(before + 1);
 });
 
+/**
+ * A DOUBLE-TAP KEEPS THE SCORE (2026-10-09). The pad toggled: tapping the
+ * chosen value cleared it, and the card moves on 160ms after a tap — so a
+ * double-tap set the hole, cleared it, then advanced past a blank hole with
+ * nothing said. Walked on a member's phone: her first two holes, gone.
+ */
+test("a double-tap on a score keeps it", async ({ page }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  const scored = page.locator('[aria-label*=", complete"]');
+  const before = await scored.count();
+
+  const hole = await page.getByRole("textbox", { name: /^Strokes on hole \d+$/ }).getAttribute("aria-label");
+  const par = page.getByRole("button", { name: /^\d+\s*Par$/ }).first();
+  await par.click();
+  await par.click();
+  try {
+    // Past the advance and the save's debounce.
+    await page.waitForTimeout(1500);
+    await expect(scored, "the second tap cleared the hole the first one set").toHaveCount(before + 1);
+  } finally {
+    // Put the shared fixture back — the other projects read "thru 9" off it.
+    // Cleared the deliberate way: back to that hole, empty "Other".
+    const n = hole!.replace(/\D+/g, "");
+    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.getByRole("textbox", { name: `Strokes on hole ${n}` }).fill("");
+    await page.waitForTimeout(1500);
+    await expect(scored).toHaveCount(before);
+  }
+});
+
+/**
+ * A TWO-DIGIT SCORE TYPED AT A HUMAN PACE IS THAT SCORE (2026-10-09). "Other"
+ * moved the card on at every keystroke, so a 10 typed as "1" … "0" recorded
+ * an ACE on a par 4 and threw the "0" at the next hole — walked on a member's
+ * phone: GROSS 1, TO PAR -3.
+ */
+test("a 10 typed slowly into Other is a 10, on the hole it was typed on", async ({ page }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  const other = page.locator("#hbh-other");
+  const label = (await other.getAttribute("aria-label"))!;
+  const n = label.replace(/\D+/g, "");
+  await other.click();
+  await page.keyboard.type("1");
+  await page.waitForTimeout(400);
+  await page.keyboard.type("0");
+  try {
+    await page.waitForTimeout(800);
+    await expect(page.locator("#hbh-other"), "the card moved on mid-number").toHaveAttribute("aria-label", label);
+    await expect(page.locator("#hbh-other")).toHaveValue("10");
+  } finally {
+    // Back as it was, for the projects that read the fixture after this one.
+    await page.getByRole("button", { name: new RegExp(`^Hole ${n},`) }).click();
+    await page.getByRole("textbox", { name: label }).fill("");
+    await page.waitForTimeout(1500);
+  }
+});
+
 test("the board a player sees matches the one the share link shows", async ({ page, context }) => {
   // Both render PlayerLeaderboard from the same standings. If these ever
   // differ, meFor and standingRows have drifted apart — which is the failure

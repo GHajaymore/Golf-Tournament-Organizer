@@ -108,8 +108,13 @@ describe("a new Free club", () => {
     await organizer("new", "free", true);
     const { res, ev } = await tournament("new one");
     expect(res?.ok).toBe(true);
-    expect(ev!.capacity).toBe(10);
     eventId = ev!.id;
+    // The FIELD holds ten — the capacity every intake path reads. The column
+    // itself is the organizer's (open, 0) since 2026-10-09: storing Par's ten
+    // in it kept a club at ten after it moved up a tier. See
+    // `a-downgraded-field-holds-its-cap` for the upgrade direction.
+    const { effectiveCapacity } = await import("@/lib/services/limits");
+    expect(await effectiveCapacity(ev!.organizationId, ev!.capacity)).toBe(10);
     session.eventId = eventId;
   });
 

@@ -247,7 +247,11 @@ test.describe("a casual round at the course", () => {
       // than tapping ahead of it, as a scorer would.
       const answer = page.getByRole("button", { name: w ? `Hole ${h} to ${w}` : `Hole ${h} halved` });
       await expect(answer).toBeVisible();
-      await answer.click();
+      // The 1st is DOUBLE-tapped, as a thumb in a moving cart does: it must
+      // stay pressed. A second press inside the advance cleared the hole and
+      // moved on past it, blank (2026-10-09).
+      if (h === 1) await answer.dblclick();
+      else await answer.click();
       await expect(answer).toHaveAttribute("aria-pressed", "true");
       if (h === 9) {
         // At the turn, read fresh: the card reopens on the 10th, the match

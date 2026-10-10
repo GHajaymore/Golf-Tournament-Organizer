@@ -147,6 +147,31 @@ describe("a player keeping score for their group", () => {
     expect((await cardOf(ids.partner))!.status).toBe("entered");
   });
 
+  /**
+   * A RETURNED CARD IS NOT THE MARKER'S (2026-10-09). Walked in a 120-player
+   * championship: Faye certified a 72, her marker pressed + on the 1st, and
+   * the card went back to unsigned at 73 with nothing said and no record.
+   */
+  it("may not change a partner's card once its player has signed it, or flagged it", async () => {
+    await saveScorecard(stageId, ids.partner, NINE);
+    for (const status of ["certified", "disputed"]) {
+      await prisma.scorecard.updateMany({ where: { stageId, playerId: ids.partner }, data: { status } });
+      const changed = [5, ...NINE.slice(1)];
+      await expect(saveScorecard(stageId, ids.partner, changed), status).rejects.toThrow(/has signed this card/);
+      const card = (await cardOf(ids.partner))!;
+      expect(card.status, `${status}: the signature was taken off`).toBe(status);
+      expect(JSON.parse(card.strokes), `${status}: the score was changed`).toEqual(NINE);
+    }
+  });
+
+  it("CONTROL: may still fix its OWN card after signing it, until the committee approves", async () => {
+    await saveScorecard(stageId, ids.me, [...NINE.slice(0, 9), 4, 4, 3, 5, 4, 4, 3, 4, 5]);
+    await certifyScorecard(stageId, ids.me);
+    const fixed = [5, ...NINE.slice(1, 9), 4, 4, 3, 5, 4, 4, 3, 4, 5];
+    expect((await saveScorecard(stageId, ids.me, fixed)).ok).toBe(true);
+    expect(JSON.parse((await cardOf(ids.me))!.strokes)[0]).toBe(5);
+  });
+
   it("a player in the other group cannot reach into this one either", async () => {
     session = { eventId, email: email("other"), viewRole: "player", name: "other", role: "player" };
     await expect(saveScorecard(stageId, ids.me, NINE)).rejects.toThrow(/group you were drawn with/);

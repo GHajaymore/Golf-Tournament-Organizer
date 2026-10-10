@@ -82,6 +82,21 @@ export function isCardLocked(status: string): boolean {
   return status === "approved";
 }
 
+/**
+ * A PARTNER'S CARD THAT IS NO LONGER THE MARKER'S TO CHANGE (2026-10-09):
+ * certified by its player, flagged by them, or approved. Wider than
+ * `isCardLocked`, which is about the committee: a player may still fix their
+ * OWN card until it is approved, but a returned card is not their marker's to
+ * alter (Rule 3.3b). Walked: a partner stepped a signed 72 to a 73 and the
+ * card silently lost its signature.
+ */
+export function isPartnerCardSigned(status: string | undefined): boolean {
+  return !!status && status !== "entered";
+}
+
+export const SIGNED_PARTNER_REFUSAL = (name: string) =>
+  `${name} has signed this card — only the committee can change it now.`;
+
 export const LOCKED_CARD_REFUSAL =
   "That card has been approved. An organizer has to reopen it before it can be changed.";
 
@@ -161,10 +176,23 @@ export function reviewCards(cards: CardForReview[]): ApprovalReview {
  * Written so approving is a decision rather than a reflex: the count that is
  * about to change, and the count that will be left behind, in the same breath.
  */
+/**
+ * THE EXCEPTIONS A COMMITTEE STILL HAS TO DECIDE (2026-10-09). An approved card
+ * is an exception to the blanket action — it cannot be approved twice — but it
+ * is DONE, not waiting. Counted together, a 120-player round with 117 cards
+ * approved read "Nothing ready to approve — 119 cards need attention" and
+ * listed the 117 under NEEDS ATTENTION, burying the one dispute and the one
+ * card with holes missing among them.
+ */
+export function needsAttention(review: ApprovalReview): CardVerdict[] {
+  return review.exceptions.filter((e) => e.reason !== "already-approved");
+}
+
 export function approvalSummary(review: ApprovalReview): string {
   const r = review.ready.length;
-  const e = review.exceptions.length;
-  if (r === 0 && e === 0) return "No cards returned yet.";
+  const e = needsAttention(review).length;
+  const done = review.exceptions.length - e;
+  if (r === 0 && e === 0) return done > 0 ? `Every card returned is approved (${done}).` : "No cards returned yet.";
   if (r === 0) return `Nothing ready to approve — ${e} ${e === 1 ? "card needs" : "cards need"} attention.`;
   const head = `Approve ${r} ${r === 1 ? "card" : "cards"}`;
   return e === 0 ? `${head}.` : `${head}, leaving ${e} that ${e === 1 ? "needs" : "need"} attention.`;

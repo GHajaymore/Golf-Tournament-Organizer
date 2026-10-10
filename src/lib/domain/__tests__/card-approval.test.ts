@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   reviewCards,
   approvalSummary,
+  needsAttention,
   filledHoles,
   isCardLocked,
   statusAfterEdit,
@@ -164,5 +165,23 @@ describe("the summary states both halves", () => {
 
   it("handles an empty round", () => {
     expect(approvalSummary(reviewCards([]))).toBe("No cards returned yet.");
+  });
+
+  /**
+   * DONE IS NOT ATTENTION (2026-10-09). 117 approved cards and two real
+   * problems read "119 cards need attention", the 117 listed under NEEDS
+   * ATTENTION with the dispute buried among them.
+   */
+  it("does not count an approved card as needing attention", () => {
+    const approved = [card({ id: "a", status: "approved" }), card({ id: "b", status: "approved" })];
+    const review = reviewCards([...approved, card({ id: "c", status: "disputed" })]);
+    expect(approvalSummary(review)).toBe("Nothing ready to approve — 1 card needs attention.");
+    expect(needsAttention(review).map((e) => e.reason)).toEqual(["disputed"]);
+  });
+
+  it("says a round is all approved when it is", () => {
+    const review = reviewCards([card({ id: "a", status: "approved" }), card({ id: "b", status: "approved" })]);
+    expect(approvalSummary(review)).toBe("Every card returned is approved (2).");
+    expect(needsAttention(review)).toEqual([]);
   });
 });

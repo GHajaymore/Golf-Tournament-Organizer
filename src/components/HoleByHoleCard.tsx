@@ -59,6 +59,14 @@ export interface CardPlayer {
    * scorer decides whose number goes where (walked 2026-10-04).
    */
   label?: string;
+  /**
+   * THEIR CARD IS SIGNED, so it is shown and not offered (2026-10-09). A
+   * marker keeping the group's cards could step a partner's certified card —
+   * walked: Faye signed a 72, her partner pressed + on the 1st, and the card
+   * went back to unsigned at 73 with nothing said to either of them. Under
+   * Rule 3.3b a returned card is the committee's to correct.
+   */
+  signed?: boolean;
 }
 
 /**
@@ -227,7 +235,35 @@ export function HoleByHoleCard({
 
   const par = pars[hole];
   const solo = players.length === 1;
-  const go = (next: number) => setHole(Math.max(0, Math.min(holes - 1, next)));
+
+  /**
+   * ONE PENDING ADVANCE, CANCELLED BY ANYTHING THAT MOVES THE CARD (2026-10-09).
+   *
+   * Each score set a bare 160ms timer to `go(hole + 1)`, captured at the hole
+   * it was set on and cancelled by nothing. A player who moved on themselves —
+   * the strip, Next — inside that window was yanked back by the stale timer,
+   * and their next score landed on the hole behind: walked on a member's card,
+   * the 12th's 3 written over the 11th. So there is one timer, any navigation
+   * clears it, and when it fires it advances only from the hole it was set on.
+   */
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAdvance = () => {
+    if (advance.current) clearTimeout(advance.current);
+    advance.current = null;
+  };
+  useEffect(() => cancelAdvance, []);
+  const go = (next: number) => {
+    cancelAdvance();
+    setHole(Math.max(0, Math.min(holes - 1, next)));
+  };
+  const advanceFrom = (from: number) => {
+    cancelAdvance();
+    if (from >= holes - 1) return;
+    advance.current = setTimeout(() => {
+      advance.current = null;
+      setHole((h) => (h === from ? from + 1 : h));
+    }, 160);
+  };
 
   const strokesOf = (id: string) => cards[id] ?? new Array(holes).fill(null);
 
@@ -244,12 +280,20 @@ export function HoleByHoleCard({
     return { toPar: total, played };
   };
 
-  const set = (playerId: string, v: number | null) => {
+  /**
+   * `moveOn` is false while a score is being TYPED: "10" arrives as "1" then
+   * "0", and advancing on the "1" recorded a 10 as an ace and threw the "0" at
+   * the next hole (walked 2026-10-09: GROSS 1, TO PAR -3 on a par 4). The pad's
+   * buttons are one deliberate value each and move on; the typed box moves on
+   * at Enter.
+   */
+  const set = (playerId: string, v: number | null, moveOn = true) => {
     onSet(playerId, hole, v);
     // Only advance on a solo card. On a group card the scorer is part way
     // through the hole and moving the screen out from under them would be
     // actively hostile.
-    if (solo && v != null && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+    if (solo && moveOn && v != null) advanceFrom(hole);
+    else cancelAdvance();
   };
 
   /**
@@ -503,7 +547,8 @@ export function HoleByHoleCard({
               firstHole={firstHole}
               par={par}
               value={strokesOf(players[0].id)[hole] ?? null}
-              onPick={(v) => set(players[0].id, v)}
+              onPick={(v, moveOn) => set(players[0].id, v, moveOn)}
+              onDone={() => advanceFrom(hole)}
             />
             {onPickUp && (
               <PickUpToggle
@@ -513,7 +558,8 @@ export function HoleByHoleCard({
                 onToggle={(on) => {
                   onPickUp(players[0].id, hole, on);
                   // Out of the hole is a hole finished: on to the next.
-                  if (on && hole < holes - 1) window.setTimeout(() => go(hole + 1), 160);
+                  if (on) advanceFrom(hole);
+                  else cancelAdvance();
                 }}
               />
             )}
@@ -557,21 +603,24 @@ export function HoleByHoleCard({
                           ? `${toParText(toPar)} thru ${played}`
                           : `thru ${played}`
                         : "no score yet"}
+                      {p.signed && " · signed — only the committee can change it"}
                     </span>
                   </span>
 
                   {/* A stepper, not a pad: the scorer knows the number and is
                       entering it, not choosing from a menu. First tap of + or −
                       starts from par, which is the commonest score on any hole. */}
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
-                    onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
-                    style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
-                  >
-                    −
-                  </button>
+                  {!p.signed && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
+                      style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
+                    >
+                      −
+                    </button>
+                  )}
                   <span
                     className={`sc-score${scoreMark(value, par)}`}
                     role="img"
@@ -596,19 +645,21 @@ export function HoleByHoleCard({
                   >
                     {picked ? "X" : value ?? "–"}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
-                    onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
-                    style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
-                  >
-                    +
-                  </button>
+                  {!p.signed && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
+                      style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
                 {/* Under the row rather than a fifth control in it: at 320px
                     the name already shares the row with three 44px targets. */}
-                {onPickUp && picksOpen && (
+                {onPickUp && picksOpen && !p.signed && (
                   <PickUpToggle
                     name={p.name}
                     hole={holeNumber(hole, firstHole)}
@@ -700,6 +751,7 @@ function SoloPad({
   par,
   value,
   onPick,
+  onDone,
   firstHole = 1,
 }: {
   player: CardPlayer;
@@ -708,7 +760,10 @@ function SoloPad({
   firstHole?: number;
   par: number | undefined;
   value: number | null;
-  onPick: (v: number | null) => void;
+  /** `moveOn` false while a score is still being typed — see `set`. */
+  onPick: (v: number | null, moveOn?: boolean) => void;
+  /** The typed score is finished (Enter): move on as a tap would. */
+  onDone?: () => void;
 }) {
   const shots = player.shotsOn?.(hole) ?? 0;
   return (
@@ -737,7 +792,14 @@ function SoloPad({
             <button
               key={rel}
               type="button"
-              onClick={() => onPick(chosen ? null : n)}
+              // A tap SETS the score, it never clears it (2026-10-09). This
+              // toggled: tapping the chosen value again cleared the hole. With
+              // the card moving on 160ms after a tap, a double-tap on "4 Par" —
+              // a glove, a bump in the cart — set the 4, cleared it, then
+              // advanced anyway, and the hole was silently blank: walked on a
+              // member's phone, both of her first two holes gone. Clearing is
+              // still there, deliberately, by emptying "Other".
+              onClick={() => onPick(n)}
               aria-pressed={chosen}
               style={{
                 // 56px: above the 44px touch minimum, with a glove on.
@@ -767,7 +829,10 @@ function SoloPad({
           className={`input sc-score${scoreMark(value, par)}`}
           inputMode="numeric"
           value={value ?? ""}
-          onChange={(e) => onPick(parseStroke(e.target.value))}
+          onChange={(e) => onPick(parseStroke(e.target.value), false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && value != null) onDone?.();
+          }}
           aria-label={`Strokes on hole ${holeNumber(hole, firstHole)}`}
           style={{ width: 76, minHeight: 44, textAlign: "center", fontSize: 17, fontVariantNumeric: "tabular-nums" }}
         />

@@ -413,7 +413,17 @@ export function EventSetupClient({
      */
     { k: "Overall result", v: overallResultLabel(f.format, roundFormats) },
     { k: "Course", v: f.courseMode === "open" ? "Players choose" : f.course || "—" },
-    { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
+    // The field the plan actually lets in: an open or larger field on a capped
+    // plan holds the cap, and the summary says so rather than "Open".
+    {
+      k: "Capacity",
+      v:
+        fieldCap !== null && (f.capacity <= 0 || f.capacity > fieldCap)
+          ? `${fieldCap} players (your plan's limit)`
+          : f.capacity > 0
+            ? `${f.capacity} players`
+            : "Open / unlimited",
+    },
     {
       k: "Confirmed",
       v: `${playersCount}`,
@@ -761,7 +771,8 @@ export function EventSetupClient({
             </div>
             {fieldCap !== null && (
               <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-                Your plan holds up to {fieldCap} players, so an open field or anything larger is saved as {fieldCap}.
+                Your plan holds up to {fieldCap} players, so an open field or anything larger takes {fieldCap} while
+                you are on it.
               </p>
             )}
           </div>

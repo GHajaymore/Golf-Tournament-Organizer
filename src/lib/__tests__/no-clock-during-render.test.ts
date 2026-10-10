@@ -62,6 +62,10 @@ const ALLOWED: Record<string, { reads: number; why: string }> = {
     reads: 2,
     why: "stamping savedAt inside save handlers, which run only on the client and never during render",
   },
+  "src/components/HoleResultCard.tsx": {
+    reads: 1,
+    why: "the press handler's double-tap window (a repeat inside 400ms is not a clear) — runs on a tap, never during render",
+  },
   "src/components/PaceOfPlay.tsx": {
     reads: 2,
     why: "mount-only state plus its half-minute tick, both inside useEffect; the panel draws nothing until there is a clock, because pace is measured on the committee's own",

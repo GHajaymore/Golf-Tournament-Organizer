@@ -27,7 +27,11 @@ const auth = vi.hoisted(() => ({ session: null as null | Record<string, string> 
 vi.mock("@/lib/auth", () => ({ getSession: async () => auth.session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}, unstable_cache: (fn: unknown) => fn }));
 
+vi.mock("@/lib/owner", () => ({ isOwner: () => true }));
+
 const { addSignup, importCsvSignups, approveSignup } = await import("@/app/actions/tournament");
+const { setClubPlan } = await import("@/app/actions/owner");
+const { readSource } = await import("./source");
 const { openRegistrationView } = await import("@/lib/services/registration");
 
 let orgId = "";
@@ -136,5 +140,46 @@ describe("a Par field keeps its cap when the stored capacity says unlimited", ()
     expect((await openRegistrationView(TOKEN))!.waitlistOnly).toBe(false);
     await addSignup({ name: `${TAG} Eleventh`, handicap: 12, email: "zz-downgrade-11@example.invalid", phone: "+1 202 555 0171" });
     expect(await statusOf("zz-downgrade-11@example.invalid")).toBe("confirmed");
+  });
+});
+
+/**
+ * AND THE OTHER DIRECTION: A FIELD MADE ON PAR IS NOT KEPT AT PAR'S CAP
+ * (2026-10-09). A secretary created the club championship on Par, the owner
+ * moved the club to Eagle, and the import of 120 members confirmed 10 and
+ * waitlisted 110 — the tournament had STORED Par's ten as its own capacity.
+ * The cap is now applied where capacity is read, never written into it.
+ */
+describe("a Par field moved up a tier", () => {
+  it("lets the waiting list in when the owner moves the club to Eagle", async () => {
+    await importCsvSignups(
+      "name,email,phone,handicap\n" +
+        `${TAG} Twelfth,zz-downgrade-12@example.invalid,+1 202 555 0172,10\n` +
+        `${TAG} Thirteenth,zz-downgrade-13@example.invalid,+1 202 555 0173,20\n`,
+    );
+    expect(await confirmed(), "Par holds ten").toBe(10);
+    const r = await setClubPlan(`${TAG} Society`, "club");
+    expect(r.ok).toBe(true);
+    expect(await confirmed(), "Eagle has no cap, so both who waited are in").toBe(12);
+    expect(await statusOf("zz-downgrade-12@example.invalid")).toBe("confirmed");
+  });
+
+  it("CONTROL: a field the organizer chose to keep small stays small", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { capacity: 10 } });
+    try {
+      await importCsvSignups(`name,email,phone,handicap\n${TAG} Twelfth,zz-downgrade-12@example.invalid,+1 202 555 0172,10\n`);
+      await setClubPlan(`${TAG} Society`, "club");
+      expect(await confirmed()).toBe(10);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { capacity: 0 } });
+    }
+  });
+
+  it("is never written into a tournament's own capacity", () => {
+    const src = readSource("src/app/actions/tournament.ts");
+    // Created open; saved and copied as the organizer set it.
+    expect(src).toMatch(/capacity: 0,\s*status: "draft"/);
+    expect(src).not.toMatch(/capacityUnderCap\(/);
+    expect(src).toMatch(/capacity: data\.capacity <= 0 \? 0 : Math\.max\(1, Math\.round\(data\.capacity\)\)/);
   });
 });

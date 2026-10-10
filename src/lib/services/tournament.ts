@@ -3186,7 +3186,12 @@ function highlightsOf(state: EventState): Highlight[] {
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
-    const lastIn = state.qualifyingSettled ? undefined : advancing[advancing.length - 1];
+    // AND ONLY ONCE THERE IS A LINE (2026-10-09): while everybody with a score
+    // is inside the places, the last of them is not on a cut line — two cards
+    // into a 120-player field cut to 40 named the 2nd as holding "the final
+    // qualifying spot". Somebody has to be outside it for there to be one.
+    const lineDrawn = scored.length > advancing.length;
+    const lastIn = state.qualifyingSettled || !lineDrawn ? undefined : advancing[advancing.length - 1];
     /**
      * ON THE BOARD'S OWN BASIS, like the Leader line above (2026-09-28). This
      * always quoted the net, so a GROSS championship read "holds the final
@@ -3194,15 +3199,24 @@ function highlightsOf(state: EventState): Highlight[] {
      * championship e2e spec, 2026-10-04. The bubble below measured on net too.
      */
     const netScored = unitIsNet(state.strokeUnitLabel);
+    const lineScore = (s: (typeof scored)[number]) => (stableford ? s.points : netScored ? s.net : s.gross);
+    const lineWords = (v: number) => (stableford ? `${v} pts` : netScored ? `net ${v}` : `${v}`);
     if (lastIn) {
+      /**
+       * A LINE MANY PLAYERS SHARE IS NAMED AS THE LINE (2026-10-09). Top N AND
+       * TIES puts everybody level on the last score through, so naming one of
+       * them — "Quilla Coldwell holds the final qualifying spot at 88", over
+       * twelve players on 88 in a 120-player field — read as if she alone
+       * stood on the bubble.
+       */
+      const onLine = advancing.filter((s) => lineScore(s) === lineScore(lastIn)).length;
       out.push({
         icon: "🎯",
         title: "Qualification watch",
-        text: stableford
-          ? `${lastIn.player.name} holds the final qualifying spot at ${lastIn.points} pts.`
-          : netScored
-            ? `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.`
-            : `${lastIn.player.name} holds the final qualifying spot at ${lastIn.gross}.`,
+        text:
+          onLine > 1
+            ? `The cut is at ${lineWords(lineScore(lastIn))} — ${onLine} players are level on it, and the ties go through.`
+            : `${lastIn.player.name} holds the final qualifying spot at ${lineWords(lineScore(lastIn))}.`,
       });
     }
     // Measured against the line that applies: each flight's own bubble under a
@@ -3283,7 +3297,16 @@ function highlightsOf(state: EventState): Highlight[] {
               icon: "🚨",
               title: "Bubble watch",
         kind: "cut" as const,
-              text: `${outName} is ${bubble.gap} ${unit} outside qualification.`,
+              // "1 shots" was the board's grammar, and the first player out is
+              // rarely alone — everybody on that score is the same distance away.
+              text: (() => {
+                const level = scored.filter(
+                  (s) => !state.advancingIds.has(s.player.id) && lineScore(s) === bubble.firstOut.score,
+                ).length;
+                const who = level > 1 ? `${outName} and ${level - 1} ${level - 1 === 1 ? "other" : "others"} are` : `${outName} is`;
+                const u = bubble.gap === 1 ? unit.replace(/s$/, "") : unit;
+                return `${who} ${bubble.gap} ${u} outside qualification.`;
+              })(),
             },
       );
     }

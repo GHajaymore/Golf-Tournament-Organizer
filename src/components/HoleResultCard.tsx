@@ -5,6 +5,9 @@ import { Icon } from "./Icon";
 import { MicNote } from "./MicNote";
 import { startDictation, type Dictation } from "@/lib/dictation";
 import { parseHolesTranscript } from "@/lib/domain/match";
+
+/** A second press of the same answer this soon is a double-tap, not a decision to clear. */
+const DOUBLE_TAP_MS = 400;
 import { holeNumber } from "@/lib/domain/hole-number";
 import type { HoleResult } from "@/lib/domain/types";
 
@@ -77,15 +80,45 @@ export function HoleResultCard({
     const next = Array.from({ length: count }, (_, i) => holes[i] ?? null).findIndex((h) => h == null);
     return next === -1 ? count - 1 : next;
   });
-  const go = (i: number) => setHole(Math.max(0, Math.min(count - 1, i)));
+  /**
+   * ONE PENDING ADVANCE, AND A DOUBLE-TAP IS NOT A CLEAR (2026-10-09) — the
+   * same two faults `HoleByHoleCard` had. The advance was a bare 160ms timer
+   * nothing cancelled, so a tap on the strip inside it was undone; and a second
+   * press of the same answer within it cleared the hole and then moved on past
+   * it, blank, with nothing said. Pressing again still clears — that is how a
+   * hole is cleared here — but not inside the double-tap window, and a clear
+   * keeps the player on the hole they are fixing.
+   */
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPress = useRef<{ hole: number; at: number } | null>(null);
+  const cancelAdvance = () => {
+    if (advance.current) clearTimeout(advance.current);
+    advance.current = null;
+  };
+  useEffect(() => cancelAdvance, []);
+  const go = (i: number) => {
+    cancelAdvance();
+    setHole(Math.max(0, Math.min(count - 1, i)));
+  };
   const value = holes[hole] ?? null;
 
   const press = (v: "A" | "B" | "H") => {
     const clearing = value === v;
+    const now = Date.now();
+    const doubled = clearing && lastPress.current?.hole === hole && now - lastPress.current.at < DOUBLE_TAP_MS;
+    if (doubled) return;
+    lastPress.current = { hole, at: now };
     onPick(hole, v);
     // On to the next hole once this one has an answer — never on a clear,
     // which is somebody fixing the hole in front of them.
-    if (!clearing && hole < count - 1) window.setTimeout(() => go(hole + 1), 160);
+    cancelAdvance();
+    if (!clearing && hole < count - 1) {
+      const from = hole;
+      advance.current = setTimeout(() => {
+        advance.current = null;
+        setHole((h) => (h === from ? from + 1 : h));
+      }, 160);
+    }
   };
 
   const [listening, setListening] = useState(false);

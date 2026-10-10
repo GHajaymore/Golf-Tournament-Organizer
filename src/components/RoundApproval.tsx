@@ -4,6 +4,7 @@ import { approveRound, approveScorecard, reopenScorecard } from "@/app/actions/t
 import {
   reviewCards,
   approvalSummary,
+  needsAttention,
   EXCEPTION_LABEL,
   type CardForReview,
 } from "@/lib/domain/card-approval";
@@ -39,6 +40,10 @@ export function RoundApproval({
 
   const review = useMemo(() => reviewCards(cards), [cards]);
   const summary = approvalSummary(review);
+  // Done is not attention — see `needsAttention`. The approved are listed
+  // apart, folded, where Reopen still lives.
+  const attention = needsAttention(review);
+  const approved = review.exceptions.filter((e) => e.reason === "already-approved");
 
   if (cards.length === 0) return null;
 
@@ -80,7 +85,7 @@ export function RoundApproval({
         </p>
       )}
 
-      {review.exceptions.length > 0 && (
+      {attention.length > 0 && (
         <div style={{ marginTop: 14 }}>
           <div
             style={{
@@ -95,7 +100,7 @@ export function RoundApproval({
             Needs attention
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {review.exceptions.map((e) => (
+            {attention.map((e) => (
               <div
                 key={e.id}
                 style={{
@@ -153,6 +158,40 @@ export function RoundApproval({
             ))}
           </div>
         </div>
+      )}
+
+      {approved.length > 0 && (
+        <details style={{ marginTop: 14 }}>
+          <summary className="touch-target" style={{ cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+            Approved ({approved.length})
+          </summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+            {approved.map((e) => (
+              <div
+                key={e.id}
+                style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 6, borderTop: "1px solid var(--color-divider)" }}
+              >
+                <span style={{ flex: 1, minWidth: 150, fontSize: 14 }}>{e.playerName}</span>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await reopenScorecard(stageId, e.playerId);
+                        setNote(`Reopened ${e.playerName}'s card.`);
+                      })
+                    }
+                    style={{ fontSize: 13 }}
+                  >
+                    Reopen
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
