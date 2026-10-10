@@ -18,11 +18,14 @@ export function RoundReadyCard({
   stageId,
   roundName,
   allInWords = "Every card is in",
+  missing = 0,
 }: {
   stageId: string;
   roundName: string;
   /** In the round's own unit — "Every match is finished" on a match round (`roundReadyWord`). */
   allInWords?: string;
+  /** Players with no card, once the next round is under way (`missingFromRound`). */
+  missing?: number;
 }) {
   const { pending, error, run } = useAction();
   return (
@@ -35,6 +38,12 @@ export function RoundReadyCard({
       <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.4 }}>
         {allInWords} — close {roundName} to make the result official.
       </p>
+      {missing > 0 && (
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          The next round is already under way, so {missing === 1 ? "the player" : `the ${missing}`} with no card did
+          not play this one. Closing records that and moves everybody on.
+        </p>
+      )}
       <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
         Until then the public board reads &ldquo;All in · unofficial&rdquo;. Closing it makes the result final for
         everyone; you can re-open it on Rounds &amp; formats to correct a card.
