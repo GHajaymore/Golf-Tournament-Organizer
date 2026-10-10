@@ -326,8 +326,8 @@ export default async function PlayCardPage() {
               ? `Your side's card is in: ${myCardedSide.gross} gross, ${myCardedSide.net} net.`
               : teamRound
                 ? ownBall
-                  ? "You keep your own card; your side scores the better ball on each hole."
-                  : "Your side keeps one card — either of you can enter it."
+                  ? "Keep your own card; the better ball counts for your side."
+                  : "Your side keeps one card; either of you enters it."
                 : "Match play: no card of your own."
           }
         >
