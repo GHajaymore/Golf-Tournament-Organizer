@@ -24,7 +24,7 @@ import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import { loadEventState } from "@/lib/services/tournament";
 import { CutReadyCard } from "@/components/CutReadyCard";
 import { RoundReadyCard } from "@/components/RoundReadyCard";
-import { roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
+import { missingFromRound, roundReadyToClose, roundReadyWord } from "@/lib/domain/round-ready";
 import { NeedsYouNow } from "@/components/NeedsYouNow";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { cupBoard, TEAM_SESSION } from "@/lib/services/cup";
@@ -328,16 +328,33 @@ export default async function DashboardPage() {
    * card is up: closing a round a cut is taken out of IS approving the cut,
    * and that card says so in its own words.
    */
+  // Whether the committee has moved on to the next round — its draw out or
+  // cards in — which is what lets a round with no-shows be called over
+  // (`missingFromRound`).
+  const nextRoundReady = await (async () => {
+    const stage = state.boardStage;
+    if (!isStaff || !stage) return false;
+    const at = state.playRounds.findIndex((s) => s.id === stage.id);
+    const next = at >= 0 ? state.playRounds.slice(at + 1).find((s) => s.closedAt == null) : undefined;
+    if (!next) return false;
+    return next.teeSheetPublished || (await prisma.scorecard.count({ where: { stageId: next.id } })) > 0;
+  })();
   const readyToClose = (() => {
     const stage = state.boardStage;
     if (!isStaff || cutPreview || !stage || event.status === "completed") return null;
     const needsApproval = reviewsScores(event.shape) && !allowsAutoConfirm(settingsOf(event));
-    const ready = roundReadyToClose({ ...state.boardProgress, needsApproval, closed: stage.closedAt != null });
+    const input = { ...state.boardProgress, needsApproval, closed: stage.closedAt != null, nextRoundReady };
+    const ready = roundReadyToClose(input);
+    const missing = missingFromRound(input);
     return ready
       ? {
           stageId: stage.id,
           roundName: roundLabel(state.stages, stage.id) || "the round",
-          allInWords: roundReadyWord(state.boardProgress.unit),
+          allInWords:
+            missing > 0
+              ? `Every card that was started is in, and ${missing} ${missing === 1 ? "player has" : "players have"} no card`
+              : roundReadyWord(state.boardProgress.unit),
+          missing,
         }
       : null;
   })();
@@ -807,6 +824,7 @@ export default async function DashboardPage() {
               stageId={readyToClose.stageId}
               roundName={readyToClose.roundName}
               allInWords={readyToClose.allInWords}
+              missing={readyToClose.missing}
             />
           ) : null}
         </NeedsYouNow>

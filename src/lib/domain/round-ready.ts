@@ -23,12 +23,44 @@ export interface RoundReadyInput {
   /** The club has staff accept cards (`reviewsScores`). Cards only. */
   needsApproval: boolean;
   closed: boolean;
+  /** Somebody is out on the course: cards begun. Absent from older callers. */
+  started?: number;
+  /**
+   * The committee has prepared the NEXT round — its sheet published or cards
+   * in. See `missingFromRound`.
+   */
+  nextRoundReady?: boolean;
+}
+
+/**
+ * WHO NEVER STARTED A CARD, when that is all the round is waiting for
+ * (2026-10-10).
+ *
+ * A league night has no-shows. Twenty members away in week 2 meant the week
+ * was never "all in", so it never asked to be closed — and an open week 2 kept
+ * every absentee's My card on it, so the first of them to score week 3 typed
+ * it into the week they had missed. Walked on a three-week, 120-member league.
+ *
+ * Absent cards alone are not enough to call a round over: at noon on a medal
+ * day the morning wave is all in and the afternoon has not teed off. What is
+ * enough is the committee having moved on — the next round's draw out or its
+ * cards coming in — while every card that WAS begun has come back (and been
+ * accepted, where the club accepts cards). Then the ones with no card did not
+ * play, and the prompt says how many. Zero when that is not the state.
+ */
+export function missingFromRound(r: RoundReadyInput): number {
+  const started = r.started ?? 0;
+  if (!r.nextRoundReady || r.unit !== "cards" || started <= 0 || started >= r.total) return 0;
+  if (r.certified < started) return 0;
+  if (r.needsApproval && r.approved < started) return 0;
+  return r.total - started;
 }
 
 export function roundReadyToClose(r: RoundReadyInput): boolean {
   // Not a knockout either: its results are the draw, and a decided final is
   // the end of the TOURNAMENT — the dashboard's Complete, not a round's close.
   if (r.closed || r.unit === "manual" || r.unit === "ties" || r.total <= 0) return false;
+  if (missingFromRound(r) > 0) return true;
   if (r.certified < r.total) return false;
   if (r.unit === "cards" && r.needsApproval && r.approved < r.total) return false;
   return true;
