@@ -8,7 +8,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { prizeStructureLines } from "@/lib/domain/prize-structures";
 import { enteredCardCount } from "@/lib/services/round-cards";
-import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
+import { oneCardPerSide, teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { prisma } from "@/lib/db";
 // No `createSession` or `destroySession` here on purpose: deleting a
@@ -2957,10 +2957,12 @@ export async function saveTeamScorecard(
 
   const stage = await prisma.stage.findUnique({
     where: { id: stageId },
-    select: { format: true, holes: true, type: true, lineupPublished: true },
+    select: { format: true, holes: true, type: true, lineupPublished: true, scoreInput: true, scoringBasis: true },
   });
   if (!stage) return { ok: false, error: "Round not found." };
   const format = findFormat(stage.format);
+  // The committee's shape for this round's cards, not the format's raw one.
+  const oneCard = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
 
   // A player may only enter cards for a side they are actually on. Staff are
   // exempt — entering everyone's scores is the job in a committee-run event.
@@ -2985,10 +2987,16 @@ export async function saveTeamScorecard(
   }
 
   // The card shape must match the format, not the caller's choice.
-  if (format.ball === "single" && playerId !== "") {
-    return { ok: false, error: `${format.name} is played with one ball per side — one card, not one each.` };
+  if (oneCard && playerId !== "") {
+    return {
+      ok: false,
+      error:
+        format.ball === "single"
+          ? `${format.name} is played with one ball per side — one card, not one each.`
+          : "This round is entered as one card for the side, not one each.",
+    };
   }
-  if (format.ball === "individual" && playerId === "") {
+  if (!oneCard && playerId === "") {
     return { ok: false, error: `${format.name} needs a card for each partner.` };
   }
   if (playerId && !team.members.some((m) => m.playerId === playerId)) {
@@ -3139,6 +3147,9 @@ async function recomputeTeamMatch(
       teeId: true,
       // A cup session keeps an organizer's concession through a card save.
       type: true,
+      // Whether each side returned one card — see `oneCardPerSide`.
+      scoreInput: true,
+      scoringBasis: true,
     },
   });
   /**
@@ -3249,6 +3260,13 @@ async function recomputeTeamMatch(
         stage?.allowanceWeights,
       );
       return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: hcp, pickedUp: picks(one?.pickedUp) }];
+    }
+    // A two-ball round the committee entered as one card for the side: that
+    // card is the side's gross (the choice exists only on gross), so it plays
+    // off nothing — as the board reads it.
+    if (oneCardPerSide(formatName, stage?.scoreInput, stage?.scoringBasis)) {
+      const one = cards.find((c) => c.playerId === "");
+      return [{ strokes: one ? parse(one.strokes) : [], playingHandicap: 0, pickedUp: picks(one?.pickedUp) }];
     }
     return members.map((m) => {
       const card = cards.find((c) => c.playerId === m.playerId);
@@ -5198,7 +5216,9 @@ export async function importTeamScores(
   }
 
   const format = findFormat(stage.format);
-  const shared = format.ball === "single";
+  // One card per side on a shared ball, and on a two-ball round the committee
+  // entered that way — the shape the board reads (`oneCardPerSide`).
+  const shared = oneCardPerSide(stage.format, stage.scoreInput, stage.scoringBasis);
   const holes = holesPlayed(stage.holes);
   const teams = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },
