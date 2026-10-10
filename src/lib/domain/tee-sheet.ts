@@ -182,3 +182,29 @@ export function teeSheetAsPlayed(sheet: TeeSheet, confirmedIds: Set<string>): Te
     })),
   };
 }
+
+/**
+ * WHAT IS WRONG WITH A PUBLISHED SHEET, in one sentence a secretary can act on.
+ *
+ * A sheet drawn before a cut and checked after it read "79 drawn players have
+ * left the field" (2026-10-10) — nobody had left; they had missed the cut, and
+ * "left" is the word for a withdrawal. So the two are counted apart, by the
+ * caller's `cutOut` (drawn, still entered, not in the cut's field). And one
+ * short group read "leaving short: Group 1"; a long list of them is a number.
+ */
+export function driftSentence(drift: TeeSheetDrift, cutOut: ReadonlySet<string> = new Set()): string {
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const missed = drift.departed.filter((id) => cutOut.has(id)).length;
+  const left = drift.departed.length - missed;
+  const parts: string[] = [];
+  if (missed > 0) parts.push(`${plural(missed, "drawn player has", "drawn players have")} missed the cut.`);
+  if (left > 0) parts.push(`${plural(left, "drawn player has", "drawn players have")} left the field.`);
+  const g = drift.shortGroups;
+  if (g.length === 1) parts.push(`That leaves ${g[0]} short.`);
+  else if (g.length > 1 && g.length <= 6) parts.push(`That leaves these groups short: ${g.join(", ")}.`);
+  else if (g.length > 6) parts.push(`That leaves ${g.length} groups short.`);
+  if (drift.undrawn.length > 0) {
+    parts.push(`${plural(drift.undrawn.length, "confirmed player has", "confirmed players have")} no tee time.`);
+  }
+  return parts.join(" ");
+}

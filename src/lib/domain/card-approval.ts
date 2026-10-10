@@ -185,7 +185,24 @@ export function reviewCards(cards: CardForReview[]): ApprovalReview {
  * card with holes missing among them.
  */
 export function needsAttention(review: ApprovalReview): CardVerdict[] {
-  return review.exceptions.filter((e) => e.reason !== "already-approved");
+  /**
+   * THE DECISIONS FIRST (2026-10-10). The list came out in whatever order the
+   * cards were loaded, so on a second 120-player championship the one disputed
+   * card and the one with holes missing sat among 114 imported cards waiting
+   * only for a signature — and a committee working down the list approving the
+   * routine ones reached the dispute without ever having been shown it apart.
+   * A dispute is a ruling, a short card is a score that may be better than the
+   * golf; an unsigned card is a formality.
+   */
+  const order: Record<ExceptionReason, number> = {
+    disputed: 0,
+    incomplete: 1,
+    "not-certified": 2,
+    "already-approved": 3,
+  };
+  return review.exceptions
+    .filter((e) => e.reason !== "already-approved")
+    .sort((a, b) => order[a.reason] - order[b.reason] || a.playerName.localeCompare(b.playerName));
 }
 
 export function approvalSummary(review: ApprovalReview): string {
