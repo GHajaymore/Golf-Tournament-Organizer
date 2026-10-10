@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession, MEDAL_COURSE } from "./organizer-fixture.mjs";
 
 /**
@@ -56,7 +57,7 @@ test("the secretary posts; a member sees the pinned one always and the rest once
   test.setTimeout(360_000);
   await page.context().addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("a one-round medal with two players, launched", async () => {
     await open(page, "/choose");
@@ -112,7 +113,7 @@ test("the secretary posts; a member sees the pinned one always and the rest once
   const memberCtx = await browser.newContext({ ...testInfo.project.use, baseURL, storageState: undefined });
   await memberCtx.addCookies([{ name: "ng_session", value: await memberSession(medalEmail(0), MEMBER), url: baseURL! }]);
   const member = await memberCtx.newPage();
-  member.on("pageerror", (e) => errors.push(`member ${new URL(member.url()).pathname}: ${String(e)}`));
+  watchPageErrors(member, errors, "member");
   const main = member.locator("main");
 
   try {

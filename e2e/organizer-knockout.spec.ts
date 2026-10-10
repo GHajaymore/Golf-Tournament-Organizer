@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail } from "./organizer-fixture.mjs";
 
 /**
@@ -79,7 +80,7 @@ test("a new organizer runs a four-player knockout to a champion", async ({ page 
   test.setTimeout(300_000);
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("create the tournament as a knockout", async () => {
     await open(page, "/choose");

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
 
@@ -72,7 +73,7 @@ const card = (toPar: number) => MEDAL_PARS.map((p: number, i: number) => p + (i 
 test("a new organizer runs a four-person scramble on net", async ({ page, baseURL }) => {
   test.setTimeout(420_000);
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}: ${String(e)}`));
+  watchPageErrors(page, errors);
 
   await test.step("create, date and course", async () => {
     await open(page, "/choose");
