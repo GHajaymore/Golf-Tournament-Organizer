@@ -73,7 +73,7 @@ beforeAll(async () => {
   await prisma.stage.create({
     data: { eventId, type: "Bracket Stage", format: "Match Play", holes: 18, scoringBasis: "gross", position: 1, description: "Knockout" },
   });
-  for (const [i, total] of [70, 72, 74, 76, 78, 80].entries()) {
+  for (let i = 0; i < 6; i += 1) {
     await prisma.player.create({
       data: { eventId, name: `${TAG} P${i}`, email: `${lower}-p${i}@example.invalid`, seed: i + 1, status: "confirmed", handicap: 0 },
     });
