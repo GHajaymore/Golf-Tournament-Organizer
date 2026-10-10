@@ -3386,6 +3386,22 @@ describe("bulk score import", () => {
     expect(html).toContain("Player,1,2,3");
   });
 
+  it("names the file box by its label, not by the placeholder (2026-10-10)", () => {
+    // The label sat beside the box unassociated, so assistive tech announced
+    // the box as "Player,1,2,3,…,18". Found by a probe asking for it by label.
+    const html = render(<ScoreImport stageId="s1" format="Stroke Play" holes={18} field={field} />);
+    expect(html).toMatch(/<label for="score-import-s1"/);
+    expect(html).toMatch(/<textarea id="score-import-s1"/);
+  });
+
+  it("offers a team round only the gross file, with what a row names", () => {
+    const html = render(
+      <ScoreImport stageId="s1" format="Foursomes" holes={18} field={field} team={{ shared: true, sides: [{ id: "t1", name: "Team 1" }] }} />,
+    );
+    expect(html).toContain("One row per side, gross.");
+    expect(html).not.toContain("Net strokes");
+  });
+
   it("has nothing to import until a file arrives", () => {
     // The button reads as inert rather than inviting a click that does nothing.
     const html = render(<ScoreImport stageId="s1" format="Stroke Play" holes={18} field={field} />);

@@ -220,10 +220,13 @@ ${active.sampleRow}`}
       </details>
 
       <div className="field">
-        <label>
+        {/* Tied to the box, so a screen reader names it "The file" rather
+            than reading the placeholder's eighteen hole numbers. */}
+        <label htmlFor={`score-import-${stageId}`}>
           The file <span className="text-muted">— first row is the header</span>
         </label>
         <textarea
+          id={`score-import-${stageId}`}
           className="input"
           rows={6}
           value={text}
