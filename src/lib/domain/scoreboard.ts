@@ -155,12 +155,19 @@ export function todaysThru(
  * added at the end with `gap` set, so the screen can draw the break a real
  * board shows between the leaders and the rest — a player always finds
  * themself on it.
+ *
+ * NOTHING before anybody has a place (2026-10-10): a waitlisted society member
+ * opened Today the day before the round and read LEADERS over five names,
+ * alphabetical, every one "Not ranked, not started" — a leaderboard of nobody,
+ * in the place the leaders go. Rows that do not say whether they are ranked
+ * are taken as they come.
  */
-export function leadersWithYou<T extends { id: string }>(
+export function leadersWithYou<T extends { id: string; ranked?: boolean }>(
   rows: readonly T[],
   youId: string,
   limit: number,
 ): { row: T; gap: boolean }[] {
+  if (rows.length > 0 && rows.every((r) => r.ranked === false)) return [];
   const top = rows.slice(0, limit).map((row) => ({ row, gap: false }));
   if (!youId || top.some((t) => t.row.id === youId)) return top;
   const you = rows.find((r) => r.id === youId);
