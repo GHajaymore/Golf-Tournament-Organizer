@@ -59,7 +59,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
-import { reviewCards, isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
+import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -5074,6 +5074,28 @@ export async function importScores(
   // Whether any imported card carried a stroke, rather than merely a row —
   // an import of blank cards is a field, not a round that has been played.
   let returned = false;
+  /**
+   * A FILE OF CARDS IS THE ROUND'S RETURNED CARDS (2026-10-10).
+   *
+   * Rule 3.3b: the player returns the signed card, and the committee records
+   * it. A secretary importing the night's cards is that second step, so a
+   * FINISHED card arrives returned (certified, by whoever imported it). It sat
+   * as "entered", and the committee's one-click acceptance takes only returned
+   * cards — a 120-player league night left 119 "Approve anyway" clicks and a
+   * round that never read ready to close. An unfinished card stays entered,
+   * and a disputed one keeps its dispute.
+   *
+   * And a file that CHANGES an accepted card sends it back to returned. The
+   * strokes were overwritten under an "approved" status, so a result moved
+   * without the committee seeing it move.
+   */
+  const stored = new Map(
+    (
+      await prisma.scorecard.findMany({ where: { eventId, stageId }, select: { playerId: true, status: true, strokes: true } })
+    ).map((c) => [c.playerId, c]),
+  );
+  const cardHoles = holesPlayed(stage.holes);
+  const returnedBy = { certifiedBy: `${importedBy || "The committee"} (from a file)`, certifiedAt: new Date() };
 
   for (const row of rows) {
     // Both stroke shapes, gross and net: they arrive as the same per-player
@@ -5100,10 +5122,23 @@ export async function importScores(
               : v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length)),
           )
         : raw;
+      const before = stored.get(row.playerId);
+      const json = JSON.stringify(strokes);
+      const finished = filledHoles(strokes, cardHoles) >= cardHoles;
+      const status =
+        before?.status === "disputed"
+          ? null
+          : before?.status === "approved"
+            ? before.strokes === json
+              ? null
+              : "certified"
+            : finished && before?.status !== "certified"
+              ? "certified"
+              : null;
       await prisma.scorecard.upsert({
         where: { stageId_playerId: { stageId, playerId: row.playerId } },
-        update: { strokes: JSON.stringify(strokes) },
-        create: { eventId, stageId, playerId: row.playerId, strokes: JSON.stringify(strokes) },
+        update: { strokes: json, ...(status ? { status, ...returnedBy } : {}) },
+        create: { eventId, stageId, playerId: row.playerId, strokes: json, ...(status ? { status, ...returnedBy } : {}) },
       });
       if (isReturnedCard(strokes)) returned = true;
       written += 1;
