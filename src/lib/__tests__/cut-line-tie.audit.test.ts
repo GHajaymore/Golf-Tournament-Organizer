@@ -138,6 +138,21 @@ describe("a qualification watch waits for the line to exist", () => {
     });
     expect(await titles(), "one card in, two places: there is no line yet").not.toContain("Qualification watch");
   });
+
+  /**
+   * "THE TIES GO THROUGH" ONLY WHERE THEY DO (2026-10-09). A stroke cut is top
+   * N and ties, so a line several players share is named as the line — the
+   * championship e2e asserts that. A KNOCKOUT's qualification takes exactly N:
+   * here only TIED-A goes into the draw, the tie is its own highlight, and the
+   * watch must not claim both are through.
+   */
+  it("CONTROL: a bracket's line, which takes exactly N, never claims the ties go through", async () => {
+    const { eventId } = await seedTiedStrokeEvent();
+    const { computeHighlights } = await import("../services/tournament");
+    const watch = computeHighlights((await loadEventState(eventId))!).find((h) => h.title === "Qualification watch");
+    expect(watch?.text).toMatch(/TIED-A holds the final qualifying spot at \d+\./);
+    expect(watch?.text).not.toMatch(/ties go through/);
+  });
 });
 
 describe("a tie for the last qualifying place is reported, not silently broken", () => {

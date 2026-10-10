@@ -177,7 +177,9 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     await open(page, "/leaderboard");
     const before = await page.locator("main").innerText();
     expect(before, `the board promises a play-off the cut will not hold:\n${before}`).not.toMatch(/play-off/i);
-    expect(before).toMatch(/Cedar Quayle holds the final qualifying spot at 72\./);
+    // Briar and Cedar are BOTH on 72 and both go through: the line is named,
+    // not one of the two players on it (2026-10-09).
+    expect(before).toMatch(/The cut is at 72 — 2 players are level on it, and the ties go through\./);
     expect(before, "a gross championship quoted on net").not.toMatch(/qualifying spot at net/);
   });
 
