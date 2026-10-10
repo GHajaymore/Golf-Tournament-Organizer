@@ -721,9 +721,19 @@ export default async function PlayTodayPage() {
               ) : (
                 // Why it is the SIDE's card sits behind the ⓘ here — this card
                 // is the one place Today talks about it (2026-10-06).
-                <MoreInfo short="Your side’s card hasn’t been started yet.">
-                  {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
-                </MoreInfo>
+                <>
+                  <MoreInfo short="Your side’s card hasn’t been started yet.">
+                    {yourCardNote({ side: mySide, holes, round: true, knockout: round?.knockout })}
+                  </MoreInfo>
+                  {/* And the way to start it, where players keep their own
+                      scores (2026-10-10) — a four-ball member read this line
+                      with nothing to tap on it. */}
+                  {round && canEnterScores(settingsOf(state.event), session.viewRole) && (
+                    <Link href={`/entry?round=${round.stageId}`} className="btn btn-primary" style={{ marginTop: 10, minHeight: 44 }}>
+                      Enter our card
+                    </Link>
+                  )}
+                </>
               )}
             </section>
           )}
