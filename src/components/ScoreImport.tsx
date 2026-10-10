@@ -89,7 +89,11 @@ export function ScoreImport({
       }
       setResult({ written: res.written, problems: res.problems });
       setText("");
-      onDone?.();
+      // NOT closed here (2026-10-09). This called `onDone` straight after
+      // setting the result, and the host closes the panel on it — so a
+      // secretary importing 114 cards never saw "Imported 114 rows", nor the
+      // rows that did NOT go in, which is the list they most need. The panel
+      // stays open on the answer; "Done" closes it.
     });
   };
 
@@ -285,6 +289,11 @@ ${active.sampleRow}`}
               <Icon name="warning-circle" /> {p}
             </p>
           ))}
+          {onDone && (
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={onDone}>
+              Done
+            </button>
+          )}
         </div>
       )}
 

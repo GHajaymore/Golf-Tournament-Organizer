@@ -222,8 +222,27 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
     }).toPass({ timeout: 20_000 });
   });
 
-  await test.step("round 2 cards, for those who made it", async () => {
-    for (const p of FIELD.filter((f) => f.r2 !== undefined)) await typeCard(page, "Round 2", p.name, p.r2!);
+  await test.step("round 2 cards, for those who made it — imported from a spreadsheet", async () => {
+    /**
+     * By IMPORT, as a secretary with a pile of cards does (2026-10-09). The
+     * importer closed itself the moment it finished, so "Imported N rows" —
+     * and the list of rows that did NOT go in — was never on screen: walked
+     * importing 114 cards in a 120-player championship. It stays open on the
+     * answer now, and Done closes it.
+     */
+    const made = FIELD.filter((f) => f.r2 !== undefined);
+    const csv = [
+      `Player,${MEDAL_PARS.map((_: number, i: number) => i + 1).join(",")}`,
+      ...made.map((p) => `${p.name},${card(p.r2!).join(",")}`),
+    ].join("\n");
+    await open(page, "/entry");
+    await page.getByLabel("Round to enter scores for").selectOption({ label: "Round 2" });
+    await page.getByRole("button", { name: "Import scores" }).click();
+    await page.locator("textarea").first().fill(csv);
+    await page.getByRole("button", { name: `Import ${made.length} rows` }).click();
+    await expect(page.getByText(`Imported ${made.length} rows.`)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(page.getByText(`Imported ${made.length} rows.`)).toHaveCount(0);
     await finish(page, "Round 2");
   });
 
