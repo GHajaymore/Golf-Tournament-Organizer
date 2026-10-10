@@ -173,7 +173,10 @@ export function finishRefusal(facts: FinishFacts): string | null {
   }
   if (facts.pendingConfirmations > 0) {
     const n = facts.pendingConfirmations;
-    return `${n} card${n === 1 ? " is" : "s are"} still waiting to be signed off, so the result is not settled yet. Approve or correct ${n === 1 ? "it" : "them"} on Score entry, then finish.`;
+    // "result", as the dispute line above says it: the count holds match
+    // results as well as cards, and a match-play league read "540 cards are
+    // still waiting" with not a card in it (2026-10-10).
+    return `${n} result${n === 1 ? " is" : "s are"} still waiting to be signed off, so the result is not settled yet. Approve or correct ${n === 1 ? "it" : "them"} on Score entry, then finish.`;
   }
   return null;
 }

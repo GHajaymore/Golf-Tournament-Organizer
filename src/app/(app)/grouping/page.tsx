@@ -10,6 +10,7 @@ import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { FlightBoard } from "@/components/FlightBoard";
+import { FlightTeeSelect } from "@/components/FlightTeeSelect";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
@@ -33,6 +34,12 @@ export default async function GroupingPage() {
   // plays — resolved through the same reader the scoring uses.
   const eventTees = await teesForEvent(session.eventId);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
+  // Only when the tournament decides tees BY FLIGHT. Under any other policy
+  // nothing reads a flight's claim, so the control would set a value that
+  // changes no score. Both ways of showing the flights read these two.
+  const byFlightTees = settingsOf(state.event).teePolicy === "flight";
+  const roundTeeName = eventTees.find((t) => t.id === roundTee)?.name;
+  const defaultTeeName = roundTeeName ? `${roundTeeName} (round’s)` : "The round’s tees";
 
   const cards = state.groups.map((g, i) => {
     const players = state.confirmed.filter((p) => p.groupId === g.id).sort((a, b) => a.handicap - b.handicap);
@@ -117,16 +124,9 @@ export default async function GroupingPage() {
           // including under `captains` mode, where knowing who to chase for a
           // list is the entire point.
           leadership={tracksPerRound(settingsOf(state.event).attendanceMode as AttendanceMode)}
-          // Only when the tournament decides tees BY FLIGHT. Under any other
-          // policy nothing reads a flight’s claim, so the control would set a
-          // value that changes no score.
-          byFlightTees={settingsOf(state.event).teePolicy === "flight"}
+          byFlightTees={byFlightTees}
           tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
-          defaultTeeName={
-            eventTees.find((t) => t.id === roundTee)?.name
-              ? `${eventTees.find((t) => t.id === roundTee)?.name} (round’s)`
-              : "The round’s tees"
-          }
+          defaultTeeName={defaultTeeName}
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
@@ -136,6 +136,19 @@ export default async function GroupingPage() {
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{g.label}</span>
                 <span className="text-muted" style={{ fontSize: 13 }}>avg hcp {g.avg}</span>
               </div>
+              {/* The flight's tees, where the tournament decides them by
+                  flight — on flights the app drew too, not only Manual ones
+                  (see `FlightTeeSelect`). */}
+              {byFlightTees && eventTees.length > 0 && (
+                <FlightTeeSelect
+                  groupId={g.id}
+                  label={g.label}
+                  teeId={g.teeId ?? null}
+                  tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
+                  defaultTeeName={defaultTeeName}
+                  disabled={locked || session.viewRole !== "admin"}
+                />
+              )}
               {g.players.map((pl) => (
                 <div
                   key={pl.id}
