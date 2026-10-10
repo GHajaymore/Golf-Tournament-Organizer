@@ -120,6 +120,26 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+/**
+ * NO "FINAL QUALIFYING SPOT" BEFORE THERE IS A LINE (2026-10-09). A 120-player
+ * championship cut to the top 40: with two cards in, the board read "Faye
+ * Brackenbury holds the final qualifying spot at 72" — the 2nd of 2 named as
+ * the player on the cut line, with 38 places nobody had reached yet.
+ */
+describe("a qualification watch waits for the line to exist", () => {
+  it("names nobody on the final spot while everybody scored is inside it", async () => {
+    const { eventId, ids } = await seedTiedStrokeEvent();
+    const { computeHighlights } = await import("../services/tournament");
+    const titles = async () => computeHighlights((await loadEventState(eventId))!).map((h) => h.title);
+    // The control: four scored, two places and a tie — somebody IS outside.
+    expect(await titles()).toContain("Qualification watch");
+    await prisma.scorecard.deleteMany({
+      where: { eventId, playerId: { in: [ids["TIED-A"], ids["TIED-B"], ids["LAST"]] } },
+    });
+    expect(await titles(), "one card in, two places: there is no line yet").not.toContain("Qualification watch");
+  });
+});
+
 describe("a tie for the last qualifying place is reported, not silently broken", () => {
   it("really does produce two players on one position", async () => {
     // The fixture has to earn the shared rank rather than assert it — if the

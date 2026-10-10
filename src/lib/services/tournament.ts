@@ -3186,7 +3186,12 @@ function highlightsOf(state: EventState): Highlight[] {
     // Only while it is a watch — see the match-play branch below, and
     // `qualifyingSettled` for why the two ways of being settled differ.
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
-    const lastIn = state.qualifyingSettled ? undefined : advancing[advancing.length - 1];
+    // AND ONLY ONCE THERE IS A LINE (2026-10-09): while everybody with a score
+    // is inside the places, the last of them is not on a cut line — two cards
+    // into a 120-player field cut to 40 named the 2nd as holding "the final
+    // qualifying spot". Somebody has to be outside it for there to be one.
+    const lineDrawn = scored.length > advancing.length;
+    const lastIn = state.qualifyingSettled || !lineDrawn ? undefined : advancing[advancing.length - 1];
     /**
      * ON THE BOARD'S OWN BASIS, like the Leader line above (2026-09-28). This
      * always quoted the net, so a GROSS championship read "holds the final
