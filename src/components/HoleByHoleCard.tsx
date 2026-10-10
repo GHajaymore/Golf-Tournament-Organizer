@@ -59,6 +59,14 @@ export interface CardPlayer {
    * scorer decides whose number goes where (walked 2026-10-04).
    */
   label?: string;
+  /**
+   * THEIR CARD IS SIGNED, so it is shown and not offered (2026-10-09). A
+   * marker keeping the group's cards could step a partner's certified card —
+   * walked: Faye signed a 72, her partner pressed + on the 1st, and the card
+   * went back to unsigned at 73 with nothing said to either of them. Under
+   * Rule 3.3b a returned card is the committee's to correct.
+   */
+  signed?: boolean;
 }
 
 /**
@@ -595,21 +603,24 @@ export function HoleByHoleCard({
                           ? `${toParText(toPar)} thru ${played}`
                           : `thru ${played}`
                         : "no score yet"}
+                      {p.signed && " · signed — only the committee can change it"}
                     </span>
                   </span>
 
                   {/* A stepper, not a pad: the scorer knows the number and is
                       entering it, not choosing from a menu. First tap of + or −
                       starts from par, which is the commonest score on any hole. */}
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
-                    onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
-                    style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
-                  >
-                    −
-                  </button>
+                  {!p.signed && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      aria-label={`One fewer stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      onClick={() => set(p.id, Math.max(1, (value ?? (par ?? 4) + 1) - 1))}
+                      style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
+                    >
+                      −
+                    </button>
+                  )}
                   <span
                     className={`sc-score${scoreMark(value, par)}`}
                     role="img"
@@ -634,19 +645,21 @@ export function HoleByHoleCard({
                   >
                     {picked ? "X" : value ?? "–"}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
-                    onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
-                    style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
-                  >
-                    +
-                  </button>
+                  {!p.signed && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      aria-label={`One more stroke for ${p.name} on hole ${holeNumber(hole, firstHole)}`}
+                      onClick={() => set(p.id, (value ?? (par ?? 4) - 1) + 1)}
+                      style={{ minWidth: 44, minHeight: 44, fontSize: 18, padding: 0 }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
                 {/* Under the row rather than a fifth control in it: at 320px
                     the name already shares the row with three 44px targets. */}
-                {onPickUp && picksOpen && (
+                {onPickUp && picksOpen && !p.signed && (
                   <PickUpToggle
                     name={p.name}
                     hole={holeNumber(hole, firstHole)}

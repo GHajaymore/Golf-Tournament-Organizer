@@ -59,7 +59,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
-import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
+import { reviewCards, isCardLocked, isPartnerCardSigned, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -347,6 +347,22 @@ async function assertMayKeepCard(
   );
   if (!mayWriteCard(own, playerId, foursomes)) {
     throw new Error("You can only keep score for yourself and the group you were drawn with.");
+  }
+  /**
+   * AND NOT A CARD ITS PLAYER HAS RETURNED (2026-10-09). A marker could step
+   * a partner's certified card: the save de-certifies a card whose numbers
+   * changed, so Faye's signed 72 became an unsigned 73, written by somebody
+   * else, with nothing said to her and no line in the record. Under Rule 3.3b
+   * a returned card is the committee's to correct. The player's OWN card is
+   * above this line and unchanged — they may still fix it until it is approved.
+   */
+  const theirs = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { status: true },
+  });
+  if (theirs && isPartnerCardSigned(theirs.status)) {
+    const who = await prisma.player.findFirst({ where: { id: playerId, eventId }, select: { name: true } });
+    throw new Error(SIGNED_PARTNER_REFUSAL(who?.name ?? "That player"));
   }
 }
 

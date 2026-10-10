@@ -82,6 +82,21 @@ export function isCardLocked(status: string): boolean {
   return status === "approved";
 }
 
+/**
+ * A PARTNER'S CARD THAT IS NO LONGER THE MARKER'S TO CHANGE (2026-10-09):
+ * certified by its player, flagged by them, or approved. Wider than
+ * `isCardLocked`, which is about the committee: a player may still fix their
+ * OWN card until it is approved, but a returned card is not their marker's to
+ * alter (Rule 3.3b). Walked: a partner stepped a signed 72 to a 73 and the
+ * card silently lost its signature.
+ */
+export function isPartnerCardSigned(status: string | undefined): boolean {
+  return !!status && status !== "entered";
+}
+
+export const SIGNED_PARTNER_REFUSAL = (name: string) =>
+  `${name} has signed this card — only the committee can change it now.`;
+
 export const LOCKED_CARD_REFUSAL =
   "That card has been approved. An organizer has to reopen it before it can be changed.";
 

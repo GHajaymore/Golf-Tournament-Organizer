@@ -6,6 +6,7 @@ import { usePendingCard } from "@/components/usePendingCard";
 import { cardRevision, type SyncStatus } from "@/lib/domain/pending-card";
 import type { PinSheet } from "@/lib/domain/pin-sheet";
 import { stablefordPickUp } from "@/lib/domain/card-points";
+import { isPartnerCardSigned } from "@/lib/domain/card-approval";
 
 export interface GroupPartner {
   id: string;
@@ -17,6 +18,8 @@ export interface GroupPartner {
    * same way as the holder's own. Absent means none to show.
    */
   shots?: number[];
+  /** The card's status; anything but "entered" is signed or flagged — see `isPartnerCardSigned`. */
+  status?: string;
 }
 
 /**
@@ -108,6 +111,9 @@ export function GroupScoring({
       onSetMine(hole, value);
       return;
     }
+    // A signed partner's card is not this phone's to write — a heard "Faye
+    // five" included. The server refuses it too; this keeps it off the queue.
+    if (isPartnerCardSigned(partners.find((p) => p.id === playerId)?.status)) return;
     setNotes((prev) => (prev[playerId] ? { ...prev, [playerId]: "" } : prev));
     setCards((prev) => {
       const next = [...(prev[playerId] ?? [])];
@@ -133,7 +139,15 @@ export function GroupScoring({
       <HoleByHoleCard
         // Each partner's shots on their own row, as the holder's are on theirs:
         // the marker keeping a net card has to see who gets a stroke here.
-        players={[me, ...partners.map((p) => ({ id: p.id, name: p.name, shotsOn: (h: number) => p.shots?.[h] ?? 0 }))]}
+        players={[
+          me,
+          ...partners.map((p) => ({
+            id: p.id,
+            name: p.name,
+            shotsOn: (h: number) => p.shots?.[h] ?? 0,
+            signed: isPartnerCardSigned(p.status),
+          })),
+        ]}
         cards={{ [me.id]: myStrokes, ...cards }}
         pars={pars}
         yards={yards}
