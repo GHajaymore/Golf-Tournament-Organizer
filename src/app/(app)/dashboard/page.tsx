@@ -799,6 +799,7 @@ export default async function DashboardPage() {
               rule={cutPreview.rule}
               through={cutPreview.through}
               missed={cutPreview.missed}
+              noCard={cutPreview.noCard}
             />
           ) : readyToClose ? (
             <RoundReadyCard

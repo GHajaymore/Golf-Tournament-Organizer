@@ -128,6 +128,16 @@ beforeAll(async () => {
     });
   }
 
+  // Four entrants who never return a card — no-shows, or a field still out.
+  for (const [i, who] of ["n1", "n2", "n3", "n4"].entries()) {
+    id[who] = (
+      await prisma.player.create({
+        data: { eventId, name: `${TAG} ${who}`, email: `${lower}-${who}@example.invalid`, seed: 10 + i, status: "confirmed", handicap: 0 },
+        select: { id: true },
+      })
+    ).id;
+  }
+
   adminUser = (await prisma.user.create({ data: { email: `${lower}-admin@example.invalid`, name: `${TAG} Admin`, password: "x:unusable" }, select: { id: true } })).id;
   await prisma.account.create({ data: { eventId, name: `${TAG} Admin`, email: `${lower}-admin@example.invalid`, role: "admin" } });
   dUser = (await prisma.user.create({ data: { email: `${lower}-d@example.invalid`, name: `${TAG} d`, password: "x:unusable" }, select: { id: true } })).id;
@@ -191,8 +201,25 @@ describe("a stroke-play cut", () => {
 
   it("is asked for on the dashboard once every card is approved", async () => {
     await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.d }, data: { status: "approved" } });
+    /**
+     * PLAYERS WITH NO CARD DO NOT HOLD IT UP, and are named (2026-10-09).
+     * Walked on a 120-player championship: every returned card approved, and
+     * no prompt, because one entrant never turned up. Closing was allowed
+     * (`strokeCutRefusal` waits on cards, not on people); the dashboard asked
+     * for every entrant's card, so the two disagreed.
+     *
+     * The control is the other half of the same rule: with FOUR of eight
+     * cardless the field is still on the course, and asking for the cut then
+     * would send half of it home.
+     */
+    expect((await loadEventState(eventId))!.cutReady, "half the field has no card yet").toBeNull();
+    await prisma.player.update({ where: { id: id.n4 }, data: { status: "withdrawn" } });
     const ready = (await loadEventState(eventId))!.cutReady;
     expect(ready).toMatchObject({ feederId: r1, feederName: "Round 1", nextId: r2, nextName: "Round 2" });
+    expect(ready!.noCard.sort()).toEqual([`${TAG} n1`, `${TAG} n2`, `${TAG} n3`]);
+    // And the refusal agrees: nothing stands in the way of closing.
+    const { strokeCutRefusal } = await import("@/lib/services/stroke-cut");
+    expect(await strokeCutRefusal(eventId, r1)).toBeNull();
   });
 
   it("is made when round 1 closes: top 2 and ties get round 2 cards, nobody else", async () => {

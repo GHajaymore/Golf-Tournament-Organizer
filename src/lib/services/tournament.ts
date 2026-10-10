@@ -8,7 +8,7 @@ import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../fo
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -592,7 +592,14 @@ export interface EventState {
    * open — the organizer's one step left is to mark that round finished. See
    * `roundReadyForCut`. Names are what the organizer reads ("Round 1").
    */
-  cutReady: { feederId: string; feederName: string; nextId: string; nextName: string } | null;
+  cutReady: {
+    feederId: string;
+    feederName: string;
+    nextId: string;
+    nextName: string;
+    /** The round's field with no card at all — they miss the cut when it is made. */
+    noCard: string[];
+  } | null;
   strokeStandings: StrokeStanding[];
   /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
@@ -2662,21 +2669,43 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         }
       : boardProgressOfCards;
 
-  // Counted with the same `roundProgress` the dashboard's "Cards in" reads, so
-  // the prompt and the count beside it cannot disagree about "all in" — on the
-  // FINAL cards: approved, or certified where no committee reviews.
-  const readyCut = roundReadyForCut(playRounds, (r) => {
-    const p = roundProgress(r);
-    return { final: staffApproves ? p.approved : p.certified, total: p.total };
-  });
-  const cutReady = readyCut
-    ? {
-        feederId: readyCut.feeder.id,
-        feederName: roundKicker(readyCut.feeder.description, roundLabel(stages, readyCut.feeder.id) || "This round"),
-        nextId: readyCut.next.id,
-        nextName: roundKicker(readyCut.next.description, roundLabel(stages, readyCut.next.id) || "the next round"),
-      }
-    : null;
+  // Counted over the cards `strokeCutRefusal` judges — the field's, less anybody
+  // who has left it — so the prompt appears exactly when closing the round would
+  // be allowed. A player with no card is not waited on: they miss the cut, and
+  // the prompt counts them against the field `roundProgress` reads for "Cards in".
+  const cutCards = (r: { id: string }) => scorecards.filter((c) => c.stageId === r.id && !withdrawnIds.has(c.playerId));
+  const readyCut = roundReadyForCut(playRounds, (r) => cutProgress(cutCards(r), staffApproves));
+  /**
+   * WHO HAS NO CARD, by name — the organizer is about to send them home. The
+   * round's field is its cut survivors once a cut has been made into it, else
+   * the confirmed field less anybody out on that league week.
+   *
+   * And NOT while most of the field is still out: with three cards approved at
+   * nine in the morning every one of them is "final" and 117 players have no
+   * card yet, which is a field on the course, not a field of no-shows. So the
+   * prompt waits until the cardless are a handful — at most three, or a tenth
+   * of the field — and then names them, which is the committee's cue to check
+   * rather than an assumption made for it.
+   */
+  const noCardIn = (r: DbStage): Player[] => {
+    const own = cutCards(r);
+    const holders = new Set(own.map((c) => c.playerId));
+    const field = r.cutEnabled && own.length > 0 ? confirmed.filter((p) => holders.has(p.id)) : confirmed;
+    const out = outOn(r.id);
+    const played = new Set(own.filter((c) => hasAnyHole(c.strokes)).map((c) => c.playerId));
+    return field.filter((p) => !played.has(p.id) && !out.has(p.id));
+  };
+  const cardless = readyCut ? noCardIn(readyCut.feeder) : [];
+  const cutReady =
+    readyCut && cardless.length <= Math.max(3, Math.ceil(confirmed.length / 10))
+      ? {
+          feederId: readyCut.feeder.id,
+          feederName: roundKicker(readyCut.feeder.description, roundLabel(stages, readyCut.feeder.id) || "This round"),
+          nextId: readyCut.next.id,
+          nextName: roundKicker(readyCut.next.description, roundLabel(stages, readyCut.next.id) || "the next round"),
+          noCard: cardless.map((p) => p.name),
+        }
+      : null;
 
   return {
     event,

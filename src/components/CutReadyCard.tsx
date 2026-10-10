@@ -26,6 +26,7 @@ export function CutReadyCard({
   rule,
   through,
   missed,
+  noCard = [],
 }: {
   feederId: string;
   feederName: string;
@@ -34,6 +35,8 @@ export function CutReadyCard({
   rule: string;
   through: number;
   missed: number;
+  /** Players in the round's field with no card — they miss the cut too. */
+  noCard?: string[];
 }) {
   const { pending, error, run } = useAction();
 
@@ -45,8 +48,15 @@ export function CutReadyCard({
     >
       <span className="card-kicker">The cut</span>
       <p style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.4 }}>
-        All {feederName} cards are approved — approve the cut.
+        {noCard.length > 0 ? `Every ${feederName} card returned is approved` : `All ${feederName} cards are approved`} —
+        approve the cut.
       </p>
+      {noCard.length > 0 && (
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          No card from {listOf(noCard)}. {noCard.length === 1 ? "That player misses" : "They miss"} the cut unless you
+          enter {noCard.length === 1 ? "the card" : "their cards"} on <Link href="/entry">Score entry</Link> first.
+        </p>
+      )}
       <p className="text-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
         {rule}: {through} {through === 1 ? "player goes" : "players go"} through to {nextName}
         {missed > 0 ? `, ${missed} ${missed === 1 ? "misses" : "miss"} the cut` : ""}. Approving marks{" "}
@@ -75,4 +85,10 @@ export function CutReadyCard({
       )}
     </section>
   );
+}
+
+/** "Ann", "Ann and Bob", "Ann, Bob and Cy". */
+function listOf(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
