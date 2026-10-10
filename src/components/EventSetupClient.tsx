@@ -880,12 +880,16 @@ export function EventSetupClient({
               startTransition(() =>
                 saveEvent({
                   name: f.name, playKind: f.playKind, dates: f.dates, datesTentative: f.datesTentative,
+                  // The calendar dates with their label — see `saveEvent`.
+                  startOn: f.startOn, endOn: f.endOn,
                   format: f.format, course: f.course, courseId: f.courseId, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, regOpens: f.regOpens, capacity: f.capacity, playerCountMode: f.playerCountMode,
                   courseMode: f.courseMode,
                 }),
               );
               setSavedSnapshot(f);
+              // Saved with the rest, so "Save dates" has nothing left to save.
+              setSavedDates({ startOn: f.startOn, endOn: f.endOn, datesTentative: f.datesTentative });
             }}
           >
             <Icon name="check" /> {courseAdding ? "Adding the course…" : isDirty ? "Save event" : "Saved"}

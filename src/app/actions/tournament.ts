@@ -1050,6 +1050,16 @@ export async function saveEvent(data: {
   playKind?: string;
   dates: string;
   /**
+   * THE CALENDAR DATES `dates` IS THE LABEL FOR (2026-10-10). "Save event"
+   * stored the label and not these, so a tournament reading "Oct 12 – 13,
+   * 2026" on its own screen was filed under "No dates yet" on every member's
+   * Events list, the club calendar and the season — only "Save dates", a
+   * second button beside the big one, wrote them. Optional so an older caller
+   * leaves them alone; cleaned exactly as `setTournamentDates` cleans them.
+   */
+  startOn?: string;
+  endOn?: string;
+  /**
    * Whether those dates are still a proposal. Optional so an older caller —
    * or a screen that does not ask the question — leaves the club's answer
    * alone rather than quietly settling it.
@@ -1112,10 +1122,17 @@ export async function saveEvent(data: {
   const clearedCard = movedVenue
     ? { customPars: "", customYards: "", customStrokeIndex: "" }
     : {};
+  const start = data.startOn === undefined ? undefined : cleanIsoDate(String(data.startOn));
+  const end = data.endOn === undefined ? undefined : cleanIsoDate(String(data.endOn));
+  const calendar =
+    start === undefined
+      ? {}
+      : { startOn: start, endOn: start && end && end < start ? start : (end ?? "") };
   await prisma.event.update({
     where: { id: eventId },
     data: {
       name: data.name,
+      ...calendar,
       // Only a word this app offers, because a `"use server"` export is a
       // public endpoint and this one prints into a member's sentence.
       ...(data.playKind && isPlayKind(data.playKind) ? { playKind: data.playKind } : {}),
