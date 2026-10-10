@@ -36,6 +36,31 @@ Use a throwaway organization and event, prefix every row with a mark (`zz-<purpo
 names, and `@example.invalid` addresses. Delete them in a `finally` — a fixture left in the
 database is a fixture someone will later mistake for real.
 
+## Help and docs travel with the change
+
+Ajay, 2026-10-10: "keep a step when there is any change in the app to update the help section
+(guide etc) or any documentations." He chose written help over an AI help bot, and written help
+is only worth having while it is true. So a change to what somebody sees or does is not done
+until, **in the same pull request**:
+
+- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown at `/guide/steps` with a
+  search box (`guide-search.ts`) and shipped as a PDF. Rebuild the PDF when the guide changes:
+  `node scripts/build-guide-pdf.mjs` against a built server (see the script's header);
+- **the player's Help** says it — `src/lib/player-help.ts`, shown at `/me/help`;
+- any doc that describes it is corrected — this file, `docs/`.
+
+Say which in the PR description: "Help/docs: updated …" or "Help/docs: nothing to change,
+because …". And **ask Ajay** when a change might deserve a place on the landing page — a new
+capability, a claim that has changed, a better screen to show. The landing is another session's
+(`src/app/page.tsx`); do not edit it, and do not decide silently that it needs nothing.
+
+Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
+no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
+`guide-steps.test.ts`), and a search result with nowhere to jump (`guide-search.test.ts`). The
+fourth is not testable and is yours: a flow that works differently under the same button names.
+The day this rule was written, the guide already held a sentence that morning's work had made
+false — "Only Manual lets you … set tees per flight".
+
 ## Verification
 
 Run before committing anything non-trivial:

@@ -57,6 +57,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise.",
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
+          "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
         ],
       },
       { kind: "tip", text: "A member with no handicap shows **No index yet**, never 0 — a blank handicap is not scratch." },
@@ -154,6 +155,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "If the event uses more than one course, pick the round's **Course** — handicaps and par come from it.",
           "Under [[Customize this round]]: **Result calculation** (Gross, Net or Both; Stableford is always off handicap), how scores are recorded, **Completion deadline**, **Scoring window**, the cut and tiebreakers.",
           "Each format comes with the usual handicap allowance (Stroke Play 95%, Four-Ball 90%, Foursomes 50%…). Change it per round under **Handicaps for this round**.",
+          "A two-ball round scored on gross (Four-Ball, Best Ball, Shamble) can be written down as **One card for the side** instead of a card each, under **Scores are entered as**. On net or Stableford each player's own card is needed, so the choice is not offered.",
         ],
       },
       {
@@ -245,7 +247,8 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Pick a rule: **Balanced skills**, **Handicap divisions**, **Spread by handicap**, **By seeding**, **Random** or **Manual**.",
           "Pick **Flight size**: Auto, Set flights or Players / flight. Handicap divisions on Auto follow club convention — one division under 16 players, two under 32, three from 32.",
           "Press [[Generate flights]]. If matches have been scored, you're asked to confirm, because redrawing deletes them.",
-          "Only **Manual** lets you drag players between flights, set tees per flight, and name captains.",
+          "Only **Manual** lets you drag players between flights and name captains.",
+          "Divisions off different tees: choose **Each flight plays its own tees** under Players & scoring, then set **Tees** on each flight here — on flights the app drew as well as Manual ones. A flight you leave alone plays the round's tees.",
         ],
       },
       { kind: "h", text: "Teams and pairs (team formats only)" },
@@ -263,7 +266,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "**Who plays together**: Random, Balanced handicap, Balanced skill, Seeded, or By position (once a round has been played).",
+          "**Who plays together**: Random, Balanced handicap, Balanced skill, Seeded, or By position (once a round has been played). In a pairs event By position follows the pairs' own board, and partners always go out together.",
           "Choose the order off the tee and the group size (2, 3 or 4).",
           "**Start**: One tee, **Split** (1st and 10th) or **Shotgun** (a group on every hole). Set **First tee** and **Interval**.",
           "Players' pairing requests are kept together where possible (not in a draw by position); any that couldn't fit are listed.",
@@ -314,7 +317,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Choose the round, then the **Player**.",
           "Enter the card **Hole by hole** or as a **Full card**, or use [[Voice entry]] (“four, par, birdie, six…”). Press [[Save scorecard]].",
-          "Many cards at once: [[Import scores]] from a spreadsheet. Imported cards wait for approval like typed ones.",
+          "Many cards at once: [[Import scores]] from a spreadsheet. A finished card comes in as returned, so one press of [[Approve N clean cards]] accepts the whole file; an unfinished one waits under Needs attention. Importing a changed card over an approved one sends it back to be approved again.",
+          "Team rounds import the same way, gross only: a row per player for a four-ball (it goes on that player's side), a row per side for a shared ball — name the side or any one of its players.",
         ],
       },
       { kind: "h", text: "Match play" },
@@ -339,6 +343,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "list",
         items: [
+          "A pairs event over more than one round shows the pairs' **Total over N rounds** above the round's own board — on the public board and on players' phones too — as long as the same pairs played every round. A team board ranks on score to par while a round is being played.",
           "**Live leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores only.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
@@ -376,6 +381,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         items: [
           "Add the season's rounds at once with **How many?** and **Then** (weekly).",
           "**This week** shows the week's results, standings and skins.",
+          "Close each week once it is played. With members away a week is never “all in”, so the Dashboard asks to close it as soon as next week's draw is out and every card that was started is back — it says how many did not play. Closing moves everybody on to the new week.",
+          "A **Round robin** round is a whole everyone-plays-everyone. Add several and each is its own contest unless you answer **Do match points carry into the next round?** with yes.",
           "**Season standings** adds tournaments up across a season; the **Honours board** keeps your champions (Birdie plan and above).",
           "Rained off? Change that round's **Played on** date. A tie settled by a play-off hole: [[Record the play-off hole]].",
         ],
@@ -442,10 +449,10 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Approve the last cards and mark the round over with **Is this round over?** on Rounds & formats — any cut is made then.",
+          "Approve the last cards. When everything is in, the Dashboard offers to close the round — or mark it over with **Is this round over?** on Rounds & formats. Any cut is made then, and the board reads Final.",
           "Award prizes and settle the money.",
           "Export from **Afterwards → Reports & export**: [[Export CSV]] for standings and flight results (or the format's own sheet), **Who turned out**, the **Bracket sheet** and **Scorecards**. The snapshot has a [[Print]] button for a PDF.",
-          "On Tournament details press [[Complete tournament]]. Boards switch to Final standings.",
+          "On the Dashboard press [[Complete tournament]] and confirm. Boards switch to Final standings. To correct a card afterwards, press [[Reopen tournament]] — it asks first too — then complete it again.",
         ],
       },
       { kind: "warn", text: "**On the free Par plan** completing a tournament deletes it. The dialog offers [[Go to Reports]] to export first, or an upgrade to keep it. A Par tournament is also removed 14 days after its first round." },
