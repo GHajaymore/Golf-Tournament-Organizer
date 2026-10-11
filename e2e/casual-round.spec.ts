@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedCasual, teardownCasual } from "./casual-fixture.mjs";
 

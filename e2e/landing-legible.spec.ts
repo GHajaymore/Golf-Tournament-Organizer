@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./coverage";
 
 /**
  * EVERY WORD ON THE FRONT DOOR IS READABLE AGAINST WHAT IS ACTUALLY BEHIND IT.

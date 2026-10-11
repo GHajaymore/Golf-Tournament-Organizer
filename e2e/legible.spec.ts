@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./coverage";
 import { join } from "node:path";
 import { standaloneScreens, consoleScreens, playerScreens, entryUrl } from "./routes";
 import {

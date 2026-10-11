@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./coverage";
 
 /**
  * EVERY SCREENSHOT ON THE FRONT DOOR IS SHARP, WHOLE AND STILL.
