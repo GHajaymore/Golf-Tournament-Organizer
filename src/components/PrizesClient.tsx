@@ -64,6 +64,7 @@ export function PrizesClient({
   const [category, setCategory] = useState("");
   const [detail, setDetail] = useState("");
   const [amount, setAmount] = useState("");
+  const [structureRefused, setStructureRefused] = useState("");
   const [pending, startTransition] = useTransition();
   const saveStatus = useSaveStatus(pending);
 
@@ -185,12 +186,25 @@ export function PrizesClient({
                 className="btn"
                 disabled={pending}
                 title={s.blurb}
-                onClick={() => startTransition(() => applyPrizeStructure(s.key))}
+                onClick={() => {
+                  setStructureRefused("");
+                  startTransition(async () => {
+                    const res = await applyPrizeStructure(s.key);
+                    // "Flight winners" on a field with no flights adds
+                    // nothing; it used to say nothing too.
+                    if (res && !res.ok) setStructureRefused(res.error ?? "That added nothing.");
+                  });
+                }}
               >
                 <Icon name="plus" /> {s.label}
               </button>
             ))}
           </div>
+          {structureRefused && (
+            <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+              <Icon name="warning-circle" /> {structureRefused}
+            </p>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>

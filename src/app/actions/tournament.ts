@@ -7,7 +7,7 @@ import { roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicap
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
-import { prizeStructureLines } from "@/lib/domain/prize-structures";
+import { prizeStructure, prizeStructureLines } from "@/lib/domain/prize-structures";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { oneCardPerSide, teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { isNetBasis } from "@/lib/domain/match-entry";
@@ -4688,8 +4688,10 @@ export async function removePrize(prizeId: string) {
  * purse (`addPrize` and friends above), and a flight structure reads the
  * event's actual flights so it scales with the draw rather than assuming three.
  */
-export async function applyPrizeStructure(key: string) {
+export async function applyPrizeStructure(key: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  // An unknown structure is refused by name, not treated as one with no lines.
+  if (!prizeStructure(key)) return { ok: false, error: "That isn't one of the prize structures." };
   // Real flights only — a carrier is a structural row, not a division a prize
   // is won in, so `isCarrier: false` exactly as every other flight read does.
   const flights = await prisma.group.findMany({
@@ -4701,9 +4703,15 @@ export async function applyPrizeStructure(key: string) {
   // stored "A — Winner" — so the Prizes picker can match the prize to its
   // flight and a member reading the prize list recognises their flight.
   const lines = prizeStructureLines(key, { flights: flights.map((f, i) => flightLabel(f.name, i)) });
-  // An unknown key, or a flight structure on a field with no flights, adds
-  // nothing rather than a bad row — the same fail-safe as the resolver.
-  if (lines.length === 0) return;
+  // A flight structure on a field with no flights adds nothing — AND SAYS SO.
+  // It returned in silence: the button was pressed and nothing appeared, which
+  // a secretary cannot tell from the app being broken (2026-10-10).
+  if (lines.length === 0) {
+    return {
+      ok: false,
+      error: "This field isn't drawn into flights yet, so there are no flight winners to add. Draw the flights on Flights & groups first.",
+    };
+  }
 
   const agg = await prisma.prize.aggregate({ where: { eventId }, _max: { position: true } });
   let position = agg._max.position ?? 0;
@@ -4718,6 +4726,7 @@ export async function applyPrizeStructure(key: string) {
   });
   await logAudit(eventId, "prize.structure", `${key} — added ${lines.length} line${lines.length === 1 ? "" : "s"}`);
   await refresh();
+  return { ok: true };
 }
 
 /* ── Announcements (player communications) ────────────────────────────── */
