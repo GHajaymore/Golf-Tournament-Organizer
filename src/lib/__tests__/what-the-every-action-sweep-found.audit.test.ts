@@ -38,7 +38,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addOrganizationMember } from "@/app/actions/organization";
-import { disputeMatch, reopenMatch, setBracketWinner, setPrizeWinner } from "@/app/actions/tournament";
+import { disputeMatch, removePrize, reopenMatch, setBracketWinner, setPrizeWinner, updatePrize } from "@/app/actions/tournament";
+import { removeSkinsPot } from "@/app/actions/skins";
 import { loadEventState } from "@/lib/services/tournament";
 import { bracketDraws } from "@/lib/domain/my-tie";
 
@@ -335,5 +336,58 @@ describe("who may dispute a match", () => {
     expect(await disputeMatch(away.match)).toEqual({ ok: true });
     expect(await status()).toBe("disputed");
     await set("pending");
+  });
+});
+
+/**
+ * A RECORD OF SOMETHING THAT DID NOT HAPPEN — the rest of the class.
+ *
+ * Disputing a match that was not there wrote "Result disputed" (above). Read
+ * for the same shape — a write whose result is thrown away, then an audit
+ * line — three more actions had it: editing a prize and removing a prize that
+ * are not this tournament's, and removing a skins game the round does not
+ * have. Each changed nothing and recorded that it had.
+ */
+describe("the record says only what happened", () => {
+  let mine = "";
+  let theirs = "";
+  const lines = (action: string) => prisma.auditLog.findMany({ where: { eventId: home.event, action }, select: { detail: true } });
+
+  beforeAll(async () => {
+    mine = (await prisma.prize.create({ data: { eventId: home.event, category: `${TAG} nearest the pin`, amount: 20 }, select: { id: true } })).id;
+    theirs = (await prisma.prize.create({ data: { eventId: away.event, category: `${TAG} away longest drive`, amount: 20 }, select: { id: true } })).id;
+  });
+
+  it("editing a prize that is not this tournament's records nothing", async () => {
+    await as(home.admin, home.event);
+    await updatePrize(theirs, { amount: 999 });
+    expect(await lines("prize.update")).toEqual([]);
+    expect((await prisma.prize.findUnique({ where: { id: theirs }, select: { amount: true } }))?.amount).toBe(20);
+  });
+
+  it("removing a prize that is not this tournament's records nothing, and removes nothing", async () => {
+    await as(home.admin, home.event);
+    await removePrize(theirs);
+    expect(await lines("prize.remove")).toEqual([]);
+    expect(await prisma.prize.count({ where: { id: theirs } })).toBe(1);
+  });
+
+  it("removing a skins game the round does not have says so, and records nothing", async () => {
+    await as(home.admin, home.event);
+    const stage = await prisma.stage.findFirst({ where: { eventId: home.event }, select: { id: true } });
+    const result = await removeSkinsPot(stage!.id, true, "full", "");
+    expect(result.ok).toBe(false);
+    expect(await lines("skins.pot.remove")).toEqual([]);
+  });
+
+  it("CONTROL: editing and then removing this tournament's own prize is on the record, by name", async () => {
+    await as(home.admin, home.event);
+    await updatePrize(mine, { amount: 25 });
+    expect((await lines("prize.update")).map((l) => l.detail)).toEqual(["amount: 25"]);
+    await removePrize(mine);
+    const said = (await lines("prize.remove")).map((l) => l.detail);
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain(`${TAG} nearest the pin`);
+    expect(await prisma.prize.count({ where: { id: mine } })).toBe(0);
   });
 });

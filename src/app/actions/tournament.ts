@@ -4693,7 +4693,11 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
   if (data.category !== undefined) patch.category = data.category.trim();
   if (data.detail !== undefined) patch.detail = data.detail.trim();
   if (data.amount !== undefined) patch.amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 0;
-  await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
+  const moved = await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
+  // Only what happened is on the record: a prize that is not this
+  // tournament's changes nothing, and used to be logged as edited all the same
+  // (the class of `disputeMatch`, 2026-10-11).
+  if (moved.count === 0) return;
   // What actually changed, rather than "a prize was edited" — the amount is
   // the half somebody would come back and ask about.
   await logAudit(
@@ -4737,12 +4741,11 @@ export async function removePrize(prizeId: string) {
     where: { id: prizeId, eventId },
     select: { category: true, amount: true },
   });
+  // Nothing of this tournament's by that id: nothing is removed, and nothing
+  // is written. It used to log "Removed a prize" for a prize it never had.
+  if (!gone) return;
   await prisma.prize.deleteMany({ where: { id: prizeId, eventId } });
-  await logAudit(
-    eventId,
-    "prize.remove",
-    gone ? `Removed ${gone.category}${gone.amount > 0 ? ` — ${gone.amount}` : ""}` : "Removed a prize",
-  );
+  await logAudit(eventId, "prize.remove", `Removed ${gone.category}${gone.amount > 0 ? ` — ${gone.amount}` : ""}`);
   await refresh();
 }
 

@@ -369,7 +369,10 @@ export async function removeSkinsPot(
   // On a nine-hole round all three name the same game — see `potScopeOn`.
   scope = await potScopeOn(stageId, net, key, scope);
   // Exactly the pot named, and nothing beside it.
-  await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net, scope, groupKey: key } });
+  const gone = await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net, scope, groupKey: key } });
+  // A game the round does not have was "removed", and recorded as removed.
+  // It says so now, and the record holds only what happened (2026-10-11).
+  if (gone.count === 0) return { ok: false, error: "That skins game isn't on this round — it may already have been taken off." };
   await logAudit(eventId, "skins.pot.remove", `Removed ${potName(net, scope, key)}`);
   refresh();
   return { ok: true };
