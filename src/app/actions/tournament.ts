@@ -1,4 +1,5 @@
 "use server";
+import type { Match as MatchRow } from "@prisma/client";
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
@@ -2788,6 +2789,31 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   // frozen by the same rule as a stroke round.
   if (isReturnedCard(clean)) await freezeRoundHandicaps(eventId, match.stageId);
 
+  await deriveMatchFromItsCards(eventId, match, { name: session.name, playerId: await authorPlayerId(eventId, session) });
+  await refresh();
+}
+
+/**
+ * A MATCH'S HOLE RESULTS, DERIVED FROM ITS TWO PLAYERS' CARDS — net of their
+ * handicaps where the round is.
+ *
+ * This was the second half of `saveMatchScorecard`, and the only code that
+ * could turn a card into a match result. A file of cards imported into a
+ * match-play round therefore could not: it wrote `Scorecard` rows — the table
+ * a stroke round files in — which no match reads, and the night's matches
+ * stayed unplayed under a message saying the cards were in (sweep 1, b14,
+ * 2026-10-10). The import files its cards on the fixture and calls this, so
+ * a typed card and an imported one are the same result by construction.
+ *
+ * Not exported: a `"use server"` export is a public endpoint, and this takes
+ * a match row on trust.
+ */
+async function deriveMatchFromItsCards(
+  eventId: string,
+  match: MatchRow,
+  enteredBy: { name: string; playerId: string },
+): Promise<void> {
+  const matchId = match.id;
   const [cardA, cardB, playerA, playerB, event, stage] = await Promise.all([
     prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "A" } } }),
     prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "B" } } }),
@@ -2916,9 +2942,8 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
+    data: { holes: JSON.stringify(holes), ...(await clearsConcession(matchId)), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: enteredBy.name, enteredById: enteredBy.playerId, attestedBy: "[]" },
   });
-  await refresh();
 }
 
 /**
