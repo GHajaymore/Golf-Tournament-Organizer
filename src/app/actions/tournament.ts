@@ -136,15 +136,10 @@ import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/s
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
+import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { isSupportedLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
-
-async function requireEvent(): Promise<string> {
-  const session = await getSession();
-  if (!session) throw new Error("Not authenticated");
-  return session.eventId;
-}
 
 /** Primary Organizer only (admin) — critical config and access control. */
 async function requireAdminEvent(): Promise<string> {
@@ -3566,22 +3561,51 @@ export async function confirmMatches(
   return { ok: true, confirmed: result.count };
 }
 
-/** Flag a result as wrong. Open to anyone in the event — a disputed score
- *  blocks confirmation rather than changing anything, so the permissive side
- *  is the safe one here. */
-export async function disputeMatch(matchId: string) {
-  const eventId = await requireEvent();
+/**
+ * Flag a result as wrong.
+ *
+ * FOR THE PLAYERS IN THE MATCH, AND THE COMMITTEE (ruling of 2026-10-11).
+ *
+ * This read "open to anyone in the event — a disputed score blocks
+ * confirmation rather than changing anything, so the permissive side is the
+ * safe one". It is not safe: any entrant could mark any match disputed — a
+ * pair two groups away, a final they were not in — and a disputed result
+ * holds up the whole tournament's finish; it also took a result the committee
+ * had already confirmed back out of "confirmed". The screen has only ever
+ * offered Dispute on a player's own match, before it is confirmed. Found by
+ * the every-action sweep's member, signed in to a tournament with matches.
+ *
+ * In match play a result is the two sides' business and then the committee's
+ * (Rule 20.1b): somebody outside the match who knows something tells the
+ * committee, and once the committee has confirmed a result a player asks them
+ * to reopen it — `reopenMatch`, which is theirs alone.
+ */
+export async function disputeMatch(matchId: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const eventId = session.eventId;
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, eventId },
+    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true, scoreStatus: true },
+  });
+  if (!match) return { ok: false, error: "That match isn't in this tournament." };
+  if (session.role === "player") {
+    if (!(await playsInMatch(eventId, session.email, match))) {
+      return { ok: false, error: "Only the players in a match, or the committee, can dispute its result." };
+    }
+    if (match.scoreStatus === "confirmed" || match.scoreStatus === "auto-confirmed") {
+      return { ok: false, error: "That result has been confirmed. Ask the organizer to reopen it." };
+    }
+  }
   const moved = await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: { scoreStatus: "disputed" },
   });
-  // Only what happened is on the record. An id that is not a match of this
-  // tournament changes nothing — and used to be logged as "Result disputed"
-  // all the same, in the caller's own audit trail (every-action sweep,
-  // 2026-10-11).
-  if (moved.count === 0) return;
+  // Only what happened is on the record.
+  if (moved.count === 0) return { ok: false, error: "That match isn't in this tournament." };
   await logAudit(eventId, "dispute", "Result disputed", { matchId });
   await refresh();
+  return { ok: true };
 }
 
 /**

@@ -273,3 +273,67 @@ describe("awarding a prize", () => {
     expect(await winner(prizeId)).toBeNull();
   });
 });
+
+/**
+ * FOUND BY THE MEMBER'S PASS, once it was signed in to a tournament that HAS
+ * matches: any entrant could mark any match's result as disputed — a pair two
+ * groups away, a final they were not in — and a disputed result holds up the
+ * whole tournament's finish. The screen has only ever offered Dispute on a
+ * player's own match, before it is confirmed; the action asked for nothing
+ * but being signed in.
+ *
+ * RULING (2026-10-11, as the Rules treat match play — Rule 20.1b): a match's
+ * result is disputed by the players in it, or by the committee. Anybody else
+ * who knows something tells the committee. And once the committee has
+ * confirmed a result, a player asks them to reopen it.
+ */
+describe("who may dispute a match", () => {
+  let users: { inIt: string; outsider: string };
+
+  beforeAll(async () => {
+    // Two entrants of the away tournament who can sign in: one playing in the
+    // match (P1), one not (P3).
+    const emails = { inIt: `${TAG}-away-p1@example.invalid`, outsider: `${TAG}-away-p3@example.invalid` };
+    const made = { inIt: "", outsider: "" };
+    for (const [who, email] of Object.entries(emails) as ["inIt" | "outsider", string][]) {
+      made[who] = (await prisma.user.create({ data: { email, name: `${TAG} ${who}`, password: "x:unusable" }, select: { id: true } })).id;
+      await prisma.account.create({ data: { eventId: away.event, name: `${TAG} ${who}`, email, role: "player" } });
+    }
+    users = made;
+  });
+
+  const status = async () => (await prisma.match.findUnique({ where: { id: away.match }, select: { scoreStatus: true } }))?.scoreStatus;
+  const set = (scoreStatus: string) => prisma.match.update({ where: { id: away.match }, data: { scoreStatus } });
+
+  it("refuses an entrant who is not in the match", async () => {
+    await set("pending");
+    await as(users.outsider, away.event);
+    const result = await disputeMatch(away.match);
+    expect(result).toEqual({ ok: false, error: "Only the players in a match, or the committee, can dispute its result." });
+    expect(await status(), "somebody outside the match changed its result's standing").toBe("pending");
+  });
+
+  it("CONTROL: a player in the match disputes it", async () => {
+    await set("pending");
+    await as(users.inIt, away.event);
+    expect(await disputeMatch(away.match)).toEqual({ ok: true });
+    expect(await status()).toBe("disputed");
+  });
+
+  it("a player does not un-confirm a result the committee has confirmed", async () => {
+    await set("confirmed");
+    await as(users.inIt, away.event);
+    const result = await disputeMatch(away.match);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/has been confirmed/);
+    expect(await status()).toBe("confirmed");
+  });
+
+  it("CONTROL: the committee may dispute any match of its tournament", async () => {
+    await set("pending");
+    await as(away.admin, away.event);
+    expect(await disputeMatch(away.match)).toEqual({ ok: true });
+    expect(await status()).toBe("disputed");
+    await set("pending");
+  });
+});

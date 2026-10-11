@@ -800,8 +800,27 @@ export function ScoreEntryClient({
   };
   const doDispute = () => {
     if (!active) return;
-    setStatus(active.id, "disputed");
-    startTransition(() => void disputeMatch(active.id));
+    const id = active.id;
+    // NOT OPTIMISTIC, as `doConfirm` above: the server may say no — the
+    // committee confirmed the result a moment ago, on a screen that had not
+    // yet heard — and "disputed" painted over a result that is not would be
+    // the same lie in the other direction.
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        const res = await disputeMatch(id);
+        if (!res.ok) {
+          setSaveState("failed");
+          setSaveNote(res.error ?? "That result could not be disputed.");
+          return;
+        }
+        setStatus(id, "disputed");
+        setSaveState("saved");
+      } catch {
+        setSaveState("failed");
+      }
+    });
   };
   const doReopen = () => {
     if (!active) return;
