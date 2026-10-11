@@ -191,17 +191,51 @@ export function derivedNets(pot: DerivedPot): Net[] {
 /* ── Nassau ────────────────────────────────────────────────────────────────
  *
  * Three bets on one card — front, back and the overall eighteen — each worth
- * the same. Unlike every pot above, a Nassau is between TWO PLAYERS rather
+ * the same. Unlike every pot above, a Nassau is between TWO SIDES rather
  * than into a pool, so it pays across the match instead of out of a pot.
  */
 
 export interface NassauBet {
   matchId: string;
-  playerAId: string;
-  playerBId: string;
+  /**
+   * Everyone on each side: one id for singles, two for a four-ball or a
+   * foursomes. This was a pair of player ids, and the settle-up dropped every
+   * match that had none — which is every pairs match, since those hold their
+   * sides as teams. A Nassau on a four-ball took the stake and never paid.
+   */
+  sideA: string[];
+  sideB: string[];
   holes: HoleResult[];
-  /** Stake on EACH segment, integer cents. A "$5 Nassau" is 500 here. */
+  /** What each PLAYER has on EACH segment, integer cents. A "$5 Nassau" is 500 here. */
   stakeCents: number;
+}
+
+/**
+ * One decided bet between two sides, as what each player is up or down.
+ *
+ * PER PLAYER, NOT PER SIDE. In a four-ball each of the four has the stake on
+ * it, so each winner takes one from their opposite number — the side does not
+ * win one stake between two. It sums to zero either way.
+ *
+ * Uneven sides are paid at the SMALLER side's rate. Two against one is not a
+ * thing a fourball agrees to, but a side can end up short — somebody
+ * withdraws, a fourball plays as a threesome — and the bet still has to sum to
+ * zero. Paying every winner a full stake out of fewer losers would invent
+ * money, so what each player is down is capped by what the other side put in.
+ *
+ * The match bet and each segment of a Nassau are both exactly this, which is
+ * why it is one function: a Nassau is three match bets on one card.
+ */
+function sidesPay(a: string[], b: string[], winner: "A" | "B", stake: number): Net[] {
+  const perPlayer = Math.floor((stake * Math.min(a.length, b.length)) / Math.max(a.length, b.length));
+  const winners = winner === "A" ? a : b;
+  const losers = winner === "A" ? b : a;
+  const toWinner = winners.length <= losers.length ? stake : perPlayer;
+  const fromLoser = losers.length <= winners.length ? stake : perPlayer;
+  return [
+    ...winners.map((playerId) => ({ playerId, netCents: toWinner })),
+    ...losers.map((playerId) => ({ playerId, netCents: -fromLoser })),
+  ];
 }
 
 /**
@@ -217,22 +251,25 @@ export interface NassauBet {
  */
 export function nassauNets(bet: NassauBet): Net[] {
   const stake = Math.max(0, Math.round(bet.stakeCents));
-  if (stake === 0 || !bet.playerAId || !bet.playerBId) return [];
+  const a = bet.sideA.filter(Boolean);
+  const b = bet.sideB.filter(Boolean);
+  if (stake === 0 || a.length === 0 || b.length === 0) return [];
 
   const outcome = playNassau(bet.holes);
-  let aCents = 0;
+  const totals = new Map<string, number>();
   for (const segment of outcome.segments) {
     const result = segment.result;
     if (!result || !result.complete) continue;
-    if (result.winner === "A") aCents += stake;
-    else if (result.winner === "B") aCents -= stake;
+    if (result.winner !== "A" && result.winner !== "B") continue;
+    for (const n of sidesPay(a, b, result.winner, stake)) {
+      totals.set(n.playerId, (totals.get(n.playerId) ?? 0) + n.netCents);
+    }
   }
-  if (aCents === 0) return [];
 
-  return [
-    { playerId: bet.playerAId, netCents: aCents },
-    { playerId: bet.playerBId, netCents: -aCents },
-  ].sort((x, y) => y.netCents - x.netCents || x.playerId.localeCompare(y.playerId));
+  return [...totals.entries()]
+    .map(([playerId, netCents]) => ({ playerId, netCents }))
+    .filter((n) => n.netCents !== 0)
+    .sort((x, y) => y.netCents - x.netCents || x.playerId.localeCompare(y.playerId));
 }
 
 /** Every Nassau in a round, as one ledger. */
@@ -298,26 +335,8 @@ export function matchBetNets(bet: MatchBet): Net[] {
   const result = resolveMatch(bet.holes);
   if (!result.complete || result.winner === "H" || result.winner === null) return [];
 
-  /**
-   * Uneven sides are paid at the SMALLER side's rate.
-   *
-   * Two against one is not a thing a fourball agrees to, but a side can end up
-   * short — somebody withdraws, a fourball plays as a threesome — and the bet
-   * still has to sum to zero. Paying every winner a full stake out of fewer
-   * losers would invent money. The stake each player is down is capped by what
-   * the other side actually put in.
-   */
-  const perPlayer = Math.floor((stake * Math.min(a.length, b.length)) / Math.max(a.length, b.length));
-  const winners = result.winner === "A" ? a : b;
-  const losers = result.winner === "A" ? b : a;
-  const toWinner = winners.length <= losers.length ? stake : perPlayer;
-  const fromLoser = losers.length <= winners.length ? stake : perPlayer;
-
-  const nets: Net[] = [
-    ...winners.map((playerId) => ({ playerId, netCents: toWinner })),
-    ...losers.map((playerId) => ({ playerId, netCents: -fromLoser })),
-  ];
-  return nets
+  // Uneven sides are paid at the smaller side's rate — see `sidesPay`.
+  return sidesPay(a, b, result.winner, stake)
     .filter((n) => n.netCents !== 0)
     .sort((x, y) => y.netCents - x.netCents || x.playerId.localeCompare(y.playerId));
 }

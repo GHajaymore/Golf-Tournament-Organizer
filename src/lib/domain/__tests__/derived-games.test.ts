@@ -162,10 +162,28 @@ describe("a Nassau", () => {
 
   const bet = (holes: HoleResult[], stakeCents = 500): NassauBet => ({
     matchId: "m1",
-    playerAId: "a",
-    playerBId: "b",
+    sideA: ["a"],
+    sideB: ["b"],
     holes,
     stakeCents,
+  });
+
+  it("between pairs, pays each player against their opposite number", () => {
+    // A four-ball: each of the four has the stake on each of the three bets.
+    // The side does not win one stake between two.
+    const nets = nassauNets({ matchId: "m", sideA: ["a1", "a2"], sideB: ["b1", "b2"], holes: H("AAAAAAAAAAAAAAAAAA"), stakeCents: 500 });
+    expect(Object.fromEntries(nets.map((n) => [n.playerId, n.netCents]))).toEqual({ a1: 1_500, a2: 1_500, b1: -1_500, b2: -1_500 });
+  });
+
+  it("between pairs, a split day nets off per player", () => {
+    // B's pair takes the front, A's the back, and the eighteen is halved:
+    // one stake each way, so nobody owes anybody.
+    const nets = nassauNets({ matchId: "m", sideA: ["a1", "a2"], sideB: ["b1", "b2"], holes: H("BBBBBHHHH" + "AAAAAHHHH"), stakeCents: 500 });
+    expect(nets).toEqual([]);
+  });
+
+  it("pays nobody when a side has nobody on it", () => {
+    expect(nassauNets({ matchId: "m", sideA: ["a"], sideB: [], holes: H("AAAAAAAAAAAAAAAAAA"), stakeCents: 500 })).toEqual([]);
   });
 
   it("pays each decided segment separately", () => {
@@ -208,8 +226,8 @@ describe("a Nassau", () => {
 
   it("adds up across a round of matches and settles square", () => {
     const bets: NassauBet[] = [
-      { matchId: "m1", playerAId: "a", playerBId: "b", holes: H("AAAAAAAAAAAAAAAAAA"), stakeCents: 500 },
-      { matchId: "m2", playerAId: "c", playerBId: "d", holes: H("BBBBBBBBBBBBBBBBBB"), stakeCents: 500 },
+      { matchId: "m1", sideA: ["a"], sideB: ["b"], holes: H("AAAAAAAAAAAAAAAAAA"), stakeCents: 500 },
+      { matchId: "m2", sideA: ["c"], sideB: ["d"], holes: H("BBBBBBBBBBBBBBBBBB"), stakeCents: 500 },
     ];
     const nets = nassauLedger(bets);
     expect(sum(nets)).toBe(0);
