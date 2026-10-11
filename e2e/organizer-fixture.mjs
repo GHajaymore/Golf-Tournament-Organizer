@@ -45,10 +45,39 @@ export async function teardownOrganizer() {
   const prisma = new PrismaClient();
   try {
     const user = await prisma.user.findUnique({ where: { email: ORGANIZER_EMAIL }, select: { id: true } });
-    if (user) {
-      const owned = await prisma.organizationMember.findMany({ where: { userId: user.id }, select: { organizationId: true } });
-      for (const { organizationId } of owned) {
-        const others = await prisma.organizationMember.count({ where: { organizationId, userId: { not: user.id } } });
+    const owned = user
+      ? await prisma.organizationMember.findMany({ where: { userId: user.id }, select: { organizationId: true } })
+      : [];
+    /**
+     * AND THE CLUB A KILLED RUN LEFT WITH NOBODY IN IT (2026-10-11).
+     *
+     * The organizer's address carries the fixture's mark, and the standing
+     * fixture opens every run by deleting every user under that mark. So when
+     * a run is stopped inside one of these specs and another is started, the
+     * organizer is deleted by THAT sweep — their membership goes with them —
+     * and the club, which the app names after the person and not the mark, is
+     * left with nobody in it and a tournament on it. Nothing above finds it
+     * any more: there is no user to find it through.
+     *
+     * It then poisons every later run. The tournament still has an organizer
+     * account under the same address, so the next fresh "Morgan Starter" is
+     * its organizer too, `/choose` goes straight to it instead of asking for
+     * a first tournament, and each of these specs waits out its whole timeout
+     * on a form that never appears — which reads as the app being broken.
+     *
+     * So the club is also found the way the app would find it: through a
+     * tournament this address organizes. The same refusal applies.
+     */
+    const reached = await prisma.event.findMany({
+      where: { accounts: { some: { email: ORGANIZER_EMAIL } } },
+      select: { organizationId: true },
+    });
+    const ids = [...new Set([...owned.map((o) => o.organizationId), ...reached.map((e) => e.organizationId)])];
+    {
+      for (const organizationId of ids) {
+        const others = await prisma.organizationMember.count({
+          where: { organizationId, ...(user ? { userId: { not: user.id } } : {}) },
+        });
         if (others > 0) throw new Error(`refusing: organization ${organizationId} has other members`);
         await prisma.event.deleteMany({ where: { organizationId } });
         const courses = await prisma.course.findMany({ where: { organizationId }, select: { id: true } });

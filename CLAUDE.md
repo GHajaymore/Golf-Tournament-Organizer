@@ -205,6 +205,21 @@ believing a red WebKit run:
   checks" is not.** Both mean a request was dropped because the page was left. The second is the
   framework's own and `page-errors.ts` ignores it. The first is a request the APP made and did
   not catch — Safari raises it where Chromium says nothing, and the first run found three.
+- **Push is NOT covered on WebKit.** This WebKit build offers `PushManager` and then never
+  answers `getSubscription()`, freezing the page — the player's Today, on its second visit, once
+  the service worker is there. It read for an hour as the app freezing on an iPhone.
+  `e2e/coverage.ts` takes `PushManager` away on that engine. Real Safari answers the call; the
+  real-phone push test is still owed.
+
+**A RUN KILLED INSIDE AN ORGANIZER-FROM-NOTHING SPEC POISONS THE NEXT ONE.** Those specs
+(`organizer-medal`, `organizer-entry` and their kin) make a club the app names after the PERSON,
+not the fixture's mark. Stop a run inside one and the next run's standing fixture deletes the
+organizer — their address carries the mark — and leaves the club, with a tournament on it that
+still lists that address as its organizer. The next fresh organizer is therefore sent straight to
+that tournament instead of being asked for a first one, and every such spec waits out its whole
+timeout on a form that never appears. Six minutes each, and it reads as the app. Since
+2026-10-11 `teardownOrganizer` finds the club through the tournament as well; if those specs all
+time out together on "create your first tournament", look for an orphan club before the code.
 
 **Reading a change in the browser: bust the URL, or you will read the old page.** Navigating to a
 URL the browser has already visited serves it from cache, so `innerText` shows the render from
@@ -927,6 +942,13 @@ So every spec now records page errors through `e2e/page-errors.ts`, which on a
 text first part, as a `[hydration #418]` line in the job log. Read that line
 before re-running: it is the only evidence this fault has ever left. "server and
 client text are identical" means the mismatch was in markup or attributes.
+
+One cause found by reading rather than by that line, 2026-10-11: a relative time
+("5 minutes ago") worked out during render by a component that is drawn on both
+sides. `no-client-screen-draws-from-its-own-clock.test.ts` refuses that — and it
+follows IMPORTS, because `"use client"` marks a boundary and not a file: the
+announcement card had no mark of its own and was missed for exactly that reason.
+The time is worded once on the server and handed down.
 
 ## What gates a merge, and what gates a deploy
 

@@ -71,10 +71,37 @@ export function recordCoverage(context: BrowserContext): void {
   });
 }
 
+/**
+ * NO PUSH ON WEBKIT — a limit of the bench, not of the app (2026-10-11).
+ *
+ * Playwright's WebKit build on Windows offers `PushManager` and then HANGS
+ * inside it: `registration.pushManager.getSubscription()` never answers and
+ * takes the whole page with it. The player's Today asks exactly that the
+ * second time it loads (once the service worker is there), so on this engine
+ * the screen froze on every second visit — which read, for an hour, as the
+ * app freezing on an iPhone. Taking `PushManager` away before the page runs
+ * makes the switch say "unavailable", which is what it says on any browser
+ * without push.
+ *
+ * So push notifications are NOT covered on WebKit. Real Safari implements
+ * that call; the real-phone push test is still owed.
+ */
+async function noPushOnWebKit(context: BrowserContext): Promise<void> {
+  if (context.browser()?.browserType().name() !== "webkit") return;
+  await context.addInitScript(() => {
+    try {
+      delete (window as unknown as { PushManager?: unknown }).PushManager;
+    } catch {
+      /* not configurable: the page will hang, and the spec will say so */
+    }
+  });
+}
+
 export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   // The default context every `page` fixture uses.
   context: async ({ context }, use) => {
     recordCoverage(context);
+    await noPushOnWebKit(context);
     await use(context);
   },
   // And any context a spec makes for itself — a second player, a signed-out
@@ -89,6 +116,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
         const zone = process.env.E2E_TZ;
         const context = await (zone ? make({ timezoneId: zone, ...args[0] }) : make(...args));
         recordCoverage(context);
+        await noPushOnWebKit(context);
         return context;
       };
       await use();

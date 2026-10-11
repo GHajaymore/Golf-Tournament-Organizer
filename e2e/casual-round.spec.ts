@@ -318,8 +318,24 @@ test.describe("a casual round at the course", () => {
     // Par for both, and straight out — no wait for "Saved".
     await plus.nth(0).click();
     await plus.nth(1).click();
+    /**
+     * The waiting save goes AS the screen is left — which means its request
+     * leaves just after the next screen has arrived, not before. This went
+     * straight on to RELOAD the page, a hundred milliseconds later, and on
+     * WebKit that tore the page down before the request had left it: the
+     * spec, not the player, lost the hole (2026-10-11). Somebody who has just
+     * tapped Export is still looking at Export.
+     *
+     * So the save is listened for before leaving and waited for after. It
+     * still has to go by itself, with nothing more pressed; a save that never
+     * leaves fails here, by name.
+     */
+    const saved = page.waitForResponse((r) => r.request().method() === "POST" && "next-action" in r.request().headers(), { timeout: 15_000 });
     await leave.click();
     await page.waitForURL(/\/reports/);
+    await saved.catch(() => {
+      throw new Error("the hole entered before leaving was never sent");
+    });
 
     await expect(async () => {
       await page.goto(`/entry?bust=${Date.now()}`);

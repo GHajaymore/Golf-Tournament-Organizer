@@ -128,12 +128,19 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   // ── take the three out, and then it goes ───────────────────────────────
   for (let i = 0; i < 3; i++) {
     const inPot = card.locator('button.touch-target[aria-pressed="true"]:not(.btn)');
+    const ticked = await inPot.count();
     await inPot.first().click();
     await expect
       .poll(async () => (await games())[0]?.entrants.filter((e) => e.confirmed && !e.excluded).length, {
         message: "a player taken out of the pot is still staked in it",
       })
       .toBe(2 - i);
+    // And the SCREEN has caught up, before the next tap. The row is saved a
+    // moment before the chip is redrawn; on WebKit that moment is long enough
+    // for "the first ticked chip" to still be the one just un-ticked, and the
+    // next tap put the same player straight back in (2026-10-11). A person
+    // taps what they can see; so does this.
+    await expect(inPot, "the chip just un-ticked still reads as ticked").toHaveCount(ticked - 1);
   }
   await open();
   await card.getByTitle("Take Birdie pot off this round").click();
