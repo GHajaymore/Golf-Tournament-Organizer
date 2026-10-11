@@ -5,6 +5,7 @@ import {
   meetingsIn,
   LEAGUE_POINTS_SYSTEMS,
   LEAGUE_POINTS_LABEL,
+  LEAGUE_POINTS_HELP,
   DEFAULT_MATCH_BONUS,
   type LeaguePointsSystem,
   type PairingResult,
@@ -274,5 +275,41 @@ describe("what League settings sends", () => {
   it("the screen sends through it", async () => {
     const { readSource } = await import("@/lib/__tests__/source");
     expect(readSource("src/components/LeagueSettings.tsx")).toContain("leagueSettingsToSend(");
+  });
+});
+
+/**
+ * OVER NINE HOLES A NASSAU IS ONE POINT (sweep 1, d7, 2026-10-10).
+ *
+ * A Nassau is the front nine, the back nine and the eighteen. Over nine holes
+ * there is one nine and nothing else — which this app's MONEY Nassau has
+ * always said: "a nine-hole round yields a single segment… a Nassau needs
+ * eighteen holes to be three bets". The LEAGUE's Nassau points sliced the
+ * same nine twice, as "front" and again as "overall", so whoever won a
+ * nine-hole week took two points for one nine under a setting described as
+ * "three points a pairing".
+ *
+ * One nine, one point. An eighteen-hole week is unchanged.
+ */
+describe("league Nassau points over nine holes", () => {
+  const nine = (s: string) => s.split("").map((c) => (c === "A" ? "A" : c === "B" ? "B" : c === "H" ? "H" : null)) as ("A" | "B" | "H" | null)[];
+
+  it("the nine is worth one point to whoever wins it", () => {
+    expect(pairingPoints(nine("AAAHHHHHH"), "nassau")).toEqual([1, 0]);
+    expect(pairingPoints(nine("BBHHHHHHH"), "nassau")).toEqual([0, 1]);
+  });
+
+  it("a halved nine splits that one point", () => {
+    expect(pairingPoints(nine("ABHHHHHHH"), "nassau")).toEqual([0.5, 0.5]);
+  });
+
+  it("CONTROL: eighteen holes are still three points", () => {
+    const [a, b] = pairingPoints([...nine("AAAHHHHHH"), ...nine("BBHHHHHHH")], "nassau");
+    // Front to A, back to B, and A is one up over the eighteen.
+    expect([a, b]).toEqual([2, 1]);
+  });
+
+  it("the help says what a nine-hole week is worth", () => {
+    expect(LEAGUE_POINTS_HELP.nassau).toMatch(/nine-hole/i);
   });
 });
