@@ -978,7 +978,7 @@ model Event {
   manualPlayerCount Int     @default(32)
 
   // Flight formation + qualification config
-  formationRule    String  @default("balanced") // balanced | handicap | seeding | random | manual
+  formationRule    String  @default("balanced") // balanced | handicap | divisions | seeding | random | manual — FORMATION_RULES, lib/domain/grouping.ts
   flightMode       String  @default("auto") // auto | count | perFlight
   flightValue      Int     @default(0)
   /**
@@ -1254,7 +1254,7 @@ model Event {
    * player is in every round), opt-out (regulars are in unless they say
    * otherwise), opt-in (only those who put their name down).
    */
-  attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in
+  attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in | captains — ATTENDANCE_MODES, lib/domain/attendance.ts
   /**
    * own | one — which tees this competition is played from.
    * "own" honours a player's stored tee and falls back to the round's, which
@@ -1264,7 +1264,7 @@ model Event {
    * Mixed tees need no adjustment beyond the Course Handicap formula: the
    * (CR - par) term already gives the longer tee its strokes.
    */
-  teePolicy             String  @default("own") // one | own | player
+  teePolicy             String  @default("own") // one | flight | own | player — TEE_POLICY, lib/tournament-settings.ts
   /**
    * The tees this tournament is played from.
    * Null falls back to the club's first tee by position, which is what every
@@ -1378,7 +1378,7 @@ model Account {
   eventId String
   name    String
   email   String
-  role    String @default("player") // admin | player
+  role    String @default("player") // admin | assistant | player — ROLES, lib/roles.ts
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -1634,7 +1634,7 @@ model Stage {
    * src/lib/deadline.ts — because they are the same question asked twice.
    */
   deadlineOverride    Boolean?
-  scoringBasis        String   @default("gross") // gross | net | both
+  scoringBasis        String   @default("gross") // gross | net | both | stableford — FOUR values: test for gross, never for "net or both"
   /**
    * How a Single Match Stage picks its two players, as JSON — see
    * lib/domain/single-match.ts. The RULE, not the pair: a pairing written
@@ -2691,7 +2691,7 @@ model Contest {
   stageId String @default("")
 
   /**
-   * closest-pin | long-drive | other
+   * closest-pin | long-drive | off-course | other — CONTEST_KINDS, lib/domain/contests.ts
    */
   kind String @default("other")
   /**
@@ -2780,7 +2780,9 @@ model SideGame {
   stageId String
 
   /**
-   * low-gross | low-net | birdies | eagles | nassau
+   * low-gross | low-net | birdies | eagles | twos | nassau | match — the two
+   * last are bets on the match, settled between its sides, not pots
+   * (KINDS and MATCH_BETS, app/actions/side-games.ts)
    */
   kind String
 
