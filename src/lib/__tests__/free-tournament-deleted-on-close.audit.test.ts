@@ -113,8 +113,8 @@ describe("a new Free club", () => {
     // itself is the organizer's (open, 0) since 2026-10-09: storing Par's ten
     // in it kept a club at ten after it moved up a tier. See
     // `a-downgraded-field-holds-its-cap` for the upgrade direction.
-    const { effectiveCapacity } = await import("@/lib/services/limits");
-    expect(await effectiveCapacity(ev!.organizationId, ev!.capacity)).toBe(10);
+    const { fieldLimitFor } = await import("@/lib/services/waitlist");
+    expect(await fieldLimitFor(ev!)).toBe(10);
     session.eventId = eventId;
   });
 

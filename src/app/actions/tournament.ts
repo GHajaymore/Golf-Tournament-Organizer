@@ -1166,7 +1166,7 @@ export async function saveEvent(data: {
       // READ (2026-10-09). This stored the cap — "open" on Par became ten — so
       // a club that later moved up a tier kept a ten-player field it never
       // chose. Every intake, promotion and waitlist path reads through
-      // `effectiveCapacity` / `fieldCapFor`; see `createTournament`.
+      // `fieldLimitFor` / `fieldCapFor`; see `createTournament`.
       capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
       // `sideStyle` is no longer written. Tournament details stopped asking
@@ -4182,7 +4182,7 @@ export async function createEvent(
        * Par and then moved to Eagle imported 120 members and found 10
        * confirmed and 110 on a waiting list, in a tier with no cap at all.
        * Every intake and promotion path already reads through
-       * `effectiveCapacity` / `fieldCapFor`, so a Par club's field still holds
+       * `fieldLimitFor` / `fieldCapFor`, so a Par club's field still holds
        * ten — `a-downgraded-field-holds-its-cap` is that guarantee.
        */
       capacity: 0,

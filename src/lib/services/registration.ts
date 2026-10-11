@@ -153,7 +153,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * THE CAPACITY THE ACTION WILL APPLY, not the stored one — the same reason
    * `requirePhone` below goes through the plan. A club moved down to Par keeps
    * the unlimited field it set on a higher tier; `register` caps it at ten
-   * (`effectiveCapacity`), and this page, reading the stored 0, said "Open for
+   * (`fieldLimitFor`), and this page, reading the stored 0, said "Open for
    * entries" to the eleventh person and then told them they were on the
    * waitlist (walked 2026-09-30).
    */
