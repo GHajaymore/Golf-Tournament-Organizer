@@ -288,6 +288,17 @@ export function isAppearance(v: string): v is Appearance {
 
 export const DEFAULT_APPEARANCE: Appearance = "dark";
 
+/**
+ * The appearance a NEW club is created with — the schema's column default.
+ *
+ * Not the same thing as `DEFAULT_APPEARANCE` above, which is the fallback for
+ * a value nobody can read and for pages with no club at all. The picker's
+ * "Back to default" used that one, and so put a club on Dark when no new club
+ * starts there: a new club follows the device. Pinned to `schema.prisma` in
+ * `themes.test.ts`, so the two cannot drift.
+ */
+export const NEW_CLUB_APPEARANCE: Appearance = "auto";
+
 export interface Ground {
   key: "dark" | "light";
   bg: string;
