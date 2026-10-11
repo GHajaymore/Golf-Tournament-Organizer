@@ -4,6 +4,7 @@ import { postCommentary, deleteCommentary, suggestCommentary } from "@/app/actio
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { METERED_TIER } from "@/lib/plans";
+import { commentarySource } from "@/lib/domain/commentary-source";
 
 export interface CommentaryItem {
   id: string;
@@ -24,6 +25,9 @@ export function CommentaryPanel({
   aiAvailable?: boolean;
 }) {
   const [text, setText] = useState("");
+  // The line as the assistant drafted it, kept so the post can say whether
+  // what goes up is that line or the organizer's own — see `commentarySource`.
+  const [drafted, setDrafted] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -31,7 +35,10 @@ export function CommentaryPanel({
     setBusy(true);
     const res = await suggestCommentary();
     setBusy(false);
-    if (res.text) setText(res.text);
+    if (res.text) {
+      setText(res.text);
+      setDrafted(res.text);
+    }
   };
 
   return (
@@ -86,8 +93,12 @@ export function CommentaryPanel({
               className="btn btn-primary"
               disabled={pending || !text.trim()}
               onClick={() => {
-                startTransition(() => postCommentary(text));
+                // Posted as it was drafted, it is the assistant's line and is
+                // tagged as one; changed, it is the organizer's. Every line
+                // used to go up as the organizer's, so the tag never showed.
+                startTransition(() => postCommentary(text, commentarySource(text, drafted)));
                 setText("");
+                setDrafted("");
               }}
             >
               <Icon name="paper-plane-tilt" /> Post
