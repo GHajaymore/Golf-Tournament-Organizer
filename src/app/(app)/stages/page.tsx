@@ -364,6 +364,8 @@ export default async function StagesPage() {
         ))}
       <StagesClient
         stages={stages}
+        // The server's today, so the browser's render asks the same day.
+        today={todayIso()}
         // The lock the banner above states; the actions behind most controls
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}

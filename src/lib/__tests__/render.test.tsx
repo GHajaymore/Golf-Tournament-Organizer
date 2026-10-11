@@ -1104,6 +1104,8 @@ describe("rounds and format", () => {
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
+    // The page tells the screen what day it is; it used to ask its own clock.
+    today: "2026-10-11",
     rrMatchesPerPlayer: 3,
     scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
@@ -2302,6 +2304,8 @@ describe("round card — which nine and the deadline", () => {
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
+    // The page tells the screen what day it is; it used to ask its own clock.
+    today: "2026-10-11",
     rrMatchesPerPlayer: 3,
     scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
@@ -2739,7 +2743,8 @@ describe("cut line scope", () => {
 });
 
 describe("round scoring window", () => {
-  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01" };
+  // Told what day it is, as the page tells it — it used to ask its own clock.
+  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01", today: "2026-10-11" };
 
   it("reports a round closed by its own deadline", () => {
     const html = render(<RoundDeadlineControl {...base} override={null} />);

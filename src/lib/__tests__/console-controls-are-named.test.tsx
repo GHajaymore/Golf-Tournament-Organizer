@@ -181,6 +181,7 @@ describe("console form controls are named", () => {
     const { StagesClient } = await import("@/components/StagesClient");
     const html = render(
       <StagesClient
+        today="2026-10-11"
         rrMatchesPerPlayer={3}
         scoring={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
         tiebreakers={[] as never[]}
@@ -206,6 +207,7 @@ describe("console form controls are named", () => {
     const { StagesClient } = await import("@/components/StagesClient");
     const html = render(
       <StagesClient
+        today="2026-10-11"
         rrMatchesPerPlayer={3}
         scoring={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
         tiebreakers={[] as never[]}

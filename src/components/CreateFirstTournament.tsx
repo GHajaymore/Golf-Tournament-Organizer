@@ -6,7 +6,6 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { askToJoinNamesake } from "@/app/actions/join";
-import { sinceWords } from "@/lib/domain/since";
 import { Icon } from "./Icon";
 import { ORG_KINDS, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
@@ -114,7 +113,13 @@ export function CreateFirstTournament({
    * second press met "you have already asked" as an error — the app telling
    * somebody off for a thing it had forgotten.
    */
-  asks?: Array<{ status: string; outfit: string; askedAt: string | Date; decidedAt: string | Date | null }>;
+  /**
+   * `asked` is WORDS — "3 hours ago" — worked out on the server. This took
+   * the moment and did the arithmetic itself, on the server and again in the
+   * browser: a request made 59 minutes before the page was written went out
+   * as "59 minutes ago" and was taken over as "1 hour ago" (2026-10-11).
+   */
+  asks?: Array<{ status: string; outfit: string; asked: string }>;
 }) {
   /** Every word on this screen that names the outfit comes from here. */
   const outfit = orgProfile(orgKind, orgCountry, orgNoun);
@@ -562,7 +567,7 @@ export function CreateFirstTournament({
               {ask.status === "pending" ? (
                 <>
                   <Icon name="clock" /> You asked <b>{ask.outfit}</b> to add you{" "}
-                  {sinceWords(ask.askedAt)}. No answer yet — you can still set one up of your own below.
+                  {ask.asked}. No answer yet — you can still set one up of your own below.
                 </>
               ) : ask.status === "approved" ? (
                 <>

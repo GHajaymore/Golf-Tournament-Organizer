@@ -213,6 +213,17 @@ const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
  */
 const SetupLocked = React.createContext(false);
 
+/**
+ * WHAT DAY IT IS, FROM THE SERVER — provided to every card the way the lock is.
+ *
+ * A round's scoring window is "open" or "closed" by the day, and this screen
+ * is rendered on the server and again in the browser. Each asked its own
+ * clock, so for the hours a club's evening is already tomorrow on the server
+ * the two drew different words for one round — a hydration mismatch on this
+ * screen (2026-10-11, `no-client-screen-draws-from-its-own-clock.test.ts`).
+ */
+const ServerToday = React.createContext("");
+
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
@@ -679,6 +690,7 @@ function StageCard({
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
+  const today = React.useContext(ServerToday);
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [scoreInput, setScoreInput] = useState(stage.scoreInput);
@@ -1854,6 +1866,7 @@ function StageCard({
                   stageId={stage.id}
                   roundLabel={roundLabelOf(allStages, stage.id)}
                   deadline={deadline}
+                  today={today}
                   override={stage.deadlineOverride}
                   // Open while live: closing or reopening scoring is a
                   // decision made on the day (2026-09-27).
@@ -2035,8 +2048,11 @@ export function StagesClient({
   thirdPlaces,
   canSetVenue = true,
   locked = false,
+  today,
 }: {
   stages: StageView[];
+  /** Today, yyyy-mm-dd, from the server — see `ServerToday`. */
+  today: string;
   /** Organizer only — see `StageCard`'s prop of the same name. */
   canSetVenue?: boolean;
   /** Setup is locked — provided to every card through `SetupLocked`. */
@@ -2182,6 +2198,7 @@ export function StagesClient({
   );
 
   return (
+    <ServerToday.Provider value={today}>
     <SetupLocked.Provider value={locked}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Net scoring without a Course Rating and Slope is an approximation,
@@ -2616,5 +2633,6 @@ export function StagesClient({
       )}
     </div>
     </SetupLocked.Provider>
+    </ServerToday.Provider>
   );
 }
