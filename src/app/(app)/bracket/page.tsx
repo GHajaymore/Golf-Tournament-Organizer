@@ -8,7 +8,7 @@ import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
-import { isStraightKnockout } from "@/lib/stage-types";
+import { hasKnockoutStage, isStraightKnockout } from "@/lib/stage-types";
 import { BracketReports, type BracketReportRow } from "@/components/BracketReports";
 import { bracketDraws, openTieReport } from "@/lib/domain/my-tie";
 import { flightLabel } from "@/lib/domain/flight-label";
@@ -26,6 +26,17 @@ export default async function BracketPage() {
   // Seeding is a direct read on the standings, so a blind event hides the
   // bracket from players for the same reason it hides the leaderboard.
   if (!canSeeLeaderboard(settingsOf(state.event), session.viewRole)) redirect("/dashboard");
+
+  /**
+   * NO KNOCKOUT ROUND, NO BRACKET MANAGER. The menu has withheld this screen
+   * from such a tournament since it existed (`nav.ts`), but a typed address or
+   * an old bookmark still opened it — and it drew one: a 36-hole stroke-play
+   * championship got "Seeded from qualification", an empty Final, and "0
+   * players qualify for the knockout round" about a round it does not have
+   * (found by the control crawler, 2026-10-10). The week sheet already sends
+   * a tournament with no rounds back to the dashboard; this is the same answer.
+   */
+  if (!hasKnockoutStage(state.stages)) redirect("/dashboard");
 
   const bw = await prisma.bracketWinner.findMany({ where: { eventId: session.eventId } });
   const results: Record<string, string> = {};

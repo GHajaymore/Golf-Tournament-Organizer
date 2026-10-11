@@ -75,7 +75,23 @@ async function signIn(context: BrowserContext, baseURL: string, session: string 
  * else is then a finding, and it is also the control that the cookie worked —
  * a walk of four hundred sign-in redirects would otherwise pass.
  */
-async function look(page: Page, path: string, who: string, findings: Finding[], mustStay: boolean) {
+/**
+ * SCREENS THAT ARE ABOUT ONE THING A TOURNAMENT MAY NOT HAVE — a knockout
+ * draw. Where the menu withholds one, a typed address must not open it as
+ * though the tournament had that thing: the bracket manager drew an empty
+ * Final and "0 players qualify for the knockout round" for a 36-hole
+ * stroke-play championship (2026-10-10). Such a screen sends the visitor back.
+ *
+ * `/week` is NOT in this list, and was for one run. The menu withholds "This
+ * week" from a one-round tournament because it would be a second name for the
+ * leaderboard, not because the sheet is wrong there: it reports that one
+ * round's real results, read-only. A duplicate door is a menu decision; a
+ * screen describing something that does not exist is a defect. `/cup` is out
+ * for the same reason — it says in words what is missing and where to add it.
+ */
+const ABOUT_ONE_THING = ["/bracket"];
+
+async function look(page: Page, path: string, who: string, findings: Finding[], mustStay: boolean, mustLeave = false) {
   const where = `${who} ${path}`;
   const failed: string[] = [];
   const onResponse = (r: { status(): number; url(): string }) => {
@@ -102,6 +118,7 @@ async function look(page: Page, path: string, who: string, findings: Finding[], 
     return;
   }
   if (landed !== path.split("?")[0]) return; // a redirect this visitor is meant to get
+  if (mustLeave) findings.push({ where, what: "opened as though this tournament had one — the menu withholds it here" });
 
   const seen = await page.evaluate(() => ({
     text: document.body.innerText,
@@ -152,7 +169,11 @@ test("the secretary can open every console screen on every tournament the club h
     if (offered.size < 5) findings.push({ where: `secretary · ${event.slug}`, what: `the menu offered only ${offered.size} screens` });
     offeredTotal += screens.filter((p) => offered.has(p)).length;
     for (const path of screens) {
-      await look(page, path, `secretary · ${event.slug} (${event.status})`, findings, offered.has(path) || path === "/dashboard");
+      await look(
+        page, path, `secretary · ${event.slug} (${event.status})`, findings,
+        offered.has(path) || path === "/dashboard",
+        !offered.has(path) && ABOUT_ONE_THING.includes(path),
+      );
       looked += 1;
     }
   }

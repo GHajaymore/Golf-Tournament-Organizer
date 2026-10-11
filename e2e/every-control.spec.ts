@@ -93,6 +93,13 @@ interface Control {
 async function controlsOn(page: Page): Promise<Control[]> {
   return page.evaluate(() => {
     const scope = document.querySelector("main") ?? document.body;
+    // OPEN WHAT A PERSON WOULD OPEN. "League settings" folds itself away once
+    // the league is on, and a control inside a closed disclosure is on the
+    // page and not on the screen: the crawl found it, could not operate it,
+    // and that is the control the first full run waited on for ever.
+    scope.querySelectorAll<HTMLDetailsElement>("details:not([open])").forEach((d) => {
+      d.open = true;
+    });
     const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
     const labelOf = (el: Element) => {
       const id = el.getAttribute("id");
@@ -200,6 +207,11 @@ const ASKS = /\banyway\b|are you sure/i;
  */
 const PICKERS: Record<string, string> = {
   "/entry|Player": "whose card is on screen",
+  // Two unplayed league weeks look the same, so switching between them
+  // changes no word on the page and read as a control that does nothing.
+  "/entry|Round to enter scores for": "which round's scores are on screen",
+  // The same, between two brackets nobody has been drawn into yet.
+  "/bracket|name:brk": "which of the two brackets is drawn",
 };
 
 /**
@@ -211,6 +223,7 @@ const PICKERS: Record<string, string> = {
  */
 const BUILDERS: Record<string, string> = {
   "/foursomes|Group size": "an input to the draw; what is saved is the sheet it draws",
+  "/foursomes|Start": "one tee or two — an input to the draw, saved as the sheet it draws",
 };
 
 /**
@@ -506,7 +519,9 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
             unsettled.set(key, result.outcome);
           }
           const choiceName = c.choiceLabels[c.choices.indexOf(pick)] ?? pick;
-          appendFileSync(LOG, [result.outcome, event.slug, path, c.kind, c.label, choiceName, result.note].join("\t") + "\n");
+          // One line a choice: a thrown error's message has newlines and tabs in it.
+          const flat = (s: string) => s.replace(/\s+/g, " ").trim();
+          appendFileSync(LOG, [result.outcome, event.slug, path, c.kind, flat(c.label), flat(choiceName), flat(result.note)].join("\t") + "\n");
           if (FINDINGS.has(result.outcome)) {
             findings.push(`${result.outcome.toUpperCase()} · ${event.slug} ${path} · ${c.label || c.kind} → ${choiceName}${result.note ? ` · ${result.note}` : ""}`);
           }
