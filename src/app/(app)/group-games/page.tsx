@@ -18,7 +18,7 @@ import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { potsOfGroup, type SkinsScope } from "@/lib/domain/skins-pot";
+import { potsOfGroup, roundPotKey, type SkinsScope } from "@/lib/domain/skins-pot";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -194,16 +194,16 @@ export default async function GroupGamesPage({
    * So both facts come from the round. A level round's skins are gross —
    * allocating shots the players agreed not to give would be inventing a
    * different game — and a nine-hole round's pot is over that nine.
+   *
+   * AND IT HAPPENED AGAIN, one format along (2026-10-10): a level Stableford
+   * is stored net, setup wrote its pot from what the form asked for, and this
+   * found nothing. The key is `roundPotKey` now, which setup writes with too,
+   * so the two cannot work it out differently a third time.
    */
+  const roundKey = week ? roundPotKey(week) : null;
   const roundPot =
-    casual && week
-      ? await skinsPotFor(
-          session.eventId,
-          week.id,
-          week.scoringBasis === "net",
-          week.nine === "front" || week.nine === "back" ? week.nine : "full",
-          "",
-        )
+    casual && week && roundKey
+      ? await skinsPotFor(session.eventId, week.id, roundKey.net, roundKey.scope, "")
       : null;
 
   /**
