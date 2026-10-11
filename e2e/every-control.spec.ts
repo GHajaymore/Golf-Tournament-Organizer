@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { consoleScreens, playerScreens } from "./routes";
+import { watchPageErrors } from "./page-errors";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 
 /**
@@ -479,6 +480,13 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
   page.setDefaultTimeout(8_000);
   page.setDefaultNavigationTimeout(30_000);
 
+  // A SCREEN THAT THROWS IS A FINDING, whatever the control then did. The crawl
+  // did not listen, so when it set a tournament to Korea and every load of
+  // Tournament details threw a hydration mismatch, the crawl reported nothing
+  // and passed (2026-10-11). It reloads each screen hundreds of times in
+  // states no other spec puts it in — the best listener the suite has.
+  const threw: string[] = [];
+  watchPageErrors(page, threw, run.who);
   const screens = run.screens.filter((p) => !ONLY_SCREEN || p === ONLY_SCREEN);
   const events = club.events.filter((e) => !ONLY_EVENT || e.slug === ONLY_EVENT);
   const tally: Record<string, number> = {};
@@ -543,6 +551,7 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
     }
   }
 
+  for (const e of [...new Set(threw)]) findings.push(`THREW · ${e.slice(0, 200)}`);
   console.log(`[every-control] ${run.who}: ${controls} controls, ${choices} choices made: ${JSON.stringify(tally)}; ${findings.length} findings`);
   const never = [...unsettled.entries()].map(([k, why]) => `${k.split("|").slice(0, 3).join(" · ")} (${why})`);
   console.log(`[every-control] ${never.length} controls were never saved on any tournament (views, or locked everywhere):`);

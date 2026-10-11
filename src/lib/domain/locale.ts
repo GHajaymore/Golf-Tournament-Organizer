@@ -176,6 +176,28 @@ export function plainSpaces(text: string): string {
 }
 
 /**
+ * One ordinary space each side of a tilde that marks a range.
+ *
+ * THE NEXT DIFFERENCE AFTER THE SPACES (2026-10-11). `plainSpaces` makes two
+ * engines agree about WHICH space; it cannot make them agree about WHETHER
+ * there is one. Node writes a Korean range within a month "14일~16일" and
+ * Chromium "14일 ~ 16일" — measured over all ten locales the picker offers and
+ * every kind of range, that is the one place the two part (and the en dash
+ * they both use elsewhere, German's tight one included, is left as each
+ * locale sets it). So a tournament set to Korea threw a hydration mismatch on
+ * every load of a screen that formats a range while rendering.
+ *
+ * The spaced form is the one settled on: it is what a browser has been
+ * showing all along, once React had thrown the server's version away.
+ *
+ * `e2e/formats-agree.spec.ts` runs every formatter here on both sides, for
+ * every locale and currency offered, and fails on the next one.
+ */
+function evenRangeMark(text: string): string {
+  return text.replace(/ *~ */g, " ~ ");
+}
+
+/**
  * Which day this club's calendar week starts on: 0 for Sunday, 1 for Monday.
  *
  * Every month grid started on Sunday, so a British club's calendar read
@@ -275,7 +297,7 @@ export function formatDayRange(
       year: "numeric",
       timeZone: "UTC",
     });
-    return plainSpaces(fmt.formatRange(start, end));
+    return evenRangeMark(plainSpaces(fmt.formatRange(start, end)));
   } catch {
     return `${formatDay(a, locale)} – ${formatDay(b, locale)}`;
   }
