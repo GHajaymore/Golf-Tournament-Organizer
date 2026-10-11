@@ -4,6 +4,8 @@ import { requireScreen } from "@/lib/page-helpers";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/Icon";
 import { GUIDE_STEPS, type GuideBlock } from "@/lib/guide-steps";
+import { guideIndex, headingAnchor } from "@/lib/guide-search";
+import { GuideSearch } from "@/components/GuideSearch";
 
 /**
  * THE STEP-BY-STEP GUIDE, under Help (Ajay, 2026-10-02: "add the guide to the
@@ -49,12 +51,12 @@ function Rich({ text }: { text: string }) {
 
 const text = { margin: 0, maxWidth: 760, fontSize: 14.5, lineHeight: 1.65 } as const;
 
-function Block({ b }: { b: GuideBlock }) {
+function Block({ b, anchor }: { b: GuideBlock; anchor: string }) {
   switch (b.kind) {
     case "p":
       return <p style={text}><Rich text={b.text} /></p>;
     case "h":
-      return <h3 style={{ margin: "10px 0 0", fontSize: 16.5, fontWeight: 650 }}>{b.text}</h3>;
+      return <h3 id={anchor} style={{ margin: "10px 0 0", fontSize: 16.5, fontWeight: 650, scrollMarginTop: 16 }}>{b.text}</h3>;
     case "where":
       return <div className="card-kicker" style={{ margin: 0 }}>{b.text}</div>;
     case "steps":
@@ -82,7 +84,10 @@ function Block({ b }: { b: GuideBlock }) {
             lineHeight: 1.6,
           }}
         >
-          <Rich text={b.text} />
+          {/* One paragraph: `.card` is a flex column, so the pieces of a
+              sentence — plain words, a bold phrase, a button's name — were
+              each laid out as their own line. */}
+          <p style={{ margin: 0 }}><Rich text={b.text} /></p>
         </div>
       );
     case "table":
@@ -138,6 +143,9 @@ export default async function GuideStepsPage() {
         }
       />
 
+      {/* One question on the morning of the event: search, then jump. */}
+      <GuideSearch index={guideIndex(GUIDE_STEPS)} />
+
       <nav aria-label="Parts of the guide" className="card elev-sm" style={{ padding: "12px 14px", gap: 6 }}>
         <div className="card-kicker" style={{ margin: 0 }}>Contents</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 13.5 }}>
@@ -160,7 +168,7 @@ export default async function GuideStepsPage() {
               {s.title}
             </h2>
           </div>
-          {s.blocks.map((b, i) => <Block key={i} b={b} />)}
+          {s.blocks.map((b, i) => <Block key={i} b={b} anchor={headingAnchor(s.id, i)} />)}
         </section>
       ))}
     </div>

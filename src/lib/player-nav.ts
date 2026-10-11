@@ -130,6 +130,18 @@ export const PLAYER_CALENDAR: PlayerScreen = {
   icon: "ph ph-calendar-check",
 };
 
+/**
+ * HELP — how to do the handful of things a player does (2026-10-10). Not a
+ * tab, like Rules and the calendar: it is opened once, when somebody is stuck.
+ * Reached from a link on Events. Its content is `player-help.ts`, and a test
+ * there requires every screen in this file to be covered by a topic.
+ */
+export const PLAYER_HELP: PlayerScreen = {
+  href: "/me/help",
+  label: "Help",
+  icon: "ph ph-question",
+};
+
 /** Every player screen, tab or not — the lookup `screenName` walks. */
 export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   ...PLAYER_TABS,
@@ -137,4 +149,5 @@ export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   PLAYER_MESSAGES,
   PLAYER_RULES,
   PLAYER_CALENDAR,
+  PLAYER_HELP,
 ];

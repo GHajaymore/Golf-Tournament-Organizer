@@ -121,6 +121,30 @@ export default async function ClubEventsPage() {
         <Icon name="arrow-right" className="text-muted" />
       </Link>
 
+      {/* HELP — how to enter, keep and sign a card (2026-10-10). The same slim
+          row as the calendar; a player opens it once, when stuck. */}
+      <Link
+        href="/me/help"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          textDecoration: "none",
+          color: "var(--color-text)",
+          fontSize: 14,
+        }}
+      >
+        <Icon name="question" style={{ color: "var(--color-accent-200)", fontSize: 18 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Help
+          <span className="text-muted" style={{ display: "block", fontSize: 13 }}>
+            How to enter, score and sign your card
+          </span>
+        </span>
+        <Icon name="arrow-right" className="text-muted" />
+      </Link>
+
       {events.length === 0 ? (
         /* "Your club" only to somebody who HAS one — this screen is a tab, so a
            person who signed up on their own reaches it too, and was told their

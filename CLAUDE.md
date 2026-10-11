@@ -36,6 +36,31 @@ Use a throwaway organization and event, prefix every row with a mark (`zz-<purpo
 names, and `@example.invalid` addresses. Delete them in a `finally` — a fixture left in the
 database is a fixture someone will later mistake for real.
 
+## Help and docs travel with the change
+
+Ajay, 2026-10-10: "keep a step when there is any change in the app to update the help section
+(guide etc) or any documentations." He chose written help over an AI help bot, and written help
+is only worth having while it is true. So a change to what somebody sees or does is not done
+until, **in the same pull request**:
+
+- **the organizer's guide** says it — `src/lib/guide-steps.ts`, shown at `/guide/steps` with a
+  search box (`guide-search.ts`) and shipped as a PDF. Rebuild the PDF when the guide changes:
+  `node scripts/build-guide-pdf.mjs` against a built server (see the script's header);
+- **the player's Help** says it — `src/lib/player-help.ts`, shown at `/me/help`;
+- any doc that describes it is corrected — this file, `docs/`.
+
+Say which in the PR description: "Help/docs: updated …" or "Help/docs: nothing to change,
+because …". And **ask Ajay** when a change might deserve a place on the landing page — a new
+capability, a claim that has changed, a better screen to show. The landing is another session's
+(`src/app/page.tsx`); do not edit it, and do not decide silently that it needs nothing.
+
+Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
+no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
+`guide-steps.test.ts`), and a search result with nowhere to jump (`guide-search.test.ts`). The
+fourth is not testable and is yours: a flow that works differently under the same button names.
+The day this rule was written, the guide already held a sentence that morning's work had made
+false — "Only Manual lets you … set tees per flight".
+
 ## Verification
 
 Run before committing anything non-trivial:
@@ -1177,11 +1202,12 @@ before believing anything the browser tells you.
   stylesheet, so a club that picks its look gets it on every organizer screen and on `/live`.
   `auto` resolves dark unless the device asks for light. There was briefly a `playerThemeCss`
   resolving auto light-first; it made one club look like two products.
-- **The player app is the exception, by decision (2026-09-19).** The club chose the hand-hung
-  scoreboard (design D) for the whole player app, so the play shell renders `scoreboardCss` —
-  `SCOREBOARD_GROUND` in `themes.ts`, a fixed green field with the TourneyHQ orange — and not
-  the club's theme. It is measured in `scoreboard-ground.test.ts`. If clubs ever need to change
-  it, make it a club setting; do not reintroduce a second import on a screen.
+- **The player app wears the club's theme too — reversed 2026-09-24.** For five days
+  (2026-09-19) it wore a fixed hand-hung scoreboard, the same green field at every club; Ajay's
+  call since is one club theme, chosen once in settings, on the console, the public board AND the
+  player app. `(player)/layout.tsx` renders `themeCss` and says why. This entry described the
+  fixed scoreboard as current until 2026-10-10, and the organizer's guide repeated it to clubs —
+  found by reading the first sheet of the printed guide, not by any test.
 - **Outdoor legibility is a product requirement, not a nicety.** Scores are read on a phone in
   direct sun, and `SUNLIGHT_RATIO` is 7:1 on the dark ground against 4.5 on the light one.
   `sunlightVerdict` grades whatever ground the theme actually renders — so `auto` is graded as

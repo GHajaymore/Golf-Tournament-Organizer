@@ -304,6 +304,63 @@ test("sign out is on screen without scrolling the sidebar", async ({ page }, tes
 });
 
 /**
+ * No words in the sidebar are cut off by its edge.
+ *
+ * Found 2026-10-10 on the first screenshot taken for the landing page: the
+ * line under the logo read "From Registration to Recognitic". #801 had raised
+ * it from 10.5px to the console's 13px floor five days earlier and it was
+ * `nowrap`, so it ran 35px past a 250px sidebar that clips — on every
+ * organizer screen, for every club that is not white-label. Nothing saw it:
+ * the sidebar clips, so the page never scrolls sideways, and a clipped word
+ * is still `toBeVisible()`.
+ *
+ * So this measures the WORDS, not the boxes: a text node's own drawn extent,
+ * against the sidebar's edge. Text the app truncates on purpose — an ellipsis
+ * or a line clamp, as on a long club name — is exempt, because that is cut
+ * with a mark that says so. The control is the tagline itself: if it is not
+ * among the lines measured, this would pass by looking at nothing.
+ */
+test("no words in the sidebar are cut off by its edge", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "no sidebar below the desktop breakpoint");
+
+  await page.goto("/dashboard");
+  await page.waitForLoadState("networkidle");
+  expect(new URL(page.url()).pathname, "redirected away — not signed in?").toBe("/dashboard");
+
+  const sidebar = page.locator("aside.app-sidebar");
+  await expect(sidebar).toBeVisible();
+  const lines = await sidebar.evaluate((aside) => {
+    const edge = aside.getBoundingClientRect().right;
+    const out: { text: string; past: number }[] = [];
+    const walker = document.createTreeWalker(aside, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = (node.textContent ?? "").trim();
+      const el = node.parentElement;
+      if (!text || !el) continue;
+      // Cut on purpose, and marked as cut: not this test's business.
+      let truncated = false;
+      for (let a: Element | null = el; a && a !== aside; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (cs.textOverflow === "ellipsis" || (cs.webkitLineClamp && cs.webkitLineClamp !== "none")) truncated = true;
+      }
+      if (truncated) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const r = range.getBoundingClientRect();
+      if (r.width === 0) continue;
+      out.push({ text, past: Math.round(r.right - edge) });
+    }
+    return out;
+  });
+
+  expect(
+    lines.some((l) => l.text === "From Registration to Recognition."),
+    `the tagline was not among the ${lines.length} lines measured`,
+  ).toBe(true);
+  expect(lines.filter((l) => l.past > 0)).toEqual([]);
+});
+
+/**
  * The two things the landing page was failing that only a real request can
  * show.
  *

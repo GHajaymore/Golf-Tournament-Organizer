@@ -115,8 +115,12 @@ export function OrgBrand({
     <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4, lineHeight: 1.15 }}>
       <Lockup size={size} />
       <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2, paddingLeft: indent }}>
+        {/* Wraps, in even lines, where the header is narrow. It was `nowrap`
+            at 10.5px; #801 raised it to the 13px floor and it then ran 35px
+            past the sidebar, which cut it to "…to Recognitic" on every
+            organizer screen. One line wherever there is room for one. */}
         {tagline && (
-          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-muted)", textWrap: "balance" }}>
             {TAGLINE}
           </span>
         )}

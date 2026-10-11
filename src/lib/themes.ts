@@ -94,6 +94,61 @@ export const THEME_PRESETS: ThemePreset[] = [
 ];
 
 /**
+ * The fairway green, as a preset rather than a constant.
+ *
+ * It carries meaning the primary accent doesn't — advancing rows, positive
+ * deltas, a match won — so it defaults to the colour of the game and most
+ * clubs should leave it alone. But a club whose identity is *two* colours has
+ * nowhere else to put the second one, and forcing green next to, say, a navy
+ * and gold crest looks like a bug rather than a choice.
+ */
+export const FAIRWAY: ThemePreset = {
+  key: "fairway",
+  name: "Fairway",
+  blurb: "The colour of the game — the default, and the safe answer.",
+  hue: 151,
+  saturation: 0.42,
+  // The exact ramp the app has always drawn, so a club that never touches
+  // this sees no change at all. Generating it instead moved every advancing
+  // row from forest green to mint.
+  fixedDarkScale: {
+    100: "#e7f5ec",
+    200: "#c3e6d0",
+    300: "#93d0ac",
+    400: "#5fb484",
+    500: "#3c8361",
+    600: "#2e6a4c",
+    700: "#23503a",
+    800: "#173627",
+    900: "#0d2016",
+  },
+};
+
+export const SECONDARY_PRESETS: ThemePreset[] = [FAIRWAY, ...THEME_PRESETS];
+
+/**
+ * Every palette, offered for either role.
+ *
+ * Fairway used to be a second colour only, so a club whose identity *is*
+ * green could pick it as their supporting colour and not their main one —
+ * which is the wrong way round for most golf clubs. Both lists are the same
+ * list now; which one leads is the club's decision, not ours.
+ */
+export const ACCENT_PRESETS: ThemePreset[] = [
+  ...THEME_PRESETS,
+  /**
+   * Fairway as the MAIN colour: the same green, on a generated ramp.
+   *
+   * Its hand-tuned dark shades exist so the SECOND colour never moved under a
+   * club that had chosen nothing, and they sit at 3.9:1 on the dark ground —
+   * fine for a ring round a birdie, not for the filled button, the links and
+   * the selected tab a main colour paints. Leading, it is solved to the same
+   * floors as every other main colour.
+   */
+  { key: FAIRWAY.key, name: FAIRWAY.name, blurb: FAIRWAY.blurb, hue: FAIRWAY.hue, saturation: FAIRWAY.saturation },
+];
+
+/**
  * THE DEFAULT PAIR IS THE ONLY ONE THAT PASSES ITS OWN OUTDOOR BAR.
  *
  * This app sets `SUNLIGHT_RATIO` at 7:1 and warns a club whose colours fall
@@ -137,8 +192,19 @@ export const DEFAULT_THEME = "verdigris";
  */
 export const DEFAULT_SECONDARY = "optic";
 
+/**
+ * A main colour a club may store: every one the picker offers.
+ *
+ * It read `THEME_PRESETS`, which is every main colour EXCEPT Fairway — and the
+ * picker has offered Fairway as a main colour, and the "Parkland" scheme that
+ * leads with it, since 2026-08-09 (`ACCENT_PRESETS`). So for two months a club
+ * that clicked either was told "Unknown theme." by the save, and a row holding
+ * it would have been drawn in the default teal by `themeFor`. Found 2026-10-10
+ * by a capture script's control: six schemes photographed, five colours drawn.
+ * Both readers now ask the list the picker draws from.
+ */
 export function isThemeKey(v: string): boolean {
-  return THEME_PRESETS.some((t) => t.key === v);
+  return ACCENT_PRESETS.some((t) => t.key === v);
 }
 
 /**
@@ -152,7 +218,7 @@ export function isThemeKey(v: string): boolean {
  */
 export function themeFor(key: string | null | undefined): ThemePreset {
   return (
-    THEME_PRESETS.find((t) => t.key === key) ??
+    ACCENT_PRESETS.find((t) => t.key === key) ??
     THEME_PRESETS.find((t) => t.key === DEFAULT_THEME) ??
     THEME_PRESETS[0]
   );
@@ -599,48 +665,11 @@ export function resolvedThemeVars(
 
 /* ── The second colour ───────────────────────────────────────────────────── */
 
-/**
- * The fairway green, as a preset rather than a constant.
- *
- * It carries meaning the primary accent doesn't — advancing rows, positive
- * deltas, a match won — so it defaults to the colour of the game and most
- * clubs should leave it alone. But a club whose identity is *two* colours has
- * nowhere else to put the second one, and forcing green next to, say, a navy
- * and gold crest looks like a bug rather than a choice.
+/*
+ * `FAIRWAY`, `SECONDARY_PRESETS` and `ACCENT_PRESETS` are declared at the top
+ * of this file, beside `THEME_PRESETS`: `isThemeKey` and `themeFor` read the
+ * list of colours that can lead, and lint refuses a use before its definition.
  */
-export const FAIRWAY: ThemePreset = {
-  key: "fairway",
-  name: "Fairway",
-  blurb: "The colour of the game — the default, and the safe answer.",
-  hue: 151,
-  saturation: 0.42,
-  // The exact ramp the app has always drawn, so a club that never touches
-  // this sees no change at all. Generating it instead moved every advancing
-  // row from forest green to mint.
-  fixedDarkScale: {
-    100: "#e7f5ec",
-    200: "#c3e6d0",
-    300: "#93d0ac",
-    400: "#5fb484",
-    500: "#3c8361",
-    600: "#2e6a4c",
-    700: "#23503a",
-    800: "#173627",
-    900: "#0d2016",
-  },
-};
-
-export const SECONDARY_PRESETS: ThemePreset[] = [FAIRWAY, ...THEME_PRESETS];
-
-/**
- * Every palette, offered for either role.
- *
- * Fairway used to be a second colour only, so a club whose identity *is*
- * green could pick it as their supporting colour and not their main one —
- * which is the wrong way round for most golf clubs. Both lists are the same
- * list now; which one leads is the club's decision, not ours.
- */
-export const ACCENT_PRESETS: ThemePreset[] = [...THEME_PRESETS, FAIRWAY];
 
 /**
  * How far apart two hues must sit to read as two colours rather than one
