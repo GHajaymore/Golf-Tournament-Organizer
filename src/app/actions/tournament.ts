@@ -581,9 +581,15 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
       phone: (input.phone ?? "").trim(),
       ghin: (input.ghin ?? "").trim(),
       homeClub: (input.homeClub ?? "").trim(),
-      handicapSource: ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-        ? input.handicapSource!
-        : "manual",
+      // NO FIGURE, NO CLAIM. An empty handicap box arrives as not-a-number and
+      // is stored as "none" whatever the source said: this stored it as 0 "by
+      // hand" — a scratch golfer nobody declared, given no strokes in a net
+      // round. The guide has always said a blank is not scratch.
+      handicapSource: !Number.isFinite(input.handicap)
+        ? "none"
+        : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+          ? input.handicapSource!
+          : "manual",
       handicapType: input.handicapType === "9" ? "9" : "18",
     },
   });

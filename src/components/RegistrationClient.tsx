@@ -296,7 +296,10 @@ export function RegistrationClient({
     startTransition(async () => {
       const result = await addSignup({
         name,
-        handicap: h.value,
+        // An empty box goes as empty. `parseHandicapInput` reads it as "no
+        // handicap" and hands back 0 for the arithmetic; sending that 0 on
+        // made every blank a scratch golfer entered by hand.
+        handicap: h.source === "none" ? Number.NaN : h.value,
         email,
         phone,
         ghin,
