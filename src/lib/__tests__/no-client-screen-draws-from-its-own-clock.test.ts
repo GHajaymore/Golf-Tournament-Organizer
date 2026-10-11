@@ -112,15 +112,82 @@ function callsWithoutAClock(src: string, helpers: Map<string, number>): string[]
 }
 
 const helpers = clockDefaulting();
-const CLIENT = [
+const SCREEN_FILES = [
   ...filesUnder("src/components", (p) => p.endsWith(".tsx") || p.endsWith(".ts")),
   ...filesUnder("src/app", (p) => p.endsWith(".tsx")),
-].filter((file) => readSource(...file.split("/")).trimStart().startsWith('"use client"'));
+];
+const CLIENT = SCREEN_FILES.filter((file) => readSource(...file.split("/")).trimStart().startsWith('"use client"'));
+
+/**
+ * AND WHATEVER A CLIENT COMPONENT IMPORTS IS CLIENT CODE TOO (2026-10-11).
+ *
+ * `"use client"` marks a BOUNDARY, not a file: every component a marked file
+ * imports is drawn in the browser as well, whether or not it carries the mark
+ * itself. `AnnouncementCard` did not, called `sinceWords(a.createdAt)` with
+ * the default clock, and was drawn by `FoldedAnnouncements` — which is marked
+ * — on the player's Today. So the first list above could not see the one
+ * relative time on the screen where this fault had last struck.
+ *
+ * Followed by import, to any depth, among the files that draw screens. A
+ * `import type` brings no code and is not followed.
+ */
+function importsOf(file: string): string[] {
+  const src = readSource(...file.split("/"));
+  const dir = file.slice(0, file.lastIndexOf("/"));
+  const out: string[] = [];
+  for (const piece of src.split(' from "').slice(1)) {
+    const spec = piece.slice(0, piece.indexOf('"'));
+    const before = src.slice(0, src.indexOf(` from "${spec}"`));
+    const statement = before.slice(before.lastIndexOf("import"));
+    if (statement.startsWith("import type")) continue;
+    let base: string | null = null;
+    if (spec.startsWith("@/")) base = `src/${spec.slice(2)}`;
+    else if (spec.startsWith(".")) {
+      const parts = dir.split("/");
+      for (const step of spec.split("/")) {
+        if (step === ".") continue;
+        if (step === "..") parts.pop();
+        else parts.push(step);
+      }
+      base = parts.join("/");
+    }
+    if (!base) continue;
+    const hit = [`${base}.tsx`, `${base}.ts`, `${base}/index.tsx`, `${base}/index.ts`].find((p) => SCREEN_FILES.includes(p));
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+
+function drawnInTheBrowser(): string[] {
+  const seen = new Set(CLIENT);
+  const queue = [...CLIENT];
+  while (queue.length > 0) {
+    for (const next of importsOf(queue.pop()!)) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push(next);
+    }
+  }
+  return [...seen].sort();
+}
+const IN_BROWSER = drawnInTheBrowser();
 
 describe("a client component and the time", () => {
   it("is handed the time by whoever renders it — it never takes a helper's default", () => {
-    const wrong = CLIENT.flatMap((file) => callsWithoutAClock(readSource(...file.split("/")), helpers).map((c) => `${file} — ${c}`));
+    const wrong = IN_BROWSER.flatMap((file) => callsWithoutAClock(readSource(...file.split("/")), helpers).map((c) => `${file} — ${c}`));
     expect(wrong).toEqual([]);
+  });
+
+  it("CONTROL: a component with no mark of its own is followed in from the one that draws it", () => {
+    // The file that was missed, and the reason: it is not marked.
+    expect(CLIENT).not.toContain("src/components/AnnouncementCard.tsx");
+    expect(CLIENT).toContain("src/components/FoldedAnnouncements.tsx");
+    expect(importsOf("src/components/FoldedAnnouncements.tsx")).toContain("src/components/AnnouncementCard.tsx");
+    expect(IN_BROWSER).toContain("src/components/AnnouncementCard.tsx");
+    // Following imports must ADD files, or it is the old list under a new name.
+    expect(IN_BROWSER.length).toBeGreaterThan(CLIENT.length);
+    // And not everything: a server screen nobody on the client imports stays out.
+    expect(IN_BROWSER).not.toContain("src/components/AnnouncementList.tsx");
   });
 
   it("CONTROL: the helpers are found from their own declarations", () => {
