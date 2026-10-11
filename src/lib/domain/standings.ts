@@ -436,7 +436,14 @@ export function rankPlayers(
   // `DEFAULT_TIEBREAKERS`, not a fourth copy of the same four keys. It is the
   // same array the schema hands every event, which is what makes the
   // "did anybody choose this" test below possible at all.
-  const chain = scoring.tiebreakers?.length ? scoring.tiebreakers : DEFAULT_TIEBREAKERS;
+  //
+  // AN EMPTY CHAIN IS A CHOICE, NOT AN ABSENCE. This read `?.length ?`, so a
+  // committee that unticked every tie-breaker was handed the default four
+  // back — under a screen saying none were active. Only a chain that is not
+  // there at all takes the default; an empty one separates nobody, and players
+  // level on points share the place (how ties are decided is the Committee's
+  // to set — Committee Procedures 5A(6)).
+  const chain = Array.isArray(scoring.tiebreakers) ? scoring.tiebreakers : DEFAULT_TIEBREAKERS;
 
   /**
    * Points first, and then each tie broken WITHIN its own group.

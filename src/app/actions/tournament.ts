@@ -111,7 +111,6 @@ import {
   marginToHoles,
   resolveMatch,
   deriveNetHoles,
-  TIEBREAKER_KEYS,
   isTiebreakerKey,
   isBracketMode,
   playingHandicapFrom,
@@ -2072,9 +2071,14 @@ export async function saveTiebreakers(order: string[]) {
   // to the holes on a card. De-duplicated because the same tiebreaker twice
   // is a chain whose second copy can never decide anything.
   const valid = [...new Set(order.filter(isTiebreakerKey))];
+  // A chain with nothing recognisable in it is a broken request, and is not
+  // the same thing as a committee choosing none — which arrives as an empty
+  // list and is kept as one. This used to store every tie-breaker there is in
+  // place of none, so unticking the last box ticked all eight.
+  if (order.length > 0 && valid.length === 0) throw new Error("Unknown tie-breaker.");
   await prisma.event.update({
     where: { id: eventId },
-    data: { tiebreakers: JSON.stringify(valid.length ? valid : TIEBREAKER_KEYS) },
+    data: { tiebreakers: JSON.stringify(valid) },
   });
   await refresh();
 }

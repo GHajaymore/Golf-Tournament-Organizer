@@ -333,6 +333,14 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
       value: input.tiebreakers.map((t) => tiebreakerLabel(t)).join(", then "),
       rule: "decidingTies",
     });
+  } else {
+    // No tie-breakers is an answer, and a player level with somebody is owed
+    // it as much as any other: the sheet used to print nothing here.
+    out.push({
+      label: "Ties",
+      value: "Not broken — players level on points share the place.",
+      rule: "decidingTies",
+    });
   }
 
   /**

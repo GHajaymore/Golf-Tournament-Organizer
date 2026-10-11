@@ -153,7 +153,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Open the round's card. Set **Played on** — if it's rained off, change the date here and only this round moves.",
           "For 9 holes, choose **Which nine**: Front nine, Back nine, or Not fixed (shotgun or mixed). Strokes fall differently on each nine, so scoring waits until this is set.",
           "If the event uses more than one course, pick the round's **Course** — handicaps and par come from it.",
-          "Under [[Customize this round]]: **Result calculation** (Gross, Net or Both; Stableford is always off handicap), how scores are recorded, **Completion deadline**, **Scoring window**, the cut and tiebreakers.",
+          "Under [[Customize this round]]: **Result calculation** (Gross, Net or Both; Stableford is always off handicap), how scores are recorded, **Completion deadline**, **Scoring window**, the cut and tiebreakers. Untick every tiebreaker and none is used: players level on points share the place, and the rules sheet says so.",
           "Each format comes with the usual handicap allowance (Stroke Play 95%, Four-Ball 90%, Foursomes 50%…). Change it per round under **Handicaps for this round**.",
           "A two-ball round scored on gross (Four-Ball, Best Ball, Shamble) can be written down as **One card for the side** instead of a card each, under **Scores are entered as**. On net or Stableford each player's own card is needed, so the choice is not offered.",
         ],
