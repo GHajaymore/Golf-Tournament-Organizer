@@ -45,3 +45,34 @@ describe("a player's own set", () => {
     expect(body).toContain("playerTeeCounts(");
   });
 });
+
+/**
+ * AND A FLIGHT'S TEES ARE SHOWN WHEREVER THEY COUNT (sweep 1, c1).
+ *
+ * The other direction of the same disagreement. Flights & groups drew the
+ * per-flight Tees control only under "each flight plays its own tees", on the
+ * stated ground that "under any other policy nothing reads a flight's claim".
+ * The scorer does: when players are assigned individually, anyone left
+ * unassigned "plays their flight's, or the round's" — which is also what the
+ * Tees help says. So a set put on a flight, followed by a change of policy,
+ * went on pricing every unassigned player in it with no control anywhere to
+ * see it or take it off.
+ */
+describe("a flight's set", () => {
+  const everywhere = () => true;
+
+  for (const policy of TEE_POLICY) {
+    it(`under "${policy}": the control is shown exactly when scoring would read it`, async () => {
+      const { flightTeeCounts } = await import("../tournament-settings");
+      // A player with no set of their own, in a flight that claims one.
+      const read = teeIdFor(policy, null, "flights", "rounds", everywhere) === "flights";
+      expect(flightTeeCounts(policy)).toBe(read);
+    });
+  }
+
+  it("Flights & groups draws the control by that rule", () => {
+    const src = readSource("src/app/(app)/grouping/page.tsx");
+    expect(src).toContain("flightTeeCounts(");
+    expect(src).not.toContain('teePolicy === "flight"');
+  });
+});

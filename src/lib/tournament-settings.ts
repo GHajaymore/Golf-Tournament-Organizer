@@ -114,6 +114,19 @@ export function playerTeeCounts(policy: string): boolean {
   return policy !== "one" && policy !== "flight";
 }
 
+/**
+ * Whether a FLIGHT's set can count: everywhere but under one set for all.
+ *
+ * Not only "by flight". Where players are put on a set individually, anybody
+ * left unassigned plays their flight's — the Tees help says so, and
+ * `teeIdFor` does it. Flights & groups drew the per-flight control under "by
+ * flight" alone, so a flight's set outlived a change of policy and went on
+ * pricing its unassigned players with no control to see it or take it off.
+ */
+export function flightTeeCounts(policy: string): boolean {
+  return policy !== "one";
+}
+
 /* ── Score entry ──────────────────────────────────────────────────────── */
 
 /**

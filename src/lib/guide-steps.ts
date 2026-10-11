@@ -248,7 +248,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Pick **Flight size**: Auto, Set flights or Players / flight. Handicap divisions on Auto follow club convention — one division under 16 players, two under 32, three from 32.",
           "Press [[Generate flights]]. If matches have been scored, you're asked to confirm, because redrawing deletes them.",
           "Only **Manual** lets you drag players between flights and name captains.",
-          "Divisions off different tees: choose **Each flight plays its own tees** under Players & scoring, then set **Tees** on each flight here — on flights the app drew as well as Manual ones. A flight you leave alone plays the round's tees.",
+          "Divisions off different tees: choose **Each flight plays its own tees** under Players & scoring, then set **Tees** on each flight here — on flights the app drew as well as Manual ones. A flight you leave alone plays the round's tees. A player's own Tees on Registration only appear when players are put on a set one by one — and then anyone left unassigned still plays their flight's.",
         ],
       },
       { kind: "h", text: "Teams and pairs (team formats only)" },
