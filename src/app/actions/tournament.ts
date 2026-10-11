@@ -81,7 +81,7 @@ import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist, fieldLimitFor } from "@/lib/services/waitlist";
 import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
-import { cloneSingleMatchRule, parseSingleMatchRule } from "@/lib/domain/single-match";
+import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
@@ -5827,14 +5827,29 @@ export async function setSingleMatchRule(
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
 
-  const json = JSON.stringify(rule ?? {});
-  if (!parseSingleMatchRule(json)) {
+  const parsed = parseSingleMatchRule(JSON.stringify(rule ?? {}));
+  if (!parsed) {
     return { ok: false, error: "That pairing doesn't make sense — pick two different players or rounds." };
   }
 
+  // And made of things that are IN this tournament, of the kind the rule says
+  // — see `singleMatchRuleRefusal`. Read here, never taken from the caller.
+  const [stages, players] = await Promise.all([
+    prisma.stage.findMany({ where: { eventId }, select: { id: true } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } }),
+  ]);
+  if (!stages.some((s) => s.id === stageId)) return { ok: false, error: "That round isn't in this tournament." };
+  const refusal = singleMatchRuleRefusal(parsed, {
+    stageId,
+    otherStageIds: stages.map((s) => s.id).filter((id) => id !== stageId),
+    playerIds: players.map((p) => p.id),
+  });
+  if (refusal) return { ok: false, error: refusal };
+
+  // Stored as PARSED, so nothing a caller added to the object rides along.
   const r = await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { singleMatchRule: json },
+    data: { singleMatchRule: JSON.stringify(parsed) },
   });
   if (r.count === 0) return { ok: false, error: "That round isn't in this tournament." };
 

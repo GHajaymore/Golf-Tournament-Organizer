@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setSingleMatchRule, createSingleMatch } from "@/app/actions/tournament";
-import type { SingleMatchRule } from "@/lib/domain/single-match";
+import { idsForKind, type SingleMatchRule } from "@/lib/domain/single-match";
 import { Icon } from "./Icon";
 
 /**
@@ -103,8 +103,10 @@ export function SingleMatchRulePicker({
   };
   const seedA = rule?.kind === "seeds" ? rule.a : 1;
   const seedB = rule?.kind === "seeds" ? rule.b : 2;
-  const idA = rule && rule.kind !== "seeds" ? String(rule.a) : "";
-  const idB = rule && rule.kind !== "seeds" ? String(rule.b) : "";
+  // Each kind's OWN ids, never "whatever the stored rule holds": one pair for
+  // both saved two players as two rounds when the kind was switched.
+  const [stageA, stageB] = idsForKind(rule, "stage-winners");
+  const [playerA, playerB] = idsForKind(rule, "named");
 
   return (
     <div className="card elev-sm" style={{ marginTop: 12, gap: 10 }}>
@@ -142,8 +144,8 @@ export function SingleMatchRulePicker({
               setError("");
               setKind(k);
               if (k === "seeds") save({ kind: k, a: seedA, b: seedB });
-              else if (k === "stage-winners") save({ kind: k, a: idA || others[0].id, b: idB || others[1].id });
-              else save({ kind: k, a: idA || players[0].id, b: idB || players[1].id });
+              else if (k === "stage-winners") save({ kind: k, a: stageA || others[0].id, b: stageB || others[1].id });
+              else save({ kind: k, a: playerA || players[0].id, b: playerB || players[1].id });
             }}
           >
             {label}
@@ -181,7 +183,7 @@ export function SingleMatchRulePicker({
 
       {kind === "stage-winners" && (
         <div className="pair-grid">
-          {([["a", idA], ["b", idB]] as Array<["a" | "b", string]>).map(([side, value]) => (
+          {([["a", stageA], ["b", stageB]] as Array<["a" | "b", string]>).map(([side, value]) => (
             <div className="field" key={side}>
               <label>{side === "a" ? "Winner of" : "Against winner of"}</label>
               <select
@@ -191,8 +193,8 @@ export function SingleMatchRulePicker({
                 onChange={(e) =>
                   save({
                     kind: "stage-winners",
-                    a: side === "a" ? e.target.value : idA || others[0]?.id,
-                    b: side === "b" ? e.target.value : idB || others[1]?.id,
+                    a: side === "a" ? e.target.value : stageA || others[0]?.id,
+                    b: side === "b" ? e.target.value : stageB || others[1]?.id,
                   })
                 }
               >
@@ -207,7 +209,7 @@ export function SingleMatchRulePicker({
 
       {kind === "named" && (
         <div className="pair-grid">
-          {([["a", idA], ["b", idB]] as Array<["a" | "b", string]>).map(([side, value]) => (
+          {([["a", playerA], ["b", playerB]] as Array<["a" | "b", string]>).map(([side, value]) => (
             <div className="field" key={side}>
               <label>{side === "a" ? "Player" : "Against"}</label>
               <select
@@ -217,8 +219,8 @@ export function SingleMatchRulePicker({
                 onChange={(e) =>
                   save({
                     kind: "named",
-                    a: side === "a" ? e.target.value : idA,
-                    b: side === "b" ? e.target.value : idB,
+                    a: side === "a" ? e.target.value : playerA,
+                    b: side === "b" ? e.target.value : playerB,
                   })
                 }
               >
