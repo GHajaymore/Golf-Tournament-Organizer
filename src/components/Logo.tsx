@@ -173,7 +173,7 @@ export function Logo({
     // brand-consistency hex allow-list.
     return (
       <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" style={style}>
-        <circle cx="16" cy="16" r="15" fill="#0a1f16" stroke="#c6a052" strokeWidth="1.1" />
+        <circle cx="16" cy="16" r="15" fill="#0c1f0a" stroke="#c6a052" strokeWidth="1.1" />
         <g transform="translate(16 16) scale(0.72) translate(-16 -16)">
           {/* The putt trailing in behind the ball — the display flourish that
               the flat mark deliberately omits so it stays legible when small. */}

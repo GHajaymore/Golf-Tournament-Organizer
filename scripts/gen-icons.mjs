@@ -28,7 +28,7 @@ const GROUND = "#16181a"; // --color-bg
 const FLAG = "#f2862e"; // --color-accent, as the ramp actually resolves it
 const STICK = "#e9e9ed"; // --color-text on the dark ground: the T is lettering,
 //                          not accent, so it matches the wordmark beside it
-const BALL = "#5fb484"; // --color-accent-2-400: lifted one step off the in-app
+const BALL = "#56c74c"; // --color-accent-2-400: lifted one step off the in-app
 const CUP = "#3f424d"; // --color-neutral-800 on the dark ground: a hole,
 //                        readable against the tile without an outline
 //                         green, which goes muddy at 48px

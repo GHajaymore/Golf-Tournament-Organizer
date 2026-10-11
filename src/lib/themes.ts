@@ -60,14 +60,28 @@ export const THEME_PRESETS: ThemePreset[] = [
   { key: "links", name: "Links", blurb: "Cool coastal blue.", hue: 205, saturation: 0.7 },
   { key: "heather", name: "Heather", blurb: "Purple, like the rough at Gleneagles.", hue: 280, saturation: 0.45 },
   { key: "bunker", name: "Bunker", blurb: "Soft sand gold.", hue: 42, saturation: 0.72 },
-  { key: "ivy", name: "Ivy", blurb: "Clubhouse green, deeper than the fairway.", hue: 158, saturation: 0.5 },
+  // THE GREENS SIT ON THE LEAF SIDE OF THE WHEEL (Ajay, 2026-10-10).
+  //
+  // TourneyHQ's green is the India-flag green, #138808 — hue 115. Ivy was 158,
+  // Signal 137 and Fairway 151: the deep, blue-leaning greens, which beside
+  // white read as a different flag altogether, and he does not want that look
+  // anywhere in the product. So every green here now sits between Optic (78)
+  // and 125, and `greens-are-leaf-greens.test.ts` sweeps the whole source for
+  // a colour in the band this left. The KEYS are what a club's row stores and
+  // none has changed, so a club that chose Ivy still has Ivy — a shade warmer.
+  //
+  // Hue 110: 14 from Signal, which the picker needs to tell them apart, and 5
+  // from the flag's own green.
+  { key: "ivy", name: "Ivy", blurb: "Clubhouse green — the deep leaf green of a well-kept course.", hue: 110, saturation: 0.62 },
   // Two borrowed from outside golf, because a club's identity often is.
   //
   // Signal is the bright playing green the newer golf apps use — vivid rather
   // than natural, and it reads at arm's length in sun, which is the whole
   // argument for it. It is deliberately a long way from Fairway and Ivy: those
   // are the colour of grass, this is the colour of a number lighting up.
-  { key: "signal", name: "Signal", blurb: "Bright playing green — a score lighting up, not a fairway.", hue: 137, saturation: 0.9 },
+  // Hue 124 since 2026-10-10 (it was 137): as far round as a green goes here,
+  // and still 46 from Optic, so Floodlit's two colours read as two.
+  { key: "signal", name: "Signal", blurb: "Bright playing green — a score lighting up, not a fairway.", hue: 124, saturation: 0.9 },
   // Violet is the developer-tool palette on a near-black page. No golf club
   // has ever been this colour, which is exactly why a society or a corporate
   // outing might pick it.
@@ -106,21 +120,23 @@ export const FAIRWAY: ThemePreset = {
   key: "fairway",
   name: "Fairway",
   blurb: "The colour of the game — the default, and the safe answer.",
-  hue: 151,
-  saturation: 0.42,
-  // The exact ramp the app has always drawn, so a club that never touches
-  // this sees no change at all. Generating it instead moved every advancing
-  // row from forest green to mint.
+  // The India-flag green's hue since 2026-10-10. It was 151.
+  hue: 115,
+  saturation: 0.55,
+  // A hand-tuned ramp, so a club that never touches this keeps a deep green
+  // rather than the bright one the shared curve would generate. These are the
+  // shades the app always drew, each turned to hue 115 at its own lightness —
+  // which also lifts step 500 from 3.91:1 to 4.54:1 on the dark ground.
   fixedDarkScale: {
-    100: "#e7f5ec",
-    200: "#c3e6d0",
-    300: "#93d0ac",
-    400: "#5fb484",
-    500: "#3c8361",
-    600: "#2e6a4c",
-    700: "#23503a",
-    800: "#173627",
-    900: "#0d2016",
+    100: "#e6f8e4",
+    200: "#bfeebb",
+    300: "#8dde85",
+    400: "#56c74c",
+    500: "#35932c",
+    600: "#287821",
+    700: "#1e5a19",
+    800: "#143d10",
+    900: "#0b2409",
   },
 };
 
@@ -1373,7 +1389,7 @@ export const SHARE_CARD = {
   /** The default accent, resolved on the dark ground. */
   accent: themeScale(THEME_PRESETS[0], DARK_GROUND)[500],
   /** Fairway green, lifted so the ball reads against the dark ground. */
-  fairway: "#5fb484",
+  fairway: "#56c74c",
   /**
    * TourneyHQ's OWN orange — the flag, the HQ chip, and the wordmark's middle
    * stop. A rasterizer (Satori) cannot read custom properties, so the share

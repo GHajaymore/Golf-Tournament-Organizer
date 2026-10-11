@@ -495,11 +495,13 @@ describe("the second colour", () => {
     expect(new Set(SECONDARY_PRESETS.map((p) => p.key)).size).toBe(SECONDARY_PRESETS.length);
   });
 
-  it("stays recognisably the green the app has always drawn", () => {
+  it("is the leaf green of the India flag, not the deep blue-leaning one", () => {
+    // It asserted 130 < hue < 175 — "the green the app has always drawn".
+    // Ajay moved it on 2026-10-10: TourneyHQ's green is #138808's hue (115),
+    // and the band it used to sit in is the one the product now keeps out of.
     const s = themeScale(FAIRWAY, DARK_GROUND);
     const hsl = hexToHsl(s[500]);
-    expect(hsl!.h).toBeGreaterThan(130);
-    expect(hsl!.h).toBeLessThan(175);
+    expect(Math.round(hsl!.h)).toBe(Math.round(hexToHsl("#138808")!.h));
   });
 
   it("takes a club's own colour, same as the main one", () => {
@@ -664,13 +666,19 @@ describe("a club that has chosen nothing sees no change", () => {
   // green to a bright mint — every advancing row, under-par score and won
   // match in the app changed colour for clubs that had picked nothing. Pinned
   // exactly, because "close enough" is what let it drift the first time.
+  //
+  // THE GREEN WAS MOVED ONCE, ON PURPOSE (Ajay, 2026-10-10): each shade below
+  // is the old one turned to the India-flag green's hue at its own lightness.
+  // What this block protects is unchanged — the second colour is the
+  // hand-tuned ramp, the same in `themes.ts` and in globals.css's static
+  // defaults, and never whatever the shared curve would generate.
   const SHIPPED_ACCENT: Record<number, string> = {
     100: "#fef3ea", 200: "#fde0cb", 300: "#fac6a1", 400: "#f6a566", 500: "#f2872e",
     600: "#d06f23", 700: "#a5561b", 800: "#6c3c18", 900: "#38230f",
   };
   const SHIPPED_ACCENT_2: Record<number, string> = {
-    100: "#e7f5ec", 200: "#c3e6d0", 300: "#93d0ac", 400: "#5fb484", 500: "#3c8361",
-    600: "#2e6a4c", 700: "#23503a", 800: "#173627", 900: "#0d2016",
+    100: "#e6f8e4", 200: "#bfeebb", 300: "#8dde85", 400: "#56c74c", 500: "#35932c",
+    600: "#287821", 700: "#1e5a19", 800: "#143d10", 900: "#0b2409",
   };
   const STEPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
@@ -696,7 +704,7 @@ describe("a club that has chosen nothing sees no change", () => {
      */
     const stored = { ...DEFAULT_CLUB_THEME, accentKey: "sunset", secondaryKey: "fairway" };
     const vars = themeVarsFor(stored, DARK_GROUND);
-    expect(vars["--color-accent-2"].toLowerCase()).toBe("#3c8361");
+    expect(vars["--color-accent-2"].toLowerCase()).toBe(SHIPPED_ACCENT_2[500]);
     for (const step of STEPS) {
       expect(vars[`--color-accent-2-${step}`].toLowerCase(), `accent-2-${step}`).toBe(
         SHIPPED_ACCENT_2[step],
@@ -721,7 +729,7 @@ describe("a club that has chosen nothing sees no change", () => {
     // The pinned values are tuned for a dark page. Reversing them would not
     // produce a light ramp, so light mode must keep generating.
     const light = themeScale(FAIRWAY, LIGHT_GROUND);
-    expect(light[500].toLowerCase()).not.toBe("#3c8361");
+    expect(light[500].toLowerCase()).not.toBe(SHIPPED_ACCENT_2[500]);
     expect(contrastRatio(light[500], LIGHT_GROUND.bg)).toBeGreaterThanOrEqual(4.49);
     expect(contrastRatio(light[300], LIGHT_GROUND.surface)).toBeGreaterThanOrEqual(4.49);
   });
