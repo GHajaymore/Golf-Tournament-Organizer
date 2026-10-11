@@ -319,6 +319,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Enter the card **Hole by hole** or as a **Full card**, or use [[Voice entry]] (“four, par, birdie, six…”). Press [[Save scorecard]].",
           "Many cards at once: [[Import scores]] from a spreadsheet. A finished card comes in as returned, so one press of [[Approve N clean cards]] accepts the whole file; an unfinished one waits under Needs attention. Importing a changed card over an approved one sends it back to be approved again.",
           "Team rounds import the same way, gross only: a row per player for a four-ball (it goes on that player's side), a row per side for a shared ball — name the side or any one of its players.",
+          "A match-play round takes who won each hole, the results, or gross cards — a card goes on that player's match and the match is scored from the pair. Somebody with two matches in the round can't be imported by card; use the results for them.",
         ],
       },
       { kind: "h", text: "Match play" },

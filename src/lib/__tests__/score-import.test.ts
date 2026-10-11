@@ -194,13 +194,14 @@ describe("final results only", () => {
 });
 
 describe("which shapes a format accepts", () => {
-  it("gives match play every shape, gross and net", () => {
-    expect(importShapesFor("Match Play")).toEqual([
-      "hole-results",
-      "match-results",
-      "strokes",
-      "net-strokes",
-    ]);
+  it("gives match play who won each hole, the results, and gross cards", () => {
+    // RE-PINNED 2026-10-10. This required all four shapes, net cards among
+    // them, and the two card shapes wrote where no match reads — so it held
+    // the screen to an offer that did nothing. Gross cards now count (they
+    // are filed on the fixture); net cards are not offered to a match round,
+    // for the reason `importShapesFor` gives. The end-to-end half is
+    // `imported-cards-score-the-match.audit.test.ts`.
+    expect(importShapesFor("Match Play")).toEqual(["hole-results", "match-results", "strokes"]);
   });
 
   it("gives a stroke-based round strokes only — gross or net, no hole winners", () => {
@@ -305,11 +306,13 @@ describe("net cards", () => {
     expect(r.strokeRows[0].strokes).toEqual(new Array(18).fill(4));
   });
 
-  it("is offered for every format, alongside gross", () => {
-    // A club that keeps net-only sheets should be able to import them
-    // whatever the round is scored as.
-    expect(importShapesFor("Match Play")).toContain("net-strokes");
+  it("is offered for every round scored on cards, alongside gross", () => {
+    // A club that keeps net-only sheets can import them for a medal or a
+    // Stableford. Not for a match round: the conversion back to gross is done
+    // once per round, and a match can be played off its own tees.
     expect(importShapesFor("Stableford")).toContain("net-strokes");
+    expect(importShapesFor("Stroke Play")).toContain("net-strokes");
+    expect(importShapesFor("Match Play")).not.toContain("net-strokes");
   });
 
   it("marks itself as needing conversion", () => {

@@ -105,7 +105,7 @@ import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
-import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
+import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput } from "@/lib/domain/registration-intake";
 import {
@@ -126,7 +126,7 @@ import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
-import { findFormat, inputChoices, isPlayable, needsTeams } from "@/lib/formats";
+import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
@@ -5031,11 +5031,23 @@ export async function importScores(
     return { ok: false, written: 0, error: "That file has too many rows to be a single round." };
   }
 
-  const field = new Set(
-    (await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map(
-      (p) => p.id,
-    ),
-  );
+  /**
+   * ONLY A SHAPE THIS ROUND WAS OFFERED — `importShapesFor`, the list the
+   * screen draws its choices from. Nothing checked, so a net file sent to a
+   * match round was converted and written where nothing read it.
+   */
+  if (!(importShapesFor(stage.format) as string[]).includes(shape)) {
+    return { ok: false, written: 0, error: "This round can't be scored from that kind of file." };
+  }
+  // A round whose results are MATCHES files a card on the player's fixture —
+  // see the stroke branch below.
+  const matchRound = lookupFormat(stage.format)?.family === "match";
+
+  const fieldRows = await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true, name: true } });
+  const field = new Set(fieldRows.map((p) => p.id));
+  const nameOf = new Map(fieldRows.map((p) => [p.id, p.name]));
+  /** Matches whose cards changed, re-derived once after the file. */
+  const rescore = new Set<string>();
 
   // Net cards are converted back to gross HERE, not in the browser: the
   // authoritative Playing Handicap depends on the round's allowance, the
@@ -5189,6 +5201,43 @@ export async function importScores(
               : v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length)),
           )
         : raw;
+      /**
+       * A MATCH ROUND FILES ITS CARDS ON THE FIXTURE (2026-10-10).
+       *
+       * This wrote every card to `Scorecard` — the table a stroke round files
+       * in. A match reads its two cards off `MatchScorecard`, so a file of
+       * cards for a match-play night was "written" in full and scored no
+       * match at all. Filed where the match looks, and the match derived from
+       * them after the file by the code a typed card goes through.
+       *
+       * A file has one card per player and no way to say which match it is
+       * for, so somebody with two matches in the round is named rather than
+       * guessed at; so is somebody the round has not drawn at all.
+       */
+      if (matchRound) {
+        const theirs = matches.filter((m) => m.playerAId === row.playerId || m.playerBId === row.playerId);
+        const who = nameOf.get(row.playerId) ?? "A player";
+        if (theirs.length !== 1) {
+          problems.push(
+            theirs.length === 0
+              ? `${who} isn't drawn in a match in this round, so there is no match for the card to score.`
+              : `${who} plays more than one match in this round, and a card can't say which it is for — import who won each hole, or the results, for those.`,
+          );
+          continue;
+        }
+        const card = strokes.slice(0, cardHoles);
+        while (card.length < cardHoles) card.push(null);
+        const slot = theirs[0].playerAId === row.playerId ? "A" : "B";
+        await prisma.matchScorecard.upsert({
+          where: { matchId_slot: { matchId: theirs[0].id, slot } },
+          update: { strokes: JSON.stringify(card) },
+          create: { eventId, matchId: theirs[0].id, slot, strokes: JSON.stringify(card) },
+        });
+        rescore.add(theirs[0].id);
+        if (isReturnedCard(card)) returned = true;
+        written += 1;
+        continue;
+      }
       const before = stored.get(row.playerId);
       const json = JSON.stringify(strokes);
       const finished = filledHoles(strokes, cardHoles) >= cardHoles;
@@ -5279,6 +5328,14 @@ export async function importScores(
     }
 
     problems.push("Unknown import shape.");
+  }
+
+  // Each match whose cards came in, derived once from BOTH its cards — after
+  // the file, so a match with two rows in it is scored on the pair rather
+  // than twice on one and a half.
+  for (const matchId of rescore) {
+    const match = await prisma.match.findFirst({ where: { id: matchId, eventId } });
+    if (match) await deriveMatchFromItsCards(eventId, match, { name: `${importedBy || "The committee"} (from a file)`, playerId: "" });
   }
 
   // An imported card is a returned card. Once, after the file rather than per

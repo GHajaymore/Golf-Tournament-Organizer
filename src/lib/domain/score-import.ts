@@ -23,6 +23,7 @@
 
 import { parseCsv, splitCsvLine } from "../csv";
 import { marginRefusal } from "./match";
+import { lookupFormat } from "../formats";
 
 /**
  * Commas, whatever the file arrived with.
@@ -173,11 +174,36 @@ export const IMPORT_SHAPES: ImportShapeInfo[] = [
   },
 ];
 
-/** Which shapes a round's format can actually accept. Mirrors entryModesFor. */
+/**
+ * Which shapes a round's format can actually USE — read off what the format
+ * declares it is scored from, not off its name.
+ *
+ * This was `format === "Match Play" ? all four : the two stroke shapes`, and
+ * three things were wrong with it:
+ *
+ *   - a NASSAU is match play under another name. It was never offered
+ *     who-won-each-hole, its natural input, and was offered cards as though
+ *     it were a medal;
+ *   - a bare RESULT is offered only where the format can be scored from one.
+ *     "3&2" says nothing about who took the front nine, so a Nassau does not
+ *     declare it and is not offered it;
+ *   - NET cards are not offered to a match round. A net file is converted
+ *     back to gross once per round, and a match can be played off its own
+ *     tees — converting off the round and scoring off the match would store a
+ *     card nobody played.
+ *
+ * Gross cards ARE offered to a match round, and count: `importScores` files
+ * them on the fixture and derives the match, exactly as a typed card does.
+ */
 export function importShapesFor(format: string): ScoreImportShape[] {
-  return format === "Match Play"
-    ? ["hole-results", "match-results", "strokes", "net-strokes"]
-    : ["strokes", "net-strokes"];
+  const declared = lookupFormat(format);
+  if (declared?.family !== "match") return ["strokes", "net-strokes"];
+  const inputs = declared.inputs ?? [];
+  return [
+    ...(inputs.includes("hole-results") ? (["hole-results"] as const) : []),
+    ...(inputs.includes("match-result") ? (["match-results"] as const) : []),
+    "strokes",
+  ];
 }
 
 /** Whether a shape's numbers are net of handicap and need converting back. */
