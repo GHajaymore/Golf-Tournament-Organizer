@@ -140,3 +140,38 @@ describe("what to say about a course card", () => {
     expect(note?.text).toContain("3 April 2026");
   });
 });
+
+/**
+ * A CARD TYPED IN AT SCORE ENTRY WAS TYPED IN (sweep 1, b17, 2026-10-10).
+ *
+ * A course card has three origins: typed on the Courses screen ("manual"),
+ * fetched from a directory ("imported"), and typed by a scorer naming a venue
+ * at score entry ("entered-at-scoring"). The warning on an unchecked card
+ * said "typed in" for the first and "imported" for anything else — so the
+ * card somebody keyed off the back of a scorecard on the first tee was
+ * described to the committee as imported, which sends them looking for a
+ * source that does not exist.
+ */
+describe("how an unchecked card says it arrived", () => {
+  const unchecked = (source: string) => cardTrustNote({ source, verifiedAt: null, verifiedBy: "" }, new Date("2026-10-10T12:00:00Z"))?.text ?? "";
+
+  it("typed on the Courses screen, or at score entry: typed in", () => {
+    expect(unchecked("manual")).toContain("was typed in");
+    expect(unchecked("entered-at-scoring")).toContain("was typed in");
+    expect(unchecked("entered-at-scoring")).not.toContain("imported");
+  });
+
+  it("CONTROL: fetched from a directory: imported", () => {
+    expect(unchecked("imported")).toContain("was imported");
+  });
+
+  it("covers every origin the course actions write", async () => {
+    // Read off the code that stores them, so a fourth origin added later is
+    // described on purpose rather than by whatever the fallback says.
+    const { readSource } = await import("@/lib/__tests__/source");
+    const src = readSource("src/app/actions/courses.ts");
+    const written = new Set<string>();
+    for (const part of src.split('source: "').slice(1)) written.add(part.slice(0, part.indexOf('"')));
+    expect([...written].sort()).toEqual(["entered-at-scoring", "imported"]);
+  });
+});
