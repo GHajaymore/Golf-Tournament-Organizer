@@ -31,7 +31,7 @@ async function requireClub(): Promise<
   const access = await organizationAccess(session);
   if (!access) return { ok: false, error: "No organization found." };
   if (!access.canEdit) {
-    return { ok: false, error: "Only an organization owner or admin can change this." };
+    return { ok: false, error: "Only a Commissioner or Admin can change this." };
   }
   return { ok: true, organizationId: access.organizationId };
 }

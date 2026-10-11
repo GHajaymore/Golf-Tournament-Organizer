@@ -121,7 +121,7 @@ describe("a club picks its golf words", () => {
     session.viewRole = "player";
     const res = await saveOrganizationGolfTerms("us");
     expect(res.ok, "a player changed the whole club's words").toBe(false);
-    expect(res.error).toMatch(/owner or admin/i);
+    expect(res.error).toMatch(/Commissioner or Admin/);
     expect((await stored()).golfTerms).toBe("");
   });
 });

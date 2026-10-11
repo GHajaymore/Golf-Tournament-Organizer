@@ -141,7 +141,7 @@ export async function askToJoinNamesake(orgName: string, note: string): Promise<
 export async function approveJoinRequest(requestId: string, role: string): Promise<JoinResult> {
   const org = await organizationAccess(await getSession());
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can answer this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can answer this." };
 
   /**
    * NARROWED TO THE CALLER'S OWN OUTFIT before it is used for anything. The id
@@ -201,7 +201,7 @@ export async function approveJoinRequest(requestId: string, role: string): Promi
 export async function declineJoinRequest(requestId: string): Promise<JoinResult> {
   const org = await organizationAccess(await getSession());
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can answer this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can answer this." };
 
   const ask = await prisma.joinRequest.findFirst({
     where: { id: requestId, organizationId: org.organizationId, status: "pending" },

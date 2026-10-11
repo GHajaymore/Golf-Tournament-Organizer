@@ -77,7 +77,7 @@ async function hasOtherOwner(organizationId: string, memberId: string): Promise<
 export async function addOrganizationMember(email: string, name: string, roleInput: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   /**
    * ONLY A SEAT-CONSUMING ROLE IS CHECKED AGAINST THE SEAT LIMIT.
@@ -157,7 +157,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
 export async function setOrganizationMemberRole(memberId: string, role: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   const member = await prisma.organizationMember.findFirst({
     where: { id: memberId, organizationId: org.organizationId },
@@ -169,7 +169,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   // would otherwise be stored as a role nothing in the app understands.
   const next = cleanOrgRole(role);
   if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only owner — make someone else an owner first." };
+    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner first." };
   }
   // Member or Guest to admin or owner takes a seat — the promotion that went
   // round the limit (see `seatRefusalFor`).
@@ -187,7 +187,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
 export async function removeOrganizationMember(memberId: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   const member = await prisma.organizationMember.findFirst({
     where: { id: memberId, organizationId: org.organizationId },
@@ -195,7 +195,7 @@ export async function removeOrganizationMember(memberId: string): Promise<OrgRes
   if (!member) return { ok: false, error: "Staff member not found." };
 
   if (member.role === "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only owner — make someone else an owner before removing them." };
+    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner before removing them." };
   }
 
   await prisma.organizationMember.delete({ where: { id: memberId } });
@@ -214,7 +214,7 @@ export async function saveOrganizationBranding(
 ): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change these settings." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change these settings." };
 
   const cleanName = name.trim();
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
@@ -310,7 +310,7 @@ export async function saveOrganizationTheme(
 ): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change branding." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change branding." };
 
   // "custom" is a legitimate key that isn't in the preset list, so it is
   // checked separately rather than widening isThemeKey and letting an unknown
@@ -388,7 +388,7 @@ export async function saveOrganizationTheme(
 export async function saveOrganizationCurrency(currency: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const code = (currency ?? "").trim().toUpperCase();
   if (!isCurrencyCode(code)) {
@@ -422,7 +422,7 @@ export async function saveOrganizationCurrency(currency: string): Promise<OrgRes
 export async function saveOrganizationSeason(startsOn: string, endsOn: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   await prisma.organization.update({
     where: { id: org.organizationId },
@@ -464,7 +464,7 @@ function monthDayOrBlank(value: string): string {
 export async function saveOrganizationLocale(locale: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const tag = (locale ?? "").trim();
   if (!isSupportedLocale(tag)) {
@@ -539,7 +539,7 @@ export async function saveOrganizationKind(
 ): Promise<OrgResult & { hidesRoster?: number }> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (kind ?? "").trim();
   // Sanitised, not trusted: a public endpoint, and this value decides what
@@ -593,7 +593,7 @@ export async function saveOrganizationKind(
 export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (noun ?? "").trim();
   if (value !== "" && !isCommunityVoice(value)) {
@@ -620,7 +620,7 @@ export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
 export async function saveOrganizationGolfTerms(terms: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (terms ?? "").trim().toLowerCase();
   if (value !== "" && !isGolfRegister(value)) {

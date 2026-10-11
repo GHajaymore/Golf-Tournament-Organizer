@@ -597,7 +597,7 @@ export function OrganizationClient(props: Props) {
             </button>
           ) : (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              Only an organization owner or admin can change these settings.
+              Only a Commissioner or Admin can change these settings.
             </p>
           )}
         </div>

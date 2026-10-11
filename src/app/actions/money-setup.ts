@@ -127,7 +127,7 @@ export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
   if (!access.canEdit) {
     return {
       ok: false,
-      error: "Only an organization owner or admin can change the club's money default.",
+      error: "Only a Commissioner or Admin can change the club's money default.",
     };
   }
 

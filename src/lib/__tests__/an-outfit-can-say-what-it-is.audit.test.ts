@@ -137,7 +137,7 @@ describe("saying what the outfit is", () => {
 
     const res = await saveOrganizationKind("club");
     expect(res.ok, "a player changed what the whole outfit is").toBe(false);
-    expect(res.error).toMatch(/owner or admin/i);
+    expect(res.error).toMatch(/Commissioner or Admin/);
     expect(await kindOf()).toBe("personal");
   });
 });

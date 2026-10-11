@@ -35,7 +35,7 @@ export async function startCheckout(planInput: string, intervalInput: string): P
   const session = await getSession();
   const org = await organizationAccess(session);
   if (!org) return { ok: false, error: "No club found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only a club owner or admin can change the plan." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change the plan." };
 
   const club = await prisma.organization.findUnique({
     where: { id: org.organizationId },
@@ -63,7 +63,7 @@ export async function startCheckout(planInput: string, intervalInput: string): P
 export async function openBillingPortal(): Promise<BillingResult> {
   const org = await organizationAccess(await getSession());
   if (!org) return { ok: false, error: "No club found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only a club owner or admin can manage billing." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage billing." };
   const result = await portalUrl(org.organizationId, await requestOrigin());
   return "url" in result ? { ok: true, url: result.url } : { ok: false, error: result.error };
 }

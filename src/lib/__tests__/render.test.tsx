@@ -6517,7 +6517,7 @@ describe("how money works", () => {
 
   it("does not let a read-only viewer change the club default", async () => {
     const html = await money({ mode: "organization", canEdit: false });
-    expect(html).toContain("Only an organization owner or admin can change this");
+    expect(html).toContain("Only a Commissioner or Admin can change this");
     expect(html).toContain("disabled");
   });
 });

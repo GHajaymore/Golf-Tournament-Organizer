@@ -13,7 +13,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
-import { roleName } from "@/lib/roles";
+import { roleName, orgRoleName } from "@/lib/roles";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -44,19 +44,8 @@ import { roleName } from "@/lib/roles";
  * meanings is the defect this codebase keeps unwinding. "Head" reads as Head
  * Professional. "Organizer" is taken by the per-event role below.
  */
-const ORG_ROLE_OPTS = [
-  { v: "owner", l: "Commissioner" },
-  { v: "admin", l: "Admin" },
-  { v: "member", l: "Member" },
-  { v: "guest", l: "Guest" },
-];
-
-const ORG_ROLE_LABEL: Record<string, string> = {
-  owner: "Commissioner",
-  admin: "Admin",
-  member: "Member",
-  guest: "Guest",
-};
+// The names come from `roles.ts`, where the invitation email reads them too.
+const ORG_ROLE_OPTS = ["owner", "admin", "member", "guest"].map((v) => ({ v, l: orgRoleName(v) }));
 export function OrganizationAccess({
   report,
   canEdit,
@@ -231,9 +220,16 @@ export function OrganizationAccess({
               `canAdministerOrg` is `owner || admin`. Behind the ⓘ it is
               still the whole sentence, word for word. */}
           <MoreInfo short="What each role means" style={{ margin: "0 0 4px" }}>
-            <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
-            <b>Admin</b> — organizer on every tournament this {from} runs, without being added to
-            each one. <b>Member</b> — staff pool; access only where explicitly given on an event.{" "}
+            {/* Two of these said something the app does not do (2026-10-10).
+                A Commissioner CAN be removed or changed while there is
+                another; only the last one is kept. And a Member is not shut
+                out until given access: they can open every tournament this
+                club runs, as a player — it is STAFF rights that are given
+                event by event. */}
+            <b>Commissioner</b> — runs this account and holds the billing. There is always at least
+            one. <b>Admin</b> — organizer on every tournament this {from} runs, without being added to
+            each one. <b>Member</b> — can open every tournament this {from} runs, as a player; staff
+            rights only where given on an event.{" "}
             {/* The one role that grants LESS. A charity day and a league
                 substitute are the same person to the app: in for one event,
                 not a member — so they must not see what the club is running
@@ -368,7 +364,7 @@ export function OrganizationAccess({
           </button>
           {!canEdit && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              Only an owner or admin can manage staff.
+              Only a Commissioner or Admin can manage staff.
             </p>
           )}
         </div>
@@ -414,7 +410,7 @@ export function OrganizationAccess({
                     <td>
                       {p.orgRole ? (
                         <span className={`tag ${p.orgRole === "owner" ? "tag-accent" : "tag-neutral"}`}>
-                          {ORG_ROLE_LABEL[p.orgRole] ?? p.orgRole}
+                          {orgRoleName(p.orgRole)}
                         </span>
                       ) : (
                         <span className="text-muted">—</span>

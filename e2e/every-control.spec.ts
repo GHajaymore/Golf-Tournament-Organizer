@@ -219,7 +219,7 @@ const BUILDERS: Record<string, string> = {
  * made; anything not listed here is a finding.
  */
 const RULED: Array<{ screen: string; says: RegExp; why: string }> = [
-  { screen: "/organization", says: /only owner/i, why: "a club keeps at least one owner; the refusal names the remedy" },
+  { screen: "/organization", says: /only Commissioner/i, why: "a club keeps at least one Commissioner; the refusal names the remedy" },
   { screen: "/access", says: /only organi[sz]er/i, why: "a tournament keeps at least one organizer; the warning names the remedy" },
   { screen: "/foursomes", says: /Hole \d+: Paces/i, why: "a pin's side means nothing without its paces; the refusal names the hole" },
 ];

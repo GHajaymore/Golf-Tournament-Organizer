@@ -70,7 +70,7 @@ export function PlanBilling({
       )}
 
       {!canEdit ? (
-        <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>Only a club owner or admin can change the plan.</p>
+        <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>Only a Commissioner or Admin can change the plan.</p>
       ) : hasSubscription ? (
         <div>
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => go(openBillingPortal, "portal")}>
