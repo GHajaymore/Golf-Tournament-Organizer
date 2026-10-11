@@ -3,6 +3,7 @@ import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
 import { holesPlayed } from "../domain/handicap";
+import { hasLeftTheField } from "../domain/left-the-field";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
@@ -41,6 +42,13 @@ export interface TeamMemberView {
    * competition, which is when a club can least afford it.
    */
   withdrawn: boolean;
+  /**
+   * …and it was by the committee's ruling. `withdrawn` above is "no longer
+   * playing", by either route, because that is what every sum here needs;
+   * this is only for saying which, since "has withdrawn" is the wrong thing
+   * to tell a committee about a player it disqualified.
+   */
+  disqualified?: boolean;
 }
 
 export interface TeamView {
@@ -156,7 +164,11 @@ export async function teamsForStage(
       name: m.player.name,
       handicap: roundHandicapOf(round.get(m.playerId), courseHcp.get(m.playerId) ?? m.player.handicap),
       position: m.position,
-      withdrawn: m.player.status === "withdrawn",
+      // Left the field by EITHER route. This asked for "withdrawn" alone, so a
+      // partner the committee had disqualified still priced the side's
+      // handicap and still made up its numbers, with no warning beside it.
+      withdrawn: hasLeftTheField(m.player.status),
+      disqualified: m.player.status === "disqualified",
     }));
     // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
     // sizes the side by. Including a withdrawn player anchors a single-ball
@@ -268,16 +280,16 @@ export function teamProblems(teams: TeamView[], format: string): TeamProblem[] {
      * for the committee: "has 1 of 2 players" is a draw that was never
      * finished, and this is a draw that was finished and has since changed.
      */
-    const gone = t.members.filter((m) => m.withdrawn);
-    if (gone.length > 0) {
-      problems.push({
-        teamId: t.id,
-        teamName: t.name,
-        problem:
-          gone.length === 1
-            ? `${gone[0].name} has withdrawn — substitute or play short`
-            : `${gone.map((m) => m.name).join(" and ")} have withdrawn — substitute or play short`,
-      });
+    // Said separately for each way out: the committee did one of these
+    // itself, and is owed the right word for it.
+    for (const ruled of [false, true]) {
+      const gone = t.members.filter((m) => m.withdrawn && !!m.disqualified === ruled);
+      if (gone.length === 0) continue;
+      const names = gone.map((m) => m.name).join(" and ");
+      const what = ruled
+        ? gone.length === 1 ? "has been disqualified" : "have been disqualified"
+        : gone.length === 1 ? "has withdrawn" : "have withdrawn";
+      problems.push({ teamId: t.id, teamName: t.name, problem: `${names} ${what} — substitute or play short` });
     }
 
     // Size is judged on who is actually playing: a pair whose partner has

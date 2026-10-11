@@ -191,7 +191,11 @@ export async function addTeamMember(teamId: string, playerId: string): Promise<T
       error:
         player.status === "withdrawn"
           ? `${player.name} has withdrawn. Re-enter them in the field first.`
-          : `${player.name} is not in the field yet. Confirm their place first.`,
+          : player.status === "disqualified"
+            ? // Not "confirm their place first": their place was taken away by
+              // a ruling, and the way back is to reinstate them on purpose.
+              `${player.name} has been disqualified. Reinstate them on Registration & field first, if the ruling was made in error.`
+            : `${player.name} is not in the field yet. Confirm their place first.`,
     };
   }
 

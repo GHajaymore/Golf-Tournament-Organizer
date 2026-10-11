@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { generateAccessCode } from "@/lib/codes";
+import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { cleanSettings, usesAccessCodes } from "@/lib/tournament-settings";
 
 /**
@@ -106,6 +107,7 @@ export async function revokeRoundCodes(eventId: string): Promise<void> {
  */
 export async function strandedEntrantCount(eventId: string): Promise<number> {
   return prisma.player.count({
-    where: { eventId, email: "", status: { not: "withdrawn" } },
+    // Disqualified with withdrawn: neither has a card to be locked out of.
+    where: { eventId, email: "", status: { notIn: LEFT_THE_FIELD } },
   });
 }

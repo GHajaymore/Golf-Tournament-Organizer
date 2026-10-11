@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isIsoDate } from "@/lib/deadline";
+import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import {
   isValidAmount,
   MAX_EXPENSE_CENTS,
@@ -188,11 +189,21 @@ async function cleanInput(
 
   // The field this expense may be split across, from the database rather than
   // from the caller. An id the client invented simply is not in this set.
+  //
+  // TWO sets, because leaving the field separates two questions (2026-10-10).
+  // Who MAY be on a bill is everyone still playing and everyone who has left —
+  // withdrawn or disqualified — since a cart hired on Friday is still shared
+  // by the player sent home on Saturday. This listed "confirmed, withdrawn"
+  // only, so a disqualified player's share was dropped without a word and the
+  // others were charged the whole bill, while the money screen went on listing
+  // them by name. Who "everyone, evenly" MEANS is narrower: everyone PLAYING,
+  // which is the rule `moneyFor` states — it charged whoever had withdrawn.
   const field = await prisma.player.findMany({
-    where: { eventId, status: { in: ["confirmed", "withdrawn"] } },
-    select: { id: true },
+    where: { eventId, status: { in: ["confirmed", ...LEFT_THE_FIELD] } },
+    select: { id: true, status: true },
   });
   const inField = new Set(field.map((p) => p.id));
+  const playing = field.filter((p) => p.status === "confirmed");
 
   // OMITTED and EMPTY are not the same request.
   //
@@ -209,7 +220,7 @@ async function cleanInput(
   // ledger afterwards.
   const requested: Array<{ playerId: string; weight: number; amountCents?: number }> =
     input.shares === undefined
-      ? field.map((p) => ({ playerId: p.id, weight: 1 }))
+      ? playing.map((p) => ({ playerId: p.id, weight: 1 }))
       : input.shares;
 
   // Any share naming an amount switches the line to exact amounts. Mixing is

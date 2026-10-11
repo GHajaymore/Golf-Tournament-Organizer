@@ -79,6 +79,7 @@ import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist, fieldLimitFor } from "@/lib/services/waitlist";
+import { LEFT_THE_FIELD } from "@/lib/domain/left-the-field";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { cloneSingleMatchRule, parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
@@ -442,7 +443,7 @@ export interface SignupResult {
  */
 async function casualRoundFull(event: { id: string; shape: string }, adding: number): Promise<string | null> {
   if (!isMatch(event.shape)) return null;
-  const inField = await prisma.player.count({ where: { eventId: event.id, status: { not: "withdrawn" } } });
+  const inField = await prisma.player.count({ where: { eventId: event.id, status: { notIn: LEFT_THE_FIELD } } });
   if (inField + adding <= QUICK_ROUND_MAX_PLAYERS) return null;
   return `A casual round is for up to ${QUICK_ROUND_MAX_PLAYERS} players. For a bigger field, set up a tournament — it's free on ${PLANS.free.name}.`;
 }
@@ -543,7 +544,11 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
       error:
         duplicate.status === "withdrawn"
           ? `${duplicate.name} is already entered ${how} but has withdrawn — re-enter them from the roster rather than adding a second entry.`
-          : `${duplicate.name} is already in the field ${how}.`,
+          : duplicate.status === "disqualified"
+            ? // "Already in the field" is the one thing they are not, and a
+              // second entry beside the ruling would quietly undo it.
+              `${duplicate.name} is already entered ${how} and has been disqualified — reinstate them on Registration & field rather than adding a second entry.`
+            : `${duplicate.name} is already in the field ${how}.`,
     };
   }
 
