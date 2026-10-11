@@ -693,6 +693,9 @@ function StageCard({
   const [nine, setNine] = useState(
     stage.nine === "back" || stage.nine === "full" ? stage.nine : "front",
   );
+  // Whether "which nine" may be left to each match — only in match play,
+  // where score entry asks every match for its own. See the picker below.
+  const nineMayStayOpen = GOLF_FORMATS.find((f) => f.name === format)?.family === "match";
   // Carry-forward is the one setting an organizer can't afford to miss, and it
   // lives inside this panel — which is exactly the "unchecked box halfway down
   // a collapsed panel" the prompt exists to fix. Asking the question is no use
@@ -1392,20 +1395,26 @@ function StageCard({
             <select
               id={`nine-${stage.id}`}
               className="input"
-              value={nine}
+              /* A round scored from cards is scored as the FRONT nine when
+                 nothing says otherwise (`applyNine`), so that is what this
+                 shows for it — the screen states what the scorer does. */
+              value={nineMayStayOpen || nine !== "full" ? nine : "front"}
               disabled={pending || !canSetVenue}
               onChange={(e) => commitVenue(courseId, e.target.value)}
             >
               <option value="front">Front nine</option>
               <option value="back">Back nine</option>
-              {/* Front and back was a forced choice, and plenty of rounds
-                  genuinely have no answer: a shotgun start puts groups on
-                  both nines at once, and a round rotating venues has a
-                  different front nine on each. "full" already means "use the
-                  whole card" everywhere downstream, so this needs no new
-                  state — it just stops the screen insisting on a fact the
-                  organizer may not have. */}
-              <option value="full">Not fixed — shotgun or mixed</option>
+              {/* Front and back was a forced choice, and some rounds
+                  genuinely have no one answer: matches going out on both
+                  nines at once.
+
+                  OFFERED ONLY WHERE SOMETHING ELSE SAYS WHICH (2026-10-10).
+                  In match play each match states its own nine at score
+                  entry, so the round can leave it open. A round scored from
+                  cards has nowhere else to say it — every card was scored
+                  off the front nine's pars and stroke index under a label
+                  reading "Not fixed". */}
+              {nineMayStayOpen && <option value="full">Not fixed — each match says which</option>}
             </select>
           </div>
         )}

@@ -311,7 +311,8 @@ export function applyNine<
    * A nine-hole round that does not say WHICH nine still gets narrowed.
    *
    * `Stage.nine` defaults to "full", and "full" is a real choice in the picker
-   * ("Not fixed — shotgun or mixed"), so it is the state of every nine-hole
+   * for a match-play round ("Not fixed — each match says which"; a round scored
+   * from cards is no longer offered it, 2026-10-10), so it is the state of every nine-hole
    * round nobody has touched the dropdown on. Returning the whole eighteen for
    * it left a nine-hole card being allocated against eighteen-hole indexes on
    * an eighteen-hole base — a player owed five strokes over nine received

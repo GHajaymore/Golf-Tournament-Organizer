@@ -2329,6 +2329,34 @@ describe("round card — which nine and the deadline", () => {
     expect(html).toMatch(/<option value="full" selected="">/);
   });
 
+  /**
+   * "NOT FIXED" IS OFFERED ONLY WHERE SOMETHING ELSE SAYS WHICH NINE (sweep 1,
+   * d1, 2026-10-10). In match play each MATCH states its own nine, so a round
+   * can honestly leave it open. A round scored from cards has nowhere else
+   * to say it: every card was scored as the front nine — front pars, front
+   * stroke index — under a label saying the nine was not fixed.
+   */
+  const medal = (over: Partial<StageView> = {}) =>
+    stage({ type: "Stroke Play Round", format: "Stableford", holes: 9, scoringBasis: "net", ...over });
+
+  it("does not offer 'not fixed' on a round scored from cards", () => {
+    const html = render(<StagesClient {...base} stages={[medal()]} />);
+    expect(html).toContain("Which nine");
+    expect(html).toContain("Front nine");
+    expect(html).toContain("Back nine");
+    expect(html).not.toContain("Not fixed");
+  });
+
+  it("shows such a round as the front nine when nothing was chosen, because that is how it is scored", () => {
+    const html = render(<StagesClient {...base} stages={[medal({ nine: "full" })]} />);
+    expect(html).toMatch(/<option value="front" selected="">/);
+  });
+
+  it("CONTROL: and still shows the back nine where the back nine was chosen", () => {
+    const html = render(<StagesClient {...base} stages={[medal({ nine: "back" })]} />);
+    expect(html).toMatch(/<option value="back" selected="">/);
+  });
+
   it("keeps an explicitly chosen back nine", () => {
     const html = render(<StagesClient {...base} stages={[stage({ holes: 9, nine: "back" })]} />);
     expect(html).toMatch(/<option value="back" selected="">/);
