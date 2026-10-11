@@ -29,6 +29,18 @@ export interface TeeSheet {
   groups: TeeSheetGroup[];
 }
 
+/**
+ * How a saved sheet's field went off, for the builder to start a re-draw from.
+ *
+ * `startType` was stored on every sheet and read back by nothing, so Re-draw
+ * on a shotgun sheet opened on "One tee" — and moving two players quietly
+ * changed how the whole field starts. One tee is the answer where there is
+ * no sheet, or the stored word is not a way of starting.
+ */
+export function startStyleOf(stored: string | null | undefined): "tee" | "split" | "shotgun" {
+  return stored === "split" || stored === "shotgun" ? stored : "tee";
+}
+
 /** Parse stored JSON. Null for anything that isn't a sheet — never throws. */
 export function parseTeeSheet(json: string): TeeSheet | null {
   if (!json.trim()) return null;
