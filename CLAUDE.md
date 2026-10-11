@@ -61,6 +61,53 @@ fourth is not testable and is yours: a flow that works differently under the sam
 The day this rule was written, the guide already held a sentence that morning's work had made
 false — "Only Manual lets you … set tees per flight".
 
+## End-to-end means across the board
+
+Ajay, 2026-10-10: "When you test, you test across the board — that's the e2e. It should cover
+EVERYTHING IN THE APP." — functional, operational, security, every feature, onboarding, sign-in
+and access control.
+
+What prompted it. Eleven scripted tournaments, each a careful path at 120 players, passed three
+times running and were reported to him as "three consecutive zero-defect rounds". An hour later
+a sweep of options and inputs those scripts never used found about forty candidate defects: a
+winner with a blank margin stored as a halved match, a back-nine round reset to the front nine,
+a member made scratch by having a phone number corrected. Every one of those rounds was
+honestly green. The claim was the defect: a pass count says how the paths walked behaved and
+nothing about the paths nobody walked, and nothing was measuring those.
+
+**So a browser-test result is never reported without its reach.** Two instruments exist for it:
+
+- `e2e/coverage.ts` — every spec imports `test` from it, and every browser context records each
+  server action called and each screen opened. `node scripts/e2e-coverage.mjs` holds that ledger
+  against the BUILD's own lists and prints what was reached and, by name, what never was
+  (`--reset` empties it before a run). Measured the day it was written: the whole standing suite,
+  361 tests green, called **36 of 263 server actions**. Fourteen per cent.
+- The app's controls, counted from the running app rather than from memory: as secretary,
+  10,312 controls on screen across 267 screen-states of the seeded club — 117 distinct dropdowns,
+  92 choice groups, 122 tick-boxes, 329 text boxes, 546 buttons.
+
+**The layers of the suite**, each of which says in its own header what it cannot see:
+
+- `e2e/everything.spec.ts` opens every console screen on every one of the seeded club's
+  tournaments as the secretary, every player screen as a member, every public board signed out.
+  The screen lists come from the filesystem and the menu itself.
+- `e2e/every-control.spec.ts` (`E2E_EVERYTHING=1`) makes every choice every dropdown, choice
+  group and tick-box offers, saves it the way the screen saves, reloads, and asks whether it was
+  kept. It is the browser form of "what a screen OFFERS, the server ACCEPTS and the app READS
+  must be one list" — see `docs/sweeps-2026-10-10.md`.
+
+"A round" is the whole suite, and it is "clean" only with its reach stated beside it. A run
+that did not exercise the list is a smoke test, whatever it is called.
+
+**Two habits this cost to learn, both the same night:**
+
+- **Commit before any mutation check.** "Break it, watch the test go red, put it back" was done
+  on uncommitted work and put back with `git checkout --`, which put back the fix as well. The
+  rule further down says to restore with the Edit tool; the safer rule is that there is nothing
+  uncommitted to lose. With the work committed, `git checkout -- <file>` is exactly right.
+- **A finding from reading code becomes a test in the BROWSER, not only a fix.** The next round
+  must be able to find it again without anybody remembering it.
+
 ## Verification
 
 Run before committing anything non-trivial:
