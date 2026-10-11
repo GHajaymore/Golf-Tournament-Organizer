@@ -137,8 +137,19 @@ export const DEFAULT_THEME = "verdigris";
  */
 export const DEFAULT_SECONDARY = "optic";
 
+/**
+ * A main colour a club may store: every one the picker offers.
+ *
+ * It read `THEME_PRESETS`, which is every main colour EXCEPT Fairway — and the
+ * picker has offered Fairway as a main colour, and the "Parkland" scheme that
+ * leads with it, since 2026-08-09 (`ACCENT_PRESETS`). So for two months a club
+ * that clicked either was told "Unknown theme." by the save, and a row holding
+ * it would have been drawn in the default teal by `themeFor`. Found 2026-10-10
+ * by a capture script's control: six schemes photographed, five colours drawn.
+ * Both readers now ask the list the picker draws from.
+ */
 export function isThemeKey(v: string): boolean {
-  return THEME_PRESETS.some((t) => t.key === v);
+  return ACCENT_PRESETS.some((t) => t.key === v);
 }
 
 /**
@@ -152,7 +163,7 @@ export function isThemeKey(v: string): boolean {
  */
 export function themeFor(key: string | null | undefined): ThemePreset {
   return (
-    THEME_PRESETS.find((t) => t.key === key) ??
+    ACCENT_PRESETS.find((t) => t.key === key) ??
     THEME_PRESETS.find((t) => t.key === DEFAULT_THEME) ??
     THEME_PRESETS[0]
   );
@@ -640,7 +651,19 @@ export const SECONDARY_PRESETS: ThemePreset[] = [FAIRWAY, ...THEME_PRESETS];
  * which is the wrong way round for most golf clubs. Both lists are the same
  * list now; which one leads is the club's decision, not ours.
  */
-export const ACCENT_PRESETS: ThemePreset[] = [...THEME_PRESETS, FAIRWAY];
+export const ACCENT_PRESETS: ThemePreset[] = [
+  ...THEME_PRESETS,
+  /**
+   * Fairway as the MAIN colour: the same green, on a generated ramp.
+   *
+   * Its hand-tuned dark shades exist so the SECOND colour never moved under a
+   * club that had chosen nothing, and they sit at 3.9:1 on the dark ground —
+   * fine for a ring round a birdie, not for the filled button, the links and
+   * the selected tab a main colour paints. Leading, it is solved to the same
+   * floors as every other main colour.
+   */
+  { key: FAIRWAY.key, name: FAIRWAY.name, blurb: FAIRWAY.blurb, hue: FAIRWAY.hue, saturation: FAIRWAY.saturation },
+];
 
 /**
  * How far apart two hues must sit to read as two colours rather than one

@@ -787,12 +787,14 @@ describe("text sitting ON the accent", () => {
   // background, which measured 3.87:1 on a light ground — a pale off-white on
   // a mid-dark orange. This is the most-clicked control in the app.
   it("clears 4.5:1 for every preset on both grounds", () => {
-    // Primary presets only. The fairway green is a *secondary* — it colours
-    // advancing rows and positive deltas, and is never a filled button — so
-    // holding it to the on-accent bar would be testing something the app
-    // never renders. THEME_PRESETS is exactly the set a primary can be.
+    // Every colour that can LEAD — `ACCENT_PRESETS`, the list the picker
+    // draws. This read `THEME_PRESETS` under a comment saying the fairway
+    // green "is never a filled button", which stopped being true the day the
+    // picker offered it as a main colour (2026-08-09) and left the one main
+    // colour on a hand-tuned ramp as the one nobody measured. As a SECOND
+    // colour it still never fills a button, and is not held to this.
     for (const ground of [DARK_GROUND, LIGHT_GROUND]) {
-      for (const preset of THEME_PRESETS) {
+      for (const preset of ACCENT_PRESETS) {
         const fill = themeScale(preset, ground)[500];
         expect(
           contrastRatio(ground.onAccent, fill),
@@ -966,4 +968,68 @@ describe("the neutral ramps are readable on their own ground", () => {
       }
     });
   }
+});
+
+/**
+ * WHAT THE PICKER OFFERS, THE APP CAN KEEP AND DRAW (2026-10-10).
+ *
+ * The picker draws its main colours from `ACCENT_PRESETS` and its schemes from
+ * `THEME_PAIRS`. The save asked `isThemeKey`, and the stylesheet asked
+ * `themeFor`, and both read a shorter list — every main colour except Fairway.
+ * So "Fairway" and the "Parkland" scheme sat in the picker for two months and
+ * neither could be saved, and a row holding one would have been drawn teal.
+ *
+ * Nothing compared the two lists. It was found by photographing six schemes
+ * and counting the colours that came back: five. These pin the offer to the
+ * two readers, and that count.
+ */
+describe("what the picker offers, the app can keep and draw", () => {
+  it("keeps every main colour it offers, and resolves it to itself", () => {
+    for (const p of ACCENT_PRESETS) {
+      expect(isThemeKey(p.key), `${p.name} is offered and would be refused on save`).toBe(true);
+      expect(themeFor(p.key).key, `${p.name} would be drawn as another colour`).toBe(p.key);
+    }
+  });
+
+  it("keeps every ready-made scheme it offers — Parkland leads with Fairway", () => {
+    // The cell that failed, named, so a kinder list of schemes cannot pass it.
+    expect(THEME_PAIRS.find((p) => p.key === "parkland")?.accentKey).toBe("fairway");
+    for (const pair of THEME_PAIRS) {
+      expect(isThemeKey(pair.accentKey), `${pair.name}: its main colour would be refused on save`).toBe(true);
+      expect(resolveTheme(pair.accentKey, "").key, `${pair.name} would be drawn in another colour`).toBe(pair.accentKey);
+    }
+  });
+
+  it("draws as many accents as there are main colours, on both grounds", () => {
+    // What the capture's control counted. Two schemes may share a main colour
+    // (Desert and Morning both lead with Bunker), so the count is of colours.
+    for (const ground of [DARK_GROUND, LIGHT_GROUND]) {
+      const leading = new Set(THEME_PAIRS.map((p) => p.accentKey));
+      const drawn = new Set(
+        [...leading].map(
+          (accentKey) => themeVarsFor({ ...DEFAULT_CLUB_THEME, accentKey }, ground)["--color-accent"],
+        ),
+      );
+      expect(drawn.size, `on ${ground.key}, two main colours are drawn as one`).toBe(leading.size);
+    }
+  });
+
+  it("leads on a generated ramp, and stays hand-tuned as the second colour", () => {
+    // Leading: solved like every other main colour, so not the 3.9:1 shade.
+    // The same green — a fallback to the default would also "not be the
+    // hand-tuned shade", so the hue is asserted before the shade is.
+    expect(themeFor("fairway").hue).toBe(FAIRWAY.hue);
+    const leading = themeScale(themeFor("fairway"), DARK_GROUND);
+    expect(leading[500].toLowerCase()).not.toBe(FAIRWAY.fixedDarkScale![500].toLowerCase());
+    expect(contrastRatio(leading[400], DARK_GROUND.bg)).toBeGreaterThanOrEqual(4.49);
+    // Second: exactly the green the app has always drawn.
+    const second = themeScale(resolveSecondary("fairway", ""), DARK_GROUND);
+    expect(second[500].toLowerCase()).toBe(FAIRWAY.fixedDarkScale![500].toLowerCase());
+  });
+
+  it("CONTROL: a colour nobody offers is still refused, and still falls back", () => {
+    expect(ACCENT_PRESETS.some((p) => p.key === "chartreuse")).toBe(false);
+    expect(isThemeKey("chartreuse")).toBe(false);
+    expect(themeFor("chartreuse").key).toBe(DEFAULT_THEME);
+  });
 });
