@@ -101,6 +101,16 @@ export interface MemberInput {
   notes?: string;
 }
 
+/** A handicap somebody actually typed: a finite number, not an empty box. */
+function typedIndex(input: MemberInput): boolean {
+  return typeof input.handicap === "number" && Number.isFinite(input.handicap);
+}
+
+/** Where the caller SAYS the figure came from, when it says. */
+function statedSource(input: MemberInput): string | null {
+  return ["ghin", "manual", "none"].includes(input.handicapSource ?? "") ? input.handicapSource! : null;
+}
+
 /** Shared field cleaning, so add and edit can't drift apart. */
 function cleanMemberData(input: MemberInput) {
   return {
@@ -112,11 +122,13 @@ function cleanMemberData(input: MemberInput) {
     gender: (input.gender ?? "").trim(),
     preferredTee: (input.preferredTee ?? "").trim(),
     memberNumber: (input.memberNumber ?? "").trim(),
-    handicap: Number.isFinite(input.handicap) ? (input.handicap as number) : 0,
+    handicap: typedIndex(input) ? (input.handicap as number) : 0,
     handicapType: input.handicapType === "9" ? "9" : "18",
-    handicapSource: ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-      ? input.handicapSource!
-      : "manual",
+    // A BLANK HANDICAP IS NOT SCRATCH. With no figure typed and no source
+    // stated this said "manual", which claims 0 as the member's index: a
+    // member added with the box left empty played off scratch. "none" is how
+    // every reader says "nobody has given a figure" (`hasIndex`).
+    handicapSource: statedSource(input) ?? (typedIndex(input) ? "manual" : "none"),
     notes: (input.notes ?? "").trim(),
   };
 }
@@ -319,9 +331,45 @@ export async function updateMember(memberId: string, input: MemberInput): Promis
   const member = await prisma.member.findFirst({ where: { id: memberId, organizationId } });
   if (!member) return { ok: false, error: "Member not found." };
 
-  const data = cleanMemberData(input);
+  // The same refusal an add gets. Editing never asked the club's policy, so a
+  // club that plays off GHIN could have any member's index retyped by hand.
+  // A member with no index has no current figure to compare against — NaN,
+  // exactly as on add — so typing 0 for them is a change, and a claim.
+  const hadIndex = member.handicapSource !== "none";
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { handicapPolicy: true } });
+  const policy = handicapPolicyOf(org?.handicapPolicy);
+  const refusal = refuseHandByHand(policy, input, { handicap: hadIndex ? member.handicap : Number.NaN, ghin: member.ghin });
+  if (refusal) return { ok: false, error: refusal };
+
+  const data: Partial<ReturnType<typeof cleanMemberData>> = cleanMemberData(input);
   if (!data.name) return { ok: false, error: "Enter a name." };
   if (data.email && !EMAIL_RE.test(data.email)) return { ok: false, error: "Enter a valid email address." };
+
+  /**
+   * WHAT THE FORM DOES NOT SEND, THE EDIT DOES NOT TOUCH.
+   *
+   * The roster's form has no gender and no preferred tee, and never says where
+   * a handicap came from. `cleanMemberData` turned those three absences into
+   * "", "" and "manual" and this wrote the whole object: correcting a phone
+   * number erased the tee a member plays from and made a member with no index
+   * a scratch golfer.
+   */
+  if (input.gender === undefined) delete data.gender;
+  if (input.preferredTee === undefined) delete data.preferredTee;
+  if (!statedSource(input)) {
+    if (typedIndex(input)) {
+      // The figure already on file keeps whoever it came from; a new one is
+      // the person's who typed it.
+      const unchanged = hadIndex && input.handicap === member.handicap;
+      data.handicapSource = unchanged ? member.handicapSource : "manual";
+    } else if (input.handicap === undefined || (policy !== "club" && member.handicapSource === "ghin")) {
+      // Not sent at all — or an empty box at a club whose indexes are fetched,
+      // where clearing by hand would only throw away what GHIN gave.
+      delete data.handicap;
+      delete data.handicapSource;
+    }
+    // Otherwise the box was emptied: no index, which cleanMemberData already says.
+  }
 
   if (data.email && data.email !== member.email) {
     const clash = await prisma.member.findFirst({

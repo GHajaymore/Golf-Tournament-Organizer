@@ -116,7 +116,8 @@ const BLANK: MemberInput = {
   ghin: "",
   homeClub: "",
   memberNumber: "",
-  handicap: 0,
+  // An empty box, not 0: a blank handicap is "no index", and 0 is scratch.
+  handicap: Number.NaN,
   handicapType: "18",
   notes: "",
 };
@@ -224,7 +225,7 @@ export function RosterClient({
       ghin: m.ghin,
       homeClub: m.homeClub,
       memberNumber: m.memberNumber,
-      handicap: m.handicap,
+      handicap: hasIndex(m) ? m.handicap : Number.NaN,
       handicapType: m.handicapType,
       notes: m.notes,
     });
@@ -483,7 +484,8 @@ export function RosterClient({
                 className="input"
                 type="number"
                 step="0.1"
-                value={form.handicap}
+                value={Number.isFinite(form.handicap) ? form.handicap : ""}
+                placeholder="No index yet"
                 disabled={pending}
                 onChange={(e) => set({ handicap: parseFloat(e.target.value) })}
               />
