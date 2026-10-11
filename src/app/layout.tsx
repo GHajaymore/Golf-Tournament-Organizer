@@ -19,6 +19,7 @@ import { displayFontVars } from "./fonts";
 import { IconSprite } from "@/components/IconSprite";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { TypedBeforeLoad } from "@/components/TypedBeforeLoad";
 import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { analyticsEnabled } from "@/lib/domain/analytics-event";
 import { siteOrigin } from "@/lib/site";
@@ -204,6 +205,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* First in the body, so every <use href="#i-…"> below it resolves
             against symbols that are already in the document. */}
         <IconSprite />
+        {/* Before the page's own content, so it is listening before anybody
+            can type: see TypedBeforeLoad. */}
+        <TypedBeforeLoad />
         {children}
         <ServiceWorkerRegister />
         {/* Cookie-free page counts, off unless switched on (SiteAnalytics.tsx). */}

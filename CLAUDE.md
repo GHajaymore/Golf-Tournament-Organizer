@@ -182,6 +182,30 @@ pages** — four static files and nothing else. The cache it had was for opening
 signal, which it never managed; if that is ever wanted it has to be BUILT, with each kept page
 filed under the person it belongs to. Do not switch page caching back on to get it.
 
+**AND A SPEC TYPES INTO A PAGE THAT LOADED LONG AGO.** The server is next door, so the script
+is there before the first key. On a course it is not: a screen is drawn seconds before its
+script arrives, and until 2026-10-11 anything typed in that gap was on the screen and unknown to
+the page — a round code with Continue grey for ever. `TypedBeforeLoad` in the root layout
+closes it for every text box. To test anything about a form's first seconds, hold the script
+back (`page.route("**/_next/static/**/*.js", …)`, as `e2e/typed-before-load.spec.ts` does) and
+type with `pressSequentially` — and wait for the page to be live before a `fill`, or the spec
+itself is the slow-connection user and fails three steps later on a disabled button.
+
+**AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
+`E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
+only, so this is by hand: `npx playwright install webkit` once). Two things to know before
+believing a red WebKit run:
+
+- **Start the server for it with `E2E_PLAIN_HTTP=1`.** The e2e server is a production build over
+  plain http, and WebKit does not send a Secure cookie there — so every flow where the SERVER
+  sets the cookie (sign-up, set-password, a round code) silently signs nobody in, and the spec
+  fails three steps later on a screen that says "Enter your score". `secure-cookies.ts` drops the
+  flag for that run and refuses to on Vercel. Start it WITHOUT the variable for Chromium runs.
+- **"TypeError: Load failed" is a real finding; "Fetch API cannot load … due to access control
+  checks" is not.** Both mean a request was dropped because the page was left. The second is the
+  framework's own and `page-errors.ts` ignores it. The first is a request the APP made and did
+  not catch — Safari raises it where Chromium says nothing, and the first run found three.
+
 **Reading a change in the browser: bust the URL, or you will read the old page.** Navigating to a
 URL the browser has already visited serves it from cache, so `innerText` shows the render from
 before the edit. On 2026-09-07 that reported a fix as missing three separate times — twice after
