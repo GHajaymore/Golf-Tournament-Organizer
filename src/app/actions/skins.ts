@@ -5,6 +5,7 @@ import { isSkinsScope } from "@/lib/domain/skins-pot";
 import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { requirePotAccess } from "@/lib/services/game-access";
+import { potScopeOn } from "@/lib/services/skins-pot";
 import { getSession } from "@/lib/auth";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
@@ -129,6 +130,10 @@ export async function saveSkinsPot(
   if (!isSkinsScope(input.scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
+  // On a nine-hole round all three name the same game, so a save under a
+  // second one edits the pot there is rather than starting another beside it
+  // — see `potScopeOn`.
+  input = { ...input, scope: await potScopeOn(stageId, input.net, groupKey, input.scope) };
 
   // Keyed on the round, the scoring, THE SCOPE and THE GROUP. A league night
   // runs four games — front and back, each gross and net — and without the
@@ -213,6 +218,8 @@ export async function setSkinsEntrants(
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
+  // On a nine-hole round all three name the same game — see `potScopeOn`.
+  scope = await potScopeOn(stageId, net, key, scope);
 
   // Only confirmed players of THIS tournament, deduplicated. Anything else in
   // the list is dropped rather than trusted — the ids arrive over HTTP, and a
@@ -359,6 +366,8 @@ export async function removeSkinsPot(
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
+  // On a nine-hole round all three name the same game — see `potScopeOn`.
+  scope = await potScopeOn(stageId, net, key, scope);
   // Exactly the pot named, and nothing beside it.
   await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net, scope, groupKey: key } });
   await logAudit(eventId, "skins.pot.remove", `Removed ${potName(net, scope, key)}`);
@@ -402,6 +411,8 @@ export async function requestSkinsEntry(
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
+  // On a nine-hole round all three name the same game — see `potScopeOn`.
+  scope = await potScopeOn(stageId, net, key, scope);
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
@@ -496,6 +507,8 @@ export async function confirmSkinsEntry(
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
+  // On a nine-hole round all three name the same game — see `potScopeOn`.
+  scope = await potScopeOn(stageId, net, key, scope);
 
   const pot = await prisma.skinsPot.findUnique({
     where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey: key } },

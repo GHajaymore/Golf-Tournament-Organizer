@@ -14,6 +14,7 @@ import {
   scopeRange,
   isSkinsScope,
   holesUnplayedIn,
+  roundPotKey,
   type PotResult,
   type Transfer,
   type SkinsScope,
@@ -39,6 +40,8 @@ export interface SkinsPotView {
   stakeNote: string;
   net: boolean;
   scope: SkinsScope;
+  /** How many holes the ROUND is. Nine means "Holes" is not a choice: there is only the nine. */
+  roundHoles: number;
   /**
    * Players whose STAKE is in the pot — confirmed entries only.
    *
@@ -70,6 +73,33 @@ export interface SkinsPotView {
  * Returns a view even when no pot exists yet, so the screen can offer to
  * start one without a separate "does it exist" round-trip.
  */
+/**
+ * THE SCOPE A POT ON THIS ROUND IS ACTUALLY STORED UNDER.
+ *
+ * On an eighteen-hole round that is the scope asked for: front, back and all
+ * eighteen are three different games. On a NINE-hole round they are one —
+ * `scopeRange` plays the card the round has, whichever is named — and yet the
+ * key still had the scope in it, so choosing "Front 9" and then "Back 9" on
+ * a twilight nine saved two pots over the same holes, each with its own
+ * entrants and money, and the first was left behind looking edited.
+ *
+ * So a nine-hole round's game (per gross/net, per group) lives under whatever
+ * scope it was first saved with, or under the round's own (`roundPotKey`)
+ * when there is none yet; every reader and writer asks here, and the scope a
+ * caller names stops mattering exactly where it stops meaning anything.
+ */
+export async function potScopeOn(stageId: string, net: boolean, groupKey: string, asked: SkinsScope): Promise<SkinsScope> {
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true, nine: true, scoringBasis: true } });
+  if (!stage || stage.holes !== 9) return asked;
+  const existing = await prisma.skinsPot.findFirst({
+    where: { stageId, net, groupKey },
+    orderBy: { createdAt: "asc" },
+    select: { scope: true },
+  });
+  if (existing && isSkinsScope(existing.scope)) return existing.scope;
+  return roundPotKey(stage).scope;
+}
+
 export async function skinsPotFor(
   eventId: string,
   stageId: string,
@@ -106,9 +136,12 @@ export async function skinsPotFor(
    */
   groupKey: string,
 ): Promise<SkinsPotView | null> {
+  // The scope the game is stored under — on a nine-hole round, not
+  // necessarily the one asked for. See `potScopeOn`.
+  const storedAs = await potScopeOn(stageId, net, groupKey, scope);
   const [pot, stage, event] = await Promise.all([
     prisma.skinsPot.findUnique({
-      where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey } },
+      where: { stageId_net_scope_groupKey: { stageId, net, scope: storedAs, groupKey } },
       include: { entrants: true },
     }),
     prisma.stage.findUnique({
@@ -509,7 +542,9 @@ export async function skinsPotFor(
     buyInCents: pot?.buyInCents ?? 0,
     stakeNote: pot?.stakeNote ?? "",
     net,
-    scope,
+    scope: storedAs,
+    // So the card can stop asking "which holes" of a round that has only nine.
+    roundHoles: stage.holes,
     entrantIds,
     pendingIds,
     field: offered.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
