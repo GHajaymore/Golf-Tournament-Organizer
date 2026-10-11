@@ -39,6 +39,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
+import { basename } from "node:path";
 import { runMark } from "./run-mark.mjs";
 
 /**
@@ -343,6 +344,10 @@ function legalMatch(results, total) {
  * to mistake for real.
  */
 export async function teardown() {
+  // Checked HERE, not only in main(): the browser suite imports seed() and
+  // teardown() directly, and a guard a caller must remember to run first is a
+  // guard that will be forgotten.
+  refuseNonLocal();
   const prisma = new PrismaClient();
   try {
     const events = await prisma.event.findMany({
@@ -2467,7 +2472,13 @@ async function main() {
   console.log(lines.join("\n"));
 }
 
-main().catch((e) => {
-  console.error(String(e?.stack ?? e?.message ?? e));
-  process.exitCode = 1;
-});
+// Only when run as a script. `e2e/everything.spec.ts` imports seed() and
+// teardown(), and an import must not reseed the club as a side effect.
+// By the script's own name rather than `import.meta`: Playwright loads this
+// file through a transform that has no `import.meta`.
+if (basename(process.argv[1] ?? "") === "seed-club.mjs") {
+  main().catch((e) => {
+    console.error(String(e?.stack ?? e?.message ?? e));
+    process.exitCode = 1;
+  });
+}
