@@ -577,7 +577,7 @@ export function PlaySettings({
       {form.scoreApproval === "players" && (
         <Choice
           label="How many playing partners must confirm"
-          hint="Playing together means the players in one result — in match play that is the match, so two pairs sharing a tee time never approve each other's cards."
+          hint="For match results. Playing together means the players in one result — the match — so two pairs sharing a tee time never confirm each other's. A stroke-play card is signed by its own player and needs nobody else."
           value={form.attestBy}
           options={ATTEST_BY}
           labels={ATTEST_BY_LABEL}

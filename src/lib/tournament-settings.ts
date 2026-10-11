@@ -201,7 +201,12 @@ export const SCORE_APPROVAL_LABEL: Record<ScoreApproval, string> = {
 
 export const SCORE_APPROVAL_HELP: Record<ScoreApproval, string> = {
   staff: "Submitted cards wait as pending review. Nothing counts until you approve it.",
-  players: "The players agree the result between themselves. Anything still pending locks itself after 24 hours.",
+  // BOTH HALVES SAID, because they are different (2026-10-10). This promised
+  // that "anything still pending locks itself after 24 hours" — true of a
+  // MATCH, which the other side confirms. A stroke-play card has no other
+  // side and no pending state: it is final when its own player signs it.
+  players:
+    "The players agree the result between themselves. A match is confirmed by the other side, and locks itself after 24 hours if nobody answers. A stroke-play card is final once its own player has signed it.",
 };
 
 /* ── How much agreement a card needs ──────────────────────────────────── */
@@ -228,9 +233,12 @@ export const ATTEST_BY_LABEL: Record<AttestBy, string> = {
 };
 
 export const ATTEST_BY_HELP: Record<AttestBy, string> = {
-  marker: "The marker system every club medal already runs on. Fastest, and enough for most tournaments.",
-  opponent:
-    "The people with a reason to check it. In stroke play, where there is no other side, this behaves as one playing partner.",
+  // About MATCH results, and said so. Two of these described stroke play —
+  // "the marker system every club medal already runs on", "in stroke play…
+  // this behaves as one playing partner" — and nobody but its own player
+  // confirms a stroke-play card: the card has nowhere to hold a second name.
+  marker: "One other player in the match confirms it. Fastest, and enough for most tournaments.",
+  opponent: "The people with a reason to check it — somebody on the side that did not enter the result.",
   all: "Every other player bound into the result must confirm. Slowest, and worth it when the result will be argued about.",
 };
 
