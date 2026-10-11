@@ -7,7 +7,7 @@ import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
+import { canEnterScores, canChooseOwnTee, playerTeeCounts } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -864,6 +864,27 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Player not found." };
   if (teeId) {
+    /**
+     * NOT STORED WHERE IT WOULD NOT BE READ — for staff as well as players.
+     *
+     * Under one set for everyone, or a set per flight, a player may not
+     * differ: `teeIdFor` steps past their own set. This stored it anyway, so
+     * the screen kept the choice and the card kept the old strokes. CLEARING
+     * one is always allowed, which is how a set left over from an earlier
+     * policy is tidied away.
+     */
+    const playedIn = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!playedIn) return { ok: false, error: "Tournament not found." };
+    const policy = settingsOf(playedIn).teePolicy;
+    if (!playerTeeCounts(policy)) {
+      return {
+        ok: false,
+        error:
+          policy === "flight"
+            ? "This tournament plays each flight off its own tees, so a player's own set would not count. Set the flight's tees, or change who decides under Tees."
+            : "This tournament plays one set of tees for everyone, so a player's own set would not count. Change who decides under Tees first.",
+      };
+    }
     const tee = await prisma.tee.findFirst({
       where: { id: teeId, course: { events: { some: { eventId } } } },
     });

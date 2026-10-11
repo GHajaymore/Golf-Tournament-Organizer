@@ -12,6 +12,7 @@ import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
+import { playerTeeCounts } from "@/lib/tournament-settings";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
@@ -179,8 +180,13 @@ export function RegistrationClient({
    * Under "one" the whole field plays the round’s set, so a per-player
    * dropdown would be a control contradicting the condition the committee
    * set — and one somebody would use, believing it.
+   *
+   * And under "each flight plays its own tees", for the same reason: this
+   * asked for anything but "one", so by division the dropdown was drawn,
+   * saved, and stepped past by the scorer. `playerTeeCounts` is the scorer's
+   * own answer.
    */
-  const showTees = tees.length > 0 && teePolicy !== "one";
+  const showTees = tees.length > 0 && playerTeeCounts(teePolicy);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 

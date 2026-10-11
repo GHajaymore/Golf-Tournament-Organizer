@@ -97,6 +97,23 @@ export function canChooseOwnTee(policy: TeePolicy): boolean {
   return policy === "player";
 }
 
+/**
+ * Whether a PLAYER's own set can count at all — whoever puts them on it.
+ *
+ * The question the per-player Tees control has to ask before it is drawn, and
+ * the action before it stores one. It was asked as "anything but `one`",
+ * which let `flight` through: by division a player may not differ from their
+ * flight, so the dropdown saved a set the scorer then stepped past
+ * (`teeIdFor`). The two are pinned together on every policy in
+ * `a-players-tees-are-offered-only-where-they-count.test.ts`.
+ */
+export function playerTeeCounts(policy: string): boolean {
+  // Spelled as `teeIdFor` spells it — the two policies under which a player
+  // may NOT differ — so a stored value neither recognises reads the same way
+  // in both, rather than being offered here and refused there.
+  return policy !== "one" && policy !== "flight";
+}
+
 /* ── Score entry ──────────────────────────────────────────────────────── */
 
 /**
