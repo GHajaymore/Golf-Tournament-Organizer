@@ -52,6 +52,18 @@ export const DRAFT_KINDS = {
 
 export type DraftKind = keyof typeof DRAFT_KINDS;
 
+/**
+ * What has to exist before a kind of message can be drafted.
+ *
+ * Three of the four NARRATE results, and with none there is nothing true to
+ * say. The reminder does not: it is about a round still to come, and it is
+ * the one a club writes before any score exists. All four were refused on an
+ * empty board, so the reminder was offered exactly when it could not be had.
+ */
+export function draftNeeds(kind: DraftKind): "results" | "a round" {
+  return kind === "reminder" ? "a round" : "results";
+}
+
 /** Shown in the picker, in the order an event actually needs them. */
 export const DRAFT_KIND_LABELS: Record<DraftKind, string> = {
   results: "Results announcement",

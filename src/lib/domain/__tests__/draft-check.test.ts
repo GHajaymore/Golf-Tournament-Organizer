@@ -128,3 +128,38 @@ describe("the instruction to the model", () => {
     expect(p.toLowerCase()).toContain("no hype");
   });
 });
+
+/**
+ * A REMINDER ABOUT THE NEXT ROUND DOES NOT NEED A RESULT (sweep 1, a5,
+ * 2026-10-10).
+ *
+ * The picker offers four things to draft. All four were refused until a
+ * score had been entered — "There are no results to write about yet" — and
+ * one of the four is the reminder about the next round, which is the message
+ * a club sends BEFORE its first round. It was offered at exactly the moment
+ * it could never be written.
+ *
+ * What a reminder needs is a round to remind people about.
+ */
+describe("what each kind of draft needs before it can be written", () => {
+  it("covers every kind the picker offers", async () => {
+    const { DRAFT_KINDS, draftNeeds } = await import("../draft-check");
+    for (const kind of Object.keys(DRAFT_KINDS)) expect(["results", "a round"], kind).toContain(draftNeeds(kind as keyof typeof DRAFT_KINDS));
+  });
+
+  it("a reminder needs a round, not a result", async () => {
+    const { draftNeeds } = await import("../draft-check");
+    expect(draftNeeds("reminder")).toBe("a round");
+  });
+
+  it("CONTROL: the three that narrate results still need some", async () => {
+    const { draftNeeds } = await import("../draft-check");
+    for (const kind of ["results", "recap", "thanks"] as const) expect(draftNeeds(kind), kind).toBe("results");
+  });
+
+  it("the action asks that, rather than refusing every kind on an empty board", () => {
+    const src = readSource("src/app/actions/draft-message.ts");
+    expect(src).toContain("draftNeeds(");
+    expect(src).not.toContain("if (facts.empty) {");
+  });
+});
