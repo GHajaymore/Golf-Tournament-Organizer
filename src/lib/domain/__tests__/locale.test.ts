@@ -242,10 +242,28 @@ describe("a range reads the same on the server and in the browser", () => {
     expect(range).not.toMatch(/\S~|~\S/);
   });
 
-  it("CONTROL: leaves a range that both already agree on exactly as it was", () => {
-    expect(formatDayRange("2026-05-14", "2026-05-16", "en-GB")).toBe("14 – 16 May 2026");
-    expect(formatDayRange("2026-05-14", "2026-05-16", "en-US")).toBe("May 14 – 16, 2026");
-    // German sets its dash tight, and that is German's to decide.
+  /**
+   * This pinned en-GB as "14 – 16 May 2026" under "a range that both already
+   * agree on" — both being Node and Chromium. Safari's engine is the third,
+   * it writes "14–16 May 2026", and it is the one on every iPhone: found the
+   * first time `formats-agree` was run on WebKit (2026-10-11). The dash
+   * between two DAYS is closed up everywhere now.
+   */
+  it("closes the dash between two days, which Safari's engine and the server spell differently", () => {
+    expect(formatDayRange("2026-05-14", "2026-05-16", "en-GB")).toBe("14–16 May 2026");
+    expect(formatDayRange("2026-05-14", "2026-05-16", "en-US")).toBe("May 14–16, 2026");
+    expect(formatDayRange("2026-09-01", "2026-09-30", "en-GB")).toMatch(/^1–30 Sep/);
+    for (const { tag } of LOCALES) {
+      const range = formatDayRange("2026-05-14", "2026-05-16", tag);
+      expect(range, tag).not.toMatch(/\d –|– \d/);
+    }
+  });
+
+  it("CONTROL: leaves a dash that is not between two days exactly as the locale sets it", () => {
+    // Across a month the dash sits between words, and every engine spaces it.
+    expect(formatDayRange("2026-05-30", "2026-06-02", "en-GB")).toBe("30 May – 2 Jun 2026");
+    expect(formatDayRange("2026-12-30", "2027-01-02", "en-US")).toBe("Dec 30, 2026 – Jan 2, 2027");
+    // German sets its dash tight after the full stop, and that is German's to decide.
     expect(formatDayRange("2026-05-14", "2026-05-16", "de-DE")).toBe("14.–16. Mai 2026");
   });
 

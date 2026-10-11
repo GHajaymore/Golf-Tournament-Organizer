@@ -182,10 +182,10 @@ export function plainSpaces(text: string): string {
  * engines agree about WHICH space; it cannot make them agree about WHETHER
  * there is one. Node writes a Korean range within a month "14일~16일" and
  * Chromium "14일 ~ 16일" — measured over all ten locales the picker offers and
- * every kind of range, that is the one place the two part (and the en dash
- * they both use elsewhere, German's tight one included, is left as each
- * locale sets it). So a tournament set to Korea threw a hydration mismatch on
- * every load of a screen that formats a range while rendering.
+ * every kind of range, that is the one place THOSE two part (Safari's engine
+ * parts from them about the en dash — see below the function). So a tournament
+ * set to Korea threw a hydration mismatch on every load of a screen that
+ * formats a range while rendering.
  *
  * The spaced form is the one settled on: it is what a browser has been
  * showing all along, once React had thrown the server's version away.
@@ -194,8 +194,28 @@ export function plainSpaces(text: string): string {
  * every locale and currency offered, and fails on the next one.
  */
 function evenRangeMark(text: string): string {
-  return text.replace(/ *~ */g, " ~ ");
+  return text.replace(/ *~ */g, " ~ ").replace(/(\d) *– *(\d)/g, "$1–$2");
 }
+
+/*
+ * AND THE EN DASH BETWEEN TWO DAYS, WHICH IS THE SAME QUESTION IN SAFARI
+ * (2026-10-11). The first run of `formats-agree` on WebKit — the engine every
+ * iPhone uses, and one this suite had never started — found the server writing
+ * a British range within a month "14 – 16 May 2026" and the phone writing
+ * "14–16 May 2026". Newer locale data spaces that dash for en-GB, en-US and
+ * pt-BR; older data, and every other locale offered, closes it up. So a club
+ * on British dates threw a hydration mismatch on every iPhone, on any screen
+ * that words a range while drawing.
+ *
+ * Closed up is the form settled on, between two DIGITS only: it is what most
+ * locales and most phones already wrote, and it is how a range of days is
+ * conventionally set. A dash between words ("30 May – 2 Jun") or after a
+ * German full stop ("14.–16. Mai") is left exactly as each locale sets it —
+ * every engine agreed about those.
+ *
+ * This is one engine's data against another's, and a phone two years old
+ * carries a third. `formats-agree` holds the ones that can be run here.
+ */
 
 /**
  * Which day this club's calendar week starts on: 0 for Sunday, 1 for Monday.
