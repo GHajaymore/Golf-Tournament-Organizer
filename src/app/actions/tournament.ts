@@ -1,6 +1,7 @@
 "use server";
 import type { Match as MatchRow } from "@prisma/client";
 import { COURSE_REF } from "@/lib/services/course-resolution";
+import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
 import { roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
@@ -2875,7 +2876,7 @@ async function deriveMatchFromItsCards(
   // and deriveNetHoles works from the difference between them.
   const holeCount = holesPlayed(stage?.holes);
   const netTees = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId } } } },
+    where: { course: playedOnBy(eventId) },
     orderBy: [{ position: "asc" }],
   });
   // Net match play under the `flight` policy: each side plays off their own
@@ -3241,7 +3242,7 @@ async function recomputeTeamMatch(
    */
   const roundVenue = stage?.courseId
     ? await prisma.course.findFirst({
-        where: { id: stage.courseId, events: { some: { eventId } } },
+        where: { id: stage.courseId, ...playedOnBy(eventId) },
       })
     : null;
   const course = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage);
@@ -3258,7 +3259,7 @@ async function recomputeTeamMatch(
    * in the one place it had not been looked for. Both read the same rule now.
    */
   const teeRows = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId } } } },
+    where: { course: playedOnBy(eventId) },
     orderBy: [{ position: "asc" }],
   });
   const teamRound = await roundHandicapRows(eventId, match.stageId);
@@ -5088,7 +5089,7 @@ export async function importScores(
         // Scoped to this tournament's courses. Unscoped, this returned every
         // organization's tees, so a stray teeId resolved to another club's
         // rating — and the course handicap it produced was simply wrong.
-        where: { course: { events: { some: { eventId } } } },
+        where: { course: playedOnBy(eventId) },
         orderBy: [{ position: "asc" }],
       }),
     ]);
@@ -5146,7 +5147,7 @@ export async function importScores(
      */
     const roundVenue = stage.courseId
       ? await prisma.course.findFirst({
-          where: { id: stage.courseId, events: { some: { eventId } } },
+          where: { id: stage.courseId, ...playedOnBy(eventId) },
         })
       : null;
     netSi = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage).strokeIndex;

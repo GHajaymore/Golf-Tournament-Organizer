@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { COURSE_REF, cardForStage, courseForRound } from "./course-resolution";
+import { playedOnBy } from "./courses";
 import { resolveCourse } from "../courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { playingHandicapFrom } from "../domain/handicap";
@@ -147,7 +148,7 @@ export async function leagueMeetings(
    * must not resolve.
    */
   const weekVenue = stage.courseId
-    ? await prisma.course.findFirst({ where: { id: stage.courseId, events: { some: { eventId } } } })
+    ? await prisma.course.findFirst({ where: { id: stage.courseId, ...playedOnBy(eventId) } })
     : null;
   const card = cardForStage(courseForRound(weekVenue, event) ?? resolveCourse(event), stage);
   const countBest = effectiveCountBest(stage.format, stage.countBest);
@@ -176,7 +177,7 @@ export async function leagueMeetings(
    * above), through the same chain `recomputeTeamMatch` walks.
    */
   const teeRows = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId } } } },
+    where: { course: playedOnBy(eventId) },
     orderBy: [{ position: "asc" }],
   });
   const teamFlightTee = await flightTeeByPlayer(eventId);

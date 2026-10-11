@@ -1,5 +1,6 @@
 import "server-only";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
 import { holesPlayed } from "../domain/handicap";
@@ -83,7 +84,7 @@ export async function teamsForStage(
   // off the reds, which is the whole reason tees are rated.
   const [tees, stage, event] = await Promise.all([
     prisma.tee.findMany({
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
     /**

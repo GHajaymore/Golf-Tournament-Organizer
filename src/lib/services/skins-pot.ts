@@ -1,5 +1,6 @@
 import "server-only";
 import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
+import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
@@ -215,7 +216,7 @@ export async function skinsPotFor(
     // holds the three sources and the reasoning that used to live below.
     roundStrokes(eventId, stageId),
     prisma.tee.findMany({
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
   ]);

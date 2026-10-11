@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { resolveCourse, hasCourseData } from "../courses";
 import { courseForRound, applyNine, cleanNine } from "./course-resolution";
@@ -27,7 +28,7 @@ export async function roundCardFor(
   holes: number,
 ) {
   const venue = stage?.courseId
-    ? await prisma.course.findFirst({ where: { id: stage.courseId, events: { some: { eventId: state.event.id } } } })
+    ? await prisma.course.findFirst({ where: { id: stage.courseId, ...playedOnBy(state.event.id) } })
     : null;
   const resolved = courseForRound(venue, state.event);
   const known = !!resolved || hasCourseData(state.event);

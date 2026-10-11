@@ -245,3 +245,94 @@ describe("a tournament set up before the link existed still finds its tees", () 
     expect(awayId).not.toBe(homeId);
   });
 });
+
+/**
+ * THE TEES THE SCREEN OFFERS ARE THE TEES THE SAVE ACCEPTS (2026-10-10).
+ *
+ * `playedOnBy` was written to fix "nine reads" that asked the venue join
+ * alone. Ten more places still asked it — and three of them are the SAVES
+ * that check a chosen tee belongs to this tournament. So on a tournament
+ * whose course is held in `Event.courseId` with no venue row, the picker
+ * (which reads through `playedOnBy`) offered the course's tees, and every
+ * save refused them: "Those tees aren't on this tournament's course."
+ *
+ * Found by the control crawler on the seeded club's scramble: choose Blue for
+ * a player on Registration, and after a reload the box read the round's tees
+ * again. The same narrow question was also asked by the loader's own tee
+ * list, the side handicaps, net skins, the net import and the match-card
+ * derivation — each of which then priced that tournament off no tees at all.
+ */
+describe("a tournament whose course has no venue row", () => {
+  let legacyId = "";
+  let teeId = "";
+  let playerId = "";
+  let flightId = "";
+
+  beforeAll(async () => {
+    const legacy = await prisma.event.findFirst({ where: { name: `${TAG} legacy` }, select: { id: true } });
+    legacyId = legacy!.id;
+    teeId = (await prisma.tee.findFirst({ where: { name: `${TAG} home white` }, select: { id: true } }))!.id;
+    await prisma.account.create({ data: { eventId: legacyId, email: EMAIL, name: `${TAG} owner`, role: "admin" } });
+    flightId = (await prisma.group.create({ data: { eventId: legacyId, name: "A", position: 0 } })).id;
+    playerId = (
+      await prisma.player.create({ data: { eventId: legacyId, groupId: flightId, name: `${TAG} player`, email: "", handicap: 10, seed: 1, status: "confirmed" } })
+    ).id;
+    session.eventId = legacyId;
+  });
+
+  it("CONTROL: still has no venue row, and the picker offers the tee", async () => {
+    expect(await prisma.eventCourse.count({ where: { eventId: legacyId } })).toBe(0);
+    expect((await teesForEvent(legacyId)).map((t) => t.id)).toContain(teeId);
+  });
+
+  it("accepts that tee for a player", async () => {
+    const { setPlayerTee } = await import("@/app/actions/courses");
+    const res = await setPlayerTee(playerId, teeId);
+    expect(res.ok, res.ok ? "" : String(res.error)).toBe(true);
+    expect((await prisma.player.findUnique({ where: { id: playerId }, select: { teeId: true } }))?.teeId).toBe(teeId);
+  });
+
+  it("accepts it for a flight", async () => {
+    const { setFlightTee } = await import("@/app/actions/courses");
+    const res = await setFlightTee(flightId, teeId);
+    expect(res.ok, res.ok ? "" : String(res.error)).toBe(true);
+  });
+
+  it("accepts it as the tournament's own", async () => {
+    const { setEventDefaultTee } = await import("@/app/actions/courses");
+    const res = await setEventDefaultTee(teeId);
+    expect(res.ok, res.ok ? "" : String(res.error)).toBe(true);
+  });
+
+  it("CONTROL: and still refuses another course's tee", async () => {
+    const { setPlayerTee } = await import("@/app/actions/courses");
+    const away = (await prisma.tee.findFirst({ where: { name: `${TAG} away white` }, select: { id: true } }))!.id;
+    expect((await setPlayerTee(playerId, away)).ok).toBe(false);
+  });
+
+  it("no reader or save asks the venue join alone for a tee", async () => {
+    // The class, not the three saves: every place that scopes a TEE to this
+    // tournament goes through `playedOnBy`.
+    const { readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { readSource } = await import("./source");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) return name === "__tests__" ? [] : walk(full);
+        return name.endsWith(".ts") || name.endsWith(".tsx") ? [full] : [];
+      });
+    const files = [...walk("src/app"), ...walk("src/lib"), ...walk("src/components")]
+      .map((f) => f.split("\\").join("/"))
+      // The one file that may spell it: where `playedOnBy` is defined.
+      .filter((f) => f !== "src/lib/services/courses.ts");
+    expect(files.length).toBeGreaterThan(400);
+    // For a tee OR a course: sixteen more asked it of the course itself — the
+    // loader's venue list, a round's own course, the local rules.
+    const narrow = "events: { some: { eventId";
+    const asking = files.filter((f) => readSource(f).includes(narrow));
+    expect(asking).toEqual([]);
+    // CONTROL: the sweep can see the phrase where it lives on purpose.
+    expect(readSource("src/lib/services/courses.ts")).toContain(narrow);
+  });
+});

@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { playedOnBy } from "@/lib/services/courses";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
@@ -790,7 +791,7 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
     // club's tee become the set a field is scored off — the same widening
     // that once let a player's teeId resolve to a foreign rating.
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
@@ -819,7 +820,7 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
     // Scoped to this tournament's course, so another club's set can never
     // become the one a division is scored off.
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
@@ -886,7 +887,7 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
       };
     }
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }

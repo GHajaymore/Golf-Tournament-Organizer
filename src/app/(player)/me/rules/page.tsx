@@ -1,3 +1,4 @@
+import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
@@ -120,7 +121,7 @@ export default async function PlayRulesPage() {
   ]);
 
   const courses = await prisma.course.findMany({
-    where: { events: { some: { eventId: state.event.id } }, localRules: { not: "" } },
+    where: { ...playedOnBy(state.event.id), localRules: { not: "" } },
     select: { id: true, name: true, localRules: true },
     orderBy: { name: "asc" },
   });

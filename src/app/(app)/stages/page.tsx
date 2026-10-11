@@ -1,3 +1,4 @@
+import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
@@ -231,7 +232,7 @@ export default async function StagesPage() {
     ? missingCardsRefusal(await roundsMissingCards(session.eventId))
     : null;
   const venueRows = await prisma.course.findMany({
-    where: { events: { some: { eventId: session.eventId } } },
+    where: { ...playedOnBy(session.eventId) },
     // Provenance with the name: this is the screen that decides which card a
     // round is scored against, so it is the screen that should say whether
     // anybody has ever checked that card. See domain/card-trust.ts.

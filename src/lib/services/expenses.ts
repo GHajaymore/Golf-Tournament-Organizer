@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
   balances,
@@ -764,7 +765,7 @@ async function gameNets(
        * same finding.
        */
       const venues = await prisma.course.findMany({
-        where: { events: { some: { eventId } } },
+        where: { ...playedOnBy(eventId) },
       });
       const venueById = new Map(venues.map((c) => [c.id, c]));
 

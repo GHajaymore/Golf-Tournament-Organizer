@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
+import { playedOnBy } from "./courses";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
@@ -1033,10 +1034,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     prisma.team.findMany({ where: { eventId }, select: { id: true, stageId: true } }),
     // The tournament's venues, so a round played at another club is scored
     // against that club's card rather than the first round's.
-    prisma.course.findMany({ where: { events: { some: { eventId } } } }),
+    prisma.course.findMany({ where: { ...playedOnBy(eventId) } }),
     // Tees carry the Course Rating and Slope that turn a Handicap Index into
     // the strokes a player actually receives here.
-    prisma.tee.findMany({ where: { course: { events: { some: { eventId } } } }, orderBy: [{ position: "asc" }] }),
+    prisma.tee.findMany({ where: { course: playedOnBy(eventId) }, orderBy: [{ position: "asc" }] }),
     // What each round says a player plays off — a committee's override, or the
     // value frozen when that round's first card came in. Rows exist only where
     // there is something to say; no row means the roster handicap, read live.

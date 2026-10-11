@@ -1,3 +1,4 @@
+import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -135,7 +136,7 @@ export default async function DashboardPage() {
     ? []
     : (
         await prisma.course.findMany({
-          where: { events: { some: { eventId: event.id } } },
+          where: { ...playedOnBy(event.id) },
           select: { name: true },
           orderBy: { name: "asc" },
         })
