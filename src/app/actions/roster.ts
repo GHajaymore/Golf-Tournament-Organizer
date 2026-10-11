@@ -15,7 +15,7 @@ import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { organizationAllows, planForOrganization } from "@/lib/services/entitlements";
 import { HONOURS_LOCKED, phoneRequiredFor } from "@/lib/plans";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
-import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
+import { parseHandicapInput, parseHandicapType, contactGap } from "@/lib/domain/registration-intake";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 
@@ -272,7 +272,7 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
       notes: cell(table, row, "notes"),
       handicap: hcp.ok ? hcp.value : 0,
       // "9" or a column that literally says 9 holes; anything else is 18.
-      handicapType: handicapText.trim() === "9" || /\b9\b/.test(handicapText) ? "9" : "18",
+      handicapType: parseHandicapType(handicapText),
       // "none" where the cell was blank or unreadable, so the roster shows an
       // unknown index as unknown rather than as a scratch golfer.
       handicapSource: hcp.ok && hcp.source === "manual" ? "manual" : "none",

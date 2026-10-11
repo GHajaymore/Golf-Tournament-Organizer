@@ -107,7 +107,7 @@ import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/mat
 import { isCutScope } from "@/lib/domain/cut";
 import { importShapesFor, isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
-import { placementOnApproval, parseHandicapInput } from "@/lib/domain/registration-intake";
+import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/lib/domain/registration-intake";
 import {
   marginRefusal,
   marginToHoles,
@@ -999,7 +999,8 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const handicapSource = hcp.ok ? hcp.source : "none";
     const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
-    const handicapType = cell(table, cols, "handicapType") === "9" ? "9" : "18";
+    // One reading, shared with the roster importer — see `parseHandicapType`.
+    const handicapType = parseHandicapType(cell(table, cols, "handicapType"));
     const phone = cell(table, cols, "phone");
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
