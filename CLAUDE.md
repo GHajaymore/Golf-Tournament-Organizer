@@ -1202,11 +1202,12 @@ before believing anything the browser tells you.
   stylesheet, so a club that picks its look gets it on every organizer screen and on `/live`.
   `auto` resolves dark unless the device asks for light. There was briefly a `playerThemeCss`
   resolving auto light-first; it made one club look like two products.
-- **The player app is the exception, by decision (2026-09-19).** The club chose the hand-hung
-  scoreboard (design D) for the whole player app, so the play shell renders `scoreboardCss` —
-  `SCOREBOARD_GROUND` in `themes.ts`, a fixed green field with the TourneyHQ orange — and not
-  the club's theme. It is measured in `scoreboard-ground.test.ts`. If clubs ever need to change
-  it, make it a club setting; do not reintroduce a second import on a screen.
+- **The player app wears the club's theme too — reversed 2026-09-24.** For five days
+  (2026-09-19) it wore a fixed hand-hung scoreboard, the same green field at every club; Ajay's
+  call since is one club theme, chosen once in settings, on the console, the public board AND the
+  player app. `(player)/layout.tsx` renders `themeCss` and says why. This entry described the
+  fixed scoreboard as current until 2026-10-10, and the organizer's guide repeated it to clubs —
+  found by reading the first sheet of the printed guide, not by any test.
 - **Outdoor legibility is a product requirement, not a nicety.** Scores are read on a phone in
   direct sun, and `SUNLIGHT_RATIO` is 7:1 on the dark ground against 4.5 on the light one.
   `sunlightVerdict` grades whatever ground the theme actually renders — so `auto` is graded as

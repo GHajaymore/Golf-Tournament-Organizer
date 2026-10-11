@@ -84,7 +84,10 @@ function Block({ b, anchor }: { b: GuideBlock; anchor: string }) {
             lineHeight: 1.6,
           }}
         >
-          <Rich text={b.text} />
+          {/* One paragraph: `.card` is a flex column, so the pieces of a
+              sentence — plain words, a bold phrase, a button's name — were
+              each laid out as their own line. */}
+          <p style={{ margin: 0 }}><Rich text={b.text} /></p>
         </div>
       );
     case "table":

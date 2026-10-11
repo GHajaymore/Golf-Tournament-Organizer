@@ -47,7 +47,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Pick your **Currency**. It saves as soon as you choose and shows an example amount.",
         ],
       },
-      { kind: "tip", text: "Your colours apply to this console and the public leaderboard. The player app keeps the TourneyHQ scoreboard look, so it reads the same in sunlight for every club." },
+      { kind: "tip", text: "Your colours apply everywhere your club is seen: this console, the public leaderboard and the player app on every member's phone." },
       { kind: "h", text: "Members" },
       { kind: "where", text: "Club → Members" },
       {

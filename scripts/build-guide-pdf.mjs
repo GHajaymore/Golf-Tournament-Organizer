@@ -90,8 +90,38 @@ async function main() {
       for (const el of document.querySelectorAll("a[download], input[type=search]")) {
         (el.closest(".card") ?? el).remove();
       }
+      // The bar naming the open tournament. It prints on purpose — a printed
+      // tee sheet should say whose it is — but the guide belongs to no
+      // tournament, and here it would print the throwaway one's name.
+      for (const el of document.querySelectorAll(".event-context-bar")) el.remove();
     });
     await page.emulateMedia({ media: "print" });
+    // The fixture's own names must not be printed: the file is committed to a
+    // public repository and handed to every club. Print hides the console's
+    // chrome, and this refuses to write a PDF if any of it survived.
+    const leaks = await page.evaluate(() => {
+      const out = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const t = n.textContent ?? "";
+        if (!t.includes("zz-guide-pdf") && !t.includes("Guide Organizer")) continue;
+        const el = n.parentElement;
+        if (!el || el.closest("script, style")) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || getComputedStyle(el).visibility === "hidden") continue;
+        const box = el.closest("[class]");
+        out.push(`${box?.tagName.toLowerCase()}.${String(box?.className).split(" ")[0]}: "${t.trim().slice(0, 40)}"`);
+      }
+      return out;
+    });
+    if (leaks.length) {
+      throw new Error(`the throwaway organizer or tournament is on the printed page — not hidden in print:\n  ${leaks.join("\n  ")}`);
+    }
+    // GUIDE_PREVIEW=<file.png> photographs the first sheet as it will print.
+    if (process.env.GUIDE_PREVIEW) {
+      await page.setViewportSize({ width: 794, height: 1123 });
+      await page.screenshot({ path: process.env.GUIDE_PREVIEW });
+    }
     await page.pdf({
       path: OUT,
       format: "A4",
