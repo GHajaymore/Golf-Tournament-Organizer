@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
+import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { planForOrganization } from "./entitlements";
 import { fieldLimitFor } from "./waitlist";
@@ -137,7 +138,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // listed in the order they are played.
     include: {
       stages: { select: { type: true, format: true }, orderBy: { position: "asc" } },
-      organization: { select: { locale: true, country: true, golfTerms: true } },
+      organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } },
     },
   });
   if (!event || !event.registrationOpen) return null;
@@ -165,6 +166,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     capacity,
     confirmedCount,
     override: event.registrationOverride,
+    now: clubDay(event.organization?.timeZone),
   });
   if (!status.acceptingEntries) return null;
 

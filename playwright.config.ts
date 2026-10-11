@@ -100,6 +100,19 @@ export default defineConfig({
      * this file rather than from Playwright.
      */
     contextOptions: { reducedMotion: "reduce" },
+    /**
+     * THE READER IS SOMEWHERE ELSE (2026-10-11). Every run here had the
+     * browser in the SERVER'S time zone, because both are this machine — and
+     * in CI both are UTC. In production the server is on UTC and no member is.
+     * A client screen that words a moment while drawing writes one day on the
+     * server and another in the reader's browser, for the hours either side of
+     * a midnight: the fault `MessagesClient` documents having had.
+     *
+     * `E2E_TZ=Pacific/Auckland` puts every page a day ahead of the server for
+     * most of the working day; `Pacific/Honolulu` a day behind in the evening.
+     * `e2e/coverage.ts` gives the same zone to a context a spec makes itself.
+     */
+    ...(process.env.E2E_TZ ? { timezoneId: process.env.E2E_TZ } : {}),
   },
 
   projects: [

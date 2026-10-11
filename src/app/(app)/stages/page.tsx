@@ -13,7 +13,6 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { SeasonDates } from "@/components/SeasonDates";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
-import { todayIso } from "@/lib/deadline";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
@@ -346,7 +345,7 @@ export default async function StagesPage() {
           worth offering where there is a season to date — two or more
           playing rounds — and something left to date. */}
       {seasonUndated > 0 && playingCount >= 2 && (
-        <SeasonDates undated={seasonUndated} suggestedStart={todayIso()} />
+        <SeasonDates undated={seasonUndated} suggestedStart={state.today} />
       )}
       {/* A CARD NOBODY HAS CHECKED, NAMED WHERE IT IS CHOSEN (2026-09-19).
           These rounds are scored against these cards, and a wrong stroke
@@ -364,8 +363,9 @@ export default async function StagesPage() {
         ))}
       <StagesClient
         stages={stages}
-        // The server's today, so the browser's render asks the same day.
-        today={todayIso()}
+        // Today AT THE CLUB, from the server, so the browser's render asks the
+        // same day — and it is the day the deadline is a deadline in.
+        today={state.today}
         // The lock the banner above states; the actions behind most controls
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}

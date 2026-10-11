@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { todayIso } from "../deadline";
+import { clubToday } from "../domain/club-clock";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
 import { isMatch } from "../tournament-shape";
@@ -58,8 +58,6 @@ export async function tournamentClashFor(
   email: string,
   now: Date = new Date(),
 ): Promise<TournamentClash | null> {
-  const today = todayIso(now);
-
   const entries = await prisma.player.findMany({
     where: {
       email: { equals: email, mode: "insensitive" },
@@ -72,6 +70,7 @@ export async function tournamentClashFor(
           id: true,
           name: true,
           shape: true,
+          organization: { select: { timeZone: true } },
           stages: {
             // `type` is here for `roundLabel`, which is the ONLY thing in this
             // app allowed to count rounds — a cut is a stage and not a round,
@@ -97,6 +96,9 @@ export async function tournamentClashFor(
     // A quick round is not a tournament, whatever else is true of it.
     if (isMatch(event.shape)) continue;
 
+    // Today AT THAT CLUB. On the server's day (UTC) an evening round in New
+    // York stopped being "today" at 8pm, and this warning went with it.
+    const today = clubToday(event.organization?.timeZone, now);
     const roundToday = event.stages.find((s) => cleanIsoDate(s.playedOn) === today);
     if (!roundToday) continue;
 

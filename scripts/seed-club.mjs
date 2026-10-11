@@ -102,6 +102,36 @@ const sign = (v) => {
 };
 
 /**
+ * WHERE THE SEEDED CLUB IS (2026-10-11) — and so which day is its today.
+ *
+ * Empty unless `E2E_TZ` names a zone: the club then has no zone of its own and
+ * its day is this machine's, as every club's was before the setting existed.
+ *
+ * With `E2E_TZ=Pacific/Auckland` the club IS in Auckland, and every date below
+ * is counted from Auckland's today — a day ahead of a server in New York for
+ * most of the working day. That is the state production is always in (the
+ * server on UTC, the club somewhere else) and the one no fixture could reach:
+ * the server and the club were one machine, so "today's round" was today on
+ * both whatever the code asked.
+ */
+const CLUB_ZONE = process.env.E2E_TZ ?? "";
+
+/** A moment in the club's today, by this machine's getters — noon, so no date arithmetic below can cross a midnight. */
+const clubNoon = () => {
+  if (!CLUB_ZONE) {
+    const t = new Date();
+    t.setHours(12, 0, 0, 0);
+    return t;
+  }
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: CLUB_ZONE, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(new Date())
+      .map((p) => [p.type, p.value]),
+  );
+  return new Date(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 12);
+};
+
+/**
  * A calendar day N days from today, as the yyyy-mm-dd the app stores.
  *
  * Relative rather than fixed for the same reason the e2e fixture's is: the
@@ -110,7 +140,7 @@ const sign = (v) => {
  * the past.
  */
 const dayOffset = (n) => {
-  const t = new Date();
+  const t = clubNoon();
   t.setDate(t.getDate() + n);
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
 };
@@ -127,7 +157,7 @@ const dayOffset = (n) => {
  * 2026-09-29). A named day has to BE that day, whichever day the seed runs.
  */
 const onWeekday = (dow, weeksAfterLast) => {
-  const back = (new Date().getDay() - dow + 7) % 7 || 7;
+  const back = (clubNoon().getDay() - dow + 7) % 7 || 7;
   return -back + 7 * weeksAfterLast;
 };
 
@@ -140,7 +170,7 @@ const onWeekday = (dow, weeksAfterLast) => {
 const festivalDays = (n) => {
   const days = [];
   for (let d = -20; days.length < n; d++) {
-    const t = new Date();
+    const t = clubNoon();
     t.setDate(t.getDate() + d);
     if (t.getDay() !== 4) days.push(d);
   }
@@ -389,6 +419,8 @@ export async function seed() {
         currency: "GBP",
         currencySymbol: "£",
         locale: "en-GB",
+        // "" unless a run asks for a club somewhere else — see CLUB_ZONE.
+        timeZone: CLUB_ZONE,
         themeAppearance: "auto",
         // The club's own default is none; the tournaments that share costs say
         // so themselves, which is what `resolveMoneyMode` is for.

@@ -16,7 +16,6 @@ import { usesStandardBoard } from "@/lib/formats";
 import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText, isBracketMode, drawBrackets } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
-import { todayIso } from "@/lib/deadline";
 import { isStablefordRound } from "@/lib/domain/week-basis";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
@@ -727,7 +726,7 @@ export default async function DashboardPage() {
             past={availability.past}
             captainOf={availability.captainOf}
             asksPlayer={availability.asksPlayer}
-            today={todayIso()}
+            today={state.today}
           />
         </div>
       )}

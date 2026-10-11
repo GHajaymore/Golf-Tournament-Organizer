@@ -10,6 +10,7 @@ import {
 import { cleanIsoDate, shortDate } from "@/lib/domain/round-dates";
 import { formattingForEvent } from "@/lib/services/organization";
 import { roundLabel } from "@/lib/domain/round-label";
+import { clubDay } from "@/lib/domain/club-clock";
 import type { Commitment } from "@/lib/domain/club-calendar";
 
 /**
@@ -63,7 +64,7 @@ export async function clubCommitmentsFor(
     prisma.event.findMany({
       where: { id: { in: eventIds } },
       // In play order: the rounds are numbered off this list (`roundLabel`).
-      include: { stages: { orderBy: { position: "asc" } } },
+      include: { stages: { orderBy: { position: "asc" } }, organization: { select: { timeZone: true } } },
     }),
     prisma.roundAttendance.findMany({
       where: { eventId: { in: eventIds }, playerId: { in: places.map((p) => p.id) } },
@@ -127,7 +128,8 @@ export async function clubCommitmentsFor(
         if (asks) {
           // A league that asks the player: answerable here until its deadline,
           // and after that it reads as a settled fact.
-          canAnswer = playerMayChange(stage.optDeadline, now);
+          // The deadline day ends at THAT tournament's club, not on the server.
+          canAnswer = playerMayChange(stage.optDeadline, clubDay(event.organization?.timeZone, now));
           locked = !canAnswer;
         } else {
           // Captains: the club holds the answer; the member reads it, never

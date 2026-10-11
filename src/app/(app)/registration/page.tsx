@@ -105,6 +105,7 @@ export default async function RegistrationPage() {
         phoneLocked: phoneRequiredFor(plan, false),
         registrationToken: state.event.registrationToken,
         locale: (await formattingForEvent(session.eventId)).locale,
+        today: state.today,
       }}
       confirmed={state.confirmed.map(asRow)}
       waitlist={state.waitlist.map(asRow)}

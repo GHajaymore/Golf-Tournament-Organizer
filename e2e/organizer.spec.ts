@@ -401,3 +401,38 @@ test("switch event lands on the tournament list, not the top of the form", async
   expect(box!.y, "the list is scrolled off the top").toBeGreaterThanOrEqual(0);
   expect(box!.y, "the list is below the fold — the link did not land").toBeLessThan(height);
 });
+
+/**
+ * THE CLUB IS IN ITS ORGANIZER'S TIME ZONE WITHOUT BEING ASKED (2026-10-11).
+ *
+ * Every deadline is a day on the club's clock (`domain/club-clock.ts`), so a
+ * club has to be in the right zone from its first minute — and nobody setting
+ * up a medal wants a question about time zones. The console offers the
+ * device's zone the first time somebody who may change it opens a screen, and
+ * Club settings then shows it with the one thing an organizer can check: the
+ * time at the club.
+ *
+ * The fixture's club is made with no zone, so this is that first visit (or a
+ * later one, on the second and third viewport — the answer is the same).
+ */
+test("a club with no time zone takes its organizer's, and Club settings shows the time there", async ({ page }) => {
+  await page.goto("/dashboard");
+  const device = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  expect(device, "the browser reported no time zone").toBeTruthy();
+
+  // The offer is made after the first screen has drawn, so ask until it lands.
+  const zone = page.locator("select#club-time-zone");
+  await expect(async () => {
+    await page.goto(`/organization?bust=${Date.now()}`);
+    await expect(zone).toHaveValue(device, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+
+  // The word belongs to the box, and the time is on the screen.
+  await page.locator('label[for="club-time-zone"]').click();
+  await expect(zone).toBeFocused();
+  const field = page.locator(".field", { has: zone });
+  await expect(field).toContainText(/It is .*\d{1,2}[:.]\d{2}/);
+  await expect(field).toContainText("ends at midnight on this clock");
+  // Nothing to offer: the club is already where this device is.
+  await expect(field.getByRole("button", { name: /Use this device/ })).toHaveCount(0);
+});

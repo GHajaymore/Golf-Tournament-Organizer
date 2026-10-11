@@ -42,7 +42,7 @@ const EMAIL = `${TAG}.ann@example.invalid`.toLowerCase();
  * with no code change in between. One rule, one reader — the test asks the
  * same function the service asks.
  */
-const TODAY = todayIso();
+const TODAY = todayIso(new Date());
 const TOMORROW = todayIso(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
 async function cleanup() {

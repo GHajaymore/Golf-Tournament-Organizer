@@ -382,6 +382,22 @@ model Organization {
    */
   locale         String @default("en-US")
 
+  /**
+   * WHERE THE CLUB IS, as an IANA time zone ("America/New_York"), or "".
+   *
+   * Every deadline in the app is a day, and the day used to be the SERVER's —
+   * UTC in production — so an east-coast club's entries "closing on the 12th"
+   * closed at 8pm on the 12th, and a Sydney club's Saturday round was
+   * "tomorrow" until late Saturday morning. `domain/club-clock.ts` asks this
+   * zone what day it is instead.
+   *
+   * "" is every club made before the setting, and keeps the server's day so
+   * nothing that exists moves. A new club is given its founder's own zone, and
+   * Club settings changes it. Validated with `isTimeZone` on the way in: an
+   * unknown zone makes `Intl` throw.
+   */
+  timeZone       String @default("")
+
   members      OrganizationMember[]
   joinRequests JoinRequest[]
   roster       Member[]

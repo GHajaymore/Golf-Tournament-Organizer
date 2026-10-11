@@ -83,7 +83,11 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
     async ({ browser }, use) => {
       const make = browser.newContext.bind(browser);
       browser.newContext = async (...args: Parameters<typeof make>) => {
-        const context = await make(...args);
+        // A context a spec makes for itself does not inherit the config's
+        // `use`, so the reader's time zone (see playwright.config.ts) is
+        // handed to it here, unless the spec named one of its own.
+        const zone = process.env.E2E_TZ;
+        const context = await (zone ? make({ timezoneId: zone, ...args[0] }) : make(...args));
         recordCoverage(context);
         return context;
       };

@@ -44,7 +44,7 @@ export function dayAsDate(iso: string): Date {
 }
 
 /** Today, as the same yyyy-mm-dd string a date input produces. */
-export function todayIso(now: Date = new Date()): string {
+export function todayIso(now: Date): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate(),
   ).padStart(2, "0")}`;
@@ -121,7 +121,7 @@ export function formatDeadline(deadline: string, locale: string = DEFAULT_LOCALE
  *
  * A deadline that names no date has not passed — see `parseDeadlineIso`.
  */
-export function deadlinePassed(deadline: string, now: Date = new Date()): boolean {
+export function deadlinePassed(deadline: string, now: Date): boolean {
   const iso = parseDeadlineIso(deadline);
   if (!iso) return false;
   return iso < todayIso(now);
@@ -130,7 +130,7 @@ export function deadlinePassed(deadline: string, now: Date = new Date()): boolea
 export function deadlineState(
   deadline: string,
   override: boolean | null,
-  now: Date = new Date(),
+  now: Date,
 ): DeadlineStatus {
   if (override === true) {
     return { state: "closed-manual", open: false, overridden: true };

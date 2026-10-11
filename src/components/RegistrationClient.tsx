@@ -1,6 +1,7 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
+import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
@@ -75,6 +76,15 @@ interface EventInfo {
   registrationToken: string;
   /** How this tournament writes a date — the deadline reads like the event's own date. */
   locale?: string;
+  /**
+   * Today AT THE CLUB, yyyy-mm-dd, from the server (`state.today`).
+   *
+   * This screen worked out "Open" or "Closed" from the clock of whatever was
+   * drawing it — the server, then the organizer's browser — so the two could
+   * disagree for the hours either side of a midnight, and neither was the
+   * club's day. Required, so a caller cannot leave it to a clock again.
+   */
+  today: string;
 }
 
 export function RegistrationClient({
@@ -204,6 +214,7 @@ export function RegistrationClient({
     capacity: event.capacity,
     confirmedCount: confirmed.length,
     override: event.registrationOverride,
+    now: dayAsDate(event.today),
     locale: event.locale,
   });
   const status = reg.label;

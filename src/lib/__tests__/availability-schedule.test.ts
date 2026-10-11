@@ -143,13 +143,13 @@ describe("a closed round is over, dated or not (2026-10-08)", () => {
     const view = splitBySchedule([
       round({ stageId: "r1", label: "Round 1", closed: true }),
       round({ stageId: "r2", label: "Round 2" }),
-    ]);
+    ], new Date());
     expect(view.next?.stageId).toBe("r2");
     expect(view.past.map((r) => r.stageId)).toEqual(["r1"]);
   });
 
   it("keeps an undated round that is still open ahead — the control", () => {
-    const view = splitBySchedule([round({ stageId: "r1" }), round({ stageId: "r2" })]);
+    const view = splitBySchedule([round({ stageId: "r1" }), round({ stageId: "r2" })], new Date());
     expect(view.next?.stageId).toBe("r1");
   });
 });

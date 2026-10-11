@@ -41,7 +41,7 @@ const reg = async (locked: boolean) => {
     <RegistrationClient
       confirmed={[]} waitlist={[]} pendingEntries={[]} locked={locked} isAdmin roster={[]}
       event={{
-        name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "",
+        name: "zz-April Medal", capacity: 32, status: "live", regDeadline: "", regOpens: "", today: "2026-06-01",
         // Closed by hand (true is "closed" — `setRegistrationOverride(true)` is
         // the Close button), the state in which the banner offers "add below".
         registrationOverride: true, inviteMessage: "", organizationName: "zz-Club",

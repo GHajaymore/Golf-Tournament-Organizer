@@ -11,6 +11,7 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
+import { clubDayForEvent } from "@/lib/services/club-clock";
 import { logAudit } from "@/lib/services/action-shared";
 import {
   cleanRegistration,
@@ -125,6 +126,8 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   const confirmedCount = await prisma.player.count({
     where: { eventId: event.id, status: "confirmed" },
   });
+  // The closing day ends when it ends AT THE CLUB — see `domain/club-clock.ts`.
+  const clubNow = await clubDayForEvent(event.id);
   const decision = decideIntake({
     registrationOpen: event.registrationOpen,
     approvalMode: approvalModeOf(event.registrationApproval),
@@ -136,6 +139,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
       capacity,
       confirmedCount,
       override: event.registrationOverride,
+      now: clubNow,
     },
   });
   if (!decision.accepted) return { ok: false, error: NOT_OPEN };
@@ -201,6 +205,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
         capacity,
         confirmedCount: freshCount,
         override: event.registrationOverride,
+        now: clubNow,
       },
     });
     // `decision` is already narrowed to accepted by the gate above; if the event

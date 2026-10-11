@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
+import { clubClockInWords, isTimeZone } from "@/lib/domain/club-clock";
 import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { isGolfRegister } from "@/lib/domain/golf-terms";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
@@ -497,6 +498,67 @@ export async function saveOrganizationLocale(locale: string): Promise<OrgResult>
   // CurrencyProvider, so the whole tree has to re-render — the same reason the
   // currency above revalidates the layout rather than a path.
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * WHERE THE CLUB IS — the clock its deadlines and its "today" are read from.
+ *
+ * See `domain/club-clock.ts` for why a club has one. Validated through
+ * `isTimeZone`, for the reason the locale is: `Intl` THROWS on a zone it does
+ * not know, so an unchecked value would break every screen that asks what day
+ * it is, for the club that had just set it. And a `"use server"` export is a
+ * public endpoint — this is called with whatever the caller likes.
+ *
+ * Answers with the clock on the club's wall, so the screen can show the
+ * organizer the one thing that reveals a wrong choice: the time.
+ */
+export async function saveOrganizationTimeZone(timeZone: string): Promise<OrgResult & { clock?: string }> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
+
+  const zone = typeof timeZone === "string" ? timeZone.trim() : "";
+  if (!isTimeZone(zone)) return { ok: false, error: "Pick a time zone from the list." };
+
+  const saved = await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { timeZone: zone },
+    select: { locale: true },
+  });
+  // Every screen that asks what day it is reads this, so the whole tree
+  // re-renders — the same reason the locale revalidates the layout.
+  revalidatePath("/", "layout");
+  return { ok: true, clock: clubClockInWords(zone, saved.locale) };
+}
+
+/**
+ * THE CLUB TAKES ITS ORGANIZER'S OWN ZONE, ONCE, IF IT HAS NONE.
+ *
+ * A club has to be in the right zone from its first minute without anybody
+ * being asked a question about time zones — and the person setting it up is,
+ * nearly always, standing in it. So the console offers the device's zone the
+ * first time somebody who may change the setting opens it, and this takes it
+ * ONLY while the club has none: it never overwrites an answer, the club's own
+ * or an earlier adoption's. Club settings shows what was taken and changes it.
+ *
+ * Refused quietly for anybody else, and for anything that is not a zone.
+ */
+export async function adoptClubTimeZone(timeZone: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
+
+  const zone = typeof timeZone === "string" ? timeZone.trim() : "";
+  if (!isTimeZone(zone)) return { ok: false, error: "That is not a time zone." };
+
+  // `updateMany` with the empty value in the WHERE, so two tabs opening at
+  // once cannot both write and the second cannot replace the first.
+  const taken = await prisma.organization.updateMany({
+    where: { id: org.organizationId, timeZone: "" },
+    data: { timeZone: zone },
+  });
+  if (taken.count > 0) revalidatePath("/", "layout");
   return { ok: true };
 }
 

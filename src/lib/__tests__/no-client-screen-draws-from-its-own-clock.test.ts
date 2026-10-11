@@ -127,8 +127,16 @@ describe("a client component and the time", () => {
     // If the reader broke, there would be nothing to refuse and the test above would pass.
     expect(helpers.size).toBeGreaterThanOrEqual(8);
     expect(helpers.get("sinceWords"), "sinceWords(when, now = new Date())").toBe(1);
-    expect(helpers.get("todayIso"), "todayIso(now = new Date())").toBe(0);
-    expect(helpers.get("deadlinePassed")).toBe(1);
+    // The club's day is read from an instant, and the instant defaults to now —
+    // right on the server, and exactly what a screen must not leave to it.
+    expect(helpers.get("clubToday"), "clubToday(zone, at = new Date())").toBe(1);
+    expect(helpers.get("clubDay"), "clubDay(zone, at = new Date())").toBe(1);
+    // `todayIso`, `deadlinePassed` and `playerMayChange` were on this list.
+    // They have NO default any more — the compiler makes every caller say what
+    // day it is (`the-server-asks-the-club-what-day-it-is.test.ts`), which is
+    // the stronger form of the same rule.
+    expect(helpers.has("todayIso")).toBe(false);
+    expect(helpers.has("deadlinePassed")).toBe(false);
   });
 
   it("CONTROL: the client components are found, and there are many", () => {

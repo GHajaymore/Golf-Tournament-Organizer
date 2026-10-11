@@ -40,7 +40,16 @@ const OWNERS = ["src/lib/domain/locale.ts", "src/lib/domain/money-format.ts"];
  * the language a scorer speaks and the way the club writes a date are not
  * reliably the same thing in a club with an international membership.
  */
-const NOT_A_FORMAT = ["src/lib/dictation.ts"];
+/**
+ * AND `club-clock.ts`, for a different reason: it asks `Intl` which calendar
+ * day an instant falls on in the club's time zone, and reads the answer back
+ * as NUMBERS for arithmetic (`formatToParts`). Nobody is shown that string.
+ * It has to be a fixed locale with Western digits — handed the club's own, a
+ * club set to Arabic would get its year in Arabic-Indic numerals and a
+ * yyyy-mm-dd that compares as garbage. The one thing in that file a person
+ * reads, `clubClockInWords`, takes the club's locale as an argument.
+ */
+const NOT_A_FORMAT = ["src/lib/dictation.ts", "src/lib/domain/club-clock.ts"];
 
 /**
  * EMPTY, AND THAT IS THE POINT OF KEEPING IT.

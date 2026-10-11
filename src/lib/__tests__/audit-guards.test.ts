@@ -696,7 +696,10 @@ describe("league attendance answers are scoped like scores", () => {
 
   it("the opt deadline binds players and never staff", () => {
     const fn = src.slice(src.indexOf("export async function setAttendance"));
-    expect(fn).toMatch(/if \(!isStaff\) \{[\s\S]*?playerMayChange\(stage\.optDeadline\)/);
+    // On the CLUB's day. This pinned `playerMayChange(stage.optDeadline)` — a
+    // call with no day in it, which is the server asking its own clock: the
+    // spelling it froze was the defect (the deadline shut at 8pm in New York).
+    expect(fn).toMatch(/if \(!isStaff\) \{[\s\S]*?playerMayChange\(stage\.optDeadline, await clubDayForEvent\(session\.eventId\)\)/);
   });
 
   it("captains and vices must be members of the flight they lead", () => {

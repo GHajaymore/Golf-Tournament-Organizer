@@ -13,6 +13,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { ownWithdrawalOpen } from "@/lib/registration";
+import { clubDayForEvent } from "@/lib/services/club-clock";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
 import { revokePlayerAccount } from "@/lib/services/player-access";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -229,6 +230,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * so concurrent entrants cannot land on the same seed either. See
    * `intake-lock.ts`; `register.ts` guards the public form the same way.
    */
+  // The closing day ends when it ends AT THE CLUB — see `domain/club-clock.ts`.
+  const clubNow = await clubDayForEvent(eventId);
   const decision = await withEventIntakeLock(eventId, async (tx) => {
     const confirmedCount = await tx.player.count({
       where: { eventId, status: "confirmed" },
@@ -243,6 +246,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
         capacity,
         confirmedCount,
         override: event.registrationOverride,
+        now: clubNow,
       },
     });
     if (!d.accepted) return d;
@@ -361,6 +365,7 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
     capacity: await fieldLimitFor(event),
     confirmedCount,
     override: event.registrationOverride,
+    now: await clubDayForEvent(eventId),
   });
   if (!open) {
     return {

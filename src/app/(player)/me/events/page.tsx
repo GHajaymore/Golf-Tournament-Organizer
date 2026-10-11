@@ -5,7 +5,7 @@ import { clubEventsFor, clubSeasonFor } from "@/lib/services/club-events";
 import { enterTournament } from "@/app/actions/auth";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { ClubEventsList } from "@/components/ClubEventsList";
-import { todayIso } from "@/lib/deadline";
+import { todayForEvent } from "@/lib/services/club-clock";
 import { organizationsFor } from "@/lib/services/organization";
 
 export const metadata = screenMetadata("/me/events");
@@ -159,7 +159,7 @@ export default async function ClubEventsPage() {
           </p>
         </div>
       ) : (
-        <ClubEventsList events={events} openAction={openTournament} season={season} today={todayIso()} />
+        <ClubEventsList events={events} openAction={openTournament} season={season} today={await todayForEvent(session.eventId)} />
       )}
     </>
   );

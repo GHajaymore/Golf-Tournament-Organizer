@@ -9,6 +9,7 @@ import { MoneySetup } from "@/components/MoneySetup";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { OrgKindPicker } from "@/components/OrgKindPicker";
 import { LocalePicker } from "@/components/LocalePicker";
+import { TimeZonePicker } from "@/components/TimeZonePicker";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { cleanSettings } from "@/lib/tournament-settings";
@@ -136,6 +137,10 @@ const CARDS: [string, () => string][] = [
   )],
   ["what this is", () => render(<OrgKindPicker kind="club" country="" noun="" />)],
   ["dates", () => render(<LocalePicker locale="en-US" />)],
+  ["time zone", () => render(
+    <TimeZonePicker timeZone="America/New_York" zones={["America/New_York", "Europe/London"]} clock="Sunday 11 October at 09:05" />,
+  )],
+  ["time zone, not set", () => render(<TimeZonePicker timeZone="" zones={["America/New_York", "Europe/London"]} clock="" />)],
   ["season", () => render(<SeasonPicker startsOn="" endsOn="" />)],
   ["money", () => render(<MoneySetup mode="organization" orgMode="" orgKind="club" clubName="zz-Club" canEdit />)],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
