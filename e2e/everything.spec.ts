@@ -3,8 +3,10 @@ import { createHmac } from "node:crypto";
 import { consoleScreens, playerScreens } from "./routes";
 import { overflowing } from "./overflow";
 import { watchPageErrors } from "./page-errors";
+import { labelsForTheWrongThing } from "./labels";
 // The club with eleven tournaments in eleven states — see its own header.
 import { seed, teardown } from "../scripts/seed-club.mjs";
+import { PrismaClient } from "@prisma/client";
 
 /**
  * EVERY SCREEN, IN EVERY TOURNAMENT THE CLUB HAS, AS EVERYONE WHO CAN OPEN IT.
@@ -44,8 +46,24 @@ let club: Club;
 
 test.describe.configure({ mode: "serial" });
 
+/**
+ * Every member's email address — for asking, of each screen a PLAYER or a
+ * passer-by is sent, whether somebody else's is in it. The Messages screen
+ * shipped every entrant's to every player (its picker used the address as its
+ * value) until 2026-10-11, and nothing was looking: an address in a page's
+ * data is on no screen and in no screenshot.
+ */
+let memberEmails: string[] = [];
+
 test.beforeAll(async () => {
   club = await seed();
+  const prisma = new PrismaClient();
+  try {
+    const members = await prisma.member.findMany({ where: { organizationId: club.org.id }, select: { email: true } });
+    memberEmails = members.map((m) => m.email.trim().toLowerCase()).filter(Boolean);
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 test.afterAll(async () => {
@@ -91,7 +109,16 @@ async function signIn(context: BrowserContext, baseURL: string, session: string 
  */
 const ABOUT_ONE_THING = ["/bracket"];
 
-async function look(page: Page, path: string, who: string, findings: Finding[], mustStay: boolean, mustLeave = false) {
+async function look(
+  page: Page,
+  path: string,
+  who: string,
+  findings: Finding[],
+  mustStay: boolean,
+  mustLeave = false,
+  /** Addresses that must not be anywhere in what this visitor is sent — the page's data included. */
+  notTheirs: string[] = [],
+) {
   const where = `${who} ${path}`;
   const failed: string[] = [];
   const onResponse = (r: { status(): number; url(): string }) => {
@@ -133,6 +160,15 @@ async function look(page: Page, path: string, who: string, findings: Finding[], 
   if (seen.h1 === 0) findings.push({ where, what: "has no heading" });
   const wide = await overflowing(page);
   if (wide.length) findings.push({ where, what: `scrolls sideways: ${wide[0].cls || wide[0].text} to ${wide[0].right}px` });
+  if (notTheirs.length) {
+    // The whole document, scripts and all: the data a page carries is as
+    // readable as its text to anybody who looks.
+    const sent = (await page.content()).toLowerCase();
+    const leaked = notTheirs.find((address) => sent.includes(address));
+    if (leaked) findings.push({ where, what: "is sent another member's email address in its data" });
+  }
+  const wrong = await labelsForTheWrongThing(page);
+  if (wrong.length) findings.push({ where, what: `the label "${wrong[0]}" belongs to a button, not to its box` });
 }
 
 function report(findings: Finding[], looked: number, what: string) {
@@ -192,6 +228,9 @@ test("a member can open every player screen on every tournament the club has", a
   watchPageErrors(page, errors, "member");
   const findings: Finding[] = [];
   const screens = playerScreens();
+  const othersEmails = memberEmails.filter((e) => e !== club.player.email.toLowerCase());
+  // CONTROL: there are other people whose addresses could be sent.
+  expect(othersEmails.length, "the club has no other members with addresses").toBeGreaterThan(10);
   let looked = 0;
   let stayed = 0;
   for (const event of club.events) {
@@ -200,11 +239,20 @@ test("a member can open every player screen on every tournament the club has", a
       const before = findings.length;
       // Not `mustStay`: a member who is not in a tournament is properly sent
       // elsewhere from some screens. The control below is that MOST stayed.
-      await look(page, path, `member · ${event.slug} (${event.status})`, findings, false);
+      await look(page, path, `member · ${event.slug} (${event.status})`, findings, false, false, othersEmails);
       looked += 1;
       if (new URL(page.url()).pathname === path && findings.length === before) stayed += 1;
     }
   }
+  // CONTROL on the address check: the same reading finds an address where
+  // one IS sent — the member's own, on their account page. (No player screen
+  // carries even that, which the first version of this control found out.)
+  // Without it, "no other member's address was sent" is also what a check
+  // reading nothing would say.
+  await page.goto("/account");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const sawOwnAddress = (await page.content()).toLowerCase().includes(club.player.email.toLowerCase());
+  expect(sawOwnAddress, "the account page did not carry the member's own address — the address check is reading nothing").toBe(true);
   for (const e of errors) findings.push({ where: "member", what: `threw in the browser: ${e.slice(0, 200)}` });
   expect(looked).toBe(screens.length * club.events.length);
   // CONTROL: a cookie that did not work sends every screen to sign-in, and a
@@ -222,7 +270,7 @@ test("anyone can open every public board the club has published", async ({ page,
   await signIn(context, baseURL!, null, null);
   let looked = 0;
   for (const [name, token] of Object.entries(club.shareTokens)) {
-    await look(page, `/live/${token}`, `visitor · ${name}`, findings, true);
+    await look(page, `/live/${token}`, `visitor · ${name}`, findings, true, false, memberEmails);
     looked += 1;
   }
   for (const e of errors) findings.push({ where: "visitor", what: `threw in the browser: ${e.slice(0, 200)}` });

@@ -86,10 +86,14 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
   await form.getByRole("button", { name: "Start it with 3" }).click();
 
   await expect.poll(async () => (await games()).length, { message: "the bet was never stored" }).toBe(1);
+  // The game is stored and then its three stakes: wait for the stakes, not
+  // for the row. Reading the instant the row appeared found none of them once.
+  await expect
+    .poll(async () => (await games())[0]?.entrants.filter((e) => !e.excluded).length, { message: "the three picked were never put in the pot" })
+    .toBe(3);
   let [game] = await games();
   expect(game.kind).toBe("birdies");
   expect(game.buyInCents).toBe(500);
-  expect(game.entrants.filter((e) => !e.excluded)).toHaveLength(3);
 
   // ── it has a card of its own ───────────────────────────────────────────
   await open();
