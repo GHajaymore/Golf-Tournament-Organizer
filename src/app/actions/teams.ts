@@ -498,7 +498,9 @@ export async function setStageAllowance(
   await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-    return { ok: false, error: "Enter an allowance between 0 and 100 percent." };
+    // "1 to 100", not "0 to 100": zero is accepted here as "back to the
+    // recommendation", which is not an allowance anybody can type.
+    return { ok: false, error: "Enter an allowance from 1 to 100 percent." };
   }
   const current = await prisma.stage.findUnique({
     where: { id: stageId },

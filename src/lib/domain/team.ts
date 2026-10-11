@@ -391,3 +391,27 @@ export function matchHolesOffTheLow(
  * as the control inside `match-off-the-low.test.ts`, written out there so the
  * divergence is demonstrated rather than remembered.
  */
+
+/**
+ * A handicap allowance as somebody typed it: a whole percentage, 1 to 100.
+ *
+ * ZERO IS NOT AN ALLOWANCE HERE. A stored zero means "the committee has said
+ * nothing", and the round then plays the format's recommended figure — so a
+ * typed 0 saved, closed the panel, and changed nothing. A side playing off
+ * scratch is real golf, and it is the round's result calculation that says so
+ * (Gross), which is where the refusal sends them.
+ *
+ * Going back to the recommendation is its own button, and still sends zero.
+ */
+export function typedAllowance(text: string): { ok: true; percent: number } | { ok: false; error: string } {
+  const typed = text.trim();
+  const digitsOnly = typed !== "" && [...typed].every((ch) => ch >= "0" && ch <= "9");
+  const percent = digitsOnly ? Number(typed) : Number.NaN;
+  if (percent === 0) {
+    return { ok: false, error: "0% is playing off scratch — set this round's result calculation to Gross for that. An allowance is 1 to 100." };
+  }
+  if (!Number.isInteger(percent) || percent < 1 || percent > 100) {
+    return { ok: false, error: "Enter the allowance as a whole percentage from 1 to 100." };
+  }
+  return { ok: true, percent };
+}

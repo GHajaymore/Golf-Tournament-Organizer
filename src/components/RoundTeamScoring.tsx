@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
+import { typedAllowance } from "@/lib/domain/team";
 import {
   setStageAllowance,
   setStageAllowanceWeights,
@@ -251,10 +252,12 @@ export function RoundTeamScoring({
             className="btn btn-primary"
             disabled={pending}
             onClick={() => {
-              const n = parseInt(allowance, 10);
+              // A typed 0 used to be stored as "nothing said" and so changed
+              // nothing; `parseInt` also read "9o" as 9. See `typedAllowance`.
+              const typed = typedAllowance(allowance);
               save(
                 "allowance",
-                (force) => setStageAllowance(stageId, Number.isFinite(n) ? n : -1, force),
+                (force) => (typed.ok ? setStageAllowance(stageId, typed.percent, force) : Promise.resolve({ ok: false, error: typed.error })),
                 () => setEditingAllowance(false),
               );
             }}
