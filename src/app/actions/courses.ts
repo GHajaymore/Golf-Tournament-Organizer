@@ -515,7 +515,19 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
 export async function setStageCourse(
   stageId: string,
   courseId: string | null,
-  nine = "full",
+  /**
+   * Which nine the round plays — and ONLY when the caller says.
+   *
+   * This defaulted to "full" and was written every time. The rounds screen
+   * sends the round's real nine; the score-entry panel has no nine to send,
+   * passed "full" to reach the arguments after it, and `applyNine` reads
+   * anything that is not "back" as the front. So picking a round's TEES from
+   * score entry turned a back-nine round into holes 1 to 9 — front pars, front
+   * stroke index — on a screen that never mentions the nine.
+   *
+   * Left out, the round keeps the nine it has.
+   */
+  nine?: string,
   force = false,
   /**
    * The set this round is played from, from the course above.
@@ -604,7 +616,7 @@ export async function setStageCourse(
 
   await prisma.stage.update({
     where: { id: stageId },
-    data: { courseId, teeId: roundTee, nine: cleanNine(nine) },
+    data: { courseId, teeId: roundTee, ...(nine === undefined ? {} : { nine: cleanNine(nine) }) },
   });
   await refresh();
   return { ok: true };
