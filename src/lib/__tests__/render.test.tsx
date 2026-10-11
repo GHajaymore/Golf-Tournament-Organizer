@@ -9951,3 +9951,45 @@ describe("a settled side bet on the Prizes screen", () => {
     expect(await html(undefined)).not.toMatch(/Nobody won it|\+\$5\.00/);
   });
 });
+
+/**
+ * A BET ON THE MATCH IS NOT A POT WITH A DOOR (sweep 1, d2, 2026-10-10).
+ *
+ * "The match" and a Nassau are settled between the two sides of EVERY match
+ * in the round — `gameNets` reads the round's matches and never asks who is
+ * "in". The Nassau row has always said so. The match bet was drawn like a
+ * pot: an opt-in / everyone toggle and a chip for each player under "In the
+ * pot (0)". An organizer who ticked nobody still had every loser charged,
+ * and one who ticked four had the other twenty charged too.
+ *
+ * The screen now says what the money does, for both.
+ */
+describe("a bet on the match on the Prizes screen", () => {
+  const field = [
+    { id: "p1", name: "zz-Ann Reyes", playing: true },
+    { id: "p2", name: "zz-Bo Kite", playing: true },
+  ];
+  const game = (kind: string) => ({
+    id: `g-${kind}`, kind, buyInCents: 1000, stakeNote: "", entrantIds: [], pending: [], entryMode: "opt-in", excluded: [],
+  });
+  const html = async (kind: string) => {
+    const { ContestsClient } = await import("@/components/ContestsClient");
+    return render(<ContestsClient roundLabel="Round 1" stageId="s1" field={field} contests={[]} sideGames={[game(kind)]} headToHead />);
+  };
+
+  for (const kind of ["match", "nassau"]) {
+    it(`${kind}: says it applies to every match, and offers nobody a way in or out`, async () => {
+      const out = await html(kind);
+      expect(out).toContain("Applies to every match in this round");
+      expect(out, "draws who is in, for a bet that charges everybody").not.toContain("In the pot (");
+      expect(out, "offers an entry mode that settles nothing").not.toContain("how a pot fills");
+    });
+  }
+
+  it("CONTROL: a pot the cards decide still shows who is in and how it fills", async () => {
+    const out = await html("birdies");
+    expect(out).toContain("In the pot (0)");
+    expect(out).toContain("how a pot fills");
+    expect(out).not.toContain("Applies to every match in this round");
+  });
+});

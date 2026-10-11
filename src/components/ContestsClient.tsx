@@ -48,6 +48,8 @@ const DERIVED_ROWS: Array<{ kind: string; label: string; help: string }> = [
 
 /** The games that need two sides to be between — see `headToHead`. */
 const MATCH_ONLY = new Set(["nassau", "match"]);
+/** A bet between the two sides of each match — never a pot somebody is in or out of. */
+const betweenSides = (kind: string) => MATCH_ONLY.has(kind);
 
 /**
  * Closest to the pin, long drive, and whatever else the first tee invented.
@@ -524,9 +526,14 @@ export function ContestsClient({
                   them is the job, so they come first. This was the one pot type
                   a player could join from the app and the only one with nowhere
                   for the organizer to see it. */}
-              {on && game && modeToggle("sideGame", game.id, game.entryMode)}
+              {/* NOT FOR A BET ON THE MATCH. "The match" and a Nassau are
+                  settled between the sides of every match in the round —
+                  nothing reads who is "in" — so an entry mode and a chip per
+                  player were controls over money they did not move: tick
+                  nobody, and every loser was charged all the same. */}
+              {on && game && !betweenSides(row.kind) && modeToggle("sideGame", game.id, game.entryMode)}
 
-              {on && game && game.pending.length > 0 && (
+              {on && game && !betweenSides(row.kind) && game.pending.length > 0 && (
                 <div
                   style={{
                     marginTop: 8,
@@ -558,9 +565,11 @@ export function ContestsClient({
                   <span className="text-muted" style={{ fontSize: 13 }}>
                     {row.kind === "nassau"
                       ? "Applies to every match in this round at that stake per segment."
-                      : `In the pot (${entered.size})`}
+                      : row.kind === "match"
+                        ? "Applies to every match in this round at that stake a player."
+                        : `In the pot (${entered.size})`}
                   </span>
-                  {row.kind !== "nassau" && (
+                  {!betweenSides(row.kind) && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                       {field.map((p) => {
                         const isIn = entered.has(p.id);
