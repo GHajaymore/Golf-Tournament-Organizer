@@ -131,7 +131,17 @@ export function ContestsClient({
   rows = "all",
   title,
   departed = [],
+  groupKey = "",
 }: {
+  /**
+   * WHOSE GAMES THESE ARE: "" for the field's, or the name of a side bet.
+   *
+   * A price typed here is saved under this key. Without it the card could
+   * only ever write the FIELD's row, so a named bet — birdies among six
+   * friends across three groups — could be started and settled and never
+   * re-priced, joined late or taken off: no screen showed it at all.
+   */
+  groupKey?: string;
   /** Players no longer in the field, by name — for a stake they left in a pot. */
   departed?: Array<{ id: string; name: string }>;
   /**
@@ -463,7 +473,7 @@ export function ContestsClient({
                       const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;
                       if (game && cents === game.buyInCents) return;
-                      run(() => saveSideGame(stageId, row.kind, cents));
+                      run(() => saveSideGame(stageId, row.kind, cents, groupKey));
                     }}
                   />
                 </label>
