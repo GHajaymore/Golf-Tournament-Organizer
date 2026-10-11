@@ -15,6 +15,7 @@ import {
 } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
 import { matchTee } from "../domain/tee-match";
+import { formationReadsHandicap } from "../domain/grouping";
 import { defaultTeeFor, type TeeLike } from "../domain/venue";
 
 /**
@@ -671,16 +672,17 @@ export async function unratedFlightWarning(
   eventId: string,
   formationRule: string,
 ): Promise<string | null> {
-  // Only the handicap rule reads handicaps. Seeding, random and manual don't
-  // care what anyone plays off.
-  if (formationRule !== "handicap") return null;
+  // Every rule that draws off handicaps — divisions and balanced as well as
+  // the spread; this named the spread alone, and a medal starts on divisions.
+  // Seeding, random and manual don't care what anyone plays off.
+  if (!formationReadsHandicap(formationRule)) return null;
   const tees = await teesForEvent(eventId);
   if (tees.length === 0) {
-    return "No tees have been set up, so flights are balanced on raw handicap indexes rather than Course Handicaps. Add a set of tees with its Course Rating and Slope for an even draw.";
+    return "No tees have been set up, so flights are drawn on raw handicap indexes rather than Course Handicaps. Add a set of tees with its Course Rating and Slope for an even draw.";
   }
   const unrated = tees.filter((t) => !t.rated);
   if (unrated.length === 0) return null;
-  return `${unrated.map((t) => t.name).join(", ")} ${unrated.length === 1 ? "has" : "have"} no Course Rating or Slope, so players off ${unrated.length === 1 ? "it" : "them"} are balanced on their raw index. Flights will be slightly uneven.`;
+  return `${unrated.map((t) => t.name).join(", ")} ${unrated.length === 1 ? "has" : "have"} no Course Rating or Slope, so players off ${unrated.length === 1 ? "it" : "them"} are placed on their raw index. Flights will be slightly uneven.`;
 }
 
 /**

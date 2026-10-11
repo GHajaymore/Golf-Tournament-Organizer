@@ -118,6 +118,7 @@ import {
   holeStrokesReceived,
   allocationHoles,
   serializeBracketDraw,
+  FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
@@ -1333,7 +1334,6 @@ export async function applyManualCount(target: number, force = false): Promise<R
 
 /* ── Grouping ─────────────────────────────────────────────────────────── */
 
-const FORMATION_RULES = ["balanced", "handicap", "divisions", "seeding", "random", "manual"];
 const FLIGHT_MODES = ["auto", "count", "perFlight"];
 
 export interface RegenResult {
@@ -1455,7 +1455,7 @@ export async function regenGroups(
   // exact shape of the standing "manual flights reset to Auto" report. A
   // silent coercion here can only ever turn a caller's mistake into a
   // tournament drawn under a rule nobody chose, so it says so instead.
-  if (!FORMATION_RULES.includes(rule)) {
+  if (!(FORMATION_RULES as string[]).includes(rule)) {
     return { ok: false, error: `"${rule}" isn't a formation rule this tournament can use.` };
   }
   if (!FLIGHT_MODES.includes(mode)) {
