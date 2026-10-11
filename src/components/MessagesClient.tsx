@@ -214,11 +214,17 @@ export function MessagesClient({
       return;
     }
     let live = true;
-    readThread(openId).then((v) => {
-      if (!live) return;
-      setView(v);
-      if (v) void markThreadRead(openId);
-    });
+    // Both caught: somebody who opens a conversation and taps away before it
+    // has loaded leaves a request Safari REJECTS ("Load failed") where
+    // Chromium drops it. Nothing was lost — the thread loads when it is next
+    // opened, and is marked read then.
+    readThread(openId)
+      .then((v) => {
+        if (!live) return;
+        setView(v);
+        if (v) markThreadRead(openId).catch(() => {});
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
@@ -621,9 +627,12 @@ export function ComposePanel({
     }
     let live = true;
     const t = setTimeout(() => {
-      previewSmsBroadcast(target, body).then((p) => {
-        if (live) setPlan(p);
-      });
+      previewSmsBroadcast(target, body)
+        .then((p) => {
+          if (live) setPlan(p);
+        })
+        // A preview that did not arrive is no preview; Send asks again itself.
+        .catch(() => {});
     }, 400);
     return () => {
       live = false;

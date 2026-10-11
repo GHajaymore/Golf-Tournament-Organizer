@@ -200,6 +200,11 @@ export default defineConfig({
       NEXT_DIST_DIR: ".next-e2e",
       NEXT_NO_STANDALONE: "1",
       AUTH_SECRET: process.env.AUTH_SECRET!,
+      // WebKit does not send a Secure cookie to plain http://localhost (Chromium
+      // does), so a server that marks them Secure signs nobody in there. See
+      // `src/lib/secure-cookies.ts`. A server already running — the usual case
+      // locally — has to have been started with the same variable.
+      ...(ENGINE === "webkit" ? { E2E_PLAIN_HTTP: "1" } : {}),
     },
   },
 });

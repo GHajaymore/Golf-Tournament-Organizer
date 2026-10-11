@@ -221,7 +221,16 @@ function gradeSlice(page: Page, painted: string, bare: string, top: number, slic
  * be caught, a sentence under an opaque card must be reported as covered, and
  * a legible line in `color()` syntax must not be flagged.
  */
-test("the measurement sees faint text and covered text, and passes good text", async ({ page }) => {
+/**
+ * The measurement photographs the page and reads the pixels back through an
+ * `OffscreenCanvas`, which Playwright's WebKit build does not have. Contrast
+ * is a property of the colours, not of the engine that draws them, so on
+ * WebKit this is skipped by name rather than left to fail as noise.
+ */
+const NO_CANVAS = "this measurement needs OffscreenCanvas, which this WebKit build lacks";
+
+test("the measurement sees faint text and covered text, and passes good text", async ({ page, browserName }) => {
+  test.skip(browserName === "webkit", NO_CANVAS);
   await settle(page, "/faq");
   await page.evaluate(() => {
     const host = document.querySelector("main") ?? document.body;
@@ -237,7 +246,8 @@ test("the measurement sees faint text and covered text, and passes good text", a
 });
 
 for (const path of ["/", "/faq", "/privacy", "/terms"]) {
-  test(`every word on ${path} is readable against what is behind it`, async ({ page }) => {
+  test(`every word on ${path} is readable against what is behind it`, async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", NO_CANVAS);
     await settle(page, path);
     const bad = await unreadableText(page);
     expect(bad, bad.map((b) => `${b.ratio} < ${b.floor} "${b.text}" ${b.size}px at ${b.at} — ${b.where}`).join("\n")).toEqual([]);

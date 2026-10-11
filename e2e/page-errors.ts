@@ -20,10 +20,33 @@ import type { Page } from "@playwright/test";
  */
 export function watchPageErrors(page: Page, errors: string[], who = ""): void {
   page.on("pageerror", (e) => {
+    if (leftMidRequest(page, String(e))) return;
     const where = new URL(page.url()).pathname;
     errors.push(`${who ? `${who} ` : ""}${where}: ${String(e)}`);
   });
   explainHydration(page, who);
+}
+
+/**
+ * THE FRAMEWORK'S OWN REQUEST, DROPPED BECAUSE THE PAGE WAS LEFT — on WebKit
+ * only, and only this one sentence (2026-10-11).
+ *
+ * When a spec opens another address while Next is still fetching a screen's
+ * data or prefetching a link, Chromium drops the request and says nothing.
+ * WebKit reports it as an error on the page being left: "Fetch API cannot load
+ * <this site's own address> due to access control checks." Nothing failed and
+ * nobody saw anything; a spec walks faster than a person.
+ *
+ * WHAT IS DELIBERATELY NOT IGNORED: "TypeError: Load failed". That is WebKit's
+ * word for the same thing happening to a request the APP made and did not
+ * catch, and the first run on this engine found three of those in the app's
+ * own code — a rejection Safari raises and Chromium never did.
+ */
+function leftMidRequest(page: Page, message: string): boolean {
+  if (page.context().browser()?.browserType().name() !== "webkit") return false;
+  // This site's own host, so a request to anywhere ELSE that was refused is still an error.
+  const host = new URL(page.url()).host;
+  return message.includes("Fetch API cannot load") && message.includes("due to access control checks") && message.includes(host);
 }
 
 const explaining = new WeakSet<Page>();

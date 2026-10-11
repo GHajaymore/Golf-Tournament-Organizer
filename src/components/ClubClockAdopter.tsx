@@ -19,7 +19,12 @@ export function ClubClockAdopter() {
     } catch {
       zone = "";
     }
-    if (zone) void adoptClubTimeZone(zone);
+    // Caught, though nothing is done with it: the organizer may tap through to
+    // another screen before this has answered, and Safari then REJECTS the
+    // request ("Load failed") where Chromium just drops it — an unhandled
+    // rejection on a screen nobody did anything wrong on (found the first time
+    // the suite ran on WebKit). The offer is simply made again on the next visit.
+    if (zone) adoptClubTimeZone(zone).catch(() => {});
   }, []);
   return null;
 }

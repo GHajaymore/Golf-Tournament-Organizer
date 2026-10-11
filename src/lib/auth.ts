@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypto";
 import { prisma } from "./db";
+import { SECURE_COOKIES } from "./secure-cookies";
 import { accessibleEvents, effectiveAccess } from "./services/access";
 import { landingEvent } from "./domain/landing-event";
 import { SESSION_SECONDS, readSessionValue, sessionRefusal, sessionValue } from "./domain/session-token";
@@ -41,8 +42,7 @@ function secret(): string {
 
 // Session cookies must never travel over plain HTTP in production. Local dev
 // runs on http://localhost, where `secure` cookies are rejected, so the flag
-// is conditional rather than hard-coded.
-const SECURE_COOKIES = process.env.NODE_ENV === "production";
+// is conditional rather than hard-coded — decided once, in `secure-cookies.ts`.
 
 /** Shared flags for every cookie this module sets. */
 const COOKIE_OPTS = {

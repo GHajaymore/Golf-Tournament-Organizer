@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
+import { SECURE_COOKIES } from "./secure-cookies";
 import { sign, verify, fingerprint } from "./auth";
 import { cleanSettings, usesAccessCodes } from "./tournament-settings";
 import { roundLabel } from "./domain/round-label";
@@ -19,7 +20,6 @@ import { roundLabel } from "./domain/round-label";
  */
 
 const PLAY_COOKIE = "ng_play";
-const SECURE_COOKIES = process.env.NODE_ENV === "production";
 
 /** One round of golf, plus enough slack for a slow four-ball and a rain delay. */
 const PLAY_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
