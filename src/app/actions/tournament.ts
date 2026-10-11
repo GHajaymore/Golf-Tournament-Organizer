@@ -1866,11 +1866,17 @@ export async function setStageFormat(stageId: string, format: string, force = fa
    * and switching between those silently rewrites the result of a round
    * somebody has already played.
    */
+  // REFUSED, not read as Match Play. Anything this did not recognise became
+  // match play — so a name that had drifted between two versions of the app
+  // turned a medal into holes won, re-read every card in it, and said "ok".
+  // Before the cards question, so a caller is never asked to confirm
+  // re-scoring a round into a format that does not exist.
+  if (!FORMAT_NAMES.includes(format)) return { ok: false as const, error: "That is not a format this round can be played in." };
   if (!force) {
     const cards = await enteredCardCount(eventId, stageId);
     if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
   }
-  const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
+  const value = format;
   // A round becoming Stableford becomes net with it — `basisFor`. Its current
   // basis is kept for every other format.
   const before = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoringBasis: true } });
@@ -2138,7 +2144,10 @@ export async function addStage(
   // a championship adds a play-off round when the field finishes level. Adding
   // is additive — the rounds already played are untouched (2026-09-27).
   // Deleting a round (`removeStage`) and changing one's format stay locked.
-  const stageType = isStageType(type) ? type : "Round Robin";
+  // Refused, not read as a round robin: an unknown kind of round used to add a
+  // full set of pairings for whatever the caller had actually meant.
+  if (!isStageType(type)) return { error: "That is not a kind of round." };
+  const stageType = type;
   const opts: AddStageOptions =
     typeof countOrOpts === "number" ? { count: countOrOpts } : countOrOpts;
   // Clamped, not trusted: this is a public server action and the numbers come

@@ -784,7 +784,9 @@ function StageCard({
     // what they MEAN changes.
     startTransition(async () => {
       const res = await setStageFormat(stage.id, v);
-      if (res?.needsConfirm) setFormatCards({ format: v, cards: res.cards ?? 0 });
+      if (res && "needsConfirm" in res) setFormatCards({ format: v, cards: res.cards ?? 0 });
+      // Refused outright: the picker goes back to what the round is.
+      else if (res && !res.ok) setFormat(stage.format);
     });
   };
   const confirmFormat = () => {
