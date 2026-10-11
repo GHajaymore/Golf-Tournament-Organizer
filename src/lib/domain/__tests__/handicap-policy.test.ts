@@ -235,3 +235,39 @@ describe("hybrid — the policy most clubs are actually on", () => {
     expect(s.usable).toBe(false);
   });
 });
+
+/**
+ * CAN THIS CLUB READ ASSOCIATION INDEXES RIGHT NOW (sweep 1, b8, 2026-10-10).
+ *
+ * The roster's red banner — "No indexes have been fetched yet" — asked a
+ * function that answered yes for one policy only, `ghin`. A club on "Both"
+ * with a perfectly good connection was told, permanently, that none had come
+ * through and that it "plays off association indexes", over a roster where
+ * the indexes were sitting in the column underneath.
+ *
+ * Every policy against every state of the connection, because the defect was
+ * a rule written for one cell of that table.
+ */
+describe("whether association indexes can be read", () => {
+  it("is the connection's answer for every club that uses an association", async () => {
+    const { indexesReadable, HANDICAP_POLICIES } = await import("@/lib/domain/handicap-policy");
+    for (const policy of HANDICAP_POLICIES.filter((p) => p !== "club")) {
+      expect(indexesReadable(policy, "ready"), `${policy}, connected`).toBe(true);
+      for (const status of ["unconfigured", "rejected", ""]) {
+        expect(indexesReadable(policy, status), `${policy}, ${status || "no status"}`).toBe(false);
+      }
+    }
+  });
+
+  it("is always yes for a club keeping its own handicaps — there is nothing to fetch", async () => {
+    const { indexesReadable } = await import("@/lib/domain/handicap-policy");
+    for (const status of ["ready", "unconfigured", "rejected", ""]) expect(indexesReadable("club", status)).toBe(true);
+  });
+
+  it("the service asks this rule, and no longer names one policy", async () => {
+    const { readSource } = await import("@/lib/__tests__/source");
+    const src = readSource("src/lib/services/integrations.ts");
+    const body = src.slice(src.indexOf("export async function handicapReadable"));
+    expect(body.slice(0, 400)).toContain("indexesReadable(setup.policy, setup.handicap.status)");
+  });
+});

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { handicapAuthority, scoreReporter } from "../integrations/registry";
 import type { IntegrationCredential, IntegrationStatus } from "../integrations/types";
-import { handicapPolicyOf, type HandicapPolicy } from "../domain/handicap-policy";
+import { handicapPolicyOf, indexesReadable, type HandicapPolicy } from "../domain/handicap-policy";
 
 /**
  * A club's association setup, and the ONE place a credential is read.
@@ -125,5 +125,5 @@ export async function integrationSetup(organizationId: string): Promise<Integrat
  */
 export async function handicapReadable(organizationId: string): Promise<boolean> {
   const setup = await integrationSetup(organizationId);
-  return setup.policy === "ghin" && setup.handicap.status === "ready";
+  return indexesReadable(setup.policy, setup.handicap.status);
 }
