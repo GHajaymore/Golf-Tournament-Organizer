@@ -7213,19 +7213,30 @@ describe("the single match picker does not invent a rule", () => {
 
 describe("play settings name one thing per heading", () => {
   const settings = {
-    leaderboardVisibility: "players",
+    leaderboardVisibility: "participants",
     scoreEntryBy: "players",
-    scoreEntryWindow: "anytime",
+    scoreEntryWindow: "during",
     voiceEntry: false,
     playerAccess: "code",
     scoreApproval: "players",
-    attendanceMode: "off",
-    attestBy: "one",
+    attendanceMode: "everyone",
+    attestBy: "marker",
   };
+  /**
+   * TWO ROUNDS, because that is why a tournament is asked about weekly
+   * sign-up at all (`event-setup-calm.test.tsx`). This fixture used to get the
+   * section drawn with `attendanceMode: "off"` — a value the app cannot store,
+   * which the screen read as "not everyone" — so it tested a tournament no
+   * club can have (`fixtures-name-real-settings.test.ts`).
+   */
+  const rounds = [
+    { stageId: "s1", label: "Round 1", code: "AAAA11" },
+    { stageId: "s2", label: "Round 2", code: "BBBB22" },
+  ];
   const panel = async (mode: "tournament" | "organization") => {
     const { PlaySettings } = await import("@/components/PlaySettings");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<PlaySettings mode={mode} settings={settings as any} canEdit />);
+    return render(<PlaySettings mode={mode} settings={settings as any} canEdit rounds={rounds} />);
   };
 
   /**
@@ -9493,14 +9504,14 @@ describe("the weekly sign-up calendar's key", () => {
  */
 describe("changing the weekly sign-up mode, on screen", () => {
   const settings = {
-    leaderboardVisibility: "players",
+    leaderboardVisibility: "participants",
     scoreEntryBy: "players",
-    scoreEntryWindow: "anytime",
+    scoreEntryWindow: "during",
     voiceEntry: false,
     playerAccess: "code",
     scoreApproval: "players",
     attendanceMode: "opt-out",
-    attestBy: "one",
+    attestBy: "marker",
   };
   const panel = async (over: Record<string, unknown> = {}) => {
     const { PlaySettings } = await import("@/components/PlaySettings");

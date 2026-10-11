@@ -62,7 +62,7 @@ const CHOSEN = {
   bracketMode: "plate",
   sideStyle: "pairs",
   moneyMode: "split",
-  attendanceMode: "optin",
+  attendanceMode: "opt-in",
   courseMode: "open",
   requirePhone: true,
   attestBy: "marker",
