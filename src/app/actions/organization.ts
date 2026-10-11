@@ -97,11 +97,29 @@ export async function addOrganizationMember(email: string, name: string, roleInp
     if (refusal) return { ok: false, error: refusal };
   }
 
-  const user = await prisma.user.upsert({
-    where: { email: cleanEmail },
-    update: name.trim() ? { name: name.trim() } : {},
-    create: { email: cleanEmail, name: name.trim() },
-  });
+  /**
+   * A NAME TYPED HERE NAMES SOMEBODY NEW. IT DOES NOT RENAME ANYBODY
+   * (2026-10-11).
+   *
+   * This upserted `{ name }` onto the account whenever a name was typed — so
+   * inviting an address that already had an account renamed that person to
+   * whatever the inviter wrote, in every club and tournament they belong to.
+   * Anybody who runs a club could do it to anybody whose address they knew
+   * (found by the every-action sweep: a stranger's invitation changed the
+   * seeded club's member).
+   *
+   * An account's name is its owner's. The typed name is used when the account
+   * is being made, or has no name on it yet — somebody entered by email alone
+   * — and never to replace one.
+   */
+  const typedName = name.trim();
+  const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
+  const user = known
+    ? await prisma.user.update({
+        where: { id: known.id },
+        data: known.name.trim() || !typedName ? {} : { name: typedName },
+      })
+    : await prisma.user.create({ data: { email: cleanEmail, name: typedName } });
 
   /**
    * Whether this is a NEW membership, checked before the upsert writes one.

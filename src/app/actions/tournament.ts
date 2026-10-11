@@ -3571,10 +3571,15 @@ export async function confirmMatches(
  *  is the safe one here. */
 export async function disputeMatch(matchId: string) {
   const eventId = await requireEvent();
-  await prisma.match.updateMany({
+  const moved = await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: { scoreStatus: "disputed" },
   });
+  // Only what happened is on the record. An id that is not a match of this
+  // tournament changes nothing — and used to be logged as "Result disputed"
+  // all the same, in the caller's own audit trail (every-action sweep,
+  // 2026-10-11).
+  if (moved.count === 0) return;
   await logAudit(eventId, "dispute", "Result disputed", { matchId });
   await refresh();
 }
@@ -3589,18 +3594,39 @@ export async function disputeMatch(matchId: string) {
  */
 export async function reopenMatch(matchId: string) {
   const eventId = await requireAdminEvent();
-  await prisma.match.updateMany({
+  const moved = await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "" },
   });
+  // As `disputeMatch`: nothing reopened, nothing recorded.
+  if (moved.count === 0) return;
   await logAudit(eventId, "reopen", "Organizer reopened the scorecard", { matchId });
   await refresh();
 }
 
 /* ── Bracket ──────────────────────────────────────────────────────────── */
 
-export async function setBracketWinner(key: string, winnerId: string) {
+export async function setBracketWinner(key: string, winnerId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
+  /**
+   * THE WINNER OF A TIE IS ONE OF THE TWO PLAYERS IN IT (2026-10-11).
+   *
+   * This took any key and any id. The screen only ever sends a tie's own two
+   * players, but a `"use server"` export is called with whatever the caller
+   * likes: a bracket could be given a winner from another club's tournament —
+   * whose name the draw would then print — or a result for a tie the draw
+   * does not have (found by the every-action sweep). A player's own REPORT
+   * has been held to this since it was written (`tieReportRefusal`), and
+   * `matrix.test.ts` asserts it of every bracket; the organizer's door was
+   * the one that never asked.
+   */
+  if (typeof key !== "string" || typeof winnerId !== "string") return { ok: false, error: "Choose who won the tie." };
+  const state = await loadEventState(eventId);
+  const tie = state ? tieByKey(bracketDraws(state.brackets), key) : null;
+  if (!tie) return { ok: false, error: "That tie isn't in the draw." };
+  if (tie.match.a.playerId !== winnerId && tie.match.b.playerId !== winnerId) {
+    return { ok: false, error: "The winner of a tie is one of the two players in it." };
+  }
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
 
   if (existing?.winnerId === winnerId) {
@@ -3626,6 +3652,7 @@ export async function setBracketWinner(key: string, winnerId: string) {
   // themselves — a report left behind would ask them the same question again.
   await prisma.bracketReport.deleteMany({ where: { eventId, key } });
   await refresh();
+  return { ok: true };
 }
 
 /**

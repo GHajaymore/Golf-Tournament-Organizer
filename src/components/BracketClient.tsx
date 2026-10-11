@@ -25,6 +25,14 @@ export function BracketBoard({
    * the knockout e2e spec, which did exactly that, lost a "1 UP" on CI.
    */
   const [savedKey, setSavedKey] = useState("");
+  /**
+   * What the server said no with, shown. A press here names one of the tie's
+   * own two players, so it is not refused — unless the draw moved underneath
+   * (a second organizer, a result taken back) and this screen is a moment
+   * old. Then the press did nothing, and saying so is the difference between
+   * "try again" and a result somebody believes they recorded.
+   */
+  const [refused, setRefused] = useState("");
 
   const slotButton = (
     matchKey: string,
@@ -38,7 +46,13 @@ export function BracketBoard({
         type="button"
         className="bracket-seat"
         disabled={!clickable || pending}
-        onClick={() => clickable && startTransition(() => setBracketWinner(matchKey, slot.playerId!))}
+        onClick={() =>
+          clickable &&
+          startTransition(async () => {
+            const result = await setBracketWinner(matchKey, slot.playerId!);
+            setRefused(result.ok ? "" : (result.error ?? "That result could not be recorded."));
+          })
+        }
         style={{
           display: "flex",
           alignItems: "center",
@@ -62,6 +76,11 @@ export function BracketBoard({
 
   return (
     <div className="card elev-sm" style={{ overflowX: "auto" }}>
+      {refused && (
+        <p className="form-error" role="alert" style={{ margin: "0 0 10px" }}>
+          {refused} Reload the draw and record it again.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 26, minWidth: 640 }}>
         {view.rounds.map((rd) => (
           <div key={rd.roundIndex} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 190 }}>
