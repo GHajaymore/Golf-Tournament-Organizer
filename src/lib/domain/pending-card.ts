@@ -288,6 +288,22 @@ export function cardRevision(strokes: Array<number | null>): string {
 export const NO_CARD_REVISION = cardRevision([]);
 
 /**
+ * Whether a card this phone is keeping FOR SOMEBODY ELSE has changed since the
+ * phone last knew it — the only thing that makes it worth sending.
+ *
+ * `lastKnown` is the revision of the card as this phone loaded it, or last
+ * sent it: what it HELD, at the round's length. It is deliberately not the
+ * revision the server gave. That one belongs to the conflict protocol, and for
+ * a partner with no card it is `NO_CARD_REVISION` — which matches no card of
+ * any length, so the eighteen blanks the phone holds for them always looked
+ * "changed". Opening the Group view sent a blank card for every partner who
+ * had not started (2026-10-11; found by the control crawl as a member).
+ */
+export function keptCardChanged(strokes: Array<number | null> | undefined, lastKnown: string): boolean {
+  return !!strokes && cardRevision(strokes) !== lastKnown;
+}
+
+/**
  * Whether a queued card is about to overwrite somebody else's work.
  *
  * A card is written WHOLE, so replaying one that was typed twenty minutes ago

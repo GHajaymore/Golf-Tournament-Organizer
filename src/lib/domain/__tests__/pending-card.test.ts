@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { readSource } from "../../__tests__/source";
 import {
   cardRevision,
+  keptCardChanged,
+  NO_CARD_REVISION,
   NAG_AFTER_MS,
   pendingKey,
   RETRY_EVERY_MS,
@@ -393,5 +396,68 @@ describe("whether the screen's clock is worth running", () => {
     expect(syncStatus({ ...base, waitingMs: NAG_AFTER_MS * 3 })).not.toEqual(
       syncStatus({ ...base, waitingMs: 0 }),
     );
+  });
+});
+
+/**
+ * A CARD KEPT FOR A PLAYING PARTNER IS SENT WHEN IT HAS CHANGED — NOT WHEN IT
+ * IS OPENED (2026-10-11).
+ *
+ * The Group view keeps each partner's card on the phone and sends it when it
+ * differs from "the server's". It measured that against the revision the
+ * server gave — and for a partner with no card yet the server says
+ * `NO_CARD_REVISION`, the revision of nothing, which by design matches no card
+ * of any length. The phone holds eighteen blanks. They never matched, so
+ * opening the Group view sent a blank card for every partner who had not
+ * started: a card row nobody entered, under the marker's name, on a round the
+ * partner had not played a hole of.
+ *
+ * Found by the control crawl as a member: on the league's card screen, choosing
+ * "Group" — a view — was followed by a save.
+ *
+ * What a kept card is measured against is what THIS PHONE last knew it to be.
+ */
+describe("a card kept for a partner", () => {
+  const blank = (holes: number) => new Array<number | null>(holes).fill(null);
+
+  it("is not sent for a partner with no card, just for being opened", () => {
+    for (const holes of [9, 18]) {
+      const asLoaded = blank(holes);
+      expect(keptCardChanged(asLoaded, cardRevision(asLoaded)), `${holes} holes`).toBe(false);
+    }
+  });
+
+  it("CONTROL: measured against the server's 'no card', the same blank card looks changed — the defect", () => {
+    // Why the comparison had to move, pinned so nobody moves it back.
+    expect(keptCardChanged(blank(18), NO_CARD_REVISION)).toBe(true);
+  });
+
+  it("is sent once a score is on it", () => {
+    const asLoaded = blank(18);
+    const afterOneHole = [5, ...blank(17)];
+    expect(keptCardChanged(afterOneHole, cardRevision(asLoaded))).toBe(true);
+  });
+
+  it("is not sent again once what was sent is what is held", () => {
+    const sent = [5, 4, ...blank(16)];
+    expect(keptCardChanged(sent, cardRevision(sent))).toBe(false);
+  });
+
+  it("is sent when a score is taken back off it", () => {
+    // Clearing a hole is a change too, and the partner's card must lose it.
+    const had = [5, ...blank(17)];
+    expect(keptCardChanged(blank(18), cardRevision(had))).toBe(true);
+  });
+
+  it("is not sent when there is no card in hand at all", () => {
+    expect(keptCardChanged(undefined, NO_CARD_REVISION)).toBe(false);
+  });
+
+  it("the Group view measures against what the phone last knew, in one place", () => {
+    const src = readSource("src", "components", "GroupScoring.tsx");
+    expect(src).toMatch(/keptCardChanged\(strokes, known\.current\)/);
+    // Not against the revision the server gave, which is the conflict
+    // protocol's and says "no card" for a partner who has not started.
+    expect(src).not.toMatch(/cardRevision\(strokes\) !== revision\.current/);
   });
 });

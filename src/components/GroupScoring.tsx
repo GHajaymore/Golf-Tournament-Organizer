@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { HoleByHoleCard, type CardPlayer } from "@/components/HoleByHoleCard";
 import { saveScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
-import { cardRevision, type SyncStatus } from "@/lib/domain/pending-card";
+import { cardRevision, keptCardChanged, type SyncStatus } from "@/lib/domain/pending-card";
 import type { PinSheet } from "@/lib/domain/pin-sheet";
 import { stablefordPickUp } from "@/lib/domain/card-points";
 import { isPartnerCardSigned } from "@/lib/domain/card-approval";
@@ -220,6 +220,14 @@ function PartnerQueue({
 }) {
   /** The revision the server holds, as far as this phone last heard. */
   const revision = useRef(partner.revision);
+  /**
+   * The card as THIS PHONE last knew it — loaded, or sent. What "changed" is
+   * measured against, and deliberately not `revision` above: for a partner
+   * with no card the server's is "no card", which no card of any length
+   * matches, so their blank card was sent the moment this view opened. See
+   * `keptCardChanged`.
+   */
+  const known = useRef(cardRevision(strokes ?? []));
 
   const queue = usePendingCard<(number | null)[]>({
     stageId,
@@ -232,19 +240,23 @@ function PartnerQueue({
         // would overwrite the partner's own entry the moment it stopped
         // disagreeing.
         revision.current = res.conflict.revision;
+        // What the phone now holds is theirs, at the length it holds cards.
+        known.current = cardRevision(Array.from({ length: value.length }, (_, i) => res.conflict.strokes[i] ?? null));
         onTheirs(partner.id, partner.name, res.conflict.strokes);
         return "sent";
       }
       revision.current = res.revision;
+      known.current = cardRevision(value);
       return "sent";
     },
   });
 
   const { push } = queue;
   useEffect(() => {
-    // Only a card that differs from the server's is worth sending — which
-    // skips the card as loaded, and the partner's own card after taking it.
-    if (strokes && cardRevision(strokes) !== revision.current) push(strokes);
+    // Only a card that has CHANGED on this phone is worth sending — which
+    // skips the card as loaded (a partner's blank one included), and the
+    // partner's own card after taking it.
+    if (strokes && keptCardChanged(strokes, known.current)) push(strokes);
   }, [strokes, push]);
 
   useEffect(() => {
