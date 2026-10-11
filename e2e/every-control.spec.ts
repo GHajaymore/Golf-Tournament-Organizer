@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "./coverage";
 import { createHmac } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { consoleScreens } from "./routes";
+import { consoleScreens, playerScreens } from "./routes";
 import { seed, teardown } from "../scripts/seed-club.mjs";
 
 /**
@@ -463,9 +463,15 @@ async function signIn(context: BrowserContext, baseURL: string, session: string,
   ]);
 }
 
-test("every dropdown, choice and tick-box on every console screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "the console's controls are operated at the desktop width");
-  test.setTimeout(6 * 60 * 60 * 1000);
+/** One crawl: who is operating, the screens they have, and how many controls would be too few to believe. */
+interface Run {
+  who: string;
+  session: string;
+  screens: string[];
+  atLeast: number;
+}
+
+async function crawl(page: Page, context: BrowserContext, baseURL: string, run: Run) {
   // EVERY ACTION HAS A LIMIT. With a six-hour test and no limit of their own,
   // a click on a button that never becomes pressable waits six hours: the
   // first full run sat on one control for eleven minutes before it was
@@ -473,7 +479,7 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
   page.setDefaultTimeout(8_000);
   page.setDefaultNavigationTimeout(30_000);
 
-  const screens = consoleScreens().filter((p) => !ONLY_SCREEN || p === ONLY_SCREEN);
+  const screens = run.screens.filter((p) => !ONLY_SCREEN || p === ONLY_SCREEN);
   const events = club.events.filter((e) => !ONLY_EVENT || e.slug === ONLY_EVENT);
   const tally: Record<string, number> = {};
   const findings: string[] = [];
@@ -486,7 +492,7 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
   let choices = 0;
 
   for (const event of events) {
-    await signIn(context, baseURL!, club.organizer.session, event.id);
+    await signIn(context, baseURL, run.session, event.id);
     for (const path of screens) {
       await page.goto(path, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
@@ -537,13 +543,34 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
     }
   }
 
-  console.log(`[every-control] ${controls} controls, ${choices} choices made: ${JSON.stringify(tally)}; ${findings.length} findings`);
+  console.log(`[every-control] ${run.who}: ${controls} controls, ${choices} choices made: ${JSON.stringify(tally)}; ${findings.length} findings`);
   const never = [...unsettled.entries()].map(([k, why]) => `${k.split("|").slice(0, 3).join(" · ")} (${why})`);
   console.log(`[every-control] ${never.length} controls were never saved on any tournament (views, or locked everywhere):`);
   console.log(never.map((n) => `[every-control]   ${n}`).join("\n"));
   console.log(findings.map((f) => `[every-control]   ${f}`).join("\n"));
   // CONTROL: a crawl that operated almost nothing passes by doing nothing.
-  if (!ONLY_EVENT && !ONLY_SCREEN) expect(controls, "the crawl found almost no controls").toBeGreaterThan(150);
-  expect(tally.kept ?? 0, "nothing was ever kept — the crawl is not saving anything").toBeGreaterThan(0);
+  if (!ONLY_EVENT && !ONLY_SCREEN) expect(controls, "the crawl found almost no controls").toBeGreaterThan(run.atLeast);
+  if (run.atLeast > 0) expect(tally.kept ?? 0, "nothing was ever kept — the crawl is not saving anything").toBeGreaterThan(0);
   expect(findings, `${findings.length} findings across ${choices} choices on ${controls} controls`).toEqual([]);
+}
+
+test("every dropdown, choice and tick-box on every console screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "the console's controls are operated at the desktop width");
+  test.setTimeout(6 * 60 * 60 * 1000);
+  await crawl(page, context, baseURL!, { who: "secretary", session: club.organizer.session, screens: consoleScreens(), atLeast: 150 });
+});
+
+/**
+ * THE SAME CRAWL, AS A MEMBER, ON THE PLAYER'S SCREENS (2026-10-11).
+ *
+ * Ajay asked for three clean runs of the player side on its own. The player
+ * app is mostly buttons — enter, withdraw, the card — so it has far fewer
+ * dropdowns and tick-boxes than the console, and no minimum is claimed: the
+ * run prints how many it found. What it does find is held to the same rule: a
+ * choice made is a choice kept, on every tournament the member can open.
+ */
+test("every dropdown, choice and tick-box on every player screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name !== "phone", "the player's controls are operated at a phone's width");
+  test.setTimeout(2 * 60 * 60 * 1000);
+  await crawl(page, context, baseURL!, { who: "member", session: club.player.session, screens: playerScreens(), atLeast: 0 });
 });

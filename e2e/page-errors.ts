@@ -22,7 +22,24 @@ export function watchPageErrors(page: Page, errors: string[], who = ""): void {
   page.on("pageerror", (e) => {
     const where = new URL(page.url()).pathname;
     errors.push(`${who ? `${who} ` : ""}${where}: ${String(e)}`);
-    if (String(e).includes("#418")) void explain(page, who || where);
+  });
+  explainHydration(page, who);
+}
+
+const explaining = new WeakSet<Page>();
+
+/**
+ * Have this page explain a hydration mismatch if one lands — once, however
+ * many callers ask. `coverage.ts` asks for every page every spec opens, so a
+ * spec (or a probe) that only collects the bare error still leaves the
+ * explanation in the job log: on 2026-10-11 a #418 on /entry was recorded by a
+ * probe as one line, "Minified React error #418", and nothing else.
+ */
+export function explainHydration(page: Page, who = ""): void {
+  if (explaining.has(page)) return;
+  explaining.add(page);
+  page.on("pageerror", (e) => {
+    if (String(e).includes("#418")) void explain(page, who || new URL(page.url()).pathname);
   });
 }
 
@@ -41,7 +58,57 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-async function explain(page: Page, who: string): Promise<void> {
+/**
+ * WHICH ELEMENTS, when the text is the same (2026-10-11).
+ *
+ * React says what kind of mismatch it was — "…the server rendered HTML didn't
+ * match…" is an ELEMENT that differs, not a word — and the text comparison
+ * below answers "identical" to exactly that kind, which is the answer it gave
+ * the one time this had fired with a recorder attached.
+ *
+ * So the elements are counted on each side, by tag and class, and the ones the
+ * two sides disagree about are named. A count rather than a walk in order,
+ * because the server's document is streamed: its late sections arrive in
+ * hidden holders at the end and are moved into place, so the ORDER of the two
+ * documents differs on every page and proves nothing. The holders themselves
+ * are left out of the count.
+ */
+function elementCounts(html: string): Map<string, number> {
+  const body = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
+  const counts = new Map<string, number>();
+  for (const m of body.matchAll(/<([a-z][a-z0-9-]*)((?:\s[^>]*)?)>/gi)) {
+    const tag = m[1].toLowerCase();
+    const attrs = m[2] ?? "";
+    // The streaming holders, and the document's own frame.
+    if (tag === "template" || tag === "html" || tag === "head" || tag === "body" || tag === "meta" || tag === "link") continue;
+    if (/\sid="S:\d+"/.test(attrs)) continue;
+    const cls = /\sclass="([^"]*)"/.exec(attrs)?.[1]?.trim().split(/\s+/).sort().join(".") ?? "";
+    const role = /\srole="([^"]*)"/.exec(attrs)?.[1] ?? "";
+    const key = `${tag}${cls ? `.${cls}` : ""}${role ? `[role=${role}]` : ""}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function elementsThatDiffer(served: string, shown: string): string[] {
+  const a = elementCounts(served);
+  const b = elementCounts(shown);
+  const out: string[] = [];
+  for (const key of new Set([...a.keys(), ...b.keys()])) {
+    const s = a.get(key) ?? 0;
+    const c = b.get(key) ?? 0;
+    if (s !== c) out.push(`${key}: server ${s}, client ${c}`);
+  }
+  return out.sort().slice(0, 16);
+}
+
+/**
+ * Say what differed between the server's HTML and the page as it now stands.
+ * Exported so that EVERY page a spec opens can be given it — the probes'
+ * pages, and contexts made by hand, were recording the bare error and nothing
+ * else (see `coverage.ts`).
+ */
+export async function explain(page: Page, who: string): Promise<void> {
   try {
     const url = page.url();
     const [served, shown] = await Promise.all([
@@ -52,10 +119,14 @@ async function explain(page: Page, who: string): Promise<void> {
     const b = text(shown);
     let i = 0;
     while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
+    const elements = elementsThatDiffer(served, shown);
+    const structure = elements.length
+      ? `\n  elements the two disagree about:\n    ${elements.join("\n    ")}`
+      : "\n  and the same elements, by tag and class";
     // Same text: the mismatch was in markup or attributes, or has gone by now.
-    if (a === b) return console.log(`[hydration #418] ${who} ${url}\n  server and client text are identical`);
+    if (a === b) return console.log(`[hydration #418] ${who} ${url}\n  server and client text are identical${structure}`);
     console.log(
-      `[hydration #418] ${who} ${url}\n  server: …${a.slice(Math.max(0, i - 80), i + 160)}…\n  client: …${b.slice(Math.max(0, i - 80), i + 160)}…`,
+      `[hydration #418] ${who} ${url}\n  server: …${a.slice(Math.max(0, i - 80), i + 160)}…\n  client: …${b.slice(Math.max(0, i - 80), i + 160)}…${structure}`,
     );
   } catch (err) {
     console.log(`[hydration #418] ${who}: could not compare (${String(err)})`);

@@ -1,6 +1,7 @@
 import { test as base, expect, type BrowserContext } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { explainHydration } from "./page-errors";
 
 /**
  * WHAT THE BROWSER TESTS ACTUALLY TOUCH, WRITTEN DOWN AS THEY RUN.
@@ -52,6 +53,11 @@ async function who(context: BrowserContext): Promise<string> {
 export function recordCoverage(context: BrowserContext): void {
   if (watched.has(context)) return;
   watched.add(context);
+  // Every page of every context explains a hydration mismatch if one lands on
+  // it — see `explainHydration`. Here, because this is the one place every
+  // spec's every context passes through.
+  for (const page of context.pages()) explainHydration(page);
+  context.on("page", (page) => explainHydration(page));
   context.on("request", (request) => {
     const action = request.headers()["next-action"];
     if (action) {
