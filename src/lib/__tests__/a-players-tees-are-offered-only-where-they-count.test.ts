@@ -76,3 +76,44 @@ describe("a flight's set", () => {
     expect(src).not.toContain('teePolicy === "flight"');
   });
 });
+
+/**
+ * AND WHERE THEY ARE OFFERED, THEY ARE SHOWN (2026-10-11).
+ *
+ * The Registration screen draws ONE table three times — the field, the waiting
+ * list, the entries waiting for approval — and the table has a Tees dropdown
+ * on every row. Only the field's rows were handed their tee. So on a
+ * waiting-list row the dropdown saved (the action stores it, properly: the
+ * player may be promoted tomorrow) and then showed the round's set again, on
+ * a row whose tee had just been changed.
+ *
+ * Found by the control crawl once tee saves stopped being refused: nine
+ * choices on the scramble's waiting list, each "lost".
+ *
+ * The three lists are built by ONE mapper, so a field one of them is given is
+ * a field all of them are given.
+ */
+describe("the Registration table's three lists", () => {
+  const page = readSource("src/app/(app)/registration/page.tsx");
+
+  it("are each built by the same mapper", () => {
+    for (const list of ["confirmed", "waitlist", "pendingEntries"]) {
+      const at = page.indexOf(`${list}={`);
+      expect(at, `the page no longer hands the table a ${list} list`).toBeGreaterThan(-1);
+      // The one line that hands it over.
+      const handed = page.slice(at, page.indexOf("\n", at));
+      expect(handed, `${list} is built by hand, apart from the others`).toContain(".map(asRow)}");
+    }
+  });
+
+  it("and that mapper carries the tee", () => {
+    const at = page.indexOf("const asRow");
+    expect(at, "there is no one mapper for the table's rows").toBeGreaterThan(-1);
+    const mapper = page.slice(at, page.indexOf("});", at));
+    expect(mapper).toContain("teeId: p.teeId");
+    // And what the field's rows have always had, so merging lost nothing.
+    for (const field of ["id: p.id", "name: p.name", "handicap: p.handicap", "email: p.email", "phone: p.phone", "promotedAt"]) {
+      expect(mapper, field).toContain(field);
+    }
+  });
+});
