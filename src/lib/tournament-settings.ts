@@ -294,6 +294,56 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
   };
 }
 
+/* ── The club's house defaults ────────────────────────────────────────── */
+
+/**
+ * THE CLUB'S COLUMN FOR EACH SETTING IT CAN SET ONCE FOR EVERY TOURNAMENT.
+ *
+ * The House defaults form is the tournament's settings form in another mode,
+ * so it shows whatever a tournament has. Three places each kept their own
+ * list of what to carry — the save, the page that draws the form and
+ * `settingsForNewEvent` — and all three stopped at six. Weekly sign-up and
+ * "how many playing partners must confirm" were shown, changed, sent, and
+ * answered with "Saved", having been written nowhere: the old value on
+ * reload, and the app's default rather than the club's on the next
+ * tournament (sweep 1, a1, 2026-10-10).
+ *
+ * This is the one list. A setting added to `TournamentSettings` and not added
+ * here fails `house-defaults-are-kept.audit.test.ts` until it is either given
+ * a column or named there with the reason a club cannot set it once.
+ *
+ * `teePolicy` is the one deliberately absent: it is asked beside a
+ * tournament's own tees, and the form hides it where there are none.
+ */
+export const HOUSE_DEFAULT_COLUMNS = {
+  leaderboardVisibility: "defaultLeaderboardVisibility",
+  scoreEntryBy: "defaultScoreEntryBy",
+  scoreEntryWindow: "defaultScoreEntryWindow",
+  voiceEntry: "defaultVoiceEntry",
+  playerAccess: "defaultPlayerAccess",
+  scoreApproval: "defaultScoreApproval",
+  attestBy: "defaultAttestBy",
+  attendanceMode: "defaultAttendanceMode",
+} as const satisfies Partial<Record<keyof TournamentSettings, string>>;
+
+type HouseDefaultKey = keyof typeof HOUSE_DEFAULT_COLUMNS;
+type HouseDefaultColumn = (typeof HOUSE_DEFAULT_COLUMNS)[HouseDefaultKey];
+const HOUSE_DEFAULTS = Object.entries(HOUSE_DEFAULT_COLUMNS) as [HouseDefaultKey, HouseDefaultColumn][];
+
+/** A club's stored defaults, as settings. Anything missing takes the app's default. */
+export function houseDefaultsOf(org: Partial<Record<HouseDefaultColumn, unknown>> | null | undefined): TournamentSettings {
+  const raw: Partial<Record<keyof TournamentSettings, unknown>> = {};
+  for (const [key, column] of HOUSE_DEFAULTS) raw[key] = org?.[column];
+  return cleanSettings(raw);
+}
+
+/** The club's columns to write for a set of settings — every house default, and nothing else. */
+export function houseDefaultColumns(
+  settings: TournamentSettings,
+): { defaultVoiceEntry: boolean } & Record<Exclude<HouseDefaultColumn, "defaultVoiceEntry">, string> {
+  return Object.fromEntries(HOUSE_DEFAULTS.map(([key, column]) => [column, settings[key]])) as ReturnType<typeof houseDefaultColumns>;
+}
+
 /* ── Rules ────────────────────────────────────────────────────────────── */
 
 const IS_STAFF: Record<Role, boolean> = { admin: true, assistant: true, player: false };

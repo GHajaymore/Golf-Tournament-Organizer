@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
+import { cleanSettings, usesAccessCodes, houseDefaultsOf, houseDefaultColumns, type TournamentSettings } from "@/lib/tournament-settings";
 import { lockoutRefusal, revokesCodes } from "@/lib/domain/access-lockout";
 import { generateAccessCode } from "@/lib/codes";
 import { ensureRoundCodes, revokeRoundCodes, strandedEntrantCount } from "@/lib/services/round-codes";
@@ -164,26 +164,13 @@ export async function saveOrganizationDefaults(input: Partial<TournamentSettings
   const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
   if (!org) return { ok: false, error: "No organization found." };
 
-  const current: Partial<TournamentSettings> = {
-    leaderboardVisibility: org.defaultLeaderboardVisibility as TournamentSettings["leaderboardVisibility"],
-    scoreEntryBy: org.defaultScoreEntryBy as TournamentSettings["scoreEntryBy"],
-    scoreEntryWindow: org.defaultScoreEntryWindow as TournamentSettings["scoreEntryWindow"],
-    voiceEntry: org.defaultVoiceEntry,
-    playerAccess: org.defaultPlayerAccess as TournamentSettings["playerAccess"],
-    scoreApproval: org.defaultScoreApproval as TournamentSettings["scoreApproval"],
-  };
-  const next = cleanSettings({ ...current, ...input });
+  // Every house default there is, read and written through the one list —
+  // this named six by hand, and the form sends eight. See HOUSE_DEFAULT_COLUMNS.
+  const next = cleanSettings({ ...houseDefaultsOf(org), ...input });
 
   await prisma.organization.update({
     where: { id: event.organizationId },
-    data: {
-      defaultLeaderboardVisibility: next.leaderboardVisibility,
-      defaultScoreEntryBy: next.scoreEntryBy,
-      defaultScoreEntryWindow: next.scoreEntryWindow,
-      defaultVoiceEntry: next.voiceEntry,
-      defaultPlayerAccess: next.playerAccess,
-      defaultScoreApproval: next.scoreApproval,
-    },
+    data: houseDefaultColumns(next),
   });
 
   await refresh();

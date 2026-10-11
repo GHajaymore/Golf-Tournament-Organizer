@@ -264,6 +264,11 @@ model Organization {
   defaultVoiceEntry            Boolean @default(true)
   defaultPlayerAccess          String  @default("email")
   defaultScoreApproval         String  @default("staff")
+  // Shown on the House defaults form from the day it was built and stored
+  // nowhere until 2026-10-10: the save said "Saved" and wrote neither. Every
+  // setting that form shows has a column here — see HOUSE_DEFAULT_COLUMNS.
+  defaultAttendanceMode        String  @default("everyone")
+  defaultAttestBy              String  @default("marker")
 
   /**
    * Where this club's handicaps come from — "club" or "ghin".

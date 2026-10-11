@@ -42,7 +42,7 @@ function heldUntilLabel(
 }
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
-import { cleanSettings } from "@/lib/tournament-settings";
+import { houseDefaultsOf } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 
@@ -200,14 +200,7 @@ export default async function OrganizationPage() {
       <SettingsSectionAnchor id="defaults">
         <PlaySettings
           mode="organization"
-          settings={cleanSettings({
-            leaderboardVisibility: org.defaultLeaderboardVisibility,
-            scoreEntryBy: org.defaultScoreEntryBy,
-            scoreEntryWindow: org.defaultScoreEntryWindow,
-            voiceEntry: org.defaultVoiceEntry,
-            playerAccess: org.defaultPlayerAccess,
-            scoreApproval: org.defaultScoreApproval,
-          })}
+          settings={houseDefaultsOf(org)}
           canEdit={canEdit}
         />
       </SettingsSectionAnchor>

@@ -6,7 +6,7 @@ import { DEFAULT_PLAN, planFor } from "../plans";
 import {
   DEFAULT_THEME, DEFAULT_APPEARANCE, DEFAULT_CLUB_THEME, isAppearance, type ClubTheme,
 } from "../themes";
-import { cleanSettings } from "../tournament-settings";
+import { houseDefaultsOf } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import { orgNamesLookLikeOne, inTheSameArea, type Whereabouts } from "../domain/org-name-match";
@@ -709,27 +709,12 @@ function factsFrom(
  * already being played.
  */
 export async function settingsForNewEvent(organizationId: string) {
-  const org = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: {
-      defaultLeaderboardVisibility: true,
-      defaultScoreEntryBy: true,
-      defaultScoreEntryWindow: true,
-      defaultVoiceEntry: true,
-      defaultPlayerAccess: true,
-      defaultScoreApproval: true,
-      defaultMaxPerMatch: true,
-    },
-  });
+  // The whole row rather than a hand-kept list of columns: the list is
+  // HOUSE_DEFAULT_COLUMNS, and a second copy here is how two settings the
+  // club's form shows never reached a new tournament.
+  const org = await prisma.organization.findUnique({ where: { id: organizationId } });
 
-  const settings = cleanSettings({
-    leaderboardVisibility: org?.defaultLeaderboardVisibility,
-    scoreEntryBy: org?.defaultScoreEntryBy,
-    scoreEntryWindow: org?.defaultScoreEntryWindow,
-    voiceEntry: org?.defaultVoiceEntry,
-    playerAccess: org?.defaultPlayerAccess,
-    scoreApproval: org?.defaultScoreApproval,
-  });
+  const settings = houseDefaultsOf(org);
 
   // Not a member of TournamentSettings — it is a scoring rule, so it rides
   // alongside rather than through cleanSettings().
