@@ -17,7 +17,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 :root:root {
   --color-accent: #f2872e; /* warm orange */
-  --color-accent-2: #3c8361; /* fairway green */
+  --color-accent-2: #35932c; /* fairway green */
 
   --color-accent-100: #fef3ea;
   --color-accent-200: #fde0cb;
@@ -68,7 +68,7 @@
      the home-screen icon and the mark in the app are one drawing in one set of
      colours; brand-consistency.test.ts holds the two together. */
   --thq-flag: #f2862e;
-  --thq-ball: #5fb484;
+  --thq-ball: #56c74c;
   --thq-orange-light: #f6a566;
   --thq-orange-deep: #d06f23;
   --thq-on-flag: #16181a;
@@ -89,25 +89,25 @@
      beside an 18th green. Every text pair is MEASURED in
      scoreboard-colours.test.ts rather than quoted here; red and green are
      never the only signal, the tile is also ringed or boxed. */
-  --sb-frame: #1f5a3d;
+  --sb-frame: #205e1b;
   --sb-trim: #e8e2cf;
   --sb-board: #fbfaf5;
   --sb-tile: #ffffff;
   --sb-blank: #ece8da;
   --sb-ink: #1b1d1c;
   --sb-red: #b3261e;
-  --sb-green: #1f6b43;
+  --sb-green: #217119;
   --sb-on-frame: #ffffff;
 
-  --color-accent-2-100: #e7f5ec;
-  --color-accent-2-200: #c3e6d0;
-  --color-accent-2-300: #93d0ac;
-  --color-accent-2-400: #5fb484;
-  --color-accent-2-500: #3c8361;
-  --color-accent-2-600: #2e6a4c;
-  --color-accent-2-700: #23503a;
-  --color-accent-2-800: #173627;
-  --color-accent-2-900: #0d2016;
+  --color-accent-2-100: #e6f8e4;
+  --color-accent-2-200: #bfeebb;
+  --color-accent-2-300: #8dde85;
+  --color-accent-2-400: #56c74c;
+  --color-accent-2-500: #35932c;
+  --color-accent-2-600: #287821;
+  --color-accent-2-700: #1e5a19;
+  --color-accent-2-800: #143d10;
+  --color-accent-2-900: #0b2409;
 
   /* Ground: same lightness steps as the foundation, hue nudged warm (off
      blue-black toward a neutral charcoal with a whisper of green) so the

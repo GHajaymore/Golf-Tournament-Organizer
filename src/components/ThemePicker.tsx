@@ -161,8 +161,8 @@ export function ThemePicker({
   const [draft, setDraft] = useState<ClubTheme>(theme);
   // Held separately from the draft so typing a half-finished hex doesn't blank
   // the preview on every keystroke.
-  const [accentHexDraft, setAccentHexDraft] = useState(theme.accentHex || "#1b4d3e");
-  const [secondaryHexDraft, setSecondaryHexDraft] = useState(theme.secondaryHex || "#1b4d3e");
+  const [accentHexDraft, setAccentHexDraft] = useState(theme.accentHex || "#138808");
+  const [secondaryHexDraft, setSecondaryHexDraft] = useState(theme.secondaryHex || "#138808");
 
   const set = (patch: Partial<ClubTheme>) => {
     setDraft((d) => ({ ...d, ...patch }));
@@ -327,7 +327,7 @@ export function ThemePicker({
           value={value}
           disabled={readOnly}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="#1B4D3E"
+          placeholder="#138808"
           aria-label={label}
         />
         {preview && (
@@ -721,8 +721,8 @@ export function ThemePicker({
             }
             onClick={() => {
               setDraft({ ...DEFAULT_CLUB_THEME });
-              setAccentHexDraft("#1b4d3e");
-              setSecondaryHexDraft("#1b4d3e");
+              setAccentHexDraft("#138808");
+              setSecondaryHexDraft("#138808");
               setSaved(false);
               setError("");
             }}

@@ -93,8 +93,14 @@ const HUE = {
    * 31 degrees is still a clear separation at these saturations and the rule
    * it was defending is the real one, so the separation is now asserted by
    * test rather than asserted in prose.
+   *
+   * THE INDIA-FLAG GREEN'S HUE since 2026-10-10 (Ajay, who approved this one
+   * change to the front door by name). It was 151 — the deep, blue-leaning
+   * green the product has moved off everywhere; see the note on the greens in
+   * `themes.ts`. It is now 93 degrees from the identity orange, not 31, and
+   * `greens-are-leaf-greens.test.ts` grades what this page generates from it.
    */
-  flag: 151,
+  flag: 115,
 };
 
 /** How far apart identity and meaning have to stay, in degrees of hue. */

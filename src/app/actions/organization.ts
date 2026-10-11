@@ -317,7 +317,7 @@ export async function saveOrganizationTheme(
   // preset name through.
   if (themeKey === "custom") {
     if (!hexToHsl(themeHex)) {
-      return { ok: false, error: "Enter a colour like #1B4D3E, or pick one of the presets." };
+      return { ok: false, error: "Enter a colour like #138808, or pick one of the presets." };
     }
   } else if (!isThemeKey(themeKey)) {
     return { ok: false, error: "Unknown theme." };
@@ -325,7 +325,7 @@ export async function saveOrganizationTheme(
 
   if (secondaryKey === "custom") {
     if (!hexToHsl(secondaryHex)) {
-      return { ok: false, error: "Enter a second colour like #1B4D3E, or pick one of the presets." };
+      return { ok: false, error: "Enter a second colour like #138808, or pick one of the presets." };
     }
   } else if (!SECONDARY_PRESETS.some((p) => p.key === secondaryKey)) {
     return { ok: false, error: "Unknown second colour." };
