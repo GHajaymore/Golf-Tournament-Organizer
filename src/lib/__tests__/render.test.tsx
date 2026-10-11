@@ -5311,7 +5311,9 @@ describe("MessagesClient", () => {
     },
   ];
   const composable = [{ key: "foursome:s1#Group 1", label: "Your group — Group 1", kind: "foursome" }];
-  const people = [{ name: "Sam Ellis", email: "sam@example.invalid" }];
+  // A person to message is a name and their entry in the tournament — the
+  // picker was sent every entrant's email address until 2026-10-11.
+  const people = [{ name: "Sam Ellis", id: "player-sam" }];
 
   it("lists conversations with their unread counts", async () => {
     const { MessagesClient } = await import("@/components/MessagesClient");

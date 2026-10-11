@@ -8,6 +8,7 @@ import {
   postToScope,
   staffBroadcast,
   openDirectThread,
+  openDirectThreadWithPlayers,
   markRead,
   unreadTotal,
   messageableField,
@@ -386,8 +387,10 @@ describe("turning direct messages off", () => {
     // being refused is not much of an opt-out.
     const rita = (await ctxFor("rita"))!;
     const book = await messageableField(rita);
-    expect(book.map((p) => p.email)).not.toContain(at("sam"));
-    expect(book.map((p) => p.email)).toContain(at("dev"));
+    // By their entry in the tournament: the book no longer carries addresses
+    // (2026-10-11 — it sent every entrant's to every player).
+    expect(book.map((p) => p.id)).not.toContain(player.sam);
+    expect(book.map((p) => p.id)).toContain(player.dev);
   });
 
   it("does not silence the organizer", async () => {
@@ -570,5 +573,91 @@ describe("how destinations are labelled", () => {
     const admin = (await ctxFor("olive", "admin"))!;
     const rounds = (await composableScopes(admin)).filter((s) => s.kind === "round");
     expect(rounds.map((r) => r.label)).toEqual(["Round 1 — Round Robin", "Round 2 — Round Robin"]);
+  });
+});
+
+/**
+ * WHAT THE MESSAGES SCREEN SENDS A PLAYER ABOUT OTHER PEOPLE (2026-10-11).
+ *
+ * Messaging is keyed on email addresses inside — who is in a conversation,
+ * who wrote a message, who has read what. All of that used to be sent to the
+ * browser as it stood: the "message anyone in the field" picker carried every
+ * entrant's address as its value, a direct conversation's key WAS its
+ * participants' addresses, and every message carried its author's.
+ *
+ * So any player in a tournament could read every other entrant's email address
+ * out of the page. Found by the every-action sweep, which reads each answer
+ * for one member's details shown to another.
+ *
+ * What goes to the browser now names people and holds nobody's address: a
+ * person is picked by their entry in this tournament, and a direct
+ * conversation by the conversation.
+ */
+describe("what the Messages screen sends about other people", () => {
+  beforeAll(async () => {
+    await prisma.member.updateMany({ where: { organizationId: orgId }, data: { messagesOptOut: false } });
+  });
+
+  it("the address book names people and holds nobody's address", async () => {
+    const rita = (await ctxFor("rita"))!;
+    const book = await messageableField(rita);
+    expect(book.map((p) => p.name)).toContain(`${TAG} dev`);
+    expect(JSON.stringify(book), "the picker carries an email address").not.toContain("@");
+    // Each person is who they are in THIS tournament, and nothing wider.
+    expect(book.find((p) => p.name === `${TAG} dev`)?.id).toBe(player.dev);
+  });
+
+  it("a person is picked by their entry in this tournament", async () => {
+    const rita = (await ctxFor("rita"))!;
+    const opened = await openDirectThreadWithPlayers(rita, [player.dev], "Rita", "tee time?");
+    expect(opened.ok).toBe(true);
+    const dev = (await ctxFor("dev"))!;
+    expect((await threadsFor(dev)).map((t) => t.id)).toContain(opened.threadId);
+  });
+
+  it("refuses an id that is not somebody entered in this tournament", async () => {
+    const rita = (await ctxFor("rita"))!;
+    for (const notAPlayerHere of [matchId, "nobody", at("dev")]) {
+      const res = await openDirectThreadWithPlayers(rita, [notAPlayerHere], "Rita", "hello");
+      expect(res.ok, notAPlayerHere).toBe(false);
+    }
+  });
+
+  it("a direct conversation, listed and opened, holds nobody's address", async () => {
+    const rita = (await ctxFor("rita"))!;
+    const opened = await openDirectThreadWithPlayers(rita, [player.dev], "Rita", "see you on the first");
+    const list = await threadsFor(rita);
+    const view = await threadView(rita, opened.threadId!);
+    expect(view?.messages.length).toBeGreaterThan(0);
+    expect(JSON.stringify(list), "the conversation list carries an email address").not.toContain("@");
+    expect(JSON.stringify(view), "an open conversation carries an email address").not.toContain("@");
+  });
+
+  it("CONTROL: the key the screen is given still posts to that conversation — for the two in it, and nobody else", async () => {
+    const rita = (await ctxFor("rita"))!;
+    const dev = (await ctxFor("dev"))!;
+    const sam = (await ctxFor("sam"))!;
+    const opened = await openDirectThreadWithPlayers(rita, [player.dev], "Rita", "one more thing");
+    const key = (await threadView(rita, opened.threadId!))!.scopeKey;
+
+    const fromRita = await postToScope(rita, key, "bring the card", "Rita");
+    expect(fromRita).toMatchObject({ ok: true, threadId: opened.threadId });
+    const fromDev = await postToScope(dev, key, "will do", "Dev");
+    expect(fromDev).toMatchObject({ ok: true, threadId: opened.threadId });
+    // One conversation, not a second one made from the key.
+    const said = (await threadView(dev, opened.threadId!))!.messages.map((m) => m.body);
+    expect(said).toEqual(expect.arrayContaining(["bring the card", "will do"]));
+
+    const fromSam = await postToScope(sam, key, "let me in", "Sam");
+    expect(fromSam.ok, "somebody outside the conversation posted to it with its key").toBe(false);
+    expect((await threadView(rita, opened.threadId!))!.messages.map((m) => m.body)).not.toContain("let me in");
+  });
+
+  it("CONTROL: a message still knows which are the reader's own", async () => {
+    const rita = (await ctxFor("rita"))!;
+    const opened = await openDirectThreadWithPlayers(rita, [player.dev], "Rita", "mine");
+    const view = (await threadView((await ctxFor("dev"))!, opened.threadId!))!;
+    expect(view.messages.find((m) => m.body === "mine")?.mine).toBe(false);
+    expect((await threadView(rita, opened.threadId!))!.messages.find((m) => m.body === "mine")?.mine).toBe(true);
   });
 });

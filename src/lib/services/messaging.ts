@@ -21,6 +21,8 @@ import { flightLabel } from "@/lib/domain/flight-label";
 import {
   scopeKey,
   parseScopeKey,
+  outwardScopeKey,
+  threadInOutwardKey,
   visibleScopes,
   canPostToScope,
   canReadScope,
@@ -302,7 +304,9 @@ export async function threadsFor(ctx: MembershipContext): Promise<ThreadListItem
     const last = msgs[msgs.length - 1];
     return {
       id: t.id,
-      scopeKey: t.scopeKey,
+      // What the browser holds — never a direct conversation's stored key,
+      // which is its participants' addresses. See `outwardScopeKey`.
+      scopeKey: outwardScopeKey(t.scopeKey, t.id),
       kind,
       title: t.title || scopeLabel(kind, ctx.orgNoun),
       label: scopeLabel(kind, ctx.orgNoun),
@@ -325,7 +329,12 @@ export async function threadsFor(ctx: MembershipContext): Promise<ThreadListItem
 
 export interface ThreadMessage {
   id: string;
-  authorEmail: string;
+  /**
+   * Who wrote it, by name. The author's ADDRESS is deliberately not here: this
+   * goes to every reader of the conversation, and a flight's thread would hand
+   * each of its readers the address of everybody who had posted. `mine` is
+   * the one thing the address was needed for.
+   */
   authorName: string;
   body: string;
   createdAt: number;
@@ -376,14 +385,13 @@ export async function threadView(ctx: MembershipContext, threadId: string): Prom
   const kind = (parsed?.kind ?? "event") as ScopeKind;
   return {
     id: thread.id,
-    scopeKey: thread.scopeKey,
+    scopeKey: outwardScopeKey(thread.scopeKey, thread.id),
     kind,
     title: thread.title || scopeLabel(kind, ctx.orgNoun),
     label: scopeLabel(kind, ctx.orgNoun),
     canPost: canPostToScope(ctx, thread.scopeKey),
     messages: messages.map((m) => ({
       id: m.id,
-      authorEmail: m.authorEmail,
       authorName: m.authorName,
       body: m.body,
       createdAt: m.createdAt.getTime(),
@@ -413,6 +421,17 @@ export async function postToScope(
   authorName: string,
   title = "",
 ): Promise<PostResult> {
+  const named = threadInOutwardKey(key);
+  if (named) {
+    // The id narrows; it never authorises. The conversation has to be one of
+    // this person's own, by the same derived set every read is filtered on.
+    const mine = await prisma.thread.findFirst({
+      where: { id: named, organizationId: ctx.organizationId, scopeKey: { in: visibleScopes(ctx) } },
+      select: { scopeKey: true },
+    });
+    if (!mine) return { ok: false, error: "You can't post there." };
+    key = mine.scopeKey;
+  }
   const parsed = parseScopeKey(key);
   if (!parsed) return { ok: false, error: "Unknown conversation." };
   if (!canPostToScope(ctx, key)) return { ok: false, error: "You can't post there." };
@@ -469,6 +488,31 @@ export async function markRead(ctx: MembershipContext, threadId: string): Promis
  * would be an open message-anybody endpoint, and the address book is the whole
  * club.
  */
+/**
+ * Start or find a direct conversation with people picked from the address
+ * book — each named by their entry in THIS tournament, which is all the
+ * browser was given. Anything that is not one is refused before a thread
+ * exists; the addresses are looked up here and never leave.
+ */
+export async function openDirectThreadWithPlayers(
+  ctx: MembershipContext,
+  playerIds: string[],
+  authorName: string,
+  firstMessage = "",
+): Promise<PostResult> {
+  const wanted = [...new Set((Array.isArray(playerIds) ? playerIds : []).filter((id) => typeof id === "string" && id))];
+  if (wanted.length === 0) return { ok: false, error: "Pick somebody to message." };
+  if (wanted.length > 20) return { ok: false, error: "That's too many people for one conversation." };
+  const players = await prisma.player.findMany({
+    where: { id: { in: wanted }, eventId: ctx.eventId, email: { not: "" } },
+    select: { email: true },
+  });
+  if (players.length !== wanted.length) {
+    return { ok: false, error: "One of those people isn't in this tournament — reload and pick again." };
+  }
+  return openDirectThread(ctx, players.map((p) => p.email), authorName, firstMessage);
+}
+
 export async function openDirectThread(
   ctx: MembershipContext,
   withEmails: string[],
@@ -607,11 +651,11 @@ export async function setMessagesOptOut(ctx: MembershipContext, optOut: boolean)
  */
 export async function messageableField(
   ctx: MembershipContext,
-): Promise<{ name: string; email: string }[]> {
+): Promise<{ name: string; id: string }[]> {
   const [field, optedOut] = await Promise.all([
     prisma.player.findMany({
       where: { eventId: ctx.eventId, email: { not: "" } },
-      select: { name: true, email: true },
+      select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     prisma.member.findMany({
@@ -620,10 +664,16 @@ export async function messageableField(
     }),
   ]);
   const off = new Set(optedOut.map((m) => m.email.trim().toLowerCase()).filter(Boolean));
-  return field.filter((p) => {
-    const e = p.email.trim().toLowerCase();
-    return e !== ctx.email && !off.has(e);
-  });
+  // The address decides who is listed and then STAYS HERE: what goes to the
+  // browser is a name and the person's entry in this tournament. This list
+  // carried `email`, and the picker used it as its value — so every player
+  // was sent every other entrant's address (2026-10-11).
+  return field
+    .filter((p) => {
+      const e = p.email.trim().toLowerCase();
+      return e !== ctx.email && !off.has(e);
+    })
+    .map((p) => ({ name: p.name, id: p.id }));
 }
 
 /**

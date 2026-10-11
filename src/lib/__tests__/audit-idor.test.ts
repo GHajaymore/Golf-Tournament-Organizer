@@ -235,8 +235,13 @@ const EXEMPT: Record<string, string> = {
     "never selects a row, only narrows one: every delete is already bounded by { eventId, stageId }, and the ids just shrink that set further — a foreign id matches nothing",
   "tournament.ts:saveTeamScorecard:playerId":
     "narrowed by membership instead of by event: team.members.some(m => m.playerId === playerId), on a team already proven to be this event's",
+  // RE-WRITTEN 2026-10-11. This read "a slot label… never used as a lookup key
+  // … so a foreign id renders as nothing" — an argument for why no check was
+  // needed, and the every-action sweep then stored another club's player as a
+  // winner through it. The exemption is now for a check that EXISTS and that
+  // this test's patterns cannot see: a comparison against the tie's two seats.
   "tournament.ts:setBracketWinner:winnerId":
-    "a slot label written into this event's own BracketWinner row, never used as a lookup key — the bracket only ever compares it against its own slots, so a foreign id renders as nothing",
+    "held to tieByKey(bracketDraws(state.brackets), key): refused unless it is one of the two players of that tie in this event's own draw — pinned by what-the-every-action-sweep-found.audit.test.ts",
   "tournament.ts:reportBracketResult:winnerId":
     "narrower than setBracketWinner's: tieReportRefusal refuses any winnerId that is not one of the two seats of the tie, read off this event's own draw by tieByKey — and the reporter must hold one of those seats (myPlayerIds on this event). Pinned in a-player-reports-their-tie.audit.test.ts, which refuses a winner from another tie",
   "side-games.ts:confirmSideGameEntry:playerId":
@@ -249,8 +254,13 @@ const EXEMPT: Record<string, string> = {
     "same fieldIds(eventId, ids) narrowing: a winner is only recorded for a player this tournament actually has, so a stranger's id cannot be handed a pot",
   "tournament.ts:createEvent:chosenOrganizationId":
     "organizationForNewEvent re-reads it as prisma.organizationMember.findFirst({ userId, organizationId: wanted, role: { in: ['owner','admin'] } }) and falls back to the caller's own default when that returns nothing — so an id belonging to somebody else's club creates the event in the caller's organization rather than in theirs; the scope check is one frame down, in the one function that resolves this and cannot be bypassed by a caller",
+  // RE-WRITTEN 2026-10-11, for the same reason as setBracketWinner above: it
+  // said the id was "only ever matched against this event's field", and that
+  // was all that stood between it and a stranger's id on the row.
   "tournament.ts:setPrizeWinner:winnerId":
-    "same shape: stored on this event's own Prize row and only ever matched against this event's field",
+    "looked up as prisma.player.findFirst({ where: { id, eventId } }) under another name (id) before anything is written, and refused when it is not in the field — pinned by what-the-every-action-sweep-found.audit.test.ts",
+  "messaging.ts:startDirectThread:playerIds":
+    "openDirectThreadWithPlayers(ctx, playerIds) re-queries every id as prisma.player.findMany({ id in, eventId: ctx.eventId }) and refuses unless every one came back — the scope check is one frame down, pinned by messaging.audit.test.ts",
 };
 
 describe("no action trusts a row id it was handed", () => {

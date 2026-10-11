@@ -151,7 +151,8 @@ export function MessagesClient({
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
   /** Everyone in the field, minus anyone who has turned direct messages off. */
-  people: { name: string; email: string }[];
+  /** Who can be messaged: a name, and their entry in this tournament — never an address. */
+  people: { name: string; id: string }[];
   isStaff: boolean;
   /** This reader has turned off direct messages from other players. */
   optedOut?: boolean;
@@ -305,7 +306,7 @@ export function MessagesClient({
             >
               {!m.mine && (
                 <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.75, marginBottom: 2 }}>
-                  {m.authorName || m.authorEmail}
+                  {m.authorName || "A player"}
                 </div>
               )}
               <div data-authored style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
@@ -587,7 +588,8 @@ export function ComposePanel({
   isStaff,
 }: {
   composable: { key: string; label: string; kind: string }[];
-  people: { name: string; email: string }[];
+  /** Who can be messaged: a name, and their entry in this tournament — never an address. */
+  people: { name: string; id: string }[];
   onOpen: (threadId: string) => void;
   isStaff: boolean;
 }) {
@@ -604,7 +606,7 @@ export function ComposePanel({
   // Which of the two selects wins, and what that costs — resolved in one place
   // rather than inferred from the word "…or" inside a placeholder.
   const audience = messageAudience({
-    personName: people.find((p) => p.email === person)?.name ?? "",
+    personName: people.find((p) => p.id === person)?.name ?? "",
     scopeLabel: composable.find((c) => c.key === target)?.label ?? "",
     alsoText,
   });
@@ -698,7 +700,7 @@ export function ComposePanel({
         >
           <option value="">…or one person</option>
           {people.map((p) => (
-            <option key={p.email} value={p.email}>
+            <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
