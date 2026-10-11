@@ -6,18 +6,24 @@ import { readSource } from "./source";
 /**
  * AN ACTION THAT CHANGES THE CLUB ASKS WHO IS ASKING (2026-10-11).
  *
- * `audit-idor.test.ts` holds every server action to "it checks authorization",
- * and for a club-level action that check is two steps: WHICH club is this
+ * For a club-level action, authorization is two steps: WHICH club is this
  * person in (`currentOrganization()`), and MAY THEY change it (`canEdit`,
  * owner-only for billing). The first step alone answers "yes" for every
  * member of the club — a player, a guest entered for one charity day.
  *
+ * Nothing held the second step. `audit-idor.test.ts` asks a different
+ * question — does a ROW ID the caller sent belong to them — and an action
+ * that takes no id, like "set the club's time zone", is not its subject at
+ * all (CLAUDE.md summarised it as "every server action checks authorization",
+ * which said more than it does).
+ *
  * Found by mutation: with the role check deleted from the new time-zone
- * setting, `audit-idor` stayed green — a member could have moved every
- * deadline in their club — and so did the every-action sweep, whose made-up
- * arguments are refused by the action's own validation before the missing
- * check could matter. Nothing was wrong in the nineteen actions that existed;
- * nothing would have said so if something had been.
+ * setting, every unit guard stayed green — a member could have moved every
+ * deadline in their club — and the every-action sweep could not see it
+ * either, because its made-up arguments are refused by the action's own
+ * validation before the missing check could matter. Nothing was wrong in the
+ * nineteen actions that existed; nothing would have said so if something had
+ * been.
  *
  * Source is read through `readSource`, which strips comments: these actions'
  * own doc blocks say "Only a Commissioner or Admin…", and prose must not be

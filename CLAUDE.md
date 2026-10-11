@@ -1101,7 +1101,12 @@ workflow" fails at signing. That is a missing certificate, not a broken file.
 The suite is not only about behaviour — several files exist to make a whole class of mistake
 impossible. Extend these rather than working around them.
 
-- `audit-idor.test.ts` — every server action checks authorization.
+- `audit-idor.test.ts` — a row id an action is handed belongs to the caller: looked up with a
+  scope key, or compared afterwards. That is ALL it asks. This line used to read "every server
+  action checks authorization", which it does not: an action that takes no id is not its subject.
+- `club-actions-check-the-role.test.ts` — an action that works on the caller's club asks their
+  ROLE (`canEdit`), not only which club they are in. Added 2026-10-11 after deleting that check
+  from one action left every guard green.
 - `themes.test.ts` — every accent ramp and neutral ramp clears its contrast floor on both
   grounds, and stays monotonic.
 - `brand-consistency.test.ts` — the logo is drawn once, at a size from `LOGO_SIZE`.
