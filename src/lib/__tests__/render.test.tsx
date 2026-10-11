@@ -8147,9 +8147,13 @@ describe("the sign-up password field", () => {
   const signUp = () =>
     renderToStaticMarkup(<LoginPanel initialMode="signup" autoFocusFields={false} />);
 
-  /** The hint element itself, not merely the text. */
+  /**
+   * The hint element itself, not merely the text. It carries an id since
+   * 2026-10-11 — the box names it as its description — so the class is found
+   * wherever it stands among the attributes.
+   */
   const HINT = new RegExp(
-    `<span class="text-muted"[^>]*>At least ${MIN_PASSWORD_LENGTH} characters</span>`,
+    `<span [^>]*class="text-muted"[^>]*>At least ${MIN_PASSWORD_LENGTH} characters</span>`,
   );
 
   it("states the length requirement in a HINT, not only a placeholder", () => {
@@ -10002,5 +10006,63 @@ describe("a bet on the match on the Prizes screen", () => {
     expect(out).toContain("In the pot (0)");
     expect(out).toContain("how a pot fills");
     expect(out).not.toContain("Applies to every match in this round");
+  });
+});
+
+/**
+ * A FIELD'S LABEL IS FOR ITS BOX (2026-10-11).
+ *
+ * On the log-in form, tapping the word "Password" opened "Reset your
+ * password". The whole field was one `<label>`, and "Forgot?" — a button — sat
+ * inside it ahead of the box: a label belongs to the FIRST control inside it,
+ * so it belonged to the button. The password box had no label at all, and the
+ * button's own name was lost to a screen reader.
+ *
+ * Found by the first browser test to use the log-in form as a person does
+ * (`e2e/front-door.spec.ts`); every other spec arrives already signed in.
+ */
+describe("a field's label on the log-in panel", () => {
+  const panels = {
+    "log in": () => renderToStaticMarkup(<LoginPanel initialMode="login" autoFocusFields={false} />),
+    "sign up": () => renderToStaticMarkup(<LoginPanel initialMode="signup" autoFocusFields={false} />),
+  };
+  /** Every `<label>…</label>` on the panel, whole. */
+  const labels = (html: string) =>
+    html
+      .split("<label")
+      .slice(1)
+      .map((piece) => "<label" + piece.slice(0, piece.indexOf("</label>")));
+
+  for (const [mode, render] of Object.entries(panels)) {
+    it(`holds no button — ${mode}`, () => {
+      const holding = labels(render()).filter((l) => l.includes("<button"));
+      expect(holding.map((l) => l.slice(0, 80))).toEqual([]);
+    });
+
+    it(`names the box it is for — ${mode}`, () => {
+      const html = render();
+      for (const label of labels(html).filter((l) => !l.includes("<input"))) {
+        const at = label.indexOf('for="');
+        expect(at, `a label that is for nothing: ${label.slice(0, 80)}`).toBeGreaterThan(-1);
+        const id = label.slice(at + 5, label.indexOf('"', at + 5));
+        expect(html, `no box with the id ${id}`).toContain(`id="${id}"`);
+      }
+    });
+  }
+
+  it("the password box is the one 'Password' is for, and 'Forgot?' is its own button", () => {
+    const html = panels["log in"]();
+    const label = labels(html).find((l) => l.includes(">Password"));
+    expect(label, "no label reading Password").toBeTruthy();
+    const at = label!.indexOf('for="');
+    const id = label!.slice(at + 5, label!.indexOf('"', at + 5));
+    const box = html.slice(html.indexOf(`id="${id}"`) - 200, html.indexOf(`id="${id}"`) + 200);
+    expect(box).toContain('name="password"');
+    expect(html).toContain(">Forgot?</button>");
+  });
+
+  it("CONTROL: the reader finds a label that does hold a button", () => {
+    expect(labels('<div><label class="field"><span>Password<button type="button">Forgot?</button></span><input/></label></div>')).toHaveLength(1);
+    expect(labels('<label class="field"><button>x</button></label>')[0]).toContain("<button");
   });
 });
