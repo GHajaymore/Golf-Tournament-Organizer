@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { ACCENT_PRESETS, FAIRWAY, SECONDARY_PRESETS, THEME_PAIRS, hexToHsl, themeScale, DARK_GROUND, LIGHT_GROUND } from "../themes";
+import { LANDING_HUES, landingTokens } from "../landing-palette";
 
 /**
  * TOURNEYHQ'S GREEN IS THE INDIA-FLAG GREEN (Ajay, 2026-10-10).
@@ -107,6 +108,19 @@ describe("no colour in the product sits in the deep blue-leaning green band", ()
     const keys = new Set([...ACCENT_PRESETS, ...SECONDARY_PRESETS].map((p) => p.key));
     for (const pair of THEME_PAIRS) {
       expect(keys.has(pair.accentKey) && keys.has(pair.secondaryKey), `${pair.name} names a colour that is not a preset`).toBe(true);
+    }
+  });
+
+  it("holds for the front door, whose colours are generated from hues rather than written", () => {
+    // The landing page keeps its own palette, solved from a handful of hue
+    // NUMBERS (`flag: 151` was one), so no hex of its green exists in the
+    // source for the sweep below to read. Its green was found by reading the
+    // file, after the sweep had passed without it.
+    expect(inBand(LANDING_HUES.flag, 1), `the landing's green is at hue ${LANDING_HUES.flag}`).toBe(false);
+    for (const appearance of ["dark", "light"] as const) {
+      const css = landingTokens(appearance, "");
+      expect(css).toContain("--flag:");
+      expect(offenders(css), `the ${appearance} landing draws a colour in the band`).toEqual([]);
     }
   });
 
