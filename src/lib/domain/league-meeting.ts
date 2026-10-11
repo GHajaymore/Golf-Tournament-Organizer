@@ -238,3 +238,27 @@ export function meetingsIn(pairings: readonly PairingResult[]): [string, string]
   }
   return [...seen.values()];
 }
+
+/**
+ * What the League settings form sends for its two number boxes.
+ *
+ * Each box is on screen only some of the time: the match bonus for the one
+ * scoring system that has one, the pairs count while the league is on at
+ * all. The form sent both regardless, an emptied box as not-a-number — so a
+ * bonus emptied and then HIDDEN by a change of scoring refused the save over
+ * a box nobody could see.
+ *
+ * A hidden box sends what is stored. A visible one sends what was typed, and
+ * an emptied visible one still goes as not-a-number, so the server names it
+ * rather than reading it as zero.
+ */
+export function leagueSettingsToSend(
+  form: { system: LeaguePointsSystem | ""; bonus: string; pairs: string },
+  stored: { matchBonus: number; pairs: number },
+): { matchBonus: number; pairs: number } {
+  const typed = (text: string) => (text.trim() === "" ? Number.NaN : Number(text));
+  return {
+    matchBonus: form.system === "holes-and-match" ? typed(form.bonus) : stored.matchBonus,
+    pairs: form.system !== "" ? typed(form.pairs) : stored.pairs,
+  };
+}

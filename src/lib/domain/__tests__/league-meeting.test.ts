@@ -234,3 +234,45 @@ describe("a pairing with no card at all", () => {
     }
   });
 });
+
+/**
+ * A BOX THAT IS NOT ON SCREEN CANNOT REFUSE THE SAVE (sweep 1, a6, 2026-10-10).
+ *
+ * League settings shows the match-bonus box for one scoring system only, and
+ * the pairs box only while the league is on. The save sent both regardless,
+ * an emptied box as "not a number". So: empty the bonus, switch the scoring
+ * to match play — the bonus box disappears — press Save, and the save is
+ * refused with "The match bonus is a whole number from 0 to 18", about a box
+ * the screen is no longer showing.
+ *
+ * A box that is hidden sends what is stored; only a box somebody can see can
+ * be wrong.
+ */
+describe("what League settings sends", () => {
+  const stored = { matchBonus: 2, pairs: 6 };
+
+  it("sends a visible box as typed, an emptied one as not-a-number so it is named", async () => {
+    const { leagueSettingsToSend } = await import("../league-meeting");
+    const sent = leagueSettingsToSend({ system: "holes-and-match", bonus: "", pairs: "5" }, stored);
+    expect(Number.isNaN(sent.matchBonus)).toBe(true);
+    expect(sent.pairs).toBe(5);
+  });
+
+  it("sends the stored bonus when the scoring system has no bonus box", async () => {
+    const { leagueSettingsToSend, LEAGUE_POINTS_SYSTEMS } = await import("../league-meeting");
+    for (const system of LEAGUE_POINTS_SYSTEMS.filter((s) => s !== "holes-and-match")) {
+      const sent = leagueSettingsToSend({ system, bonus: "", pairs: "6" }, stored);
+      expect(sent.matchBonus, `${system}: refused over a box that is not shown`).toBe(2);
+    }
+  });
+
+  it("sends the stored pairs when the league is switched off and that box is gone too", async () => {
+    const { leagueSettingsToSend } = await import("../league-meeting");
+    expect(leagueSettingsToSend({ system: "", bonus: "", pairs: "" }, stored)).toEqual({ matchBonus: 2, pairs: 6 });
+  });
+
+  it("the screen sends through it", async () => {
+    const { readSource } = await import("@/lib/__tests__/source");
+    expect(readSource("src/components/LeagueSettings.tsx")).toContain("leagueSettingsToSend(");
+  });
+});
