@@ -4,6 +4,9 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { bracketScreenName } from "@/lib/domain/bracket-name";
+import { stageTypeInfo } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
@@ -28,15 +31,46 @@ export default async function BracketPage() {
   if (!canSeeLeaderboard(settingsOf(state.event), session.viewRole)) redirect("/dashboard");
 
   /**
-   * NO KNOCKOUT ROUND, NO BRACKET MANAGER. The menu has withheld this screen
-   * from such a tournament since it existed (`nav.ts`), but a typed address or
-   * an old bookmark still opened it — and it drew one: a 36-hole stroke-play
-   * championship got "Seeded from qualification", an empty Final, and "0
-   * players qualify for the knockout round" about a round it does not have
-   * (found by the control crawler, 2026-10-10). The week sheet already sends
-   * a tournament with no rounds back to the dashboard; this is the same answer.
+   * NO KNOCKOUT ROUND, NO BRACKET — AND THE SCREEN SAYS SO.
+   *
+   * The menu has withheld this screen from such a tournament since it existed
+   * (`nav.ts`), but a typed address or an old bookmark still opened it — and
+   * it drew one: a 36-hole stroke-play championship got "Seeded from
+   * qualification", an empty Final, and "0 players qualify for the knockout
+   * round" about a round it does not have (found by the control crawler,
+   * 2026-10-10).
+   *
+   * It says what is missing and where to add it, the way the Team cup screen
+   * does for a tournament with no sessions. For one night it sent the visitor
+   * to the dashboard instead; a bookmark that lands somewhere else without a
+   * word is its own small confusion, and the layout sweeps — which measure
+   * every route for a heading, its icons and sideways scroll — had nothing
+   * left to measure here.
    */
-  if (!hasKnockoutStage(state.stages)) redirect("/dashboard");
+  if (!hasKnockoutStage(state.stages)) {
+    const staff = session.viewRole === "admin" || session.viewRole === "assistant";
+    return (
+      <>
+        <div style={{ marginBottom: 20 }}>
+          <div className="page-kicker">Manage</div>
+          <h1 className="page-title">{bracketScreenName(!staff)}</h1>
+        </div>
+        <div className="card elev-sm" style={{ maxWidth: "62ch" }}>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>
+            This tournament has no knockout round, so there is no bracket to draw.
+            {staff ? (
+              <>
+                {" "}Add a round of type <strong>{stageTypeInfo("Bracket Stage").label}</strong> on{" "}
+                <Link href="/stages">Rounds &amp; formats</Link> and the draw appears here.
+              </>
+            ) : (
+              " Its results are on the leaderboard."
+            )}
+          </p>
+        </div>
+      </>
+    );
+  }
 
   const bw = await prisma.bracketWinner.findMany({ where: { eventId: session.eventId } });
   const results: Record<string, string> = {};

@@ -98,16 +98,25 @@ async function signIn(context: BrowserContext, baseURL: string, session: string 
  * draw. Where the menu withholds one, a typed address must not open it as
  * though the tournament had that thing: the bracket manager drew an empty
  * Final and "0 players qualify for the knockout round" for a 36-hole
- * stroke-play championship (2026-10-10). Such a screen sends the visitor back.
+ * stroke-play championship (2026-10-10).
+ *
+ * Such a screen SAYS SO — what is missing, in words — and prints nothing that
+ * belongs to the thing it does not have. It does not have to send the visitor
+ * away: for one night the bracket did, and a bookmark that lands on the
+ * dashboard without a word is its own small confusion, besides leaving the
+ * layout sweeps nothing to measure on that route.
  *
  * `/week` is NOT in this list, and was for one run. The menu withholds "This
  * week" from a one-round tournament because it would be a second name for the
  * leaderboard, not because the sheet is wrong there: it reports that one
  * round's real results, read-only. A duplicate door is a menu decision; a
- * screen describing something that does not exist is a defect. `/cup` is out
- * for the same reason — it says in words what is missing and where to add it.
+ * screen describing something that does not exist is a defect. `/cup` has
+ * always said in words what is missing and where to add it, which is the
+ * pattern the bracket now follows.
  */
-const ABOUT_ONE_THING = ["/bracket"];
+const ABOUT_ONE_THING: Record<string, { says: RegExp; neverPrints: RegExp }> = {
+  "/bracket": { says: /no knockout round/i, neverPrints: /qualify for the knockout|Seeded from|\bFinal\b/ },
+};
 
 async function look(
   page: Page,
@@ -115,7 +124,8 @@ async function look(
   who: string,
   findings: Finding[],
   mustStay: boolean,
-  mustLeave = false,
+  /** For a screen about something this tournament does not have: what it must say, and what it must not print. */
+  withoutIts: { says: RegExp; neverPrints: RegExp } | null = null,
   /** Addresses that must not be anywhere in what this visitor is sent — the page's data included. */
   notTheirs: string[] = [],
 ) {
@@ -145,12 +155,16 @@ async function look(
     return;
   }
   if (landed !== path.split("?")[0]) return; // a redirect this visitor is meant to get
-  if (mustLeave) findings.push({ where, what: "opened as though this tournament had one — the menu withholds it here" });
 
   const seen = await page.evaluate(() => ({
     text: document.body.innerText,
     h1: document.querySelectorAll("h1").length,
   }));
+  if (withoutIts) {
+    if (!withoutIts.says.test(seen.text)) findings.push({ where, what: "does not say this tournament has none — the menu withholds it here" });
+    const pretends = withoutIts.neverPrints.exec(seen.text);
+    if (pretends) findings.push({ where, what: `opened as though this tournament had one: prints "${pretends[0]}"` });
+  }
   const bad = PROGRAMMER_VALUE.exec(seen.text);
   if (bad) {
     const at = Math.max(0, bad.index - 40);
@@ -208,7 +222,7 @@ test("the secretary can open every console screen on every tournament the club h
       await look(
         page, path, `secretary · ${event.slug} (${event.status})`, findings,
         offered.has(path) || path === "/dashboard",
-        !offered.has(path) && ABOUT_ONE_THING.includes(path),
+        !offered.has(path) ? (ABOUT_ONE_THING[path] ?? null) : null,
       );
       looked += 1;
     }
@@ -239,7 +253,7 @@ test("a member can open every player screen on every tournament the club has", a
       const before = findings.length;
       // Not `mustStay`: a member who is not in a tournament is properly sent
       // elsewhere from some screens. The control below is that MOST stayed.
-      await look(page, path, `member · ${event.slug} (${event.status})`, findings, false, false, othersEmails);
+      await look(page, path, `member · ${event.slug} (${event.status})`, findings, false, null, othersEmails);
       looked += 1;
       if (new URL(page.url()).pathname === path && findings.length === before) stayed += 1;
     }
@@ -270,7 +284,7 @@ test("anyone can open every public board the club has published", async ({ page,
   await signIn(context, baseURL!, null, null);
   let looked = 0;
   for (const [name, token] of Object.entries(club.shareTokens)) {
-    await look(page, `/live/${token}`, `visitor · ${name}`, findings, true, false, memberEmails);
+    await look(page, `/live/${token}`, `visitor · ${name}`, findings, true, null, memberEmails);
     looked += 1;
   }
   for (const e of errors) findings.push({ where: "visitor", what: `threw in the browser: ${e.slice(0, 200)}` });
