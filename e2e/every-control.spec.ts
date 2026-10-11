@@ -1,6 +1,6 @@
 import { test, expect, type Page, type BrowserContext } from "./coverage";
 import { createHmac } from "node:crypto";
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { consoleScreens } from "./routes";
 import { seed, teardown } from "../scripts/seed-club.mjs";
@@ -26,12 +26,20 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  * What it reports for each choice:
  *   kept        chosen, saved, reloaded, still chosen
  *   refused     the screen offered it and then showed an error
+ *   ruled       refused by a rule somebody decided, with the reason shown
+ *               (`RULED` lists each one and why)
+ *   asks first  the screen put a question before doing something it will not
+ *               undo; the crawl does not answer it
  *   lost        saved without complaint and not there after a reload
- *   view        it changed what is shown (the address), not what is stored
+ *   view        it changed what is shown, not what is stored
  *   in a form   part of an "Add…" form that a button sends — another layer's
+ *   blocked     its Save is disabled and the screen says why (setup is locked)
  *   silent      nothing was sent and nothing changed: a control that does nothing
+ *   moved       after saving, the control is no longer on the screen
+ *   stuck       nothing came back in a minute
  *
- * `refused`, `lost` and `silent` are findings. The run prints its reach — how
+ * `refused`, `lost`, `silent`, `moved` and `stuck` are findings. Every saved
+ * choice names the server action that took it. The run prints its reach — how
  * many controls and how many choices — with its result.
  *
  * LONG: several hundred controls, each choice a save and a reload. It runs when
@@ -178,11 +186,58 @@ async function choose(page: Page, c: Control, choice: string): Promise<void> {
 }
 
 const SAVES = /^(save|apply|update|set|confirm|publish)\b/i;
-const SENDS = /^(add|create|send|post|import|draw|generate|start|enter|invite|record|award|make|new|book|sign|join|register)\b/i;
+const SENDS = /^(add|create|send|post|import|draw|generate|start|enter|invite|record|award|make|new|book|sign|join|register|disqualify|reinstate|withdraw|approve|issue|pair|swap|move)\b/i;
 const YES = /^(yes\b|confirm\b|continue anyway|change anyway|i understand|ok$)/i;
+/** A question the screen puts before doing something it will not undo. Not pressed: being asked is the answer. */
+const ASKS = /\banyway\b|are you sure/i;
+
+/**
+ * CONTROLS THAT CHOOSE WHAT A FORM IS ABOUT, not what is stored — keyed on
+ * screen and label, each with its reason. A crawl that presses Save after
+ * choosing one saves an untouched card for somebody and then reports the
+ * picker "lost" when a reload shows the first name again (first full run,
+ * 2026-10-10).
+ */
+const PICKERS: Record<string, string> = {
+  "/entry|Player": "whose card is on screen",
+};
+
+/**
+ * INPUTS TO SOMETHING THAT IS BUILT AND THEN SAVED WHOLE, keyed the same way.
+ * The tee sheet's group size is not a setting: it shapes the draw, and what
+ * is saved is the sheet. Once a sheet is saved the builder is put away until
+ * "Re-draw", so a crawl that saves and reloads finds the control gone and
+ * calls it moved.
+ */
+const BUILDERS: Record<string, string> = {
+  "/foursomes|Group size": "an input to the draw; what is saved is the sheet it draws",
+};
+
+/**
+ * REFUSALS THAT ARE THE RULE. The screen offers the choice, refuses it and
+ * says why in words a secretary can act on. Each is a decision somebody
+ * made; anything not listed here is a finding.
+ */
+const RULED: Array<{ screen: string; says: RegExp; why: string }> = [
+  { screen: "/organization", says: /only owner/i, why: "a club keeps at least one owner; the refusal names the remedy" },
+  { screen: "/access", says: /only organi[sz]er/i, why: "a tournament keeps at least one organizer; the warning names the remedy" },
+  { screen: "/foursomes", says: /Hole \d+: Paces/i, why: "a pin's side means nothing without its paces; the refusal names the hole" },
+];
+
+/** Server action id → its exported name, off the build the crawl is running against. */
+const ACTION_NAMES: Record<string, string> = (() => {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(process.cwd(), process.env.NEXT_DIST_DIR ?? ".next-e2e", "server", "server-reference-manifest.json"), "utf8"),
+    ) as { node?: Record<string, { exportedName?: string }> };
+    return Object.fromEntries(Object.entries(manifest.node ?? {}).map(([id, e]) => [id, e.exportedName ?? "?"]));
+  } catch {
+    return {};
+  }
+})();
 
 interface Outcome {
-  outcome: "kept" | "refused" | "lost" | "view" | "in a form" | "blocked" | "silent" | "moved";
+  outcome: "kept" | "refused" | "ruled" | "asks first" | "lost" | "view" | "in a form" | "blocked" | "silent" | "moved" | "stuck";
   note: string;
 }
 
@@ -192,14 +247,28 @@ interface Outcome {
  *
  * The first version matched new text against a list of unhappy words and
  * reported "How many playing partners must confirm" as a refusal: a heading
- * that appears when a choice opens a further question.
+ * that appears when a choice opens a further question. The second read a
+ * BUTTON's label as a complaint — "Delete this society" is drawn in the
+ * danger colour and its wording follows the club's kind — so anything that is
+ * a control, or inside one, is not a message.
  */
-async function complaints(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
+async function complaints(page: Page, c: Control): Promise<string[]> {
+  const selector = c.kind === "select" ? "select" : c.kind === "radio" ? 'input[type="radio"]' : 'input[type="checkbox"]';
+  const index = c.kind === "radio" ? c.radios[0] : c.nth;
+  return page.evaluate(({ selector, index }) => {
     const out: string[] = [];
     const scope = document.querySelector("main") ?? document.body;
+    const control = scope.querySelectorAll(selector)[index] ?? null;
     for (const el of scope.querySelectorAll<HTMLElement>("*")) {
       if (el.children.length > 3) continue;
+      if (el.closest("button, a, [role=button], select, label")) continue;
+      // ABOUT THIS CONTROL: in its own part of the screen, or in no card at
+      // all (a banner over the page). Red words in somebody else's card are
+      // that card's — "Delete this society" is a heading in the danger
+      // colour whose wording follows the club's kind, and was read as the
+      // screen refusing a change it had just made.
+      const home = el.closest("form, section, .card");
+      if (home && control && !home.contains(control) && el.getAttribute("role") !== "alert") continue;
       const text = (el.innerText ?? "").replace(/\s+/g, " ").trim();
       if (!text || text.length > 300) continue;
       const r = el.getBoundingClientRect();
@@ -210,62 +279,111 @@ async function complaints(page: Page): Promise<string[]> {
       if (alert || style.includes("--color-danger") || /\b(error|danger)\b/.test(cls)) out.push(text.slice(0, 200));
     }
     return [...new Set(out)];
-  });
+  }, { selector, index });
+}
+
+/**
+ * How the control's own part of the screen is saved, worked out the way a
+ * person would: the Save in the same card; failing that the form's own
+ * button; failing that a Save further out that is not somebody else's.
+ *
+ *   save      a Save that can be pressed — marked `data-crawl-save` to press
+ *   form      the card sends with an Add / Create / Invite… button: the
+ *             choice is one field of a form, and is another layer's to test
+ *   locked    a Save that is there and disabled
+ *   none      nothing saves this by a button — it saves as it is made, or
+ *             it is a view
+ *
+ * THE FAR SAVE IS NEVER ANOTHER CARD'S. The first full run pressed "Save pin
+ * sheet" for the tee sheet's "Group 1" tick-box, three cards up the page,
+ * and reported forty-three choices lost. A Save outside the control's own
+ * card counts only if it sits in no card of its own (the foot of a long
+ * form) or in one that contains the control.
+ */
+async function saveFor(page: Page, c: Control): Promise<{ how: "save" | "form" | "locked" | "none"; label: string }> {
+  const selector = c.kind === "select" ? "select" : c.kind === "radio" ? 'input[type="radio"]' : 'input[type="checkbox"]';
+  const index = c.kind === "radio" ? c.radios[0] : c.nth;
+  return page.evaluate(
+    ({ selector, index, saves, sends }) => {
+      const scope = document.querySelector("main") ?? document.body;
+      const control = scope.querySelectorAll(selector)[index];
+      if (!control) return { how: "none" as const, label: "" };
+      const SAVE = new RegExp(saves, "i");
+      const SEND = new RegExp(sends, "i");
+      const tidy = (el: Element) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
+      const BOX = "form, section, .card";
+      document.querySelectorAll("[data-crawl-save]").forEach((el) => el.removeAttribute("data-crawl-save"));
+
+      const box = control.closest(BOX);
+      const inBox = box ? [...box.querySelectorAll<HTMLButtonElement>("button")] : [];
+      const open = inBox.filter((b) => !b.disabled);
+      const save = open.find((b) => SAVE.test(tidy(b)));
+      if (save) {
+        save.setAttribute("data-crawl-save", "1");
+        return { how: "save" as const, label: tidy(save) };
+      }
+      const send = inBox.find((b) => SEND.test(tidy(b)));
+      // Enabled or not: an Add button waiting on a name is still the form's.
+      if (send) return { how: "form" as const, label: tidy(send) };
+      const shut = inBox.find((b) => b.disabled && (SAVE.test(tidy(b)) || /^saved$/i.test(tidy(b))));
+      if (shut) return { how: "locked" as const, label: tidy(shut) };
+
+      // Further out: the next Save down the page that is not another card's.
+      const after = [...scope.querySelectorAll<HTMLButtonElement>("button")].filter(
+        (b) => control.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      for (const b of after) {
+        const label = tidy(b);
+        if (!SAVE.test(label) && !/^saved$/i.test(label)) continue;
+        const home = b.closest(BOX);
+        if (home && !home.contains(control)) continue;
+        if (b.disabled) return { how: "locked" as const, label };
+        b.setAttribute("data-crawl-save", "1");
+        return { how: "save" as const, label };
+      }
+      return { how: "none" as const, label: "" };
+    },
+    { selector, index, saves: SAVES.source, sends: SENDS.source },
+  );
 }
 
 /**
  * Make one choice the way a person would, and say what became of it.
  */
 async function exercise(page: Page, path: string, c: Control, choice: string): Promise<Outcome> {
+  const picker = PICKERS[`${path}|${c.label}`];
   const startUrl = page.url();
-  let actions = 0;
+  const fired: string[] = [];
   const onRequest = (r: { headers(): Record<string, string> }) => {
-    if (r.headers()["next-action"]) actions += 1;
+    const id = r.headers()["next-action"];
+    if (id) fired.push(ACTION_NAMES[id] ?? id.slice(0, 8));
   };
   page.on("request", onRequest);
   const textBefore = await page.locator("main").innerText().catch(() => "");
-  const complaintsBefore = await complaints(page);
+  const complaintsBefore = await complaints(page, c);
+  const buttonsBefore = (await page.locator("main button:visible").allInnerTexts().catch(() => [])).map((t) => t.trim());
+  const by = () => (fired.length ? [...new Set(fired)].join(", ") : "");
   try {
     await choose(page, c, choice);
     // Some screens save a choice as it is made.
     await page.waitForTimeout(700);
-    if (actions === 0 && page.url() === startUrl) {
-      // Others have a Save button in the same card or form.
-      const control =
-        c.kind === "select" ? page.locator("main select").nth(c.nth)
-        : c.kind === "radio" ? page.locator('main input[type="radio"]').nth(c.radios[0])
-        : page.locator('main input[type="checkbox"]').nth(c.nth);
-      const box = control.locator("xpath=ancestor::*[self::form or contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
-      const tidy = (t: string) => t.replace(/\s+/g, " ").trim();
-      let buttons = box.locator("button:enabled");
-      let labels = (await buttons.allInnerTexts().catch(() => [])).map(tidy);
-      if (!labels.some((t) => SAVES.test(t) || SENDS.test(t))) {
-        // A long form keeps its Save at the foot, outside the card the choice
-        // sits in: the next Save after the control, in the order of the page.
-        // Only a SAVE is looked for this far away: an "Add a course" button
-        // further down the page is another form's, not this choice's.
-        buttons = control.locator("xpath=following::button[not(@disabled)]");
-        labels = (await buttons.allInnerTexts().catch(() => [])).map(tidy);
-        const next = labels.findIndex((t) => SAVES.test(t));
-        labels = next >= 0 ? labels.slice(0, next + 1) : [];
-      }
-      const save = labels.findIndex((t) => SAVES.test(t));
-      if (save >= 0) {
-        await buttons.nth(save).click();
+    if (picker) return { outcome: "view", note: `chooses ${picker}` };
+    const builder = BUILDERS[`${path}|${c.label}`];
+    if (builder) return { outcome: "in a form", note: builder };
+    if (fired.length === 0 && page.url() === startUrl) {
+      const save = await saveFor(page, c);
+      if (save.how === "form") return { outcome: "in a form", note: save.label };
+      if (save.how === "save") {
+        await page.locator("[data-crawl-save]").first().click();
         await page.waitForTimeout(900);
-      } else if (labels.some((t) => SENDS.test(t))) {
-        return { outcome: "in a form", note: labels.find((t) => SENDS.test(t)) ?? "" };
-      } else {
+      } else if (save.how === "locked") {
         // A Save that is THERE and cannot be pressed: a launched tournament's
         // setup is locked, and the form says so. That is an answer — provided
         // the screen gives it. A choice that can be made and never saved, with
         // nothing said, is a control that does nothing.
-        const dead = (await control.locator("xpath=following::button[@disabled]").allInnerTexts().catch(() => [])).map(tidy);
-        if (dead.some((t) => SAVES.test(t) || /^saved$/i.test(t))) {
-          const after = await page.locator("main").innerText().catch(() => "");
-          const said = after.split("\n").map((l) => l.trim()).find((l) => l && !textBefore.includes(l) && /lock|can.t be changed|read.only|finished|completed/i.test(l));
-          return said ? { outcome: "blocked", note: said.slice(0, 140) } : { outcome: "silent", note: "its Save button is disabled and nothing says why" };
-        }
+        const after = await page.locator("main").innerText().catch(() => "");
+        const said = after.split("\n").map((l) => l.trim()).find((l) => l && !textBefore.includes(l) && /lock|can.t be changed|read.only|finished|completed/i.test(l));
+        return said ? { outcome: "blocked", note: said.slice(0, 140) } : { outcome: "silent", note: `its "${save.label}" button is disabled and nothing says why` };
       }
     }
     // A choice that changes a played round asks first.
@@ -276,26 +394,53 @@ async function exercise(page: Page, path: string, c: Control, choice: string): P
     }
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
 
-    if (page.url() !== startUrl && actions === 0) return { outcome: "view", note: new URL(page.url()).search };
+    if (page.url() !== startUrl && fired.length === 0) return { outcome: "view", note: new URL(page.url()).search };
     const textAfter = await page.locator("main").innerText().catch(() => "");
     const fresh = textAfter.split("\n").filter((line) => line.trim() && !textBefore.includes(line.trim()));
-    const trouble = (await complaints(page)).find((line) => !complaintsBefore.includes(line));
-    if (actions === 0) {
+    const trouble = (await complaints(page, c)).find((line) => !complaintsBefore.includes(line));
+    // A question with its own button, that this does not press: the screen
+    // asked before doing something it would not undo.
+    const question = (await page.locator("main button:visible").allInnerTexts().catch(() => []))
+      .map((t) => t.trim())
+      .find((t) => ASKS.test(t) && !buttonsBefore.includes(t));
+    if (question) return { outcome: "asks first", note: `${question}${trouble ? ` · ${trouble.trim().slice(0, 110)}` : ""}` };
+    if (trouble) {
+      const rule = RULED.find((r) => r.screen === path && r.says.test(trouble));
+      return { outcome: rule ? "ruled" : "refused", note: `${trouble.trim().slice(0, 160)}${by() ? ` · ${by()}` : ""}` };
+    }
+    if (fired.length === 0) {
       return fresh.length ? { outcome: "view", note: "changed what is shown, sent nothing" } : { outcome: "silent", note: "" };
     }
-    if (trouble) return { outcome: "refused", note: trouble.trim().slice(0, 160) };
 
     await page.goto(`${path}?kept=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
     const again = await find(page, c);
-    if (!again) return { outcome: "moved", note: "the control is not where it was after the save" };
+    if (!again) return { outcome: "moved", note: `the control is not where it was after ${by()}` };
     return again.current === choice
-      ? { outcome: "kept", note: "" }
-      : { outcome: "lost", note: `shows "${again.choiceLabels[again.choices.indexOf(again.current)] ?? again.current}" after a reload` };
+      ? { outcome: "kept", note: by() }
+      : { outcome: "lost", note: `shows "${again.choiceLabels[again.choices.indexOf(again.current)] ?? again.current}" after a reload · ${by()}` };
   } finally {
     page.off("request", onRequest);
   }
 }
+
+/** `exercise`, held to a time: one control that never answers must not stop the other six hundred. */
+async function exerciseWithin(page: Page, path: string, c: Control, choice: string, ms = 60_000): Promise<Outcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<Outcome>((resolve) => {
+    timer = setTimeout(() => resolve({ outcome: "stuck", note: `nothing came back in ${ms / 1000}s` }), ms);
+  });
+  try {
+    return await Promise.race([exercise(page, path, c, choice).catch((e) => ({ outcome: "stuck" as const, note: `threw: ${String(e).slice(0, 140)}` })), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Outcomes after which a control has been answered for, and is not operated again on the next tournament. */
+const SETTLES = new Set<Outcome["outcome"]>(["kept", "lost", "refused", "ruled", "asks first", "in a form"]);
+/** Outcomes that are something wrong, or something nobody has yet looked at. */
+const FINDINGS = new Set<Outcome["outcome"]>(["refused", "lost", "silent", "moved", "stuck"]);
 
 async function signIn(context: BrowserContext, baseURL: string, session: string, eventId: string) {
   await context.clearCookies();
@@ -308,6 +453,12 @@ async function signIn(context: BrowserContext, baseURL: string, session: string,
 test("every dropdown, choice and tick-box on every console screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "the console's controls are operated at the desktop width");
   test.setTimeout(6 * 60 * 60 * 1000);
+  // EVERY ACTION HAS A LIMIT. With a six-hour test and no limit of their own,
+  // a click on a button that never becomes pressable waits six hours: the
+  // first full run sat on one control for eleven minutes before it was
+  // stopped by hand. `exerciseWithin` bounds the whole choice as well.
+  page.setDefaultTimeout(8_000);
+  page.setDefaultNavigationTimeout(30_000);
 
   const screens = consoleScreens().filter((p) => !ONLY_SCREEN || p === ONLY_SCREEN);
   const events = club.events.filter((e) => !ONLY_EVENT || e.slug === ONLY_EVENT);
@@ -346,9 +497,9 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
           const now = await find(page, c);
           if (!now || now.disabled || !now.choices.includes(pick)) continue;
           choices += 1;
-          const result = await exercise(page, path, now, pick).catch((e) => ({ outcome: "silent" as const, note: `threw: ${String(e).slice(0, 120)}` }));
+          const result = await exerciseWithin(page, path, now, pick);
           tally[result.outcome] = (tally[result.outcome] ?? 0) + 1;
-          if (result.outcome === "kept" || result.outcome === "lost" || result.outcome === "refused" || result.outcome === "in a form") {
+          if (SETTLES.has(result.outcome)) {
             done.add(key);
             unsettled.delete(key);
           } else if (!done.has(key)) {
@@ -356,7 +507,7 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
           }
           const choiceName = c.choiceLabels[c.choices.indexOf(pick)] ?? pick;
           appendFileSync(LOG, [result.outcome, event.slug, path, c.kind, c.label, choiceName, result.note].join("\t") + "\n");
-          if (result.outcome === "refused" || result.outcome === "lost" || result.outcome === "silent") {
+          if (FINDINGS.has(result.outcome)) {
             findings.push(`${result.outcome.toUpperCase()} · ${event.slug} ${path} · ${c.label || c.kind} → ${choiceName}${result.note ? ` · ${result.note}` : ""}`);
           }
           // Put it back, so the next control meets the tournament as it was.
@@ -364,7 +515,7 @@ test("every dropdown, choice and tick-box on every console screen keeps what is 
             await page.goto(path, { waitUntil: "domcontentloaded" });
             await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
             const back = await find(page, c);
-            if (back && back.current !== c.current && back.choices.includes(c.current)) await exercise(page, path, back, c.current).catch(() => {});
+            if (back && back.current !== c.current && back.choices.includes(c.current)) await exerciseWithin(page, path, back, c.current);
           }
         }
       }
