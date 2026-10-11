@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { notifyFieldChange } from "./field-notify";
 import { logAudit } from "./action-shared";
 import { fieldCapFor } from "./limits";
+import { capacityUnderCap } from "../plans";
 
 /**
  * Keeping the field and the waitlist in step.
@@ -46,6 +47,33 @@ export function fieldLimitOf(event: {
   return limit > 0 ? limit : null;
 }
 
+type FieldLimitColumns = Parameters<typeof fieldLimitOf>[0];
+
+/**
+ * THE NUMBER EVERY WAY INTO THE FIELD COUNTS AGAINST. Zero is an open field.
+ *
+ * The list above has read the mode flag since it was written; the doors had
+ * not. Hand-adding a player, approving an entry, adding the club from the
+ * roster, importing a file, the public form, a member's own Enter button and
+ * the three screens that say whether there is room all measured `capacity`,
+ * which in manual mode is "a stale registration-era figure that nothing
+ * should be measured against". So with capacity 32 and a target of 16, the
+ * field was trimmed to sixteen, the rest were told they were waiting, and the
+ * next person in by any door was confirmed as number seventeen — ahead of
+ * everybody queuing (sweep 1, b9, 2026-10-10).
+ *
+ * One function, so the door and the list cannot disagree again: the list's
+ * own limit, under the plan's field cap.
+ */
+export function fieldLimitUnder(event: FieldLimitColumns, tierCap: number | null): number {
+  return capacityUnderCap(fieldLimitOf(event) ?? 0, tierCap);
+}
+
+/** `fieldLimitUnder`, with the club's cap looked up. */
+export async function fieldLimitFor(event: FieldLimitColumns & { organizationId: string }): Promise<number> {
+  return fieldLimitUnder(event, await fieldCapFor(event.organizationId));
+}
+
 /**
  * Promote whoever is owed a place, in the order they queued.
  *
@@ -74,9 +102,8 @@ export async function drainWaitlist(eventId: string): Promise<number> {
    * button, so a Par tournament switched to a manual count in its settings
    * would otherwise have promoted thirty-two into a field of ten.
    */
-  const own = fieldLimitOf(event);
-  const cap = await fieldCapFor(event.organizationId);
-  const limit = cap === null ? own : own === null ? cap : Math.min(own, cap);
+  const counted = await fieldLimitFor(event);
+  const limit = counted > 0 ? counted : null;
 
   const confirmed = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // An open field takes everyone waiting; a limited one takes what fits.

@@ -21,7 +21,7 @@ import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-swit
 import { isPlayingRound } from "../stage-types";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
-import { capacityUnderCap } from "../plans";
+import { fieldLimitUnder } from "./waitlist";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -372,7 +372,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // The tournament's own way of writing a date, then the club's — the same
     // resolution every other date on these cards goes through.
     const locale = resolveLocale(event.organization, event);
-    const capacity = capacityUnderCap(event.capacity, caps.get(event.organizationId) ?? null);
+    const capacity = fieldLimitUnder(event, caps.get(event.organizationId) ?? null);
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,

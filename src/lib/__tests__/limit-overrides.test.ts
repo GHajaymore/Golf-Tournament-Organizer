@@ -128,20 +128,47 @@ describe("capacityUnderCap tightens the organizer's capacity to the tier", () =>
  * THE FIELD CAP STAYS WIRED INTO EVERY ADD PATH.
  *
  * The gate is off by default, so no behavioural test refuses anything, so
- * nothing would go red if a refactor quietly dropped the `effectiveCapacity`
- * call from an intake path — the cap would simply stop existing the day
- * enforcement is switched on, in production, on the paths a field actually
- * fills from. Read through `readSource`, which strips comments, so a mention of
- * the helper in prose cannot satisfy it: the call has to be really there.
+ * nothing would go red if a refactor quietly dropped the cap from an intake
+ * path — it would simply stop existing the day enforcement is switched on, in
+ * production, on the paths a field actually fills from. Read through
+ * `readSource`, which strips comments, so a mention of the helper in prose
+ * cannot satisfy it: the call has to be really there.
+ *
+ * RE-PINNED 2026-10-10, on the guarantee rather than the spelling. This
+ * required `effectiveCapacity(` in three files, and every one of them passed
+ * it the tournament's `capacity` column — which is the wrong number once the
+ * organizer has typed a manual target, so the guard held all three to the
+ * defect (see `fieldLimitFor`). What a door must do is count against the one
+ * limit the waiting list counts against, which has the cap inside it; and it
+ * must not reach past that for a column of its own.
  */
+const DOORS = [
+  "src/app/actions/register.ts", // a stranger on a public link
+  "src/app/actions/enter.ts", // a signed-in member, one tap
+  "src/app/actions/roster.ts", // the organizer adding the club
+  "src/app/actions/tournament.ts", // by hand, from a file, approving an entry
+  "src/lib/services/registration.ts", // what the public page says about room
+  "src/app/(app)/registration/page.tsx", // what the organizer's screen says
+];
+
 describe("the field cap stays wired into every add path", () => {
-  for (const f of [
-    "src/app/actions/register.ts", // a stranger on a public link
-    "src/app/actions/enter.ts", // a signed-in member, one tap
-    "src/app/actions/roster.ts", // the organizer adding the club
-  ]) {
-    it(`${f} tightens capacity through the tier`, () => {
-      expect(readSource(f)).toContain("effectiveCapacity(");
+  for (const f of DOORS) {
+    it(`${f} counts against the one field limit`, () => {
+      const src = readSource(f);
+      expect(src).toContain("fieldLimitFor(");
+      expect(src, "measures a column of its own instead of the field's limit").not.toContain("effectiveCapacity(");
+      expect(src).not.toContain("capacityUnderCap(");
     });
   }
+
+  it("and that limit has the plan's cap inside it", () => {
+    const src = readSource("src/lib/services/waitlist.ts");
+    const body = src.slice(src.indexOf("export function fieldLimitUnder"), src.indexOf("export async function drainWaitlist"));
+    expect(body).toContain("capacityUnderCap(fieldLimitOf(event)");
+    expect(body).toContain("fieldCapFor(event.organizationId)");
+  });
+
+  it("CONTROL: the sweep reads real files — the member's Events list goes through the same limit", () => {
+    expect(readSource("src/lib/services/club-events.ts")).toContain("fieldLimitUnder(event,");
+  });
 });

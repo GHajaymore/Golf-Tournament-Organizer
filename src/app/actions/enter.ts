@@ -8,7 +8,7 @@ import { accessibleEvents } from "@/lib/services/access";
 import { decideIntake, approvalModeOf, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { effectiveCapacity } from "@/lib/services/limits";
+import { fieldLimitFor } from "@/lib/services/waitlist";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
@@ -90,6 +90,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       regOpens: true,
       regDeadline: true,
       capacity: true,
+      playerCountMode: true,
+      manualPlayerCount: true,
       status: true,
       requirePhone: true,
     },
@@ -172,7 +174,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   // member over the cap waitlists through the same rule as any full field,
   // rather than being refused. Capacity cannot change under a concurrent entry,
   // so it is resolved before the lock.
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
 
   /**
    * THE CLUB'S OWN RECORD OF THIS PERSON, which is the point of entering from
@@ -330,6 +332,8 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
       regOpens: true,
       regDeadline: true,
       capacity: true,
+      playerCountMode: true,
+      manualPlayerCount: true,
       status: true,
       organizationId: true,
     },
@@ -354,7 +358,7 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
     opens: event.regOpens,
     // As the member's Events card asks it (`club-events.ts`), so the button
     // they pressed and the answer they get read the same capacity.
-    capacity: await effectiveCapacity(event.organizationId, event.capacity),
+    capacity: await fieldLimitFor(event),
     confirmedCount,
     override: event.registrationOverride,
   });

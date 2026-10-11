@@ -52,7 +52,7 @@ import { clubNameClash, organizationForNewEvent, settingsForNewEvent } from "@/l
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { effectiveAccess } from "@/lib/services/access";
-import { refusalFor, fieldCapFor, effectiveCapacity, seatRefusalFor } from "@/lib/services/limits";
+import { refusalFor, fieldCapFor, seatRefusalFor } from "@/lib/services/limits";
 import { wipesOnCloseFor } from "@/lib/services/close-terms";
 import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
@@ -78,7 +78,7 @@ import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
-import { drainWaitlist } from "@/lib/services/waitlist";
+import { drainWaitlist, fieldLimitFor } from "@/lib/services/waitlist";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { cloneSingleMatchRule, parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
@@ -552,7 +552,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // The plan's field cap over the stored number, as `register` and `enter` do.
   // A club moved down to Par keeps the unlimited field it set on a higher tier,
   // and this confirmed an eleventh player past a ten-player cap (2026-09-30).
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0; // 0 = open / unlimited field
   const status = unlimited || confirmedCount < capacity ? "confirmed" : "waitlisted";
   // Entering someone in a tournament is also how they join the club roster —
@@ -935,7 +935,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   // The plan's field cap over the stored number — see `addSignup`.
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0;
   const agg = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   let seed = (agg._max.seed ?? 0) + 1;
@@ -4891,10 +4891,13 @@ export async function approveSignup(playerId: string): Promise<{ ok: boolean; er
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Entry not found." };
   if (player.status !== "pending") return { ok: true };
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { capacity: true, organizationId: true } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { capacity: true, playerCountMode: true, manualPlayerCount: true, organizationId: true },
+  });
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
-  // The plan's field cap over the stored number — see `addSignup`.
-  const capacity = event ? await effectiveCapacity(event.organizationId, event.capacity) : 0;
+  // The field's own limit under the plan's cap — see `fieldLimitFor`.
+  const capacity = event ? await fieldLimitFor(event) : 0;
   const status = placementOnApproval(capacity, confirmedCount);
   await prisma.player.update({ where: { id: playerId }, data: { status } });
   // On the record beside the entry itself — see FIELD_ACTIONS.

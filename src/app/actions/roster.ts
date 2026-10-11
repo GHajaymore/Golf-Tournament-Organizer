@@ -16,7 +16,7 @@ import { organizationAllows, planForOrganization } from "@/lib/services/entitlem
 import { HONOURS_LOCKED, phoneRequiredFor } from "@/lib/plans";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, contactGap } from "@/lib/domain/registration-intake";
-import { effectiveCapacity } from "@/lib/services/limits";
+import { fieldLimitFor } from "@/lib/services/waitlist";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 
 /**
@@ -551,7 +551,7 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   // has enforcement on (a no-op otherwise). Members over the cap waitlist by the
   // same rule as any full field, so adding the whole club never silently
   // exceeds the tier — it queues the overflow instead.
-  const capacity = await effectiveCapacity(organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
   const unlimited = capacity <= 0;
 
   let added = 0;

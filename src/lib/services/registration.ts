@@ -4,7 +4,7 @@ import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { planForOrganization } from "./entitlements";
-import { effectiveCapacity } from "./limits";
+import { fieldLimitFor } from "./waitlist";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
 import { resolveLocale } from "../domain/locale";
@@ -157,7 +157,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * entries" to the eleventh person and then told them they were on the
    * waitlist (walked 2026-09-30).
    */
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
   const status = registrationStatus({
     eventStatus: event.status,
     deadline: event.regDeadline,

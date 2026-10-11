@@ -12,7 +12,7 @@ import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { effectiveCapacity } from "@/lib/services/limits";
+import { fieldLimitFor } from "@/lib/services/waitlist";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { recentChanges } from "@/lib/services/recent-changes";
@@ -62,7 +62,7 @@ export default async function RegistrationPage() {
         // The capacity the entry actions apply — the plan's field cap over
         // the stored number — so "Confirmed 10 of 10 · Full" here matches what
         // an eleventh entrant is actually told (walked 2026-09-30).
-        capacity: await effectiveCapacity(state.event.organizationId, state.event.capacity),
+        capacity: await fieldLimitFor(state.event),
         status: state.event.status,
         regDeadline: state.event.regDeadline,
         regOpens: state.event.regOpens,
