@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
 import { MARK as BASE } from "./fixture.mjs";
+import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
  * A TEAM CUP, LINED UP AND NOT YET PLAYED — the Ryder Cup shape a golf trip or
@@ -150,7 +151,7 @@ export async function seedCup() {
         players[p.key] = row.id;
         const user = await prisma.user.create({ data: { email: cupEmail(p.key), name: p.name, password: "x:unusable" } });
         await prisma.account.create({ data: { eventId: event.id, name: p.name, email: user.email, role: "player" } });
-        cookies[p.key] = { session: sign(user.id), event: sign(event.id) };
+        cookies[p.key] = { session: sign(signedInNow(user.id)), event: sign(event.id) };
       }
       if (position === 0) await prisma.group.update({ where: { id: flight.id }, data: { captainId: players.a1 } });
       else await prisma.group.update({ where: { id: flight.id }, data: { captainId: players.b1 } });
@@ -160,7 +161,7 @@ export async function seedCup() {
       data: { email: cupEmail("organizer"), name: "O. Ganizer", password: "x:unusable" },
     });
     await prisma.account.create({ data: { eventId: event.id, name: "O. Ganizer", email: organizer.email, role: "admin" } });
-    cookies.organizer = { session: sign(organizer.id), event: sign(event.id) };
+    cookies.organizer = { session: sign(signedInNow(organizer.id)), event: sign(event.id) };
 
     return { eventId: event.id, shareToken: event.shareToken, sessions, players, cookies };
   } finally {

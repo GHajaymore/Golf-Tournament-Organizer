@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
 import { MARK } from "./fixture.mjs";
+import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
  * A NEW ORGANIZER WITH NOTHING YET — no club, no tournament, no course.
@@ -80,7 +81,7 @@ export async function memberSession(email, name) {
       update: {},
       create: { email, name, password: "x:unusable" },
     });
-    return sign(user.id);
+    return sign(signedInNow(user.id));
   } finally {
     await prisma.$disconnect();
   }
@@ -110,7 +111,7 @@ export async function seedOrganizer() {
         ]),
       },
     });
-    return { session: sign(user.id) };
+    return { session: sign(signedInNow(user.id)) };
   } finally {
     await prisma.$disconnect();
   }

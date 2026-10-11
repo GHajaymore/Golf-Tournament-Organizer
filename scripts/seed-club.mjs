@@ -41,6 +41,7 @@ import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
 import { basename } from "node:path";
 import { runMark } from "./run-mark.mjs";
+import { signedInNow } from "./session-cookie.mjs";
 
 /**
  * The mark every row carries. Organization, every event, both courses and
@@ -2364,8 +2365,8 @@ export async function seed() {
 
     return {
       org,
-      organizer: { session: sign(organizer.id), email: organizer.email },
-      player: { session: sign(player.id), email: player.email, name: player.name },
+      organizer: { session: sign(signedInNow(organizer.id)), email: organizer.email },
+      player: { session: sign(signedInNow(player.id)), email: player.email, name: player.name },
       events: built,
       /** The tournament both cookies open on: the live medal. */
       landing: medal,

@@ -13,6 +13,10 @@
 import { runMark } from "./run-mark.mjs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
+
+/** When this run signed in: one moment, so a value signed in two places is the same value. */
+const issued = Date.now();
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3100";
 // Per worktree — a fixed mark lets one run's opening delete reach into a
@@ -114,8 +118,8 @@ async function main() {
     });
 
     const secret = process.env.AUTH_SECRET ?? "dev-secret";
-    const mac = createHmac("sha256", secret).update(user.id).digest("base64url");
-    const cookie = `ng_session=${user.id}.${mac}`;
+    const mac = createHmac("sha256", secret).update(signedInNow(user.id, issued)).digest("base64url");
+    const cookie = `ng_session=${signedInNow(user.id, issued)}.${mac}`;
 
     const get = async (path) => {
       const res = await fetch(BASE + path, { headers: { cookie }, redirect: "follow" });
@@ -189,10 +193,10 @@ async function main() {
     await prisma.account.create({
       data: { eventId: event.id, name: playerUser.name, email: playerEmail, role: "player" },
     });
-    const playerMac = createHmac("sha256", secret).update(playerUser.id).digest("base64url");
+    const playerMac = createHmac("sha256", secret).update(signedInNow(playerUser.id, issued)).digest("base64url");
     const asPlayer = async (path) => {
       const res = await fetch(BASE + path, {
-        headers: { cookie: `ng_session=${playerUser.id}.${playerMac}` },
+        headers: { cookie: `ng_session=${signedInNow(playerUser.id, issued)}.${playerMac}` },
         redirect: "follow",
       });
       return { status: res.status, html: await res.text() };

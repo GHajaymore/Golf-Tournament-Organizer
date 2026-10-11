@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
 import { MARK } from "./fixture.mjs";
+import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
  * THE PERSON STANDING ON THE FIRST TEE WITH NO CLUB, and the course they type.
@@ -90,7 +91,7 @@ export async function seedCasual() {
         ]),
       },
     });
-    return { session: sign(user.id) };
+    return { session: sign(signedInNow(user.id)) };
   } finally {
     await prisma.$disconnect();
   }

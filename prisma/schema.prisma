@@ -38,6 +38,13 @@ model User {
   name      String   @default("")
   password  String   @default("")
   createdAt DateTime @default(now())
+  /**
+   * No sign-in issued before this moment is good any more. A password reset
+   * moves it to now, which ends every earlier session on every device — the
+   * cookie carries when it was issued (lib/domain/session-token.ts). Null for
+   * somebody who has never reset: nothing of theirs has been ended.
+   */
+  sessionsValidFrom DateTime?
 
   resetTokens PasswordResetToken[]
   memberships OrganizationMember[]

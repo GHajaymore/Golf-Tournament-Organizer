@@ -26,6 +26,7 @@ import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
 import { runMark } from "../scripts/run-mark.mjs";
 import { seedLeague } from "./league-fixture.mjs";
+import { signedInNow } from "../scripts/session-cookie.mjs";
 
 /**
  * The tournament the end-to-end tests run against.
@@ -561,8 +562,8 @@ export async function seed() {
     return {
       eventId: event.id,
       shareToken: event.shareToken,
-      organizer: { session: sign(organizer.id), event: sign(event.id) },
-      player: { session: sign(player.id), event: sign(event.id) },
+      organizer: { session: sign(signedInNow(organizer.id)), event: sign(event.id) },
+      player: { session: sign(signedInNow(player.id)), event: sign(event.id) },
       league,
       partialHolesFilled: partial.filter((s) => s != null).length,
       /**

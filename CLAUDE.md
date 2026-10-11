@@ -36,6 +36,14 @@ Use a throwaway organization and event, prefix every row with a mark (`zz-<purpo
 names, and `@example.invalid` addresses. Delete them in a `finally` — a fixture left in the
 database is a fixture someone will later mistake for real.
 
+**A fixture that signs itself in signs `signedInNow(user.id)`**, from
+`scripts/session-cookie.mjs` — never the bare user id. Since 2026-10-11 a session cookie
+carries when it was issued (`src/lib/domain/session-token.ts`): the server holds a sign-in to
+seven days itself, and a password reset ends every earlier one. A cookie made the old way is
+refused, and a refused fixture does not fail loudly — every screen answers 307 to the sign-in
+page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
+`scripts/` for the old spellings.
+
 ## Help and docs travel with the change
 
 Ajay, 2026-10-10: "keep a step when there is any change in the app to update the help section

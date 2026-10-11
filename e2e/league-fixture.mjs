@@ -1,3 +1,4 @@
+import { signedInNow } from "../scripts/session-cookie.mjs";
 /**
  * AN INTERCLUB LEAGUE, AT THE SIZE ONE ACTUALLY IS.
  *
@@ -255,7 +256,7 @@ export async function seedLeague(prisma, { org, mark, sign, dayOffset, randomByt
     clubCount: CLUBS.length,
     pairsPerClub: PAIRS_PER_CLUB,
     thisWeekStageId: week[1].id,
-    organizer: { session: sign(organizer.id), event: sign(event.id) },
-    member: { session: sign(member.id), event: sign(event.id) },
+    organizer: { session: sign(signedInNow(organizer.id)), event: sign(event.id) },
+    member: { session: sign(signedInNow(member.id)), event: sign(event.id) },
   };
 }

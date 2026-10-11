@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypt
 import { prisma } from "./db";
 import { accessibleEvents, effectiveAccess } from "./services/access";
 import { landingEvent } from "./domain/landing-event";
+import { SESSION_SECONDS, readSessionValue, sessionRefusal, sessionValue } from "./domain/session-token";
 
 // Lightweight signed-cookie sessions plus scrypt password hashing (both
 // Node built-ins, no external auth provider). Swap this module for
@@ -49,7 +50,9 @@ const COOKIE_OPTS = {
   sameSite: "lax",
   secure: SECURE_COOKIES,
   path: "/",
-  maxAge: 60 * 60 * 24 * 7,
+  // What the browser is asked to keep it for. The server holds a session to
+  // the same life itself — `sessionRefusal` — because this line is a request.
+  maxAge: SESSION_SECONDS,
 } as const;
 
 /** Exported so the Round Code play session can sign its own cookie with the
@@ -135,7 +138,9 @@ export interface Session {
  *  any one tournament, so signing up before creating one is possible. */
 export async function createSession(userId: string): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE, sign(userId), COOKIE_OPTS);
+  // Who, and WHEN — see session-token.ts. The bare user id this used to sign
+  // was one value per person for ever, with no end and no way to end it.
+  jar.set(COOKIE, sign(sessionValue(userId)), COOKIE_OPTS);
   jar.delete(PREVIEW_COOKIE);
   jar.delete(ACTIVE_COOKIE);
 }
@@ -165,10 +170,13 @@ export async function setPreviewRole(previewRole: string): Promise<void> {
 
 export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
-  const userId = verify(jar.get(COOKIE)?.value);
-  if (!userId) return null;
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const held = readSessionValue(verify(jar.get(COOKIE)?.value));
+  if (!held) return null;
+  const user = await prisma.user.findUnique({ where: { id: held.userId } });
   if (!user) return null;
+  // Older than a sign-in lasts, or issued before this person last reset their
+  // password: not a session, whatever the browser still holds.
+  if (sessionRefusal(held, user.sessionsValidFrom)) return null;
 
   // A session belongs to a person, not to a tournament. Which tournament
   // they're currently working in is resolved separately — from the active-event

@@ -219,8 +219,26 @@ export async function resetPassword(token: string, password: string): Promise<{ 
   const weak = passwordProblem(password, owner ?? undefined);
   if (weak) return { ok: false, error: weak };
 
-  const user = await prisma.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
-  await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+  /**
+   * A RESET ENDS EVERY EARLIER SIGN-IN (2026-10-11).
+   *
+   * Resetting a password is the one moment somebody is saying "another person
+   * may be in my account". It used to change the password and leave every
+   * session that already existed exactly as it was — whoever was in, stayed
+   * in. Moving `sessionsValidFrom` to now makes every cookie issued before
+   * this moment stop working, on every device (`sessionRefusal`), and the
+   * sign-in a few lines below is issued after it.
+   *
+   * And every OTHER reset link still out for this account goes with it. Two
+   * requests made a minute apart are two working links for fifteen minutes;
+   * using one must not leave the other good.
+   */
+  const now = new Date();
+  const user = await prisma.user.update({
+    where: { id: record.userId },
+    data: { password: hashPassword(password), sessionsValidFrom: now },
+  });
+  await prisma.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: now } });
 
   const signedIn = await startSessionFor(user.email);
   if (!signedIn) return { ok: false, error: "Password updated, but sign-in failed. Try logging in." };
