@@ -4680,18 +4680,30 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
   await refresh();
 }
 
-export async function setPrizeWinner(prizeId: string, winnerId: string) {
+export async function setPrizeWinner(prizeId: string, winnerId: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireStaffEvent();
-  await prisma.prize.updateMany({
+  /**
+   * A PRIZE GOES TO SOMEBODY IN THE FIELD, AND THE RECORD NAMES THEM
+   * (2026-10-11).
+   *
+   * The same door as `setBracketWinner`, one room along: any id was stored as
+   * the winner, the audit line was written whether or not a prize of this
+   * tournament was touched, and it named the winner by row id — "Awarded to
+   * player cmx…", in a log whose whole job is to be read by a committee.
+   */
+  const id = typeof winnerId === "string" ? winnerId : "";
+  const awardedTo = id
+    ? await prisma.player.findFirst({ where: { id, eventId }, select: { name: true } })
+    : null;
+  if (id && !awardedTo) return { ok: false, error: "A prize goes to somebody in this tournament's field." };
+  const moved = await prisma.prize.updateMany({
     where: { id: prizeId, eventId },
-    data: { winnerId: winnerId || null },
+    data: { winnerId: id || null },
   });
-  await logAudit(
-    eventId,
-    "prize.winner",
-    winnerId ? `Awarded to player ${winnerId}` : "Winner cleared",
-  );
+  if (moved.count === 0) return { ok: false, error: "That prize isn't in this tournament." };
+  await logAudit(eventId, "prize.winner", awardedTo ? `Awarded to ${awardedTo.name}` : "Winner cleared");
   await refresh();
+  return { ok: true };
 }
 
 export async function removePrize(prizeId: string) {

@@ -38,7 +38,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { addOrganizationMember } from "@/app/actions/organization";
-import { disputeMatch, reopenMatch, setBracketWinner } from "@/app/actions/tournament";
+import { disputeMatch, reopenMatch, setBracketWinner, setPrizeWinner } from "@/app/actions/tournament";
 import { loadEventState } from "@/lib/services/tournament";
 import { bracketDraws } from "@/lib/domain/my-tie";
 
@@ -219,5 +219,57 @@ describe("disputing or reopening a match", () => {
     await reopenMatch(away.match);
     expect((await prisma.match.findUnique({ where: { id: away.match }, select: { scoreStatus: true } }))?.scoreStatus).toBe("pending");
     expect(await prisma.auditLog.count({ where: { eventId: away.event, action: "reopen", matchId: away.match } })).toBe(1);
+  });
+});
+
+/**
+ * THE SAME DOOR, ONE ROOM ALONG. Awarding a prize has the shape recording a
+ * tie had: any id was stored as the winner, an audit line was written whether
+ * or not a prize of this tournament was touched, and the line named the winner
+ * by their row id ("Awarded to player cmx…") — which no committee can read.
+ * Not reached by the sweep, whose stranger has no prize to award; found by
+ * reading for the class once the bracket had shown it.
+ */
+describe("awarding a prize", () => {
+  let prizeId = "";
+  let awayPrizeId = "";
+
+  beforeAll(async () => {
+    prizeId = (await prisma.prize.create({ data: { eventId: home.event, category: `${TAG} winner`, amount: 50 }, select: { id: true } })).id;
+    awayPrizeId = (await prisma.prize.create({ data: { eventId: away.event, category: `${TAG} away winner`, amount: 50 }, select: { id: true } })).id;
+  });
+
+  const winner = async (id: string) => (await prisma.prize.findUnique({ where: { id }, select: { winnerId: true } }))?.winnerId ?? null;
+  const lines = () => prisma.auditLog.findMany({ where: { eventId: home.event, action: "prize.winner" }, select: { detail: true } });
+
+  it("refuses a winner who is not in this tournament's field", async () => {
+    await as(home.admin, home.event);
+    const result = await setPrizeWinner(prizeId, away.players[0]);
+    expect(result).toEqual({ ok: false, error: "A prize goes to somebody in this tournament's field." });
+    expect(await winner(prizeId)).toBeNull();
+    expect(await lines()).toEqual([]);
+  });
+
+  it("writes nothing for a prize that is not this tournament's", async () => {
+    await as(home.admin, home.event);
+    expect((await setPrizeWinner(awayPrizeId, home.players[0])).ok).toBe(false);
+    expect(await winner(awayPrizeId)).toBeNull();
+    expect(await lines(), "the audit log records an award this tournament did not make").toEqual([]);
+  });
+
+  it("CONTROL: awards it to a player in the field, and the record names them", async () => {
+    await as(home.admin, home.event);
+    expect(await setPrizeWinner(prizeId, home.players[0])).toEqual({ ok: true });
+    expect(await winner(prizeId)).toBe(home.players[0]);
+    const said = (await lines()).map((l) => l.detail);
+    expect(said).toHaveLength(1);
+    expect(said[0], "the audit line names the winner by a row id").toContain(`${TAG} home P1`);
+    expect(said[0]).not.toContain(home.players[0]);
+  });
+
+  it("CONTROL: and takes it back", async () => {
+    await as(home.admin, home.event);
+    expect(await setPrizeWinner(prizeId, "")).toEqual({ ok: true });
+    expect(await winner(prizeId)).toBeNull();
   });
 });

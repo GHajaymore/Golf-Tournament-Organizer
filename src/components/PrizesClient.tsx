@@ -65,6 +65,10 @@ export function PrizesClient({
   const [detail, setDetail] = useState("");
   const [amount, setAmount] = useState("");
   const [structureRefused, setStructureRefused] = useState("");
+  // What the server said no to an award with. The picker only lists this
+  // tournament's field, so it is refused only when the field or the list
+  // moved under a screen that is a moment old — and then it must say so.
+  const [awardRefused, setAwardRefused] = useState("");
   const [pending, startTransition] = useTransition();
   const saveStatus = useSaveStatus(pending);
 
@@ -99,7 +103,13 @@ export function PrizesClient({
         disabled={pending}
         aria-label={`Winner of ${p.category}`}
         style={asCells ? undefined : { flex: 1, minWidth: 0 }}
-        onChange={(e) => startTransition(() => setPrizeWinner(p.id, e.target.value))}
+        onChange={(e) => {
+          const chosen = e.target.value;
+          startTransition(async () => {
+            const result = await setPrizeWinner(p.id, chosen);
+            setAwardRefused(result.ok ? "" : (result.error ?? "That award could not be recorded."));
+          });
+        }}
       >
         <option value="">— Not awarded —</option>
         {optionsFor(p.category).map((pl) => (
@@ -257,6 +267,11 @@ export function PrizesClient({
           <span className="card-title" style={{ fontSize: 15 }}>Prizes</span>
           <SaveState status={saveStatus} />
         </div>
+        {awardRefused && (
+          <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}>
+            <Icon name="warning-circle" /> {awardRefused} Reload the screen and award it again.
+          </p>
+        )}
         {/* ON A PHONE, ONE PRIZE A ROW (2026-09-29). The table put the WINNER
             in its last column, and at 390px that column was off the right edge
             — the one screen whose point is who won never showed it without a
