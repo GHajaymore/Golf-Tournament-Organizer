@@ -32,7 +32,9 @@ export const LEADERBOARD_VISIBILITY_LABEL: Record<LeaderboardVisibility, string>
 };
 
 export const LEADERBOARD_VISIBILITY_HELP: Record<LeaderboardVisibility, string> = {
-  staff: "A blind event — players can't see standings until you publish results.",
+  // SAYS HOW. This ended "until you publish results", and there is no Publish
+  // button anywhere: the standings are published by changing this setting.
+  staff: "A blind event — players can't see standings until you publish them, by changing this to Organizers and players.",
   participants: "Signed-in players see live standings. Nothing is public.",
   public: "A read-only link anyone can open, no sign-in. Shows player names and scores.",
 };
