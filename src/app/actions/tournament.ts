@@ -90,7 +90,7 @@ import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUN
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
-import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { launchRefusal, finishRefusal, statusMove } from "@/lib/domain/phase-gate";
 import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
@@ -4396,15 +4396,21 @@ async function landAfterDeleting(session: { email: string; eventId: string }): P
 
 /* ── Lifecycle ────────────────────────────────────────────────────────── */
 
-const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
-
 export async function setEventStatus(
   status: string,
   /** Must be true to complete a tournament the Free plan deletes on completion. */
   confirmDelete = false,
 ): Promise<{ ok: boolean; error?: string; needsDeleteConfirm?: boolean }> {
   const eventId = await requireAdminEvent();
-  const s = STATUS_FLOW.includes(status) ? status : "draft";
+  // A status is moved, not set: see `statusMove` for the three things that
+  // followed from writing whatever arrived, an unknown word read as "draft"
+  // among them.
+  const current = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true } });
+  if (!current) return { ok: false, error: "That tournament no longer exists." };
+  const move = statusMove(current.status, status);
+  if (move.kind === "refuse") return { ok: false, error: move.error };
+  if (move.kind === "launch") return launchTournament();
+  const s = status;
   /**
    * FINISHING IS A STATEMENT, not a tidy-up.
    *
