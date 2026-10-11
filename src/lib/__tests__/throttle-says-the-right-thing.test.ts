@@ -19,6 +19,7 @@ const ABOUT: Record<RateLimitKind, RegExp> = {
   "card-photo": /card reading/i,
   "join-request": /join/i,
   "course-search": /course search/i,
+  "course-search-staff": /course search/i,
 };
 
 describe("throttle messages", () => {

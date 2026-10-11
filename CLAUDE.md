@@ -165,6 +165,23 @@ check `preview_list`'s `cwd` before believing a green run — `preview_start` wi
 server already running from the MAIN checkout, and then every route passes against code you did
 not write.
 
+**A SPEC MOVES BY ADDRESS. A PLAYER MOVES BY THUMB, AND THE TWO ARE DIFFERENT REQUESTS.**
+`page.goto` asks for a whole document. Tapping a tab asks for page data, through the service
+worker (`public/sw.js`). Until 2026-10-11 the worker answered those from its cache FIRST, keyed
+by address alone — so a member who took over somebody's phone and tapped Money was shown that
+person's money, card and place on the board, and anybody re-opening the app was shown the first
+tab they tapped as it was the last time.
+Every spec, the every-screen walk and the control crawl were green over it, because none of them
+taps. `e2e/shared-phone.spec.ts` does, and compares the screen with what that person is shown in
+a clean browser that has no worker.
+
+Two things to carry forward. **When a check is about what one PERSON sees, compare the screen,
+not a word on it**: the first measurement of this looked for a name, found the right names (a
+money page names everybody in the pot), and called it safe. And **the worker keeps nobody's
+pages** — four static files and nothing else. The cache it had was for opening a tab with no
+signal, which it never managed; if that is ever wanted it has to be BUILT, with each kept page
+filed under the person it belongs to. Do not switch page caching back on to get it.
+
 **Reading a change in the browser: bust the URL, or you will read the old page.** Navigating to a
 URL the browser has already visited serves it from cache, so `innerText` shows the render from
 before the edit. On 2026-09-07 that reported a fix as missing three separate times — twice after
@@ -1107,6 +1124,13 @@ impossible. Extend these rather than working around them.
 - `club-actions-check-the-role.test.ts` — an action that works on the caller's club asks their
   ROLE (`canEdit`), not only which club they are in. Added 2026-10-11 after deleting that check
   from one action left every guard green.
+- `every-action-says-who-may-call-it.test.ts` — a staff action's gate comes BEFORE its first
+  write, and an action with no staff gate is on a list that says who may call it (`WHO`). A new
+  action cannot arrive ungated quietly. It proves a check is THERE, not that it is right.
+- `the-directory-allowance-is-everyones.audit.test.ts` — every door to the live course directory
+  draws on one hourly budget per person (`directoryBudget`), organizers included. The four
+  directory actions are kept out of the every-action sweep because they spend that allowance —
+  so they are the ones to read by hand whenever they change.
 - `themes.test.ts` — every accent ramp and neutral ramp clears its contrast floor on both
   grounds, and stays monotonic.
 - `brand-consistency.test.ts` — the logo is drawn once, at a size from `LOGO_SIZE`.

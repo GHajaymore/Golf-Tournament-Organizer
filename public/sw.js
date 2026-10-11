@@ -1,19 +1,46 @@
-// Minimal service worker for installability + basic offline resilience.
-// Network-first for navigations/data (always fresh live standings when online),
-// cache-first for static assets. Scoped to same-origin GET requests.
-const CACHE = "flights-v1";
+// Service worker: installability and push. Scoped to same-origin GET requests.
+//
+// IT KEEPS NOBODY'S SCREENS (2026-10-11).
+//
+// This answered every in-app page request from its cache FIRST, keyed by the
+// address alone, and refreshed the cache behind it. So on a phone that changed
+// hands — a partner's, a club tablet — the second member tapping Money was
+// shown the FIRST member's money, their card, and their "YOU" on the board.
+// Measured on the seeded club, three screens of three; and the same person
+// opening the app tomorrow was shown yesterday's tab on the first tap.
+//
+// No test saw it, because tests open a screen by its address (a whole
+// document, never answered from the cache) and a player gets there by tapping
+// a tab (page data, always answered from it).
+//
+// What the cache was FOR was moving between tabs with no signal. Measured the
+// same day, with the old worker and everything cached: it did not do that
+// either — a tab tapped with no signal did not open. So nothing is given up:
+//
+//   - A page request is not touched. The network answers it, or nothing does.
+//   - Only what is nobody's is kept: the icons and the manifest.
+//   - Every cache this version does not name is deleted when it first runs,
+//     which is how whatever the old one held of the last person to use a
+//     phone goes.
+//
+// Scoring with no signal never depended on this: the card on screen keeps
+// working and its strokes wait in the phone's own storage (`usePendingCard`).
+// If moving between tabs offline is ever wanted, it has to be built so that a
+// kept page is filed under the person it belongs to — not switched back on.
+const STATIC_CACHE = "thq-static-v2";
+const KEEP = [STATIC_CACHE];
 const STATIC = ["/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(STATIC).catch(() => {})));
+  event.waitUntil(caches.open(STATIC_CACHE).then((c) => c.addAll(STATIC).catch(() => {})));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => !KEEP.includes(k)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -69,31 +96,29 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+// The fetch handler stays, though it now answers only four files: a worker
+// with none is not installable on some browsers.
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  // Never cache Next.js build chunks / server-action payloads — always go to the
-  // network so a rebuild can't be shadowed by a stale cached chunk.
-  if (url.pathname.startsWith("/_next/")) return;
+  // EXACTLY the files named above. Not "anything ending .png": a club's logo
+  // and a card photo are somebody's, and a list is a rule nobody can widen by
+  // adding a route.
+  if (!STATIC.includes(url.pathname)) return;
 
-  if (req.mode === "navigate") {
-    event.respondWith(fetch(req).catch(() => caches.match(req)));
-    return;
-  }
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    }),
+    caches.open(STATIC_CACHE).then((cache) =>
+      cache.match(req).then((cached) => {
+        const network = fetch(req)
+          .then((res) => {
+            if (res && res.status === 200) cache.put(req, res.clone()).catch(() => {});
+            return res;
+          })
+          .catch(() => cached || Response.error());
+        return cached || network;
+      }),
+    ),
   );
 });

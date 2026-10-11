@@ -1075,6 +1075,27 @@ async function clubNear(eventId: string): Promise<Near | undefined> {
   return city ? ({ city } satisfies Near) : undefined;
 }
 
+/**
+ * MAY THIS PERSON SPEND ONE REQUEST OF THE DIRECTORY'S DAY?
+ *
+ * The live directory answers 500 requests a day for the whole app, and every
+ * door to it is a `"use server"` export anyone signed in can call. So each
+ * account has an hourly budget, and EVERY door asks this one function:
+ * searching and importing draw on the same count, or a person refused at one
+ * simply uses the other.
+ *
+ * Nobody is exempt. "Organizers search as before" was the rule, and being an
+ * organizer costs a sign-up — so the exemption exempted everybody who wanted
+ * it. An organizer gets four times a player's budget instead.
+ *
+ * Keyed on the person, not the tournament: a budget per tournament is one more
+ * tournament away from a fresh one.
+ */
+async function directoryBudget(session: { role: string; userId?: string; email: string }) {
+  const kind = session.role === "admin" ? "course-search-staff" : "course-search";
+  return checkRateLimit(kind, session.userId || session.email);
+}
+
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
@@ -1108,8 +1129,8 @@ export async function searchCourseDirectory(
    * to the catalogue rather than refusing.
    */
   let live = !localOnly;
-  if (live && session.role !== "admin") {
-    const budget = await checkRateLimit("course-search", session.userId || session.email);
+  if (live) {
+    const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
   const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
@@ -1193,7 +1214,21 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
    */
   const organizationId = await libraryOrganizationFor(session);
 
-  const course = await fetchDirectoryCourse(directoryId);
+  /**
+   * THE STORED CATALOGUE FIRST, AND FREE. Only an id it does not hold goes to
+   * the directory, and that request is counted against this person — the same
+   * budget their searches draw on (`directoryBudget`). It was not counted at
+   * all: five hundred made-up ids from one account ended course look-up for
+   * every club until the next day.
+   */
+  let course = await fetchDirectoryCourse(directoryId, false);
+  if (!course) {
+    const budget = await directoryBudget(session);
+    if (!budget.allowed) {
+      return { ok: false, error: `${budget.message} Or paste the card in below.` };
+    }
+    course = await fetchDirectoryCourse(directoryId, true);
+  }
   if (!course) {
     return {
       ok: false,
