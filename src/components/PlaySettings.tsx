@@ -290,7 +290,14 @@ export function PlaySettings({
           </p>
         ) : (
           <MoreInfo short="Tournaments already created keep their own." style={{ marginTop: 4 }}>
-            What a new tournament starts with. Changing these never rewrites an event in progress.
+            {/* "What a new tournament starts with" was true of one way of
+                starting one. A template is a whole kind of tournament and
+                sets every one of these itself, so a club that had chosen
+                Round Codes here and then picked "Stroke Play" got email
+                sign-in and no word of why. Said, until that is decided. */}
+            What a tournament you start from scratch begins with. A template brings its own — a
+            championship is blind and committee-scored whatever is set here — and you can change any
+            of them on the tournament. Changing these never rewrites an event in progress.
           </MoreInfo>
         )}
       </div>

@@ -84,7 +84,11 @@ export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
   flight:
     "Set the tees once per flight and everyone in it follows. This is how a club championship runs three divisions off three sets — championship, seniors, ladies — without assigning anybody individually. A flight you leave alone plays the round's tees.",
   own: "You put each player on a set; anyone you haven't assigned plays their flight's, or the round's. Handicaps account for the difference, so a mixed field is still fair.",
-  player: "Each golfer picks their own set, and may change it until they have returned a card. Same scoring as assigning them yourself — it just saves you doing it for a field that already knows.",
+  // SAYS WHO RECORDS IT. This read "each golfer picks their own set, and may
+  // change it until they have returned a card" — and no screen a player can
+  // open lets them: the set is recorded on Registration, by staff. The
+  // choice is the golfer's; the typing, for now, is the organizer's.
+  player: "Each golfer chooses their own set, and you record it for them on Registration — players cannot yet change it in the app. Same scoring as assigning them yourself.",
 };
 
 /**
