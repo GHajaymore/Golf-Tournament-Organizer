@@ -107,6 +107,7 @@ import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import"
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { placementOnApproval, parseHandicapInput } from "@/lib/domain/registration-intake";
 import {
+  marginRefusal,
   marginToHoles,
   resolveMatch,
   deriveNetHoles,
@@ -2369,20 +2370,17 @@ export async function applyMatchResult(
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
-  // A margin has to describe a result that can happen. "2&3" — up two with
-  // three to play — is not a closed-out match; typed in as-is it reconstructs
-  // a card the standings read as still in progress, forever. The importer has
-  // refused these since it existed; the console path took them silently.
+  // A "use server" export is called with whatever the caller likes: a winner
+  // that is none of the three was read as B.
+  if (winner !== "A" && winner !== "B" && winner !== "H") throw new Error("Pick a winner, or halved.");
+  // A winner needs a margin, and one a match can finish on — the one rule every
+  // door asks (`marginRefusal`). "2&3" typed as-is reconstructs a card the
+  // standings read as still in progress, forever; a blank one was stored as a
+  // halved match.
   const total = matchHoleCount(match.holes);
-  const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.trim().toUpperCase());
-  if (amp) {
-    const lead = parseInt(amp[1], 10);
-    const toPlay = parseInt(amp[2], 10);
-    if (lead <= toPlay) {
-      throw new Error(`"${margin}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`);
-    }
-    if (lead > total) throw new Error(`"${margin}" can't happen over ${total} holes.`);
-  }
+  margin = String(margin ?? "");
+  const refusal = marginRefusal(winner, margin, total);
+  if (refusal) throw new Error(refusal);
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
@@ -5207,7 +5205,19 @@ export async function importScores(
       // "3&2" into a card. Reusing it keeps an imported result and a typed one
       // identical downstream, rather than creating a second kind of result the
       // leaderboard has to know about.
-      const synth = marginToHoles(w, row.margin ?? "", matchHoleCount(found.holes));
+      // A row whose winner is none of the three was read as halved, and a
+      // winner with no margin as halved too: refused, like every other door.
+      if (row.winner !== "A" && row.winner !== "B" && row.winner !== "H") {
+        problems.push("A row named a winner that isn't one of the two players, or halved.");
+        continue;
+      }
+      const rowMargin = String(row.margin ?? "");
+      const refusal = marginRefusal(w, rowMargin, matchHoleCount(found.holes));
+      if (refusal) {
+        problems.push(refusal);
+        continue;
+      }
+      const synth = marginToHoles(w, rowMargin, matchHoleCount(found.holes));
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
         data: { holes: JSON.stringify(synth), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },

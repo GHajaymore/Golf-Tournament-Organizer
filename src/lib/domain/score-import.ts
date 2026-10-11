@@ -22,6 +22,7 @@
  */
 
 import { parseCsv, splitCsvLine } from "../csv";
+import { marginRefusal } from "./match";
 
 /**
  * Commas, whatever the file arrived with.
@@ -453,29 +454,15 @@ export function parseScoreCsv(
       });
       return;
     }
-    // A margin has to describe a result that can happen. "2&3" — up by two
-    // with three to play — is not a closed-out match; nine times in ten it is
-    // "3&2" transposed, and importing it as typed writes a match the standings
-    // read as still in progress, forever. Reported, never guessed at.
+    // A winner needs a margin, and one a match can finish on — the one rule
+    // every door asks (`marginRefusal`). "2&3" is "3&2" transposed nine times
+    // in ten; a winner with an empty Margin cell was imported as a halved
+    // match. Reported, never guessed at.
     const margin = (row[3] ?? "").trim();
-    const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.toUpperCase());
-    if (amp) {
-      const lead = parseInt(amp[1], 10);
-      const toPlay = parseInt(amp[2], 10);
-      if (lead <= toPlay) {
-        out.problems.push({
-          row: line,
-          message: `"${margin}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`,
-        });
-        return;
-      }
-      if (lead > holes) {
-        out.problems.push({
-          row: line,
-          message: `"${margin}" can't happen over ${holes} holes.`,
-        });
-        return;
-      }
+    const refusal = marginRefusal(w, margin, holes);
+    if (refusal) {
+      out.problems.push({ row: line, message: refusal });
+      return;
     }
     out.matchRows.push({
       aId: ra.player.id,

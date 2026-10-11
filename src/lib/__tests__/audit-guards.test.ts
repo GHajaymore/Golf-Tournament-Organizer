@@ -665,11 +665,20 @@ describe("the console refuses impossible match margins", () => {
     // importer has refused these since it existed; the console path took them
     // silently and reconstructed a card the standings read as in progress
     // forever.
+    //
+    // It pinned the three expressions of that check (`lead <= toPlay`, the
+    // suggestion, `lead > total`) inside this one action. They froze a COPY:
+    // each door had its own, and none asked whether there was a margin at all,
+    // so a named winner with an empty box was stored as halved. The rule is one
+    // function now, `marginRefusal`; what it refuses is pinned by value in
+    // a-named-winner-is-never-halved.test.ts, and this pins that the console
+    // asks it before turning a margin into holes.
     const src = read("tournament.ts");
     const body = src.slice(src.indexOf("export async function applyMatchResult"));
-    expect(body.slice(0, 1200)).toMatch(/lead <= toPlay/);
-    expect(body.slice(0, 1200)).toMatch(/Did you mean/);
-    expect(body.slice(0, 1200)).toMatch(/lead > total/);
+    const convert = body.indexOf("marginToHoles(winner, margin, total)");
+    expect(convert).toBeGreaterThan(-1);
+    expect(body.slice(0, convert)).toMatch(/marginRefusal\(winner, margin, total\)/);
+    expect(body.slice(0, convert)).toMatch(/if \(refusal\) throw new Error\(refusal\)/);
   });
 });
 
@@ -717,9 +726,13 @@ describe("the round-code result path carries every guard the hole path has", () 
     expect(fn).toMatch(/You can only enter scores for your own match/);
   });
 
-  it("refuses impossible margins with the transposition suggested", () => {
-    expect(fn).toMatch(/lead <= toPlay/);
-    expect(fn).toMatch(/did you mean/i);
+  it("refuses a margin no match can finish on — or none at all — before it is recorded", () => {
+    // Through `marginRefusal`, the one rule every door asks; see the console's
+    // guard above for why this no longer pins the expression.
+    const convert = fn.indexOf("marginToHoles(winner, margin, total)");
+    expect(convert).toBeGreaterThan(-1);
+    expect(fn.slice(0, convert)).toMatch(/marginRefusal\(winner, margin, total\)/);
+    expect(fn.slice(0, convert)).toMatch(/if \(refusal\) return \{ ok: false, error: refusal \}/);
   });
 
   it("reconstructs holes so a phoned-in result equals a tapped one", () => {

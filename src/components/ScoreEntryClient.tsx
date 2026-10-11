@@ -20,6 +20,7 @@ import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { HoleResultCard } from "@/components/HoleResultCard";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
+import { marginRefusal } from "@/lib/domain/match";
 import { ScoreCell } from "@/components/ScorecardTable";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
@@ -850,7 +851,10 @@ export function ScoreEntryClient({
     persist(active.id, next);
   };
 
+  const resultRefusal = marginRefusal(winner, margin, holes.length || 18);
+
   const doApplyResult = () => {
+    if (resultRefusal) return;
     const total = holes.length || 18;
     save(() => applyMatchResult(active.id, winner, margin));
     import("@/lib/domain").then(({ marginToHoles }) => {
@@ -1740,7 +1744,17 @@ export function ScoreEntryClient({
                     : `Both players are called ${firstName(active.aName)}, so the margin is heard but the winner isn't — pick it above.`}
                 </div>
               </div>
-              <button type="button" className="btn btn-primary btn-block" onClick={doApplyResult}>
+              {/* A winner needs a margin: the server refuses the same thing,
+                  and "Apply" with this box empty used to record a halved match. */}
+              {resultRefusal && (
+                <p
+                  className={margin.trim() ? undefined : "text-muted"}
+                  style={{ fontSize: 13, margin: 0, color: margin.trim() ? "var(--color-danger)" : undefined }}
+                >
+                  {resultRefusal}
+                </p>
+              )}
+              <button type="button" className="btn btn-primary btn-block" disabled={!!resultRefusal} onClick={doApplyResult}>
                 <Icon name="check" /> Apply result
               </button>
             </div>

@@ -5,6 +5,7 @@ import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
+import { marginRefusal } from "@/lib/domain/match";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -859,6 +860,10 @@ export function PlayClient(props: Props) {
     });
   };
 
+  // Why this result cannot be sent as it stands — the rule the server asks too.
+  // "I won" with this box empty used to be stored as a halved match.
+  const resultRefusal = marginRefusal(resultWinner === "halved" ? "H" : "A", resultMargin, holeCount);
+
   const won = holes.filter((h) => h === "A").length;
   const lost = holes.filter((h) => h === "B").length;
   const halved = holes.filter((h) => h === "H").length;
@@ -927,7 +932,15 @@ export function PlayClient(props: Props) {
               />
             </div>
           )}
-          <button type="button" className="btn btn-primary" disabled={pending} onClick={saveResult}>
+          {resultRefusal && (
+            <p
+              className={resultMargin.trim() ? undefined : "text-muted"}
+              style={{ fontSize: 13, margin: 0, color: resultMargin.trim() ? "var(--color-danger)" : undefined }}
+            >
+              {resultRefusal}
+            </p>
+          )}
+          <button type="button" className="btn btn-primary" disabled={pending || !!resultRefusal} onClick={saveResult}>
             {pending ? "Saving…" : saved ? "Saved" : "Submit result"}
           </button>
           {error && (
