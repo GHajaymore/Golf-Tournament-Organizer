@@ -148,7 +148,7 @@ import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
@@ -4890,19 +4890,32 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
 /**
  * WHAT EVERY ONE OF THE FLIGHT ACTIONS ASKS NEXT, in one place — after its own
  * first line has asked for the primary organizer: a tournament that is not
- * locked, the arrangement set to flights, and no result yet recorded in any flight. The last is the Rules' own line —
- * the draw is fixed once play in it has begun (Committee Procedures 5F(1)) —
- * and it is asked HERE rather than by each action, which is how one of five
- * would come to forget it.
+ * finished, the arrangement set to flights, and no result yet recorded in any
+ * flight. The last is the Rules' own line — the draw is fixed once play in it
+ * has begun (Committee Procedures 5F(1)) — and it is asked HERE rather than by
+ * each action, which is how one of five would come to forget it.
+ *
+ * NOT THE SETUP LOCK, and deliberately. Launching locks a tournament's SETUP,
+ * and the arrangement — one bracket or several flights — is setup, so
+ * `setBracketMode` is locked with it. Dividing the field is not setup: it is
+ * the DRAW, and a draw is made when the field is known. For the club
+ * championship this is built for, that is after a qualifying round — which is
+ * played after launch, always. The first cut of this asked for an unlocked
+ * tournament, so the one act a qualifying knockout can only do after launch
+ * was the one launch forbade; the organizer's next move would have been to
+ * unlock the thing they had just locked (see `launchTournament`). One bracket
+ * needs no such act and never had the lock either: its draw makes itself.
  */
 async function flightsOpenForChange(eventId: string): Promise<
   | { ok: true; eventId: string; state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>; stored: string }
   | { ok: false; error: string }
 > {
-  await assertUnlocked(eventId, "change the flights");
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true, status: true } });
   if (!event || event.bracketMode !== "flights") {
     return { ok: false, error: "This knockout is not arranged in flights. Choose \"Several flights\" first." };
+  }
+  if (isFinished(event.status)) {
+    return { ok: false, error: "This tournament is completed, so its flights are as they finished. Reopen it to change them." };
   }
   if ((await prisma.bracketWinner.count({ where: { eventId } })) > 0) {
     return { ok: false, error: "This knockout has results, so its flights are fixed. Clear the results to change them." };

@@ -36,7 +36,9 @@ const { clearFlights, divideIntoFlights, moveFlightPlayer, renameFlight, reseedF
  *    nobody in another;
  *  - the division can be changed until the first result in ANY flight and not
  *    after (the draw is fixed once play in it has begun, Committee Procedures
- *    5F(1)), by the primary organizer only, on an unlocked tournament;
+ *    5F(1)), by the primary organizer only — and NOT shut by launching, which
+ *    locks setup: the division is the draw, and a qualifying knockout can
+ *    only make it after launch. A completed tournament is shut;
  *  - a late entrant is in no flight until put in one, and a player who
  *    withdraws stays in theirs;
  *  - the tournament's finishing order runs flight by flight.
@@ -221,7 +223,7 @@ describe("a knockout in several flights", () => {
     expect((await stored()).bracketDraw, "a refused change changed something").toBe(before);
   });
 
-  it("is the primary organizer's alone, on a tournament that is not locked", async () => {
+  it("is the primary organizer's alone; launching does not shut it, completing does", async () => {
     const before = (await stored()).bracketDraw;
     session = { ...session!, role: "assistant", viewRole: "assistant" };
     await expect(divideIntoFlights("handicap", [16, 5])).rejects.toThrow(/Organizer access required/);
@@ -233,11 +235,29 @@ describe("a knockout in several flights", () => {
     await expect(clearFlights()).rejects.toThrow(/Not authenticated/);
     asOrganizer();
 
-    await prisma.event.update({ where: { id: eventId }, data: { status: "live", configUnlocked: false } });
-    await expect(clearFlights()).rejects.toThrow(/locked/i);
-    await expect(divideIntoFlights("handicap", [16, 5])).rejects.toThrow(/locked/i);
-    await prisma.event.update({ where: { id: eventId }, data: { status: "draft" } });
     expect((await stored()).bracketDraw, "a refused caller changed the division").toBe(before);
+
+    // LAUNCHED, SETUP LOCKED. The arrangement is setup and is locked with it; the division is the
+    // draw and is not — a qualifying round is played after launch, and the field is divided after
+    // that. Renamed and renamed back, so the division is left exactly as it was found.
+    await prisma.event.update({ where: { id: eventId }, data: { status: "live", configUnlocked: false } });
+    await expect(setBracketMode("single"), "the arrangement is setup").rejects.toThrow(/locked/i);
+    const name = parseFlightPlan(before)!.brackets[0].name;
+    expect(await renameFlight(0, "After launch"), "the draw was shut by launching").toEqual({ ok: true });
+    expect(parseFlightPlan((await stored()).bracketDraw)!.brackets[0].name).toBe("After launch");
+    expect(await renameFlight(0, name)).toEqual({ ok: true });
+    expect((await stored()).bracketDraw).toBe(before);
+
+    // COMPLETED. The flights are as they finished.
+    await prisma.event.update({ where: { id: eventId }, data: { status: "completed" } });
+    const shut = /completed/;
+    expect(await clearFlights()).toMatchObject({ ok: false, error: expect.stringMatching(shut) });
+    expect(await divideIntoFlights("handicap", [16, 5])).toMatchObject({ ok: false, error: expect.stringMatching(shut) });
+    expect(await moveFlightPlayer(await idOf(1), 1)).toMatchObject({ ok: false, error: expect.stringMatching(shut) });
+    expect(await renameFlight(0, "Anything")).toMatchObject({ ok: false, error: expect.stringMatching(shut) });
+    expect(await reseedFlight(0, parseFlightPlan(before)!.brackets[0].playerIds)).toMatchObject({ ok: false, error: expect.stringMatching(shut) });
+    await prisma.event.update({ where: { id: eventId }, data: { status: "draft" } });
+    expect((await stored()).bracketDraw, "a completed tournament's division was changed").toBe(before);
   });
 
   it("a late entrant is in no flight until put in one; a player who withdraws stays in theirs", async () => {

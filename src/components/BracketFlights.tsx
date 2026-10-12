@@ -60,7 +60,7 @@ export function BracketFlights({
   departed,
   fixed,
   readOnly,
-  locked,
+  finished,
 }: {
   fieldSize: number;
   criteria: FlightChoice[];
@@ -75,7 +75,11 @@ export function BracketFlights({
   /** A result is recorded, so the division can no longer change. */
   fixed: boolean;
   readOnly: boolean;
-  locked: boolean;
+  /**
+   * The tournament is completed. NOT the setup lock: dividing the field is the draw, made when the
+   * field is known — after a qualifying round, which is after launch — so launching does not shut it.
+   */
+  finished: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -89,7 +93,7 @@ export function BracketFlights({
   const [renaming, setRenaming] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
 
-  const canChange = !readOnly && !locked && !fixed;
+  const canChange = !readOnly && !finished && !fixed;
   const run = (action: () => Promise<{ ok: boolean; error?: string }>, then?: () => void) => {
     setError("");
     startTransition(async () => {
@@ -122,9 +126,9 @@ export function BracketFlights({
           </p>
         </div>
 
-        {readOnly || locked ? (
+        {readOnly || finished ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            {locked ? "Setup is locked, so the field cannot be divided until it is unlocked." : "The organizer has not divided the field yet."}
+            {finished ? "This tournament is completed and its field was never divided." : "The organizer has not divided the field yet."}
           </p>
         ) : fieldSize < 2 ? (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>A knockout needs at least two players in the field.</p>

@@ -1,5 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { isFinished } from "@/lib/domain/lifecycle-state";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
@@ -264,7 +265,7 @@ export default async function BracketPage() {
           departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
           fixed={state.drawFrozen === true}
           readOnly={!isAdmin}
-          locked={isSetupLocked(state.event)}
+          finished={isFinished(state.event.status)}
         />
       )}
       <BracketClient
