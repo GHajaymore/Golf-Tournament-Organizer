@@ -296,8 +296,7 @@ export default async function LandingPage() {
                   </svg>
                 </h1>
                 <p className="m-sub m-rise m-d2">Run the whole competition. Your players just type a code.</p>
-                <p className="m-lead m-rise m-d3">The draw, the cards, the live board and the side games. No app to download, no account to make.</p>
-                <div className="m-rise m-d4">{doors}</div>
+                <div className="m-rise m-d3">{doors}</div>
                 <ul className="m-facts3 m-rise m-d4">
                   <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
                   <li>No card</li>
@@ -356,7 +355,7 @@ export default async function LandingPage() {
           <div className="m-wrap">
             <div className="m-proof">
               <ul>
-                <li><b>No app, no account</b><span>An eight-character round code</span></li>
+                <li><b>A live board by link</b><span>Anyone can watch; nobody signs in</span></li>
                 <li><b>Works without signal</b><span>Cards save and send later</span></li>
                 <li><b>Scores by voice</b><span>Say the hole, or the whole card</span></li>
                 <li><b>{FORMAT_NAMES.length} formats</b><span>Each scored by its own rules</span></li>
@@ -367,6 +366,7 @@ export default async function LandingPage() {
 
         {/* ═══════════ HOW IT WORKS ═══════════ */}
         <section className="m-chapter" id="round" aria-labelledby="round-h">
+          <span className="m-ghost m-decor" aria-hidden="true"><span>Round</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">How it works</p>
@@ -439,6 +439,7 @@ export default async function LandingPage() {
 
         {/* ═══════════ WHAT IT DOES ═══════════ */}
         <section className="m-chapter" id="does" aria-labelledby="does-h">
+          <span className="m-ghost m-decor" aria-hidden="true"><span>Day</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">What it does</p>
@@ -517,6 +518,7 @@ export default async function LandingPage() {
 
         {/* ═══════════ WHEREVER YOU PLAY ═══════════ */}
         <section className="m-chapter" id="world" aria-labelledby="world-h">
+          <span className="m-ghost m-decor" aria-hidden="true"><span>World</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Wherever you play</p>
@@ -543,6 +545,7 @@ export default async function LandingPage() {
             currency, so the page cannot promise a price or a limit the code
             does not hold. */}
         <section className="m-chapter" id="pricing" aria-labelledby="pricing-h">
+          <span className="m-ghost m-decor" aria-hidden="true"><span>Field</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Pricing</p>

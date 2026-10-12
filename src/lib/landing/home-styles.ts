@@ -775,4 +775,28 @@ export const HOME_CSS = `
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .m-home .m-card.m-armed.m-in:hover { transform: translateY(-4px); }
 }
+/* THE SECOND PHONE IS A PHONE, NOT A THUMBNAIL (Ajay, 2026-10-12: "the other screen looks tiny").
+   It was cropped short and turned in depth, which shrank it twice. Now it is nearly the size of the
+   first, whole, tilted flat, and half behind it — still scenery, still marked so. */
+.m-home .m-hero-phone .m-phone.m-back.m-left { --m-rest: rotate(-7deg); transform: var(--m-rest); inset: 4% auto auto -30%; width: 88%; }
+.m-home .m-hero-phone .m-phone.m-back img { aspect-ratio: auto; }
+@media (max-width: 900px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -62%; width: 92%; } }
+@media (min-width: 901px) and (max-width: 1099px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 4% auto auto -16%; width: 84%; } }
+@media (max-width: 400px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 6% auto auto -48%; width: 88%; } }
+/* A CHAPTER WORD BEHIND EACH SECTION (2026-10-12). Asked for more drama, the first answer was light
+   beams over the first screen and four figures set as large as the headline; Ajay, on seeing them:
+   "doesnt look good too bold". Both are gone. What stayed is the quiet one: a word the width of the
+   section, fading downward, drifting as it is passed. Scenery, and marked so. */
+.m-home .m-chapter { position: relative; }
+.m-home .m-chapter > .m-wrap { position: relative; z-index: 1; }
+.m-home .m-ghost { position: absolute; z-index: 0; inset: clamp(4px, 1vw, 18px) 0 auto 0; overflow: hidden; pointer-events: none; user-select: none; white-space: nowrap; font: italic 300 clamp(6.5rem, 24vw, 22rem)/0.92 var(--font-display), "Iowan Old Style", Georgia, serif; letter-spacing: -0.04em; }
+.m-home .m-ghost > span { display: inline-block; padding: 0 0.3em 0.12em 0.02em; color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 11%, transparent) 10%, color-mix(in srgb, var(--brass-ui) 5%, transparent) 62%, transparent 92%); -webkit-background-clip: text; background-clip: text; }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .m-home .m-ghost > span { animation: m-drift linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
+  }
+}
+@keyframes m-drift { from { transform: translateX(7%); } to { transform: translateX(-24%); } }
+/* only where there is room for it: on a phone it would sit right behind the section label */
+@media (max-width: 900px) { .m-home .m-ghost { display: none; } }
 `;
