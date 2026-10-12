@@ -303,7 +303,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "Post a notice in **Tell the field → Announcements** (Title, Message, and **Pin to the top of players' Today screen** if it matters). It shows on players' Today screens; it is not pushed to phones.",
-          "Message a group in **Tell the field → Messages**: under **Who is this for?** pick the club, the tournament, players, organizers, a flight, a round, a team, a group, or one person.",
+          "Message a group in **Tell the field → Messages**: under **Who is this for?** pick the club, the tournament, players, organizers, a flight, a round, a team, a group, or one person. It opens on this tournament; the line under it says in words who the message is going to, and a message cannot be called back.",
         ],
       },
       { kind: "h", text: "How scores come in" },

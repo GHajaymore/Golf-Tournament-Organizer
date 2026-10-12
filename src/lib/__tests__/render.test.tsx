@@ -5347,7 +5347,13 @@ describe("MessagesClient", () => {
     const html = render(
       <ComposePanel composable={composable} people={people} isStaff onOpen={() => {}} />,
     );
-    expect(html).toContain("Going to everyone in");
+    // The answer, as a sentence. This pinned the words "Going to everyone in", which was the old
+    // spelling of the guarantee and not the guarantee: put before "Your group — Group 1" — or
+    // before "Everyone at the club" — it does not read. What is pinned now is that the card
+    // SAYS who it is for, naming the group the picker is on (2026-10-13).
+    expect(html).toContain("Going to <b>your group — Group 1</b>.");
+    expect(html).not.toContain("everyone in <b>Your");
+    // …and the picker itself still calls the group what it is called everywhere else.
     expect(html).toContain("Your group — Group 1");
     // Both selects have an accessible name; they had none at all before.
     expect(html).toContain('aria-label="Send to a group"');
