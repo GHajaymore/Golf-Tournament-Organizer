@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RecentChange } from "@/lib/services/recent-changes";
+import { formatClock } from "@/lib/domain/locale";
 
 /**
  * "RECENT CHANGES" — the tournament's audit log, on screen (Ajay, 2026-09-27).
@@ -30,7 +31,9 @@ export function RecentChanges({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const when = (iso: string) =>
-    new Date(iso).toLocaleString(locale, {
+    // Through `formatClock`: this line is drawn on the server and again in the browser, and the two
+    // must write the same words for AM and PM.
+    formatClock(new Date(iso), locale, {
       day: "numeric",
       month: "short",
       hour: "2-digit",

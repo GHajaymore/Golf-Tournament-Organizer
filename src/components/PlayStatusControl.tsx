@@ -4,6 +4,7 @@ import { resumePlay, suspendPlay } from "@/app/actions/play-status";
 import { MAX_SUSPEND_NOTE } from "@/lib/domain/play-status";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
+import { formatClock } from "@/lib/domain/locale";
 
 /**
  * The organizer's half of "play suspended" (Rule 5.7): one button to stop the
@@ -23,7 +24,7 @@ export function PlayStatusControl({ suspended, note, since }: { suspended: boole
    */
   const [at, setAt] = useState("");
   useEffect(() => {
-    setAt(since ? new Date(since).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "");
+    setAt(since ? formatClock(new Date(since), undefined, { hour: "numeric", minute: "2-digit" }) : "");
   }, [since]);
 
   if (suspended) {

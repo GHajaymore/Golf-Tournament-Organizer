@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, OUT_OF_POSITION, paceOfPlay, type PaceRow } from "@/lib/domain/pace";
 import type { PaceRound } from "@/lib/services/pace";
 import { Icon } from "./Icon";
+import { formatClock } from "@/lib/domain/locale";
 
 /**
  * PACE OF PLAY on the committee's dashboard, for a round being played today.
@@ -19,7 +20,7 @@ import { Icon } from "./Icon";
  */
 const localDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const clock = (d: Date | null) => (d ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "");
+const clock = (d: Date | null) => (d ? formatClock(d, undefined, { hour: "numeric", minute: "2-digit" }) : "");
 
 function statusText(r: PaceRow): string {
   switch (r.state) {

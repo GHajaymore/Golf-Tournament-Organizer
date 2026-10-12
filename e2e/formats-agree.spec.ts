@@ -68,9 +68,15 @@ function everyFormat(api: { locale: typeof locale; money: typeof moneyFormat; ro
     // through the functions above — the same options, spelled as they spell
     // them: Recent changes, a message's date, and a time of day.
     const moment = new Date("2026-05-14T13:05:00Z");
-    out[`recent changes ${tag}`] = moment.toLocaleString(tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+    // Both clock times through `formatClock`, as the components now write them. They used to be spelled
+    // here as the components spelled them — `toLocaleString` — and the first CI run found the server and
+    // the browser writing a Korean "PM" differently; see `formatClock`. Before noon as well as after,
+    // so both words of every language are compared.
+    out[`recent changes ${tag}`] = api.locale.formatClock(moment, tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+    out[`recent changes before noon ${tag}`] = api.locale.formatClock(new Date("2026-05-14T01:05:00Z"), tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
     out[`message date ${tag}`] = new Intl.DateTimeFormat(tag, { month: "short", day: "numeric", timeZone: "UTC" }).format(moment);
-    out[`time of day ${tag}`] = moment.toLocaleTimeString(tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+    out[`time of day ${tag}`] = api.locale.formatClock(moment, tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+    out[`time of day before noon ${tag}`] = api.locale.formatClock(new Date("2026-05-14T01:05:00Z"), tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     for (const code of codes) {
       out[`money ${tag} ${code}`] = api.money.money(123456, code, tag);
       out[`money ${tag} ${code} negative`] = api.money.money(-50, code, tag);

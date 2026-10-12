@@ -288,6 +288,43 @@ export function formatDay(iso: string, locale: string = DEFAULT_LOCALE): string 
 }
 
 /**
+ * A TIME OF DAY, WRITTEN THE SAME ON THE SERVER AND IN THE BROWSER (2026-10-12).
+ *
+ * A screen drawn on both sides is written twice — by Node, then by the browser
+ * — and React compares the two. For a date both read the same tables. For the
+ * words "AM" and "PM" they need not: the first CI run of `formats-agree.spec`
+ * (Node 20 on Linux, against Chromium) wrote a Korean club's "Recent changes"
+ * as "5월 14일 PM 01:05" on the server and "5월 14일 오후 01:05" in the browser.
+ * Same day, same minute, a different word, because the two carry different
+ * editions of the locale data. Every local run had passed: this machine's Node
+ * is newer and agrees with the browser. A difference like that is a hydration
+ * mismatch waiting for a server and a browser of different vintages, and
+ * production's server is not chosen by this repository.
+ *
+ * So the day-period word is not left to either engine where they are known to
+ * differ: it is taken from a table here, and everything else about the time —
+ * the order, the digits, the separators — still comes from `Intl`, which both
+ * sides agree on. Every caller that writes a clock time comes through this, and
+ * the spec formats through it on both sides, so the next language whose engines
+ * part company fails that spec and gets a line in the table.
+ */
+const OWN_DAY_PERIODS: Record<string, readonly [string, string]> = {
+  // 오전 / 오후 — written as escapes so no editor or shell can re-encode them.
+  ko: ["\uC624\uC804", "\uC624\uD6C4"],
+};
+
+export function formatClock(at: Date, locale: string | undefined, options: Intl.DateTimeFormatOptions): string {
+  const format = new Intl.DateTimeFormat(locale, options);
+  const own = OWN_DAY_PERIODS[format.resolvedOptions().locale.split("-")[0]];
+  if (!own) return plainSpaces(format.format(at));
+  const parts = format.formatToParts(at);
+  if (!parts.some((p) => p.type === "dayPeriod")) return plainSpaces(format.format(at));
+  // Which half of the day, asked in a form no locale data can vary: the hour on a 24-hour clock, in digits.
+  const hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: options.timeZone }).format(at));
+  return plainSpaces(parts.map((p) => (p.type === "dayPeriod" ? own[hour < 12 ? 0 : 1] : p.value)).join(""));
+}
+
+/**
  * A span of days: "May 14 – 16, 2026", "14–16 May 2026", and so on.
  *
  * Uses `formatRange`, which is the only thing that knows where each locale
