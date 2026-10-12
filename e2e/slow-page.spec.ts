@@ -82,7 +82,10 @@ test.afterAll(async ({}, testInfo) => {
 /** Hands HTML over a piece at a time with a pause between pieces; passes everything else straight through. */
 function slowly(upstream: URL): Promise<http.Server> {
   const server = http.createServer((req, res) => {
-    const headers = { ...req.headers, host: upstream.host, "accept-encoding": "identity" };
+    // The Host header goes through as the browser sent it: rewritten to the server's own, every
+    // server action a page makes is refused as coming from another origin, and the screens under
+    // test would be screens whose background saves all failed.
+    const headers = { ...req.headers, "accept-encoding": "identity" };
     const up = http.request({ hostname: upstream.hostname, port: upstream.port, method: req.method, path: req.url, headers }, async (back) => {
       const html = String(back.headers["content-type"] ?? "").includes("text/html");
       const out = { ...back.headers };
