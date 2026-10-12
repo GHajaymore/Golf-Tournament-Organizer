@@ -4,6 +4,7 @@ import { registerForEvent, type RegisterResult } from "@/app/actions/register";
 import type { ApprovalMode } from "@/lib/domain/registration-intake";
 import type { RegistrationPrefill } from "@/lib/services/registration";
 import { formatDeadline } from "@/lib/deadline";
+import { indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 
 /**
@@ -103,7 +104,8 @@ export function RegisterClient({
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
   const [handicap, setHandicap] = useState(
-    prefill && prefill.handicap !== 0 ? String(prefill.handicap) : "",
+    // As a golfer writes it, which is also how the box reads it back: "+2.4", never "-2.4".
+    prefill && prefill.handicap !== 0 ? indexFigure(prefill.handicap) : "",
   );
   const [handicapType, setHandicapType] = useState(prefill?.handicapType === "9" ? "9" : "18");
   const [phone, setPhone] = useState(prefill?.phone ?? "");

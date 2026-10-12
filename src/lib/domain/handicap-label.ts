@@ -31,12 +31,29 @@ export interface IndexLike {
 /** The words for a missing index. One string, so five screens cannot differ. */
 export const NO_INDEX = "no index";
 
+/**
+ * THE FIGURE, AS A GOLFER WRITES IT: a plus handicap is "+2.4", never "-2.4".
+ *
+ * A handicap better than scratch is stored below zero, because that is what
+ * the arithmetic needs: such a player GIVES strokes. It is written with a plus
+ * sign, by every golfer and by the World Handicap System, and this app reads
+ * it that way on the way in (`parseHandicapInput`: "+2.4" is 2.4 better than
+ * scratch). On the way out it printed the stored number — so the best players
+ * in a club stood on the Members list, the flights, the tee sheet and the
+ * entry screens as "-2.4" (found 2026-10-13 by importing a member as "+2.4"
+ * and reading the list back). Four screens already wrote it properly, each
+ * with its own ternary; this is the one place the rule is said.
+ */
+export function indexFigure(handicap: number): string {
+  return handicap < 0 ? `+${Math.abs(handicap)}` : `${handicap}`;
+}
+
 export function indexLabel(p: IndexLike): string {
   if ((p.handicapSource ?? "manual") === "none") return NO_INDEX;
   // The nine-hole marker rides along, because "12.4" and "12.4 over nine" are
   // different figures and a screen that drops the distinction is wrong in the
   // direction that allocates the wrong shots.
-  return p.handicapType === "9" ? `${p.handicap} (9)` : `${p.handicap}`;
+  return p.handicapType === "9" ? `${indexFigure(p.handicap)} (9)` : indexFigure(p.handicap);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { indexLabel, hasIndex, NO_INDEX } from "../handicap-label";
+import { indexFigure, indexLabel, hasIndex, NO_INDEX } from "../handicap-label";
+import { parseHandicapInput } from "../registration-intake";
 
 /**
  * The one rule five screens share. Every cell is a version of the same
@@ -39,6 +40,52 @@ describe("what an index says on a screen", () => {
     // default the schema uses.
     expect(indexLabel({ handicap: 5.5 })).toBe("5.5");
     expect(indexLabel({ handicap: 5.5, handicapSource: null })).toBe("5.5");
+  });
+});
+
+describe("a handicap better than scratch", () => {
+  /**
+   * Stored below zero, written with a plus. Found 2026-10-13: a member
+   * imported as "+2.4" stood on the club's own list as "-2.4", and on every
+   * other screen that prints an index through `indexLabel`.
+   */
+  it("is written with a plus sign, never a minus", () => {
+    expect(indexFigure(-2.4)).toBe("+2.4");
+    expect(indexFigure(-0.1)).toBe("+0.1");
+    expect(indexFigure(-10)).toBe("+10");
+    expect(indexLabel({ handicap: -2.4, handicapSource: "manual" })).toBe("+2.4");
+    expect(indexLabel({ handicap: -3, handicapSource: "ghin" })).toBe("+3");
+    expect(indexLabel({ handicap: -1.5, handicapType: "9", handicapSource: "manual" })).toBe("+1.5 (9)");
+    // Over the whole range a plus handicap takes: no label has a minus in it.
+    for (let tenths = -100; tenths < 0; tenths += 1) {
+      const label = indexLabel({ handicap: tenths / 10, handicapSource: "manual" });
+      expect(label.startsWith("+"), label).toBe(true);
+      expect(label, label).not.toContain("-");
+    }
+  });
+
+  it("leaves everybody else's figure exactly as it was", () => {
+    expect(indexFigure(0)).toBe("0");
+    expect(indexFigure(12.4)).toBe("12.4");
+    expect(indexFigure(54)).toBe("54");
+    expect(indexLabel({ handicap: 12.4, handicapSource: "manual" })).toBe("12.4");
+    expect(indexLabel({ handicap: 0, handicapSource: "manual" }), "scratch is not a plus handicap").toBe("0");
+    expect(indexLabel({ handicap: 7, handicapType: "9" })).toBe("7 (9)");
+  });
+
+  it("reads back as the number it was written from", () => {
+    // What the screen shows is what the entry box and the importer take (`parseHandicapInput`):
+    // a figure copied off a screen and typed into a form must not change sign on the way.
+    for (const stored of [-10, -2.4, -0.1, 0, 0.1, 12.4, 54]) {
+      const shown = indexFigure(stored);
+      const typed = shown.startsWith("+") ? -Number(shown.slice(1)) : Number(shown);
+      expect(typed, shown).toBe(stored);
+      expect(parseHandicapInput(shown)).toMatchObject({ ok: true, value: stored });
+    }
+  });
+
+  it("still says nothing has been claimed, whatever number is stored beside it", () => {
+    expect(indexLabel({ handicap: -2.4, handicapSource: "none" })).toBe(NO_INDEX);
   });
 });
 
