@@ -748,7 +748,7 @@ export const HOME_CSS = `
 .m-home .m-close .m-close-copy, .m-home .m-close .m-close-more { display: grid; gap: 18px; justify-items: start; }
 /* beside the form on a wide screen: the words above, the stores beneath, the form the full height of both */
 @media (min-width: 900px) {
-  .m-home .m-close { grid-template-columns: minmax(0, 1fr) minmax(0, 460px); grid-template-rows: 1fr auto; column-gap: clamp(32px, 6vw, 90px); row-gap: 28px; align-items: start; }
+  .m-home .m-close { grid-template-columns: minmax(0, 1fr) minmax(0, 460px); grid-template-rows: 1fr 1fr; column-gap: clamp(32px, 6vw, 90px); row-gap: 28px; align-items: start; }
   .m-home .m-close .m-close-copy { grid-column: 1; grid-row: 1; align-self: end; }
   .m-home .m-close .m-close-more { grid-column: 1; grid-row: 2; align-self: start; }
   .m-home .m-close .m-auth { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; align-self: center; }
