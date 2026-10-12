@@ -151,6 +151,29 @@ test("the secretary adds, corrects, retires, imports and enters members from the
     await expect(row(page, dee)).toHaveCount(0);
   });
 
+  await test.step("the form shows a plus handicap with its plus, and takes one typed that way", async () => {
+    await row(page, bo).getByTitle("Edit").click();
+    const box = page.getByLabel("Handicap index");
+    // As a golfer writes it. The box was number-only: it showed -2.4 and would not take "+2.4" at all.
+    await expect(box).toHaveValue("+2.4");
+    await box.fill("two and a bit");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText(/Enter the handicap as a number, like 12\.4/)).toBeVisible();
+    await box.fill("77");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("A handicap index runs from +10 to 54.")).toBeVisible();
+    await box.fill("+1.9");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(row(page, bo)).toContainText("+1.9", { timeout: 20_000 });
+    await open(page);
+    await expect(row(page, bo)).toContainText("+1.9");
+    // Put back, typed the other way a secretary might: with the minus the arithmetic uses.
+    await row(page, bo).getByTitle("Edit").click();
+    await page.getByLabel("Handicap index").fill("-2.4");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(row(page, bo)).toContainText("+2.4", { timeout: 20_000 });
+  });
+
   await test.step("the same file again adds nobody", async () => {
     const again = ["name,email,handicap,phone", `${bo},${mail("bo")},+2.4,5550102`, `${cy},${mail("cy")},18.1,5550103`].join("\n");
     await page.locator('input[type="file"]').setInputFiles({ name: "members.csv", mimeType: "text/csv", buffer: Buffer.from(again, "utf8") });

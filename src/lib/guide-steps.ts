@@ -55,7 +55,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "[[Add member]]: Name, Email (how they sign in), Phone, **Handicap index**, **Handicap is for** (18 or 9 holes), plus optional Member number, GHIN, Home club and private Notes.",
-          "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise.",
+          "Or bring everyone in at once with [[Import CSV]]. You'll see what was added, updated or skipped, and any columns it didn't recognise. A plus handicap is written “+2.4”, in the file and in the form, and is shown that way on every list.",
           "To enter members into the open tournament, tick them and press [[Add N to ‹tournament›]].",
           "Someone who has played can't be removed — use [[Set inactive]] so their results stay intact.",
           "An active member who signs in with the email on the roster sees the club's tournaments straight away — no invitation needed. An inactive member does not.",
