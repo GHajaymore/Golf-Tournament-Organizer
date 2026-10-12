@@ -258,7 +258,9 @@ export function OrganizationAccess({
                           thing in more words, to a mouse only. */}
                       {!p.hasLogin && (
                         <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 13 }}>
-                          invited
+                          {/* Added by you and not back since: the name stays
+                              theirs to show (2026-10-11). */}
+                          {p.invited ? "Invited — not opened yet" : "invited"}
                         </span>
                       )}
                     </td>

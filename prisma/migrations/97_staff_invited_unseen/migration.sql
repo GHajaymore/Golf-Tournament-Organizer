@@ -1,0 +1,15 @@
+-- Somebody added as staff is "invited" until they have been back (2026-10-11).
+--
+-- Adding an address as staff makes that person staff at once: there is no
+-- acceptance step, by decision. But the staff list then printed the ACCOUNT's
+-- own name and whether it had ever signed in, beside an address the inviter had
+-- only typed - so typing a stranger's address told you their name. This column
+-- is set when somebody else adds a person, and cleared the first time that
+-- person signs in or opens one of the club's tournaments afterwards; while it
+-- is set the list shows the typed address and "Invited - not opened yet".
+--
+-- Nullable with no default, and NULL means "nothing to hide": every existing
+-- membership, and every one made any other way (signing up, a join request
+-- approved, a seed), reads exactly as it did. Adds a column and writes no row,
+-- so it is safe on a populated table and on an empty one.
+ALTER TABLE "OrganizationMember" ADD COLUMN "invitedUnseenAt" TIMESTAMP(3);

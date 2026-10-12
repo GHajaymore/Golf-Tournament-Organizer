@@ -757,6 +757,15 @@ model OrganizationMember {
    */
   role           String   @default("member")
   createdAt      DateTime @default(now())
+  /**
+   * Set when somebody ELSE adds this person as staff; cleared the first time the
+   * person signs in, or opens one of the club's tournaments, afterwards. While it
+   * is set the staff list shows the address the inviter typed and "Invited — not
+   * opened yet" — never the account's own name or whether it has a password,
+   * which the inviter has no business learning from an address alone. NULL is
+   * every other membership: nothing to hide.
+   */
+  invitedUnseenAt DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

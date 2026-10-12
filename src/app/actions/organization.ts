@@ -135,10 +135,30 @@ export async function addOrganizationMember(email: string, name: string, roleInp
     select: { id: true },
   });
 
+  /**
+   * ADDED, NOT ASKED — AND NOT YET SEEN (Ajay, 2026-10-11).
+   *
+   * There is no acceptance step: the person is staff from this moment, exactly
+   * as a member entered by the secretary is in the field at once. What the
+   * inviter must not get in exchange for an address is the ACCOUNT behind it —
+   * its name, and whether it has ever signed in. So a membership made by
+   * somebody else is marked unseen, and the staff list shows the typed address
+   * and "Invited — not opened yet" until the person next signs in or opens one
+   * of the club's tournaments (`markStaffSeen`).
+   *
+   * Only on CREATE: changing a role must not hide a colleague again. And not
+   * when somebody adds themselves, which is nobody else learning anything.
+   */
+  const adder = await getSession();
   await prisma.organizationMember.upsert({
     where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
     update: { role: role },
-    create: { organizationId: org.organizationId, userId: user.id, role: role },
+    create: {
+      organizationId: org.organizationId,
+      userId: user.id,
+      role: role,
+      invitedUnseenAt: adder?.userId === user.id ? null : new Date(),
+    },
   });
 
   if (!existingMembership) {
@@ -711,6 +731,44 @@ export async function saveOrganizationGolfTerms(terms: string): Promise<OrgResul
     where: { id: org.organizationId },
     data: { golfTerms: value },
   });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * LEAVE A CLUB YOU WERE ADDED TO (Ajay, 2026-10-11).
+ *
+ * Staff are added, not asked: typing an address makes that person staff at
+ * once, with no acceptance step. The other half of that bargain is that the
+ * person can undo it themselves — until now only a Commissioner or Admin of
+ * the club could remove anybody, so somebody added by mistake, or by a club
+ * they had left, had no way out but to write to the people who added them.
+ *
+ * WHOSE membership is the session's, never an argument: the row is found by
+ * the caller's own user id AND the club named, so the id handed in can choose
+ * only among the caller's own clubs. The one refusal is the one
+ * `removeOrganizationMember` makes: the last Commissioner cannot go, because a
+ * club with no owner has nobody who can ever add one.
+ *
+ * It takes away the staff role and nothing else. A place in a tournament's
+ * field is an entry, not a membership, and results stay the club's.
+ */
+export async function leaveOrganization(organizationId: unknown): Promise<OrgResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Sign in first." };
+  if (typeof organizationId !== "string" || !organizationId) return { ok: false, error: "Choose the club to leave." };
+
+  const mine = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId, userId: session.userId } },
+    select: { id: true, role: true },
+  });
+  if (!mine) return { ok: false, error: "You are not on that club's staff." };
+
+  if (mine.role === "owner" && !(await hasOtherOwner(organizationId, mine.id))) {
+    return { ok: false, error: "You are this club's only Commissioner — make somebody else a Commissioner first." };
+  }
+
+  await prisma.organizationMember.delete({ where: { id: mine.id } });
   revalidatePath("/", "layout");
   return { ok: true };
 }

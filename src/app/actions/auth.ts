@@ -14,6 +14,7 @@ import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
+import { markStaffSeen } from "@/lib/services/staff-seen";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -50,6 +51,9 @@ async function startSessionFor(email: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return false;
   await createSession(user.id);
+  // Whoever added this person as staff while they were away may now be shown
+  // who they added (`markStaffSeen`).
+  await markStaffSeen(user.id);
   return true;
 }
 
@@ -391,6 +395,10 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
   const access = await effectiveAccess(session.email, eventId);
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
+  // Somebody already signed in when a club added them: opening one of that
+  // club's tournaments is them having been back.
+  const opened = await prisma.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
+  if (opened?.organizationId) await markStaffSeen(session.userId, opened.organizationId);
   // "board" is the events list's Leaderboard / Results button, which should
   // land on the board it names rather than on Today.
   redirect(stay === "board" ? "/me/board" : stay === "player" ? "/me" : homeFor(access.role));

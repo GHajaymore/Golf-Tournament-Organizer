@@ -8,6 +8,9 @@ import { Icon } from "@/components/Icon";
 import { DeleteAccount } from "@/components/DeleteAccount";
 import { SendResetLink } from "@/components/SendResetLink";
 import { soleOwnedClubs } from "@/lib/services/account-deletion";
+import { staffClubsOf } from "@/lib/services/staff-seen";
+import { orgRoleName } from "@/lib/roles";
+import { LeaveClub } from "@/components/LeaveClub";
 
 // Behind a session, and about one person.
 export const metadata = { title: "Your account", robots: NOINDEX };
@@ -28,6 +31,9 @@ export const metadata = { title: "Your account", robots: NOINDEX };
 export default async function AccountPage() {
   const session = await requireSession();
   const soleOwnerOf = await soleOwnedClubs(session.userId);
+  // The clubs that have this person on their staff — added, never asked, so
+  // this page is where they may decline (`leaveOrganization`).
+  const staffAt = (await staffClubsOf(session.userId)).map((c) => ({ ...c, roleName: orgRoleName(c.role) }));
 
   return (
     <main
@@ -77,6 +83,8 @@ export default async function AccountPage() {
             </button>
           </form>
         </section>
+
+        {staffAt.length > 0 && <LeaveClub clubs={staffAt} />}
 
         <DeleteAccount email={session.email} soleOwnerOf={soleOwnerOf} />
 
