@@ -21,7 +21,20 @@ import { expect, test } from "./coverage";
  * Measured signed out (the front door is what a visitor sees) and with motion
  * ALLOWED, because the project default of reduced motion would hide exactly the
  * animation this is looking for. Every lazy image is scrolled into view first.
+ *
+ * ONE EXEMPTION, AND IT IS NAMED (2026-10-11). The rebuilt page has layers that
+ * are scenery: the dashboard plane lying behind the hero's phone, the second
+ * phone behind it, the wall of small screens. They are tilted, dimmed and
+ * small ON PURPOSE and nobody is asked to read one, so they are not held to a
+ * rule about reading. A layer is scenery only when it says so twice — the
+ * `m-decor` class AND `aria-hidden="true"`, so a screen reader is not offered a
+ * picture the eye is not either. The exemption cannot swallow the page: the
+ * count of pictures that ARE read has a floor below, and it is the number the
+ * page really has, not a comfortable one.
  */
+
+/** The fewest pictures that must be measured. The page has 19 to 22 that are read, by width. */
+const READ_AT_LEAST = 15;
 test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
 async function sharpWholeStill(page: import("@playwright/test").Page) {
@@ -39,8 +52,10 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(600);
 
-  const faults = await page.evaluate(async () => {
+  const { faults, read, scenery } = await page.evaluate(async () => {
     const dpr = window.devicePixelRatio;
+    let read = 0;
+    let scenery = 0;
     /**
      * The FILE's pixels. With a srcset, an <img>'s naturalWidth is not the file's
      * width: the browser divides it by the density it picked, so a 1170px copy
@@ -69,6 +84,13 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       const box = img.getBoundingClientRect();
       if (box.width < 80 || !img.naturalWidth) continue; // hidden tabs, icons, not yet loaded
       const name = (img.currentSrc || img.src).split("/").pop();
+      // Scenery, said twice — see the head of this file. Half a claim is a fault, not an excuse.
+      const layer = img.closest(".m-decor");
+      if (layer) {
+        if (layer.getAttribute("aria-hidden") === "true") { scenery += 1; continue; }
+        out.push(`${name}: in a layer marked m-decor that a screen reader is still offered — scenery is aria-hidden`);
+      }
+      read += 1;
       const [fileW, fileH] = await fileSize(img.currentSrc || img.src);
       const density = fileW / box.width;
       if (density < dpr - 0.05) out.push(`${name}: soft — ${density.toFixed(2)} px per CSS px, needs ${dpr}`);
@@ -87,9 +109,10 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
         if (moving(el)) out.push(`${name}: animated by ${label}`);
       }
     }
-    return Array.from(new Set(out));
+    return { faults: Array.from(new Set(out)), read, scenery };
   });
 
+  expect(read, `only ${read} pictures were measured (${scenery} passed over as scenery) — the page shows more than that to be read`).toBeGreaterThanOrEqual(READ_AT_LEAST);
   expect(faults, faults.join("\n")).toEqual([]);
 }
 
@@ -111,24 +134,54 @@ test.describe("on an iPad", () => {
 });
 
 /**
- * THE LIGHT-VS-DARK SLIDER SHOWS ITS SCREEN (2026-09-30). When it went to one
- * screen its tab row was removed, but the rule that reveals the frame still
- * waited on that tab, so the section showed two buttons over empty space — for
- * a day, unnoticed, because every check above skips images that are hidden.
- * Both appearances must be on screen, loaded, with the drag handle over them.
+ * THE THEME SLIDER SHOWS FOUR THEMES, NOT ONE (2026-10-11).
+ *
+ * Its ancestor showed one screen in light and in dark, and for a day in
+ * September showed neither: the frame's reveal waited on a tab that had been
+ * removed, and every check above skips a picture that is hidden. The rebuilt
+ * slider lays ONE board in four club themes side by side, and the first draft of
+ * it had the same kind of fault in a new form — Ajay, on the prototype: "this is
+ * not showing multiple themes". Four captures were there; one was on top.
+ *
+ * So this asks the screen what is actually showing: across the frame, at
+ * sixteen points, which capture is on top. All four must have a band, two of
+ * them light and two dark; and moving the slider must move a boundary, or it is
+ * a picture with a handle drawn on it.
  */
-test("the light-vs-dark slider shows the real screen, both appearances", async ({ page }) => {
+test("the theme slider shows one board in four themes, and dragging moves the bands", async ({ page }) => {
   await page.goto("/");
-  await page.locator("#yours").scrollIntoViewIfNeeded();
-  const frame = page.locator('.cmp-f[data-f="ap-card"]');
+  const frame = page.locator("#themes");
+  await frame.scrollIntoViewIfNeeded();
   await expect(frame).toBeVisible();
-  await frame.locator("img").last().scrollIntoViewIfNeeded();
-  const shown = await frame.evaluate(async (f) => {
-    const imgs = [...f.querySelectorAll("img")];
-    await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
-    return imgs.map((i) => ({ src: (i.currentSrc || i.src).split("/").pop(), w: Math.round(i.getBoundingClientRect().width), loaded: i.complete && i.naturalWidth > 0 }));
-  });
-  expect(shown.map((i) => i.src).join(" "), "not one light and one dark capture").toMatch(/light.*dark/);
-  for (const i of shown) expect(i.loaded && i.w > 150, `${i.src} not shown (${i.w}px)`).toBe(true);
-  await expect(frame.locator(".cmp-range")).toBeVisible();
+
+  const onTop = () =>
+    frame.evaluate(async (f) => {
+      const imgs = [...f.querySelectorAll("img")];
+      await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
+      const box = f.getBoundingClientRect();
+      const tops: string[] = [];
+      for (let i = 0; i < 16; i++) {
+        const x = box.left + ((i + 0.5) / 16) * box.width;
+        const top = document.elementsFromPoint(x, box.top + box.height / 2).find((e) => e.tagName === "IMG") as HTMLImageElement | undefined;
+        tops.push(top ? (top.currentSrc || top.src).split("/").pop()!.split(".")[0] : "nothing");
+      }
+      return { tops, loaded: imgs.map((i) => i.complete && i.naturalWidth > 0), width: Math.round(box.width) };
+    });
+
+  const rest = await onTop();
+  expect(rest.loaded, "a theme's capture did not load").toEqual([true, true, true, true]);
+  expect(rest.width, "the frame is too narrow to show four bands").toBeGreaterThan(200);
+  expect(rest.tops, "part of the frame shows no capture at all").not.toContain("nothing");
+  const themes = [...new Set(rest.tops)];
+  expect(themes.length, `the frame shows ${themes.join(", ")}`).toBe(4);
+  expect(themes.filter((t) => t.endsWith("-light")).length, "two of the four are light").toBe(2);
+  expect(themes.filter((t) => t.endsWith("-dark")).length, "two of the four are dark").toBe(2);
+
+  // The handle is a real control: a range input over the frame, reachable by keyboard.
+  const range = frame.locator('input[type="range"]');
+  await expect(range).toBeVisible();
+  await range.fill("20");
+  await expect.poll(async () => (await onTop()).tops.join(" "), { message: "moving the slider moved no band" }).not.toBe(rest.tops.join(" "));
+  const moved = await onTop();
+  expect(new Set(moved.tops).size, "a theme vanished when the slider moved").toBe(4);
 });

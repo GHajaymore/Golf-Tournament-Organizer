@@ -146,7 +146,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   const firstSession = cookie!.value;
 
   // ── signed out, turned away again ──────────────────────────────────────
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
   expect((await context.cookies()).some((c) => c.name === "ng_session"), "signing out left the session cookie in the browser").toBe(false);
   await page.goto("/dashboard");
@@ -177,7 +177,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   expect(new URL(page.url()).origin, "signing in followed a link off the site").toBe(new URL(baseURL!).origin);
   expect(path()).toBe("/choose");
   expect(page.url()).not.toContain("example.invalid");
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
 
   // ── forgot: the same words for a real address and a made-up one ────────
@@ -232,7 +232,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   expect(await stillIn(after!.value)).toBe(200);
   // The link is spent, and so is the one "forgot" made a moment ago.
   expect(await prisma.passwordResetToken.count({ where: { userId: user!.id, usedAt: null } })).toBe(0);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
   await page.goto(`/reset-password?token=${token}`);
   await page.getByPlaceholder(/At least \d+ characters/).fill("eight-Birdies-in-33-a-row");
@@ -246,7 +246,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await expect(refusal(page)).toHaveText(/Wrong email or password\./);
   await logIn(page, email, NEW_PASSWORD);
   await page.waitForURL((u) => u.pathname === "/choose", { timeout: 20_000 });
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
 
   // ── a sixth wrong password is told to wait — account or no account ─────

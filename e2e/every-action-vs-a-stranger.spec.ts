@@ -146,6 +146,13 @@ const MAY_CHANGE_OWN: { what: RegExp; why: string }[] = [
     why: "Undoing a settlement they are a party to — staff, whoever recorded it, or either of the two people (`canUndoSettlement`).",
   },
   { what: /^PushSubscription \(new\)$/, why: "Their own device asking for their own notifications." },
+  {
+    what: /^User\.sessionsValidFrom$/,
+    why:
+      "Ending their own sign-ins on every other device (`signOutEverywhereAction`, 2026-10-11): the moment before which their own " +
+      "cookies stop counting. It is on their own row and ends nobody else's sign-in — a stranger moving it on somebody else's row is " +
+      "still a finding, because only a caller's OWN rows are judged against this list.",
+  },
 ];
 
 type Club = Awaited<ReturnType<typeof seed>>;

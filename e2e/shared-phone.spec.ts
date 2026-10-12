@@ -97,7 +97,7 @@ test.describe("a phone that changes hands", () => {
 
     // The phone is handed over: the player signs out, the organizer signs in.
     await page.goto("/account");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
     await phone.addCookies(cookiesOf("organizer") as never);
     await page.goto("/me");
