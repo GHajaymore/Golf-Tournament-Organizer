@@ -503,6 +503,26 @@ describe("several flights, drawn and finished", () => {
     );
   });
 
+  it("a flight is placed below the PLAYERS above it, not below the places in their bracket: a bye is nobody", () => {
+    // Five in the top flight — a bracket of eight with three byes — and eight below. The lower
+    // flight's winner is 6th: five people finished above them, not eight.
+    const short = planFlights(entrants, "handicap", [5, 8, 8]);
+    if (!short.ok) throw new Error(short.error);
+    const winners: Record<string, string> = {};
+    const views = () => short.plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), winners));
+    for (let guard = 0; guard < 8; guard += 1) {
+      const open = views().flatMap((v) => v.rounds.flatMap((r) => r.matches)).filter((m) => !m.winnerId && m.a.playerId && m.b.playerId);
+      if (open.length === 0) break;
+      for (const m of open) winners[m.key] = (m.a.seed ?? 99) < (m.b.seed ?? 99) ? m.a.playerId! : m.b.playerId!;
+    }
+    const order = bracketFinishOrderAll(views());
+    expect(order.length).toBe(21);
+    const rankOf = new Map(order.map((p) => [p.playerId, p.rank]));
+    expect(rankOf.get(short.plan.brackets[0].playerIds[0])).toBe(1);
+    expect(rankOf.get(short.plan.brackets[1].playerIds[0]), "the First flight's winner, below five players").toBe(6);
+    expect(rankOf.get(short.plan.brackets[2].playerIds[0]), "the Second flight's winner, below thirteen").toBe(14);
+  });
+
   it("with the top flight still being played there is no order at all, however many flights below it are finished", () => {
     expect(bracketFinishOrderAll(plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), {})))).toEqual([]);
     expect(bracketFinishOrderAll([])).toEqual([]);
