@@ -80,6 +80,18 @@ const x = (note?: ReactNode): Cell => ({ mark: "no", note });
 const na = (note?: ReactNode): Cell => ({ mark: "na", note });
 const v = (value: ReactNode, note?: ReactNode): Cell => ({ value, note });
 
+/**
+ * The most each of the two CLUB platforms publishes for one facility for a
+ * year, and its one-time setup fee — US dollars, from the pages named in
+ * RIVALS, as of COMPARED_ON. Held once, because the table below and the bars
+ * beside the plans both print them, and two copies of somebody else's price
+ * is how a page ends up quoting two different ones.
+ */
+export const TOP_PUBLISHED = {
+  "Golf Genius": { low: 1425, year: 4275, setupLow: 200, setup: 500 },
+  BlueGolf: { low: 495, year: 2495, setupLow: 99, setup: 499 },
+} as const;
+
 export function compareRows(prices: LandingPrices): CompareRow[] {
   const usd = prices.usd;
   return [
@@ -88,8 +100,8 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
       detail: "As each company publishes it.",
       ours: v(<>Free – {prices.club.yearly}</>, <>{PLANS.society.name} {prices.society.yearly} a year</>),
       theirs: [
-        v(<>{usd(1425)} – {usd(4275)}</>, "TM Club – TM Premium"),
-        v(<>{usd(495)} – {usd(2495)}</>, "by tournaments scored live"),
+        v(<>{usd(TOP_PUBLISHED["Golf Genius"].low)} – {usd(TOP_PUBLISHED["Golf Genius"].year)}</>, "TM Club – TM Premium"),
+        v(<>{usd(TOP_PUBLISHED.BlueGolf.low)} – {usd(TOP_PUBLISHED.BlueGolf.year)}</>, "by tournaments scored live"),
         v(<>Free – {usd(249.99)}</>, "League Pro"),
         v(usd(480), <>or {usd(99)} a month</>),
         v(usd(10), "per regular player"),
@@ -105,7 +117,7 @@ export function compareRows(prices: LandingPrices): CompareRow[] {
       label: "No setup fee",
       detail: "Nothing charged just to begin.",
       ours: y(),
-      theirs: [x(<>{usd(200)} or {usd(500)}</>), x(<>{usd(99)} – {usd(499)}</>), y("none listed"), y("none listed"), y("none listed")],
+      theirs: [x(<>{usd(TOP_PUBLISHED["Golf Genius"].setupLow)} or {usd(TOP_PUBLISHED["Golf Genius"].setup)}</>), x(<>{usd(TOP_PUBLISHED.BlueGolf.setupLow)} – {usd(TOP_PUBLISHED.BlueGolf.setup)}</>), y("none listed"), y("none listed"), y("none listed")],
     },
     {
       label: "Live scoring on players' phones",

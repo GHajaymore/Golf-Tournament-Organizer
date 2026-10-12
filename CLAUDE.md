@@ -91,8 +91,25 @@ until, **in the same pull request**:
 
 Say which in the PR description: "Help/docs: updated …" or "Help/docs: nothing to change,
 because …". And **ask Ajay** when a change might deserve a place on the landing page — a new
-capability, a claim that has changed, a better screen to show. The landing is another session's
-(`src/app/page.tsx`); do not edit it, and do not decide silently that it needs nothing.
+capability, a claim that has changed, a better screen to show. Do not decide silently that it
+needs nothing.
+
+**The landing page** (`src/app/page.tsx`, rebuilt 2026-10-11 on midnight navy) is the one page
+written in its own stylesheet: `src/lib/landing/home-styles.ts`, every class prefixed `m-`,
+scoped to `main.m-home`, its colours taken from `landing-palette.ts` and nowhere else. The
+shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dresses `/faq`,
+`/privacy` and `/terms`, so a change there is a change to four pages. Three rules it is held to:
+
+- **Every picture is an unedited capture of the app**, placed by
+  `scripts/place-landing-shots.mjs` with its true size and its smaller sharp copies. A screen
+  meant to be READ is flat, upright and still (`e2e/landing-screens.spec.ts`); only a layer
+  marked `m-decor` and `aria-hidden` may be tilted, dimmed or moving, and nobody is asked to
+  read one.
+- **The demo club in the pictures is invented** — never a test tournament's own name, never a
+  real club or person.
+- **Until go-live it is built and shipped as the designer and reported to Ajay; after go-live
+  nothing on it changes without his preview first** (his ruling, 2026-10-11). Another session
+  used to own these files; it has said it holds nothing in them.
 
 Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
 no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,

@@ -360,9 +360,13 @@ export function LoginPanel({
     <>
       {/* A sliding pill rather than two bordered halves — the segmented
           control every current interface uses for exactly this choice. */}
+      {/* `keep-grid`: phones stack inline grids inside <main> (globals.css), and
+          this control is two halves of one choice — stacked, it read as two
+          separate buttons, one of them unexplained. */}
       <div
         role="tablist"
         aria-label="Log in or sign up"
+        className="keep-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",

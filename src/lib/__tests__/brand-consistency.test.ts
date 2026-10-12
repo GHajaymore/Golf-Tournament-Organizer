@@ -190,11 +190,15 @@ describe("the wordmark is written once too", () => {
     const mark = css.slice(css.indexOf(".brand-mark {"), css.indexOf("}", css.indexOf(".brand-mark {")));
     expect(mark).toContain("light-dark(var(--thq-word-light-1), var(--thq-orange-light))");
     expect(read("src/components/Logo.tsx"), "the flag follows the ground now").not.toContain("word-light");
-    // And the landing declares its light scheme, or it would draw the dark stops on card stock.
-    // Light-first since the 2026-09-29 redesign (it followed the phone before): the page is
-    // light, and its dark bands declare their own dark scheme so the lockup follows them too.
-    expect(readLanding()).toMatch(/\.thq \{[^}]*color-scheme: light/);
+    // And the landing declares the scheme of EACH ground it draws, or the wordmark takes the
+    // wrong stops for it. Dark-first since the 2026-10-11 redesign (midnight navy on every
+    // page that shares this stylesheet): the page declares dark, a band re-declares dark, and
+    // the one light surface declares light. It was light-first from 2026-09-29, when this
+    // pinned the page as light with dark bands — the guarantee is the same one, a scheme
+    // stated for every ground, not that the page is any particular colour.
+    expect(readLanding()).toMatch(/\.thq \{[^}]*color-scheme: dark/);
     expect(readLanding()).toMatch(/\.thq \.band \{[^}]*color-scheme: dark/);
+    expect(readLanding()).toMatch(/\.thq \.lightband \{[^}]*color-scheme: light/);
   });
 
   it("sizes the mark so it stands the full height of the wordmark", async () => {

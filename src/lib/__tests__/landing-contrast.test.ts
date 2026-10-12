@@ -193,6 +193,9 @@ describe("the page cannot hand-write a colour", () => {
     "src/app/page.tsx",
     "src/app/faq/page.tsx",
     "src/lib/landing/styles.ts",
+    // The front door's own stylesheet since 2026-10-11: hundreds of rules, every colour in
+    // them a palette token or a tint of one. Read here so that stays true.
+    "src/lib/landing/home-styles.ts",
     "src/components/landing/chrome.tsx",
   ]
     .map((f) => readSource(f))

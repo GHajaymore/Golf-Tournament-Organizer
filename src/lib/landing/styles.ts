@@ -28,9 +28,12 @@ import { landingTokens } from "@/lib/landing-palette";
 export const LANDING_CSS = `
 .thq, .thq * { box-sizing: border-box; }
 .thq {
-  color-scheme: light;
-${landingTokens("light", "  ")}
-  --card: var(--panel);
+  /* MIDNIGHT NAVY, EVERYWHERE (2026-10-11). The page was a white poster with
+     dark bands; it is now one dark ground, and the light palette survives as
+     a single surface (.lightband, below) for the one cream panel. */
+  color-scheme: dark;
+${landingTokens("dark", "  ")}
+  --card: color-mix(in srgb, var(--ground-2) 70%, var(--ground));
   /* The lockup is the app's own, drawn the same everywhere (Ajay, 2026-09-29:
      "fix the logo to be consistent all across"). Its flagstick and cup read the
      page's ink here, as they read the app's text colour there; the pennant and
@@ -40,8 +43,8 @@ ${landingTokens("light", "  ")}
   --wash-2: color-mix(in srgb, var(--ink) 8%, transparent);
   --accent-a12: color-mix(in srgb, var(--brass-ui) 12%, transparent);
   --flag-a: color-mix(in srgb, var(--flag) 14%, transparent);
-  --shadow: 0 1px 0 rgba(0,0,0,.03), 0 24px 48px -28px rgba(0,0,0,.28);
-  --shadow-xl: 0 0 0 1px rgba(0,0,0,.06), 0 50px 90px -40px rgba(0,0,0,.4);
+  --shadow: 0 24px 48px -28px rgba(0,0,0,.8);
+  --shadow-xl: 0 0 0 1px rgba(0,0,0,.3), 0 50px 90px -40px rgba(0,0,0,.85);
   --sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --ease: cubic-bezier(.32,.72,0,1);
@@ -51,7 +54,17 @@ ${landingTokens("light", "  ")}
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   overflow-x: clip; min-height: 100vh;
 }
-/* The same components on the dark palette. */
+/* The same components on the LIGHT palette: the one cream panel on the page. */
+.thq .lightband {
+  color-scheme: light;
+${landingTokens("light", "  ")}
+  --card: var(--panel);
+  --logo-stick: var(--ink); --logo-cup: var(--ink-soft);
+  --shadow: 0 1px 0 rgba(0,0,0,.03), 0 24px 48px -28px rgba(0,0,0,.28);
+  background: var(--ground); color: var(--ink);
+}
+/* A band is the dark palette re-declared, so a card, a button or a table
+   inside one needs no second set of rules. On the navy page it is the page. */
 .thq .band {
   color-scheme: dark;
 ${landingTokens("dark", "  ")}
@@ -803,7 +816,6 @@ __CMP_FRAMES__
 .thq .label { color: var(--brass); font-weight: 650; }
 .thq .band .label { color: var(--ink-faint); font-weight: 500; }
 .thq .usual, .thq .glance-col, .thq .cp-t, .thq .show, .thq .fx-grid, .thq .tier, .thq .ultimate { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
-.thq #features, .thq #pricing { background: linear-gradient(180deg, var(--ground) 0, var(--ground-2) 280px); }
 /* The FAQ's closing card was a flat grey panel where every card on the front
    page is white and lifted — now the same card. */
 .thq .fq-cta { background: var(--card); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: var(--lift); }
@@ -900,9 +912,3 @@ __CMP_FRAMES__
       .map((k) => `.thq .show:has(input[name="show"][value="${k}"]:checked) .show-f[data-f="${k}"] { display: grid; }`)
       .join("\n"),
   );
-
-/** The comparison slider's frames, in the order its tabs show them. Read by the page. */
-// Light vs dark shows ONE screen, the full card — the one screen the page shows
-// nowhere else (Ajay, 2026-09-29: "use a unique screen for the slider").
-export const COMPARE_APPEARANCE = ["card"] as const;
-export const COMPARE_COLOURS = ["championship", "coastal", "azalea"] as const;

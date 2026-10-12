@@ -96,12 +96,10 @@ export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
   const product: Array<[string, string, string, string]> = [
-    [`${home}#round`, "01", "One Saturday, both sides", "The draw, the cards, the board, the money"],
-    [`${home}#why`, "02", "Why it's different", "Voice scoring, round codes, the settle-up"],
-    [`${home}#features`, "03", "Every feature", "The real app by screen, and the whole list"],
-    [`${home}#formats`, "16", "Formats", "Stroke play to Chapman, one leaderboard"],
-    [`${home}#money`, "04", "The money", "Outing costs split, prize money awarded"],
-    [`${home}#yours`, "05", "Make it yours", "Your colors on every screen"],
+    [`${home}#round`, "01", "How it works", "One competition, from the first entry to the prize table"],
+    [`${home}#does`, "02", "What it does", "The committee's screen, the formats, the money, your colors"],
+    [`${home}#world`, "03", "Wherever you play", "Your club's money, your country's golf"],
+    [`${home}#features`, "04", "Every feature", "The whole list, searchable"],
   ];
   // One list for the desktop row and the phone menu, so they cannot disagree.
   const links: Array<[string, string]> = [
