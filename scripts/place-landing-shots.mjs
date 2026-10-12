@@ -61,6 +61,10 @@ const NAMES = {
   "look-midnight-dark": "look-midnight-dark",
   "d-dashboard": "desk-dashboard",
   "d-leaderboard": "desk-leaderboard",
+  // A club match play of 128 in eight flights of sixteen (2026-10-12): the organizer's bracket
+  // screen on a laptop, and the draw a member opens on a phone without signing in.
+  "d-matchplay-flights": "desk-matchplay",
+  "live-matchplay": "public-matchplay",
 };
 
 const widths = JSON.parse(readFileSync(WIDTHS_FILE, "utf8"));
