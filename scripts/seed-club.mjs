@@ -1233,7 +1233,8 @@ export async function seed() {
       customYards: JSON.stringify(YARDS_18),
       customStrokeIndex: JSON.stringify(SI_18),
       bracketMode: "flights",
-      leaderboardVisibility: "participants",
+      // Public: the draw a club pins to its noticeboard is the one it sends its members a link to.
+      leaderboardVisibility: "public",
       moneyMode: "none",
       capacity: ROSTER.length,
       launchedAt: new Date(Date.now() - 15 * 864e5),
@@ -2504,6 +2505,7 @@ export async function seed() {
         twilight: twilight.shareToken,
         team: teamEvent.shareToken,
         cup: cup.shareToken,
+        flights: flighted.shareToken,
       },
       counts: { members: members.length, events: built.length },
     };
