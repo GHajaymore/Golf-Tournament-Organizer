@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { labelsForTheWrongThing } from "./labels";
+import { RATE_LIMITS } from "../src/lib/domain/rate-limit";
 
 /**
  * THE FRONT DOOR, WALKED BY SOMEBODY WHO HAS NEVER BEEN IN (2026-10-11).
@@ -251,8 +252,28 @@ test("a new organizer comes in by the front door, and the door closes behind the
 
   // ── a sixth wrong password is told to wait — account or no account ─────
   const stranger = `${mark}-locked@example.invalid`;
+  /**
+   * THE SIX START WITH ROOM TO FINISH IN ONE COUNTING WINDOW.
+   *
+   * The limiter counts in fixed quarter-hours on the server clock, which here is
+   * this machine. On 2026-10-12 this step ran across 03:00: two attempts fell in
+   * the window that was ending and four in the next, none of them was a sixth, and
+   * every one was answered "Wrong email or password." The limiter was right (its
+   * own rows said 2 and 4) and the round was lost to the minute it ran in. It
+   * would have failed on any commit, at one start time in about sixty.
+   *
+   * Waiting out the end of a window keeps the assertion exact: six in ONE window,
+   * the sixth refused. Trying more times until something is refused would also
+   * pass a limiter set to ten.
+   */
+  const { limit, windowMs } = RATE_LIMITS.signin;
+  const leftInWindow = windowMs - (Date.now() % windowMs);
+  if (leftInWindow < 45_000) {
+    testInfo.setTimeout(testInfo.timeout + leftInWindow + 5_000);
+    await page.waitForTimeout(leftInWindow + 1_500);
+  }
   let last = "";
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < limit + 1; i++) {
     await logIn(page, stranger, `wrong-Guess-number-${i}-of-six`);
     await expect(refusal(page)).not.toBeEmpty();
     last = await refusal(page).innerText();
