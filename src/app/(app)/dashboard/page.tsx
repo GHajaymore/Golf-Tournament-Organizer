@@ -410,9 +410,11 @@ export default async function DashboardPage() {
     // comparing the type to a literal.
     hasBracketStage: hasKnockoutStage(state.stages),
     feederProgress: state.bracketFeederProgress,
-    bracketStarted:
-      !!brackets.winners.champion ||
-      brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
+    // In ANY draw: a knockout in flights has started when a tie in any flight is decided, not only
+    // in the Championship flight (`flightDraws` is one entry for one bracket, so nothing else changes).
+    bracketStarted: (brackets.draws ?? [{ label: "", view: brackets.winners }]).some(
+      (d) => !!d.view.champion || d.view.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
+    ),
     /**
      * FALSE, since the "Qualification Stage" type was removed on 2026-09-11.
      *
@@ -446,6 +448,15 @@ export default async function DashboardPage() {
     [],
     isBracketMode(event.bracketMode) ? event.bracketMode : "split",
   );
+  /**
+   * HOW MANY FLIGHTS, ASKED ONCE (2026-10-12). A knockout divided into flights
+   * is in the flights its organizer made on the bracket screen, which are not
+   * the tournament's own `Group` rows — so the Players tile read "0 flights"
+   * over a club match play in three, with the bracket card below it naming all
+   * three. Where the knockout is divided, that division is the answer.
+   */
+  const knockoutInFlights = event.bracketMode === "flights";
+  const flightCount = brackets.draws ? brackets.draws.length : state.groups.length;
 
   // One source of truth for which screens exist in this tournament: the same
   // sidebar the layout renders. A shortcut to a door the sidebar has closed is
@@ -926,7 +937,7 @@ export default async function DashboardPage() {
               state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format),
             ),
             players: state.confirmed.length,
-            flights: state.groups.length,
+            flights: flightCount,
             rounds: state.stages.length,
           }}
         />
@@ -1007,7 +1018,7 @@ export default async function DashboardPage() {
           <StatCard
             label="Players"
             value={state.confirmed.length}
-            sub={`${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`}
+            sub={`${flightCount} flight${flightCount === 1 ? "" : "s"}`}
             icon="ph ph-users-three"
           />
           {/* Every tile counts `boardProgress`, which knows both the number
@@ -1269,15 +1280,24 @@ export default async function DashboardPage() {
               <div className="text-muted" style={{ fontSize: 13, marginTop: -2 }}>
                 {/* Off the qualifier's CARDS when it was a medal (2026-10-10):
                     "group standings" described a draw that no group decided. */}
-                {straightKnockout
+                {brackets.draws
+                  ? brackets.draws.length === 1
+                    ? "One bracket, seeded in order"
+                    : `${brackets.draws.length} flights, each its own knockout`
+                  : knockoutInFlights
+                    ? "The field is not divided into flights yet"
+                    : straightKnockout
                   ? "The whole field, seeded in order"
                   : state.qualifiesOnCards
                     ? "Seeded from the qualifying round"
                     : "Seeded from live group standings"}
               </div>
+              {/* Arranged in flights and not yet divided, there is no draw to list: the sentence above
+                  says so, and a row reading "Main draw · 1 match" under it would be a draw nobody made. */}
+              {!(knockoutInFlights && !brackets.draws) && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketMainLabel}</span>
+                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{brackets.draws?.[0]?.label ?? bracketMainLabel}</span>
                   {/* `plural`, because this card printed "1 matches" on the
                       demo tournament's consolation bracket — read off the
                       rendered screen on 2026-09-14. The stat card at the top
@@ -1286,13 +1306,21 @@ export default async function DashboardPage() {
                       to be spotted by eye. */}
                   <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
-                {bracketSecondLabel !== "" && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                    <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketSecondLabel}</span>
-                    <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
+                {/* Every flight after the first where the knockout is divided into flights; otherwise
+                    the one second draw the arrangement has, if it has one. */}
+                {(brackets.draws
+                  ? brackets.draws.slice(1)
+                  : bracketSecondLabel !== ""
+                    ? [{ label: bracketSecondLabel, view: brackets.consolation }]
+                    : []
+                ).map((d) => (
+                  <div key={d.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                    <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{d.label}</span>
+                    <span className="text-muted">{d.view.champion?.name ?? plural(d.view.rounds[0].matches.length, "match", "matches")}</span>
                   </div>
-                )}
+                ))}
               </div>
+              )}
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
                 Open the {bracketScreenName(!isStaff).toLowerCase()} <Icon name="arrow-right" />
               </Link>

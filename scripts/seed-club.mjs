@@ -1199,6 +1199,103 @@ export async function seed() {
       },
     });
 
+    /* ===================================== 3a. the knockout in three flights === */
+
+    /**
+     * THE CLUB MATCH PLAY, FLIGHTED (2026-10-12). The whole roster in one
+     * straight knockout, divided by handicap into a Championship flight of
+     * sixteen, a First flight of sixteen and a Second flight of the rest —
+     * each its own bracket, lose and you are out.
+     *
+     * It is here because a state nothing can express is a state nobody walks:
+     * the third flight is the first draw the app has ever kept under a key
+     * that is neither "winners" nor "consolation", and until this tournament
+     * existed no screen, walk or crawl had drawn one.
+     *
+     * The division is stored the way `divideIntoFlights` stores it — the whole
+     * plan, from the day it was made — and the order inside each flight is the
+     * order `planFlights` gives: lowest index first, a member with no handicap
+     * after everybody who has one. Each flight is at a different point: the
+     * Championship flight has its first round in (with one upset) and a
+     * quarter-final played, the First flight is three ties into its first
+     * round, and the Second flight has not started.
+     */
+    const flighted = await makeEvent("flights", "Club Match Play — Three Flights", {
+      status: "live",
+      shape: "knockout",
+      format: "match",
+      sideStyle: "individual",
+      dates: `${dayOffset(-14)} onwards`,
+      course: `${MARK}-Braid Hollow — Championship Course`,
+      courseId: home.id,
+      defaultTeeId: homeTee("White").id,
+      customPars: JSON.stringify(PARS_18),
+      customYards: JSON.stringify(YARDS_18),
+      customStrokeIndex: JSON.stringify(SI_18),
+      bracketMode: "flights",
+      // Public: the draw a club pins to its noticeboard is the one it sends its members a link to.
+      leaderboardVisibility: "public",
+      moneyMode: "none",
+      capacity: ROSTER.length,
+      launchedAt: new Date(Date.now() - 15 * 864e5),
+      matchTiebreakers: JSON.stringify(["sudden-death"]),
+    });
+    await prisma.eventCourse.create({ data: { eventId: flighted.id, courseId: home.id } });
+    const flightedField = await enter(flighted, ROSTER.map((_, i) => i));
+    await prisma.stage.create({
+      data: {
+        eventId: flighted.id,
+        position: 0,
+        description: "Match play",
+        type: "Bracket Stage",
+        format: "Match Play",
+        holes: 18,
+        courseId: home.id,
+        scoringBasis: "gross",
+        handicapAllowance: 100,
+        playedOn: dayOffset(-14),
+      },
+    });
+    const flightedOrder = [...flightedField].sort((a, b) => {
+      const none = (p) => p.handicapSource === "none";
+      if (none(a) !== none(b)) return none(a) ? 1 : -1;
+      if (!none(a) && a.handicap !== b.handicap) return a.handicap - b.handicap;
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    });
+    const flightedPlan = [
+      { name: "Championship flight", playerIds: flightedOrder.slice(0, 16).map((p) => p.id) },
+      { name: "First flight", playerIds: flightedOrder.slice(16, 32).map((p) => p.id) },
+      { name: "Second flight", playerIds: flightedOrder.slice(32).map((p) => p.id) },
+    ];
+    await prisma.event.update({
+      where: { id: flighted.id },
+      data: { bracketDraw: JSON.stringify({ v: 2, criterion: "handicap", flights: flightedPlan }) },
+    });
+    // A draw of sixteen pairs its seeds 1 v 16, 8 v 9, 4 v 13, 5 v 12, 2 v 15, 7 v 10, 3 v 14, 6 v 11
+    // (`seedOrder`), so tie i of the first round is these two places in the flight's own order.
+    const PAIRS_16 = [[1, 16], [8, 9], [4, 13], [5, 12], [2, 15], [7, 10], [3, 14], [6, 11]];
+    const seedOf = (flight, seed) => flightedPlan[flight].playerIds[seed - 1];
+    await prisma.bracketWinner.createMany({
+      data: [
+        // The Championship flight's first round: the higher seed every time but one.
+        ...PAIRS_16.map(([hi, lo], i) => ({
+          eventId: flighted.id,
+          key: `winners-0-${i}`,
+          // The upset: the twelfth seed beats the fifth.
+          winnerId: seedOf(0, i === 3 ? lo : hi),
+          result: ["3&2", "1 up", "5&4", "2&1", "4&3", "20th", "6&5", "2 up"][i],
+        })),
+        // and its first quarter-final: seed 1 v seed 8.
+        { eventId: flighted.id, key: "winners-1-0", winnerId: seedOf(0, 1), result: "2&1" },
+        // The First flight is three ties into its first round. Its word is the one a second draw
+        // has always been filed under.
+        { eventId: flighted.id, key: "consolation-0-0", winnerId: seedOf(1, 1), result: "4&2" },
+        { eventId: flighted.id, key: "consolation-0-1", winnerId: seedOf(1, 9), result: "1 up" },
+        { eventId: flighted.id, key: "consolation-0-4", winnerId: seedOf(1, 2), result: "3&1" },
+        // The Second flight ("flight3-…") has not started.
+      ],
+    });
+
     /* ================================================== 3b. the team cup === */
 
     /**
@@ -2408,6 +2505,7 @@ export async function seed() {
         twilight: twilight.shareToken,
         team: teamEvent.shareToken,
         cup: cup.shareToken,
+        flights: flighted.shareToken,
       },
       counts: { members: members.length, events: built.length },
     };

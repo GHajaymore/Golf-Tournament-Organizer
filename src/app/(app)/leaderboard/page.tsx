@@ -171,11 +171,13 @@ export default async function LeaderboardPage({
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
+        draws={state.brackets.draws}
         mainLabel={mainLabel}
         secondLabel={secondLabel}
         results={results}
         readOnly
         straight
+        awaitingFlights={mode === "flights" && !state.flights}
       />,
     );
   }

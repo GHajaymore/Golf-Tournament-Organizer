@@ -102,6 +102,19 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "knockout",
+    question: "Who do I play in the knockout?",
+    href: "/me",
+    steps: [
+      "Open Today.",
+      "Your tie names the round and your opponent.",
+      "In a big field it names your flight too.",
+      "Played it? Tap [[Report the result]].",
+      "The organizer confirms it, and the winner moves on.",
+      "The whole draw is on Board.",
+    ],
+  },
+  {
     id: "rules",
     question: "What are the rules for this tournament?",
     href: "/me/rules",

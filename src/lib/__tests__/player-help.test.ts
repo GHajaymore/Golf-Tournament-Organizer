@@ -29,6 +29,7 @@ const LABEL_SOURCE: Record<string, string> = {
   "Can’t make it? Withdraw": "src/components/WithdrawButton.tsx",
   "Play a casual round": "src/app/(player)/me/events/page.tsx",
   "Sign out everywhere": "src/app/account/page.tsx",
+  "Report the result": "src/components/ReportTie.tsx",
 };
 
 /** JSX writes an apostrophe as an entity; read the screen the way it renders. */

@@ -89,7 +89,8 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
 import { hasPlayingHistory, keepDefaultStakes } from "@/lib/services/playing-history";
@@ -98,6 +99,19 @@ import { basisFor, isStablefordFormat } from "@/lib/domain/week-basis";
 import { flightDefaultFor, followFlightDefault } from "@/lib/services/flight-default";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { bracketDraws, tieByKey, tieReportRefusal } from "@/lib/domain/my-tie";
+import {
+  planWithPlayerAdded,
+  isFlightCriterion,
+  planWithPlayerMoved,
+  parseFlightPlan,
+  planFlights,
+  planRenamed,
+  planReseeded,
+  serializeFlightPlan,
+  type FlightEntrant,
+  type FlightPlan,
+  type FlightPlanResult,
+} from "@/lib/domain/bracket-flights";
 // The boundary's one margin rule — a player's report and the console's result
 // box keep the same text.
 import { cleanMargin } from "@/lib/domain/score-payload";
@@ -134,7 +148,7 @@ import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { playsInMatch } from "@/lib/services/match-access";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
@@ -3667,7 +3681,14 @@ export async function setBracketWinner(key: string, winnerId: string): Promise<{
      */
     const remaining = await prisma.bracketWinner.count({ where: { eventId } });
     if (remaining === 0) {
-      await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
+      // A FLAT draw is what the first result wrote down, and is what this
+      // re-opens. A division into flights was made by the organizer before any
+      // result and is not a by-product of one: clearing the last result leaves
+      // it exactly as they arranged it.
+      const kept = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketDraw: true } });
+      if (!parseFlightPlan(kept?.bracketDraw)) {
+        await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
+      }
     }
   } else {
     await recordBracketWinner(eventId, key, winnerId);
@@ -4837,9 +4858,181 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
   if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
+  /**
+   * INTO OR OUT OF FLIGHTS, ONLY BEFORE A RESULT (2026-10-12).
+   *
+   * Between the three older arrangements a change with results on the board has
+   * always been allowed, and a result that no longer fits its tie is simply not
+   * shown (`claimedWinner`). A knockout in flights keeps its results under one
+   * key word per flight, so the same change would leave a flight's results
+   * sitting under ties of a different draw altogether. So that one change waits
+   * until the results are cleared — and takes the stored draw with it either
+   * way: a division into flights means nothing to one bracket, and a flat
+   * list means nothing to flights.
+   */
+  const current = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true } });
+  if (current && current.bracketMode !== mode && (mode === "flights" || current.bracketMode === "flights")) {
+    if ((await prisma.bracketWinner.count({ where: { eventId } })) > 0) {
+      return { ok: false, error: "This knockout has results. Clear them before changing how the field is divided." };
+    }
+    await prisma.event.update({ where: { id: eventId }, data: { bracketMode: mode, bracketDraw: "" } });
+    await logAudit(eventId, "knockout.arrangement", `Knockout arrangement set to ${mode}`);
+    await refresh();
+    return { ok: true };
+  }
   await prisma.event.update({ where: { id: eventId }, data: { bracketMode: mode } });
   await refresh();
   return { ok: true };
+}
+
+/* ── A knockout in several flights ────────────────────────────────────── */
+
+/**
+ * WHAT EVERY ONE OF THE FLIGHT ACTIONS ASKS NEXT, in one place — after its own
+ * first line has asked for the primary organizer: a tournament that is not
+ * finished, the arrangement set to flights, and no result yet recorded in any
+ * flight. The last is the Rules' own line — the draw is fixed once play in it
+ * has begun (Committee Procedures 5F(1)) — and it is asked HERE rather than by
+ * each action, which is how one of five would come to forget it.
+ *
+ * NOT THE SETUP LOCK, and deliberately. Launching locks a tournament's SETUP,
+ * and the arrangement — one bracket or several flights — is setup, so
+ * `setBracketMode` is locked with it. Dividing the field is not setup: it is
+ * the DRAW, and a draw is made when the field is known. For the club
+ * championship this is built for, that is after a qualifying round — which is
+ * played after launch, always. The first cut of this asked for an unlocked
+ * tournament, so the one act a qualifying knockout can only do after launch
+ * was the one launch forbade; the organizer's next move would have been to
+ * unlock the thing they had just locked (see `launchTournament`). One bracket
+ * needs no such act and never had the lock either: its draw makes itself.
+ */
+async function flightsOpenForChange(eventId: string): Promise<
+  | { ok: true; eventId: string; state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>; stored: string }
+  | { ok: false; error: string }
+> {
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true, bracketDraw: true, status: true } });
+  if (!event || event.bracketMode !== "flights") {
+    return { ok: false, error: "This knockout is not arranged in flights. Choose \"Several flights\" first." };
+  }
+  if (isFinished(event.status)) {
+    return { ok: false, error: "This tournament is completed, so its flights are as they finished. Reopen it to change them." };
+  }
+  if ((await prisma.bracketWinner.count({ where: { eventId } })) > 0) {
+    return { ok: false, error: "This knockout has results, so its flights are fixed. Clear the results to change them." };
+  }
+  const state = await loadEventState(eventId);
+  if (!state) return { ok: false, error: "This tournament could not be read." };
+  return { ok: true, eventId, state, stored: event.bracketDraw };
+}
+
+/** The field as the dividing rules see it: who, their handicap if they have one, and the flight they are already in. */
+function flightEntrants(state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>): FlightEntrant[] {
+  const flightNames = new Map(state.groups.map((g, i) => [g.id, flightLabel(g.name, i)]));
+  const rows = new Map(state.players.map((p) => [p.id, p]));
+  // A draw fed by a qualifying round is already in qualifying order; a straight knockout has no such order.
+  const qualified = !isStraightKnockout(state.stages);
+  return state.qualifiers.map((q, i) => {
+    const row = rows.get(q.id);
+    return {
+      id: q.id,
+      name: q.name,
+      handicapIndex: !row || row.handicapSource === "none" ? null : row.handicap,
+      flight: row?.groupId ? (flightNames.get(row.groupId) ?? null) : null,
+      qualifyingRank: qualified ? i + 1 : null,
+    };
+  });
+}
+
+async function keepFlights(eventId: string, result: FlightPlanResult, said: (plan: FlightPlan) => string): Promise<{ ok: boolean; error?: string }> {
+  if (!result.ok) return { ok: false, error: result.error };
+  await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: serializeFlightPlan(result.plan) } });
+  await logAudit(eventId, "knockout.flights", said(result.plan));
+  await refresh();
+  return { ok: true };
+}
+
+const shapeOf = (plan: FlightPlan) => plan.brackets.map((b) => `${b.name} ${b.playerIds.length}`).join(", ");
+
+/**
+ * Divide the field into flights by one of the offered criteria, in the shape
+ * chosen: how many players each flight holds, top flight first. `counts` is
+ * ignored for "flights", where the tournament's own flights are the shape.
+ *
+ * A draw at random is drawn afresh each time it is asked for, on a seed made
+ * here: what the organizer is shown afterwards is the stored result, which
+ * does not change until they ask again.
+ */
+export async function divideIntoFlights(criterion: unknown, counts: unknown): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await flightsOpenForChange(eventId);
+  if (!open.ok) return open;
+  if (typeof criterion !== "string" || !isFlightCriterion(criterion)) return { ok: false, error: "Choose how to divide the field." };
+  const sizes = Array.isArray(counts) ? counts.filter((c): c is number => typeof c === "number" && Number.isInteger(c)) : [];
+  if (Array.isArray(counts) && sizes.length !== counts.length) return { ok: false, error: "Say how many players each bracket holds." };
+  if (sizes.length > 64) return { ok: false, error: "That is more brackets than a field can be divided into." };
+  const result = planFlights(flightEntrants(open.state), criterion, sizes, randomUUID());
+  return keepFlights(open.eventId, result, (plan) => `Field divided into ${plan.brackets.length} flights (${criterion}): ${shapeOf(plan)}`);
+}
+
+/** Undo the division: the field is one undivided field again, and the ways to divide it are offered afresh. */
+export async function clearFlights(): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await flightsOpenForChange(eventId);
+  if (!open.ok) return open;
+  await prisma.event.update({ where: { id: open.eventId }, data: { bracketDraw: "" } });
+  await logAudit(open.eventId, "knockout.flights", "Flights cleared: the field is undivided");
+  await refresh();
+  return { ok: true };
+}
+
+/**
+ * Move one player to another flight, or put a late entrant into one.
+ *
+ * The player is named by id and the flight by its place in the list, and both
+ * are checked against THIS tournament: the plan (for a move) or its own field
+ * (for somebody not yet in a flight). A player id from anywhere else matches
+ * neither and is refused.
+ */
+export async function moveFlightPlayer(playerId: unknown, toFlight: unknown): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await flightsOpenForChange(eventId);
+  if (!open.ok) return open;
+  const plan = parseFlightPlan(open.stored);
+  if (!plan) return { ok: false, error: "Divide the field into flights first." };
+  if (typeof playerId !== "string" || typeof toFlight !== "number" || !Number.isInteger(toFlight)) {
+    return { ok: false, error: "Choose a player and the flight to move them to." };
+  }
+  const inPlan = plan.brackets.some((b) => b.playerIds.includes(playerId));
+  const person = open.state.qualifiers.find((p) => p.id === playerId);
+  if (!inPlan && !person) return { ok: false, error: "That player is not in this tournament's field." };
+  const result = inPlan ? planWithPlayerMoved(plan, playerId, toFlight) : planWithPlayerAdded(plan, playerId, toFlight);
+  const name = person?.name ?? open.state.players.find((p) => p.id === playerId)?.name ?? "A player";
+  return keepFlights(open.eventId, result, (next) => `${name} ${inPlan ? "moved to" : "added to"} ${next.brackets[toFlight]?.name ?? "a flight"}`);
+}
+
+/** Set a flight's seeding by hand: the same players, in the order given. */
+export async function reseedFlight(flight: unknown, order: unknown): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await flightsOpenForChange(eventId);
+  if (!open.ok) return open;
+  const plan = parseFlightPlan(open.stored);
+  if (!plan) return { ok: false, error: "Divide the field into flights first." };
+  if (typeof flight !== "number" || !Number.isInteger(flight) || !Array.isArray(order) || order.some((id) => typeof id !== "string")) {
+    return { ok: false, error: "A seeding has to list the same players, each once." };
+  }
+  return keepFlights(open.eventId, planReseeded(plan, flight, order as string[]), (next) => `${next.brackets[flight]?.name ?? "A flight"} reseeded by hand`);
+}
+
+/** Give a flight the club's own name for it. */
+export async function renameFlight(flight: unknown, name: unknown): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const open = await flightsOpenForChange(eventId);
+  if (!open.ok) return open;
+  const plan = parseFlightPlan(open.stored);
+  if (!plan) return { ok: false, error: "Divide the field into flights first." };
+  if (typeof flight !== "number" || !Number.isInteger(flight) || typeof name !== "string") return { ok: false, error: "Give the bracket a name." };
+  const was = plan.brackets[flight]?.name ?? "A flight";
+  return keepFlights(open.eventId, planRenamed(plan, flight, name.slice(0, 40)), (next) => `${was} renamed ${next.brackets[flight]?.name ?? ""}`);
 }
 
 /* ── Manual flights: naming and sign-off ──────────────────────────────── */
@@ -6080,6 +6273,14 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
 
+  // A knockout in several flights is a pure knockout in each: there is no one pair of beaten
+  // semi-finalists to play off, and finishing order does not read a play-off there.
+  if (on) {
+    const arranged = await prisma.event.findUnique({ where: { id: eventId }, select: { bracketMode: true } });
+    if (arranged?.bracketMode === "flights") {
+      return { ok: false, error: "A knockout in several flights has no play-off for third: in each flight the two beaten semi-finalists share third." };
+    }
+  }
   const r = await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { thirdPlace: !!on },

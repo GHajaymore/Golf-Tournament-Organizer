@@ -137,7 +137,11 @@ export default async function StagesPage() {
    */
   const thirdPlaces: Record<string, ThirdPlaceView> = {};
   for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {
-    const r = resolveThirdPlace(state.brackets.winners);
+    // In flights there is no play-off for third at all (see `setThirdPlace`), and the reason is said
+    // where the control is rather than discovered by pressing it.
+    const r = state.brackets.draws
+      ? { problem: "A knockout in several flights has no play-off for third: each flight's beaten semi-finalists share third.", pairing: null }
+      : resolveThirdPlace(state.brackets.winners);
     const made = await prisma.match.count({ where: { eventId: session.eventId, stageId: s.id, round: 0 } });
     thirdPlaces[s.id] = {
       on: s.thirdPlace,

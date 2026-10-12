@@ -1,5 +1,6 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { isFinished } from "@/lib/domain/lifecycle-state";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
@@ -9,6 +10,9 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { stageTypeInfo } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
+import { BracketFlights } from "@/components/BracketFlights";
+import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { hasKnockoutStage, isStraightKnockout } from "@/lib/stage-types";
@@ -212,13 +216,62 @@ export default async function BracketPage() {
       })()
     : null;
 
+  /**
+   * SEVERAL FLIGHTS: what the panel that divides the field is handed.
+   *
+   * Which criteria this tournament can use is decided here, where the field is
+   * known, and each one that cannot be used says why in the place it would be
+   * chosen: "by qualifying score" with no qualifying round, "by your flights"
+   * with none made or with somebody in none.
+   */
+  const playerRow = new Map(state.players.map((p) => [p.id, p]));
+  const flightless = state.qualifiers.filter((q) => !playerRow.get(q.id)?.groupId).length;
+  const flightChoices = FLIGHT_CRITERIA.map((c) => ({
+    ...c,
+    unavailable:
+      c.key === "qualifying" && straight
+        ? "This knockout has no qualifying round before it."
+        : c.key === "flights" && state.groups.length === 0
+          ? "This tournament has no flights yet. Make them on the Flights screen first."
+          : c.key === "flights" && flightless > 0
+            ? `${flightless} of the field ${flightless === 1 ? "is" : "are"} in no flight yet.`
+            : "",
+  }));
+  const flightSummaries = state.flights
+    ? state.flights.plan.brackets.map((b) => ({
+        name: b.name,
+        size: b.size,
+        byes: b.byes,
+        rounds: b.rounds,
+        players: b.playerIds.map((id) => {
+          const row = playerRow.get(id);
+          return { id, name: row?.name ?? "A player who has left", index: row ? indexLabel(row) : "" };
+        }),
+      }))
+    : null;
+
   return (
     <>
       <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={isSetupLocked(state.event)} />
       <BracketReports rows={reports} />
+      {mode === "flights" && (
+        <BracketFlights
+          fieldSize={state.qualifiers.length}
+          criteria={flightChoices}
+          shapes={proposeShapes(state.qualifiers.length)}
+          criterion={state.flights?.plan.criterion ?? null}
+          flights={flightSummaries}
+          unplaced={(state.flights?.unplaced ?? []).map((p) => ({ id: p.id, name: p.name }))}
+          departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
+          fixed={state.drawFrozen === true}
+          readOnly={!isAdmin}
+          finished={isFinished(state.event.status)}
+        />
+      )}
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
+        draws={state.brackets.draws}
         /* The same string the mode picker is given, and the one `drawBrackets`
            uses to say whether there IS a second bracket and what it is called.
            Empty in `single` mode, "Consolation" in `split`, "Plate" in
@@ -228,12 +281,22 @@ export default async function BracketPage() {
         results={results}
         readOnly={!isStaff}
         straight={straight}
+        awaitingFlights={mode === "flights" && !state.flights}
       />
-      {straight && isStaff && (
+      {straight && isStaff && mode !== "flights" && (
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before this bracket, so everyone in the field is in the draw
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}), seeded in order.
           Where the numbers are not 4, 8, 16 or 32, the top seeds get byes.
+        </p>
+      )}
+      {/* In flights that sentence was wrong twice over: nobody is "in the draw" until the field is
+          divided, and afterwards "36 players, seeded in order" describes no bracket on the screen. */}
+      {straight && isStaff && mode === "flights" && state.flights && (
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
+          No qualifying round comes before these flights, so everyone in the field belongs in one of them
+          ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}). Inside a flight
+          the players are seeded in order, and where a flight is not 4, 8, 16 or 32 its top seeds get byes.
         </p>
       )}
       {/* Under the draw. Qualification comes first in time, so reading order

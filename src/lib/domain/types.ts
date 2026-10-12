@@ -19,7 +19,15 @@ export type StageType =
 
 export type FormationRule = "balanced" | "handicap" | "divisions" | "seeding" | "random" | "manual";
 
-export type BracketKind = "winners" | "consolation";
+/**
+ * Which draw a knockout tie belongs to — and the first word of its stored key
+ * (`winners-0-1`). The first two are historical names, not descriptions: a
+ * two-flight draw has kept its second flight under `consolation` since before
+ * it was called a flight, and renaming a key would orphan every result already
+ * recorded under it. A knockout in several flights (2026-10-12) keeps those
+ * two for its first and second flight and numbers the rest: `flight3`, `flight4`.
+ */
+export type BracketKind = "winners" | "consolation" | `flight${number}`;
 
 /** Ordered tiebreaker keys, applied after points when standings are level.
  *  Match-play only — stroke play breaks ties by low net, then low gross. */

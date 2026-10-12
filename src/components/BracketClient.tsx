@@ -145,9 +145,18 @@ export function BracketClient({
   results = {},
   readOnly = false,
   straight = false,
+  draws,
+  awaitingFlights = false,
 }: {
   winners: BracketView;
   consolation: BracketView;
+  /**
+   * EVERY draw, where the knockout is divided into flights (2026-10-12) — as
+   * many as the organizer made, each with the name they gave it. When this is
+   * handed in it is the whole list and the two props above are not read; the
+   * older arrangements leave it out and are shown exactly as before.
+   */
+  draws?: { label: string; view: BracketView }[];
   /**
    * What the FIRST draw is called, which also depends on the mode.
    *
@@ -170,11 +179,24 @@ export function BracketClient({
   readOnly?: boolean;
   /** No qualifying round before this bracket: the whole field is in it. */
   straight?: boolean;
+  /**
+   * Arranged in several flights and not yet divided. There is no draw then —
+   * not an empty one. Without this the screen drew a bracket of "TBD v TBD"
+   * under "The whole field, seeded in order": a draw nobody had made, described
+   * by a sentence about a different arrangement.
+   */
+  awaitingFlights?: boolean;
 }) {
   // "Seeded from qualification" was printed over a knockout nobody qualified
   // for — the bracket was the tournament's first round.
-  const seededFrom = straight ? "The whole field, seeded in order." : "Seeded from qualification.";
-  const [tab, setTab] = useState<"winners" | "consolation">("winners");
+  const inFlights = !!draws && draws.length > 0;
+  const seededFrom = inFlights
+    ? "Each flight is its own knockout, seeded in order."
+    : straight
+      ? "The whole field, seeded in order."
+      : "Seeded from qualification.";
+  // Which draw is on screen, by its place in the list.
+  const [tab, setTab] = useState(0);
   /**
    * ONLY WHERE THERE IS A SECOND BRACKET — and it is named, not assumed.
    *
@@ -192,7 +214,15 @@ export function BracketClient({
    * said "Consolation". One thing with two names, on the screen that runs it.
    */
   const hasSecond = secondLabel !== "";
-  const shown = hasSecond && tab === "consolation" ? consolation : winners;
+  const list = inFlights
+    ? draws
+    : hasSecond
+      ? [
+          { label: mainLabel, view: winners },
+          { label: secondLabel, view: consolation },
+        ]
+      : [{ label: mainLabel, view: winners }];
+  const shown = (list[tab] ?? list[0]).view;
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -200,25 +230,28 @@ export function BracketClient({
           <div className="page-kicker">Manage</div>
           <h1 className="page-title">{bracketScreenName(readOnly)}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {readOnly
-              ? `${seededFrom} Winners advance automatically as results come in.`
-              : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
+            {awaitingFlights
+              ? readOnly
+                ? "The field has not been divided into flights yet, so there is no draw."
+                : "Nothing is drawn until the field is divided into flights."
+              : readOnly
+                ? `${seededFrom} Winners advance automatically as results come in.`
+                : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
           </p>
         </div>
-        {hasSecond && (
-          <div className="seg">
-            <label className="seg-opt">
-              <input type="radio" name="brk" checked={tab === "winners"} onChange={() => setTab("winners")} />
-              {mainLabel}
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="brk" checked={tab === "consolation"} onChange={() => setTab("consolation")} />
-              {secondLabel}
-            </label>
+        {!awaitingFlights && list.length > 1 && (
+          // Wraps: a knockout in flights may have a dozen of these.
+          <div className="seg" style={{ flexWrap: "wrap" }}>
+            {list.map((d, i) => (
+              <label className="seg-opt" key={d.label}>
+                <input type="radio" name="brk" checked={tab === i} onChange={() => setTab(i)} />
+                {d.label}
+              </label>
+            ))}
           </div>
         )}
       </div>
-      <BracketBoard view={shown} results={results} readOnly={readOnly} />
+      {!awaitingFlights && <BracketBoard view={shown} results={results} readOnly={readOnly} />}
     </>
   );
 }

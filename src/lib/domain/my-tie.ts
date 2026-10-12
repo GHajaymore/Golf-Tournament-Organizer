@@ -44,7 +44,10 @@ export function bracketDraws(b: {
   consolation: BracketView;
   mainLabel?: string;
   secondLabel?: string;
+  draws?: { label: string; view: BracketView }[];
 }): { label: string; view: BracketView }[] {
+  // A knockout in several flights lists its own draws, however many there are.
+  if (b.draws && b.draws.length > 0) return b.draws;
   const second = b.secondLabel ?? "";
   if (!second) return [{ label: "", view: b.winners }];
   return [

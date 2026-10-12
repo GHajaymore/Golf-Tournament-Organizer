@@ -1016,6 +1016,20 @@ follows IMPORTS, because `"use client"` marks a boundary and not a file: the
 announcement card had no mark of its own and was missed for exactly that reason.
 The time is worded once on the server and handed down.
 
+**And one cause found by CI and by nothing local, 2026-10-12: the server's Node is not the
+browser.** CI runs Node 20; this machine runs Node 24, whose locale data agrees with Chromium's.
+A Korean clock time was "PM 1:05" from the server and "오후 1:05" in the browser — on CI only.
+`formatClock` in `domain/locale.ts` takes the day-period word from its own table, and
+`a-clock-time-is-written-once.test.ts` refuses a bare `toLocaleTimeString` in `src`.
+`npx -y node@20 file.cjs` runs anything under CI's Node from here.
+
+**What the recorder said, the two times it was attached when the slow-page fault struck** (the
+entry above this one): "kept 124ms into the page … from <body> down the two are the same, element
+for element and word for word", once with the document still "loading". Identical before and
+after is what that fault looks like from outside, and it is what sent the search to TIME. The
+recorder also logs the last thirty changes made to the document before a clear, the streamed
+sections not yet in place, and when the document finished arriving.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -1360,6 +1374,51 @@ hole on it. That is loose enough for "which round are we on" and far too loose t
 What a player may still see mid-round is their EXPOSURE — `stakeFor`, which reads membership and
 never touches a card. That half is honest, it is what the player walking to the first tee
 actually wants, and it must stay.
+
+## A knockout's draw
+
+**PAST THE FIRST ROUND THERE IS NO SUCH THING AS A BYE.** Until 2026-10-12 `buildBracket` called
+an empty place in a later round a bye, and sent its opponent through unopposed, whenever the tie
+feeding it "had two empty places" — which is true of every tie that has not been played yet. An
+ordinary knockout of eight drew its Final as "Bye v Bye"; a finalist was drawn against a Bye; and
+in a draw of sixteen or more a player whose quarter ran a round ahead was ADVANCED through a
+semi-final nobody had played. A bracket is sized to its field, so no first-round tie is ever
+between two byes, and a place in a later round is somebody or "TBD".
+
+Every bracket test before that day played its results ROUND BY ROUND, which is the one order in
+which the fault cannot show. A club does not play that way.
+`a-tie-not-yet-played-is-not-a-bye.test.ts` plays every field from 2 to 40 in twelve random
+orders each. When a rule is about what has and has not happened yet, the ORDER things happen in
+is an axis, and a fixture that always fills it in the tidy order is a fixture that cannot reach
+the case.
+
+**A big field is divided into FLIGHTS, each its own knockout** (`Event.bracketMode = "flights"`,
+Ajay 2026-10-11: "it should be pure knockouts"). Four things to know before touching it:
+
+- **The division is kept whole**, in `Event.bracketDraw`, as `{ v: 2, criterion, flights }` — the
+  same column one bracket keeps its flat list in, and each reader answers null for the other's
+  value. It is written when the organizer divides the field, not by the first result, and
+  clearing the last result does not wipe it.
+- **`bracketDraws()` in `my-tie.ts` is the one answer to "which draws are there".** A reader
+  that names `brackets.winners` and `brackets.consolation` sees the first two flights and passes
+  every two-flight test; the third is the first draw the app has ever filed under a word of its
+  own (`flight3-…`, from `flightKind`). Test with THREE.
+- **Dividing the field is the DRAW, not setup.** The arrangement locks with setup at launch;
+  the division stays open until the first result in any flight, and shuts on a completed
+  tournament. A club championship flighted by qualifying score can only be divided after the
+  qualifying round — which is after launch, always — so a lock there would have made the
+  organizer unlock what they had just locked.
+- **A finishing place, once given, never moves.** A lower flight is placed below the PLAYERS in
+  the flights above it, not below however many have been placed so far: the first cut read the
+  Second flight's winner as 9th and dropped them to 17th the afternoon the First flight finished.
+  There is no order at all until the top flight has a champion, and no play-off for third.
+
+The seeded club carries "Club Match Play — Three Flights" (three flights at three different
+points) so the walks reach it, and `e2e/organizer-knockout-flights.spec.ts` builds one from
+nothing. **That spec holds TEN players because a new club's free plan does**: its first draft
+entered twelve, the plan refused two, and the entry loop passed anyway on the name still sitting
+in the form. An organizer-from-nothing spec that needs a bigger field needs a club on a bigger
+plan — and any entry loop should end by reading the field back.
 
 ## Course cards: measure a guard before you ship it
 

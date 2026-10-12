@@ -1,5 +1,5 @@
 import "server-only";
-import { bracketFinishOrderCombined } from "../domain/bracket";
+import { bracketFinishOrderAll, bracketFinishOrderCombined } from "../domain/bracket";
 import { resolveMatch } from "../domain";
 import type { loadEventState } from "./tournament";
 import type { FinishingPosition } from "../domain/honours";
@@ -79,11 +79,13 @@ export function finishingPositions(state: EventState): FinishingPosition[] {
   // field scores zero season points. Plate mode is unchanged — its consolation
   // players are already placed in the winners order and are filtered out. See
   // bracketFinishOrderCombined.
-  const fromBracket = bracketFinishOrderCombined(
-    state.brackets.winners,
-    state.brackets.consolation,
-    thirdPlaceWinner(state),
-  );
+  // SEVERAL FLIGHTS: every one, the Championship flight first and each flight
+  // below everybody the flights above it placed. No play-off for third is read:
+  // a knockout in flights is a pure knockout, and its beaten semi-finalists share
+  // third in their own flight.
+  const fromBracket = state.brackets.draws
+    ? bracketFinishOrderAll(state.brackets.draws.map((d) => d.view))
+    : bracketFinishOrderCombined(state.brackets.winners, state.brackets.consolation, thirdPlaceWinner(state));
   if (fromBracket.length > 0) return fromBracket;
 
   if (state.isStroke) {
