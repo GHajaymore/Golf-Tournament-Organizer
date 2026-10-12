@@ -29,6 +29,11 @@ const REMOVED = '<span class="label">Questions</span>';
 test("a page React has to redraw is kept as the server sent it, and the difference is named", async ({ page }) => {
   const thrown: string[] = [];
   page.on("pageerror", (e) => thrown.push(String(e)));
+  // Said on the page before it loads, so the recorder's line is marked as made on purpose and a round
+  // counting real mismatches does not count this one.
+  await page.addInitScript(() => {
+    (window as unknown as { __thqMismatchOnPurpose?: boolean }).__thqMismatchOnPurpose = true;
+  });
 
   await page.route(
     (url) => url.pathname === "/faq",

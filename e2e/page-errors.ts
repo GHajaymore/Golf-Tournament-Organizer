@@ -132,6 +132,18 @@ function elementsThatDiffer(served: string, shown: string): string[] {
  * else (see `coverage.ts`).
  */
 export async function explain(page: Page, who: string): Promise<void> {
+  /**
+   * A MISMATCH MADE ON PURPOSE IS NOT A FINDING. `hydration-recorder.spec`
+   * makes one to prove this recorder records, and a round counts every line
+   * marked "[hydration #418]" as a fault in the app — so the first round with
+   * that spec in it read six mismatches and could never have been clean. The
+   * spec says so on the page before it loads, and the line is marked for what
+   * it is.
+   */
+  const onPurpose = await page
+    .evaluate(() => (window as unknown as { __thqMismatchOnPurpose?: boolean }).__thqMismatchOnPurpose === true)
+    .catch(() => false);
+  const mark = onPurpose ? "[hydration mismatch made on purpose]" : "[hydration #418]";
   try {
     const url = page.url();
     const [served, shown] = await Promise.all([
@@ -141,8 +153,8 @@ export async function explain(page: Page, who: string): Promise<void> {
     // What the page looked like at the instant React replaced it — the one comparison that is of the
     // FIRST response and not of a second. See `keepWhatTheServerSent`.
     const parted = await whereTheyPart(page).catch((err) => `could not read what was kept (${String(err)})`);
-    console.log(`[hydration #418] ${who} ${url}
-  at the moment it was replaced: ${parted ?? "nothing was kept — the page was not cleared from <html> or <body>, so one section was redrawn, not the page"}`);
+    const kept = parted ?? "nothing was kept — the page was not cleared from <html> or <body>, so one section was redrawn, not the page";
+    console.log(`${mark} ${who} ${url}\n  at the moment it was replaced: ${kept}`);
     const a = text(served);
     const b = text(shown);
     let i = 0;
@@ -152,12 +164,12 @@ export async function explain(page: Page, who: string): Promise<void> {
       ? `\n  elements the two disagree about:\n    ${elements.join("\n    ")}`
       : "\n  and the same elements, by tag and class";
     // Same text: the mismatch was in markup or attributes, or has gone by now.
-    if (a === b) return console.log(`[hydration #418] ${who} ${url}\n  server and client text are identical${structure}`);
+    if (a === b) return console.log(`${mark} ${who} ${url}\n  server and client text are identical${structure}`);
     console.log(
-      `[hydration #418] ${who} ${url}\n  server: …${a.slice(Math.max(0, i - 80), i + 160)}…\n  client: …${b.slice(Math.max(0, i - 80), i + 160)}…${structure}`,
+      `${mark} ${who} ${url}\n  server: …${a.slice(Math.max(0, i - 80), i + 160)}…\n  client: …${b.slice(Math.max(0, i - 80), i + 160)}…${structure}`,
     );
   } catch (err) {
-    console.log(`[hydration #418] ${who}: could not compare (${String(err)})`);
+    console.log(`${mark} ${who}: could not compare (${String(err)})`);
   }
 }
 
