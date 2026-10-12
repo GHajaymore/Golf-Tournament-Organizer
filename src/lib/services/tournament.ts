@@ -34,6 +34,7 @@ import {
 } from "../domain/stroke-countback";
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { bracketDraws, openTieReport } from "../domain/my-tie";
+import { parseFlightPlan, planAgainstField, type FlightPlan } from "../domain/bracket-flights";
 import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
@@ -51,6 +52,7 @@ import {
   buildBracket,
   drawBrackets,
   firstRoundLosers,
+  flightKind,
   knockoutProgress,
   isBracketMode,
   parseBracketDraw,
@@ -755,7 +757,29 @@ export interface EventState {
    * optional only so hand-built test states stay valid; `loadEventState`
    * always sets them, from the same `drawBrackets` call that split the field.
    */
-  brackets: { winners: BracketView; consolation: BracketView; mainLabel?: string; secondLabel?: string };
+  brackets: {
+    winners: BracketView;
+    consolation: BracketView;
+    mainLabel?: string;
+    secondLabel?: string;
+    /**
+     * EVERY draw, top flight first — set only for a knockout in several flights
+     * (`bracketMode: "flights"` with a stored plan), where there may be more
+     * than two. `winners` and `consolation` are then its first and second, so a
+     * reader that knows only those two still shows the top of the draw rather
+     * than nothing; a reader that must see every flight goes through
+     * `bracketDraws`, which returns this list when it is there.
+     */
+    draws?: { label: string; view: BracketView }[];
+  };
+  /**
+   * The organizer's division of a knockout into flights, when there is one,
+   * held against today's field: who has entered since and is in no flight, and
+   * who is in a flight and has since left the field (they stay in the draw and
+   * are beaten by walkover). Null for every other arrangement, and for
+   * "several flights" chosen but not yet divided.
+   */
+  flights?: { plan: FlightPlan; unplaced: Player[]; departedIds: string[] } | null;
   /**
    * The draw has been fixed by its first recorded result, so who qualified is
    * no longer a live question — see `drawnIds` in `loadEventState`. Optional
@@ -953,6 +977,15 @@ export function strokeHandicapResolver(ctx: {
  * The exported NAME is unchanged, so none of the 21 caller files under
  * `src/app` needed touching.
  */
+/**
+ * The draws a knockout's progress is counted over: every flight where the
+ * field is divided into flights, and otherwise the two draws the state has
+ * always carried (a second draw nobody is in counts for nothing).
+ */
+function everyDraw(b: EventState["brackets"]): BracketView[] {
+  return b.draws ? b.draws.map((d) => d.view) : [b.winners, b.consolation];
+}
+
 export const loadEventState = cache(loadEventStateUncached);
 
 /**
@@ -2594,20 +2627,52 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // in two passes because its second bracket is filled by results rather than
   // by seeding: the main bracket has to exist before anyone has lost in it.
   const mode: BracketMode = isBracketMode(event.bracketMode) ? event.bracketMode : "split";
-  const firstDraw = drawBrackets(qualifiers, mode);
-  const mainBracket = buildBracket("winners", firstDraw.main, winnersMap);
+  /**
+   * SEVERAL FLIGHTS: one draw per flight, from the plan the organizer made.
+   *
+   * Not a slice of `qualifiers`: the plan is kept whole (`parseFlightPlan`),
+   * so somebody the organizer moved to another flight is still there on the
+   * next read. Players are looked up in the FULL field, as a frozen single draw
+   * does, so a player who withdraws after the division stays in their flight.
+   * Each flight's ties are keyed by its own word (`flightKind`), the first two
+   * being the words a two-flight draw has always used.
+   *
+   * Chosen but not yet divided, there is no draw at all: one empty bracket,
+   * and the screen offers the ways to divide the field.
+   */
+  const flightPlan = mode === "flights" ? parseFlightPlan(event.bracketDraw) : null;
+  const firstDraw = drawBrackets(mode === "flights" ? [] : qualifiers, mode);
+  const flightDraws = flightPlan
+    ? flightPlan.brackets.map((b, i) => ({
+        label: b.name,
+        view: buildBracket(
+          flightKind(i),
+          b.playerIds.map((id) => domainById.get(id)).filter((p): p is Player => !!p),
+          winnersMap,
+        ),
+      }))
+    : null;
+  const mainBracket = flightDraws ? flightDraws[0].view : buildBracket("winners", firstDraw.main, winnersMap);
   const secondField =
     mode === "plate"
       ? firstRoundLosers(mainBracket, new Map(qualifiers.map((p) => [p.id, p])))
       : firstDraw.second;
-  const brackets = {
+  const brackets: EventState["brackets"] = {
     winners: mainBracket,
     // A plate's field grows with the main draw's results, so its gaps are not
     // byes yet; a split's second half is seeded once and its byes are real.
-    consolation: buildBracket("consolation", secondField, winnersMap, mode !== "plate"),
-    mainLabel: firstDraw.mainLabel,
-    secondLabel: firstDraw.secondLabel,
+    consolation: flightDraws?.[1]?.view ?? buildBracket("consolation", secondField, winnersMap, mode !== "plate"),
+    mainLabel: flightDraws ? flightDraws[0].label : firstDraw.mainLabel,
+    secondLabel: flightDraws ? (flightDraws[1]?.label ?? "") : firstDraw.secondLabel,
+    ...(flightDraws ? { draws: flightDraws } : {}),
   };
+  const flights: EventState["flights"] = flightPlan
+    ? (() => {
+        const against = planAgainstField(flightPlan, qualifiers.map((p) => p.id));
+        const unplacedIds = new Set(against.unplaced);
+        return { plan: flightPlan, unplaced: qualifiers.filter((p) => unplacedIds.has(p.id)), departedIds: against.departed };
+      })()
+    : null;
 
   // Knockout results players have reported, still open on this draw.
   const tieReports = await prisma.bracketReport.findMany({
@@ -2647,7 +2712,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * assembly is one rename.
    */
   const bracketBoard = boardStage && isKnockoutRound(boardStage.type);
-  const ties = bracketBoard ? knockoutProgress(brackets.winners, brackets.consolation) : null;
+  const ties = bracketBoard ? knockoutProgress(...everyDraw(brackets)) : null;
 
   /**
    * WHETHER THE QUALIFYING RACE CAN STILL CHANGE ANYTHING.
@@ -2691,7 +2756,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * defect. Caught by the cell below asserting the after-state, which is why
    * that fixture asserts before AND after rather than only the interesting one.
    */
-  const knockoutStarted = knockoutProgress(brackets.winners, brackets.consolation).decided > 0;
+  const knockoutStarted = knockoutProgress(...everyDraw(brackets)).decided > 0;
   const qualifyingSettled =
     knockoutStarted || (feederRounds.length > 0 && feederRounds.every((s) => s.closedAt !== null));
   /**
@@ -2879,7 +2944,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     qualifiesOnCards,
     qualifyingCutoff,
     brackets,
-    drawFrozen: drawnIds !== null,
+    flights,
+    // One bracket is frozen by its first result, which is when its draw is written down. A division into
+    // flights is written down when it is made, and is fixed from the first result in any of its flights.
+    drawFrozen: flightPlan ? bracketWinners.length > 0 : drawnIds !== null,
     qualifyingSettled,
     qualifiers,
   };

@@ -410,9 +410,11 @@ export default async function DashboardPage() {
     // comparing the type to a literal.
     hasBracketStage: hasKnockoutStage(state.stages),
     feederProgress: state.bracketFeederProgress,
-    bracketStarted:
-      !!brackets.winners.champion ||
-      brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
+    // In ANY draw: a knockout in flights has started when a tie in any flight is decided, not only
+    // in the Championship flight (`flightDraws` is one entry for one bracket, so nothing else changes).
+    bracketStarted: (brackets.draws ?? [{ label: "", view: brackets.winners }]).some(
+      (d) => !!d.view.champion || d.view.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
+    ),
     /**
      * FALSE, since the "Qualification Stage" type was removed on 2026-09-11.
      *
@@ -1277,7 +1279,7 @@ export default async function DashboardPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketMainLabel}</span>
+                  <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{brackets.draws?.[0]?.label ?? bracketMainLabel}</span>
                   {/* `plural`, because this card printed "1 matches" on the
                       demo tournament's consolation bracket — read off the
                       rendered screen on 2026-09-14. The stat card at the top
@@ -1286,12 +1288,19 @@ export default async function DashboardPage() {
                       to be spotted by eye. */}
                   <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
-                {bracketSecondLabel !== "" && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                    <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{bracketSecondLabel}</span>
-                    <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
+                {/* Every flight after the first where the knockout is divided into flights; otherwise
+                    the one second draw the arrangement has, if it has one. */}
+                {(brackets.draws
+                  ? brackets.draws.slice(1)
+                  : bracketSecondLabel !== ""
+                    ? [{ label: bracketSecondLabel, view: brackets.consolation }]
+                    : []
+                ).map((d) => (
+                  <div key={d.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                    <span><Icon name="medal" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{d.label}</span>
+                    <span className="text-muted">{d.view.champion?.name ?? plural(d.view.rounds[0].matches.length, "match", "matches")}</span>
                   </div>
-                )}
+                ))}
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
                 Open the {bracketScreenName(!isStaff).toLowerCase()} <Icon name="arrow-right" />

@@ -120,16 +120,17 @@ export function pickQualifiers(
  *            decided by results rather than by seeding, so everyone starts
  *            with a shot at the main prize.
  */
-export type BracketMode = "single" | "split" | "plate";
+export type BracketMode = "single" | "split" | "plate" | "flights";
 
 export const BRACKET_MODES: Array<{ key: BracketMode; label: string; blurb: string }> = [
   { key: "single", label: "One bracket", blurb: "Every qualifier in a single knockout. Lose and you're out." },
   { key: "split", label: "Two flights", blurb: "Top half and bottom half play separate brackets, drawn by qualifying rank." },
   { key: "plate", label: "Main + plate", blurb: "One knockout; first-round losers drop into a plate. Everyone starts with a shot at the main prize." },
+  { key: "flights", label: "Several flights", blurb: "A big field divided into brackets before a ball is struck — by handicap, by your flights, or at random. Each flight is its own knockout." },
 ];
 
 export function isBracketMode(v: string): v is BracketMode {
-  return v === "single" || v === "split" || v === "plate";
+  return v === "single" || v === "split" || v === "plate" || v === "flights";
 }
 
 export interface BracketDraw {
@@ -172,7 +173,11 @@ export function drawBrackets(
   mode: BracketMode = "split",
   firstRoundLosers: Player[] = [],
 ): BracketDraw {
-  if (mode === "single") {
+  // `flights` is not drawn here at all: who is in which flight is the organizer's
+  // stored plan (`bracket-flights.ts`), not a slice of the qualifying order. A
+  // caller that asks anyway — before a plan exists there is one field and no
+  // division of it — is told the same as for one bracket.
+  if (mode === "single" || mode === "flights") {
     // One draw and nothing to distinguish it from, so the label is only ever
     // read where a screen insists on a heading.
     return { main: qualifiers, second: [], mainLabel: "Main draw", secondLabel: "" };
@@ -393,15 +398,55 @@ export function bracketFinishOrderCombined(
   consolation: BracketView,
   thirdPlaceWinnerId?: string | null,
 ): Array<{ playerId: string; name: string; rank: number }> {
-  const top = bracketFinishOrder(winners, thirdPlaceWinnerId);
-  if (top.length === 0) return top;
+  return bracketFinishOrderAll([winners, consolation], thirdPlaceWinnerId);
+}
 
-  const placed = new Set(top.map((p) => p.playerId));
-  const below = bracketFinishOrder(consolation)
-    .filter((p) => !placed.has(p.playerId))
-    .map((p) => ({ ...p, rank: p.rank + top.length }));
+/**
+ * The same rule for ANY number of draws, top flight first (2026-10-12).
+ *
+ * A knockout in several flights places the Championship flight first, then
+ * the First flight below everybody the Championship flight placed, and so on:
+ * each draw's own places are offset by the number of players placed above it.
+ * A flight that is not finished has no order of its own yet and adds nobody —
+ * the flights below it are still placed, counted from where the finished ones
+ * end, and move down when it finishes. That is the same honesty as the two-draw
+ * rule: nobody is ranked in a competition that is still going.
+ *
+ * The first draw must be finished for there to be any order at all, exactly as
+ * before: with no champion of the top flight there is no winner to head a list.
+ *
+ * A player already placed by an earlier draw is never placed again — which is
+ * what makes a plate (fed by the main draw's own losers) add nobody.
+ */
+export function bracketFinishOrderAll(
+  views: BracketView[],
+  thirdPlaceWinnerId?: string | null,
+): Array<{ playerId: string; name: string; rank: number }> {
+  const [first, ...rest] = views;
+  if (!first) return [];
+  const out = bracketFinishOrder(first, thirdPlaceWinnerId);
+  if (out.length === 0) return out;
 
-  return [...top, ...below];
+  const placed = new Set(out.map((p) => p.playerId));
+  for (const view of rest) {
+    const offset = out.length;
+    for (const p of bracketFinishOrder(view)) {
+      if (placed.has(p.playerId)) continue;
+      placed.add(p.playerId);
+      out.push({ ...p, rank: p.rank + offset });
+    }
+  }
+  return out;
+}
+
+/**
+ * The key word for the flight at `index` (0 = the top flight). See `BracketKind`:
+ * the first two keep the names their stored results already carry.
+ */
+export function flightKind(index: number): BracketKind {
+  if (index <= 0) return "winners";
+  if (index === 1) return "consolation";
+  return `flight${index + 1}`;
 }
 
 /**

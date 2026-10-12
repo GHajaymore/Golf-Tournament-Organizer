@@ -9,6 +9,9 @@ import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { stageTypeInfo } from "@/lib/stage-types";
 import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
+import { BracketFlights } from "@/components/BracketFlights";
+import { FLIGHT_CRITERIA, proposeShapes } from "@/lib/domain/bracket-flights";
+import { indexLabel } from "@/lib/domain/handicap-label";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 import { hasKnockoutStage, isStraightKnockout } from "@/lib/stage-types";
@@ -212,13 +215,62 @@ export default async function BracketPage() {
       })()
     : null;
 
+  /**
+   * SEVERAL FLIGHTS: what the panel that divides the field is handed.
+   *
+   * Which criteria this tournament can use is decided here, where the field is
+   * known, and each one that cannot be used says why in the place it would be
+   * chosen: "by qualifying score" with no qualifying round, "by your flights"
+   * with none made or with somebody in none.
+   */
+  const playerRow = new Map(state.players.map((p) => [p.id, p]));
+  const flightless = state.qualifiers.filter((q) => !playerRow.get(q.id)?.groupId).length;
+  const flightChoices = FLIGHT_CRITERIA.map((c) => ({
+    ...c,
+    unavailable:
+      c.key === "qualifying" && straight
+        ? "This knockout has no qualifying round before it."
+        : c.key === "flights" && state.groups.length === 0
+          ? "This tournament has no flights yet. Make them on the Flights screen first."
+          : c.key === "flights" && flightless > 0
+            ? `${flightless} of the field ${flightless === 1 ? "is" : "are"} in no flight yet.`
+            : "",
+  }));
+  const flightSummaries = state.flights
+    ? state.flights.plan.brackets.map((b) => ({
+        name: b.name,
+        size: b.size,
+        byes: b.byes,
+        rounds: b.rounds,
+        players: b.playerIds.map((id) => {
+          const row = playerRow.get(id);
+          return { id, name: row?.name ?? "A player who has left", index: row ? indexLabel(row) : "" };
+        }),
+      }))
+    : null;
+
   return (
     <>
       <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isAdmin} locked={isSetupLocked(state.event)} />
       <BracketReports rows={reports} />
+      {mode === "flights" && (
+        <BracketFlights
+          fieldSize={state.qualifiers.length}
+          criteria={flightChoices}
+          shapes={proposeShapes(state.qualifiers.length)}
+          criterion={state.flights?.plan.criterion ?? null}
+          flights={flightSummaries}
+          unplaced={(state.flights?.unplaced ?? []).map((p) => ({ id: p.id, name: p.name }))}
+          departed={(state.flights?.departedIds ?? []).map((id) => state.players.find((p) => p.id === id)?.name ?? "A player")}
+          fixed={state.drawFrozen === true}
+          readOnly={!isAdmin}
+          locked={isSetupLocked(state.event)}
+        />
+      )}
       <BracketClient
         winners={state.brackets.winners}
         consolation={state.brackets.consolation}
+        draws={state.brackets.draws}
         /* The same string the mode picker is given, and the one `drawBrackets`
            uses to say whether there IS a second bracket and what it is called.
            Empty in `single` mode, "Consolation" in `split`, "Plate" in
