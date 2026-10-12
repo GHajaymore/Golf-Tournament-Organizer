@@ -11,6 +11,12 @@ import { ConfirmButton } from "./ConfirmButton";
  * — so this is where they decline. Two presses, like every control that takes
  * something away. The club's only Commissioner is told why they cannot go
  * instead of being offered a button that would refuse.
+ *
+ * THE WORDS ARE FOR EVERYBODY ON THE LIST (2026-10-12). This read "Clubs you
+ * help run … your staff role" to all of them, and most of the people on a
+ * club's list are its Members and Guests, who run nothing: only a Commissioner
+ * or an Admin has organizer rights (`orgRoleGrantsAdmin`). The role is named
+ * beside each club; the sentence above them is true of all four.
  */
 export function LeaveClub({ clubs }: { clubs: Array<{ organizationId: string; name: string; roleName: string; onlyOwner: boolean }> }) {
   const router = useRouter();
@@ -28,10 +34,10 @@ export function LeaveClub({ clubs }: { clubs: Array<{ organizationId: string; na
 
   return (
     <section className="card elev-sm" style={{ gap: 10 }}>
-      <h2 className="card-title" style={{ fontSize: 15 }}>Clubs you help run</h2>
+      <h2 className="card-title" style={{ fontSize: 15 }}>Your clubs</h2>
       <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-        A club adds its staff by email address, so you may be on a list you did not ask to join. Leaving takes away
-        your staff role there and nothing else: tournaments you entered and your results stay as they are.
+        A club adds people by email address, so you may be on a list you did not ask to join. Leaving takes you off
+        that club&rsquo;s list and nothing else: tournaments you entered and your results stay as they are.
       </p>
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
         {clubs.map((c) => (
@@ -48,7 +54,7 @@ export function LeaveClub({ clubs }: { clubs: Array<{ organizationId: string; na
                 onConfirm={() => leave(c.organizationId)}
                 label="Leave this club"
                 confirmLabel={`Leave ${c.name}`}
-                title={`Stop being staff at ${c.name}`}
+                title={`Come off the list at ${c.name}`}
                 icon="sign-out"
                 className="btn btn-secondary"
                 disabled={pending}
