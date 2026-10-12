@@ -7,7 +7,7 @@ import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
-import { sheetOnScreen, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
+import { sheetOnScreen, startStyleOf, type TeeSheetGroup } from "@/lib/domain/tee-sheet";
 import { Icon } from "./Icon";
 import { golfTermsFor, type GolfTerm } from "@/lib/domain/golf-terms";
 import { useFormatting } from "./CurrencyProvider";
@@ -68,6 +68,7 @@ export function FoursomeMaker({
   rosterSize = 0,
   sides = [],
   savedGroups = [],
+  savedStart = "",
   terms = golfTermsFor("us"),
   requests = [],
   firstHole = 1,
@@ -86,6 +87,8 @@ export function FoursomeMaker({
    * sheet exists and the organizer is not re-drawing; see `sheetOnScreen`.
    */
   savedGroups?: TeeSheetGroup[];
+  /** How the saved sheet went off — tee, split or shotgun. Empty when there is none. */
+  savedStart?: string;
   players: Player[];
   /**
    * The round's SIDES, player ids per side, when it is played in them.
@@ -121,7 +124,8 @@ export function FoursomeMaker({
   const [order, setOrder] = useState<DrawOrder>("as-formed");
   const [size, setSize] = useState(4);
   const [seed, setSeed] = useState(1);
-  const [startType, setStartType] = useState<StartStyle>("tee");
+  // From the saved sheet, so a re-draw keeps how the field went off.
+  const [startType, setStartType] = useState<StartStyle>(startStyleOf(savedStart));
   const [saveState, setSaveState] = useState<{ savedAt: string; published: boolean }>({ savedAt, published });
   /**
    * Whether this round has a sheet of record yet.

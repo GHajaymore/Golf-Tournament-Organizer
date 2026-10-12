@@ -39,6 +39,7 @@ import { runMark } from "./run-mark.mjs";
 import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3100";
 // Per worktree — a fixed mark lets one run's opening delete reach into a
@@ -390,8 +391,8 @@ async function build(label, steps) {
   });
 
   return {
-    staff: `ng_session=${sign(user.id)}; ng_active_event=${sign(event.id)}`,
-    player: `ng_session=${sign(playerUser.id)}; ng_active_event=${sign(event.id)}`,
+    staff: `ng_session=${sign(signedInNow(user.id))}; ng_active_event=${sign(event.id)}`,
+    player: `ng_session=${sign(signedInNow(playerUser.id))}; ng_active_event=${sign(event.id)}`,
     /**
      * THE TWO SURFACES WITH NO LOGIN AT ALL.
      *

@@ -88,6 +88,33 @@ export function parseScopeKey(key: ScopeKey): { kind: ScopeKind; id: string } | 
 }
 
 /**
+ * THE KEY A BROWSER IS GIVEN FOR A CONVERSATION (2026-10-11).
+ *
+ * A direct conversation is stored under `direct:<its participants' email
+ * addresses>` — that is what lets both people arrive at the same row. Handed
+ * to the browser as it stood, it handed each person the other's address, and
+ * since anybody may start a conversation with anybody in the field, it handed
+ * any player every entrant's address, one conversation at a time.
+ *
+ * So what leaves the server for a direct conversation is the conversation:
+ * `direct:~<thread id>`. Every other kind of key is already an id of a flight,
+ * a round or a match and goes out as it is. The tilde cannot begin an email
+ * address in a stored key, so the two never collide.
+ */
+const BY_THREAD = "~";
+
+export function outwardScopeKey(stored: ScopeKey, threadId: string): ScopeKey {
+  return parseScopeKey(stored)?.kind === "direct" ? scopeKey("direct", `${BY_THREAD}${threadId}`) : stored;
+}
+
+/** The thread a browser-held direct key names, or null when the key is not one of those. */
+export function threadInOutwardKey(key: ScopeKey): string | null {
+  const parsed = parseScopeKey(key);
+  if (parsed?.kind !== "direct" || !parsed.id.startsWith(BY_THREAD)) return null;
+  return parsed.id.slice(BY_THREAD.length) || null;
+}
+
+/**
  * Everything the tournament knows about where one person sits in it.
  *
  * Assembled by the service layer from rows it has already scoped. Nothing here

@@ -72,7 +72,7 @@ export const LEAGUE_POINTS_HELP: Record<LeaguePointsSystem, string> = {
   holes:
     "Holes won and nothing else. Every hole counts equally and closing a match out early costs a side the holes it never played.",
   nassau:
-    "Three points a pairing: the front nine, the back nine, and the match overall. Halves split each segment.",
+    "Three points a pairing: the front nine, the back nine, and the match overall. Halves split each segment. A nine-hole week is one point — there is only the nine.",
 };
 
 /** What the bonus is worth when the system has one. A club may change it. */
@@ -147,12 +147,15 @@ export function pairingPoints(
 
   if (system === "nassau") {
     /**
-     * Three segments, each worth a point. The nine boundaries are fixed rather
-     * than derived from the card's length: a Nassau is front, back and
-     * overall, and a nine-hole round has no back nine to win — which is why
-     * the segments are only counted where holes exist for them.
+     * Three segments, each worth a point — over EIGHTEEN holes. Over nine
+     * there is one nine and so one point: slicing it as "front" and again as
+     * "overall" paid whoever won a nine-hole week two points for the same
+     * nine. `playNassau`, which settles the money game, has always made the
+     * same cut at the same place ("a Nassau needs eighteen holes to be three
+     * bets"), so a league's points and a fourball's money now agree about
+     * what a nine is worth.
      */
-    const segments: HoleResult[][] = [holes.slice(0, 9), holes.slice(9, 18), holes];
+    const segments: HoleResult[][] = holes.length > 9 ? [holes.slice(0, 9), holes.slice(9, 18), holes] : [holes];
     let a = 0;
     let b = 0;
     for (const seg of segments) {
@@ -237,4 +240,28 @@ export function meetingsIn(pairings: readonly PairingResult[]): [string, string]
     if (!seen.has(key)) seen.set(key, [p.parentA, p.parentB]);
   }
   return [...seen.values()];
+}
+
+/**
+ * What the League settings form sends for its two number boxes.
+ *
+ * Each box is on screen only some of the time: the match bonus for the one
+ * scoring system that has one, the pairs count while the league is on at
+ * all. The form sent both regardless, an emptied box as not-a-number — so a
+ * bonus emptied and then HIDDEN by a change of scoring refused the save over
+ * a box nobody could see.
+ *
+ * A hidden box sends what is stored. A visible one sends what was typed, and
+ * an emptied visible one still goes as not-a-number, so the server names it
+ * rather than reading it as zero.
+ */
+export function leagueSettingsToSend(
+  form: { system: LeaguePointsSystem | ""; bonus: string; pairs: string },
+  stored: { matchBonus: number; pairs: number },
+): { matchBonus: number; pairs: number } {
+  const typed = (text: string) => (text.trim() === "" ? Number.NaN : Number(text));
+  return {
+    matchBonus: form.system === "holes-and-match" ? typed(form.bonus) : stored.matchBonus,
+    pairs: form.system !== "" ? typed(form.pairs) : stored.pairs,
+  };
 }

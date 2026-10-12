@@ -38,6 +38,27 @@ export function roleName(role: string, organizer = "organizer"): string {
 }
 
 /**
+ * A CLUB role's name — the role somebody holds at the club, not on one event.
+ *
+ * "Commissioner", not "Owner" (Ajay, 2026-08-21; `OrganizationAccess` has the
+ * reasoning). The stored key is still `owner`, and until 2026-10-10 that key
+ * was what an invited person read in their email — "has given you owner
+ * access" — and what two dozen refusals said, on screens that offer nobody an
+ * "owner" to be. One table, read by the screen, the email and anything else
+ * that names a club role to a person.
+ */
+export const ORG_ROLE_LABEL: Record<string, string> = {
+  owner: "Commissioner",
+  admin: "Admin",
+  member: "Member",
+  guest: "Guest",
+};
+
+export function orgRoleName(role: string): string {
+  return ORG_ROLE_LABEL[role] ?? role;
+}
+
+/**
  * Which roles may open each screen, keyed by the screen key used in both
  * `NAV` and `requireScreen(...)`.
  *

@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnByAny } from "./courses";
 import { prisma } from "../db";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { teeRatingFor } from "./handicaps";
@@ -130,8 +131,8 @@ export async function memberHandicapRecord(
       select: { id: true, eventId: true, holes: true, playedOn: true, courseId: true, nine: true },
     }),
     prisma.event.findMany({ where: { id: { in: eventIds } }, include: COURSE_REF }),
-    prisma.course.findMany({ where: { events: { some: { eventId: { in: eventIds } } } } }),
-    prisma.tee.findMany({ where: { course: { events: { some: { eventId: { in: eventIds } } } } } }),
+    prisma.course.findMany({ where: playedOnByAny(eventIds) }),
+    prisma.tee.findMany({ where: { course: playedOnByAny(eventIds) } }),
     // What each round was actually played off, where it has been frozen. This
     // is the point of the freeze: a differential must be computed from the
     // handicap in force ON THE DAY, not from whatever the roster says now.

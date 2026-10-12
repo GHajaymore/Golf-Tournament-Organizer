@@ -1,5 +1,4 @@
 import { Icon } from "./Icon";
-import { sinceWords } from "@/lib/domain/since";
 
 export interface AnnouncementItem {
   id: string;
@@ -13,6 +12,19 @@ export interface AnnouncementItem {
    * no way to tell. Walked 2026-09-28.
    */
   createdAt?: Date | string;
+  /**
+   * "4 hours ago", worked out ONCE, on the server, by `AnnouncementList`.
+   *
+   * This card read the clock itself while drawing — and on the player's Today
+   * it is drawn twice, by the server and again by the phone (the folding list
+   * is a client component). A notice posted 59 seconds before the page was
+   * built went out as "just now" and was taken over a moment later as "1
+   * minute ago": a hydration mismatch on Today, of the kind that had struck
+   * that screen in CI and never twice the same way. The clock guard did not
+   * see it, because this file is not marked as a client file — it is only
+   * imported by one.
+   */
+  since?: string;
 }
 
 /**
@@ -80,10 +92,10 @@ function titleRow(a: AnnouncementItem, opens: boolean) {
           {/* The title in an element of its own: its text stays one node,
               which is how a reader (and player-round.spec) finds it. */}
           <span>{a.title}</span>
-          {a.createdAt && (
+          {a.since && (
             <span className="text-muted" style={{ fontSize: 13, fontWeight: 400 }}>
               {" "}
-              · {sinceWords(a.createdAt)}
+              · {a.since}
             </span>
           )}
         </span>

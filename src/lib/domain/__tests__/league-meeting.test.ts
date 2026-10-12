@@ -5,6 +5,7 @@ import {
   meetingsIn,
   LEAGUE_POINTS_SYSTEMS,
   LEAGUE_POINTS_LABEL,
+  LEAGUE_POINTS_HELP,
   DEFAULT_MATCH_BONUS,
   type LeaguePointsSystem,
   type PairingResult,
@@ -232,5 +233,83 @@ describe("a pairing with no card at all", () => {
     for (const s of LEAGUE_POINTS_SYSTEMS) {
       expect(pairingPoints([], s as LeaguePointsSystem, 2), s).toEqual([0, 0]);
     }
+  });
+});
+
+/**
+ * A BOX THAT IS NOT ON SCREEN CANNOT REFUSE THE SAVE (sweep 1, a6, 2026-10-10).
+ *
+ * League settings shows the match-bonus box for one scoring system only, and
+ * the pairs box only while the league is on. The save sent both regardless,
+ * an emptied box as "not a number". So: empty the bonus, switch the scoring
+ * to match play — the bonus box disappears — press Save, and the save is
+ * refused with "The match bonus is a whole number from 0 to 18", about a box
+ * the screen is no longer showing.
+ *
+ * A box that is hidden sends what is stored; only a box somebody can see can
+ * be wrong.
+ */
+describe("what League settings sends", () => {
+  const stored = { matchBonus: 2, pairs: 6 };
+
+  it("sends a visible box as typed, an emptied one as not-a-number so it is named", async () => {
+    const { leagueSettingsToSend } = await import("../league-meeting");
+    const sent = leagueSettingsToSend({ system: "holes-and-match", bonus: "", pairs: "5" }, stored);
+    expect(Number.isNaN(sent.matchBonus)).toBe(true);
+    expect(sent.pairs).toBe(5);
+  });
+
+  it("sends the stored bonus when the scoring system has no bonus box", async () => {
+    const { leagueSettingsToSend, LEAGUE_POINTS_SYSTEMS } = await import("../league-meeting");
+    for (const system of LEAGUE_POINTS_SYSTEMS.filter((s) => s !== "holes-and-match")) {
+      const sent = leagueSettingsToSend({ system, bonus: "", pairs: "6" }, stored);
+      expect(sent.matchBonus, `${system}: refused over a box that is not shown`).toBe(2);
+    }
+  });
+
+  it("sends the stored pairs when the league is switched off and that box is gone too", async () => {
+    const { leagueSettingsToSend } = await import("../league-meeting");
+    expect(leagueSettingsToSend({ system: "", bonus: "", pairs: "" }, stored)).toEqual({ matchBonus: 2, pairs: 6 });
+  });
+
+  it("the screen sends through it", async () => {
+    const { readSource } = await import("@/lib/__tests__/source");
+    expect(readSource("src/components/LeagueSettings.tsx")).toContain("leagueSettingsToSend(");
+  });
+});
+
+/**
+ * OVER NINE HOLES A NASSAU IS ONE POINT (sweep 1, d7, 2026-10-10).
+ *
+ * A Nassau is the front nine, the back nine and the eighteen. Over nine holes
+ * there is one nine and nothing else — which this app's MONEY Nassau has
+ * always said: "a nine-hole round yields a single segment… a Nassau needs
+ * eighteen holes to be three bets". The LEAGUE's Nassau points sliced the
+ * same nine twice, as "front" and again as "overall", so whoever won a
+ * nine-hole week took two points for one nine under a setting described as
+ * "three points a pairing".
+ *
+ * One nine, one point. An eighteen-hole week is unchanged.
+ */
+describe("league Nassau points over nine holes", () => {
+  const nine = (s: string) => s.split("").map((c) => (c === "A" ? "A" : c === "B" ? "B" : c === "H" ? "H" : null)) as ("A" | "B" | "H" | null)[];
+
+  it("the nine is worth one point to whoever wins it", () => {
+    expect(pairingPoints(nine("AAAHHHHHH"), "nassau")).toEqual([1, 0]);
+    expect(pairingPoints(nine("BBHHHHHHH"), "nassau")).toEqual([0, 1]);
+  });
+
+  it("a halved nine splits that one point", () => {
+    expect(pairingPoints(nine("ABHHHHHHH"), "nassau")).toEqual([0.5, 0.5]);
+  });
+
+  it("CONTROL: eighteen holes are still three points", () => {
+    const [a, b] = pairingPoints([...nine("AAAHHHHHH"), ...nine("BBHHHHHHH")], "nassau");
+    // Front to A, back to B, and A is one up over the eighteen.
+    expect([a, b]).toEqual([2, 1]);
+  });
+
+  it("the help says what a nine-hole week is worth", () => {
+    expect(LEAGUE_POINTS_HELP.nassau).toMatch(/nine-hole/i);
   });
 });

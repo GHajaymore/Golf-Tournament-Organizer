@@ -1,13 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
+import { playedOnBy } from "@/lib/services/courses";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { isDistanceUnit } from "@/lib/domain/distance-unit";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
+import { canEnterScores, canChooseOwnTee, playerTeeCounts } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -515,7 +516,19 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
 export async function setStageCourse(
   stageId: string,
   courseId: string | null,
-  nine = "full",
+  /**
+   * Which nine the round plays — and ONLY when the caller says.
+   *
+   * This defaulted to "full" and was written every time. The rounds screen
+   * sends the round's real nine; the score-entry panel has no nine to send,
+   * passed "full" to reach the arguments after it, and `applyNine` reads
+   * anything that is not "back" as the front. So picking a round's TEES from
+   * score entry turned a back-nine round into holes 1 to 9 — front pars, front
+   * stroke index — on a screen that never mentions the nine.
+   *
+   * Left out, the round keeps the nine it has.
+   */
+  nine?: string,
   force = false,
   /**
    * The set this round is played from, from the course above.
@@ -604,7 +617,7 @@ export async function setStageCourse(
 
   await prisma.stage.update({
     where: { id: stageId },
-    data: { courseId, teeId: roundTee, nine: cleanNine(nine) },
+    data: { courseId, teeId: roundTee, ...(nine === undefined ? {} : { nine: cleanNine(nine) }) },
   });
   await refresh();
   return { ok: true };
@@ -778,7 +791,7 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
     // club's tee become the set a field is scored off — the same widening
     // that once let a player's teeId resolve to a foreign rating.
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
@@ -807,7 +820,7 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
     // Scoped to this tournament's course, so another club's set can never
     // become the one a division is scored off.
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
@@ -852,8 +865,29 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Player not found." };
   if (teeId) {
+    /**
+     * NOT STORED WHERE IT WOULD NOT BE READ — for staff as well as players.
+     *
+     * Under one set for everyone, or a set per flight, a player may not
+     * differ: `teeIdFor` steps past their own set. This stored it anyway, so
+     * the screen kept the choice and the card kept the old strokes. CLEARING
+     * one is always allowed, which is how a set left over from an earlier
+     * policy is tidied away.
+     */
+    const playedIn = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!playedIn) return { ok: false, error: "Tournament not found." };
+    const policy = settingsOf(playedIn).teePolicy;
+    if (!playerTeeCounts(policy)) {
+      return {
+        ok: false,
+        error:
+          policy === "flight"
+            ? "This tournament plays each flight off its own tees, so a player's own set would not count. Set the flight's tees, or change who decides under Tees."
+            : "This tournament plays one set of tees for everyone, so a player's own set would not count. Change who decides under Tees first.",
+      };
+    }
     const tee = await prisma.tee.findFirst({
-      where: { id: teeId, course: { events: { some: { eventId } } } },
+      where: { id: teeId, course: playedOnBy(eventId) },
     });
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
@@ -1041,6 +1075,27 @@ async function clubNear(eventId: string): Promise<Near | undefined> {
   return city ? ({ city } satisfies Near) : undefined;
 }
 
+/**
+ * MAY THIS PERSON SPEND ONE REQUEST OF THE DIRECTORY'S DAY?
+ *
+ * The live directory answers 500 requests a day for the whole app, and every
+ * door to it is a `"use server"` export anyone signed in can call. So each
+ * account has an hourly budget, and EVERY door asks this one function:
+ * searching and importing draw on the same count, or a person refused at one
+ * simply uses the other.
+ *
+ * Nobody is exempt. "Organizers search as before" was the rule, and being an
+ * organizer costs a sign-up — so the exemption exempted everybody who wanted
+ * it. An organizer gets four times a player's budget instead.
+ *
+ * Keyed on the person, not the tournament: a budget per tournament is one more
+ * tournament away from a fresh one.
+ */
+async function directoryBudget(session: { role: string; userId?: string; email: string }) {
+  const kind = session.role === "admin" ? "course-search-staff" : "course-search";
+  return checkRateLimit(kind, session.userId || session.email);
+}
+
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
@@ -1074,8 +1129,8 @@ export async function searchCourseDirectory(
    * to the catalogue rather than refusing.
    */
   let live = !localOnly;
-  if (live && session.role !== "admin") {
-    const budget = await checkRateLimit("course-search", session.userId || session.email);
+  if (live) {
+    const budget = await directoryBudget(session);
     if (!budget.allowed) live = false;
   }
   const hits = await searchDirectory(query, !live, await clubNear(session.eventId));
@@ -1159,7 +1214,21 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
    */
   const organizationId = await libraryOrganizationFor(session);
 
-  const course = await fetchDirectoryCourse(directoryId);
+  /**
+   * THE STORED CATALOGUE FIRST, AND FREE. Only an id it does not hold goes to
+   * the directory, and that request is counted against this person — the same
+   * budget their searches draw on (`directoryBudget`). It was not counted at
+   * all: five hundred made-up ids from one account ended course look-up for
+   * every club until the next day.
+   */
+  let course = await fetchDirectoryCourse(directoryId, false);
+  if (!course) {
+    const budget = await directoryBudget(session);
+    if (!budget.allowed) {
+      return { ok: false, error: `${budget.message} Or paste the card in below.` };
+    }
+    course = await fetchDirectoryCourse(directoryId, true);
+  }
   if (!course) {
     return {
       ok: false,

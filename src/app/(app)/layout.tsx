@@ -28,6 +28,7 @@ import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 export const metadata = { robots: NOINDEX };
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
+import { ClubClockAdopter } from "@/components/ClubClockAdopter";
 import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
 import { clubDistanceUnit } from "@/lib/domain/distance-unit";
@@ -55,7 +56,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // And `communityNoun` with them, which BEATS the country: the country is
     // only ever a good guess, and a US outfit that has always called itself a
     // society is not wrong about its own name.
-    include: { organization: { select: { kind: true, country: true, communityNoun: true } } },
+    // And `timeZone`, so a club that has none can take its organizer's — see
+    // `ClubClockAdopter`.
+    include: { organization: { select: { kind: true, country: true, communityNoun: true, timeZone: true } } },
   });
   // Teams only appear once a round is actually set to a team format, so the
   // many tournaments that never play one are not shown a link to an empty
@@ -282,6 +285,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <DeniedNotice organizer={organizer} />
           </Suspense>
           {casualShell && <BackToTheRound />}
+          {/* A club with no time zone takes this organizer's, once. Only for
+              somebody who may change it; the action re-checks that. */}
+          {event && event.organization.timeZone === "" && session.role === "admin" && <ClubClockAdopter />}
           {children}
         </main>
       </div>

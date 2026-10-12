@@ -28,6 +28,7 @@ const LABEL_SOURCE: Record<string, string> = {
   "Something on this card is wrong": "src/components/PlayerCard.tsx",
   "Can’t make it? Withdraw": "src/components/WithdrawButton.tsx",
   "Play a casual round": "src/app/(player)/me/events/page.tsx",
+  "Sign out everywhere": "src/app/account/page.tsx",
 };
 
 /** JSX writes an apostrophe as an entity; read the screen the way it renders. */

@@ -189,3 +189,43 @@ describe("D6 — a newline inside a quoted cell", () => {
     expect(nameFrom(t, t.rows[0])).toBe("Tom");
   });
 });
+
+/**
+ * THE TWO IMPORTERS READ "HANDICAP TYPE" THE SAME WAY (sweep 1, b16,
+ * 2026-10-10).
+ *
+ * A nine-hole index is doubled before it is used (`handicap.ts`), so reading
+ * the type wrong halves or doubles the strokes somebody receives. The roster
+ * importer took "9" or a 9 standing on its own ("9 holes", "9-hole"); the
+ * FIELD importer took the cell only when it was exactly "9". The same file —
+ * exported by the same club system with "9 holes" in the column — gave a
+ * member a nine-hole index on the roster and an eighteen-hole one in the
+ * tournament.
+ *
+ * One reader now, and both importers are held to it.
+ */
+describe("b16 — one reading of the handicap-type column", () => {
+  it("reads what a club system writes for a nine-hole index", async () => {
+    const { parseHandicapType } = await import("@/lib/domain/registration-intake");
+    for (const written of ["9", " 9 ", "9 holes", "9-hole", "9 Hole", "Nine", "nine holes", "9H"]) {
+      expect(parseHandicapType(written), written).toBe("9");
+    }
+  });
+
+  it("CONTROL: and does not find a nine where there is none", async () => {
+    const { parseHandicapType } = await import("@/lib/domain/registration-intake");
+    for (const written of ["", "18", "18 holes", "19", "90", "full", "WHS", "0.9", "1.9", "29"]) {
+      expect(parseHandicapType(written), written || "(blank)").toBe("18");
+    }
+  });
+
+  it("both importers ask it, and neither keeps a reading of its own", async () => {
+    const { readSource } = await import("./source");
+    const field = readSource("src/app/actions/tournament.ts");
+    const roster = readSource("src/app/actions/roster.ts");
+    expect(field).toContain('parseHandicapType(cell(table, cols, "handicapType"))');
+    expect(roster).toContain("parseHandicapType(handicapText)");
+    expect(field).not.toContain('cell(table, cols, "handicapType") === "9"');
+    expect(roster).not.toContain('handicapText.trim() === "9"');
+  });
+});

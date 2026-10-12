@@ -28,9 +28,12 @@ import { landingTokens } from "@/lib/landing-palette";
 export const LANDING_CSS = `
 .thq, .thq * { box-sizing: border-box; }
 .thq {
-  color-scheme: light;
-${landingTokens("light", "  ")}
-  --card: var(--panel);
+  /* MIDNIGHT NAVY, EVERYWHERE (2026-10-11). The page was a white poster with
+     dark bands; it is now one dark ground, and the light palette survives as
+     a single surface (.lightband, below) for the one cream panel. */
+  color-scheme: dark;
+${landingTokens("dark", "  ")}
+  --card: color-mix(in srgb, var(--ground-2) 70%, var(--ground));
   /* The lockup is the app's own, drawn the same everywhere (Ajay, 2026-09-29:
      "fix the logo to be consistent all across"). Its flagstick and cup read the
      page's ink here, as they read the app's text colour there; the pennant and
@@ -40,8 +43,8 @@ ${landingTokens("light", "  ")}
   --wash-2: color-mix(in srgb, var(--ink) 8%, transparent);
   --accent-a12: color-mix(in srgb, var(--brass-ui) 12%, transparent);
   --flag-a: color-mix(in srgb, var(--flag) 14%, transparent);
-  --shadow: 0 1px 0 rgba(0,0,0,.03), 0 24px 48px -28px rgba(0,0,0,.28);
-  --shadow-xl: 0 0 0 1px rgba(0,0,0,.06), 0 50px 90px -40px rgba(0,0,0,.4);
+  --shadow: 0 24px 48px -28px rgba(0,0,0,.8);
+  --shadow-xl: 0 0 0 1px rgba(0,0,0,.3), 0 50px 90px -40px rgba(0,0,0,.85);
   --sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --ease: cubic-bezier(.32,.72,0,1);
@@ -51,7 +54,17 @@ ${landingTokens("light", "  ")}
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   overflow-x: clip; min-height: 100vh;
 }
-/* The same components on the dark palette. */
+/* The same components on the LIGHT palette: the one cream panel on the page. */
+.thq .lightband {
+  color-scheme: light;
+${landingTokens("light", "  ")}
+  --card: var(--panel);
+  --logo-stick: var(--ink); --logo-cup: var(--ink-soft);
+  --shadow: 0 1px 0 rgba(0,0,0,.03), 0 24px 48px -28px rgba(0,0,0,.28);
+  background: var(--ground); color: var(--ink);
+}
+/* A band is the dark palette re-declared, so a card, a button or a table
+   inside one needs no second set of rules. On the navy page it is the page. */
 .thq .band {
   color-scheme: dark;
 ${landingTokens("dark", "  ")}
@@ -74,7 +87,6 @@ ${landingTokens("dark", "  ")}
 .thq .wrap { max-width: var(--wrap); margin: 0 auto; padding-left: max(40px, env(safe-area-inset-left)); padding-right: max(40px, env(safe-area-inset-right)); }
 @media (max-width: 760px) { .thq .wrap { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); } .thq { font-size: 16.5px; } }
 .thq .i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-.thq .i-sm { width: 16px; height: 16px; }
 
 /* ── type ── */
 .thq .label { display: block; font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
@@ -88,8 +100,6 @@ ${landingTokens("dark", "  ")}
 /* ── buttons ── */
 .thq .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--ground); font: 600 15.5px/1 var(--sans); cursor: pointer; transition: transform .15s var(--ease), background .15s; white-space: nowrap; }
 .thq .btn:hover { transform: translateY(-1px); }
-.thq .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
-.thq .btn.ghost:hover { border-color: var(--ink); }
 .thq .btn.accent { background: var(--brass-ui); border-color: var(--brass-ui); color: var(--on-accent); }
 .thq .btn.accent:hover { background: var(--brass-hi); border-color: var(--brass-hi); }
 .thq .btn.sm { min-height: 44px; padding: 0 18px; font-size: 14.5px; }
@@ -103,7 +113,6 @@ ${landingTokens("dark", "  ")}
 .thq .hdr.band { background: var(--ground); backdrop-filter: none; -webkit-backdrop-filter: none; }
 /* The hero runs on under the dark header; the formats marquee closes it. */
 .thq .hero.band { padding-bottom: 0; }
-.thq .hero.band .marq { border-bottom: 0; }
 .thq .hdr-in { display: flex; align-items: center; height: 72px; gap: 28px; }
 .thq .lockup { display: inline-flex; align-items: center; min-height: 44px; flex: none; }
 .thq .hnav { display: flex; align-items: center; gap: 2px; margin-right: auto; font: 500 15px/1 var(--sans); color: var(--ink-soft); }
@@ -140,10 +149,6 @@ ${landingTokens("dark", "  ")}
 /* ── hero ── */
 .thq .hero { padding: 80px 0 0; overflow: hidden; }
 .thq .hero .kicker { margin-bottom: 26px; }
-.thq .hero-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 40px; align-items: end; }
-.thq .hero-side { padding-bottom: 12px; display: grid; gap: 24px; }
-.thq .hero-side p { color: var(--ink-soft); font-size: 18.5px; line-height: 1.55; }
-.thq .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
 .thq .proof { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--ink-soft); }
 .thq .proof b { color: var(--ink); font-weight: 650; }
 /* The laptop and the phone share one grid cell, so the stage is exactly as tall
@@ -164,7 +169,7 @@ ${landingTokens("dark", "  ")}
 .thq .stage .phone { position: relative; z-index: 1; align-self: start; width: 28%; margin-top: 0; }
 .thq .real { margin-top: 24px; font-size: 14px; color: var(--ink-faint); }
 .thq .real b { color: var(--ink-soft); font-weight: 600; }
-@media (max-width: 1000px) { .thq .hero-top { grid-template-columns: minmax(0, 1fr); } .thq .stage { margin-top: 44px; } }
+@media (max-width: 1000px) { .thq .stage { margin-top: 44px; } }
 /* A tablet keeps the pair: shown the phone alone, an iPad's hero was one small
    screen on a wide empty stage. The phone grows a little so it still reads. */
 @media (min-width: 761px) and (max-width: 1000px) { .thq .stage .phone { width: 32%; } .thq .stage .desk { margin-left: 17%; } }
@@ -186,22 +191,12 @@ ${landingTokens("dark", "  ")}
 .thq .phone.sm img { border-radius: 27px; }
 
 /* ── formats marquee ── */
-.thq .marq { margin-top: 80px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; padding: 22px 0; }
-.thq .marq-track { display: inline-flex; gap: 44px; font: 700 clamp(30px, 4.4vw, 60px)/1.1 var(--sans); letter-spacing: -.04em; }
-.thq .marq-track span:nth-child(odd) { color: var(--ink); }
-.thq .marq-track span:nth-child(even) { color: var(--ink-faint); }
-.thq .marq-track em { font-style: normal; color: var(--brass); }
-.thq-js .marq-track { animation: thq-slide 70s linear infinite; }
 @keyframes thq-slide { to { transform: translateX(-50%); } }
 
 /* ── sections ── */
 .thq .sec { padding: 140px 0; }
 .thq .sec.tint { background: var(--ground-2); }
-.thq .shead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 40px; align-items: end; margin-bottom: 72px; }
-.thq .shead .label { margin-bottom: 22px; }
-.thq .shead > p, .thq .shead > div > p { color: var(--ink-soft); font-size: 18px; }
-.thq .shead.center { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-@media (max-width: 900px) { .thq .sec { padding: 88px 0; } .thq .shead { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-bottom: 44px; } }
+@media (max-width: 900px) { .thq .sec { padding: 88px 0; } }
 
 /* ── the round: one Saturday, both sides ── */
 .thq .round { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 96px; }
@@ -209,9 +204,7 @@ ${landingTokens("dark", "  ")}
 /* Every step stays readable (2026-10-02): faded to .32, the steps not in view
    read pale grey — most of the section, on a laptop — and failed 7:1. The step
    in view is marked by its time in orange; the others' times are grey. */
-@media (min-width: 1001px) { .thq-js .step:not(.on) .step-t b { color: var(--ink-faint); transition: color .35s; } }
-.thq .step-t { display: flex; align-items: center; gap: 16px; }
-.thq .step-t b { font: 600 60px/1 var(--mono); letter-spacing: -.05em; color: var(--brass); font-variant-numeric: tabular-nums; }
+@media (min-width: 1001px) { }
 .thq .who { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
 .thq .who.org { background: var(--ink); color: var(--ground); }
 .thq .who.pl { background: color-mix(in srgb, var(--brass-ui) 7%, transparent); color: var(--brass); }
@@ -220,7 +213,6 @@ ${landingTokens("dark", "  ")}
 .thq .step ul { margin-top: 18px; display: grid; gap: 8px; font-size: 15.5px; color: var(--ink-soft); }
 .thq .step li { display: grid; grid-template-columns: 18px 1fr; }
 .thq .step li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brass-ui); margin-top: 10px; }
-.thq .step .inl { display: none; }
 .thq .pin { position: sticky; top: 108px; align-self: start; height: calc(100vh - 140px); max-height: 860px; display: grid; align-content: center; justify-items: center; gap: 18px; }
 .thq .pin .phone { width: 340px; }
 .thq .pin .scr { position: relative; aspect-ratio: 600 / 1298; border-radius: min(38px, 11cqw); overflow: hidden; background: var(--ground-2); }
@@ -230,7 +222,7 @@ ${landingTokens("dark", "  ")}
 .thq .clock i { width: 26px; height: 4px; border-radius: 2px; background: var(--line-2); transition: background .3s; }
 .thq .clock i.on { background: var(--brass-ui); }
 .thq .pin .cap { font: 500 12.5px/1.3 var(--mono); letter-spacing: .04em; color: var(--ink-faint); text-align: center; min-height: 17px; }
-@media (max-width: 1000px) { .thq .round { grid-template-columns: minmax(0, 1fr); } .thq .pin { display: none; } .thq .step { min-height: 0; padding: 44px 0; } .thq-js .step { opacity: 1; } .thq .step .inl { display: block; width: min(300px, 80%); margin: 28px auto 0; } }
+@media (max-width: 1000px) { .thq .round { grid-template-columns: minmax(0, 1fr); } .thq .pin { display: none; } .thq .step { min-height: 0; padding: 44px 0; } .thq-js .step { opacity: 1; } }
 
 /* ── five reasons: the one orange band ── */
 .thq .why { background: var(--brass-ui); color: var(--on-accent); padding: 140px 0; }
@@ -247,16 +239,8 @@ ${landingTokens("dark", "  ")}
 
 /* ── side by side: the usual way ── */
 .thq .usual { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--card); }
-.thq .u-hd, .thq .u-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; padding: 18px 30px; border-bottom: 1px solid var(--line); }
-.thq .u-hd { padding-top: 22px; padding-bottom: 20px; }
-.thq .u-hd b { font: 700 19px/1 var(--sans); letter-spacing: -.02em; }
-.thq .u-hd b.now { color: var(--brass); }
-.thq .u-row:last-child { border-bottom: 0; }
-.thq .u-row i { font: 500 12px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-style: normal; padding-top: 3px; }
-.thq .u-row .before { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: var(--line-2); }
-.thq .u-row .after { color: var(--ink); font-weight: 550; }
 .thq .usual .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-@media (max-width: 900px) { .thq .u-hd { display: none; } .thq .u-row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 16px 20px; } .thq .u-row .before { font-size: 14.5px; } .thq .u-row .after::before { content: "→ "; color: var(--brass); font-weight: 700; } }
+@media (max-width: 900px) { }
 
 /* ── side by side: the names you know ── */
 .thq .vs { margin-top: 110px; }
@@ -266,13 +250,6 @@ ${landingTokens("dark", "  ")}
 .thq .tab:has(input:checked) { background: var(--ink); color: var(--ground); }
 .thq .tab:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
 .thq .glance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 18px; }
-.thq .glance-col { padding: 26px 28px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
-.thq .glance-col.further { background: transparent; }
-.thq .glance-col h3 { font: 700 18px/1.2 var(--sans); margin-bottom: 14px; }
-.thq .glance-col ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 32px; }
-.thq .glance-col li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: 15px; color: var(--ink-soft); }
-.thq .glance-col li .i { width: 17px; height: 17px; color: var(--flag); margin-top: 3px; stroke-width: 2.2; }
-.thq .glance-col li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); margin: 9px 0 0 5px; }
 .thq .vs-legal { margin-top: 20px; font-size: 13px; line-height: 1.55; color: var(--ink-faint); max-width: 900px; }
 @media (max-width: 900px) { .thq .glance { grid-template-columns: minmax(0, 1fr); } .thq .vs { margin-top: 72px; } }
 
@@ -282,7 +259,6 @@ ${landingTokens("dark", "  ")}
    orange, solid marks. On a phone the feature names and TourneyHQ stay pinned
    and the five rivals slide past two at a time, inside the table's own
    scroller — the page itself never scrolls sideways. */
-.thq .cx-cue { display: none; }
 /* position: relative makes the scroller the containing block of the screen-reader-only
    labels (.sr, absolutely positioned) in its cells. Without it they escaped the
    overflow to the page, and phones widened the layout viewport to 621px and zoomed out. */
@@ -318,8 +294,6 @@ ${landingTokens("dark", "  ")}
 .thq .cx-key > span { display: inline-flex; align-items: center; gap: 7px; }
 .thq .cx-key .cx-m { width: 18px; height: 18px; font-size: 10px; }
 @media (max-width: 760px) {
-  .thq .cx-cue { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font: 650 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--brass); }
-  .thq .cx-cue .i { width: 14px; height: 14px; }
   .thq .cx-scroll { margin: 0 calc(-1 * max(20px, env(safe-area-inset-right))) 0 calc(-1 * max(20px, env(safe-area-inset-left))); border-radius: 0; border-left: 0; border-right: 0; scroll-snap-type: x mandatory; scroll-padding-left: 214px; }
   .thq .cx { min-width: calc(118px + 96px + 5 * 88px); }
   .thq .cx th, .thq .cx td { padding: 11px 5px; }
@@ -336,15 +310,12 @@ ${landingTokens("dark", "  ")}
 }
 
 /* ── pricing: what changes from one plan to the next ── */
-.thq .tier-how { margin: 8px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-faint); }
 /* Narrow plan cards: the note below the cards says the same once, so each card drops it. */
-@media (max-width: 700px) { .thq .tier-how { display: none; } }
+@media (max-width: 700px) { }
 /* The billing switch on the smallest phones: one row, not a stacked pill. */
 @media (max-width: 400px) { .thq .seg.bill { flex-wrap: nowrap; } .thq .seg.bill .tab { padding: 0 12px; font-size: 13.5px; } .thq .seg.bill em { font-size: 9.5px; padding: 3px 5px; } }
-.thq .tier.hot .tier-how { color: color-mix(in srgb, var(--ground) 70%, transparent); }
 .thq .cp { margin-top: 28px; }
 .thq .cp h3 { font: 750 22px/1.2 var(--sans); letter-spacing: -.02em; }
-.thq .cp-sub { color: var(--ink-soft); font-size: 15px; margin: 4px 0 16px; }
 .thq .cp-t { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
 .thq .cp-t td { hyphens: auto; }
 .thq .cp-t th, .thq .cp-t td { overflow-wrap: break-word; padding: 14px 12px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; font-size: 14.5px; color: var(--ink); }
@@ -377,18 +348,7 @@ ${landingTokens("dark", "  ")}
 /* position: relative on every horizontal scroller: its .sr inputs are absolutely
    positioned, and without a containing block inside the scroller they escape it and
    widen the page on phones (the #723 bug, again here). */
-.thq .show-rail, .thq .steps { position: relative; }
-.thq .show-rail { display: grid; gap: 2px; align-content: start; padding: 8px; }
-.thq .show-rail .label { margin: 14px 10px 8px; }
-.thq .show-rail .label:first-child { margin-top: 6px; }
-.thq .show-tab { display: grid; gap: 3px; padding: 12px 14px; border-radius: 12px; cursor: pointer; }
-.thq .show-tab b { font: 600 15.5px/1.3 var(--sans); color: var(--ink-soft); }
-.thq .show-tab span { font-size: 13px; line-height: 1.35; color: var(--ink-faint); }
-.thq .show-tab:hover b { color: var(--ink); }
-.thq .show-tab:has(input:checked) { background: var(--ink); }
-.thq .show-tab:has(input:checked) b { color: var(--ground); }
-.thq .show-tab:has(input:checked) span { color: color-mix(in srgb, var(--ground) 72%, var(--ink)); }
-.thq .show-tab:has(input:focus-visible) { outline: 2px solid var(--brass-ui); outline-offset: 2px; }
+.thq .steps { position: relative; }
 /* The stage (2026-09-29): a dark stage lit in the brand's orange, the real
    screen upright in a phone, and numbered pins beside it — level with what each
    note describes. Hovering a note lights its pin. The capture itself is never
@@ -397,27 +357,7 @@ ${landingTokens("dark", "  ")}
    blurriness"); the depth comes from light and shadow, never from transforms. */
 /* The showcase is painted dark on the light page, so the orange its pins and
    numbers use is the dark palette's (rust on black read at 2.5:1, black on rust at 3:1). */
-.thq .show-view { --brass-hi: var(--paper-accent); position: relative; border-radius: 20px; min-height: 700px; display: grid; place-items: center; overflow: hidden; padding: 48px 40px;
-  background: radial-gradient(70% 70% at 28% 30%, color-mix(in srgb, var(--brass-ui) 26%, var(--ink)) 0%, var(--ink) 72%); }
-.thq .show-f { display: none; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 56px; width: 100%; max-width: 820px; }
-.thq .stage-phone { position: relative; width: 330px; justify-self: center; }
-.thq .stage-phone .phone { box-shadow: 0 50px 90px -24px rgba(0,0,0,.85), 0 20px 50px -18px color-mix(in srgb, var(--brass-ui) 55%, transparent), inset 0 0 0 1.5px rgba(255,255,255,.14); }
-.thq .stage-pins { position: absolute; top: 9px; bottom: 9px; right: -26px; width: 0; margin: 0; padding: 0; list-style: none; }
-.thq .stage-pins li { position: absolute; right: -14px; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  font: 800 13px/1 var(--sans); color: var(--ink); background: var(--brass-hi); box-shadow: 0 0 0 5px color-mix(in srgb, var(--brass-hi) 22%, transparent); transition: transform .2s, box-shadow .2s; }
-.thq .stage-pins li::before { content: ""; position: absolute; right: 100%; top: 50%; width: 16px; height: 1.5px; background: color-mix(in srgb, var(--brass-hi) 70%, transparent); }
-.thq .stage-notes { color: color-mix(in srgb, var(--ground) 70%, transparent); }
-.thq .stage-notes ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; counter-reset: note; }
-.thq .stage-notes li { counter-increment: note; position: relative; padding-left: 54px; font-size: 15.5px; line-height: 1.5; cursor: default; }
-.thq .stage-notes li::before { content: counter(note); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
-  font: 800 15px/1 var(--sans); color: var(--brass-hi); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brass-hi) 60%, transparent); transition: background .2s, color .2s; }
-.thq .stage-notes b { display: block; color: var(--ground); font: 750 19px/1.25 var(--sans); letter-spacing: -.015em; margin-bottom: 3px; }
-.thq .stage-notes li:hover::before { background: var(--brass-hi); color: var(--ink); }
-.thq .show-f:has(.stage-notes li:nth-child(1):hover) .stage-pins li:nth-child(1),
-.thq .show-f:has(.stage-notes li:nth-child(2):hover) .stage-pins li:nth-child(2),
-.thq .show-f:has(.stage-notes li:nth-child(3):hover) .stage-pins li:nth-child(3) { transform: translateY(-50%) scale(1.25); box-shadow: 0 0 0 9px color-mix(in srgb, var(--brass-hi) 30%, transparent); }
 
-__SHOW_FRAMES__
 @media (max-width: 1000px) {
   .thq .show { grid-template-columns: minmax(0, 1fr); padding: 10px; }
   .thq .show-rail { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; padding: 4px; }
@@ -474,19 +414,13 @@ __SHOW_FRAMES__
 @media (max-width: 480px) { .thq .fx-grid { grid-template-columns: minmax(0, 1fr); } .thq .fx-grid .f { min-height: 0; } }
 
 /* ── the money (a dark band) ── */
-.thq .money-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.thq .mcard { background: var(--card); border-radius: var(--r); padding: 34px; border: 1px solid var(--line); display: flex; flex-direction: column; }
-.thq .mcard p { color: var(--ink-soft); margin-top: 10px; font-size: 16px; }
 .thq .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 26px; }
 .thq .chips span { font: 500 13.5px/1 var(--sans); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink-soft); }
 /* Centred in what is left of its card, beside the taller expenses phone, not dropped to the foot. */
-.thq .mcard .well { margin-top: auto; margin-bottom: auto; border-radius: 14px; overflow: hidden; }
 /* A phone-width capture is never drawn wider than a phone shows it (1170px at 2x = 585): on
    an iPad the money cards stack to one column and the prizes card stretched to 680px, 1.72x. */
-.thq .mcard .well:has(img[src*="prizes-org-phone"]) { width: min(100%, 440px); margin-left: auto; margin-right: auto; }
 /* The trip money as the member sees it: the whole phone, not a slice of the list. */
-.thq .mcard .money-phone { width: min(340px, 86%); margin: auto auto 0; }
-@media (max-width: 900px) { .thq .money-cols { grid-template-columns: minmax(0, 1fr); } .thq .mcard { padding: 24px; } }
+@media (max-width: 900px) { }
 
 /* ── make it yours: the drag-to-compare slider ── */
 .thq .yours { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 80px; align-items: center; }
@@ -496,36 +430,12 @@ __SHOW_FRAMES__
 .thq .yours .facts h3 { font: 650 16.5px/1.3 var(--sans); }
 .thq .yours .facts p { color: var(--ink-soft); font-size: 15.5px; margin-top: 2px; }
 .thq .compare { display: grid; justify-items: center; gap: 16px; }
-.thq .cmp-tabs { display: none; }
-.thq .compare:has(input[name="cmp-mode"][value="ap"]:checked) .cmp-tabs[data-set="ap"],
-.thq .compare:has(input[name="cmp-mode"][value="col"]:checked) .cmp-tabs[data-set="col"] { display: inline-flex; }
-@media (max-width: 480px) { .thq .cmp-tabs { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; } .thq .cmp-tabs .tab { flex: none; padding: 0 12px; font-size: 13.5px; } }
-.thq .cmp-f { display: none; justify-items: center; gap: 16px; width: 100%; }
-__CMP_FRAMES__
-.thq .cmp-frame.phone { width: min(320px, 78vw); }
-.thq .cmp-frame.phone .cmp-view { border-radius: 38px; }
-.thq .cmp-frame.window { width: 100%; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-xl); }
-.thq .cmp-view { position: relative; overflow: hidden; --pos: 50%; touch-action: pan-y; }
-.thq .cmp-view img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; border-radius: 0; }
-.thq .cmp-view .cmp-b { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; clip-path: inset(0 0 0 var(--pos)); }
-.thq .cmp-line { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: var(--brass-ui); pointer-events: none; }
-.thq .cmp-line i { position: absolute; top: 50%; left: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: var(--brass-ui); box-shadow: 0 4px 14px rgba(0,0,0,.4); }
-.thq .cmp-line i::before, .thq .cmp-line i::after { content: ""; position: absolute; top: 50%; width: 0; height: 0; border: 5px solid transparent; margin-top: -5px; }
-.thq .cmp-line i::before { left: 6px; border-right-color: var(--on-accent); }
-.thq .cmp-line i::after { right: 6px; border-left-color: var(--on-accent); }
+@media (max-width: 480px) { }
 .thq .cmp-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; touch-action: pan-y; }
-.thq .cmp-view:focus-within .cmp-line i { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* Full ink: the legend sits in the phone's shadow, which greys the ground under it. */
-.thq .cmp-legend { display: flex; align-items: center; gap: 14px; font: 600 13.5px/1.3 var(--sans); color: var(--ink); }
-.thq .cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.thq .cmp-legend .i { width: 15px; height: 15px; }
-.thq .cmp-hint { font: 500 12px/1 var(--mono); color: var(--ink); }
 @media (max-width: 900px) { .thq .yours { grid-template-columns: minmax(0, 1fr); gap: 44px; } }
 
 /* ── pricing ── */
-.thq .per-y { display: none; }
-.thq #pricing:has(input[name="bill"][value="y"]:checked) .per-y { display: inline; }
-.thq #pricing:has(input[name="bill"][value="y"]:checked) .per-m { display: none; }
 .thq .bill em { font-style: normal; font: 600 11px/1 var(--mono); color: var(--card); background: var(--flag); padding: 4px 7px; border-radius: 6px; }
 .thq .ed-note { font-size: 14px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 14px; }
 .thq .ed-note button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); font: 600 13.5px/1 var(--sans); cursor: pointer; }
@@ -536,11 +446,10 @@ __CMP_FRAMES__
 .thq .tier h3 { display: flex; justify-content: space-between; align-items: center; font: 700 20px/1 var(--sans); }
 .thq .tier .badge { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; background: var(--brass-ui); color: var(--on-accent); padding: 6px 8px; border-radius: 6px; }
 .thq .tier .for { color: var(--ink-soft); font-size: 15px; min-height: 48px; }
-.thq .tier.hot .for, .thq .tier.hot .price > span, .thq .tier.hot .price-sub, .thq .tier.hot .note { color: color-mix(in srgb, var(--ground) 70%, var(--ink)); }
+.thq .tier.hot .for, .thq .tier.hot .price > span, .thq .tier.hot .note { color: color-mix(in srgb, var(--ground) 70%, var(--ink)); }
 .thq .price { display: flex; align-items: baseline; gap: 6px; }
 .thq .price b { font: 750 60px/1 var(--sans); letter-spacing: -.05em; }
 .thq .price > span { color: var(--ink-faint); font-size: 15px; }
-.thq .price-sub { font-size: 13.5px; color: var(--ink-faint); margin-top: -8px; min-height: 20px; }
 .thq .tier ul { display: grid; gap: 11px; align-content: start; padding-top: 18px; border-top: 1px solid var(--line); font-size: 15px; }
 .thq .tier.hot ul { border-top-color: color-mix(in srgb, var(--ground) 18%, transparent); }
 .thq .tier li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; }
@@ -550,11 +459,6 @@ __CMP_FRAMES__
 .thq .tier .btn { width: 100%; }
 .thq .tier .btn .short { display: none; }
 .thq .tier.hot .btn { background: var(--brass-ui); border-color: var(--brass-ui); color: var(--on-accent); }
-.thq .tier-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
-.thq .ultimate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 24px 28px; border-radius: var(--r); border: 1px solid var(--line); }
-.thq .ultimate .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--wash-2); display: grid; place-items: center; color: var(--brass); }
-.thq .ultimate h3 { font: 650 17px/1.3 var(--sans); }
-.thq .ultimate p { font-size: 15px; color: var(--ink-soft); }
 .thq .metered { margin-top: 18px; font-size: 13.5px; color: var(--ink-faint); max-width: 820px; }
 /* Up to a small laptop the three cards are too narrow for "Birdie" and its
    tagline on one line: the badge wrapped to two cramped lines beside the name
@@ -564,7 +468,7 @@ __CMP_FRAMES__
 @media (max-width: 700px) {
   .thq .tiers { gap: 8px; }
   .thq .tier { padding: 16px 8px 14px; gap: 10px; grid-template-rows: none; align-content: start; justify-items: center; text-align: center; border-radius: 16px; }
-  .thq .tier .for, .thq .tier ul, .thq .tier .note, .thq .tier .price-sub { display: none; }
+  .thq .tier .for, .thq .tier ul, .thq .tier .note { display: none; }
   .thq .tier h3 { flex-direction: column-reverse; gap: 6px; font-size: 15px; }
   /* Three narrow cards on a phone: the tagline badge wrapped to two cramped lines. */
   .thq .tier .badge { display: none; }
@@ -575,15 +479,10 @@ __CMP_FRAMES__
   .thq .tier .btn { min-height: 44px; padding: 0 6px; font-size: 13px; }
   .thq .tier .btn .long { display: none; }
   .thq .tier .btn .short { display: inline; }
-  .thq .ultimate { grid-template-columns: minmax(0, 1fr); }
-  .thq .ultimate .ic { display: none; }
 }
 @media (max-width: 360px) { .thq .tier { padding: 14px 6px 12px; } .thq .tier .btn { font-size: 12px; } }
 
 /* ── questions ── */
-.thq .faq-split { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 64px; }
-.thq .faq-split .h2 { font-size: clamp(36px, 4.4vw, 60px); margin-top: 22px; }
-.thq .faq-split .lead { margin: 18px 0 26px; }
 .thq details.q { border-top: 1px solid var(--line); scroll-margin-top: 150px; }
 .thq details.q:last-of-type { border-bottom: 1px solid var(--line); }
 .thq details.q > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 64px; padding: 16px 0; font: 650 18.5px/1.35 var(--sans); letter-spacing: -.01em; }
@@ -593,7 +492,7 @@ __CMP_FRAMES__
 .thq details.q .ans { padding: 0 44px 22px 0; color: var(--ink-soft); display: grid; gap: 12px; }
 .thq details.q .ans a { color: var(--brass); text-decoration: underline; text-underline-offset: 3px; }
 .thq details.q .ans ul { list-style: disc; padding-left: 20px; display: grid; gap: 6px; }
-@media (max-width: 900px) { .thq .faq-split { grid-template-columns: minmax(0, 1fr); gap: 24px; } .thq details.q .ans { padding-right: 0; } }
+@media (max-width: 900px) { .thq details.q .ans { padding-right: 0; } }
 
 /* ── the close ── */
 .thq .close { padding: 140px 0; text-align: center; }
@@ -627,7 +526,6 @@ __CMP_FRAMES__
   --color-danger: var(--danger); --color-danger-bg: color-mix(in srgb, var(--danger) 9%, var(--card));
   width: min(460px, 100%); margin: 0 auto; text-align: left;
 }
-.thq .store-block { display: grid; gap: 12px; margin-top: 36px; justify-items: center; }
 .thq .stores { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .thq .store { display: inline-flex; align-items: center; gap: 11px; min-height: 52px; padding: 0 18px 0 14px; border-radius: 12px; background: black; color: white; text-align: left; border: 1px solid rgba(255,255,255,.2); }
 .thq .store .i { width: 24px; height: 24px; stroke-width: 1.6; }
@@ -635,7 +533,6 @@ __CMP_FRAMES__
 .thq .store small { font: 500 11px/1 var(--sans); color: rgba(255,255,255,.72); }
 .thq .store b { font: 600 17px/1 var(--sans); letter-spacing: -.02em; }
 .thq a.store.soon { opacity: .88; }
-.thq .stores-note { font-size: 14px; color: var(--ink-faint); max-width: 460px; }
 
 /* ── footer (a dark band) ── */
 /* The footer (2026-09-29, "too much"): the mark, the links a visitor looks for
@@ -728,27 +625,20 @@ __CMP_FRAMES__
   .thq .steps::-webkit-scrollbar { display: none; }
   .thq .steps:focus-visible { outline: 2px solid var(--brass-ui); outline-offset: 4px; }
   .thq .step { flex: 0 0 min(86%, 380px); scroll-snap-align: start; padding: 24px 22px 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); justify-content: flex-start; overflow: hidden; }
-  .thq .step-t b { font-size: 40px; }
   .thq .step h3 { margin: 16px 0 8px; font-size: 22px; }
   .thq .step p { font-size: 15px; }
   .thq .step ul { margin-top: 12px; font-size: 14px; gap: 4px; }
   /* The whole phone, never a slice of it (Ajay: "I dont like cut screens"). */
-  .thq .step .inl { width: min(84%, 300px); margin: auto auto 22px; padding-top: 22px; }
 }
 @media (max-width: 760px) {
   .thq .hdr-in { height: 60px; }
   .thq .topics { top: 60px; }
   /* The first screen shows the product: a tighter hero lets the live board rise into view. */
   .thq .hero { padding-top: 28px; } .thq .hero .kicker { margin-bottom: 16px; }
-  .thq .hero-side { gap: 18px; } .thq .hero-side p { font-size: 16.5px; }
-  .thq .hero .ctas .btn { padding-left: 14px; padding-right: 14px; font-size: 15px; }
   /* The live board straight after the buttons; the proof line follows it. */
   .thq .hero .wrap { display: flex; flex-direction: column; }
   .thq .hero .stage { order: 1; margin-top: 28px; } .thq .hero .proof { order: 2; margin-top: 28px; padding-top: 16px; } .thq .hero .real { order: 3; }
-  .thq .hero .ctas { flex-wrap: nowrap; } .thq .hero .ctas .btn { flex: none; }
   .thq .sec, .thq .why { padding: 64px 0; }
-  .thq .shead { margin-bottom: 28px; }
-  .thq .glance-col ul { grid-template-columns: minmax(0, 1fr); }
   .thq .fx-grid .f { padding: 14px 18px 15px; }
   .thq .fx-grid .f small { margin-bottom: 6px; }
   .thq .fx:has(input[name="fx"][value="competition"]:checked, input[name="fx"][value="day"]:checked, input[name="fx"][value="player"]:checked, input[name="fx"][value="money"]:checked) .f small { display: none; }
@@ -766,21 +656,13 @@ __CMP_FRAMES__
    them goes. Row labels sit tight on their cells, cells lose a line of padding,
    and the concessions and the legal note set a size down. */
 @media (max-width: 700px) {
-  .thq .u-row { padding: 13px 18px; gap: 2px; }
-  .thq .u-row .before { font-size: 13.5px; }
-  .thq .u-row .after { font-size: 15.5px; line-height: 1.4; }
-  .thq .glance-col { padding: 20px 18px; }
-  .thq .glance-col h3 { margin-bottom: 10px; }
-  .thq .glance-col li { font-size: 14px; }
-  .thq .glance-col ul { gap: 7px; }
   .thq .vs-legal { font-size: 12px; line-height: 1.5; }
   .thq .vs { margin-top: 56px; }
 }
 /* The two hero buttons need 380px on one row (measured); narrower phones stack them. */
-@media (max-width: 379px) { .thq .hero .ctas { flex-wrap: wrap; } }
+@media (max-width: 379px) { }
 @media (prefers-reduced-motion: reduce) {
   .thq-js .reveal { opacity: 1; transform: none; transition: none; }
-  .thq-js .marq-track { animation: none; }
   .thq-js .step { opacity: 1; }
   .thq .pin .scr img { transition: none; }
 }
@@ -802,8 +684,7 @@ __CMP_FRAMES__
 .thq .band { font-weight: 400; }
 .thq .label { color: var(--brass); font-weight: 650; }
 .thq .band .label { color: var(--ink-faint); font-weight: 500; }
-.thq .usual, .thq .glance-col, .thq .cp-t, .thq .show, .thq .fx-grid, .thq .tier, .thq .ultimate { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
-.thq #features, .thq #pricing { background: linear-gradient(180deg, var(--ground) 0, var(--ground-2) 280px); }
+.thq .usual, .thq .cp-t, .thq .show, .thq .fx-grid, .thq .tier { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
 /* The FAQ's closing card was a flat grey panel where every card on the front
    page is white and lifted — now the same card. */
 .thq .fq-cta { background: var(--card); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: var(--lift); }
@@ -814,7 +695,6 @@ __CMP_FRAMES__
   .thq .step { box-shadow: var(--lift); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
   /* The step cards' phone: its 80px-blur shadow, clipped by the card, drew as
      blocky grey tiles around the screenshot. A tight shadow draws cleanly. */
-  .thq .step .inl.phone { box-shadow: 0 14px 24px -14px rgba(0,0,0,.5), inset 0 0 0 1.5px rgba(255,255,255,.12); }
   /* Consistency pass (Ajay, 2026-09-30: "check for the styling consistency"),
      measured across /, /faq and /privacy on a phone: the closing section kept
      its 140px laptop spacing (every other section is 64px on a phone), the FAQ
@@ -823,7 +703,7 @@ __CMP_FRAMES__
   .thq .fq-cta { padding: 26px 22px; }
   .thq .close { padding: 64px 0; }
   .thq .fq-hero { padding-top: 48px; }
-  .thq .tier-note, .thq .stores-note, .thq .metered, .thq .cx-key, .thq .lg-sec .lg-date { font-size: 13px; }
+  .thq .metered, .thq .cx-key, .thq .lg-sec .lg-date { font-size: 13px; }
 }
 /* READABLE ON A LAPTOP AT 100% (Ajay, 2026-10-02: "with the default rendering,
    its hard to read and needs to zoom in"). Measured on the live page at
@@ -840,9 +720,6 @@ __CMP_FRAMES__
   .thq .pin .phone { width: clamp(340px, calc((100vh - 230px) / 2.1), 408px); }
   .thq .boards { grid-template-columns: repeat(3, minmax(0, 404px)); }
   .thq .phone.sm { padding: 7px; }
-  .thq .mcard .money-phone { width: min(408px, 90%); }
-  .thq .cmp-frame.phone { width: 408px; }
-  .thq .stage-phone { width: 408px; }
 }
 @media (min-width: 761px) {
   .thq .label { font-size: 13px; }
@@ -857,52 +734,16 @@ __CMP_FRAMES__
   .thq .cx td small { font-size: 13px; }
   .thq .cx-key .cx-m { width: 20px; height: 20px; font-size: 12px; }
   .thq .fx-bar .chip i { font-size: 13px; }
-  .thq .cmp-hint { font-size: 13px; }
   .thq .tier .badge { font-size: 13px; }
   .thq .seg.bill em { font-size: 13px; }
-  .thq .tier .note, .thq .tier-how { font-size: 14px; }
-  .thq .tier-note { font-size: 15px; }
+  .thq .tier .note { font-size: 14px; }
   .thq .metered { font-size: 15px; }
   .thq .ed-note { font-size: 15px; }
-  .thq .u-row i, .thq .fx-grid .f small, .thq .topics a b, .thq .store small { font-size: 13px; }
+  .thq .fx-grid .f small, .thq .topics a b, .thq .store small { font-size: 13px; }
   .thq .cx .cx-src th, .thq .cx .cx-src td { font-size: 13px; }
   .thq .cp-t td small { font-size: 13.5px; }
   /* The sign-up form is the app's own LoginPanel, sized by inline styles for the
      app; here, on the front door, its hints and question read at the floor. */
   .thq .authpanel legend, .thq .authpanel .text-muted { font-size: 13.5px !important; }
 }
-`
-  .replace(
-    "__CMP_FRAMES__",
-    // One rule per frame of the comparison slider: shown when its mode AND its
-    // tab are the checked ones. Generated so the frame list lives in one place.
-    [
-      ...["card"].map((k) => ["ap", k] as const),
-      ...["championship", "coastal", "azalea"].map((k) => ["col", k] as const),
-    ]
-      .map(([mode, k]) =>
-        // Light vs dark is ONE screen since 2026-09-29, so it has no tab row of its
-        // own: its frame shows on the mode alone. Requiring a "cmp-ap" tab that no
-        // longer exists hid the slider entirely — live from then until 2026-09-30,
-        // when Ajay asked for "one screen with a slider for dark vs light".
-        mode === "ap"
-          ? `.thq .compare:has(input[name="cmp-mode"][value="ap"]:checked) .cmp-f[data-f="ap-${k}"] { display: grid; }`
-          : `.thq .compare:has(input[name="cmp-mode"][value="${mode}"]:checked):has(input[name="cmp-${mode}"][value="${k}"]:checked) .cmp-f[data-f="${mode}-${k}"] { display: grid; }`,
-      )
-      .join("\n"),
-  )
-  .replace(
-    "__SHOW_FRAMES__",
-    // The showcase's frames, one per tab, the same way.
-    [
-      "cup", "week", "calendar", "events",
-    ]
-      .map((k) => `.thq .show:has(input[name="show"][value="${k}"]:checked) .show-f[data-f="${k}"] { display: grid; }`)
-      .join("\n"),
-  );
-
-/** The comparison slider's frames, in the order its tabs show them. Read by the page. */
-// Light vs dark shows ONE screen, the full card — the one screen the page shows
-// nowhere else (Ajay, 2026-09-29: "use a unique screen for the slider").
-export const COMPARE_APPEARANCE = ["card"] as const;
-export const COMPARE_COLOURS = ["championship", "coastal", "azalea"] as const;
+`;

@@ -203,7 +203,7 @@ describe("the club's money default", () => {
     const res = await setOrgMoneyMode("split");
 
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/owner or admin/i);
+    expect(res.error).toMatch(/Commissioner or Admin/);
     expect(await modeNow()).toBe("none");
   });
 

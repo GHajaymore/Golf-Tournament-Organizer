@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./coverage";
 
 /**
  * EVERY SCREENSHOT ON THE FRONT DOOR IS SHARP, WHOLE AND STILL.
@@ -21,7 +21,20 @@ import { expect, test } from "@playwright/test";
  * Measured signed out (the front door is what a visitor sees) and with motion
  * ALLOWED, because the project default of reduced motion would hide exactly the
  * animation this is looking for. Every lazy image is scrolled into view first.
+ *
+ * ONE EXEMPTION, AND IT IS NAMED (2026-10-11). The rebuilt page has layers that
+ * are scenery: the dashboard plane lying behind the hero's phone, the second
+ * phone behind it, the wall of small screens. They are tilted, dimmed and
+ * small ON PURPOSE and nobody is asked to read one, so they are not held to a
+ * rule about reading. A layer is scenery only when it says so twice — the
+ * `m-decor` class AND `aria-hidden="true"`, so a screen reader is not offered a
+ * picture the eye is not either. The exemption cannot swallow the page: the
+ * count of pictures that ARE read has a floor below, and it is the number the
+ * page really has, not a comfortable one.
  */
+
+/** The fewest pictures that must be measured. The page has 19 to 22 that are read, by width. */
+const READ_AT_LEAST = 15;
 test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
 async function sharpWholeStill(page: import("@playwright/test").Page) {
@@ -39,8 +52,10 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(600);
 
-  const faults = await page.evaluate(async () => {
+  const { faults, read, scenery } = await page.evaluate(async () => {
     const dpr = window.devicePixelRatio;
+    let read = 0;
+    let scenery = 0;
     /**
      * The FILE's pixels. With a srcset, an <img>'s naturalWidth is not the file's
      * width: the browser divides it by the density it picked, so a 1170px copy
@@ -69,6 +84,13 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       const box = img.getBoundingClientRect();
       if (box.width < 80 || !img.naturalWidth) continue; // hidden tabs, icons, not yet loaded
       const name = (img.currentSrc || img.src).split("/").pop();
+      // Scenery, said twice — see the head of this file. Half a claim is a fault, not an excuse.
+      const layer = img.closest(".m-decor");
+      if (layer) {
+        if (layer.getAttribute("aria-hidden") === "true") { scenery += 1; continue; }
+        out.push(`${name}: in a layer marked m-decor that a screen reader is still offered — scenery is aria-hidden`);
+      }
+      read += 1;
       const [fileW, fileH] = await fileSize(img.currentSrc || img.src);
       const density = fileW / box.width;
       if (density < dpr - 0.05) out.push(`${name}: soft — ${density.toFixed(2)} px per CSS px, needs ${dpr}`);
@@ -87,9 +109,10 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
         if (moving(el)) out.push(`${name}: animated by ${label}`);
       }
     }
-    return Array.from(new Set(out));
+    return { faults: Array.from(new Set(out)), read, scenery };
   });
 
+  expect(read, `only ${read} pictures were measured (${scenery} passed over as scenery) — the page shows more than that to be read`).toBeGreaterThanOrEqual(READ_AT_LEAST);
   expect(faults, faults.join("\n")).toEqual([]);
 }
 
@@ -111,24 +134,127 @@ test.describe("on an iPad", () => {
 });
 
 /**
- * THE LIGHT-VS-DARK SLIDER SHOWS ITS SCREEN (2026-09-30). When it went to one
- * screen its tab row was removed, but the rule that reveals the frame still
- * waited on that tab, so the section showed two buttons over empty space — for
- * a day, unnoticed, because every check above skips images that are hidden.
- * Both appearances must be on screen, loaded, with the drag handle over them.
+ * THE THEME SLIDER SHOWS FOUR THEMES, NOT ONE (2026-10-11).
+ *
+ * Its ancestor showed one screen in light and in dark, and for a day in
+ * September showed neither: the frame's reveal waited on a tab that had been
+ * removed, and every check above skips a picture that is hidden. The rebuilt
+ * slider lays ONE board in four club themes side by side, and the first draft of
+ * it had the same kind of fault in a new form — Ajay, on the prototype: "this is
+ * not showing multiple themes". Four captures were there; one was on top.
+ *
+ * So this asks the screen what is actually showing: across the frame, at
+ * sixteen points, which capture is on top. All four must have a band, two of
+ * them light and two dark; and moving the slider must move a boundary, or it is
+ * a picture with a handle drawn on it.
  */
-test("the light-vs-dark slider shows the real screen, both appearances", async ({ page }) => {
+test("the theme slider shows one board in four themes, and dragging moves the bands", async ({ page }) => {
   await page.goto("/");
-  await page.locator("#yours").scrollIntoViewIfNeeded();
-  const frame = page.locator('.cmp-f[data-f="ap-card"]');
+  const frame = page.locator("#themes");
+  await frame.scrollIntoViewIfNeeded();
   await expect(frame).toBeVisible();
-  await frame.locator("img").last().scrollIntoViewIfNeeded();
-  const shown = await frame.evaluate(async (f) => {
-    const imgs = [...f.querySelectorAll("img")];
-    await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
-    return imgs.map((i) => ({ src: (i.currentSrc || i.src).split("/").pop(), w: Math.round(i.getBoundingClientRect().width), loaded: i.complete && i.naturalWidth > 0 }));
+
+  const onTop = () =>
+    frame.evaluate(async (f) => {
+      const imgs = [...f.querySelectorAll("img")];
+      await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
+      const box = f.getBoundingClientRect();
+      const tops: string[] = [];
+      for (let i = 0; i < 16; i++) {
+        const x = box.left + ((i + 0.5) / 16) * box.width;
+        const top = document.elementsFromPoint(x, box.top + box.height / 2).find((e) => e.tagName === "IMG") as HTMLImageElement | undefined;
+        tops.push(top ? (top.currentSrc || top.src).split("/").pop()!.split(".")[0] : "nothing");
+      }
+      return { tops, loaded: imgs.map((i) => i.complete && i.naturalWidth > 0), width: Math.round(box.width) };
+    });
+
+  // The four captures are lazy: they start loading as the frame comes into view, so they are
+  // asked for until they are there. The first run of this test asked once, at once, and failed
+  // on a slider that was working (2026-10-12).
+  await expect.poll(async () => (await onTop()).loaded, { message: "a theme's capture did not load", timeout: 15_000 }).toEqual([true, true, true, true]);
+  const rest = await onTop();
+  expect(rest.width, "the frame is too narrow to show four bands").toBeGreaterThan(200);
+  expect(rest.tops, "part of the frame shows no capture at all").not.toContain("nothing");
+  const themes = [...new Set(rest.tops)];
+  expect(themes.length, `the frame shows ${themes.join(", ")}`).toBe(4);
+  expect(themes.filter((t) => t.endsWith("-light")).length, "two of the four are light").toBe(2);
+  expect(themes.filter((t) => t.endsWith("-dark")).length, "two of the four are dark").toBe(2);
+
+  // The handle is a real control: a range input over the frame, reachable by keyboard.
+  const range = frame.locator('input[type="range"]');
+  await expect(range).toBeVisible();
+  await range.fill("20");
+  await expect.poll(async () => (await onTop()).tops.join(" "), { message: "moving the slider moved no band" }).not.toBe(rest.tops.join(" "));
+  const moved = await onTop();
+  expect(new Set(moved.tops).size, "a theme vanished when the slider moved").toBe(4);
+});
+
+/**
+ * THE PAGE ENDS WHERE ITS FOOTER ENDS (2026-10-12).
+ *
+ * The closing section has a glow that reaches below it on purpose, and that
+ * reach was scrollable: the page ran some 250px past the footer into nothing,
+ * at every width. Nothing asked how tall the page was against what it holds —
+ * a sideways check exists for the width (`layout.spec`), and this is its twin
+ * for the length. Found by a measurement written for something else, which
+ * printed the footer's last line ending two thirds of the way down the screen.
+ */
+test("the page ends where its footer ends", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
+  /**
+   * Measured in the DOCUMENT, not on the screen. The first version compared the
+   * footer with `innerHeight` after scrolling to the end, and on a WebKit phone
+   * that read 10px short on a page that was right: there the visual viewport is
+   * 10px less than `innerHeight`, so the last scroll position stops early. How
+   * far the page runs past its footer is the same question with no screen in it.
+   */
+  const end = await page.evaluate(() => {
+    const footer = document.querySelector(".thq .ftr");
+    return {
+      footer: footer ? Math.round(footer.getBoundingClientRect().bottom + window.scrollY) : -1,
+      page: document.documentElement.scrollHeight,
+    };
   });
-  expect(shown.map((i) => i.src).join(" "), "not one light and one dark capture").toMatch(/light.*dark/);
-  for (const i of shown) expect(i.loaded && i.w > 150, `${i.src} not shown (${i.w}px)`).toBe(true);
-  await expect(frame.locator(".cmp-range")).toBeVisible();
+  expect(end.footer, "no footer was found").toBeGreaterThan(0);
+  expect(end.page - end.footer, `the page runs ${end.page - end.footer}px past the end of its footer`).toBeLessThanOrEqual(2);
+});
+
+/**
+ * THE BAR OF TWO BUTTONS ON A PHONE: UP MID-PAGE, AND GONE MEANS GONE.
+ *
+ * A phone keeps "Run an event" and "Enter a code" within reach in a bar at the
+ * bottom once the hero's own buttons have scrolled away. Until 2026-10-12 a bar
+ * that was "down" had only been slid off the screen: it still took keyboard
+ * focus, and at the very end of the page it came back up over the footer's
+ * last line. Down now means not painted and not focusable, and it stays down
+ * wherever the page already offers those buttons, and at the footer.
+ */
+test("a phone's bottom bar is up only mid-page, and unreachable when it is down", async ({ page }) => {
+  const dock = page.locator("#dock");
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  test.skip((page.viewportSize()?.width ?? 0) >= 900, "the bar is a phone's; a laptop keeps the header's buttons");
+
+  const state = () =>
+    dock.evaluate((d) => {
+      const cs = getComputedStyle(d);
+      const box = d.getBoundingClientRect();
+      return { shown: cs.visibility === "visible" && box.top < window.innerHeight - 4, reachable: cs.visibility === "visible" };
+    });
+  const at = async (y: number) => {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    // the bar answers an observer, and slides: asked until it has settled either way
+    await page.waitForTimeout(700);
+    return state();
+  };
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const startTop = await page.evaluate(() => Math.round(document.querySelector("#start")!.getBoundingClientRect().top + window.scrollY));
+
+  expect(await at(0), "at the top, beside the hero's own buttons").toEqual({ shown: false, reachable: false });
+  expect(await at(Math.round(height * 0.45)), "mid-page").toEqual({ shown: true, reachable: true });
+  expect(await at(startTop), "at the sign-up form").toEqual({ shown: false, reachable: false });
+  expect(await at(height), "at the footer").toEqual({ shown: false, reachable: false });
 });

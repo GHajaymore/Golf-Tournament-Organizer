@@ -10,6 +10,7 @@ import {
   isSupportedLocale,
   usesTwentyFourHourClock,
   DEFAULT_LOCALE,
+  LOCALES,
 } from "../locale";
 
 describe("a tee time, on the club's clock", () => {
@@ -217,6 +218,70 @@ describe("a date reads the same bytes on the server and in the browser", () => {
       }
       expect(formatDay("2026-05-14", locale), locale).not.toMatch(SPECIAL);
     }
+  });
+});
+
+/**
+ * AND THE SAME RANGE MARK (2026-10-11).
+ *
+ * Flattening spaces closed the difference that had been met. The next one was
+ * not a kind of space but the PRESENCE of one: Node writes a Korean range in
+ * one month "14일~16일", Chromium "14일 ~ 16일". `plainSpaces` cannot add what
+ * is not there, so a tournament set to Korea mismatched on every load of every
+ * screen that formats a range while rendering — found when the control crawl
+ * chose Korea on Tournament details.
+ *
+ * This file runs in Node and so can only pin the form the app settles on. That
+ * the BROWSER writes the same bytes is `e2e/formats-agree.spec.ts`, which runs
+ * these functions on both sides for every locale and currency offered.
+ */
+describe("a range reads the same on the server and in the browser", () => {
+  it("writes a Korean range with one plain space each side of its mark", () => {
+    const range = formatDayRange("2026-05-14", "2026-05-16", "ko-KR");
+    expect(range).toMatch(/14\S ~ 16\S$/);
+    expect(range).not.toMatch(/\S~|~\S/);
+  });
+
+  /**
+   * This pinned en-GB as "14 – 16 May 2026" under "a range that both already
+   * agree on" — both being Node and Chromium. Safari's engine is the third,
+   * it writes "14–16 May 2026", and it is the one on every iPhone: found the
+   * first time `formats-agree` was run on WebKit (2026-10-11). The dash
+   * between two DAYS is closed up everywhere now.
+   */
+  it("closes the dash between two days, which Safari's engine and the server spell differently", () => {
+    expect(formatDayRange("2026-05-14", "2026-05-16", "en-GB")).toBe("14–16 May 2026");
+    expect(formatDayRange("2026-05-14", "2026-05-16", "en-US")).toBe("May 14–16, 2026");
+    expect(formatDayRange("2026-09-01", "2026-09-30", "en-GB")).toMatch(/^1–30 Sep/);
+    for (const { tag } of LOCALES) {
+      const range = formatDayRange("2026-05-14", "2026-05-16", tag);
+      expect(range, tag).not.toMatch(/\d –|– \d/);
+    }
+  });
+
+  it("CONTROL: leaves a dash that is not between two days exactly as the locale sets it", () => {
+    // Across a month the dash sits between words, and every engine spaces it.
+    expect(formatDayRange("2026-05-30", "2026-06-02", "en-GB")).toBe("30 May – 2 Jun 2026");
+    expect(formatDayRange("2026-12-30", "2027-01-02", "en-US")).toBe("Dec 30, 2026 – Jan 2, 2027");
+    // German sets its dash tight after the full stop, and that is German's to decide.
+    expect(formatDayRange("2026-05-14", "2026-05-16", "de-DE")).toBe("14.–16. Mai 2026");
+  });
+
+  it("holds the plain-space rule in EVERY locale the picker offers, not six of them", () => {
+    // The loop above names six by hand; Korea, China, India and Spain were not
+    // among them. A rule about locales is asked of the list of locales.
+    const SPECIAL = /[  ]/;
+    for (const { tag } of LOCALES) {
+      for (const [a, b] of [
+        ["2026-05-14", "2026-05-16"],
+        ["2026-05-30", "2026-06-02"],
+        ["2026-12-30", "2027-01-02"],
+      ]) {
+        expect(formatDayRange(a, b, tag), `${tag} ${a}..${b}`).not.toMatch(SPECIAL);
+      }
+      expect(formatDay("2026-05-14", tag), tag).not.toMatch(SPECIAL);
+    }
+    expect(LOCALES.length).toBeGreaterThanOrEqual(10);
   });
 });
 

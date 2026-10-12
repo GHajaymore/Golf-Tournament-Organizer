@@ -404,13 +404,35 @@ describe("what the directory search still refuses", () => {
     );
   };
 
-  it("counts every non-organizer's live lookup against a personal budget", () => {
+  it("counts EVERYBODY's live lookup against a personal budget", () => {
     const fn = searchFn();
-    expect(fn).toMatch(/if \(live && session\.role !== "admin"\)/);
-    expect(fn).toMatch(/checkRateLimit\("course-search", /);
+    /**
+     * This pinned `if (live && session.role !== "admin")` — the organizer's
+     * exemption — as part of the guarantee. It was the hole in it: anybody can
+     * make a club and a tournament and is then its admin, so the line this
+     * froze exempted everybody who wanted exempting (2026-10-11). What the
+     * allowance needs is that NO caller reaches the directory uncounted, and
+     * `the-directory-allowance-is-everyones.audit.test.ts` counts the requests.
+     */
+    expect(fn).not.toMatch(/session\.role !== "admin"/);
+    expect(fn).toMatch(/const budget = await directoryBudget\(session\);/);
     // Over budget is a fallback to the catalogue, never an unbounded lookup.
     expect(fn).toMatch(/if \(!budget\.allowed\) live = false;/);
     expect(fn).toMatch(/searchDirectory\(query, !live, /);
+
+    // And the one budget every door asks: a player's, or an organizer's larger one.
+    const src = readSource("src/app/actions/courses.ts");
+    const budget = src.slice(src.indexOf("async function directoryBudget"), src.indexOf("export async function searchCourseDirectory"));
+    expect(budget).toMatch(/"course-search-staff" : "course-search"/);
+    expect(budget).toMatch(/checkRateLimit\(kind, session\.userId \|\| session\.email\)/);
+  });
+
+  it("an organizer's budget is larger than a player's, and is still a budget", () => {
+    const staff = RATE_LIMITS["course-search-staff"];
+    expect(staff.windowMs).toBe(60 * 60_000);
+    expect(staff.limit).toBeGreaterThan(RATE_LIMITS["course-search"].limit);
+    // Three hours of one account flat out must not be the app's whole day (500).
+    expect(staff.limit).toBeLessThanOrEqual(150);
   });
 
   it("the personal budget is an hourly handful, not a share of the day", () => {

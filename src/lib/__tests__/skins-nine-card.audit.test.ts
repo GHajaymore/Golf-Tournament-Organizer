@@ -96,7 +96,7 @@ beforeAll(async () => {
       customPars: JSON.stringify(PARS),
       customYards: JSON.stringify(new Array(18).fill(400)),
       customStrokeIndex: JSON.stringify(SI),
-      teePolicy: "single",
+      teePolicy: "one",
     },
   });
   eventId = event.id;

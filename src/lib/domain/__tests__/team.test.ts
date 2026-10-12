@@ -273,3 +273,39 @@ describe("team match play", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * AN ALLOWANCE SOMEBODY TYPED IS 1 TO 100 (sweep 1, d10, 2026-10-10).
+ *
+ * The round's allowance box accepted 0 — "between 0 and 100 percent" — and
+ * stored it. A stored zero means "the committee has said nothing", so the
+ * round went straight back to the format's recommended figure: the secretary
+ * typed 0, pressed Save, the panel closed as though it had saved, and the
+ * side still received 90%. Playing a team round off scratch is real; it is
+ * what Gross is for, and the refusal says so.
+ */
+describe("an allowance typed into the box", () => {
+  it("is a whole percentage from 1 to 100", async () => {
+    const { typedAllowance } = await import("../team");
+    expect(typedAllowance("90")).toEqual({ ok: true, percent: 90 });
+    expect(typedAllowance(" 100 ")).toEqual({ ok: true, percent: 100 });
+    expect(typedAllowance("1")).toEqual({ ok: true, percent: 1 });
+  });
+
+  it("is refused at zero, and told where off-scratch is set", async () => {
+    const { typedAllowance } = await import("../team");
+    const zero = typedAllowance("0");
+    expect(zero.ok).toBe(false);
+    expect(zero.ok ? "" : zero.error).toMatch(/Gross/);
+  });
+
+  it("is refused when it is not a percentage at all", async () => {
+    const { typedAllowance } = await import("../team");
+    for (const typed of ["", "abc", "-5", "101", "12.5", "9o"]) expect(typedAllowance(typed).ok, typed || "(blank)").toBe(false);
+  });
+
+  it("the round's panel asks it before saving", async () => {
+    const { readSource } = await import("@/lib/__tests__/source");
+    expect(readSource("src/components/RoundTeamScoring.tsx")).toContain("typedAllowance(allowance)");
+  });
+});

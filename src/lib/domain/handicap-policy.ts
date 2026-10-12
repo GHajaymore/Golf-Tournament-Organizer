@@ -52,6 +52,19 @@ export function handicapPolicyOf(raw: string | null | undefined): HandicapPolicy
 }
 
 /**
+ * Can this club read association indexes right now?
+ *
+ * Every club that USES an association — `ghin` and `hybrid` alike — can when
+ * its connection is ready, and a club keeping its own has nothing to fetch,
+ * so nothing is wrong. This was `policy === "ghin" && ready`, written when
+ * there were two policies: a "Both" club with a working connection was shown
+ * "No indexes have been fetched yet" on its roster for good.
+ */
+export function indexesReadable(policy: HandicapPolicy, connectionStatus: string): boolean {
+  return policy === "club" || connectionStatus === "ready";
+}
+
+/**
  * May an organizer type a handicap for this member?
  *
  * Takes the MEMBER as well as the club, because under `hybrid` the answer

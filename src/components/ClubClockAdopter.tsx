@@ -1,0 +1,30 @@
+"use client";
+import { useEffect } from "react";
+import { adoptClubTimeZone } from "@/app/actions/organization";
+
+/**
+ * A club with no time zone takes its organizer's, once.
+ *
+ * Drawn by the console layout ONLY while the club has none and the person
+ * looking may change it. It draws nothing: it reads the device's zone after
+ * mount — the server has no device — and hands it to `adoptClubTimeZone`,
+ * which takes it only if the club still has none. See that action for why the
+ * club is not asked a question instead.
+ */
+export function ClubClockAdopter() {
+  useEffect(() => {
+    let zone = "";
+    try {
+      zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch {
+      zone = "";
+    }
+    // Caught, though nothing is done with it: the organizer may tap through to
+    // another screen before this has answered, and Safari then REJECTS the
+    // request ("Load failed") where Chromium just drops it — an unhandled
+    // rejection on a screen nobody did anything wrong on (found the first time
+    // the suite ran on WebKit). The offer is simply made again on the next visit.
+    if (zone) adoptClubTimeZone(zone).catch(() => {});
+  }, []);
+  return null;
+}

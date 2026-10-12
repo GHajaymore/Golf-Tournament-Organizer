@@ -6,6 +6,7 @@ import {
   LEAGUE_POINTS_HELP,
   LEAGUE_POINTS_LABEL,
   LEAGUE_POINTS_SYSTEMS,
+  leagueSettingsToSend,
   type LeaguePointsSystem,
 } from "@/lib/domain/league-meeting";
 import {
@@ -59,10 +60,10 @@ export function LeagueSettings({
     startTransition(async () => {
       const result = await setLeagueSettings({
         points: system,
-        // An empty box is sent as NaN and refused by the server, rather than
-        // quietly becoming zero.
-        matchBonus: bonus.trim() === "" ? Number.NaN : Number(bonus),
-        pairs: count.trim() === "" ? Number.NaN : Number(count),
+        // A box that is on screen goes as typed — emptied, as NaN, so the
+        // server names it rather than reading zero. A box that is NOT on
+        // screen goes as stored: it used to refuse the save from hiding.
+        ...leagueSettingsToSend({ system, bonus, pairs: count }, { matchBonus, pairs }),
         playoffs: playoffSize,
       });
       if (result.ok) setSaved(true);

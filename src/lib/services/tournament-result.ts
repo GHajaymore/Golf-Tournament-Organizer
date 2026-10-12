@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import type { EventState } from "./tournament";
 import { parseStrokeCards, playingStages } from "./tournament";
@@ -41,7 +42,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
       select: { playerId: true, stageId: true, strokes: true, status: true },
     }),
     prisma.course.findMany({
-      where: { events: { some: { eventId: state.event.id } } },
+      where: { ...playedOnBy(state.event.id) },
       select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
     }),
   ]);

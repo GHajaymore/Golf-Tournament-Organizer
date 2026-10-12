@@ -1,6 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { settingsOf } from "@/lib/services/tournament";
+import { flightTeeCounts } from "@/lib/tournament-settings";
 import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
@@ -34,10 +35,13 @@ export default async function GroupingPage() {
   // plays — resolved through the same reader the scoring uses.
   const eventTees = await teesForEvent(session.eventId);
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
-  // Only when the tournament decides tees BY FLIGHT. Under any other policy
-  // nothing reads a flight's claim, so the control would set a value that
-  // changes no score. Both ways of showing the flights read these two.
-  const byFlightTees = settingsOf(state.event).teePolicy === "flight";
+  // Wherever a flight's set is READ — the scorer's own answer, see
+  // `flightTeeCounts`. This said "only by flight; under any other policy
+  // nothing reads a flight's claim", which is wrong about two of them: where
+  // players are assigned individually, the unassigned play their flight's.
+  // Under one set for everyone the control would change no score, and is not
+  // drawn. Both ways of showing the flights read these two.
+  const byFlightTees = flightTeeCounts(settingsOf(state.event).teePolicy);
   const roundTeeName = eventTees.find((t) => t.id === roundTee)?.name;
   const defaultTeeName = roundTeeName ? `${roundTeeName} (round’s)` : "The round’s tees";
 

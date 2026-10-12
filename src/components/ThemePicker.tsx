@@ -24,6 +24,7 @@ import {
   hueDistance,
   themeHue,
   DEFAULT_CLUB_THEME,
+  NEW_CLUB_APPEARANCE,
   pairFor,
   type ThemePreset,
   type Appearance,
@@ -717,10 +718,12 @@ export function ThemePicker({
                 draft.accentHex === DEFAULT_CLUB_THEME.accentHex &&
                 draft.secondaryKey === DEFAULT_CLUB_THEME.secondaryKey &&
                 draft.secondaryHex === DEFAULT_CLUB_THEME.secondaryHex &&
-                draft.appearance === DEFAULT_CLUB_THEME.appearance)
+                draft.appearance === NEW_CLUB_APPEARANCE)
             }
             onClick={() => {
-              setDraft({ ...DEFAULT_CLUB_THEME });
+              // Where a NEW club starts — colours and appearance both. The
+              // fallback theme's appearance is Dark, which no new club is on.
+              setDraft({ ...DEFAULT_CLUB_THEME, appearance: NEW_CLUB_APPEARANCE });
               setAccentHexDraft("#138808");
               setSecondaryHexDraft("#138808");
               setSaved(false);

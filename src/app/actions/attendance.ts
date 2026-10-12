@@ -7,6 +7,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
 import { playerMayChange, playersAnswer, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { isIsoDate } from "@/lib/deadline";
+import { clubDayForEvent } from "@/lib/services/club-clock";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -112,7 +113,7 @@ export async function setAttendance(
   if (!isStaff) {
     const own = await ownPlayerIds(session.eventId, session.email);
     if (!own.has(playerId)) return { ok: false, error: "You can only answer for yourself." };
-    if (!playerMayChange(stage.optDeadline)) {
+    if (!playerMayChange(stage.optDeadline, await clubDayForEvent(session.eventId))) {
       return {
         ok: false,
         error: "The sign-up window for this round has closed — ask the organizer to change it.",
@@ -193,7 +194,7 @@ export async function setOwnAttendance(stageId: string, status: string): Promise
       error: "Your captain sends the side to the club and the club records it — ask your captain to include you.",
     };
   }
-  if (!playerMayChange(stage.optDeadline)) {
+  if (!playerMayChange(stage.optDeadline, await clubDayForEvent(player.eventId))) {
     return {
       ok: false,
       error: "The sign-up window for this round has closed — ask the organizer to change it.",

@@ -3,9 +3,11 @@ import { Resend } from "resend";
 import { prisma } from "@/lib/db";
 import { classifySendFailure, type EmailKind, type EmailFailureReason } from "@/lib/domain/email-trouble";
 import { appUrl } from "@/lib/domain/app-url";
+import { orgRoleName } from "@/lib/roles";
 import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
 import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -250,6 +252,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         "Reset your TourneyHQ password",
@@ -320,6 +323,7 @@ export async function sendRegistrationEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `You're registered — ${opts.eventName}`,
@@ -396,6 +400,10 @@ export async function sendStaffInviteEmail(
 
   const club = opts.organizationName || "a club";
   const base = appUrl().base;
+  // The role as Staff & access names it. This printed the stored key, so
+  // somebody made a Commissioner was told they had "owner access" — a word
+  // the screen they then opened never uses.
+  const role = orgRoleName(opts.role);
   const line = opts.hasPassword
     ? `<p>Sign in with this email address and you will see it.</p>`
     : `<p>You don't have a password yet. Enter this email address on the sign-in page and it will walk you through setting one.</p>`;
@@ -403,15 +411,16 @@ export async function sendStaffInviteEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `You have been added to ${club} on TourneyHQ`,
-        `<p>An organizer at <strong>${escapeHtml(club)}</strong> has given you ${escapeHtml(opts.role)} access on TourneyHQ.</p>` +
+        `<p>An organizer at <strong>${escapeHtml(club)}</strong> has given you ${escapeHtml(role)} access on TourneyHQ.</p>` +
           line +
           `<p>If you weren't expecting this, you can ignore it — nothing happens until you sign in.</p>`,
         `You're getting this because an organizer at ${escapeHtml(club)} added this address on TourneyHQ.`,
         {
-          preview: `You now have ${opts.role} access to ${club}.`,
+          preview: `You now have ${role} access to ${club}.`,
           action: { label: opts.hasPassword ? "Sign in" : "Set your password", url: `${base}/#signin` },
           organizationId: opts.organizationId,
         },
@@ -518,6 +527,7 @@ export async function sendJoinRequestEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `${opts.askerName} asked to join ${club} on TourneyHQ`,
@@ -610,6 +620,7 @@ export async function sendFieldStatusEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(subject, body, `You're getting this because you're entered in ${eventName} on TourneyHQ.`, {
         preview:

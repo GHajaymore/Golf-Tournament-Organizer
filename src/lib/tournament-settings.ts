@@ -32,7 +32,9 @@ export const LEADERBOARD_VISIBILITY_LABEL: Record<LeaderboardVisibility, string>
 };
 
 export const LEADERBOARD_VISIBILITY_HELP: Record<LeaderboardVisibility, string> = {
-  staff: "A blind event — players can't see standings until you publish results.",
+  // SAYS HOW. This ended "until you publish results", and there is no Publish
+  // button anywhere: the standings are published by changing this setting.
+  staff: "A blind event — players can't see standings until you publish them, by changing this to Organizers and players.",
   participants: "Signed-in players see live standings. Nothing is public.",
   public: "A read-only link anyone can open, no sign-in. Shows player names and scores.",
 };
@@ -82,7 +84,11 @@ export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
   flight:
     "Set the tees once per flight and everyone in it follows. This is how a club championship runs three divisions off three sets — championship, seniors, ladies — without assigning anybody individually. A flight you leave alone plays the round's tees.",
   own: "You put each player on a set; anyone you haven't assigned plays their flight's, or the round's. Handicaps account for the difference, so a mixed field is still fair.",
-  player: "Each golfer picks their own set, and may change it until they have returned a card. Same scoring as assigning them yourself — it just saves you doing it for a field that already knows.",
+  // SAYS WHO RECORDS IT. This read "each golfer picks their own set, and may
+  // change it until they have returned a card" — and no screen a player can
+  // open lets them: the set is recorded on Registration, by staff. The
+  // choice is the golfer's; the typing, for now, is the organizer's.
+  player: "Each golfer chooses their own set, and you record it for them on Registration — players cannot yet change it in the app. Same scoring as assigning them yourself.",
 };
 
 /**
@@ -95,6 +101,36 @@ export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
  */
 export function canChooseOwnTee(policy: TeePolicy): boolean {
   return policy === "player";
+}
+
+/**
+ * Whether a PLAYER's own set can count at all — whoever puts them on it.
+ *
+ * The question the per-player Tees control has to ask before it is drawn, and
+ * the action before it stores one. It was asked as "anything but `one`",
+ * which let `flight` through: by division a player may not differ from their
+ * flight, so the dropdown saved a set the scorer then stepped past
+ * (`teeIdFor`). The two are pinned together on every policy in
+ * `a-players-tees-are-offered-only-where-they-count.test.ts`.
+ */
+export function playerTeeCounts(policy: string): boolean {
+  // Spelled as `teeIdFor` spells it — the two policies under which a player
+  // may NOT differ — so a stored value neither recognises reads the same way
+  // in both, rather than being offered here and refused there.
+  return policy !== "one" && policy !== "flight";
+}
+
+/**
+ * Whether a FLIGHT's set can count: everywhere but under one set for all.
+ *
+ * Not only "by flight". Where players are put on a set individually, anybody
+ * left unassigned plays their flight's — the Tees help says so, and
+ * `teeIdFor` does it. Flights & groups drew the per-flight control under "by
+ * flight" alone, so a flight's set outlived a change of policy and went on
+ * pricing its unassigned players with no control to see it or take it off.
+ */
+export function flightTeeCounts(policy: string): boolean {
+  return policy !== "one";
 }
 
 /* ── Score entry ──────────────────────────────────────────────────────── */
@@ -169,7 +205,12 @@ export const SCORE_APPROVAL_LABEL: Record<ScoreApproval, string> = {
 
 export const SCORE_APPROVAL_HELP: Record<ScoreApproval, string> = {
   staff: "Submitted cards wait as pending review. Nothing counts until you approve it.",
-  players: "The players agree the result between themselves. Anything still pending locks itself after 24 hours.",
+  // BOTH HALVES SAID, because they are different (2026-10-10). This promised
+  // that "anything still pending locks itself after 24 hours" — true of a
+  // MATCH, which the other side confirms. A stroke-play card has no other
+  // side and no pending state: it is final when its own player signs it.
+  players:
+    "The players agree the result between themselves. A match is confirmed by the other side, and locks itself after 24 hours if nobody answers. A stroke-play card is final once its own player has signed it.",
 };
 
 /* ── How much agreement a card needs ──────────────────────────────────── */
@@ -196,9 +237,12 @@ export const ATTEST_BY_LABEL: Record<AttestBy, string> = {
 };
 
 export const ATTEST_BY_HELP: Record<AttestBy, string> = {
-  marker: "The marker system every club medal already runs on. Fastest, and enough for most tournaments.",
-  opponent:
-    "The people with a reason to check it. In stroke play, where there is no other side, this behaves as one playing partner.",
+  // About MATCH results, and said so. Two of these described stroke play —
+  // "the marker system every club medal already runs on", "in stroke play…
+  // this behaves as one playing partner" — and nobody but its own player
+  // confirms a stroke-play card: the card has nowhere to hold a second name.
+  marker: "One other player in the match confirms it. Fastest, and enough for most tournaments.",
+  opponent: "The people with a reason to check it — somebody on the side that did not enter the result.",
   all: "Every other player bound into the result must confirm. Slowest, and worth it when the result will be argued about.",
 };
 
@@ -292,6 +336,56 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
     attendanceMode: pick(raw.attendanceMode, ATTENDANCE_MODES, DEFAULT_SETTINGS.attendanceMode),
     teePolicy: pick(raw.teePolicy, TEE_POLICY, DEFAULT_SETTINGS.teePolicy),
   };
+}
+
+/* ── The club's house defaults ────────────────────────────────────────── */
+
+/**
+ * THE CLUB'S COLUMN FOR EACH SETTING IT CAN SET ONCE FOR EVERY TOURNAMENT.
+ *
+ * The House defaults form is the tournament's settings form in another mode,
+ * so it shows whatever a tournament has. Three places each kept their own
+ * list of what to carry — the save, the page that draws the form and
+ * `settingsForNewEvent` — and all three stopped at six. Weekly sign-up and
+ * "how many playing partners must confirm" were shown, changed, sent, and
+ * answered with "Saved", having been written nowhere: the old value on
+ * reload, and the app's default rather than the club's on the next
+ * tournament (sweep 1, a1, 2026-10-10).
+ *
+ * This is the one list. A setting added to `TournamentSettings` and not added
+ * here fails `house-defaults-are-kept.audit.test.ts` until it is either given
+ * a column or named there with the reason a club cannot set it once.
+ *
+ * `teePolicy` is the one deliberately absent: it is asked beside a
+ * tournament's own tees, and the form hides it where there are none.
+ */
+export const HOUSE_DEFAULT_COLUMNS = {
+  leaderboardVisibility: "defaultLeaderboardVisibility",
+  scoreEntryBy: "defaultScoreEntryBy",
+  scoreEntryWindow: "defaultScoreEntryWindow",
+  voiceEntry: "defaultVoiceEntry",
+  playerAccess: "defaultPlayerAccess",
+  scoreApproval: "defaultScoreApproval",
+  attestBy: "defaultAttestBy",
+  attendanceMode: "defaultAttendanceMode",
+} as const satisfies Partial<Record<keyof TournamentSettings, string>>;
+
+type HouseDefaultKey = keyof typeof HOUSE_DEFAULT_COLUMNS;
+type HouseDefaultColumn = (typeof HOUSE_DEFAULT_COLUMNS)[HouseDefaultKey];
+const HOUSE_DEFAULTS = Object.entries(HOUSE_DEFAULT_COLUMNS) as [HouseDefaultKey, HouseDefaultColumn][];
+
+/** A club's stored defaults, as settings. Anything missing takes the app's default. */
+export function houseDefaultsOf(org: Partial<Record<HouseDefaultColumn, unknown>> | null | undefined): TournamentSettings {
+  const raw: Partial<Record<keyof TournamentSettings, unknown>> = {};
+  for (const [key, column] of HOUSE_DEFAULTS) raw[key] = org?.[column];
+  return cleanSettings(raw);
+}
+
+/** The club's columns to write for a set of settings — every house default, and nothing else. */
+export function houseDefaultColumns(
+  settings: TournamentSettings,
+): { defaultVoiceEntry: boolean } & Record<Exclude<HouseDefaultColumn, "defaultVoiceEntry">, string> {
+  return Object.fromEntries(HOUSE_DEFAULTS.map(([key, column]) => [column, settings[key]])) as ReturnType<typeof houseDefaultColumns>;
 }
 
 /* ── Rules ────────────────────────────────────────────────────────────── */

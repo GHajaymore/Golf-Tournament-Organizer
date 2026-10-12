@@ -24,6 +24,10 @@ import { runMark } from "./run-mark.mjs";
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
+
+/** When this run signed in: one moment, so a value signed in two places is the same value. */
+const issued = Date.now();
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
 const APP_DIR = "src/app";
@@ -156,8 +160,8 @@ async function main() {
 
     // Same scheme as src/lib/auth.ts — a signed user id, nothing more.
     const secret = process.env.AUTH_SECRET ?? "dev-secret";
-    const mac = createHmac("sha256", secret).update(user.id).digest("base64url");
-    const cookie = `ng_session=${user.id}.${mac}`;
+    const mac = createHmac("sha256", secret).update(signedInNow(user.id, issued)).digest("base64url");
+    const cookie = `ng_session=${signedInNow(user.id, issued)}.${mac}`;
 
     // ── Walk ────────────────────────────────────────────────────────────
     // "/" lives at src/app/page.tsx, which the directory walk never visits.

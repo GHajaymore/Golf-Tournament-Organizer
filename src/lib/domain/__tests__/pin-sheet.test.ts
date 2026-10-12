@@ -70,3 +70,55 @@ describe("how it reads", () => {
     expect(pinShort(null)).toBe("");
   });
 });
+
+/**
+ * A SIDE CHOSEN AND NOTHING TYPED IS NOT "THIS HOLE ISN'T SET" (2026-10-10).
+ *
+ * The control crawler chose L on a hole and pressed Save. The form answered
+ * "Pin sheet cleared", and after a reload the hole read C again: a row was
+ * sent only when a NUMBER had been typed, so a side on its own was dropped by
+ * the form and never reached the check that would have named the hole. A
+ * choice somebody made was thrown away and the screen called it a save.
+ *
+ * The side is part of the row. A row with L or R and no paces is an
+ * unfinished position, and it is named like any other slip.
+ */
+describe("a side chosen with no paces", () => {
+  it("is sent by the form, not dropped as an empty row", async () => {
+    const { pinRowsPayload } = await import("../pin-sheet");
+    const rows = [
+      { on: "", side: "L" as const, off: "" },
+      { on: "", side: "C" as const, off: "" },
+      { on: "22", side: "R" as const, off: "6" },
+    ];
+    const sent = pinRowsPayload(rows);
+    expect(sent[0], "the side was dropped before anything could check it").not.toBeNull();
+    expect(sent[1], "CONTROL: an untouched row is still no position").toBeNull();
+    expect(sent[2]).toEqual({ on: "22", side: "R", off: "6" });
+  });
+
+  it("is refused by name rather than read as no position", () => {
+    for (const side of ["L", "R"]) {
+      const res = readPin({ on: "", side, off: "" });
+      expect(res.pin).toBeNull();
+      expect(res.error ?? "", `a ${side} with no paces was read as "not set"`).toMatch(/paces on/i);
+    }
+    expect(readPinSheet([null, { on: "", side: "L", off: "" }], 18).error).toMatch(/^Hole 2: /);
+  });
+
+  it("CONTROL: a centre row with nothing typed is still simply not set", () => {
+    expect(readPin({ on: "", side: "C", off: "" })).toEqual({ pin: null });
+    expect(readPin({ on: "", off: "" })).toEqual({ pin: null });
+  });
+});
+
+describe("a refusal names the hole the committee is looking at", () => {
+  it("on a back nine the second row is the 11th, not hole 2", () => {
+    // The form numbers a back-nine round 10 to 18; the refusal said "Hole 2".
+    expect(readPinSheet([null, { on: "", side: "L", off: "" }], 9, 10).error).toMatch(/^Hole 11: /);
+  });
+
+  it("CONTROL: and still counts from one when it is not told otherwise", () => {
+    expect(readPinSheet([{ on: "99", side: "C", off: "" }], 18).error).toMatch(/^Hole 1: /);
+  });
+});

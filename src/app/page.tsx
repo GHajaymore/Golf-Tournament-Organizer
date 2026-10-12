@@ -1,9 +1,10 @@
+import { Fragment } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
-import { PLANS, phoneRequiredFor, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
+import { PLANS, effectiveAnnualPrice, phoneRequiredFor, retentionNotice, retentionSummary, type PlanKey } from "@/lib/plans";
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { siteStructuredData } from "@/lib/domain/structured-data";
 import { siteOrigin } from "@/lib/site";
@@ -11,15 +12,19 @@ import { editionSwaps, landingEdition, US_OVERRIDE_COOKIE } from "@/lib/landing/
 import { inDialect } from "@/lib/landing/dialect";
 import { golfTermsFor } from "@/lib/domain/golf-terms";
 import { landingPrices, type LandingPrices } from "@/lib/landing/pricing";
-import { FAQ_COUNT, FORMAT_NAMES, LANDING_FAQ_IDS, faqItem } from "@/lib/landing/faq";
+import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
-import { COMPARE_APPEARANCE, COMPARE_COLOURS, LANDING_CSS } from "@/lib/landing/styles";
-import { COMPARED_ON, RIVALS, compareRows, type Cell } from "@/lib/landing/compare";
+import { LANDING_CSS } from "@/lib/landing/styles";
+import { HOME_CSS } from "@/lib/landing/home-styles";
+import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
+import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
+import { LandingHomeEffects } from "@/components/LandingHomeEffects";
 import { FeatureSearch } from "@/components/landing/FeatureSearch";
 import { contactEmail, editionNote, icon, iconSprite, landingFooter, landingNav } from "@/components/landing/chrome";
-import { fixedShot, lightShot, shotSrc } from "@/components/landing/shots";
+import { plainShot, thumbShot } from "@/components/landing/shots";
+import { posterFontVars } from "@/app/fonts";
 
 /**
  * Only the canonical. Title, description and the share cards come from the root
@@ -76,142 +81,126 @@ function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
   ];
 }
 
-/** A screen by name: an edition's capture ("d"), the club's currency ("cur"), or one file for everyone. */
-type Screen = { name: string; by: "d" | "cur" | "one"; w: number; h: number };
-const PHONE = { w: 600, h: 1298 };
+/**
+ * How wide each picture is SHOWN, per place it sits — the `sizes` its <img>
+ * carries. These must stay true to the stylesheet (`home-styles.ts`): from them
+ * the browser picks which copy of a capture to fetch, and a wrong one fetches a
+ * copy far too large (shrunk soft) or far too small (stretched), and then
+ * reuses it everywhere else the same picture appears.
+ */
+const SIZES = {
+  heroPhone: "(max-width: 899px) 220px, 330px",
+  heroDesk: "(max-width: 899px) 1px, 900px",
+  story: "(max-width: 899px) min(60vw, 250px), 300px",
+  step: "250px",
+  desk: "(max-width: 899px) 1px, min(1070px, 92vw)",
+  twin: "(max-width: 899px) min(70vw, 270px), 1px",
+  peek: "(max-width: 899px) 70vw, 290px",
+  themes: "250px",
+  world: "(max-width: 899px) min(58vw, 250px), 200px",
+} as const;
 
 /**
- * "One Saturday, both sides" — the organizer's day and the players', in the
- * order it happens. Each moment is a real screen, captured unedited from the
- * demo club; every sentence is what that screen does (TourneyHQv2 checked the
- * calendar, the attendance → field → tee sheet path, and the knockout report
- * flow against the code, 2026-09-28/29).
+ * ONE COMPETITION, FROM THE FIRST ENTRY TO THE PRIZE TABLE — the week at the
+ * demo club, in the order it happens. Each moment is a real screen and each
+ * sentence is what that screen does. The times are an example and are said to
+ * be (Ajay, 2026-10-11: "is it real or realistic and are we showing it in
+ * right way for people to understand?"): a draw goes out days before the
+ * round, never on the morning, so Thursday is Thursday.
  */
-const DAY: Array<{ time: string; who: "org" | "pl"; h: string; p: string; ul?: string[]; screen: Screen; cap: string; alt: string }> = [
-  {
-    time: "Thu 18:00", who: "org", h: "The draw goes out on Thursday.",
-    p: "The tee sheet is drawn from who's in — by handicap, standings or sides — then yours to adjust. Publish it, and every player has their group and tee time on their phone, pushed to it if they've turned notifications on.",
-    ul: ["One tee, split tees or a shotgun", "Opt in, opt out, or captains send the list", "Pairing requests kept together — not on a draw by position"],
-    screen: { name: "day-teesheet", by: "d", ...PHONE }, cap: "Organizer · the tee sheet",
-    alt: "The organizer's tee sheet: two pairing requests above the published draw, and the pair who asked together in Group 1, off hole 1 at 08:10.",
-  },
-  {
-    time: "08:05", who: "pl", h: "Eight characters, and they're on their card.",
-    p: "A round code — no account, no app store, nothing to install.",
-    screen: { name: "day-code", by: "one", ...PHONE }, cap: "Player · a round code",
-    alt: "Enter your score: a box for the round code the organizer gave out.",
-  },
-  {
-    time: "10:20", who: "pl", h: "At the turn, their Today screen.",
-    p: "Their card through nine, where they stand, and the club's pinned notice for the day.",
-    screen: { name: "phone-today", by: "d", ...PHONE }, cap: "Player · Today",
-    alt: "A player's Today screen: the round, a pinned notice about preferred lies, their card so far and the leaders.",
-  },
-  {
-    time: "10:50", who: "pl", h: "Tap the score — or say it.",
-    p: "“Four”, “par”, “bogey” — or the whole card read out in one go. It keeps saving without signal.",
-    ul: ["Gross and net per hole, with the stroke dot", "One phone can keep the card for the group"],
-    screen: { name: "phone-hole", by: "d", ...PHONE }, cap: "Player · My card",
-    alt: "My card, by hole: hole 12, par 3, score buttons from Ace to +3 and a microphone to say it.",
-  },
-  {
-    time: "11:42", who: "pl", h: "Their own line first on the board.",
-    p: "Where they stand as every card comes in — and the column says whether it's strokes, points or match play.",
-    screen: { name: "phone-board", by: "d", ...PHONE }, cap: "Player · the board",
-    alt: "The player's Board: their own position first, then the field ranked by net strokes.",
-  },
-  {
-    time: "12:30", who: "org", h: "A knockout result comes in from the course.",
-    p: "The player reports it on their phone. Nothing moves on the draw until you approve it — or turn it down.",
-    screen: { name: "day-approve", by: "d", ...PHONE }, cap: "Organizer · a result to approve",
-    alt: "A result to approve: Gordon Pyle reports he won his semifinal 3&2, with Approve and Turn down.",
-  },
-  {
-    time: "14:00", who: "pl", h: "Everyone knows what they're owed.",
-    p: "Skins, pots and the shared costs in one settle-up — the fewest handovers.",
-    screen: { name: "phone-money", by: "cur", ...PHONE }, cap: "Player · Money",
-    alt: "A player's Money screen: what they're owed, and the fewest handovers that make everyone square.",
-  },
+const WEEK: Array<{ when: string; tab: string; who: string; h: string; p: string; shot: string; alt: string }> = [
+  { when: "Mon 09:00", tab: "Registration", who: "Players", h: "Entries open.",
+    p: "Players put their name down from their own phone. You see who is in, who is out and who is waiting.",
+    shot: "club-enter", alt: "A player's Events screen: a tournament open for entries, 22 of 40 places left, and the button to enter." },
+  { when: "Thu 18:00", tab: "The draw", who: "Organizer", h: "You publish the draw.",
+    p: "Drawn from who's in, then yours to adjust. Every player has their group and tee time on their phone.",
+    shot: "org-teesheet", alt: "The organizer's tee sheet: two pairing requests above the published draw." },
+  { when: "Sat 08:05", tab: "The code", who: "Players", h: "They type the code.",
+    p: "Eight characters put a player on their round. No account and no password.",
+    shot: "club-today", alt: "A player's Today screen: the round, a pinned notice, their card so far and their position." },
+  { when: "10:50", tab: "The card", who: "Players", h: "They tap the score, or say it.",
+    p: "The card saves as they go, and keeps saving when there is no signal.",
+    shot: "club-card", alt: "My card, by hole: hole 10, par 4, score buttons and a microphone." },
+  { when: "11:42", tab: "The board", who: "Everyone", h: "The board moves.",
+    p: "Their own line first, then the field, as every card comes in.",
+    shot: "club-board", alt: "The player's Board: their own position first, then the field." },
+  { when: "14:00", tab: "The money", who: "Everyone", h: "Everyone knows who owes what.",
+    p: "Skins, pots and shared costs in one settle-up.",
+    shot: "club-money", alt: "A player's Money screen: what they are owed, and who pays whom to settle it." },
+  { when: "15:30", tab: "Recognition", who: "Organizer", h: "The champion is on the board.",
+    p: "The final board, the prizes and the honors board, done before the prize-giving starts.",
+    shot: "club-final", alt: "A player's Board for the finished championship: the result of each round, then the final order." },
 ];
 
-/** The showcase: the rest of the app, by tab — none of these screens appears anywhere else on the page. */
-/* A desk capture shrunk to a phone is ~4px text, so a desk item can carry a
-   twin: the same page captured at phone width, shown at 700px and below. */
-/**
- * The showcase: one real phone screen per tab, staged. Each screen carries
- * three notes that name what THAT screen shows, and a pin beside the phone,
- * level with it (`y`, % down the screen). The pins sit outside the screen:
- * the capture itself is untouched (Ajay, 2026-09-29: "rich", "innovative").
- */
-type Note = { t: string; s: string; y: number };
-const SHOWCASE: Array<{ key: string; side: "org" | "pl"; title: string; sub: string; screen: Screen; alt: string; notes: Note[] }> = [
-  { key: "cup", side: "org", title: "Team cup", sub: "Sessions of matches, one score", screen: { name: "cup-org-phone", by: "d", ...PHONE },
-    alt: "The team cup on the organizer's phone: Blues 1½, Whites 1½, what each side needs, and the four-balls as they stand.",
-    notes: [
-      { t: "The score, as it stands", s: "A point a match, half a point for a halve.", y: 45 },
-      { t: "What each side needs", s: "Worked out as each result comes in.", y: 59 },
-      { t: "Every match, as it stands", s: "Four-balls, foursomes and singles — 2&1, all square.", y: 77 },
-    ] },
-  { key: "week", side: "org", title: "League week", sub: "Who's returned a card", screen: { name: "day-week", by: "d", ...PHONE },
-    alt: "A league week: the night's Stableford results, with 17 of 20 cards returned and three still to come.",
-    notes: [
-      { t: "Week by week", s: "Every night of the league, a tap apart.", y: 27 },
-      { t: "Who's returned a card", s: "And how many are still to come.", y: 52 },
-      { t: "The night's results", s: "Points and gross, as the cards come in.", y: 70 },
-    ] },
-  { key: "calendar", side: "pl", title: "Their calendar", sub: "In or Out for league weeks", screen: { name: "day-calendar", by: "d", ...PHONE },
-    alt: "A member's calendar: the month's league rounds, each with an In / Out switch.",
-    notes: [
-      { t: "Every round they're in", s: "Marked Playing, in date order.", y: 12 },
-      { t: "The month at a glance", s: "A dot on each day they play.", y: 45 },
-      { t: "In or Out, in a tap", s: "For each league week ahead.", y: 80 },
-    ] },
-  { key: "events", side: "pl", title: "Events", sub: "Enter in a tap", screen: { name: "panel-casual-events", by: "d", ...PHONE },
-    alt: "The player's Events screen, starting with Play a casual round — just you and your group — and the club's events.",
-    notes: [
-      { t: "A casual round", s: "Just you and your group — no tournament needed.", y: 31 },
-      { t: "Their calendar, one tap away", s: "Every round they're in, on its day.", y: 42 },
-      { t: "Every club event", s: "Entered, or entered in a tap.", y: 80 },
-    ] },
-];
-
-/** The formats: [capture, format, how it is set up, alt]. Captions are the seed's own setup. */
-const FORMAT_BOARDS = [
-  ["fmt-champs", "Stroke play, gross", "36 holes, cut to the top 16 after round one", "A final public board ranked by gross strokes after two rounds."],
-  ["fmt-twilight", "Stableford, net", "Nine holes at 95% allowance, live", "A live public board ranked by Stableford points."],
-  ["fmt-fourball", "Foursomes, net", "Alternate shot in pairs, 50% allowance", "A live pairs board: sides, their handicaps, holes played and gross, lowest net wins."],
+/** The wall behind 11:42: small copies of real screens, never read, so they may be turned. Each column runs twice. */
+const WALL = [
+  ["club-board", "club-card", "public-pairs"],
+  ["club-today", "public-final", "club-money"],
+  ["public-cup", "world-gbp-board", "org-teesheet"],
+  ["world-inr-board", "org-dashboard", "club-enter"],
 ] as const;
 
-const APPEARANCE_LABEL: Record<(typeof COMPARE_APPEARANCE)[number], string> = {
-  card: "My card",
-};
-
-const COLOUR_LABEL: Record<(typeof COMPARE_COLOURS)[number], readonly [string, string]> = {
-  championship: ["Championship", "claret & gold"],
-  coastal: ["Coastal", "links blue & sand"],
-  azalea: ["Azalea Week", "hot pink & sand"],
-};
+/**
+ * WHEREVER YOU PLAY (Ajay, 2026-10-11: "that will be our one of the marketing
+ * point"). Five different demo clubs, each with its own members and figures,
+ * in its own money, written the way that country writes it.
+ */
+const WORLD: Array<{ shot: string; symbol: string; place: string; money: string; alt: string }> = [
+  { shot: "club-money", symbol: "$", place: "United States", money: "US dollars", alt: "A player's Money screen at a club in Indiana: what they are owed, in dollars." },
+  { shot: "world-gbp-money", symbol: "£", place: "United Kingdom", money: "Pounds", alt: "The same screen at a club in Harrogate, in pounds." },
+  { shot: "world-eur-money", symbol: "€", place: "Ireland", money: "Euros", alt: "The same screen at a club in Kilkenny, in euros." },
+  { shot: "world-zar-money", symbol: "R", place: "South Africa", money: "Rand", alt: "The same screen at a club in Stellenbosch, in rand, written with a decimal comma." },
+  { shot: "world-inr-money", symbol: "₹", place: "India", money: "Rupees", alt: "The same screen at a club in Pune, in rupees." },
+];
 
 /**
- * THE FRONT DOOR — redesigned 2026-09-29 in the direction Ajay chose: the
- * "Swiss poster" page (warm white, big type, one bold colour) with an
- * interactive showcase of the real app.
+ * Four of the club themes, on one board, two light and two dark — the one
+ * place on the page where the colours vary. `swatch` is each theme's own
+ * accent, as a strip under its band and a dot beside its name.
+ */
+const THEMES: Array<{ shot: string; name: string; swatch: string }> = [
+  { shot: "look-tournament-light", name: "Tournament", swatch: "hsl(182 68% 36%)" },
+  { shot: "look-championship-dark", name: "Championship, dark", swatch: "hsl(352 62% 42%)" },
+  { shot: "look-coastal-light", name: "Coastal", swatch: "hsl(205 70% 46%)" },
+  { shot: "look-midnight-dark", name: "Midnight, dark", swatch: "hsl(262 72% 60%)" },
+];
+
+/** The demo club's board at 11:42, as the strip under the first screen runs it. Names are the demo's, invented. */
+const TICKER: Array<[string, string, string, string]> = [
+  ["1", "Erin Walsh", "thru 9", "−6"],
+  ["2", "Ana Costa", "F", "−3"],
+  ["T3", "Ken Sato", "thru 9", "−2"],
+  ["T3", "Cal Doyle", "thru 12", "−2"],
+  ["T5", "Priya Nair", "thru 14", "−1"],
+  ["T5", "Sean Molloy", "thru 12", "−1"],
+];
+
+/**
+ * THE FRONT DOOR — rebuilt 2026-10-11 from the prototype Ajay steered through
+ * twenty-six versions in an evening. Midnight navy, the logo's orange, a serif
+ * headline, and the app's real screens: every picture is an unedited capture
+ * of the app running a demo club with invented members.
  *
- * What it is made of, and where each part comes from:
- *  - EVERY PRODUCT IMAGE IS A REAL SCREEN of the app, captured unedited from a
- *    production build running the invented demo club. Nothing is drawn.
+ * What it keeps from the page it replaces, because each was right:
  *  - THE VISITOR'S EDITION is decided here, on the server, from the request's
  *    country: local prices (set, not converted — `effectivePrice`) and local
- *    golf words (`golf-terms.ts`), with a switch to US $ and US terms.
+ *    golf words, with a switch to US $ and US terms. The whole tree is built
+ *    in US English and passed through the edition's word swaps (`inDialect`).
  *  - EVERY NUMBER IS READ, not typed: prices from PLANS through the owner's
- *    overrides, limits and seats from PLANS, the feature count from the list.
- *  - EVERYTHING IS TEXT a reader and a crawler both get: the whole feature
- *    list, the comparison and the answers are rendered on the server; the
- *    tabs, filters and slider only choose what is shown.
+ *    overrides, limits from PLANS, the feature count from the list, the two
+ *    club platforms' prices from the one place they are held (`compare.tsx`).
+ *  - EVERYTHING IS TEXT a reader and a crawler both get; the script
+ *    (`LandingHomeEffects`) only moves what is already there.
+ *  - THE SIGN-UP AND SIGN-IN FORM is on this page, once, at `#signup` /
+ *    `#signin`, and it is how every organizer comes in.
  *
- * The whole tree is built once in US English and then passed through the
- * edition's word swaps (`inDialect`), so a British visitor's page arrives
- * saying "buggy" and "organiser" rather than flashing the US words first.
+ * What it changes: one ground instead of a white page with dark bands; one
+ * demo club in every picture (Braid Hollow, in Indiana) with other clubs only
+ * in "Wherever you play"; the questions on /faq rather than in the scroll; and
+ * only the two club platforms a buyer already knows named in the comparison.
+ *
+ * The rule for screens is in `home-styles.ts`: one you are meant to read is
+ * shown whole, square and still; depth belongs to the decorative layers.
  */
 export default async function LandingPage() {
   const session = await getSession();
@@ -228,20 +217,30 @@ export default async function LandingPage() {
     jar.get(US_OVERRIDE_COOKIE)?.value === "1",
   );
   const prices = landingPrices(shown, overrides);
-  const d = shown.shots;
-  const cur = shown.currency.toLowerCase();
-  const ctx = { prices, email: contactEmail };
-  const rows = compareRows(prices);
   const note = editionNote(local, overridden);
   // UK-English editions only: the app follows the club's own conventions there
   // — the course's unit, the club's clock, and a Monday week.
   const groups = featureGroups({ localGolf: shown.register === "uk" });
   const total = featureCount(groups);
 
-  const screen = (s: Screen, alt: string, className = "", priority = false) =>
-    s.by === "one"
-      ? fixedShot(`/landing/${s.name}.webp`, s.w, s.h, alt, className)
-      : lightShot({ name: s.name, variant: s.by === "cur" ? cur : d, width: s.w, height: s.h, alt, className, priority });
+  // The two CLUB platforms, and only those (Ajay, 2026-10-11: name the rivals a
+  // buyer already knows; nobody smaller is advertised from our own front door).
+  const named = RIVALS.map((r, i) => ({ ...r, i })).filter((r) => r.kind === "Club platform");
+  const rows = compareRows(prices);
+
+  // What a year costs at each one's highest published plan, with its one-time
+  // setup fee — the two figures each company prints, added. Ours beside them,
+  // in the same dollars.
+  const eagleYear = effectiveAnnualPrice(PLANS.club, overrides, "USD");
+  const birdieYear = effectiveAnnualPrice(PLANS.society, overrides, "USD");
+  const theirYear = (name: keyof typeof TOP_PUBLISHED) => TOP_PUBLISHED[name].year + TOP_PUBLISHED[name].setup;
+  const bars = [
+    { name: "Golf Genius", amount: theirYear("Golf Genius"), ours: false },
+    { name: "BlueGolf", amount: theirYear("BlueGolf"), ours: false },
+    { name: "TourneyHQ", amount: eagleYear, ours: true },
+  ];
+  const widest = Math.max(...bars.map((b) => b.amount));
+
   const mark = (m: NonNullable<Cell["mark"]>) => (
     <span className={`cx-m cx-${m}`} aria-hidden="true">{{ yes: "✓", part: "◐", no: "✕", na: "—" }[m]}</span>
   );
@@ -252,16 +251,17 @@ export default async function LandingPage() {
       {c.note ? <small>{c.note}</small> : null}
     </>
   );
-  const tick = (text: React.ReactNode) => (
-    <li>
-      {icon("check")}
-      <span>{text}</span>
-    </li>
+  const doors = (
+    <div className="m-cta-row">
+      <a className="m-btn m-primary" href="#signup">Run an event <span className="m-arrow" aria-hidden="true">→</span></a>
+      <a className="m-btn m-line" href="/play"><span className="m-long">I have a round code</span><span className="m-short">Enter a code</span></a>
+    </div>
   );
 
   const page = (
-    <div className="thq" lang={shown.locale}>
+    <div className="thq" lang={shown.locale} style={posterFontVars}>
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: HOME_CSS }} />
       {/* What this is, in schema.org terms — a product with a free tier and two
           paid ones, priced from PLANS in the visitor's currency. */}
       <script
@@ -271,593 +271,547 @@ export default async function LandingPage() {
         }}
       />
       <LandingEffects />
+      <LandingHomeEffects />
       {iconSprite()}
       {landingNav("home")}
 
-      <main id="top">
-        {/* ═══════════ HERO ═══════════ */}
-        {/* The one bold moment (Ajay, 2026-09-29: "go ahead" with a black hero
-            on a white page): the hero is a dark band, so the product screens
-            are framed on black and everything below reads on white. */}
-        <section className="hero band" aria-labelledby="hero-h">
-          <div className="wrap">
-            <span className="label kicker">Golf tournament &amp; league management</span>
-            <div className="hero-top">
-              <h1 className="h1" id="hero-h">From registration<br />to <span className="o">recognition.</span></h1>
-              <div className="hero-side">
-                <p>
-                  The club championship, the Thursday league and the Saturday foursome — the draw, the cards, the
-                  live board and the money, run from one place.
-                </p>
-                <div className="ctas">
-                  <a className="btn" href="#signup">Set up your first event {icon("arrow", "i")}</a>
-                  <a className="btn ghost" href="#round">See a round</a>
-                </div>
-              </div>
-            </div>
-            <div className="proof">
-              <span><b>Free</b> to start</span>
-              <span><b>No</b> setup fee</span>
-              <span>Players join with a <b>code</b> — no app</span>
-              <span>Scores by <b>voice</b></span>
-              <span><b>Sixteen</b> formats</span>
-            </div>
-            <div className="stage">
-              <div className="desk">
-                {/* Lazy, not priority: phones hide the laptop, and a priority image is preloaded
-                    whether it shows or not (150 KB a phone never drew). On a laptop it is in view,
-                    so it loads at once anyway. */}
-                {lightShot({ name: "hero-console", variant: d, width: 2400, height: 1500, sizes: "(max-width: 760px) 1px, 80vw", alt: "The organizer's live leaderboard on a laptop: the field ranked across all flights, gross, net and to par." })}
-              </div>
-              <div className="phone">
-                {lightShot({ name: "hero-live", variant: d, width: 600, height: 1298, priority: true, alt: "The public live board on a phone: the round, and the field ranked by net strokes, the leader highlighted." })}
-              </div>
-            </div>
-            <p className="real">
-              Every picture on this page is <b>an unedited screen of the app</b>, running a demo club with invented players.
-            </p>
-          </div>
-          {/* Format NAMES never change for an edition: UK "foursomes" is
-              alternate shot, a US "foursome" is the group of four. */}
-          <div className="marq" role="group" aria-label="The sixteen formats" data-no-dialect="">
-            <div className="marq-track">
-              {[0, 1].map((n) =>
-                FORMAT_NAMES.map((f) => (
-                  <span key={`${n}-${f}`} aria-hidden={n === 1 ? true : undefined}>
-                    {f}
-                    <em aria-hidden="true"> •</em>
-                  </span>
-                )),
-              )}
-            </div>
-          </div>
-        </section>
+      <main id="top" className="m-home">
+        <div className="m-progress" aria-hidden="true" />
+        <div className="m-putter" id="putter" aria-hidden="true" />
 
-        {/* ═══════════ THE ROUND ═══════════ */}
-        <section className="sec" id="round" aria-labelledby="round-h">
-          <div className="wrap">
-            <div className="shead">
-              <div>
-                <span className="label">The round</span>
-                <h2 className="h2" id="round-h">One Saturday, both sides of it.</h2>
+        {/* ═══════════ THE FIRST SCREEN ═══════════ */}
+        <section className="m-hero" aria-labelledby="hero-h">
+          <div className="m-wrap">
+            <div className="m-hero-grid">
+              <div className="m-copy">
+                <a className="m-news m-rise" href="#does"><b>New</b> Ryder-style cups, on every player&rsquo;s phone <span aria-hidden="true">→</span></a>
+                <p className="m-eyebrow m-rise">Golf tournament &amp; league software</p>
+                <h1 id="hero-h">
+                  <span className="m-line"><span>From Registration</span></span>
+                  <span className="m-line"><span>to <span className="m-hl" id="hero-word">Recognition.</span></span></span>
+                  <svg className="m-putt" id="putt" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+                    <path d="M2 14 C 55 0, 130 30, 190 12" />
+                    <ellipse className="m-hole" cx="194" cy="13" rx="5" ry="2.6" />
+                    <circle className="m-ball" r="4" />
+                  </svg>
+                </h1>
+                <p className="m-sub m-rise m-d2">Run the whole competition. Your players just type a code.</p>
+                <div className="m-rise m-d3">{doors}</div>
+                <ul className="m-facts3 m-rise m-d4">
+                  <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
+                  <li>No card</li>
+                  <li>No app for players</li>
+                </ul>
               </div>
-              <p>What you do as the organizer and what your players see, in the order it happens.</p>
-            </div>
-            <div className="round">
-              <div className="steps" role="region" aria-label="The round, step by step" tabIndex={0}>
-                {DAY.map((s) => (
-                  <article className="step" key={s.time} data-cap={s.cap}>
-                    <div className="step-t">
-                      <b>{s.time}</b>
-                      <span className={`who ${s.who}`}>{s.who === "org" ? "Organizer" : "Player"}</span>
-                    </div>
-                    <h3 className="h3">{s.h}</h3>
-                    <p>{s.p}</p>
-                    {s.ul ? <ul>{s.ul.map((x) => <li key={x}>{x}</li>)}</ul> : null}
-                    <div className="inl phone">{screen(s.screen, s.alt)}</div>
-                  </article>
-                ))}
-              </div>
-              <div className="pin" aria-hidden="true">
-                <div className="phone">
-                  <div className="scr">
-                    {DAY.map((s, i) => (
-                      <span key={s.time}>{screen(s.screen, "", i === 0 ? "on" : "")}</span>
-                    ))}
+
+              <div className="m-hero-phone">
+                <svg className="m-rings" viewBox="0 0 700 700" aria-hidden="true" preserveAspectRatio="none">
+                  <ellipse cx="350" cy="350" rx="150" ry="205" />
+                  <ellipse cx="356" cy="346" rx="205" ry="250" />
+                  <ellipse cx="344" cy="356" rx="262" ry="292" />
+                  <ellipse cx="352" cy="350" rx="318" ry="328" />
+                </svg>
+                {/* Decorative depth behind the phone: turned, so never read — the same screens are shown flat below. */}
+                <div className="m-hero-desk m-decor" aria-hidden="true">
+                  {plainShot({ name: "desk-leaderboard", alt: "", sizes: SIZES.heroDesk })}
+                </div>
+                <div className="m-toast" id="toast" aria-hidden="true" />
+                <div className="m-chip" aria-hidden="true"><span className="m-dot" /><span><b>Live now</b> · 40 of 40 cards in</span></div>
+                <div className="m-phone m-back m-left m-decor" aria-hidden="true">
+                  {plainShot({ name: "club-today", alt: "", sizes: SIZES.heroPhone })}
+                </div>
+                <div className="m-phone">
+                  <div className="m-loop" id="loop" role="img" aria-label="A player's phone: the live board, and a score going in on their card.">
+                    {plainShot({ name: "club-board", alt: "", sizes: SIZES.heroPhone, className: "m-on", priority: true })}
+                    {plainShot({ name: "club-card", alt: "", sizes: SIZES.heroPhone })}
                   </div>
                 </div>
-                <div className="clock">{DAY.map((s) => <i key={s.time} />)}</div>
-                <div className="cap">{DAY[0].cap}</div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        {/* ═══════════ WHY IT'S DIFFERENT ═══════════
-            Each reason is backed by the comparison below, from the named
-            platforms' own websites. */}
-        <section className="why" id="why" aria-labelledby="why-h">
-          <div className="wrap">
-            <span className="label">The difference</span>
-            <h2 className="h2" id="why-h">Five reasons it&rsquo;s different.</h2>
-            <p className="lead">What a club, a league or a golf group gets here — each one checked against the platforms we compare, on their own websites.</p>
-            <div className="reasons">
-              <div className="reason"><span className="n">01</span><h3>Say the score.</h3><p>Players read their scores out loud, hole by hole or the whole card. <b>None of the five platforms we compare lists voice scoring.</b></p></div>
-              <div className="reason"><span className="n">02</span><h3>No app. No account.</h3><p>A round code puts a player on their card in eight characters. It installs from the browser if they want it on the home screen.</p></div>
-              <div className="reason"><span className="n">03</span><h3>Works out the money. Never holds it.</h3><p>Outing costs, skins, pots and side bets in one settle-up, in the fewest handovers. <b>Nothing is collected or moved</b> — the money stays with your pro shop, treasurer or accounting system.</p></div>
-              <div className="reason"><span className="n">04</span><h3>A real free plan. No setup fee.</h3><p>Up to {PLANS.free.limits.playersPerEvent} players, every format, the live board — free for good. <b>Both club platforms we compare charge a one-time setup fee and list no free plan.</b></p></div>
-              <div className="reason"><span className="n">05</span><h3>Your country&rsquo;s golf.</h3><p>Carts or buggies, organizers or organisers, yards or metres, a Sunday or a Monday week — set by where the club is, with prices in its currency.</p></div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════ SIDE BY SIDE ═══════════
-            The named comparison: every cell and its source live in
-            lib/landing/compare.tsx — read the rules there before changing it. */}
-        <section className="sec" id="compare" aria-labelledby="compare-h">
-          <div className="wrap">
-            <div className="shead">
-              <div>
-                <span className="label">Side by side</span>
-                <h2 className="h2" id="compare-h">The usual way, and the TourneyHQ way.</h2>
-              </div>
-              <p>How most events are run today, and how the same day runs here.</p>
-            </div>
-            <div className="usual reveal">
-              <div className="u-hd" aria-hidden="true"><span /><b>The usual way</b><b className="now">With TourneyHQ</b></div>
-              {[
-                ["The field", "A spreadsheet of names and handicaps", "Registration with open and close dates, and a waiting list"],
-                ["Who's in", "A group chat, counted by hand", "Opt in or out on their phone — or captains send the list"],
-                ["The draw", "Pairings worked out on paper", "Drawn from who's in, by handicap, standings or sides"],
-                ["The scores", "Paper cards, typed up afterwards", "Entered on the course — tapped or said out loud"],
-                ["The board", "Posted when somebody gets to it", "Live on every phone and a public link, as cards come in"],
-                ["The money", "A notes app, a cash envelope and IOUs", "One settle-up, in the fewest handovers"],
-              ].map(([k, before, after]) => (
-                <div className="u-row" key={k}>
-                  <i>{k}</i>
-                  <span className="before"><span className="sr">The usual way: </span>{before}</span>
-                  <span className="after"><span className="sr">With TourneyHQ: </span>{after}</span>
+              <div className="m-tryline m-rise m-d5">
+                <label htmlFor="hero-code"><b>See what a player sees.</b> Type the demo code.</label>
+                <div className="m-field">
+                  <input id="hero-code" type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={9} placeholder="Round code" aria-describedby="hero-code-say" />
+                  <span className="m-hint">Try K7M4-PQ2X</span>
                 </div>
+                <span className="m-say" id="hero-code-say" role="status" />
+                <span className="m-realcode">Playing today? <a href="/play">Enter your round code</a></span>
+              </div>
+            </div>
+          </div>
+
+          <div className="m-ticker" role="group" aria-label="The demo club's board, as a live strip">
+            <div className="m-row">
+              <span className="m-live"><span className="m-dot" aria-hidden="true" />Live · demo club</span>
+              <div className="m-track" id="ticker-track" data-no-dialect="">
+                <span><b>October Stroke Play</b> · Round 1</span>
+                {TICKER.map(([pos, name, thru, score]) => (
+                  <span key={name}>{pos} <b>{name}</b> {thru} <i>{score}</i></span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="m-wrap">
+            <div className="m-proof">
+              <ul>
+                <li><b>A live board by link</b><span>Anyone can watch; nobody signs in</span></li>
+                <li><b>Works without signal</b><span>Cards save and send later</span></li>
+                <li><b>Scores by voice</b><span>Say the hole, or the whole card</span></li>
+                <li><b>{FORMAT_NAMES.length} formats</b><span>Each scored by its own rules</span></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════ HOW IT WORKS ═══════════ */}
+        <section className="m-chapter" id="round" aria-labelledby="round-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">How it works</p>
+              <h2 id="round-h">One competition, from the first entry to the prize table.</h2>
+              <p className="m-lead">An example week at our demo club. Every screen is the app itself, on invented players.</p>
+            </div>
+
+            <div className="m-times" role="tablist" aria-label="The week, by time">
+              {WEEK.map((m, i) => (
+                <button type="button" role="tab" aria-selected={i === 0} key={m.when}><b>{m.when}</b><span>{m.tab}</span></button>
               ))}
             </div>
 
-            <div className="vs reveal">
-              <div className="shead" style={{ marginBottom: 28 }}>
-                <div>
-                  <span className="label">Side by side</span>
-                  <h3 className="h2" style={{ fontSize: "clamp(32px, 4vw, 56px)" }}>TourneyHQ and five you know.</h3>
-                </div>
-                <p>Two club platforms and three league apps, every cell from each company&rsquo;s own website as of {COMPARED_ON}.</p>
-              </div>
-              <p className="cx-cue" aria-hidden="true">Swipe to see all five {icon("arrow", "i")}</p>
-              <div className="cx-scroll" tabIndex={0} role="region" aria-label="TourneyHQ beside five golf platforms">
-                <table className="cx">
-                  <caption className="sr">TourneyHQ beside {RIVALS.map((r) => r.name).join(", ")}</caption>
-                  <thead>
-                    <tr>
-                      <th className="cx-lab" scope="col"><span className="sr">Feature</span></th>
-                      <th className="cx-us" scope="col"><b>TourneyHQ</b><span>{PLANS.free.name} · {PLANS.society.name} · {PLANS.club.name}</span></th>
-                      {RIVALS.map((r) => <th scope="col" key={r.name}><b>{r.name}</b><span>{r.kind}</span></th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.label}>
-                        <th className="cx-lab" scope="row">{row.label}<small>{row.detail}</small></th>
-                        <td className="cx-us">{cell(row.ours)}</td>
-                        {row.theirs.map((c, i) => <td key={RIVALS[i].name}>{cell(c)}</td>)}
-                      </tr>
-                    ))}
-                    <tr className="cx-src">
-                      <th className="cx-lab" scope="row">Source</th>
-                      <td className="cx-us">This page</td>
-                      {RIVALS.map((r) => (
-                        <td key={r.name}><a href={r.source.href} rel="nofollow noopener noreferrer" target="_blank">{r.source.label}</a></td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p className="cx-key">
-                <span>{mark("yes")} Yes</span><span>{mark("part")} Partly, or on some plans</span>
-                <span>{mark("no")} No</span><span>{mark("na")} Not listed on their website</span>
-              </p>
-              <p className="vs-legal">
-                Competitor information is from each company&rsquo;s own website as of {COMPARED_ON}. Golf Genius and
-                BlueGolf prices are for facilities in the US and Canada with up to 36 holes; every competitor price is
-                in US dollars, before tax. &ldquo;Not listed&rdquo; means their website does not say so, not that the
-                feature is missing. Prices and features change, so check with each provider. Golf Genius, BlueGolf,
-                Squabbit, Golf GameBook and LeagueGolfer are trademarks of their respective owners. TourneyHQ is not
-                affiliated with or endorsed by any of them.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════ EVERY FEATURE ═══════════
-            The showcase first — the rest of the real app, a tab at a time —
-            then every line, all of it rendered, filtered by chips (CSS) and a
-            search box (a small client script). */}
-        <section className="sec tint" id="features" aria-labelledby="features-h">
-          <div className="wrap">
-            <div className="shead">
-              <div>
-                <span className="label">Every feature</span>
-                <h2 className="h2" id="features-h">{total} features. All of them live today.</h2>
-              </div>
-              <p>Explore the real app by screen — the organizer&rsquo;s side and the player&rsquo;s — then search every line.</p>
-            </div>
-
-            <div className="show reveal" role="group" aria-label="The app, by screen">
-              <div className="show-rail" role="radiogroup" aria-label="Screen">
-                {(["org", "pl"] as const).map((side) => (
-                  <div key={side} style={{ display: "contents" }}>
-                    <span className="label">{side === "org" ? "Organizer" : "Player"}</span>
-                    {SHOWCASE.filter((x) => x.side === side).map((x, i) => (
-                      <label className="show-tab" key={x.key}>
-                        <input className="sr" type="radio" name="show" value={x.key} defaultChecked={side === "org" && i === 0} />
-                        <b>{x.title}</b>
-                        <span>{x.sub}</span>
-                      </label>
+            <div className="m-story" id="story">
+              <div className="m-pin">
+                <div className="m-stage">
+                  <div className="m-phone">
+                    {WEEK.map((m, i) => (
+                      <Fragment key={m.when}>{plainShot({ name: m.shot, alt: m.alt, sizes: SIZES.story, className: i === 0 ? "m-on" : "" })}</Fragment>
                     ))}
                   </div>
-                ))}
-              </div>
-              <div className="show-view">
-                {SHOWCASE.map((x) => (
-                  <figure className="show-f" data-f={x.key} key={x.key}>
-                    <div className="stage-phone">
-                      <div className="phone">{screen(x.screen, x.alt)}</div>
-                      <ol className="stage-pins" aria-hidden="true">
-                        {x.notes.map((n, i) => <li key={n.t} style={{ top: `${n.y}%` }}>{i + 1}</li>)}
-                      </ol>
+                </div>
+                <div className="m-beats">
+                  <div className="m-rail" id="rail" aria-hidden="true"><span className="m-flag" /><span className="m-cup" /><span className="m-ball" /></div>
+                  {WEEK.map((m, i) => (
+                    <div className={i === 0 ? "m-beat m-on" : "m-beat"} key={m.when}>
+                      <span className="m-what">{m.tab} · {m.who}</span>
+                      <span className="m-clock">{m.when}</span>
+                      <h3>{m.h}</h3>
+                      <p>{m.p}</p>
                     </div>
-                    <figcaption className="stage-notes">
-                      <ol>{x.notes.map((n) => <li key={n.t}><b>{n.t}</b><span>{n.s}</span></li>)}</ol>
-                    </figcaption>
-                  </figure>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="fx" id="all-features">
-              <div className="fx-bar">
-                <div role="radiogroup" aria-label="Show features" style={{ display: "contents" }}>
-                {[
-                  ["top", "Highlights", 12],
-                  ["all", "All", total],
-                  ...groups.map((g) => [g.key, g.title, g.items.length] as const),
-                ].map(([k, label, n], i) => (
-                  <label className="chip" key={k}>
-                    <input className="sr" type="radio" name="fx" value={k} defaultChecked={i === 0} />
-                    {label}<i>{n}</i>
-                  </label>
-                ))}
+            {/* The same week as a row of cards: what a narrow screen shows when the page's script has not run. */}
+            <div id="steps" aria-hidden="true">
+              {WEEK.map((m) => (
+                <div className="m-step" key={m.when}>
+                  <div className="m-phone">{plainShot({ name: m.shot, alt: "", sizes: SIZES.step })}</div>
+                  <div className="m-say">
+                    <span className="m-what">{m.tab} · {m.who}</span>
+                    <span className="m-clock">{m.when}</span>
+                    <b>{m.h}</b>
+                    <p>{m.p}</p>
+                  </div>
                 </div>
-                <FeatureSearch total={total} />
-              </div>
-              <div className="fx-grid">
-                {groups.flatMap((g) =>
-                  g.items.map((f) => (
-                    <div className={f.top ? "f top" : "f"} data-g={g.key} key={`${g.key}-${f.t}`}>
-                      <small>{g.title}</small>
-                      <b>{f.t}</b>
-                      {f.s ? <span>{f.s}</span> : null}
-                    </div>
-                  )),
-                )}
-              </div>
-              <p className="fx-none">No feature matches that. Try another word, or <Link href="/faq">search the questions</Link>.</p>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* ═══════════ FORMATS ═══════════ */}
-        <section className="sec" id="formats" aria-labelledby="formats-h">
-          <div className="wrap">
-            <div className="shead center">
-              <span className="label">Formats</span>
-              <h2 className="h2" id="formats-h">Sixteen formats. One leaderboard.</h2>
-              <p className="lead">Three real boards from the demo club, each scored by its own format&rsquo;s rules.</p>
+        {/* ═══════════ ONE MOMENT ═══════════ */}
+        <section className="m-moment" aria-label="What a live board means">
+          <div className="m-wall m-decor" aria-hidden="true">
+            {WALL.map((col) => (
+              <div className="m-col" key={col[0]}>
+                {[...col, ...col].map((name, i) => <Fragment key={`${name}-${i}`}>{thumbShot(name, 420)}</Fragment>)}
+              </div>
+            ))}
+          </div>
+          <div className="m-wrap">
+            <div className="m-grid">
+              <p className="m-big"><span className="m-time" id="moment-time">11:42.</span> <span className="m-l1">A birdie on the 14th.</span> <span className="m-hl m-l2">The whole club sees it.</span></p>
+              <p className="m-aside">Every card moves the board the moment it is saved. On the phone in a member&rsquo;s hand, on the laptop in the office, on the television in the bar.</p>
             </div>
-            <div className="boards">
-              {FORMAT_BOARDS.map(([name, title, caption, alt]) => (
-                <figure key={name}>
-                  <div className="phone sm">{lightShot({ name, variant: d, width: 600, height: 1298, alt })}</div>
-                  <figcaption><b>{title}</b><span>{caption}</span></figcaption>
+          </div>
+        </section>
+
+        {/* ═══════════ WHAT IT DOES ═══════════ */}
+        <section className="m-chapter" id="does" aria-labelledby="does-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">What it does</p>
+              <h2 id="does-h">The whole day, in one place.</h2>
+              <ul className="m-runs" aria-label="What it runs" data-no-dialect="">
+                {["Weekly leagues", "Society days", "Club championships", "Knockouts", "Ryder-style cups", "Member-guests", "Charity scrambles", "Golf trips", "A Saturday fourball"].map((x) => <li key={x}><b>{x}</b></li>)}
+              </ul>
+            </div>
+
+            <div className="m-wide">
+              <div className="m-line">
+                <h3>The committee on a laptop. The field on their phones.</h3>
+                <p>Registration, flights, the draw, the tee sheet and the cut from one screen, in your club&rsquo;s colors.</p>
+              </div>
+              <div className="m-screen">
+                {plainShot({ name: "desk-dashboard", alt: "The organizer's dashboard during a round: what needs a decision, the tee sheet, and the pace of play group by group.", sizes: SIZES.desk })}
+                <div className="m-spots" id="spots" aria-hidden="true">
+                  <span className="m-spot m-on" style={{ left: "50%", top: "18.5%" }}><i /><b>What needs you, first</b></span>
+                  <span className="m-spot" style={{ left: "47%", top: "41.5%" }}><i /><b>The tee sheet, one tap away</b></span>
+                  <span className="m-spot" style={{ left: "63%", top: "60%" }}><i /><b>Pace of play, group by group</b></span>
+                  <span className="m-spot" style={{ left: "17.6%", top: "52%" }}><i /><b>Every part of the setup</b></span>
+                </div>
+              </div>
+              <div className="m-twin m-phone">
+                {plainShot({ name: "org-teesheet", alt: "The organizer's tee sheet on a phone: pairing requests, and the draw as published to players.", sizes: SIZES.twin })}
+              </div>
+            </div>
+
+            <div className="m-cards">
+              <div className="m-card">
+                <h3>Nothing counts until you say so.</h3>
+                <p>Cards are certified, approved or disputed. A result from the course waits for you.</p>
+                <div className="m-peek"><div className="m-phone">{plainShot({ name: "org-dashboard", alt: "The organizer's dashboard on a phone: one disputed result to settle and one card to approve.", sizes: SIZES.peek })}</div></div>
+              </div>
+              <div className="m-card">
+                <h3>Sixteen formats, one leaderboard.</h3>
+                <p>Stroke play to Stableford, match play to scramble, skins and Nassau. All on every plan.</p>
+                <div className="m-peek"><div className="m-phone">{plainShot({ name: "public-stableford", alt: "A live public board ranked by Stableford points.", sizes: SIZES.peek })}</div></div>
+              </div>
+              <div className="m-card">
+                <h3>Works out the money. <span className="m-hl">Never holds it.</span></h3>
+                <p>Skins, pots, prizes and trip costs, worked out from the cards. Nothing is collected or moved.</p>
+                <div className="m-peek"><div className="m-phone">{plainShot({ name: "club-money", alt: "A player's Money screen: what they are owed, and who pays whom to settle it.", sizes: SIZES.peek })}</div></div>
+              </div>
+            </div>
+
+            <div className="m-colours">
+              <div className="m-text">
+                <h3>Your club&rsquo;s colors, on every screen.</h3>
+                <p>Choose a theme once and every screen wears it: the organizer&rsquo;s, the public board, every player&rsquo;s phone. Here is one board in four of them at once, two light and two dark, each checked for how it reads in full sun.</p>
+                <p className="m-drag"><span className="m-arrows" aria-hidden="true">←→</span> Drag across the board.</p>
+                <ul className="m-schemes" aria-label="The four themes shown, left to right" data-no-dialect="">
+                  {THEMES.map((t) => <li key={t.name}><span className="m-dot" style={{ background: t.swatch }} />{t.name}</li>)}
+                </ul>
+              </div>
+              <div className="m-pic">
+                <div className="m-phone m-compare" id="themes">
+                  {THEMES.map((t, i) => (
+                    <Fragment key={t.shot}>
+                      {plainShot({
+                        name: t.shot, sizes: SIZES.themes, className: "m-band",
+                        alt: i === 0 ? "One board shown in four club themes side by side: Tournament and Coastal in light, Championship and Midnight in dark." : "",
+                      })}
+                    </Fragment>
+                  ))}
+                  <span className="m-handle" aria-hidden="true" />
+                  <span className="m-handle" aria-hidden="true"><span className="m-knob">↔</span></span>
+                  <span className="m-handle" aria-hidden="true" />
+                  <span className="m-hues" id="hues" aria-hidden="true">{THEMES.map((t) => <i key={t.shot} style={{ background: t.swatch }} />)}</span>
+                  <input id="themes-range" type="range" min={0} max={100} step={0.5} defaultValue={50} aria-label="Drag to move the bands of color" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════ WHEREVER YOU PLAY ═══════════ */}
+        <section className="m-chapter" id="world" aria-labelledby="world-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">Wherever you play</p>
+              <h2 id="world-h">Your club&rsquo;s money. Your country&rsquo;s golf.</h2>
+              <p className="m-lead">Every figure in your club&rsquo;s own currency, written the way your country writes it. Dates, the week and the golf words follow.</p>
+            </div>
+            <div className="m-world" id="world-row">
+              {WORLD.map((w, i) => (
+                <figure className="m-wphone" key={w.place} style={{ "--m-i": i } as React.CSSProperties}>
+                  <div className="m-phone">{plainShot({ name: w.shot, alt: w.alt, sizes: SIZES.world })}</div>
+                  <span className="m-coin" aria-hidden="true">{w.symbol}</span>
+                  <figcaption><b>{w.place}</b><span>{w.money}</span></figcaption>
                 </figure>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ═══════════ THE MONEY ═══════════ */}
-        <section className="sec band" id="money" aria-labelledby="money-h">
-          <div className="wrap">
-            <div className="shead">
-              <div>
-                <span className="label">The money</span>
-                <h2 className="h2" id="money-h">Outing costs and prize money, <span className="o">settled.</span></h2>
-              </div>
-              <p>Worked out from the cards and the bills — and TourneyHQ never touches the cash.</p>
-            </div>
-            <div className="money-cols">
-              <div className="mcard reveal">
-                <h3 className="h3">Outing costs, split.</h3>
-                <p>Whoever paid records the bill. Several payers on one bill, refunds, and four ways to split it.</p>
-                <div className="chips">
-                  {["Green fees", "Carts", "Caddies", "Dinner", "Lodging", "Evenly", "By shares", "Exact amounts", "By percent"].map((c) => <span key={c}>{c}</span>)}
-                </div>
-                <div className="phone money-phone">{lightShot({ name: "money-expenses", variant: d, width: 600, height: 1298, alt: "A player's Money screen: five expenses from one golf weekend, each split its own way — dinner among 14, lodging by shares across 5, caddies among 4, carts among 8, green fees among all 16." })}</div>
-              </div>
-              <div className="mcard reveal">
-                <h3 className="h3">Prize money, from the board.</h3>
-                <p>Start from a structure — top three, gross &amp; net, flight winners, a twos pot, nearest the pin — set each amount, award in finishing order.</p>
-                <div className="chips">
-                  {["Total purse", "Flight winners", "Twos pot", "Skins with carries", "Nassau", "Birdie pot"].map((c) => <span key={c}>{c}</span>)}
-                </div>
-                <div className="well">{lightShot({ name: "prizes-org-phone", variant: d, width: 1170, height: 1310, sizes: "(max-width: 760px) 92vw, 440px", alt: "The organizer's prizes: Club Champion, 250, awarded to the winner; runner-up 120 and third 60 awarded in finishing order; best gross round not yet awarded." })}</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════ MAKE IT YOURS ═══════════
-            The comparison slider: the SAME real screen two ways, a divider
-            dragged between them (Ajay: "I really like the slider"; it opens on light
-            vs dark — "make the slider use for light vs dark theme"). Every frame
-            is rendered and only the chosen one shown, so the tabs are native
-            radios and work without JavaScript. */}
-        <section className="sec" id="yours" aria-labelledby="yours-h">
-          <div className="wrap yours">
-            <div>
-              <span className="label">Make it yours</span>
-              <h2 className="h2" id="yours-h" style={{ marginTop: 22 }}>Light or dark. In your colors.</h2>
-              <p className="lead" style={{ marginTop: 20 }}>
-                Every screen comes in light and dark — drag the slider across one. And the organizer screens, the
-                public board and the player app all wear the club&rsquo;s colors: eleven presets, thirteen ready-made
-                pairings, or your own, each checked for how it reads outdoors.
-              </p>
-              <div className="facts">
-                <div><span className="ic">{icon("sun")}</span><div><h3>Checked for sunlight</h3><p>A 7:1 outdoor bar on dark, the readable minimum on light — a warning, not a refusal.</p></div></div>
-                <div><span className="ic">{icon("moon")}</span><div><h3>Dark, light, or follow the phone</h3><p>Clubhouse at dusk indoors, paper-white in bright sun.</p></div></div>
-                <div><span className="ic">{icon("star")}</span><div><h3>Your logo, ours stepped back</h3><p>On the {PLANS.club.name} plan your mark leads, with TourneyHQ a small &ldquo;powered by&rdquo; line.</p></div></div>
-              </div>
-            </div>
-            <div className="compare" role="group" aria-label="The same real screen, compared">
-              <div className="seg" role="radiogroup" aria-label="What to compare">
-                <label className="tab"><input className="sr" type="radio" name="cmp-mode" value="ap" defaultChecked />Light vs dark</label>
-                <label className="tab"><input className="sr" type="radio" name="cmp-mode" value="col" />Club colors</label>
-              </div>
-              <div className="seg cmp-tabs" data-set="col" role="radiogroup" aria-label="Color pair to compare">
-                {COMPARE_COLOURS.map((k, i) => (
-                  <label className="tab" key={k}><input className="sr" type="radio" name="cmp-col" value={k} defaultChecked={i === 0} />{COLOUR_LABEL[k][0]}</label>
-                ))}
-              </div>
-              {COMPARE_COLOURS.map((k) => {
-                const [name, desc] = COLOUR_LABEL[k];
-                return (
-                  <div className="cmp-f" data-f={`col-${k}`} key={`col-${k}`}>
-                    <div className="cmp-frame phone">
-                      <div className="cmp-view">
-                        {lightShot({ name: "theme-tournament", variant: d, width: 480, height: 1039, alt: "The Board in the default Tournament colors." })}
-                        {lightShot({ name: `theme-${k}`, variant: d, width: 480, height: 1039, className: "cmp-b", alt: `The same Board in ${name} colors, ${desc}.` })}
-                        <input className="cmp-range" type="range" min={0} max={100} defaultValue={50} aria-label={`Drag to compare the default colors and ${name}`} />
-                        <span className="cmp-line" aria-hidden="true"><i /></span>
-                      </div>
-                    </div>
-                    <div className="cmp-legend">
-                      <span>Default</span>
-                      <span className="cmp-hint">drag to compare</span>
-                      <span>{name}</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {COMPARE_APPEARANCE.map((k) => {
-                const name = `phone-${k}`;
-                const [variant, w, hgt] = [d, 600, 1298];
-                return (
-                  <div className="cmp-f" data-f={`ap-${k}`} key={`ap-${k}`}>
-                    <div className="cmp-frame phone">
-                      <div className="cmp-view">
-                        {fixedShot(shotSrc(name, variant, "light"), w, hgt, `${APPEARANCE_LABEL[k]}, in the light appearance.`)}
-                        {fixedShot(shotSrc(name, variant, "dark"), w, hgt, "The same screen, in the dark appearance.", "cmp-b")}
-                        <input className="cmp-range" type="range" min={0} max={100} defaultValue={50} aria-label="Drag to compare light and dark" />
-                        <span className="cmp-line" aria-hidden="true"><i /></span>
-                      </div>
-                    </div>
-                    <div className="cmp-legend">
-                      <span>{icon("sun")}Light</span>
-                      <span className="cmp-hint">drag to compare</span>
-                      <span>Dark{icon("moon")}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ul className="m-runs m-world-also" aria-label="Also" data-no-dialect="">
+              {["Canadian dollars", "Australian dollars", "New Zealand dollars", "Yen", "Yards or metres", "Carts or buggies", "A Sunday or a Monday week"].map((x) => <li key={x}>{x}</li>)}
+            </ul>
           </div>
         </section>
 
         {/* ═══════════ PRICING ═══════════
             Read from PLANS through the owner's overrides, in the visitor's
             currency, so the page cannot promise a price or a limit the code
-            does not hold. The Monthly / Yearly radios choose which shows. */}
-        <section className="sec tint" id="pricing" aria-labelledby="pricing-h">
-          <div className="wrap">
-            <div className="shead">
-              <div>
-                <span className="label">Pricing</span>
-                <h2 className="h2" id="pricing-h">Priced on your field. Never per player.</h2>
-              </div>
-              <div>
-                <div className="seg bill" role="radiogroup" aria-label="Billing period">
-                  <label className="tab"><input className="sr" type="radio" name="bill" value="m" defaultChecked />Monthly</label>
-                  <label className="tab"><input className="sr" type="radio" name="bill" value="y" />Yearly <em>2 MONTHS FREE</em></label>
-                </div>
-                <p className="ed-note">{note}</p>
-              </div>
+            does not hold. */}
+        <section className="m-chapter" id="pricing" aria-labelledby="pricing-h">
+          <div className="m-wrap">
+            <div className="m-head">
+              <p className="m-eyebrow">Pricing</p>
+              <h2 id="pricing-h">Priced on your field. Never per player.</h2>
             </div>
-            <div className="tiers">
-              <div className="tier reveal">
+            <div className="m-plans">
+              <div className="m-plan">
+                <p className="m-who">{PLANS.free.tagline}</p>
                 <h3>{PLANS.free.name}</h3>
-                <p className="for">{PLANS.free.blurb}</p>
-                <div className="price"><b>{prices.zero}</b><span>forever</span></div>
-                <div className="price-sub">&nbsp;</div>
-                <a className="btn ghost" href="#signup">Start free</a>
+                <div className="m-price">{prices.zero}</div>
+                <p className="m-year">Free for good</p>
+                <a className="m-btn m-line" href="#signup">Start free</a>
                 <ul>
-                  {tick(<>Up to {PLANS.free.limits.playersPerEvent} in a field</>)}
-                  {tick("One tournament at a time")}
-                  {tick("One organizer")}
-                  {tick("Every format, the live board, the money")}
+                  <li>Up to {PLANS.free.limits.playersPerEvent} players</li>
+                  <li>One tournament at a time</li>
+                  <li>Every format, the live board, side games</li>
                 </ul>
-                <p className="note">{retentionNotice("free")}</p>
+                <p className="m-term">{retentionNotice("free")}</p>
               </div>
-              <div className="tier hot reveal">
-                <h3>{PLANS.society.name}<span className="badge">{PLANS.society.tagline}</span></h3>
-                <p className="for">{PLANS.society.blurb}</p>
-                <div className="price">
-                  <b><span className="per-m">{prices.society.monthly}</span><span className="per-y">{prices.society.yearly}</span></b>
-                  <span><span className="per-m">/ month</span><span className="per-y">/ year</span></span>
-                </div>
-                <div className="price-sub">
-                  <span className="per-m">or {prices.society.yearly} a year — two months free</span>
-                  <span className="per-y">two months free</span>
-                </div>
-                <a className="btn" href="#signup"><span className="long">Choose {PLANS.society.name}</span><span className="short">Choose</span></a>
-                <p className="tier-how">Create your account and we move it to this plan. Nothing is charged online.</p>
+              <div className="m-plan m-pick lightband">
+                <p className="m-who">{PLANS.society.tagline}</p>
+                <h3>{PLANS.society.name}</h3>
+                <div className="m-price">{prices.society.monthly}<small>a month</small></div>
+                <p className="m-year">or {prices.society.yearly} a year</p>
+                <a className="m-btn" href="#signup">Choose {PLANS.society.name}</a>
                 <ul>
-                  {tick(<>Up to {PLANS.society.limits.playersPerEvent} in a field</>)}
-                  {tick("As many events as your season runs")}
-                  {tick(<>Up to {PLANS.society.limits.staffSeats} organizers</>)}
-                  {tick("Order of merit across your tournaments")}
-                  {tick(capitalise(retentionSummary(PLANS.society)))}
+                  <li>Up to {PLANS.society.limits.playersPerEvent} players in a field</li>
+                  <li>As many events as your season runs</li>
+                  <li>A season table, and {retentionSummary(PLANS.society)}</li>
                 </ul>
               </div>
-              <div className="tier reveal">
+              <div className="m-plan">
+                <p className="m-who">{PLANS.club.tagline}</p>
                 <h3>{PLANS.club.name}</h3>
-                <p className="for">{PLANS.club.blurb}</p>
-                <div className="price">
-                  <b><span className="per-m">{prices.club.monthly}</span><span className="per-y">{prices.club.yearly}</span></b>
-                  <span><span className="per-m">/ month</span><span className="per-y">/ year</span></span>
-                </div>
-                <div className="price-sub">
-                  <span className="per-m">or {prices.club.yearly} a year — two months free</span>
-                  <span className="per-y">two months free</span>
-                </div>
-                <a className="btn ghost" href="#signup"><span className="long">Choose {PLANS.club.name}</span><span className="short">Choose</span></a>
-                <p className="tier-how">Create your account and we move it to this plan. Nothing is charged online.</p>
+                <div className="m-price">{prices.club.monthly}<small>a month</small></div>
+                <p className="m-year">or {prices.club.yearly} a year</p>
+                <a className="m-btn m-line" href="#signup">Choose {PLANS.club.name}</a>
                 <ul>
-                  {tick("An unlimited field")}
-                  {tick("As many tournaments as your season runs")}
-                  {tick(<>Up to {PLANS.club.limits.staffSeats} organizers and assistants</>)}
-                  {tick("Your club's branding, ours removed")}
-                  {tick(`Order of merit · ${retentionSummary(PLANS.club)}`)}
+                  <li>Any size of field</li>
+                  <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
+                  <li>Your club&rsquo;s branding, ours removed</li>
                 </ul>
               </div>
             </div>
-            <div className="cp reveal">
-              <h3>Compare plans</h3>
-              <p className="cp-sub">What changes from one plan to the next.</p>
-              <table className="cp-t">
-                <caption className="sr">What differs between TourneyHQ&rsquo;s plans</caption>
-                <thead>
-                  <tr>
-                    <th scope="col"><span className="sr">Plan</span></th>
-                    {PLAN_KEYS.map((k) => <th scope="col" key={k} className={k === "society" ? "hot" : undefined}>{PLANS[k].name}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {planDiff(prices).map(([label, cells]) => (
-                    <tr key={label}>
-                      <th scope="row">{label}</th>
-                      {cells.map((c, i) => <td key={PLAN_KEYS[i]} className={PLAN_KEYS[i] === "society" ? "hot" : undefined}>{c}</td>)}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={4}>
-                      <b>Everything else is on every plan, {PLANS.free.name} included</b> — live scoring, voice, round codes, every
-                      format, the golf money, the calendar and leagues. <a href="#all-features">See every feature {icon("arrow", "i")}</a>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <p className="tier-note">Paid plans are arranged with us directly — nothing is charged through the app.</p>
-            <div className="ultimate">
-              <span className="ic">{icon("globe")}</span>
-              <div>
-                <h3>{PLANS.enterprise.name} · {PLANS.enterprise.tagline}</h3>
-                {contactEmail ? (
-                  <p>Running several clubs, or a corporate golf program? Tell us how you work and we&rsquo;ll scope it with you.</p>
-                ) : (
-                  <p>Running several clubs, or a corporate golf program? {PLANS.enterprise.name} is priced with each organization rather than published — our contact address opens soon. Until then, each club can run on {PLANS.club.name}.</p>
-                )}
+            <p className="m-small">Paid plans are arranged with us directly: create your account and we move it to the plan. Nothing is charged through the app. {note}</p>
+
+            <div className="m-versus">
+              <div className="m-say">
+                <h3>A year on the top plan, elsewhere.</h3>
+                <p>Each company&rsquo;s highest published plan for one club, with its one-time setup fee, beside ours with none. A league of up to {PLANS.society.limits.playersPerEvent} runs on {PLANS.society.name} for {prices.usd(birdieYear)}.</p>
+                <p><a href="#compare">See the like-for-like comparison</a></p>
               </div>
-              {contactEmail ? (
-                <a className="btn ghost sm" href={`mailto:${contactEmail}?subject=TourneyHQ%20for%20our%20organization`}>Talk to us</a>
-              ) : null}
+              <ul className="m-bars" aria-label="A year on each company's highest published plan, setup fee included" data-no-dialect="">
+                {bars.map((b) => (
+                  <li className={b.ours ? "m-us" : undefined} key={b.name}>
+                    <span>{b.name}</span>
+                    <span className="m-track"><span className="m-fill" style={{ width: `${((b.amount / widest) * 100).toFixed(1)}%` }} /></span>
+                    <span className="m-amount" data-to={b.amount}>{prices.usd(b.amount)}</span>
+                  </li>
+                ))}
+                <li className="m-saved">
+                  {bars.filter((b) => !b.ours).map((b) => (
+                    <div key={b.name}><b>{prices.usd(b.amount - eagleYear)}</b><span>less than {b.name}</span></div>
+                  ))}
+                </li>
+              </ul>
             </div>
-            <p className="metered">
-              Text alerts, reading a photographed card and drafted commentary are built and not switched on for
-              anybody yet — they cost per message and per call, so they will come with {PLANS.club.name} first, once
-              they&rsquo;re worth billing for.
+            <p className="m-small">
+              Golf Genius and BlueGolf prices are from each company&rsquo;s own website as of {PRICES_READ_ON}, in US dollars before tax, for
+              one facility in the US or Canada with up to 36 holes. Prices change, so check with each provider. Both are trademarks of their
+              owners; TourneyHQ is not affiliated with or endorsed by either.
+              {contactEmail ? <> Several clubs, or a corporate golf program? {PLANS.enterprise.name} is scoped with you: write to <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>.</> : null}
             </p>
+
+            <p className="m-soon" data-no-dialect="">
+              <b>Coming</b>
+              <span>GHIN and WHS handicap services</span>
+              <span>The iPhone app in the App Store</span>
+              <span>The Android app on Google Play</span>
+            </p>
+
+            <div className="m-more">
+              <details id="plans">
+                <summary><span>Compare the plans <small>what changes from one to the next</small></span></summary>
+                <div className="m-in">
+                  <div className="cp">
+                    <table className="cp-t">
+                      <caption className="sr">What differs between TourneyHQ&rsquo;s plans</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col"><span className="sr">Plan</span></th>
+                          {PLAN_KEYS.map((k) => <th scope="col" key={k} className={k === "society" ? "hot" : undefined}>{PLANS[k].name}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {planDiff(prices).map(([label, cells]) => (
+                          <tr key={label}>
+                            <th scope="row">{label}</th>
+                            {cells.map((c, i) => <td key={PLAN_KEYS[i]} className={PLAN_KEYS[i] === "society" ? "hot" : undefined}>{c}</td>)}
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={4}>
+                            <b>Everything else is on every plan, {PLANS.free.name} included</b> — live scoring, voice, round codes, every
+                            format, the golf money, the calendar and leagues. <a href="#all-features">See every feature {icon("arrow", "i")}</a>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <p className="metered">
+                    Text alerts, reading a photographed card and drafted commentary are built and not switched on for
+                    anybody yet — they cost per message and per call, so they will come with {PLANS.club.name} first, once
+                    they&rsquo;re worth billing for.
+                  </p>
+                </div>
+              </details>
+
+              {/* The named comparison: every cell and its source live in
+                  lib/landing/compare.tsx — read the rules there before changing it. */}
+              <details id="compare">
+                <summary><span>TourneyHQ beside the two club platforms <small>from their own websites</small></span></summary>
+                <div className="m-in">
+                  <div className="vs">
+                    <div className="cx-scroll" tabIndex={0} role="region" aria-label="TourneyHQ beside two club platforms">
+                      <table className="cx">
+                        <caption className="sr">TourneyHQ beside {named.map((r) => r.name).join(" and ")}</caption>
+                        <thead>
+                          <tr>
+                            <th className="cx-lab" scope="col"><span className="sr">Feature</span></th>
+                            <th className="cx-us" scope="col"><b>TourneyHQ</b><span>{PLANS.free.name} · {PLANS.society.name} · {PLANS.club.name}</span></th>
+                            {named.map((r) => <th scope="col" key={r.name}><b>{r.name}</b><span>{r.kind}</span></th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.label}>
+                              <th className="cx-lab" scope="row">{row.label}<small>{row.detail}</small></th>
+                              <td className="cx-us">{cell(row.ours)}</td>
+                              {named.map((r) => <td key={r.name}>{cell(row.theirs[r.i])}</td>)}
+                            </tr>
+                          ))}
+                          <tr className="cx-src">
+                            <th className="cx-lab" scope="row">Source</th>
+                            <td className="cx-us">This page</td>
+                            {named.map((r) => (
+                              <td key={r.name}><a href={r.source.href} rel="nofollow noopener noreferrer" target="_blank">{r.source.label}</a></td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="cx-key">
+                      <span>{mark("yes")} Yes</span><span>{mark("part")} Partly, or on some plans</span>
+                      <span>{mark("no")} No</span><span>{mark("na")} Not listed on their website</span>
+                    </p>
+                    <p className="vs-legal">
+                      Competitor information is from each company&rsquo;s own website as of {COMPARED_ON}. Golf Genius and
+                      BlueGolf prices are for facilities in the US and Canada with up to 36 holes, in US dollars, before
+                      tax. &ldquo;Not listed&rdquo; means their website does not say so, not that the feature is missing.
+                      Prices and features change, so check with each provider. Golf Genius and BlueGolf are trademarks of
+                      their respective owners. TourneyHQ is not affiliated with or endorsed by either of them.
+                    </p>
+                  </div>
+                </div>
+              </details>
+
+              {/* Every line, all of it rendered; filtered by chips (CSS) and a search box (a small client script). */}
+              <details id="features">
+                <summary><span>Every feature <small>{total}, all live today</small></span></summary>
+                <div className="m-in">
+                  <div className="fx" id="all-features">
+                    <div className="fx-bar">
+                      <div role="radiogroup" aria-label="Show features" style={{ display: "contents" }}>
+                        {[
+                          ["top", "Highlights", 12],
+                          ["all", "All", total],
+                          ...groups.map((g) => [g.key, g.title, g.items.length] as const),
+                        ].map(([k, label, n], i) => (
+                          <label className="chip" key={k}>
+                            <input className="sr" type="radio" name="fx" value={k} defaultChecked={i === 0} />
+                            {label}<i>{n}</i>
+                          </label>
+                        ))}
+                      </div>
+                      <FeatureSearch total={total} />
+                    </div>
+                    <div className="fx-grid">
+                      {groups.flatMap((g) =>
+                        g.items.map((f) => (
+                          <div className={f.top ? "f top" : "f"} data-g={g.key} key={`${g.key}-${f.t}`}>
+                            <small>{g.title}</small>
+                            <b>{f.t}</b>
+                            {f.s ? <span>{f.s}</span> : null}
+                          </div>
+                        )),
+                      )}
+                    </div>
+                    <p className="fx-none">No feature matches that. Try another word, or <Link href="/faq">search the questions</Link>.</p>
+                  </div>
+                </div>
+              </details>
+            </div>
           </div>
         </section>
 
-        {/* ═══════════ QUESTIONS ═══════════
-            Eight here, all of them on /faq — the same answers, from one module. */}
-        <section className="sec" id="faq" aria-labelledby="faq-h">
-          <div className="wrap faq-split">
-            <div>
-              <span className="label">Questions</span>
-              <h2 className="h2" id="faq-h">What organizers ask first.</h2>
-              <p className="lead">The eight we hear most. {FAQ_COUNT} in all — handicaps, leagues, the money, plans — on the full page.</p>
-              <Link className="btn ghost sm" href="/faq">See all {FAQ_COUNT} questions {icon("arrow", "i i-sm")}</Link>
-            </div>
-            <div>
-              {LANDING_FAQ_IDS.map((id) => {
-                const item = faqItem(id);
-                return (
-                  <details className="q" key={id}>
-                    <summary>{item.q}<span className="pm" aria-hidden="true">+</span></summary>
-                    <div className="ans">{item.a(ctx)}</div>
-                  </details>
-                );
-              })}
-            </div>
+        {/* ═══════════ THE WHOLE COMPETITION, IN ORDER ═══════════ */}
+        <div className="m-kinetic">
+          <div className="m-path">
+            <p className="m-eyebrow">The whole competition, in order</p>
+            <ol>
+              {WEEK.map((m, i) => <li className={i === 0 || i === WEEK.length - 1 ? "m-end" : undefined} key={m.tab}><span>{m.tab}</span></li>)}
+            </ol>
           </div>
-        </section>
+          <div className="m-run" id="kinetic-run" aria-hidden="true">
+            {[0, 1, 2, 3].map((n) => <span key={n}>From Registration to <b>Recognition.</b></span>)}
+          </div>
+          <div className="m-run m-back" id="kinetic-back" aria-hidden="true">
+            {[0, 1, 2].map((n) => <span key={n}>{WEEK.map((m) => <Fragment key={m.tab}>{m.tab} <i>·</i> </Fragment>)}</span>)}
+          </div>
+        </div>
 
         {/* ═══════════ SIGN UP / SIGN IN ═══════════ */}
-        <section className="close" id="start" aria-labelledby="start-h">
-          <div className="wrap">
-            <span className="anchor" id="signup" aria-hidden="true" />
-            <span className="anchor" id="signin" aria-hidden="true" />
-            <span className="label">Free to start · No setup fee</span>
-            <h2 className="h1" id="start-h">Set up your<br /><span className="o">first event.</span></h2>
-            <p className="lead">
-              A name is enough to start. No card — and with round codes on, your players don&rsquo;t need an account.
-              Organizers create an event here; players invited to one sign in with the same box.
-            </p>
-            <div className="authpanel">
-              <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} />
-            </div>
-            <div className="store-block">
-              <div className="stores">
+        <section className="m-chapter" id="start" aria-labelledby="start-h" style={{ paddingTop: 0 }}>
+          <div className="m-wrap">
+            <div className="m-close">
+              <span className="anchor" id="signup" aria-hidden="true" />
+              <span className="anchor" id="signin" aria-hidden="true" />
+              <svg className="m-rings" viewBox="0 0 700 700" aria-hidden="true">
+                <ellipse cx="350" cy="350" rx="96" ry="96" />
+                <ellipse cx="350" cy="350" rx="170" ry="170" />
+                <ellipse cx="350" cy="350" rx="248" ry="248" />
+                <ellipse cx="350" cy="350" rx="330" ry="330" />
+              </svg>
+              <svg className="m-pin" viewBox="0 0 210 230" aria-hidden="true">
+                <ellipse className="m-cupline" cx="105" cy="196" rx="52" ry="11" />
+                <line x1="105" y1="196" x2="105" y2="34" />
+                <path className="m-cloth" d="M105 36 L170 56 L105 78 Z" />
+              </svg>
+              <div className="m-close-copy">
+              <h2 id="start-h">Run your first event.</h2>
+              <p className="m-lead">
+                A name is enough to start. No card, and with round codes on your players don&rsquo;t need an account.
+                Organizers create an event here; players invited to one sign in with the same box.
+              </p>
+              </div>
+              <div className="authpanel m-auth">
+                <LandingAuth defaultMode="signup" organizers={golfTermsFor(shown.register).organizers} />
+              </div>
+              <div className="m-close-more">
+              <div className="m-stores">
                 {storeButton("ios", STORE_LINKS.ios)}
                 {storeButton("android", STORE_LINKS.android)}
               </div>
-              <p className="stores-note">
-                Until then it installs straight from the browser on iPhone and Android — add it to your home screen
-                and it opens in its own window, like an app.
+              <p className="m-stores-note">
+                Until then it installs straight from the browser on iPhone and Android: add it to your home screen
+                and it opens in its own window, like an app. {FAQ_COUNT} questions are answered on <Link href="/faq">the questions page</Link>.
               </p>
+              </div>
             </div>
           </div>
         </section>
+
+        {/* The two doors, within reach on a phone once the first screen's have scrolled away. */}
+        <div className="m-dock" id="dock">
+          <a className="m-btn m-primary" href="#signup">Run an event</a>
+          <a className="m-btn m-line" href="/play">Enter a code</a>
+        </div>
       </main>
 
       {landingFooter("home", note)}

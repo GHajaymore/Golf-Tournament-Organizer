@@ -34,7 +34,9 @@ export function accountDeletionRefusal(input: AccountDeletionInput): string | nu
     const names = input.soleOwnerOf.join(", ");
     const one = input.soleOwnerOf.length === 1;
     return (
-      `You're the only owner of ${names}. Give ${one ? "it" : "each of them"} another owner in Staff & access, ` +
+      // "Commissioner", the word Staff & access uses for this role — it said
+      // "owner", which is the stored key and appears on no screen.
+      `You're the only Commissioner of ${names}. Give ${one ? "it" : "each of them"} another Commissioner in Staff & access, ` +
       `or delete ${one ? "it" : "them"} from its settings, first — otherwise nobody could run ${one ? "it" : "them"}.`
     );
   }

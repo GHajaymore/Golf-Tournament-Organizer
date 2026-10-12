@@ -39,6 +39,7 @@
 import { runMark } from "./run-mark.mjs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3100";
 const MARK = runMark("zz-verify-player");
@@ -151,7 +152,7 @@ const SCREENS = ["/me", "/me/card", "/me/board"];
 
 /** One person, one tournament, every screen — and the rules that hold there. */
 async function walk(label, user, eventId, expect) {
-  const cookie = `ng_session=${sign(user.id)}; ng_active_event=${sign(eventId)}`;
+  const cookie = `ng_session=${sign(signedInNow(user.id))}; ng_active_event=${sign(eventId)}`;
   for (const path of SCREENS) {
     const where = `${label} ${path}`;
     const { status, html, text } = await get(path, cookie);
@@ -319,7 +320,7 @@ async function main() {
   });
   const clubName = `${MARK} quiet society`;
   for (const [label, user, inClub] of [["no-events/member", quietMember, true], ["no-events/no-club", loner, false]]) {
-    const cookie = `ng_session=${sign(user.id)}`;
+    const cookie = `ng_session=${sign(signedInNow(user.id))}`;
     for (const path of ["/choose", "/me/events"]) {
       const where = `${label} ${path}`;
       const { status, text } = await get(path, cookie);

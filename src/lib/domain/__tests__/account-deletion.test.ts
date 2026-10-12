@@ -20,10 +20,10 @@ describe("who may delete their own account", () => {
 
   it("never the last owner of a club — it would be left with nobody to run it", () => {
     expect(accountDeletionRefusal({ ...base, soleOwnerOf: ["ZZ Fairway Society"] })).toMatch(
-      /only owner of ZZ Fairway Society\. Give it another owner/,
+      /only Commissioner of ZZ Fairway Society\. Give it another Commissioner/,
     );
     expect(accountDeletionRefusal({ ...base, soleOwnerOf: ["ZZ One", "ZZ Two"] })).toMatch(
-      /only owner of ZZ One, ZZ Two\. Give each of them another owner/,
+      /only Commissioner of ZZ One, ZZ Two\. Give each of them another Commissioner/,
     );
   });
 });

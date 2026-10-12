@@ -33,6 +33,21 @@ export const playedOnBy = (eventId: string) => ({
   OR: [{ events: { some: { eventId } } }, { defaultFor: { some: { id: eventId } } }],
 });
 
+/** The same question of several tournaments at once — a member's record across a season. */
+export const playedOnByAny = (eventIds: string[]) => ({
+  OR: [{ events: { some: { eventId: { in: eventIds } } } }, { defaultFor: { some: { id: { in: eventIds } } } }],
+});
+
+/*
+ * AND THEN TWENTY-SIX MORE (2026-10-10). The note above says nine reads were
+ * moved onto `playedOnBy`. Ten that scope a TEE and sixteen that scope a
+ * COURSE were still asking the join alone — the three saves that check a
+ * chosen tee among them, so on a tournament holding its course without a
+ * venue row the picker offered tees every save then refused. All of them go
+ * through here now, and `the-event-course-is-a-venue.audit.test.ts` sweeps the
+ * tree for the narrow phrase so the next one cannot be written.
+ */
+
 /** A course as the UI needs it — hole arrays already decoded. */
 export interface ClubCourse {
   id: string;

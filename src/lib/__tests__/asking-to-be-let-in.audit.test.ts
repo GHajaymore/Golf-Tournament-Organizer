@@ -282,7 +282,7 @@ describe("the club answering", () => {
     try {
       const res = await approveJoinRequest(ask.id, "admin");
       expect(res.ok, "a member of the club answered a request to join it").toBe(false);
-      expect(res.error).toMatch(/owner or admin/i);
+      expect(res.error).toMatch(/Commissioner or Admin/);
 
       const membership = await prisma.organizationMember.findUniqueOrThrow({
         where: { organizationId_userId: { organizationId: leagueId, userId: askerUserId } },

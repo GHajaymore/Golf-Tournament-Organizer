@@ -3,7 +3,7 @@ import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
 import { requireSession } from "@/lib/page-helpers";
 import { clubCommitmentsFor } from "@/lib/services/club-calendar";
-import { todayIso } from "@/lib/deadline";
+import { todayForEvent } from "@/lib/services/club-clock";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { ClubCalendar } from "@/components/ClubCalendar";
 
@@ -60,7 +60,7 @@ export default async function ClubCalendarPage() {
             Across every tournament at the club. Where a league still lets you choose your weeks, set
             whether you are in right here.
           </MoreInfo>
-          <ClubCalendar commitments={commitments} today={todayIso()} />
+          <ClubCalendar commitments={commitments} today={await todayForEvent(session.eventId)} />
         </>
       )}
     </>

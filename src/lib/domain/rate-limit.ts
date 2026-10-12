@@ -53,7 +53,8 @@ export type RateLimitKind =
   | "register-email"
   | "card-photo"
   | "join-request"
-  | "course-search";
+  | "course-search"
+  | "course-search-staff";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -132,6 +133,17 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * had nothing — and past it the search quietly falls back to the catalogue.
    */
   "course-search": { limit: 30, windowMs: 60 * MINUTE },
+  /**
+   * The same look-ups, by somebody running a tournament (2026-10-11).
+   *
+   * They had NO budget — "organizers search as before" — and being an
+   * organizer costs a sign-up: anybody can make a club and a tournament and is
+   * then its admin. So the exemption exempted everybody who wanted it, and one
+   * account could spend the whole app's day. Four times a player's: a
+   * secretary adding a season's away courses in one sitting does not come near
+   * it. Searching and importing both draw on it — see `directoryBudget`.
+   */
+  "course-search-staff": { limit: 120, windowMs: 60 * MINUTE },
 };
 
 /**
@@ -304,6 +316,7 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "card-photo":
       return "Too many card readings just now. Wait a few minutes, or type the scores in.";
     case "course-search":
+    case "course-search-staff":
       return `Too many course searches just now. Wait ${wait}, or pick from your own courses.`;
     case "register-email":
       return `Too many registration attempts. Wait ${wait} and try again.`;

@@ -215,3 +215,44 @@ export function describeSingleMatchRule(
   }
   return `${nameOf(rule.a)} against ${nameOf(rule.b)}`;
 }
+
+/**
+ * The two ids a kind of rule starts from in the picker: the stored rule's own
+ * when it is of that kind, and none otherwise.
+ *
+ * The picker kept "the current rule's ids" in one pair whatever the kind, so
+ * choosing "Winners of two rounds" while the stored rule named two players
+ * saved those PLAYERS as rounds. A player id is not a round id, and no amount
+ * of results will ever make "the winner of" one resolve.
+ */
+export function idsForKind(rule: SingleMatchRule | null, kind: "stage-winners" | "named"): [string, string] {
+  return rule && rule.kind === kind ? [String(rule.a), String(rule.b)] : ["", ""];
+}
+
+/**
+ * Why a rule cannot be stored on this round, or null when it can.
+ *
+ * `parseSingleMatchRule` says a rule is well-formed. This says its ids are
+ * ids OF the right things, in this tournament: the action is a public
+ * endpoint, and a pairing that names a round from another tournament, a
+ * player as a round, or the round itself waits for ever on something that
+ * will never happen — and shows "Waiting on the earlier rounds", which reads
+ * like an ordinary day.
+ */
+export function singleMatchRuleRefusal(
+  rule: SingleMatchRule,
+  here: { stageId: string; otherStageIds: readonly string[]; playerIds: readonly string[] },
+): string | null {
+  if (rule.kind === "seeds") return null;
+  if (rule.kind === "stage-winners") {
+    if (rule.a === here.stageId || rule.b === here.stageId) {
+      return "A round can't wait on its own winner — pick two other rounds.";
+    }
+    return here.otherStageIds.includes(rule.a) && here.otherStageIds.includes(rule.b)
+      ? null
+      : "Pick two rounds of this tournament to take the winners from.";
+  }
+  return here.playerIds.includes(rule.a) && here.playerIds.includes(rule.b)
+    ? null
+    : "Pick two players who are in this tournament's field.";
+}

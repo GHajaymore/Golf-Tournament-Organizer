@@ -317,7 +317,10 @@ export async function upsertMember(
       preferredTee: (input.preferredTee ?? "").trim(),
       handicap: mayRecordIndex && Number.isFinite(input.handicap) ? (input.handicap as number) : 0,
       handicapType: input.handicapType === "9" ? "9" : "18",
-      handicapSource: !mayRecordIndex
+      // No figure is no claim, whatever source came with it: a blank entered
+      // on Registration arrived here as "manual" and made the new member a
+      // scratch golfer by hand (2026-10-10).
+      handicapSource: !mayRecordIndex || !Number.isFinite(input.handicap)
         ? "none"
         : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
           ? input.handicapSource!

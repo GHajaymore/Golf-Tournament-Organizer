@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { accessibleEvents } from "./access";
 import { registrationStatus, entryDatesOf, ownWithdrawalOpen } from "../registration";
 import { todayIso } from "../deadline";
+import { clubDay } from "../domain/club-clock";
 import { resolveLocale } from "../domain/locale";
 import { roundDaysOf, roundSpanOf } from "../domain/round-span";
 import {
@@ -21,7 +22,7 @@ import { openCardOf, playOverOf, type OpenCard } from "../domain/tournament-swit
 import { isPlayingRound } from "../stage-types";
 import { golfRegister, golfTermsFor } from "../domain/golf-terms";
 import { fieldCapFor } from "./limits";
-import { capacityUnderCap } from "../plans";
+import { fieldLimitUnder } from "./waitlist";
 
 /**
  * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
@@ -201,7 +202,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     where: { id: { in: ids }, shape: { not: "match" }, expiresAt: null },
     include: {
       series: { select: { name: true } },
-      organization: { select: { locale: true, country: true, golfTerms: true } },
+      organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } },
       // The rounds' own days — see `roundDaysOf` below.
       stages: {
         select: { id: true, playedOn: true, type: true, closedAt: true, cutEnabled: true },
@@ -372,7 +373,10 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // The tournament's own way of writing a date, then the club's — the same
     // resolution every other date on these cards goes through.
     const locale = resolveLocale(event.organization, event);
-    const capacity = capacityUnderCap(event.capacity, caps.get(event.organizationId) ?? null);
+    const capacity = fieldLimitUnder(event, caps.get(event.organizationId) ?? null);
+    // Each tournament's own club's day — a member's list can span clubs in two
+    // zones, and a deadline is a day at the club that set it.
+    const clubNow = clubDay(event.organization?.timeZone);
     const status = registrationStatus({
       eventStatus: event.status,
       deadline: event.regDeadline,
@@ -380,6 +384,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
       capacity,
       confirmedCount: confirmedBy.get(event.id) ?? 0,
       override: event.registrationOverride,
+      now: clubNow,
       locale,
     });
 
@@ -395,7 +400,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
     // `waiting` was computed above and used only to decide `canEnter`; not
     // passing it here is what made a waiting-list place read as "Closed".
     const band = eventBand({ eventStatus: event.status, regState: status.state, canEnter, entered, waiting });
-    const today = todayIso();
+    const today = todayIso(clubNow);
     // The club's own word, once, for the status line and the Enter button both
     // — the status line said "organizer" to a Scottish club (walked 2026-09-28)
     // while the button beside it, fed from the field below, said "organiser".
@@ -480,6 +485,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
           capacity,
           confirmedCount: confirmedBy.get(event.id) ?? 0,
           override: event.registrationOverride,
+          now: clubNow,
         }),
       /**
        * Worth opening if there is something on it, or if the club has said it

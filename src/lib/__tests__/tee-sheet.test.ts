@@ -83,3 +83,33 @@ describe("your tee time", () => {
     expect(groupForPlayer(SHEET, "ghost")).toBeNull();
   });
 });
+
+/**
+ * A RE-DRAW STARTS FROM HOW THE SAVED SHEET WENT OFF (sweep 1, b17, 2026-10-10).
+ *
+ * A saved sheet stores whether the field went off one tee, a split, or a
+ * shotgun. Nothing read it back: pressing Re-draw on a shotgun sheet opened
+ * the builder on "One tee", and a secretary who only wanted to move two
+ * players had quietly changed how sixty people start.
+ */
+describe("the start style a re-draw begins from", () => {
+  it("is the saved sheet's own", async () => {
+    const { startStyleOf } = await import("@/lib/domain/tee-sheet");
+    expect(startStyleOf("shotgun")).toBe("shotgun");
+    expect(startStyleOf("split")).toBe("split");
+    expect(startStyleOf("tee")).toBe("tee");
+  });
+
+  it("is one tee when there is no sheet, or the stored word is not a start", async () => {
+    const { startStyleOf } = await import("@/lib/domain/tee-sheet");
+    expect(startStyleOf(undefined)).toBe("tee");
+    expect(startStyleOf("")).toBe("tee");
+    expect(startStyleOf("constructor")).toBe("tee");
+  });
+
+  it("the tee-sheet screen hands it to the builder, and the builder starts there", async () => {
+    const { readSource } = await import("@/lib/__tests__/source");
+    expect(readSource("src/app/(app)/foursomes/page.tsx")).toContain("savedStart={savedSheet?.startType}");
+    expect(readSource("src/components/FoursomeMaker.tsx")).toContain("useState<StartStyle>(startStyleOf(savedStart))");
+  });
+});

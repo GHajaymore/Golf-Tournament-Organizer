@@ -180,7 +180,7 @@ export function MoneySetup({
 
         {locked && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            Only an organization owner or admin can change this.
+            Only a Commissioner or Admin can change this.
           </p>
         )}
 

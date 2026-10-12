@@ -113,11 +113,14 @@ const VOID_CALLS: Record<string, string> = {
   setRegistrationApproval: "cannot refuse — writes and returns",
   setRequirePhone: "cannot refuse — writes and returns",
   approveSignup: "cannot refuse — writes and returns",
-  disputeMatch: "cannot refuse — writes and returns",
   reopenMatch: "cannot refuse — writes and returns",
   // The FORCED delete, from inside the confirmation it already asked for.
   removeStage: "the force path, behind the confirmation it already showed",
   setStageOptDeadline: "refuses only a malformed date the picker cannot produce",
+  // Offered once, silently, by a component that draws nothing. A refusal means
+  // the club already has a zone or this person may not set one — both are the
+  // state the screen is already in, and Club settings shows the zone itself.
+  adoptClubTimeZone: "a silent one-time offer; a refusal changes nothing the screen shows",
 };
 
 describe("an action whose answer is thrown away", () => {

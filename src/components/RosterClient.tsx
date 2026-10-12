@@ -116,7 +116,8 @@ const BLANK: MemberInput = {
   ghin: "",
   homeClub: "",
   memberNumber: "",
-  handicap: 0,
+  // An empty box, not 0: a blank handicap is "no index", and 0 is scratch.
+  handicap: Number.NaN,
   handicapType: "18",
   notes: "",
 };
@@ -224,7 +225,7 @@ export function RosterClient({
       ghin: m.ghin,
       homeClub: m.homeClub,
       memberNumber: m.memberNumber,
-      handicap: m.handicap,
+      handicap: hasIndex(m) ? m.handicap : Number.NaN,
       handicapType: m.handicapType,
       notes: m.notes,
     });
@@ -413,11 +414,23 @@ export function RosterClient({
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-danger)" }}>
             <Icon name="warning-circle" /> No indexes have been fetched yet
           </span>
-          <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>
-            This club plays off association indexes, and none have come through — so members below
-            show no index rather than a figure. Nobody plays off scratch by accident: finish the
-            handicap connection in settings, or switch the club to its own handicaps.
-          </p>
+          {/* Two clubs reach this, and the sentence written for one was shown
+              to both. A club on "Both" does not "play off association
+              indexes": the members with no association number have the
+              handicap entered here, and only the rest are waiting. */}
+          {handicapPolicy === "hybrid" ? (
+            <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>
+              The handicap connection isn&rsquo;t working, so members with an association number show no
+              index until it is. Members without one play off the handicap entered here. Finish the
+              connection in settings.
+            </p>
+          ) : (
+            <p style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.55 }}>
+              This club plays off association indexes, and none have come through — so members below
+              show no index rather than a figure. Nobody plays off scratch by accident: finish the
+              handicap connection in settings, or switch the club to its own handicaps.
+            </p>
+          )}
         </div>
       )}
 
@@ -483,7 +496,8 @@ export function RosterClient({
                 className="input"
                 type="number"
                 step="0.1"
-                value={form.handicap}
+                value={Number.isFinite(form.handicap) ? form.handicap : ""}
+                placeholder="No index yet"
                 disabled={pending}
                 onChange={(e) => set({ handicap: parseFloat(e.target.value) })}
               />

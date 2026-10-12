@@ -28,6 +28,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
 
 const url = process.env.DATABASE_URL || "";
 const host = url.replace(/^[a-z]+:\/\//, "").split("@").pop().split("/")[0].split(":")[0];
@@ -101,7 +102,7 @@ for (const [who, user, start] of [
 ]) {
   if (!user) continue;
   console.log(`  ${who}   ${user.name} <${user.email}>`);
-  console.log(`    document.cookie='ng_session=${sign(user.id)}; path=/'`);
+  console.log(`    document.cookie='ng_session=${sign(signedInNow(user.id))}; path=/'`);
   console.log(`    document.cookie='ng_active_event=${sign(landing.id)}; path=/'`);
   console.log(`    then reload and go to ${start}\n`);
 }

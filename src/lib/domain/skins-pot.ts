@@ -269,6 +269,24 @@ export function isSkinsScope(v: string): v is SkinsScope {
 }
 
 /**
+ * THE ONE POT A CASUAL ROUND HAS, as the key it is stored under.
+ *
+ * Both facts come from the ROUND AS STORED: its skins are net when the round
+ * is, and a nine-hole round's pot is over that nine. Setup writes the pot
+ * with this and the money screen reads it with this, because twice they
+ * worked the key out separately and twice they disagreed — a level match
+ * (gross pot, screen asked net) and a level Stableford (the round is stored
+ * net whatever was asked, the pot was written from what was asked). Each time
+ * the money screen showed no skins game while the pot held the stakes.
+ */
+export function roundPotKey(round: { scoringBasis: string; nine: string }): { net: boolean; scope: SkinsScope } {
+  return {
+    net: round.scoringBasis === "net",
+    scope: round.nine === "front" || round.nine === "back" ? round.nine : "full",
+  };
+}
+
+/**
  * THE POTS A GROUP ACTUALLY HAS, read off the stored rows (2026-10-09, T69).
  *
  * A pot is keyed on (round, net, scope, group), so asking for one fixed pair

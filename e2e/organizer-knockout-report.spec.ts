@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Browser, type TestInfo } from "@playwright/test";
+import { test, expect, type Page, type Browser, type TestInfo } from "./coverage";
 import { watchPageErrors } from "./page-errors";
 import { seedOrganizer, teardownOrganizer, medalEmail, memberSession } from "./organizer-fixture.mjs";
 

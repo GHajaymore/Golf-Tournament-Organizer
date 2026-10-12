@@ -109,7 +109,7 @@ export function effectiveStatus(
  * needs to mark a no-show on the morning is the person the freeze exists to
  * protect, not to obstruct.
  */
-export function playerMayChange(optDeadline: string, now: Date = new Date()): boolean {
+export function playerMayChange(optDeadline: string, now: Date): boolean {
   return !deadlinePassed(optDeadline, now);
 }
 

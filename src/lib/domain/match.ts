@@ -176,6 +176,45 @@ export function resolveMatch(holes: HoleResult[]): MatchResolution {
 }
 
 /**
+ * Why a winner-and-margin result cannot be recorded as typed, or null when it can.
+ *
+ * ONE RULE FOR EVERY DOOR. A result reaches `marginToHoles` from the player's
+ * screen, the console, a dictated line and an imported file, and each of those
+ * had its own copy of half of this — the shape of "N&M" — and none of the
+ * other half: is there a margin at all. So a named winner with an empty box
+ * was stored as a halved match (see `marginToHoles`), and "won on the 19th"
+ * was stored as 1 UP without a word.
+ *
+ * A match is won by a number of holes (Rule 3.2a(3)), and a club's result
+ * sheet says which. The app does not guess it.
+ *
+ * Halved carries no margin: whatever is left in the box is not read.
+ */
+export function marginRefusal(winner: "A" | "B" | "H", margin: string, totalHoles: number): string | null {
+  if (winner === "H") return null;
+  const typed = (margin ?? "").trim();
+  const raw = typed.toUpperCase();
+  if (raw === "") return 'Say by how much — "2&1", or "1 UP" if it went to the last hole.';
+  if (raw === "AS") return "All square means nobody won — choose Halved, or give the winner's margin.";
+
+  const amp = /^(\d+)\s*&\s*(\d+)$/.exec(raw);
+  if (amp) {
+    const lead = parseInt(amp[1], 10);
+    const toPlay = parseInt(amp[2], 10);
+    // "2&3" — up two with three to play — is not a closed-out match; nine
+    // times in ten it is "3&2" transposed, and stored as typed it is a card
+    // the standings read as still in progress, forever.
+    if (lead <= toPlay) {
+      return `"${typed}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`;
+    }
+    if (lead > totalHoles) return `"${typed}" can't happen over ${totalHoles} holes.`;
+    return null;
+  }
+  if (/^[1-9]\d*\s*UP$/.test(raw)) return null;
+  return `"${typed}" isn't a margin — write it like "2&1" or "1 UP".`;
+}
+
+/**
  * Convert a "match result" entry (winner + margin string) into an equivalent
  * `holes[]` array so it feeds the same standings math as hole-by-hole entry.
  *
@@ -191,7 +230,14 @@ export function marginToHoles(
   const holes: HoleResult[] = new Array(totalHoles).fill(null);
   const raw = margin.trim().toUpperCase();
 
-  if (winner === "H" || raw === "AS" || raw === "") {
+  // ONLY "HALVED" IS HALVED. This also returned every hole halved for a blank
+  // margin or "AS" whoever had been named the winner — so "I won" with the
+  // margin box left empty was stored as a halved match, through the player's
+  // screen, the console and an imported file alike. A named winner with no
+  // usable margin now falls to the minimal win below, as unreadable text
+  // always has; `marginRefusal` is what stops it being asked in the first
+  // place.
+  if (winner === "H") {
     // All square: every hole played and halved.
     return holes.map(() => "H");
   }

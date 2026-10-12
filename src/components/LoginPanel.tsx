@@ -4,6 +4,7 @@ import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from 
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 import { Icon } from "./Icon";
 
 /**
@@ -20,7 +21,7 @@ import { Icon } from "./Icon";
  * things people actually notice about a sign-in box.
  */
 type Mode = "login" | "signup";
-type Extra = null | "claim" | "forgot" | "forgot-sent";
+type Extra = null | "claim" | "forgot" | "forgot-sent" | "forgot-unsent";
 
 /**
  * The sign-up question, in an organizer's own words.
@@ -155,7 +156,10 @@ export function LoginPanel({
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      setExtra("forgot-sent");
+      // `sent: false` is a fact about this installation (no mail provider),
+      // the same for every address — so the screen can say so honestly without
+      // saying anything about whether the address has an account.
+      setExtra(result.sent === false ? "forgot-unsent" : "forgot-sent");
     });
   };
 
@@ -241,6 +245,30 @@ export function LoginPanel({
           sub={
             <>
               If <b>{email}</b> has an account, a reset link is on its way. It expires in 15 minutes.
+              Nothing after a few minutes? Check your spam folder, or write to{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+            </>
+          }
+        />
+        <BackLink onClick={() => { setExtra(null); setError(""); }} label="Back to log in" />
+      </>,
+    );
+  }
+
+  /**
+   * The honest version (2026-10-11): this site cannot send mail, so no link
+   * was sent, and here is who to write to. It used to show "Check your email"
+   * whatever had happened, to somebody who would then wait for nothing.
+   */
+  if (extra === "forgot-unsent") {
+    return shell(
+      <>
+        <Title
+          title="We can’t email a reset link"
+          sub={
+            <>
+              This site isn&rsquo;t set up to send email yet, so no reset link was sent. Write to{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&rsquo;ll get you back in.
             </>
           }
         />
@@ -256,8 +284,9 @@ export function LoginPanel({
         style={{ display: "contents" }}
       >
         <Title title="Reset your password" sub="We'll email a link to set a new password." />
-        <Field label="Email">
+        <Field label="Email" boxId="forgot-email">
           <input
+            id="forgot-email"
             className="input"
             type="email"
             name="email"
@@ -299,8 +328,10 @@ export function LoginPanel({
         <input type="hidden" name="email" value={email} autoComplete="username" readOnly />
         {/* Claiming a provisioned account creates a password too, so it states
             the same rule live rather than only in a vanishing placeholder. */}
-        <Field label="Create password" hint={passwordHint(password, { email })}>
+        <Field label="Create password" boxId="claim-password" hint={passwordHint(password, { email })}>
           <PasswordInput
+            id="claim-password"
+            describedBy="claim-password-hint"
             value={password}
             onChange={setPassword}
             autoComplete="new-password"
@@ -329,9 +360,13 @@ export function LoginPanel({
     <>
       {/* A sliding pill rather than two bordered halves — the segmented
           control every current interface uses for exactly this choice. */}
+      {/* `keep-grid`: phones stack inline grids inside <main> (globals.css), and
+          this control is two halves of one choice — stacked, it read as two
+          separate buttons, one of them unexplained. */}
       <div
         role="tablist"
         aria-label="Log in or sign up"
+        className="keep-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -397,8 +432,9 @@ export function LoginPanel({
         style={{ display: "flex", flexDirection: "column", gap: 14 }}
       >
         {!login && (
-          <Field label="Your name">
+          <Field label="Your name" boxId="login-name">
             <input
+              id="login-name"
               className="input"
               name="name"
               autoComplete="name"
@@ -410,8 +446,9 @@ export function LoginPanel({
           </Field>
         )}
 
-        <Field label="Email">
+        <Field label="Email" boxId="login-email">
           <input
+            id="login-email"
             className="input"
             type="email"
             name="email"
@@ -425,6 +462,7 @@ export function LoginPanel({
 
         <Field
           label="Password"
+          boxId="login-password"
           /**
            * Why the button is dead, said where the button cannot say it.
            *
@@ -466,6 +504,8 @@ export function LoginPanel({
           }
         >
           <PasswordInput
+            id="login-password"
+            describedBy={login ? undefined : "login-password-hint"}
             value={password}
             onChange={setPassword}
             autoComplete={login ? "current-password" : "new-password"}
@@ -588,19 +628,32 @@ export function LoginPanel({
   );
 }
 
+/**
+ * One field: its label, an optional action beside the label, the box, a hint.
+ *
+ * NOT ONE BIG `<label>` (2026-10-11). It was, and "Forgot?" sat inside it
+ * ahead of the box. A label belongs to the first control inside it — so
+ * "Password" was the label of the Forgot button: tapping the word opened
+ * "Reset your password", the password box had no label, and the button had no
+ * name a screen reader could find. The label is its own element now, FOR the
+ * box by id, and whatever sits beside it is beside it.
+ */
 function Field({
   label,
+  boxId,
   hint,
   action,
   children,
 }: {
   label: string;
+  /** The id of the box this field's label is for. */
+  boxId: string;
   hint?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <label className="field" style={{ display: "block" }}>
+    <div className="field" style={{ display: "block" }}>
       <span
         style={{
           display: "flex",
@@ -613,16 +666,18 @@ function Field({
           color: "var(--color-text-muted)",
         }}
       >
-        {label}
+        <label htmlFor={boxId} style={{ font: "inherit", color: "inherit", letterSpacing: "inherit" }}>
+          {label}
+        </label>
         {action}
       </span>
       {children}
       {hint && (
-        <span className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 5 }}>
+        <span id={`${boxId}-hint`} className="text-muted" style={{ display: "block", fontSize: 13, marginTop: 5 }}>
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -634,12 +689,16 @@ function Field({
  * the standard fix everywhere except here.
  */
 function PasswordInput({
+  id,
+  describedBy,
   value,
   onChange,
   autoComplete,
   placeholder,
   autoFocus,
 }: {
+  id: string;
+  describedBy?: string;
   value: string;
   onChange: (v: string) => void;
   autoComplete: string;
@@ -650,6 +709,8 @@ function PasswordInput({
   return (
     <span style={{ position: "relative", display: "block" }}>
       <input
+        id={id}
+        aria-describedby={describedBy}
         className="input"
         type={shown ? "text" : "password"}
         name="password"

@@ -72,7 +72,7 @@ describe("buying a plan from the plan panel", () => {
 
   it("someone who can't change club settings is told so, not shown buttons", () => {
     const body = panel("free", { enabled: true, hasSubscription: false, pastDue: false, canEdit: false });
-    expect(body).toContain("Only a club owner or admin can change the plan.");
+    expect(body).toContain("Only a Commissioner or Admin can change the plan.");
     expect(body).not.toMatch(BUY);
   });
 });

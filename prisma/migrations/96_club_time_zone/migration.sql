@@ -1,0 +1,13 @@
+-- A club says where it is (2026-10-11).
+--
+-- Every deadline is a day, and the day was the server's: UTC in production. So
+-- a club on the east coast of the United States had its entries close at 8pm
+-- on the closing day, and a club in Sydney saw Saturday's round as "tomorrow"
+-- until late Saturday morning. The day is asked of the club's own clock now.
+--
+-- An IANA zone name, or '' for a club that has not said — which keeps the
+-- server's day, so no existing club's deadlines move when this ships.
+--
+-- Adds a column with a constant default and writes no row, so it is safe on a
+-- populated table and on an empty one.
+ALTER TABLE "Organization" ADD COLUMN "timeZone" TEXT NOT NULL DEFAULT '';

@@ -73,7 +73,7 @@ export function PlayerSignOut({ name }: { name: string }) {
                   link in the text, not a third button — three did not fit the
                   dialog on a phone, and the first was clipped at its edge. */}
               <span style={{ display: "block", marginTop: 8 }}>
-                <a href="/account">Your account</a> &mdash; your details, or deleting it.
+                <a href="/account">Your account</a> &mdash; sign out everywhere, or delete it.
               </span>
             </div>
             <div className="dialog-actions">

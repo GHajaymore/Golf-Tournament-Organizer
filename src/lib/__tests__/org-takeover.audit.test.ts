@@ -155,7 +155,7 @@ describe("the guest organizer's two calls", () => {
   it("cannot make themselves an owner of the club", async () => {
     const res = await addOrganizationMember(at("guest"), "Guest", "owner");
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/owner or admin/i);
+    expect(res.error).toMatch(/Commissioner or Admin/);
     expect(
       await prisma.organizationMember.count({ where: { organizationId: clubId } }),
       "the club's staff list must be untouched",
@@ -189,7 +189,7 @@ describe("the guest organizer's two calls", () => {
     // organization.ts would have left the club's scoring defaults reachable.
     const res = await saveOrganizationDefaults({ scoreEntryBy: "players" });
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/owner or admin/i);
+    expect(res.error).toMatch(/Commissioner or Admin/);
   });
 });
 

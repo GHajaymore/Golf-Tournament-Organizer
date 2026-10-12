@@ -11,7 +11,6 @@ import { PushToggle } from "@/components/PushToggle";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
-import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
 import { teamStandings } from "@/lib/services/teams";
 import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
@@ -308,7 +307,9 @@ export default async function PlayTodayPage() {
    *                   next seven days — Today is one tournament, and "what
    *                   have I got on" is not.
    */
-  const today = todayIso();
+  // The club's day: on the server's (UTC) an evening round in New York was
+  // already "yesterday" with the last groups still out.
+  const today = state.today;
   const { locale } = await formattingForEvent(state.event.id);
   const thisWeek = weekAhead(await clubCommitmentsFor(session.email), today, session.eventId);
   /**

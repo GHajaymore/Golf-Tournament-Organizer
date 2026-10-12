@@ -168,11 +168,17 @@ export async function saveSideGame(
    * because "inventing an individual score would pay a skin to a player who
    * never hit the shot". The stake would be taken and could never be settled.
    *
-   * A Nassau is decided between SIDES and would survive the question, but it
-   * is refused with the rest rather than carved out: a side-by-side bet on a
-   * foursomes is a match, which this app already scores as one.
+   * NOT THE TWO BETS BETWEEN SIDES. A Nassau and "the match" read who won the
+   * hole, never anybody's own score, so the question does not arise for them
+   * — and they were refused with the rest anyway, on the ground that a
+   * side-by-side bet on a foursomes "is a match, which this app already scores
+   * as one". It is; and playing that match for a tenner is how a foursomes is
+   * played for money, which is why the casual-round form offers both on one
+   * and setup writes them. The money screen then showed a stake box for a
+   * bet that existed, and changing it was refused for want of "individual
+   * scores" (sweep 1, a3, 2026-10-10).
    */
-  const refusal = perPlayerPotRefusal(stage.format);
+  const refusal = MATCH_BETS.has(kind) ? null : perPlayerPotRefusal(stage.format);
   if (refusal) return { ok: false, error: refusal };
 
   const cents = Math.round(Number(buyInCents));

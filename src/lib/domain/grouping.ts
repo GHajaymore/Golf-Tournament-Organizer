@@ -145,6 +145,23 @@ function strengthOf(p: Player, hMin: number, hMax: number, sMin: number, sMax: n
   return 0.6 * hs + 0.4 * ss;
 }
 
+/** Every way a field can be divided into flights. The save accepts these and no others. */
+export const FORMATION_RULES: FormationRule[] = ["balanced", "handicap", "divisions", "seeding", "random", "manual"];
+
+/**
+ * Whether a rule draws the flights off HANDICAPS.
+ *
+ * The question the unrated-tees warning has to ask: a draw on handicaps is a
+ * draw on Course Handicaps, so tees without a rating make it quietly uneven.
+ * That warning named one rule — "handicap" — when three read them, so a club
+ * putting its medal into divisions off unrated tees was told nothing. Pinned
+ * to what `formGroups` does in
+ * `the-draw-warning-knows-every-handicap-draw.test.ts`.
+ */
+export function formationReadsHandicap(rule: string): boolean {
+  return rule === "handicap" || rule === "divisions" || rule === "balanced";
+}
+
 /**
  * Form flights from players by the chosen rule.
  *  - divisions: sort by handicap, cut into bands (Division A = lowest handicaps).

@@ -213,6 +213,17 @@ const BASIS_CHOICES = BASIS_OPTIONS.filter((o) => !o.legacy);
  */
 const SetupLocked = React.createContext(false);
 
+/**
+ * WHAT DAY IT IS, FROM THE SERVER — provided to every card the way the lock is.
+ *
+ * A round's scoring window is "open" or "closed" by the day, and this screen
+ * is rendered on the server and again in the browser. Each asked its own
+ * clock, so for the hours a club's evening is already tomorrow on the server
+ * the two drew different words for one round — a hydration mismatch on this
+ * screen (2026-10-11, `no-client-screen-draws-from-its-own-clock.test.ts`).
+ */
+const ServerToday = React.createContext("");
+
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
@@ -679,6 +690,7 @@ function StageCard({
   // Gates only the controls whose action refuses a locked tournament — see
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
+  const today = React.useContext(ServerToday);
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [scoreInput, setScoreInput] = useState(stage.scoreInput);
@@ -693,6 +705,9 @@ function StageCard({
   const [nine, setNine] = useState(
     stage.nine === "back" || stage.nine === "full" ? stage.nine : "front",
   );
+  // Whether "which nine" may be left to each match — only in match play,
+  // where score entry asks every match for its own. See the picker below.
+  const nineMayStayOpen = GOLF_FORMATS.find((f) => f.name === format)?.family === "match";
   // Carry-forward is the one setting an organizer can't afford to miss, and it
   // lives inside this panel — which is exactly the "unchecked box halfway down
   // a collapsed panel" the prompt exists to fix. Asking the question is no use
@@ -784,7 +799,9 @@ function StageCard({
     // what they MEAN changes.
     startTransition(async () => {
       const res = await setStageFormat(stage.id, v);
-      if (res?.needsConfirm) setFormatCards({ format: v, cards: res.cards ?? 0 });
+      if (res && "needsConfirm" in res) setFormatCards({ format: v, cards: res.cards ?? 0 });
+      // Refused outright: the picker goes back to what the round is.
+      else if (res && !res.ok) setFormat(stage.format);
     });
   };
   const confirmFormat = () => {
@@ -1390,20 +1407,26 @@ function StageCard({
             <select
               id={`nine-${stage.id}`}
               className="input"
-              value={nine}
+              /* A round scored from cards is scored as the FRONT nine when
+                 nothing says otherwise (`applyNine`), so that is what this
+                 shows for it — the screen states what the scorer does. */
+              value={nineMayStayOpen || nine !== "full" ? nine : "front"}
               disabled={pending || !canSetVenue}
               onChange={(e) => commitVenue(courseId, e.target.value)}
             >
               <option value="front">Front nine</option>
               <option value="back">Back nine</option>
-              {/* Front and back was a forced choice, and plenty of rounds
-                  genuinely have no answer: a shotgun start puts groups on
-                  both nines at once, and a round rotating venues has a
-                  different front nine on each. "full" already means "use the
-                  whole card" everywhere downstream, so this needs no new
-                  state — it just stops the screen insisting on a fact the
-                  organizer may not have. */}
-              <option value="full">Not fixed — shotgun or mixed</option>
+              {/* Front and back was a forced choice, and some rounds
+                  genuinely have no one answer: matches going out on both
+                  nines at once.
+
+                  OFFERED ONLY WHERE SOMETHING ELSE SAYS WHICH (2026-10-10).
+                  In match play each match states its own nine at score
+                  entry, so the round can leave it open. A round scored from
+                  cards has nowhere else to say it — every card was scored
+                  off the front nine's pars and stroke index under a label
+                  reading "Not fixed". */}
+              {nineMayStayOpen && <option value="full">Not fixed — each match says which</option>}
             </select>
           </div>
         )}
@@ -1843,6 +1866,7 @@ function StageCard({
                   stageId={stage.id}
                   roundLabel={roundLabelOf(allStages, stage.id)}
                   deadline={deadline}
+                  today={today}
                   override={stage.deadlineOverride}
                   // Open while live: closing or reopening scoring is a
                   // decision made on the day (2026-09-27).
@@ -2024,8 +2048,11 @@ export function StagesClient({
   thirdPlaces,
   canSetVenue = true,
   locked = false,
+  today,
 }: {
   stages: StageView[];
+  /** Today, yyyy-mm-dd, from the server — see `ServerToday`. */
+  today: string;
   /** Organizer only — see `StageCard`'s prop of the same name. */
   canSetVenue?: boolean;
   /** Setup is locked — provided to every card through `SetupLocked`. */
@@ -2171,6 +2198,7 @@ export function StagesClient({
   );
 
   return (
+    <ServerToday.Provider value={today}>
     <SetupLocked.Provider value={locked}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Net scoring without a Course Rating and Slope is an approximation,
@@ -2605,5 +2633,6 @@ export function StagesClient({
       )}
     </div>
     </SetupLocked.Provider>
+    </ServerToday.Provider>
   );
 }

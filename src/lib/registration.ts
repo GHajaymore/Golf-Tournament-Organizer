@@ -94,8 +94,17 @@ export interface RegistrationInput {
    * null means "follow the deadline".
    */
   override: boolean | null;
-  /** Injected so this is testable and so "today" is the caller's business. */
-  now?: Date;
+  /**
+   * A moment in TODAY AT THE CLUB — `clubDay(zone)` on the server, or
+   * `dayAsDate(today)` in a screen the server told what day it is.
+   *
+   * REQUIRED, for the reason `eventStatus` and `opens` are. It was optional
+   * and fell back to the clock of whatever was running this — the server, on
+   * UTC — so a club in New York whose entries "close on the 12th" stopped
+   * taking them at 8pm on the 12th, and one in Sydney kept taking them until
+   * eleven the next morning. Only the day is read from it, never the time.
+   */
+  now: Date;
   /**
    * How this tournament writes a date — `formattingFor(club, event).locale`.
    * Omitted, the sentences below fell back to US English, so a Scottish club
@@ -125,7 +134,7 @@ export function entryDatesOf(opens: string, closes: string, eventStatus: string,
 }
 
 export function registrationStatus(input: RegistrationInput): RegistrationStatus {
-  const { eventStatus, deadline, opens, capacity, confirmedCount, override, now = new Date(), locale } = input;
+  const { eventStatus, deadline, opens, capacity, confirmedCount, override, now, locale } = input;
   const unlimited = capacity <= 0;
   const full = !unlimited && confirmedCount >= capacity;
   // The deadline half of the question is the shared rule; capacity is layered

@@ -22,6 +22,8 @@
  */
 
 import { parseCsv, splitCsvLine } from "../csv";
+import { marginRefusal } from "./match";
+import { lookupFormat } from "../formats";
 
 /**
  * Commas, whatever the file arrived with.
@@ -172,11 +174,36 @@ export const IMPORT_SHAPES: ImportShapeInfo[] = [
   },
 ];
 
-/** Which shapes a round's format can actually accept. Mirrors entryModesFor. */
+/**
+ * Which shapes a round's format can actually USE — read off what the format
+ * declares it is scored from, not off its name.
+ *
+ * This was `format === "Match Play" ? all four : the two stroke shapes`, and
+ * three things were wrong with it:
+ *
+ *   - a NASSAU is match play under another name. It was never offered
+ *     who-won-each-hole, its natural input, and was offered cards as though
+ *     it were a medal;
+ *   - a bare RESULT is offered only where the format can be scored from one.
+ *     "3&2" says nothing about who took the front nine, so a Nassau does not
+ *     declare it and is not offered it;
+ *   - NET cards are not offered to a match round. A net file is converted
+ *     back to gross once per round, and a match can be played off its own
+ *     tees — converting off the round and scoring off the match would store a
+ *     card nobody played.
+ *
+ * Gross cards ARE offered to a match round, and count: `importScores` files
+ * them on the fixture and derives the match, exactly as a typed card does.
+ */
 export function importShapesFor(format: string): ScoreImportShape[] {
-  return format === "Match Play"
-    ? ["hole-results", "match-results", "strokes", "net-strokes"]
-    : ["strokes", "net-strokes"];
+  const declared = lookupFormat(format);
+  if (declared?.family !== "match") return ["strokes", "net-strokes"];
+  const inputs = declared.inputs ?? [];
+  return [
+    ...(inputs.includes("hole-results") ? (["hole-results"] as const) : []),
+    ...(inputs.includes("match-result") ? (["match-results"] as const) : []),
+    "strokes",
+  ];
 }
 
 /** Whether a shape's numbers are net of handicap and need converting back. */
@@ -453,29 +480,15 @@ export function parseScoreCsv(
       });
       return;
     }
-    // A margin has to describe a result that can happen. "2&3" — up by two
-    // with three to play — is not a closed-out match; nine times in ten it is
-    // "3&2" transposed, and importing it as typed writes a match the standings
-    // read as still in progress, forever. Reported, never guessed at.
+    // A winner needs a margin, and one a match can finish on — the one rule
+    // every door asks (`marginRefusal`). "2&3" is "3&2" transposed nine times
+    // in ten; a winner with an empty Margin cell was imported as a halved
+    // match. Reported, never guessed at.
     const margin = (row[3] ?? "").trim();
-    const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.toUpperCase());
-    if (amp) {
-      const lead = parseInt(amp[1], 10);
-      const toPlay = parseInt(amp[2], 10);
-      if (lead <= toPlay) {
-        out.problems.push({
-          row: line,
-          message: `"${margin}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`,
-        });
-        return;
-      }
-      if (lead > holes) {
-        out.problems.push({
-          row: line,
-          message: `"${margin}" can't happen over ${holes} holes.`,
-        });
-        return;
-      }
+    const refusal = marginRefusal(w, margin, holes);
+    if (refusal) {
+      out.problems.push({ row: line, message: refusal });
+      return;
     }
     out.matchRows.push({
       aId: ra.player.id,

@@ -135,7 +135,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   {
     key: "club-championship",
     name: "Stroke Play",
-    blurb: "Everyone plays their own ball against the course. Committee-scored and blind — standings stay hidden until you publish, and every card is signed off.",
+    blurb: "Everyone plays their own ball against the course. Committee-scored and blind — standings stay hidden from players until you open them under Who can see the leaderboard, and every card is signed off.",
     settings: {
       // Blind: the field doesn't watch itself. Cards come to the committee,
       // who enter and approve them — the three go together in practice.

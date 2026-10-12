@@ -38,6 +38,13 @@ model User {
   name      String   @default("")
   password  String   @default("")
   createdAt DateTime @default(now())
+  /**
+   * No sign-in issued before this moment is good any more. A password reset
+   * moves it to now, which ends every earlier session on every device — the
+   * cookie carries when it was issued (lib/domain/session-token.ts). Null for
+   * somebody who has never reset: nothing of theirs has been ended.
+   */
+  sessionsValidFrom DateTime?
 
   resetTokens PasswordResetToken[]
   memberships OrganizationMember[]
@@ -264,6 +271,11 @@ model Organization {
   defaultVoiceEntry            Boolean @default(true)
   defaultPlayerAccess          String  @default("email")
   defaultScoreApproval         String  @default("staff")
+  // Shown on the House defaults form from the day it was built and stored
+  // nowhere until 2026-10-10: the save said "Saved" and wrote neither. Every
+  // setting that form shows has a column here — see HOUSE_DEFAULT_COLUMNS.
+  defaultAttendanceMode        String  @default("everyone")
+  defaultAttestBy              String  @default("marker")
 
   /**
    * Where this club's handicaps come from — "club" or "ghin".
@@ -369,6 +381,22 @@ model Organization {
    * en-US so nothing that exists today renders differently tomorrow.
    */
   locale         String @default("en-US")
+
+  /**
+   * WHERE THE CLUB IS, as an IANA time zone ("America/New_York"), or "".
+   *
+   * Every deadline in the app is a day, and the day used to be the SERVER's —
+   * UTC in production — so an east-coast club's entries "closing on the 12th"
+   * closed at 8pm on the 12th, and a Sydney club's Saturday round was
+   * "tomorrow" until late Saturday morning. `domain/club-clock.ts` asks this
+   * zone what day it is instead.
+   *
+   * "" is every club made before the setting, and keeps the server's day so
+   * nothing that exists moves. A new club is given its founder's own zone, and
+   * Club settings changes it. Validated with `isTimeZone` on the way in: an
+   * unknown zone makes `Intl` throw.
+   */
+  timeZone       String @default("")
 
   members      OrganizationMember[]
   joinRequests JoinRequest[]
@@ -729,6 +757,15 @@ model OrganizationMember {
    */
   role           String   @default("member")
   createdAt      DateTime @default(now())
+  /**
+   * Set when somebody ELSE adds this person as staff; cleared the first time the
+   * person signs in, or opens one of the club's tournaments, afterwards. While it
+   * is set the staff list shows the address the inviter typed and "Invited — not
+   * opened yet" — never the account's own name or whether it has a password,
+   * which the inviter has no business learning from an address alone. NULL is
+   * every other membership: nothing to hide.
+   */
+  invitedUnseenAt DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -973,7 +1010,7 @@ model Event {
   manualPlayerCount Int     @default(32)
 
   // Flight formation + qualification config
-  formationRule    String  @default("balanced") // balanced | handicap | seeding | random | manual
+  formationRule    String  @default("balanced") // balanced | handicap | divisions | seeding | random | manual — FORMATION_RULES, lib/domain/grouping.ts
   flightMode       String  @default("auto") // auto | count | perFlight
   flightValue      Int     @default(0)
   /**
@@ -1249,7 +1286,7 @@ model Event {
    * player is in every round), opt-out (regulars are in unless they say
    * otherwise), opt-in (only those who put their name down).
    */
-  attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in
+  attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in | captains — ATTENDANCE_MODES, lib/domain/attendance.ts
   /**
    * own | one — which tees this competition is played from.
    * "own" honours a player's stored tee and falls back to the round's, which
@@ -1259,7 +1296,7 @@ model Event {
    * Mixed tees need no adjustment beyond the Course Handicap formula: the
    * (CR - par) term already gives the longer tee its strokes.
    */
-  teePolicy             String  @default("own") // one | own | player
+  teePolicy             String  @default("own") // one | flight | own | player — TEE_POLICY, lib/tournament-settings.ts
   /**
    * The tees this tournament is played from.
    * Null falls back to the club's first tee by position, which is what every
@@ -1373,7 +1410,7 @@ model Account {
   eventId String
   name    String
   email   String
-  role    String @default("player") // admin | player
+  role    String @default("player") // admin | assistant | player — ROLES, lib/roles.ts
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -1629,7 +1666,7 @@ model Stage {
    * src/lib/deadline.ts — because they are the same question asked twice.
    */
   deadlineOverride    Boolean?
-  scoringBasis        String   @default("gross") // gross | net | both
+  scoringBasis        String   @default("gross") // gross | net | both | stableford — FOUR values: test for gross, never for "net or both"
   /**
    * How a Single Match Stage picks its two players, as JSON — see
    * lib/domain/single-match.ts. The RULE, not the pair: a pairing written
@@ -2686,7 +2723,7 @@ model Contest {
   stageId String @default("")
 
   /**
-   * closest-pin | long-drive | other
+   * closest-pin | long-drive | off-course | other — CONTEST_KINDS, lib/domain/contests.ts
    */
   kind String @default("other")
   /**
@@ -2775,7 +2812,9 @@ model SideGame {
   stageId String
 
   /**
-   * low-gross | low-net | birdies | eagles | nassau
+   * low-gross | low-net | birdies | eagles | twos | nassau | match — the two
+   * last are bets on the match, settled between its sides, not pots
+   * (KINDS and MATCH_BETS, app/actions/side-games.ts)
    */
   kind String
 

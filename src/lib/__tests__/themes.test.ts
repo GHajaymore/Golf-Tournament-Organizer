@@ -1041,3 +1041,30 @@ describe("what the picker offers, the app can keep and draw", () => {
     expect(themeFor("chartreuse").key).toBe(DEFAULT_THEME);
   });
 });
+
+/**
+ * "BACK TO DEFAULT" PUTS A CLUB BACK WHERE A NEW CLUB STARTS (sweep 1, d12,
+ * 2026-10-10).
+ *
+ * The button restored the colours a new club has and set the appearance to
+ * Dark. A new club is not on Dark: its column defaults to "Follow the
+ * device", which is light on a phone carried into daylight. So the one
+ * control named after the default gave a club a look no new club has.
+ *
+ * Pinned to the schema, which is where a new club actually gets it from.
+ */
+describe("what 'Back to default' restores", () => {
+  it("is the appearance a new club is created with", async () => {
+    const { NEW_CLUB_APPEARANCE } = await import("../themes");
+    const { readFileSync } = await import("node:fs");
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+    const column = schema.split("\n").find((line) => line.trim().startsWith("themeAppearance "));
+    expect(column, "the club's appearance column was not found in the schema").toBeDefined();
+    expect(column).toContain(`@default("${NEW_CLUB_APPEARANCE}")`);
+  });
+
+  it("and the picker's button uses it", () => {
+    const src = readSource("src/components/ThemePicker.tsx");
+    expect(src).toContain("setDraft({ ...DEFAULT_CLUB_THEME, appearance: NEW_CLUB_APPEARANCE })");
+  });
+});

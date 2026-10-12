@@ -7,6 +7,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { roundLabel } from "@/lib/domain/round-label";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { hasPins, readPinSheet } from "@/lib/domain/pin-sheet";
+import { firstHoleForRound } from "@/lib/domain/hole-number";
 import { hoursAndMinutes } from "@/lib/domain/pace";
 
 /**
@@ -48,10 +49,11 @@ export async function setPinSheet(stageId: string, raw: unknown): Promise<RoundD
   const eventId = await requireStaffEvent();
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
-    select: { id: true, holes: true },
+    select: { id: true, holes: true, nine: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
-  const { sheet, error } = readPinSheet(raw, holesPlayed(stage.holes));
+  // Numbered as the form numbers it: a back nine's second row is the 11th.
+  const { sheet, error } = readPinSheet(raw, holesPlayed(stage.holes), firstHoleForRound(stage));
   if (error) return { ok: false, error };
   const stored = hasPins(sheet) ? JSON.stringify(sheet) : "";
   await prisma.stage.update({ where: { id: stage.id }, data: { pinSheet: stored } });

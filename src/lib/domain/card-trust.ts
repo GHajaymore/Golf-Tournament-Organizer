@@ -64,7 +64,7 @@ export function needsStrokeIndex(strokeIndex: readonly number[] | null | undefin
 }
 
 export interface CardTrust {
-  /** "manual" (typed by the club) or "imported". */
+  /** "manual" (typed on Courses), "entered-at-scoring" (typed by a scorer naming a venue) or "imported". */
   source: string;
   /** When somebody at the club confirmed the card, or null. */
   verifiedAt: Date | string | null;
@@ -129,7 +129,10 @@ export function cardTrustNote(
 
   const verified = asDate(card.verifiedAt);
   if (!verified) {
-    const where = card.source === "manual" ? "typed in" : "imported";
+    // "imported" is the one origin that is not somebody typing: a card keyed
+    // in at score entry ("entered-at-scoring") was described as imported, and
+    // sent a committee looking for a source it never had.
+    const where = card.source === "imported" ? "imported" : "typed in";
     return {
       level: "unchecked",
       warn: true,

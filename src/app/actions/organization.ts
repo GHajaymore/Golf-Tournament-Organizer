@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
+import { clubClockInWords, isTimeZone } from "@/lib/domain/club-clock";
 import { isCommunityVoice, isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { isGolfRegister } from "@/lib/domain/golf-terms";
 import { clubExistsQuestion } from "@/lib/domain/org-name-match";
@@ -77,7 +78,7 @@ async function hasOtherOwner(organizationId: string, memberId: string): Promise<
 export async function addOrganizationMember(email: string, name: string, roleInput: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   /**
    * ONLY A SEAT-CONSUMING ROLE IS CHECKED AGAINST THE SEAT LIMIT.
@@ -97,11 +98,29 @@ export async function addOrganizationMember(email: string, name: string, roleInp
     if (refusal) return { ok: false, error: refusal };
   }
 
-  const user = await prisma.user.upsert({
-    where: { email: cleanEmail },
-    update: name.trim() ? { name: name.trim() } : {},
-    create: { email: cleanEmail, name: name.trim() },
-  });
+  /**
+   * A NAME TYPED HERE NAMES SOMEBODY NEW. IT DOES NOT RENAME ANYBODY
+   * (2026-10-11).
+   *
+   * This upserted `{ name }` onto the account whenever a name was typed — so
+   * inviting an address that already had an account renamed that person to
+   * whatever the inviter wrote, in every club and tournament they belong to.
+   * Anybody who runs a club could do it to anybody whose address they knew
+   * (found by the every-action sweep: a stranger's invitation changed the
+   * seeded club's member).
+   *
+   * An account's name is its owner's. The typed name is used when the account
+   * is being made, or has no name on it yet — somebody entered by email alone
+   * — and never to replace one.
+   */
+  const typedName = name.trim();
+  const known = await prisma.user.findUnique({ where: { email: cleanEmail }, select: { id: true, name: true } });
+  const user = known
+    ? await prisma.user.update({
+        where: { id: known.id },
+        data: known.name.trim() || !typedName ? {} : { name: typedName },
+      })
+    : await prisma.user.create({ data: { email: cleanEmail, name: typedName } });
 
   /**
    * Whether this is a NEW membership, checked before the upsert writes one.
@@ -116,10 +135,30 @@ export async function addOrganizationMember(email: string, name: string, roleInp
     select: { id: true },
   });
 
+  /**
+   * ADDED, NOT ASKED — AND NOT YET SEEN (Ajay, 2026-10-11).
+   *
+   * There is no acceptance step: the person is staff from this moment, exactly
+   * as a member entered by the secretary is in the field at once. What the
+   * inviter must not get in exchange for an address is the ACCOUNT behind it —
+   * its name, and whether it has ever signed in. So a membership made by
+   * somebody else is marked unseen, and the staff list shows the typed address
+   * and "Invited — not opened yet" until the person next signs in or opens one
+   * of the club's tournaments (`markStaffSeen`).
+   *
+   * Only on CREATE: changing a role must not hide a colleague again. And not
+   * when somebody adds themselves, which is nobody else learning anything.
+   */
+  const adder = await getSession();
   await prisma.organizationMember.upsert({
     where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
     update: { role: role },
-    create: { organizationId: org.organizationId, userId: user.id, role: role },
+    create: {
+      organizationId: org.organizationId,
+      userId: user.id,
+      role: role,
+      invitedUnseenAt: adder?.userId === user.id ? null : new Date(),
+    },
   });
 
   if (!existingMembership) {
@@ -157,7 +196,7 @@ export async function addOrganizationMember(email: string, name: string, roleInp
 export async function setOrganizationMemberRole(memberId: string, role: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   const member = await prisma.organizationMember.findFirst({
     where: { id: memberId, organizationId: org.organizationId },
@@ -169,7 +208,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
   // would otherwise be stored as a role nothing in the app understands.
   const next = cleanOrgRole(role);
   if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only owner — make someone else an owner first." };
+    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner first." };
   }
   // Member or Guest to admin or owner takes a seat — the promotion that went
   // round the limit (see `seatRefusalFor`).
@@ -187,7 +226,7 @@ export async function setOrganizationMemberRole(memberId: string, role: string):
 export async function removeOrganizationMember(memberId: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can manage staff." };
 
   const member = await prisma.organizationMember.findFirst({
     where: { id: memberId, organizationId: org.organizationId },
@@ -195,7 +234,7 @@ export async function removeOrganizationMember(memberId: string): Promise<OrgRes
   if (!member) return { ok: false, error: "Staff member not found." };
 
   if (member.role === "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
-    return { ok: false, error: "This is the only owner — make someone else an owner before removing them." };
+    return { ok: false, error: "This is the only Commissioner — make someone else a Commissioner before removing them." };
   }
 
   await prisma.organizationMember.delete({ where: { id: memberId } });
@@ -214,7 +253,7 @@ export async function saveOrganizationBranding(
 ): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change these settings." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change these settings." };
 
   const cleanName = name.trim();
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
@@ -310,7 +349,7 @@ export async function saveOrganizationTheme(
 ): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change branding." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change branding." };
 
   // "custom" is a legitimate key that isn't in the preset list, so it is
   // checked separately rather than widening isThemeKey and letting an unknown
@@ -388,7 +427,7 @@ export async function saveOrganizationTheme(
 export async function saveOrganizationCurrency(currency: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const code = (currency ?? "").trim().toUpperCase();
   if (!isCurrencyCode(code)) {
@@ -422,7 +461,7 @@ export async function saveOrganizationCurrency(currency: string): Promise<OrgRes
 export async function saveOrganizationSeason(startsOn: string, endsOn: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   await prisma.organization.update({
     where: { id: org.organizationId },
@@ -464,7 +503,7 @@ function monthDayOrBlank(value: string): string {
 export async function saveOrganizationLocale(locale: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const tag = (locale ?? "").trim();
   if (!isSupportedLocale(tag)) {
@@ -479,6 +518,67 @@ export async function saveOrganizationLocale(locale: string): Promise<OrgResult>
   // CurrencyProvider, so the whole tree has to re-render — the same reason the
   // currency above revalidates the layout rather than a path.
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * WHERE THE CLUB IS — the clock its deadlines and its "today" are read from.
+ *
+ * See `domain/club-clock.ts` for why a club has one. Validated through
+ * `isTimeZone`, for the reason the locale is: `Intl` THROWS on a zone it does
+ * not know, so an unchecked value would break every screen that asks what day
+ * it is, for the club that had just set it. And a `"use server"` export is a
+ * public endpoint — this is called with whatever the caller likes.
+ *
+ * Answers with the clock on the club's wall, so the screen can show the
+ * organizer the one thing that reveals a wrong choice: the time.
+ */
+export async function saveOrganizationTimeZone(timeZone: string): Promise<OrgResult & { clock?: string }> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
+
+  const zone = typeof timeZone === "string" ? timeZone.trim() : "";
+  if (!isTimeZone(zone)) return { ok: false, error: "Pick a time zone from the list." };
+
+  const saved = await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { timeZone: zone },
+    select: { locale: true },
+  });
+  // Every screen that asks what day it is reads this, so the whole tree
+  // re-renders — the same reason the locale revalidates the layout.
+  revalidatePath("/", "layout");
+  return { ok: true, clock: clubClockInWords(zone, saved.locale) };
+}
+
+/**
+ * THE CLUB TAKES ITS ORGANIZER'S OWN ZONE, ONCE, IF IT HAS NONE.
+ *
+ * A club has to be in the right zone from its first minute without anybody
+ * being asked a question about time zones — and the person setting it up is,
+ * nearly always, standing in it. So the console offers the device's zone the
+ * first time somebody who may change the setting opens it, and this takes it
+ * ONLY while the club has none: it never overwrites an answer, the club's own
+ * or an earlier adoption's. Club settings shows what was taken and changes it.
+ *
+ * Refused quietly for anybody else, and for anything that is not a zone.
+ */
+export async function adoptClubTimeZone(timeZone: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
+
+  const zone = typeof timeZone === "string" ? timeZone.trim() : "";
+  if (!isTimeZone(zone)) return { ok: false, error: "That is not a time zone." };
+
+  // `updateMany` with the empty value in the WHERE, so two tabs opening at
+  // once cannot both write and the second cannot replace the first.
+  const taken = await prisma.organization.updateMany({
+    where: { id: org.organizationId, timeZone: "" },
+    data: { timeZone: zone },
+  });
+  if (taken.count > 0) revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -539,7 +639,7 @@ export async function saveOrganizationKind(
 ): Promise<OrgResult & { hidesRoster?: number }> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (kind ?? "").trim();
   // Sanitised, not trusted: a public endpoint, and this value decides what
@@ -593,7 +693,7 @@ export async function saveOrganizationKind(
 export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (noun ?? "").trim();
   if (value !== "" && !isCommunityVoice(value)) {
@@ -620,7 +720,7 @@ export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
 export async function saveOrganizationGolfTerms(terms: string): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
-  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+  if (!org.canEdit) return { ok: false, error: "Only a Commissioner or Admin can change this." };
 
   const value = (terms ?? "").trim().toLowerCase();
   if (value !== "" && !isGolfRegister(value)) {
@@ -631,6 +731,44 @@ export async function saveOrganizationGolfTerms(terms: string): Promise<OrgResul
     where: { id: org.organizationId },
     data: { golfTerms: value },
   });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * LEAVE A CLUB YOU WERE ADDED TO (Ajay, 2026-10-11).
+ *
+ * Staff are added, not asked: typing an address makes that person staff at
+ * once, with no acceptance step. The other half of that bargain is that the
+ * person can undo it themselves — until now only a Commissioner or Admin of
+ * the club could remove anybody, so somebody added by mistake, or by a club
+ * they had left, had no way out but to write to the people who added them.
+ *
+ * WHOSE membership is the session's, never an argument: the row is found by
+ * the caller's own user id AND the club named, so the id handed in can choose
+ * only among the caller's own clubs. The one refusal is the one
+ * `removeOrganizationMember` makes: the last Commissioner cannot go, because a
+ * club with no owner has nobody who can ever add one.
+ *
+ * It takes away the staff role and nothing else. A place in a tournament's
+ * field is an entry, not a membership, and results stay the club's.
+ */
+export async function leaveOrganization(organizationId: unknown): Promise<OrgResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Sign in first." };
+  if (typeof organizationId !== "string" || !organizationId) return { ok: false, error: "Choose the club to leave." };
+
+  const mine = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId, userId: session.userId } },
+    select: { id: true, role: true },
+  });
+  if (!mine) return { ok: false, error: "You are not on that club's staff." };
+
+  if (mine.role === "owner" && !(await hasOtherOwner(organizationId, mine.id))) {
+    return { ok: false, error: "You are this club's only Commissioner — make somebody else a Commissioner first." };
+  }
+
+  await prisma.organizationMember.delete({ where: { id: mine.id } });
   revalidatePath("/", "layout");
   return { ok: true };
 }

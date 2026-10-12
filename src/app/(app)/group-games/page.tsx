@@ -17,8 +17,9 @@ import { perPlayerPotRefusal } from "@/lib/domain/shared-ball";
 import { ContestsClient } from "@/components/ContestsClient";
 import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
+import { potAudience } from "@/lib/domain/pot-audience";
 import { golfTermsForEvent } from "@/lib/services/organization";
-import { potsOfGroup, type SkinsScope } from "@/lib/domain/skins-pot";
+import { potsOfGroup, roundPotKey, type SkinsScope } from "@/lib/domain/skins-pot";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -194,16 +195,16 @@ export default async function GroupGamesPage({
    * So both facts come from the round. A level round's skins are gross —
    * allocating shots the players agreed not to give would be inventing a
    * different game — and a nine-hole round's pot is over that nine.
+   *
+   * AND IT HAPPENED AGAIN, one format along (2026-10-10): a level Stableford
+   * is stored net, setup wrote its pot from what the form asked for, and this
+   * found nothing. The key is `roundPotKey` now, which setup writes with too,
+   * so the two cannot work it out differently a third time.
    */
+  const roundKey = week ? roundPotKey(week) : null;
   const roundPot =
-    casual && week
-      ? await skinsPotFor(
-          session.eventId,
-          week.id,
-          week.scoringBasis === "net",
-          week.nine === "front" || week.nine === "back" ? week.nine : "full",
-          "",
-        )
+    casual && week && roundKey
+      ? await skinsPotFor(session.eventId, week.id, roundKey.net, roundKey.scope, "")
       : null;
 
   /**
@@ -257,6 +258,54 @@ export default async function GroupGamesPage({
       entrantIds: m.entrants,
       pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
       excluded: m.excluded.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+    };
+  });
+
+  /**
+   * NAMED BETS THAT ARE NOT SKINS — the ones with no screen (sweep 1, b12,
+   * 2026-10-10).
+   *
+   * "Start a side bet" makes a birdie pot, low net or twos among whoever is
+   * picked, under a name they choose. It is stored as side games keyed on
+   * that name, settled like any other pot — and was loaded by nothing: this
+   * screen and Prizes both read `groupKey: ""`, the field's own, and only
+   * named SKINS pots were looked up by name. So such a bet could be started
+   * and never re-priced, never taken off, and anybody who asked to join from
+   * their phone stayed "pending" for good, with nowhere for the organizer to
+   * see them and take their stake.
+   *
+   * Every named bet on the round, with its games, beside the named skins.
+   */
+  const namedSideGames = week
+    ? await prisma.sideGame.findMany({
+        where: { eventId: session.eventId, stageId: week.id, groupKey: { not: "" } },
+        include: { entrants: true },
+        orderBy: [{ groupKey: "asc" }, { createdAt: "asc" }],
+      })
+    : [];
+  const namedPlayedOnceOver = await playedOnceRoundIsOver(session.eventId, namedSideGames);
+  const namedBets = [...new Set(namedSideGames.map((g) => g.groupKey))].map((name) => {
+    // A fourball's name narrows the bet to that fourball; any other name is
+    // the whole field's to join — `potAudience`, as the settle-up reads it.
+    const audience = potAudience(name, week?.teeSheet ?? "", potFieldIds);
+    return {
+      name,
+      field: state.confirmed.filter((p) => audience.includes(p.id)).map((p) => ({ id: p.id, name: p.name, playing: true })),
+      games: namedSideGames
+        .filter((g) => g.groupKey === name)
+        .map((g) => {
+          const m = potMembership(potModeOf(g.entryMode), audience, g.entrants, potStakeholderIds, namedPlayedOnceOver(g.stageId));
+          return {
+            id: g.id,
+            kind: g.kind,
+            buyInCents: g.buyInCents,
+            stakeNote: g.stakeNote,
+            entryMode: potModeOf(g.entryMode),
+            entrantIds: m.entrants,
+            pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+            excluded: m.excluded.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+          };
+        }),
     };
   });
 
@@ -460,6 +509,27 @@ export default async function GroupGamesPage({
           />
         ) : null,
       )}
+
+      {/* And the named bets that are not skins — see `namedBets`. Only the
+          games each one is running: a named bet is what was agreed, not a
+          menu of everything else that could be. */}
+      {week &&
+        namedBets.map((bet) => (
+          <ContestsClient
+            key={`named-${bet.name}`}
+            roundLabel={bet.name}
+            title={`${bet.name} — side bet`}
+            stageId={week.id}
+            groupKey={bet.name}
+            contests={[]}
+            sideGames={bet.games}
+            field={bet.field}
+            departed={departedPlayers}
+            contestsApply={false}
+            headToHead={isHeadToHead(week.type)}
+            rows="on"
+          />
+        ))}
 
       {/* THE DOOR, CLOSED ON THE ROUND THAT REFUSES EVERYTHING BEHIND IT.
           `saveSideGame` turns a shared-ball round down with the same sentence

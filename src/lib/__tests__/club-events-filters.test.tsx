@@ -51,7 +51,7 @@ function row(i: number): ClubEventRow {
 const open = async () => {};
 const html = (n: number) =>
   renderToStaticMarkup(
-    <ClubEventsList events={Array.from({ length: n }, (_, i) => row(i))} openAction={open} />,
+    <ClubEventsList events={Array.from({ length: n }, (_, i) => row(i))} openAction={open} today="2026-10-11" />,
   );
 
 describe("where this member stands", () => {
@@ -71,7 +71,7 @@ describe("where this member stands", () => {
     const out = renderToStaticMarkup(
       <ClubEventsList
         events={[{ ...row(0), band: "closed", canEnter: false, yourStatus: waiting }]}
-        openAction={open}
+        openAction={open} today="2026-10-11"
       />,
     );
     expect(out).toContain("waiting list");
@@ -79,7 +79,7 @@ describe("where this member stands", () => {
 
   it("says so while entries are still open, too", () => {
     const out = renderToStaticMarkup(
-      <ClubEventsList events={[{ ...row(0), band: "open", yourStatus: waiting }]} openAction={open} />,
+      <ClubEventsList events={[{ ...row(0), band: "open", yourStatus: waiting }]} openAction={open} today="2026-10-11" />,
     );
     expect(out).toContain("waiting list");
   });
@@ -90,13 +90,13 @@ describe("where this member stands", () => {
     const full = renderToStaticMarkup(
       <ClubEventsList
         events={[{ ...row(0), band: "open", placesNote: "Full — waiting list open", waitlistOnly: true }]}
-        openAction={open}
+        openAction={open} today="2026-10-11"
       />,
     );
     expect(full).toContain("Join the waiting list");
     expect(full).not.toContain("Enter this tournament");
     // CONTROL: a field with room still offers entry.
-    const room = renderToStaticMarkup(<ClubEventsList events={[{ ...row(0), band: "open" }]} openAction={open} />);
+    const room = renderToStaticMarkup(<ClubEventsList events={[{ ...row(0), band: "open" }]} openAction={open} today="2026-10-11" />);
     expect(room).toContain("Enter this tournament");
     expect(room).not.toContain("Join the waiting list");
   });
@@ -105,7 +105,7 @@ describe("where this member stands", () => {
     // The line is about THEM. A card with no personal status must not grow a
     // blank one.
     const out = renderToStaticMarkup(
-      <ClubEventsList events={[{ ...row(0), band: "closed", yourStatus: "" }]} openAction={open} />,
+      <ClubEventsList events={[{ ...row(0), band: "closed", yourStatus: "" }]} openAction={open} today="2026-10-11" />,
     );
     expect(out).not.toContain("waiting list");
   });
@@ -122,7 +122,7 @@ describe("dates a club has not fixed", () => {
    */
   const withDates = (over: Partial<ClubEventRow>) =>
     renderToStaticMarkup(
-      <ClubEventsList events={[{ ...row(0), dates: "14–15 June", ...over }]} openAction={open} />,
+      <ClubEventsList events={[{ ...row(0), dates: "14–15 June", ...over }]} openAction={open} today="2026-10-11" />,
     );
 
   it("says so beside the dates", () => {

@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
-import { clubCourses } from "@/lib/services/courses";
+import { playedOnBy, clubCourses } from "@/lib/services/courses";
 import { pickedCardNote } from "@/lib/domain/picked-card";
 import { casualCardGroups } from "@/lib/domain/casual-card-groups";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
@@ -93,7 +93,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   // Every course this tournament may be played on, so each match can be scored
   // against the card it was actually played on rather than the event's.
   const venues = await prisma.course.findMany({
-    where: { events: { some: { eventId: session.eventId } } },
+    where: { ...playedOnBy(session.eventId) },
   });
   const venueById = new Map(venues.map((c) => [c.id, c]));
   /** One venue means the whole tournament is played there — nothing to pick. */

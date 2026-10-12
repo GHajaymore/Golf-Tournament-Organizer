@@ -192,3 +192,52 @@ describe("a nine-hole single match", () => {
     expect(group).not.toBeNull();
   });
 });
+
+/**
+ * THE RULE NAMES THINGS THAT ARE IN THIS TOURNAMENT, AND OF THE RIGHT KIND
+ * (sweep 1, b11, 2026-10-10).
+ *
+ * `setSingleMatchRule` checked only that the rule could be read: two ids,
+ * different from each other. It never asked what they were ids OF. The picker
+ * then supplied the wrong ones itself — switching from "Two players I pick"
+ * to "Winners of two rounds" carried the two PLAYER ids across and saved them
+ * as rounds — so the round read "Waiting on the earlier rounds — one hasn't
+ * finished" for ever, about two rounds that do not exist. The same permanent
+ * not-ready state `cloneSingleMatchRule` exists to prevent in a copy.
+ */
+describe("a rule made of the wrong ids is refused", () => {
+  let thirdId = "";
+  let elsewherePlayerId = "";
+  let elsewhereStageId = "";
+
+  beforeAll(async () => {
+    thirdId = (await prisma.stage.create({ data: { eventId, position: 2, type: "Round Robin", format: "Match Play", holes: 18 } })).id;
+    const other = await prisma.event.create({
+      data: { organizationId: orgId, name: `${TAG} another club's day`, dates: "", course: "", city: "", address: "", regDeadline: "", shareToken: `${TAG}-other-${Date.now()}` },
+    });
+    elsewherePlayerId = (await prisma.player.create({ data: { eventId: other.id, name: `${TAG} stranger`, email: at("stranger"), seed: 1, status: "confirmed" } })).id;
+    elsewhereStageId = (await prisma.stage.create({ data: { eventId: other.id, position: 0, type: "Round Robin", format: "Match Play", holes: 18 } })).id;
+  });
+
+  const stored = async () => (await prisma.stage.findUnique({ where: { id: eighteenId }, select: { singleMatchRule: true } }))?.singleMatchRule;
+
+  it("CONTROL: two other rounds of this tournament are accepted", async () => {
+    expect((await setSingleMatchRule(eighteenId, { kind: "stage-winners", a: nineId, b: thirdId })).ok).toBe(true);
+  });
+
+  const cases: Array<[string, () => { kind: string; a: string; b: string }]> = [
+    ["two PLAYERS given as the rounds to take winners from", () => ({ kind: "stage-winners", a: player.ann, b: player.rob })],
+    ["two ROUNDS given as the players", () => ({ kind: "named", a: nineId, b: thirdId })],
+    ["the round itself as one of the rounds it waits on", () => ({ kind: "stage-winners", a: eighteenId, b: nineId })],
+    ["a round from another tournament", () => ({ kind: "stage-winners", a: nineId, b: elsewhereStageId })],
+    ["a player from another tournament", () => ({ kind: "named", a: player.ann, b: elsewherePlayerId })],
+  ];
+  for (const [what, rule] of cases) {
+    it(`${what}: refused, and the stored rule is untouched`, async () => {
+      const before = await stored();
+      const res = await setSingleMatchRule(eighteenId, rule());
+      expect(res.ok, `stored a pairing made of ${what}`).toBe(false);
+      expect(await stored()).toBe(before);
+    });
+  }
+});

@@ -54,6 +54,27 @@ const frauncesLatin = localFont({
   adjustFontFallback: false,
 });
 
+/**
+ * Fraunces AT DISPLAY SIZE: the front door's headlines (2026-10-11).
+ *
+ * The faces above carry the weight axis alone, so they are Fraunces at its text
+ * cut whatever size they are set at — right for a card title, loose and heavy
+ * in the foot for a headline four lines tall. This file adds the optical-size
+ * axis (9 to 144): at `"opsz" 144` the same letters tighten and their thins
+ * thin, which is the cut the landing was designed in.
+ *
+ * Latin only, upright only, and NOT preloaded: one page uses it, for a handful
+ * of headings, and the latin-ext and Vietnamese faces above still follow it in
+ * the stack for a name it does not hold.
+ */
+const frauncesPoster = localFont({
+  src: [{ path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-opsz-normal.woff2", weight: "100 900", style: "normal" }],
+  declarations: [{ prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" }],
+  display: "swap",
+  adjustFontFallback: false,
+  preload: false,
+});
+
 const frauncesLatinExt = localFont({
   src: [
     { path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-ext-wght-normal.woff2", weight: "100 900", style: "normal" },
@@ -138,4 +159,13 @@ export const displayFontVars = {
     [oswaldLatin, oswaldLatinExt, oswaldVietnamese, oswaldCyrillic, oswaldCyrillicExt],
     "Oswald Fallback",
   ),
+} as CSSProperties;
+
+/**
+ * The landing's headline stack, set on the landing's own root (`app/page.tsx`)
+ * rather than on <html>: the display cut first, then the heading faces for
+ * the ranges it does not carry, then the metric-matched fallback.
+ */
+export const posterFontVars = {
+  "--font-poster": fontStack([frauncesPoster, frauncesLatinExt, frauncesVietnamese], "Fraunces Fallback"),
 } as CSSProperties;

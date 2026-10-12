@@ -10,7 +10,7 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
-import { marginToHoles } from "@/lib/domain";
+import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { logAudit } from "@/lib/services/action-shared";
@@ -339,20 +339,12 @@ export async function savePlayMatchResult(
     return { ok: false, error: "Pick a winner, or halved." };
   }
 
-  // "2&3" is not a match anyone has won; the transposition almost always is.
+  // A winner needs a margin, and one a match can finish on — the one rule every
+  // door asks. "I won" with the box left empty was stored as a halved match.
   const total = matchHoleCount(match.holes);
-  const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.trim().toUpperCase());
-  if (amp) {
-    const lead = parseInt(amp[1], 10);
-    const toPlay = parseInt(amp[2], 10);
-    if (lead <= toPlay) {
-      return {
-        ok: false,
-        error: `"${margin}" isn't a possible result — did you mean "${toPlay}&${lead}"?`,
-      };
-    }
-    if (lead > total) return { ok: false, error: `"${margin}" can't happen over ${total} holes.` };
-  }
+  margin = String(margin ?? "");
+  const refusal = marginRefusal(winner, margin, total);
+  if (refusal) return { ok: false, error: refusal };
 
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({

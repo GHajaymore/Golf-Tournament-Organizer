@@ -145,6 +145,24 @@ export function parseHandicapInput(raw: string | null | undefined): HandicapPars
   return { ok: true, value: parsed, source: "manual" };
 }
 
+/**
+ * Whether a handicap column's "type" cell says NINE holes.
+ *
+ * A nine-hole index is doubled before it is used, so this decides how many
+ * strokes somebody receives. The two importers each had a reading — the field
+ * importer took exactly "9", the roster importer "9" or a 9 standing on its
+ * own — so one club export with "9 holes" in the column gave the same member
+ * a nine-hole index on the roster and an eighteen-hole one in the tournament.
+ *
+ * A 9 on its own, or the word: "9", "9 holes", "9-hole", "9H", "Nine". Never
+ * the 9 inside another number — 19, 90, 29, 0.9 — and blank is eighteen.
+ */
+export function parseHandicapType(raw: string | null | undefined): "9" | "18" {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (/\bnine\b/.test(value)) return "9";
+  return /(^|[^\d.])9(?![\d.])/.test(value) ? "9" : "18";
+}
+
 const NAME_MAX = 80;
 const PHONE_MAX = 40;
 const TEE_MAX = 40;

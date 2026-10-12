@@ -271,7 +271,10 @@ describe("no build fetches a font", () => {
      * most pages never use is bytes on every first visit for nobody.
      */
     const faces = FONTS.split("localFont({").slice(1);
-    expect(faces.length, "Fraunces in 3 ranges, Oswald in 5").toBe(8);
+    // The ninth (2026-10-11) is Fraunces' display cut — its optical-size axis,
+    // latin only, for the front door's headlines. It is held to both rules
+    // below like every other: a range of its own, and no preload.
+    expect(faces.length, "Fraunces in 3 ranges and its display cut, Oswald in 5").toBe(9);
     for (const face of faces) expect(face).toMatch(/prop: "unicode-range"/);
     const preloaded = faces.filter((f) => !/preload: false/.test(f));
     expect(preloaded.length, "only the two latin faces preload").toBe(2);

@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
   balances,
@@ -764,7 +765,7 @@ async function gameNets(
        * same finding.
        */
       const venues = await prisma.course.findMany({
-        where: { events: { some: { eventId } } },
+        where: { ...playedOnBy(eventId) },
       });
       const venueById = new Map(venues.map((c) => [c.id, c]));
 
@@ -846,44 +847,53 @@ async function gameNets(
         );
         const pars = course.pars;
 
-        if (game.kind === "nassau") {
-          /**
-           * Every match in the round, at the same stake — how a club calls one.
-           *
-           * A GROUP's Nassau is the matches inside that fourball, which needs
-           * no audience calculation: a Nassau is settled between the two
-           * players in a match, so restricting to matches whose BOTH players
-           * are in the group is the whole of it. A match spanning two groups
-           * belongs to neither's private bet.
-           */
-          const nassauGroup = game.groupKey
+        /**
+         * A BET ON THE MATCH IS BETWEEN ITS SIDES — the Nassau and "the match"
+         * alike, so both read the round's matches through this one function.
+         *
+         * They used to read them separately, and differently. "The match" took
+         * a team match's players off the roster; the Nassau kept only matches
+         * with a player id on each side, and a pairs match has none — `Match`
+         * holds team ids there and leaves the player columns empty. So a
+         * Nassau on a four-ball or a foursomes, which the casual-round form
+         * offers and `saveSideGame` accepts, recorded its stake and settled
+         * nothing, ever (sweep 1, b4, 2026-10-10).
+         *
+         * A GROUP's bet is the matches inside that fourball, which needs no
+         * audience calculation: everyone on both sides has to be in the group,
+         * and a match spanning two groups belongs to neither's private bet.
+         */
+        const sideBets = async () => {
+          const betGroup = game.groupKey
             ? parseTeeSheet(stage.teeSheet ?? "")?.groups.find((g) => g.name === game.groupKey)
             : null;
-          const inNassau = nassauGroup ? new Set(nassauGroup.playerIds) : null;
-          const bets = state.matches
-            .filter(
-              (m) =>
-                m.stageId === game.stageId &&
-                m.playerAId &&
-                m.playerBId &&
-                (!inNassau || (inNassau.has(m.playerAId) && inNassau.has(m.playerBId))),
-            )
-            .map((m) => {
-              let parsed: HoleResultArr = [];
-              try {
-                parsed = JSON.parse(m.holes) as HoleResultArr;
-              } catch {
-                parsed = [];
-              }
-              return {
-                matchId: m.id,
-                playerAId: m.playerAId,
-                playerBId: m.playerBId,
-                holes: parsed,
-                stakeCents: game.buyInCents,
-              };
-            });
-          for (const n of nassauLedger(bets)) {
+          const inBet = betGroup ? new Set(betGroup.playerIds) : null;
+          const teamRows = await prisma.team.findMany({
+            where: { eventId, members: { some: {} } },
+            select: { id: true, members: { select: { playerId: true } } },
+          });
+          const sideOf = new Map(teamRows.map((t) => [t.id, t.members.map((m) => m.playerId)]));
+          return state.matches
+            .filter((m) => m.stageId === game.stageId)
+            .map((m) => ({
+              matchId: m.id,
+              sideA: m.playerAId ? [m.playerAId] : sideOf.get(m.teamAId) ?? [],
+              sideB: m.playerBId ? [m.playerBId] : sideOf.get(m.teamBId) ?? [],
+              holes: (() => {
+                try {
+                  return JSON.parse(m.holes) as HoleResultArr;
+                } catch {
+                  return [] as HoleResultArr;
+                }
+              })(),
+              stakeCents: game.buyInCents,
+            }))
+            .filter((b) => !inBet || [...b.sideA, ...b.sideB].every((id) => inBet.has(id)));
+        };
+
+        if (game.kind === "nassau") {
+          // Every match in the round, at the same stake — how a club calls one.
+          for (const n of nassauLedger(await sideBets())) {
             add(n.playerId, n.netCents);
             nassauTotals.set(n.playerId, (nassauTotals.get(n.playerId) ?? 0) + n.netCents);
           }
@@ -907,41 +917,7 @@ async function gameNets(
          * the opposite failure and just as wrong.
          */
         if (game.kind === "match") {
-          const betGroup = game.groupKey
-            ? parseTeeSheet(stage.teeSheet ?? "")?.groups.find((g) => g.name === game.groupKey)
-            : null;
-          const inBet = betGroup ? new Set(betGroup.playerIds) : null;
-          /**
-           * A TEAM match's sides are teams, so the players come from the roster
-           * rather than from the fixture: `Match` holds team ids there and
-           * leaves the player columns empty.
-           */
-          const teamRows = await prisma.team.findMany({
-            where: { eventId, members: { some: {} } },
-            select: { id: true, members: { select: { playerId: true } } },
-          });
-          const sideOf = new Map(teamRows.map((t) => [t.id, t.members.map((m) => m.playerId)]));
-
-          const bets = state.matches
-            .filter((m) => m.stageId === game.stageId)
-            .map((m) => ({
-              matchId: m.id,
-              sideA: m.playerAId ? [m.playerAId] : sideOf.get(m.teamAId) ?? [],
-              sideB: m.playerBId ? [m.playerBId] : sideOf.get(m.teamBId) ?? [],
-              holes: (() => {
-                try {
-                  return JSON.parse(m.holes) as HoleResultArr;
-                } catch {
-                  return [] as HoleResultArr;
-                }
-              })(),
-              stakeCents: game.buyInCents,
-            }))
-            // A group's bet is the matches inside that fourball — every player
-            // on both sides has to be in it, the same rule the Nassau follows.
-            .filter((b) => !inBet || [...b.sideA, ...b.sideB].every((id) => inBet.has(id)));
-
-          for (const n of matchBetLedger(bets)) add(n.playerId, n.netCents);
+          for (const n of matchBetLedger(await sideBets())) add(n.playerId, n.netCents);
           continue;
         }
 

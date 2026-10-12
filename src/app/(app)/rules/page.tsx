@@ -1,3 +1,4 @@
+import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { getSession } from "@/lib/auth";
@@ -64,7 +65,7 @@ export default async function RulesPage() {
   // club with a dozen courses shows the ones that matter today.
   const courses = state
     ? await prisma.course.findMany({
-        where: { events: { some: { eventId: state.event.id } }, localRules: { not: "" } },
+        where: { ...playedOnBy(state.event.id), localRules: { not: "" } },
         select: { id: true, name: true, localRules: true },
         orderBy: { name: "asc" },
       })

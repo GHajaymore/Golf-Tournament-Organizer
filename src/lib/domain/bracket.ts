@@ -563,6 +563,32 @@ export function buildBracket(
   }
   rounds.push({ label: labels[0], roundIndex: 0, matches: first });
 
+  /**
+   * PAST THE FIRST ROUND THERE IS NO SUCH THING AS A BYE (2026-10-12).
+   *
+   * An empty place in a later round used to be called a bye, and its opponent
+   * sent through unopposed, whenever the tie feeding it "had two empty places".
+   * That was meant for a tie between two byes. It is equally true of a tie that
+   * is simply waiting on the round before it, and that is the only kind there
+   * is: a bracket is sized to its field (`bracketSizeFor`), so more than half
+   * its places are filled, and the seeding pairs every missing seed with a
+   * present one. No first-round tie is ever between two byes. So every time
+   * the old test said "bye" past the first round, it was wrong:
+   *
+   *  - an ordinary knockout of eight, with nothing played, drew its Final as
+   *    "Bye v Bye";
+   *  - with one half of a draw played and the other not started, the finalist
+   *    was drawn against a Bye;
+   *  - and in a draw of sixteen or more, a player whose quarter ran a round
+   *    ahead was ADVANCED through a semi-final nobody had played, and stood in
+   *    the final until the other quarter caught up.
+   *
+   * A place past the first round is somebody, or it is "TBD"; and a tie there
+   * is decided by a recorded result and by nothing else (Rule 3.2: a match is
+   * won on the course or conceded, not by the draw being slow). The byes a
+   * short field needs are all in the first round, where they have always been
+   * handled, above.
+   */
   // Every later round is fed by the winners of the one before it.
   for (let round = 1; round < labels.length; round += 1) {
     const prev = rounds[round - 1].matches;
@@ -571,22 +597,13 @@ export function buildBracket(
       const aId = prev[i * 2].winnerId;
       const bId = prev[i * 2 + 1].winnerId;
       const key = `${kind}-${round}-${i}`;
-      let winnerId = claimedWinner(winners[key], aId, bId);
-      // Only auto-advance a bye once the other feeder is known to be empty —
-      // and never INTO the trophy. Reaching an unopposed final is not winning
-      // one, so the last round waits for a recorded result like any other.
-      if (round < lastRound) {
-        if (!winnerId && aId && !bId && isByeFeeder(prev[i * 2 + 1])) winnerId = aId;
-        if (!winnerId && bId && !aId && isByeFeeder(prev[i * 2])) winnerId = bId;
-      }
       matches.push({
         key,
         roundIndex: round,
         matchIndex: i,
-        // Empty because its feeder can never produce anybody — a bye, not TBD.
-        a: slotFor(aId, fieldComplete && isByeFeeder(prev[i * 2])),
-        b: slotFor(bId, fieldComplete && isByeFeeder(prev[i * 2 + 1])),
-        winnerId,
+        a: slotFor(aId),
+        b: slotFor(bId),
+        winnerId: claimedWinner(winners[key], aId, bId),
       });
     }
     rounds.push({ label: labels[round], roundIndex: round, matches });
@@ -598,7 +615,3 @@ export function buildBracket(
   return { kind, rounds, champion };
 }
 
-/** A feeder match that can never produce a player (both slots empty) is a bye. */
-function isByeFeeder(m: BracketMatch): boolean {
-  return m.a.playerId === null && m.b.playerId === null;
-}

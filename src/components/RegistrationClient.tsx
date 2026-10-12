@@ -1,6 +1,7 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
+import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
@@ -12,6 +13,7 @@ import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
+import { playerTeeCounts } from "@/lib/tournament-settings";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
@@ -74,6 +76,15 @@ interface EventInfo {
   registrationToken: string;
   /** How this tournament writes a date — the deadline reads like the event's own date. */
   locale?: string;
+  /**
+   * Today AT THE CLUB, yyyy-mm-dd, from the server (`state.today`).
+   *
+   * This screen worked out "Open" or "Closed" from the clock of whatever was
+   * drawing it — the server, then the organizer's browser — so the two could
+   * disagree for the hours either side of a midnight, and neither was the
+   * club's day. Required, so a caller cannot leave it to a clock again.
+   */
+  today: string;
 }
 
 export function RegistrationClient({
@@ -179,8 +190,13 @@ export function RegistrationClient({
    * Under "one" the whole field plays the round’s set, so a per-player
    * dropdown would be a control contradicting the condition the committee
    * set — and one somebody would use, believing it.
+   *
+   * And under "each flight plays its own tees", for the same reason: this
+   * asked for anything but "one", so by division the dropdown was drawn,
+   * saved, and stepped past by the scorer. `playerTeeCounts` is the scorer's
+   * own answer.
    */
-  const showTees = tees.length > 0 && teePolicy !== "one";
+  const showTees = tees.length > 0 && playerTeeCounts(teePolicy);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -198,6 +214,7 @@ export function RegistrationClient({
     capacity: event.capacity,
     confirmedCount: confirmed.length,
     override: event.registrationOverride,
+    now: dayAsDate(event.today),
     locale: event.locale,
   });
   const status = reg.label;
@@ -290,7 +307,10 @@ export function RegistrationClient({
     startTransition(async () => {
       const result = await addSignup({
         name,
-        handicap: h.value,
+        // An empty box goes as empty. `parseHandicapInput` reads it as "no
+        // handicap" and hands back 0 for the arithmetic; sending that 0 on
+        // made every blank a scratch golfer entered by hand.
+        handicap: h.source === "none" ? Number.NaN : h.value,
         email,
         phone,
         ghin,

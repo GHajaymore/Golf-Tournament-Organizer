@@ -290,7 +290,14 @@ export function PlaySettings({
           </p>
         ) : (
           <MoreInfo short="Tournaments already created keep their own." style={{ marginTop: 4 }}>
-            What a new tournament starts with. Changing these never rewrites an event in progress.
+            {/* "What a new tournament starts with" was true of one way of
+                starting one. A template is a whole kind of tournament and
+                sets every one of these itself, so a club that had chosen
+                Round Codes here and then picked "Stroke Play" got email
+                sign-in and no word of why. Said, until that is decided. */}
+            What a tournament you start from scratch begins with. A template brings its own — a
+            championship is blind and committee-scored whatever is set here — and you can change any
+            of them on the tournament. Changing these never rewrites an event in progress.
           </MoreInfo>
         )}
       </div>
@@ -577,7 +584,7 @@ export function PlaySettings({
       {form.scoreApproval === "players" && (
         <Choice
           label="How many playing partners must confirm"
-          hint="Playing together means the players in one result — in match play that is the match, so two pairs sharing a tee time never approve each other's cards."
+          hint="For match results. Playing together means the players in one result — the match — so two pairs sharing a tee time never confirm each other's. A stroke-play card is signed by its own player and needs nobody else."
           value={form.attestBy}
           options={ATTEST_BY}
           labels={ATTEST_BY_LABEL}

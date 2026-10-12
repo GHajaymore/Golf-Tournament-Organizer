@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { organizationAllows } from "./entitlements";
@@ -266,7 +267,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
    */
   const roundVenue = activeStage?.courseId
     ? await prisma.course.findFirst({
-        where: { id: activeStage.courseId, events: { some: { eventId } } },
+        where: { id: activeStage.courseId, ...playedOnBy(eventId) },
         select: { name: true, city: true },
       })
     : null;

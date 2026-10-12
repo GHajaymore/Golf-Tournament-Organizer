@@ -180,3 +180,47 @@ export function finishRefusal(facts: FinishFacts): string | null {
   }
   return null;
 }
+
+/** Every status a tournament can hold, in the order it passes through them. */
+export const EVENT_STATUSES = [...PRE_LAUNCH_STATUSES, "live", "completed"];
+
+export type StatusMove =
+  | { kind: "write" }
+  /** Going live from setting up IS launching, and has to go through that gate. */
+  | { kind: "launch" }
+  | { kind: "refuse"; error: string };
+
+/**
+ * WHAT A REQUEST TO CHANGE A TOURNAMENT'S STATUS ACTUALLY IS.
+ *
+ * The status action took any string and wrote it. Three things followed, none
+ * of them offered by any screen:
+ *
+ *   "live" on a draft      went live around the launch gate — no rounds, nobody
+ *                          in the field, no launch time, setup left unlocked
+ *   an unknown word        was read as "draft", so a typo took a tournament off
+ *                          its members' screens
+ *   "draft" on a live one  the same, deliberately
+ *
+ * A status is MOVED, and the moves are few. Before launch a committee can step
+ * back and forth freely: nothing has been published. Going live is launching,
+ * whichever door asks. Finishing has its own gate (`finishRefusal`). And once
+ * a tournament has been launched it does not return to setting up — its
+ * members are looking at it, and Unlock setup is the way to correct it without
+ * taking it away from them.
+ *
+ * An unknown value is REFUSED. Coercing it to the safest-looking one is how a
+ * mistake becomes an action.
+ */
+export function statusMove(from: string, to: string): StatusMove {
+  if (!EVENT_STATUSES.includes(to)) return { kind: "refuse", error: "That is not a tournament status." };
+  const launched = !PRE_LAUNCH_STATUSES.includes(from);
+  if (launched && PRE_LAUNCH_STATUSES.includes(to)) {
+    return {
+      kind: "refuse",
+      error: "This tournament has been launched, so it can’t go back to setting up. Use Unlock setup to correct it — its players keep seeing it while you do.",
+    };
+  }
+  if (to === "live" && !launched) return { kind: "launch" };
+  return { kind: "write" };
+}

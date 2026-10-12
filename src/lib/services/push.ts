@@ -1,6 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { prisma } from "@/lib/db";
+import { ADMIN_EMAIL } from "@/lib/contact";
 
 /**
  * Sending a web-push notification to a member, on every device they opted in on.
@@ -31,7 +32,8 @@ function ensureConfigured(): boolean {
   if (configured !== null) return configured;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || "mailto:hello@tourneyhq.club";
+  // Who a push service writes to about this sender: the operator's own address, which is read.
+  const subject = process.env.VAPID_SUBJECT || `mailto:${ADMIN_EMAIL}`;
   if (!publicKey || !privateKey) {
     configured = false;
     return false;

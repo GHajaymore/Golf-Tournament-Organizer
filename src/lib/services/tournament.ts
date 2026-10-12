@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
+import { playedOnBy } from "./courses";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
@@ -36,6 +37,8 @@ import { bracketDraws, openTieReport } from "../domain/my-tie";
 import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
+import { clubDay, clubToday } from "../domain/club-clock";
+import { zoneOfOrganization } from "./club-clock";
 import { cleanIsoDate } from "../domain/round-dates";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff, placeOrdinal } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -244,7 +247,7 @@ export function matchSettled(m: { holes: string; forfeitedBy?: string | null }):
  */
 export function currentDatedRoundIndex(
   playRounds: Array<{ playedOn: string }>,
-  now: Date = new Date(),
+  now: Date,
 ): number {
   const today = todayIso(now);
   let lastPlayed = -1;
@@ -419,6 +422,17 @@ export interface StrokeStanding {
 
 export interface EventState {
   event: Event;
+  /**
+   * TODAY AT THE CLUB, yyyy-mm-dd, and the zone it was asked of.
+   *
+   * Here, on the one object every screen already holds, so that a screen
+   * asking "is this round today" or "has that deadline gone" asks the club's
+   * clock without knowing the question has a zone in it. The server's own day
+   * is UTC's in production and wrong for every club not on it — see
+   * `domain/club-clock.ts`. `timeZone` is "" for a club that has not said.
+   */
+  today: string;
+  timeZone: string;
   scoring: ScoringRules;
   accounts: Awaited<ReturnType<typeof prisma.account.findMany>>;
   players: DbPlayer[];
@@ -1033,10 +1047,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     prisma.team.findMany({ where: { eventId }, select: { id: true, stageId: true } }),
     // The tournament's venues, so a round played at another club is scored
     // against that club's card rather than the first round's.
-    prisma.course.findMany({ where: { events: { some: { eventId } } } }),
+    prisma.course.findMany({ where: { ...playedOnBy(eventId) } }),
     // Tees carry the Course Rating and Slope that turn a Handicap Index into
     // the strokes a player actually receives here.
-    prisma.tee.findMany({ where: { course: { events: { some: { eventId } } } }, orderBy: [{ position: "asc" }] }),
+    prisma.tee.findMany({ where: { course: playedOnBy(eventId) }, orderBy: [{ position: "asc" }] }),
     // What each round says a player plays off — a committee's override, or the
     // value frozen when that round's first card came in. Rows exist only where
     // there is something to say; no row means the roster handicap, read live.
@@ -1271,7 +1285,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   // right for a single-round event and wrong for every other one — on the
   // morning of Round 1 it named Round 2, and every screen that reads this
   // number believed it.
-  const datedIdx = currentDatedRoundIndex(playRounds);
+  // …and off the CLUB's calendar: on the server's, a Saturday round stopped
+  // being the current one at 8pm in New York, with groups still out.
+  const timeZone = await zoneOfOrganization(event.organizationId);
+  const datedIdx = currentDatedRoundIndex(playRounds, clubDay(timeZone));
   const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, playedCards, matches);
   const activeStage =
     rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
@@ -2755,6 +2772,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
 
   return {
     event,
+    today: clubToday(timeZone),
+    timeZone,
     scoring,
     accounts,
     players,

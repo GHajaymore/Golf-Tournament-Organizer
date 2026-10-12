@@ -36,6 +36,46 @@ Use a throwaway organization and event, prefix every row with a mark (`zz-<purpo
 names, and `@example.invalid` addresses. Delete them in a `finally` — a fixture left in the
 database is a fixture someone will later mistake for real.
 
+**A fixture that signs itself in signs `signedInNow(user.id)`**, from
+`scripts/session-cookie.mjs` — never the bare user id. Since 2026-10-11 a session cookie
+carries when it was issued (`src/lib/domain/session-token.ts`): the server holds a sign-in to
+seven days itself, and a password reset ends every earlier one. A cookie made the old way is
+refused, and a refused fixture does not fail loudly — every screen answers 307 to the sign-in
+page, which a route walk reads as the app working. `session-token.test.ts` sweeps `e2e/` and
+`scripts/` for the old spellings.
+
+## The club's clock: "today" is asked of the club, never of the server
+
+A deadline is a DAY, and a day belongs to a place. Until 2026-10-11 the day was whatever the
+server's clock said — UTC in production — so a club in New York whose entries "close on the
+12th" stopped taking them at 8pm on the 12th, and a club in Sydney saw Saturday's 8am round as
+"tomorrow" until eleven on Saturday morning. Every test was green over it for a year, because
+every test ran the server and the club on ONE machine: one clock, one zone, in CI both UTC.
+
+- `Organization.timeZone` is an IANA name, or `""` for a club that has not said (it then keeps
+  the server's day). A club with none takes its organizer's device zone the first time they
+  open the console (`ClubClockAdopter` → `adoptClubTimeZone`, which never overwrites); Club
+  settings shows it, with the time at the club, and changes it.
+- `src/lib/domain/club-clock.ts` is the rule: `clubToday(zone)` and `clubDay(zone)`. On the
+  server, get the zone through `state.today` / `state.timeZone` on the event state, or
+  `clubDayForEvent(eventId)` from `src/lib/services/club-clock.ts`.
+- **The day helpers have no clock of their own.** `todayIso`, `deadlinePassed`, `deadlineState`,
+  `playerMayChange` and `registrationStatus` must be TOLD the day; the compiler refuses a call
+  that leaves it out, and `the-server-asks-the-club-what-day-it-is.test.ts` refuses one that
+  hands over `new Date()`. An INSTANT (a timestamp, an expiry, "3 minutes ago") is the same
+  everywhere and is still read straight off the server's clock.
+- `clubDay(zone)` is the club's day at noon by this machine's clock, so that a helper's own
+  `getDate()` reads the club's date. It is NOT the present instant — never compare it with a
+  stored timestamp.
+
+**`E2E_TZ` is how a test reaches the state production is always in.** `E2E_TZ=Pacific/Auckland`
+puts the browser in Auckland (`playwright.config.ts`, and `e2e/coverage.ts` for a context a spec
+makes itself) AND the seeded club (`scripts/seed-club.mjs` counts its dates from Auckland's
+today), while the server stays where it is. Without it the walk cannot tell a server that asks
+the club from one that asks itself. The audit test picks its zone by the hour — Kiritimati or
+Pago Pago, whichever is on another calendar day right now — and reports the other direction as
+SKIPPED rather than passed.
+
 ## Help and docs travel with the change
 
 Ajay, 2026-10-10: "keep a step when there is any change in the app to update the help section
@@ -51,8 +91,25 @@ until, **in the same pull request**:
 
 Say which in the PR description: "Help/docs: updated …" or "Help/docs: nothing to change,
 because …". And **ask Ajay** when a change might deserve a place on the landing page — a new
-capability, a claim that has changed, a better screen to show. The landing is another session's
-(`src/app/page.tsx`); do not edit it, and do not decide silently that it needs nothing.
+capability, a claim that has changed, a better screen to show. Do not decide silently that it
+needs nothing.
+
+**The landing page** (`src/app/page.tsx`, rebuilt 2026-10-11 on midnight navy) is the one page
+written in its own stylesheet: `src/lib/landing/home-styles.ts`, every class prefixed `m-`,
+scoped to `main.m-home`, its colours taken from `landing-palette.ts` and nowhere else. The
+shared chrome (`components/landing/chrome.tsx`, `lib/landing/styles.ts`) also dresses `/faq`,
+`/privacy` and `/terms`, so a change there is a change to four pages. Three rules it is held to:
+
+- **Every picture is an unedited capture of the app**, placed by
+  `scripts/place-landing-shots.mjs` with its true size and its smaller sharp copies. A screen
+  meant to be READ is flat, upright and still (`e2e/landing-screens.spec.ts`); only a layer
+  marked `m-decor` and `aria-hidden` may be tilted, dimmed or moving, and nobody is asked to
+  read one.
+- **The demo club in the pictures is invented** — never a test tournament's own name, never a
+  real club or person.
+- **Until go-live it is built and shipped as the designer and reported to Ajay; after go-live
+  nothing on it changes without his preview first** (his ruling, 2026-10-11). Another session
+  used to own these files; it has said it holds nothing in them.
 
 Three ways help goes stale are tested, so they cannot happen quietly: a new player screen with
 no help topic, a button the help names that a screen no longer draws (`player-help.test.ts`,
@@ -60,6 +117,53 @@ no help topic, a button the help names that a screen no longer draws (`player-he
 fourth is not testable and is yours: a flow that works differently under the same button names.
 The day this rule was written, the guide already held a sentence that morning's work had made
 false — "Only Manual lets you … set tees per flight".
+
+## End-to-end means across the board
+
+Ajay, 2026-10-10: "When you test, you test across the board — that's the e2e. It should cover
+EVERYTHING IN THE APP." — functional, operational, security, every feature, onboarding, sign-in
+and access control.
+
+What prompted it. Eleven scripted tournaments, each a careful path at 120 players, passed three
+times running and were reported to him as "three consecutive zero-defect rounds". An hour later
+a sweep of options and inputs those scripts never used found about forty candidate defects: a
+winner with a blank margin stored as a halved match, a back-nine round reset to the front nine,
+a member made scratch by having a phone number corrected. Every one of those rounds was
+honestly green. The claim was the defect: a pass count says how the paths walked behaved and
+nothing about the paths nobody walked, and nothing was measuring those.
+
+**So a browser-test result is never reported without its reach.** Two instruments exist for it:
+
+- `e2e/coverage.ts` — every spec imports `test` from it, and every browser context records each
+  server action called and each screen opened. `node scripts/e2e-coverage.mjs` holds that ledger
+  against the BUILD's own lists and prints what was reached and, by name, what never was
+  (`--reset` empties it before a run). Measured the day it was written: the whole standing suite,
+  361 tests green, called **36 of 263 server actions**. Fourteen per cent.
+- The app's controls, counted from the running app rather than from memory: as secretary,
+  10,312 controls on screen across 267 screen-states of the seeded club — 117 distinct dropdowns,
+  92 choice groups, 122 tick-boxes, 329 text boxes, 546 buttons.
+
+**The layers of the suite**, each of which says in its own header what it cannot see:
+
+- `e2e/everything.spec.ts` opens every console screen on every one of the seeded club's
+  tournaments as the secretary, every player screen as a member, every public board signed out.
+  The screen lists come from the filesystem and the menu itself.
+- `e2e/every-control.spec.ts` (`E2E_EVERYTHING=1`) makes every choice every dropdown, choice
+  group and tick-box offers, saves it the way the screen saves, reloads, and asks whether it was
+  kept. It is the browser form of "what a screen OFFERS, the server ACCEPTS and the app READS
+  must be one list" — see `docs/sweeps-2026-10-10.md`.
+
+"A round" is the whole suite, and it is "clean" only with its reach stated beside it. A run
+that did not exercise the list is a smoke test, whatever it is called.
+
+**Two habits this cost to learn, both the same night:**
+
+- **Commit before any mutation check.** "Break it, watch the test go red, put it back" was done
+  on uncommitted work and put back with `git checkout --`, which put back the fix as well. The
+  rule further down says to restore with the Edit tool; the safer rule is that there is nothing
+  uncommitted to lose. With the work committed, `git checkout -- <file>` is exactly right.
+- **A finding from reading code becomes a test in the BROWSER, not only a fix.** The next round
+  must be able to find it again without anybody remembering it.
 
 ## Verification
 
@@ -77,6 +181,62 @@ It defaults to `http://localhost:3000`; point it elsewhere with `SMOKE_BASE_URL`
 check `preview_list`'s `cwd` before believing a green run — `preview_start` will reuse a dev
 server already running from the MAIN checkout, and then every route passes against code you did
 not write.
+
+**A SPEC MOVES BY ADDRESS. A PLAYER MOVES BY THUMB, AND THE TWO ARE DIFFERENT REQUESTS.**
+`page.goto` asks for a whole document. Tapping a tab asks for page data, through the service
+worker (`public/sw.js`). Until 2026-10-11 the worker answered those from its cache FIRST, keyed
+by address alone — so a member who took over somebody's phone and tapped Money was shown that
+person's money, card and place on the board, and anybody re-opening the app was shown the first
+tab they tapped as it was the last time.
+Every spec, the every-screen walk and the control crawl were green over it, because none of them
+taps. `e2e/shared-phone.spec.ts` does, and compares the screen with what that person is shown in
+a clean browser that has no worker.
+
+Two things to carry forward. **When a check is about what one PERSON sees, compare the screen,
+not a word on it**: the first measurement of this looked for a name, found the right names (a
+money page names everybody in the pot), and called it safe. And **the worker keeps nobody's
+pages** — four static files and nothing else. The cache it had was for opening a tab with no
+signal, which it never managed; if that is ever wanted it has to be BUILT, with each kept page
+filed under the person it belongs to. Do not switch page caching back on to get it.
+
+**AND A SPEC TYPES INTO A PAGE THAT LOADED LONG AGO.** The server is next door, so the script
+is there before the first key. On a course it is not: a screen is drawn seconds before its
+script arrives, and until 2026-10-11 anything typed in that gap was on the screen and unknown to
+the page — a round code with Continue grey for ever. `TypedBeforeLoad` in the root layout
+closes it for every text box. To test anything about a form's first seconds, hold the script
+back (`page.route("**/_next/static/**/*.js", …)`, as `e2e/typed-before-load.spec.ts` does) and
+type with `pressSequentially` — and wait for the page to be live before a `fill`, or the spec
+itself is the slow-connection user and fails three steps later on a disabled button.
+
+**AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
+`E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
+only, so this is by hand: `npx playwright install webkit` once). Two things to know before
+believing a red WebKit run:
+
+- **Start the server for it with `E2E_PLAIN_HTTP=1`.** The e2e server is a production build over
+  plain http, and WebKit does not send a Secure cookie there — so every flow where the SERVER
+  sets the cookie (sign-up, set-password, a round code) silently signs nobody in, and the spec
+  fails three steps later on a screen that says "Enter your score". `secure-cookies.ts` drops the
+  flag for that run and refuses to on Vercel. Start it WITHOUT the variable for Chromium runs.
+- **"TypeError: Load failed" is a real finding; "Fetch API cannot load … due to access control
+  checks" is not.** Both mean a request was dropped because the page was left. The second is the
+  framework's own and `page-errors.ts` ignores it. The first is a request the APP made and did
+  not catch — Safari raises it where Chromium says nothing, and the first run found three.
+- **Push is NOT covered on WebKit.** This WebKit build offers `PushManager` and then never
+  answers `getSubscription()`, freezing the page — the player's Today, on its second visit, once
+  the service worker is there. It read for an hour as the app freezing on an iPhone.
+  `e2e/coverage.ts` takes `PushManager` away on that engine. Real Safari answers the call; the
+  real-phone push test is still owed.
+
+**A RUN KILLED INSIDE AN ORGANIZER-FROM-NOTHING SPEC POISONS THE NEXT ONE.** Those specs
+(`organizer-medal`, `organizer-entry` and their kin) make a club the app names after the PERSON,
+not the fixture's mark. Stop a run inside one and the next run's standing fixture deletes the
+organizer — their address carries the mark — and leaves the club, with a tournament on it that
+still lists that address as its organizer. The next fresh organizer is therefore sent straight to
+that tournament instead of being asked for a first one, and every such spec waits out its whole
+timeout on a form that never appears. Six minutes each, and it reads as the app. Since
+2026-10-11 `teardownOrganizer` finds the club through the tournament as well; if those specs all
+time out together on "create your first tournament", look for an orphan club before the code.
 
 **Reading a change in the browser: bust the URL, or you will read the old page.** Navigating to a
 URL the browser has already visited serves it from cache, so `innerText` shows the render from
@@ -800,6 +960,13 @@ text first part, as a `[hydration #418]` line in the job log. Read that line
 before re-running: it is the only evidence this fault has ever left. "server and
 client text are identical" means the mismatch was in markup or attributes.
 
+One cause found by reading rather than by that line, 2026-10-11: a relative time
+("5 minutes ago") worked out during render by a component that is drawn on both
+sides. `no-client-screen-draws-from-its-own-clock.test.ts` refuses that — and it
+follows IMPORTS, because `"use client"` marks a boundary and not a file: the
+announcement card had no mark of its own and was missed for exactly that reason.
+The time is worded once on the server and handed down.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -1014,7 +1181,19 @@ workflow" fails at signing. That is a missing certificate, not a broken file.
 The suite is not only about behaviour — several files exist to make a whole class of mistake
 impossible. Extend these rather than working around them.
 
-- `audit-idor.test.ts` — every server action checks authorization.
+- `audit-idor.test.ts` — a row id an action is handed belongs to the caller: looked up with a
+  scope key, or compared afterwards. That is ALL it asks. This line used to read "every server
+  action checks authorization", which it does not: an action that takes no id is not its subject.
+- `club-actions-check-the-role.test.ts` — an action that works on the caller's club asks their
+  ROLE (`canEdit`), not only which club they are in. Added 2026-10-11 after deleting that check
+  from one action left every guard green.
+- `every-action-says-who-may-call-it.test.ts` — a staff action's gate comes BEFORE its first
+  write, and an action with no staff gate is on a list that says who may call it (`WHO`). A new
+  action cannot arrive ungated quietly. It proves a check is THERE, not that it is right.
+- `the-directory-allowance-is-everyones.audit.test.ts` — every door to the live course directory
+  draws on one hourly budget per person (`directoryBudget`), organizers included. The four
+  directory actions are kept out of the every-action sweep because they spend that allowance —
+  so they are the ones to read by hand whenever they change.
 - `themes.test.ts` — every accent ramp and neutral ramp clears its contrast floor on both
   grounds, and stays monotonic.
 - `brand-consistency.test.ts` — the logo is drawn once, at a size from `LOGO_SIZE`.

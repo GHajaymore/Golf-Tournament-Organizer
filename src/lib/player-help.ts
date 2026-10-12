@@ -172,6 +172,18 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "It needs no tournament and no organizer.",
     ],
   },
+  {
+    id: "other-devices",
+    question: "I'm signed in on a phone I don't have.",
+    href: "/me",
+    steps: [
+      "Tap the sign-out button, top right.",
+      "Open Your account.",
+      "Tap [[Sign out everywhere]].",
+      "Every device is signed out, this one too.",
+      "Sign back in with the same password.",
+    ],
+  },
 ];
 
 /** A topic's line with its [[labels]] as plain words — what the page prints. */

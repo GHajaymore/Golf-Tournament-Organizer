@@ -22,6 +22,42 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 3101);
 
 /**
+ * ANOTHER BROWSER ENGINE, ON REQUEST (2026-10-11).
+ *
+ * Every run was Chromium. Most players are on an iPhone, which is WebKit, and
+ * the two differ in exactly the places this app has been hurt: locale data (a
+ * date the server and the browser spell differently is a hydration error),
+ * layout, and what a service worker does.
+ *
+ * `E2E_ENGINE=webkit` or `firefox` swaps the browser UNDER the same three
+ * projects — same names, same widths — so every spec's own rule about which
+ * project it runs on still holds and nothing has to be taught a fourth name.
+ * Unset, nothing changes; CI installs Chromium only, so this is opt-in until
+ * the workflow installs the others.
+ *
+ * WebKit here is Playwright's build of the engine, not Safari on a phone: it
+ * is the closest a Windows machine gets, and it is not the last word.
+ */
+const ENGINE = process.env.E2E_ENGINE ?? "";
+function onEngine(name: "phone" | "small-phone" | "desktop") {
+  if (ENGINE === "webkit") {
+    if (name === "desktop") return { ...devices["Desktop Safari"], viewport: { width: 1280, height: 900 } };
+    if (name === "phone") return { ...devices["iPhone 13"] };
+    return { ...devices["iPhone SE"], viewport: { width: 320, height: 568 } };
+  }
+  if (ENGINE === "firefox") {
+    if (name === "desktop") return { ...devices["Desktop Firefox"], viewport: { width: 1280, height: 900 } };
+    // Firefox has no mobile emulation; the width and a touch screen are what these specs measure.
+    return {
+      browserName: "firefox" as const,
+      viewport: name === "phone" ? { width: 393, height: 851 } : { width: 320, height: 568 },
+      hasTouch: true,
+    };
+  }
+  return null;
+}
+
+/**
  * A signing key for the run, shared by the seeded cookies and the server.
  *
  * `next start` runs as NODE_ENV=production, and lib/auth.ts deliberately
@@ -100,6 +136,19 @@ export default defineConfig({
      * this file rather than from Playwright.
      */
     contextOptions: { reducedMotion: "reduce" },
+    /**
+     * THE READER IS SOMEWHERE ELSE (2026-10-11). Every run here had the
+     * browser in the SERVER'S time zone, because both are this machine — and
+     * in CI both are UTC. In production the server is on UTC and no member is.
+     * A client screen that words a moment while drawing writes one day on the
+     * server and another in the reader's browser, for the hours either side of
+     * a midnight: the fault `MessagesClient` documents having had.
+     *
+     * `E2E_TZ=Pacific/Auckland` puts every page a day ahead of the server for
+     * most of the working day; `Pacific/Honolulu` a day behind in the evening.
+     * `e2e/coverage.ts` gives the same zone to a context a spec makes itself.
+     */
+    ...(process.env.E2E_TZ ? { timezoneId: process.env.E2E_TZ } : {}),
   },
 
   projects: [
@@ -108,7 +157,7 @@ export default defineConfig({
       // Pixel 5 is 393x851 with a coarse pointer — a real device profile
       // rather than a narrow desktop window, which is the distinction the
       // touch-target rules are gated on.
-      use: { ...devices["Pixel 5"] },
+      use: onEngine("phone") ?? { ...devices["Pixel 5"] },
     },
     {
       name: "small-phone",
@@ -116,14 +165,14 @@ export default defineConfig({
       // The Pixel 5 profile above is 393px and comfortably wide enough to hide
       // an overflow that a 320px screen would show, so testing only the larger
       // one proves less than it appears to.
-      use: {
+      use: onEngine("small-phone") ?? {
         ...devices["Pixel 5"],
         viewport: { width: 320, height: 568 },
       },
     },
     {
       name: "desktop",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } },
+      use: onEngine("desktop") ?? { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } },
     },
   ],
 
@@ -151,6 +200,11 @@ export default defineConfig({
       NEXT_DIST_DIR: ".next-e2e",
       NEXT_NO_STANDALONE: "1",
       AUTH_SECRET: process.env.AUTH_SECRET!,
+      // WebKit does not send a Secure cookie to plain http://localhost (Chromium
+      // does), so a server that marks them Secure signs nobody in there. See
+      // `src/lib/secure-cookies.ts`. A server already running — the usual case
+      // locally — has to have been started with the same variable.
+      ...(ENGINE === "webkit" ? { E2E_PLAIN_HTTP: "1" } : {}),
     },
   },
 });

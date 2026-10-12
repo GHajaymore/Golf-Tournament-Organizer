@@ -109,7 +109,7 @@ describe("console form controls are named", () => {
         waitlist={[player("p3", "zz-Cleo Green", 20)]}
         pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 2, status: "registration", regDeadline: "", regOpens: "",
+          name: "zz-Club Championship", capacity: 2, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, phoneLocked: false, registrationToken: "",
@@ -181,6 +181,7 @@ describe("console form controls are named", () => {
     const { StagesClient } = await import("@/components/StagesClient");
     const html = render(
       <StagesClient
+        today="2026-10-11"
         rrMatchesPerPlayer={3}
         scoring={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
         tiebreakers={[] as never[]}
@@ -206,6 +207,7 @@ describe("console form controls are named", () => {
     const { StagesClient } = await import("@/components/StagesClient");
     const html = render(
       <StagesClient
+        today="2026-10-11"
         rrMatchesPerPlayer={3}
         scoring={{ winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 }}
         tiebreakers={[] as never[]}

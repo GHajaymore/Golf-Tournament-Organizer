@@ -1,5 +1,6 @@
 import {
   resolveMatch,
+  marginRefusal,
   marginToHoles,
   deriveNetHoles,
   matchStrokesGiven,
@@ -194,6 +195,7 @@ export function resolveMatchEntry(
       strokesGiven.toB = new Array(ctx.holes).fill(0);
     }
   } else {
+    problem = marginRefusal(entry.winner ?? "H", entry.margin ?? "", ctx.holes);
     holes = marginToHoles(entry.winner ?? "H", entry.margin ?? "", ctx.holes);
   }
 

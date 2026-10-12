@@ -17,6 +17,10 @@
 import { runMark } from "./run-mark.mjs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
+
+/** When this run signed in: one moment, so a value signed in two places is the same value. */
+const issued = Date.now();
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3120";
 const EVENT = process.env.VERIFY_EVENT ?? "Demo Cup";
@@ -67,8 +71,8 @@ async function main() {
     made.accountId = account.id;
 
     const secret = process.env.AUTH_SECRET ?? "dev-secret";
-    const mac = createHmac("sha256", secret).update(user.id).digest("base64url");
-    const cookie = `ng_session=${user.id}.${mac}`;
+    const mac = createHmac("sha256", secret).update(signedInNow(user.id, issued)).digest("base64url");
+    const cookie = `ng_session=${signedInNow(user.id, issued)}.${mac}`;
     const get = async (path) => {
       const res = await fetch(BASE + path, { headers: { cookie }, redirect: "follow" });
       return { status: res.status, html: await res.text() };

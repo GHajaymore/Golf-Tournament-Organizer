@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { emailConfig, sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
 import { passwordProblem } from "@/lib/domain/password";
@@ -14,6 +14,7 @@ import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
+import { markStaffSeen } from "@/lib/services/staff-seen";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -50,6 +51,9 @@ async function startSessionFor(email: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return false;
   await createSession(user.id);
+  // Whoever added this person as staff while they were away may now be shown
+  // who they added (`markStaffSeen`).
+  await markStaffSeen(user.id);
   return true;
 }
 
@@ -166,12 +170,28 @@ export async function claimPassword(email: string, password: string, next?: stri
  * (organizer-provisioned only) is directed to sign-in instead — sending a
  * reset link would let someone hijack an identity nobody has claimed yet.
  */
-export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; sent?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
 
   const limit = await checkRateLimit("password-reset", clean);
   if (!limit.allowed) return { ok: false, error: limit.message };
+
+  /**
+   * NO WAY TO SEND MAIL, SO NO CLAIM THAT ANY WAS SENT (Ajay, 2026-10-11:
+   * "yes for now").
+   *
+   * With no mail provider this used to make a token, fail to send it, and
+   * answer `{ ok: true }` — and the screen then said "a reset link is on its
+   * way" to somebody who would wait for a message that could not come.
+   *
+   * Decided HERE, before the address is looked up, on a fact about the
+   * installation and nothing about the person: the answer is the same for a
+   * registered address and a made-up one, so it is not the oracle the comment
+   * below is about. And no token is made — a working credential nobody can
+   * ever receive is a thing to not have lying about.
+   */
+  if (!emailConfig().configured) return { ok: true, sent: false };
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
   if (user && user.password) {
@@ -188,7 +208,7 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
     await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
   }
   // Always the same answer, whether or not the address is registered.
-  return { ok: true };
+  return { ok: true, sent: true };
 }
 
 /** Complete a password reset from the emailed link. */
@@ -219,8 +239,26 @@ export async function resetPassword(token: string, password: string): Promise<{ 
   const weak = passwordProblem(password, owner ?? undefined);
   if (weak) return { ok: false, error: weak };
 
-  const user = await prisma.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
-  await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+  /**
+   * A RESET ENDS EVERY EARLIER SIGN-IN (2026-10-11).
+   *
+   * Resetting a password is the one moment somebody is saying "another person
+   * may be in my account". It used to change the password and leave every
+   * session that already existed exactly as it was — whoever was in, stayed
+   * in. Moving `sessionsValidFrom` to now makes every cookie issued before
+   * this moment stop working, on every device (`sessionRefusal`), and the
+   * sign-in a few lines below is issued after it.
+   *
+   * And every OTHER reset link still out for this account goes with it. Two
+   * requests made a minute apart are two working links for fifteen minutes;
+   * using one must not leave the other good.
+   */
+  const now = new Date();
+  const user = await prisma.user.update({
+    where: { id: record.userId },
+    data: { password: hashPassword(password), sessionsValidFrom: now },
+  });
+  await prisma.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: now } });
 
   const signedIn = await startSessionFor(user.email);
   if (!signedIn) return { ok: false, error: "Password updated, but sign-in failed. Try logging in." };
@@ -357,12 +395,42 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
   const access = await effectiveAccess(session.email, eventId);
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
+  // Somebody already signed in when a club added them: opening one of that
+  // club's tournaments is them having been back.
+  const opened = await prisma.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
+  if (opened?.organizationId) await markStaffSeen(session.userId, opened.organizationId);
   // "board" is the events list's Leaderboard / Results button, which should
   // land on the board it names rather than on Today.
   redirect(stay === "board" ? "/me/board" : stay === "player" ? "/me" : homeFor(access.role));
 }
 
 export async function signOutAction() {
+  await destroySession();
+  redirect("/");
+}
+
+/**
+ * SIGN OUT EVERYWHERE (Ajay, 2026-10-11: "yes do it").
+ *
+ * The ordinary Sign out takes the cookie off THIS browser and nothing else —
+ * right for a shared laptop, and no help at all to somebody who has just
+ * realised they are still signed in on the pro shop's computer, or on a phone
+ * they no longer hold. Until now the only way to end those was to reset the
+ * password, which nobody thinks of when the password is not the worry.
+ *
+ * It uses the line a reset already moves: `sessionsValidFrom` becomes now, and
+ * every cookie issued before this moment is nobody's session on any device
+ * (`sessionRefusal`). The password is untouched, so the person signs straight
+ * back in wherever they actually are.
+ *
+ * WHOSE sessions is the session's own, never an argument — a "use server"
+ * export is a public endpoint. Called by nobody signed in, it writes nothing.
+ */
+export async function signOutEverywhereAction() {
+  const session = await getSession();
+  if (session) {
+    await prisma.user.update({ where: { id: session.userId }, data: { sessionsValidFrom: new Date() } });
+  }
   await destroySession();
   redirect("/");
 }

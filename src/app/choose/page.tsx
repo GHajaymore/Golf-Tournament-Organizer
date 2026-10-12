@@ -25,6 +25,7 @@ import { myAsks } from "@/lib/services/join-requests";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
+import { sinceWords } from "@/lib/domain/since";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -364,7 +365,10 @@ export default async function ChooseTournamentPage({
              error. The service to answer it properly existed from that day and
              nothing called it, which is exactly the class
              `every-service-is-reached.test.ts` was written to catch. */
-          asks={await myAsks(session.email)}
+          // Each with how long ago it was asked, in words, worked out HERE:
+          // the component is rendered again in the browser and must not do
+          // the arithmetic a second time, a moment later.
+          asks={(await myAsks(session.email)).map((a) => ({ status: a.status, outfit: a.outfit, asked: sinceWords(a.askedAt) }))}
         />
 
       </div>

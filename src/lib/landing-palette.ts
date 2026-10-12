@@ -56,8 +56,16 @@ const HUE = {
    * screenshots on this page are the app's own dark screens. The surface keeps
    * its name, `lacquer` — it is the DARK surface, and every reader of this
    * module already knows it by that name.
+   *
+   * MIDNIGHT NAVY since 2026-10-11 (Ajay's redesign: "what background/ground
+   * would you recommend? build the landing page with your recommendation").
+   * A very dark blue rather than a near-black: every rival in golf is green on
+   * white, so navy is the page's alone; the app's light screens glow on it
+   * instead of dissolving into a white page; and the logo's orange is at its
+   * strongest against it. The whole front door is on this surface now — the
+   * light one survives as a single cream panel (the recommended plan).
    */
-  lacquer: 240,
+  lacquer: 223,
   /**
    * The light page. It was card-stock cream; on 2026-09-29 Ajay chose a neutral
    * white ("the website can have its own best colour combinations"): the app's
@@ -67,8 +75,13 @@ const HUE = {
   cream: 240,
   /** Warm neutral text, a few degrees off the cream so it never reads as a tint of it. */
   ink: 240,
-  /** Cool neutral text for the dark ground — the app's own ink on its own ground. */
-  inkCool: 240,
+  /**
+   * Text on the dark ground. It was the app's cool ink while the dark ground
+   * was the app's near-black; on navy it is a WARM cream (2026-10-11) — the
+   * colour of a scorecard, and the reason the page reads as a club's blazer
+   * and brass buttons rather than as a terminal. The key keeps its name.
+   */
+  inkCool: 44,
   /**
    * "No" and "partly" in the comparison table: a red and an amber, solved like
    * every other foreground. MEANING, not identity — they mark a cell, never a
@@ -229,18 +242,23 @@ const LACQUER: LandingSurface = {
   hue: HUE.lacquer,
   inkHue: HUE.inkCool,
   away: "lighter",
-  // The app's own dark ground and card, near enough to read as one product.
-  page: { saturation: 0.06, lightness: 0.045 },
-  raised: { saturation: 0.05, lightness: 0.09 },
-  inset: { saturation: 0.05, lightness: 0.07 },
+  // Midnight navy, and the lifted navy its panels and cards sit on. The text
+  // colours below are SOLVED against the lightest of these, so lifting a panel
+  // can only ever cost the solver lightness, never the reader contrast.
+  page: { saturation: 0.6, lightness: 0.069 },
+  raised: { saturation: 0.58, lightness: 0.155 },
+  inset: { saturation: 0.6, lightness: 0.105 },
   // The leaderboard card is the raised surface at 52%, so the hero's grid and
   // glow read through it. Graded as if it were opaque, which is the safe
   // direction: composited over the page it can only end up darker than this,
   // and darker is more contrast for light text.
-  panel: { saturation: 0.05, lightness: 0.09, alpha: 0x85 },
-  ink: { saturation: 0.05, lightness: 0.96 },
-  inkSoft: { saturation: 0.06, lightness: 0.66 },
-  inkFaint: { saturation: 0.04, lightness: 0.52 },
+  panel: { saturation: 0.58, lightness: 0.155, alpha: 0x85 },
+  // Cream for the words, and two quieter creams. Aimed where the design wants
+  // them; the solver moves each lighter until it clears its floor on the
+  // lifted navy, so these are requests, not the values that ship.
+  ink: { saturation: 0.5, lightness: 0.93 },
+  inkSoft: { saturation: 0.14, lightness: 0.84 },
+  inkFaint: { saturation: 0.1, lightness: 0.72 },
   // Accent TEXT and accent FILL are different weights, the way the app's own
   // ramp separates step 400 from 500. Held to one value the button and the
   // body text come out the same colour and the button stops reading as a
@@ -255,9 +273,9 @@ const LACQUER: LandingSurface = {
   flag: { saturation: 0.34, lightness: 0.578 },
   danger: { saturation: 0.68, lightness: 0.62 },
   warn: { saturation: 0.78, lightness: 0.57 },
-  // Finer than the lacquer's were: on a neutral ground a strong hairline reads
-  // as a grid drawn over the page rather than an edge.
-  lineAlpha: [0.08, 0.14],
+  // A little stronger than on the near-black: navy swallows a hairline that
+  // black would show.
+  lineAlpha: [0.1, 0.18],
 };
 
 /**

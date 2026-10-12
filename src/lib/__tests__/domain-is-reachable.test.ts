@@ -106,6 +106,12 @@ function uses(source: string, name: string): number {
   let n = 0;
   // `name(`, `name<`, `<Name`, `{name}`, `name,` in an argument list.
   for (const _ of src.matchAll(new RegExp(`(?<![A-Za-z0-9_$.])${name}\\s*[(<]`, "g"))) n += 1;
+  // `...name(` — a call whose result is spread into an object or an argument
+  // list. The first shape refuses anything after a dot so that `other.name(`
+  // is not counted, and a spread is three of them: `leagueSettingsToSend`,
+  // called exactly once and through a spread, read as reachable from nothing
+  // (2026-10-10).
+  for (const _ of src.matchAll(new RegExp(`\\.\\.\\.${name}\\s*[(<]`, "g"))) n += 1;
   for (const _ of src.matchAll(new RegExp(`<${name}[\\s/>]`, "g"))) n += 1;
   for (const _ of src.matchAll(new RegExp(`[{(,=]\\s*${name}\\s*[,})\\]]`, "g"))) n += 1;
   return n;
@@ -144,13 +150,19 @@ interface Dead {
  * reading what is left — the list is shorter than it was and it is now the
  * measurement rather than the instrument's shadow.
  *
- * The two worth looking at first, because they are features rather than
- * leftovers:
+ * AND THREE MORE LEFT ON 2026-10-10 FOR THE SAME KIND OF REASON:
+ * `handicapRecordFrom`, `parseAttested` and `splitBySchedule` are each called
+ * through a SPREAD — `...handicapRecordFrom(rounds)` — which the matcher read
+ * as a method call on something and refused. One of them had been written up
+ * below as a feature "built for handicapping and never shown"; it is what the
+ * member's handicap record is built from. Found the usual way: a function
+ * written that day, called once through a spread, was reported dead.
+ *
+ * The one worth looking at first, because it is a feature rather than a
+ * leftover:
  *
  *   skins-pot.ts:seasonPosition                a player's money across a
  *       weekly league. Computed, tested, and on no screen.
- *   handicap-record.ts:handicapRecordFrom      a scoring record built for
- *       handicapping and never shown.
  *
  * A third, `season.ts:seasonStandings`, was retired on 2026-09-27 rather than
  * wired in. It ranked a PAIR across weeks, keyed on a `Team` id that no
@@ -174,7 +186,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/grouping.ts:groupAvgHandicap",
   "lib/domain/grouping.ts:groupCountFor",
   "lib/domain/handicap-policy.ts:handicapStanding",
-  "lib/domain/handicap-record.ts:handicapRecordFrom",
   "lib/domain/locale.ts:formatDayIn",
   "lib/domain/locale.ts:formatDayRangeIn",
   "lib/domain/locale.ts:formatMonthIn",
@@ -194,8 +205,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/tee-sheet.ts:teeSheetAsPlayed",
   "lib/domain/venue.ts:findCard",
   "lib/domain/venue.ts:libraryProvider",
-  "lib/services/attestation.ts:parseAttested",
-  "lib/services/availability.ts:splitBySchedule",
   "lib/services/courses.ts:eventCourses",
   "lib/services/courses.ts:isMultiCourse",
   "lib/services/handicaps.ts:courseHandicapForPlayer",
@@ -257,6 +266,13 @@ describe("the domain is reachable", () => {
      */
     const invented = "zzNobodyCallsThisFunction";
     expect(APP_FILES.some((f) => f.src.includes(`${invented}(`))).toBe(false);
+  });
+
+  it("reads a call made through a spread, and still not a method of the same name", () => {
+    // Both directions: the spread is a use; `other.name(` is somebody else's.
+    expect(uses("const sent = { points, ...settingsToSend(form, stored) };", "settingsToSend")).toBe(1);
+    expect(uses("save(...argsFor(row));", "argsFor")).toBe(1);
+    expect(uses("const sent = helper.settingsToSend(form);", "settingsToSend")).toBe(0);
   });
 
   it("reads a REAL call site that a comment sits on top of", () => {

@@ -8,9 +8,10 @@ import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import { planForEvent } from "@/lib/services/entitlements";
-import { effectiveCapacity } from "@/lib/services/limits";
+import { fieldLimitFor } from "@/lib/services/waitlist";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { phoneRequiredFor } from "@/lib/plans";
+import { clubDayForEvent } from "@/lib/services/club-clock";
 import { logAudit } from "@/lib/services/action-shared";
 import {
   cleanRegistration,
@@ -115,7 +116,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // the form carried. The organizer's capacity, tightened to the tier's field
   // cap when the owner has enforcement on (a no-op otherwise). A stranger over
   // the cap waitlists like any full field — never refused with a billing wall.
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
 
   // A first count and decision. Whether registration is OPEN at all — the
   // accept/reject verdict — does not depend on the count: a full field
@@ -125,6 +126,8 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   const confirmedCount = await prisma.player.count({
     where: { eventId: event.id, status: "confirmed" },
   });
+  // The closing day ends when it ends AT THE CLUB — see `domain/club-clock.ts`.
+  const clubNow = await clubDayForEvent(event.id);
   const decision = decideIntake({
     registrationOpen: event.registrationOpen,
     approvalMode: approvalModeOf(event.registrationApproval),
@@ -136,6 +139,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
       capacity,
       confirmedCount,
       override: event.registrationOverride,
+      now: clubNow,
     },
   });
   if (!decision.accepted) return { ok: false, error: NOT_OPEN };
@@ -201,6 +205,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
         capacity,
         confirmedCount: freshCount,
         override: event.registrationOverride,
+        now: clubNow,
       },
     });
     // `decision` is already narrowed to accepted by the gate above; if the event

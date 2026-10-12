@@ -129,3 +129,27 @@ describe("how it reads on screen", () => {
       .toBe("Tom Halloran against Priya Nair");
   });
 });
+
+/**
+ * WHAT THE PICKER OFFERS WHEN THE KIND IS SWITCHED (2026-10-10).
+ *
+ * It kept "the ids of the current rule" in one pair of variables whatever the
+ * kind, so choosing "Winners of two rounds" while the stored rule named two
+ * players saved those players as rounds. The ids a kind starts from are its
+ * own, or none.
+ */
+describe("the ids a kind of rule starts from", () => {
+  it("are the stored ones when the stored rule is of that kind", async () => {
+    const { idsForKind } = await import("@/lib/domain/single-match");
+    expect(idsForKind({ kind: "named", a: "p1", b: "p2" }, "named")).toEqual(["p1", "p2"]);
+    expect(idsForKind({ kind: "stage-winners", a: "s1", b: "s2" }, "stage-winners")).toEqual(["s1", "s2"]);
+  });
+
+  it("are empty when the stored rule is of another kind — a player is not a round", async () => {
+    const { idsForKind } = await import("@/lib/domain/single-match");
+    expect(idsForKind({ kind: "named", a: "p1", b: "p2" }, "stage-winners")).toEqual(["", ""]);
+    expect(idsForKind({ kind: "stage-winners", a: "s1", b: "s2" }, "named")).toEqual(["", ""]);
+    expect(idsForKind({ kind: "seeds", a: 1, b: 2 }, "named")).toEqual(["", ""]);
+    expect(idsForKind(null, "stage-winners")).toEqual(["", ""]);
+  });
+});

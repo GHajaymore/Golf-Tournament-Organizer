@@ -241,7 +241,8 @@ export function RoundVenue({
     inheritedTeeName !== undefined ? inheritedTeeName : defaultTeeFor(venue?.courseId ?? null, teesHere)?.name ?? "";
   const setTee = (id: string) =>
     startTransition(async () => {
-      const res = await setStageCourse(stageId, venue?.courseId ?? null, "full", true, id || null);
+      // No nine: this panel does not know it, and saying "full" reset a back-nine round to the front.
+      const res = await setStageCourse(stageId, venue?.courseId ?? null, undefined, true, id || null);
       if (!res.ok) setError(res.error ?? "Couldn't set the tees for this round.");
       else router.refresh();
     });
@@ -371,7 +372,7 @@ export function RoundVenue({
                 const chosen = pendingVenue.id;
                 setPendingVenue(null);
                 startTransition(async () => {
-                  const res = await setStageCourse(stageId, chosen || null, "full", true);
+                  const res = await setStageCourse(stageId, chosen || null, undefined, true);
                   if (!res.ok) setError(res.error ?? "Couldn't set the venue for this round.");
                   else router.refresh();
                 });

@@ -8,7 +8,7 @@ import {
   threadView,
   postToScope,
   markRead as markReadService,
-  openDirectThread,
+  openDirectThreadWithPlayers,
   staffBroadcast,
   setMessagesOptOut,
   planSmsBroadcast,
@@ -71,14 +71,15 @@ export async function markThreadRead(threadId: string): Promise<void> {
 /**
  * Start or reopen a direct conversation.
  *
- * The addresses DO come from the caller here, which makes this the one action
- * in the file that has to validate ids rather than derive them — the service
- * checks every one against this tournament's field and this club's roster
- * before a thread exists.
+ * WHO it is with does come from the caller, which makes this the one action in
+ * the file that has to validate ids rather than derive them. Each is somebody's
+ * entry in THIS tournament — the only thing the picker was given — and the
+ * service checks every one before a thread exists. It took email addresses
+ * until 2026-10-11, which meant the picker had to be sent everybody's.
  */
-export async function startDirectThread(withEmails: string[], firstMessage = ""): Promise<PostResult> {
+export async function startDirectThread(playerIds: string[], firstMessage = ""): Promise<PostResult> {
   const { session, ctx } = await requireMembership();
-  const res = await openDirectThread(ctx, withEmails, session.name, firstMessage);
+  const res = await openDirectThreadWithPlayers(ctx, playerIds, session.name, firstMessage);
   if (res.ok) revalidatePath("/", "layout");
   return res;
 }

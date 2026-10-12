@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setStageDeadlineOverride } from "@/app/actions/tournament";
-import { deadlineState } from "@/lib/deadline";
+import { dayAsDate, deadlineState } from "@/lib/deadline";
 import { Icon } from "./Icon";
 
 /**
@@ -22,12 +22,20 @@ export function RoundDeadlineControl({
   stageId,
   roundLabel,
   deadline,
+  today,
   override,
   locked = false,
 }: {
   stageId: string;
   roundLabel: string;
   deadline: string;
+  /**
+   * Today, yyyy-mm-dd, FROM THE SERVER — the same day the server will hold a
+   * late card to. This asked its own clock, on the server and again in the
+   * browser, so for the hours a club's evening is already tomorrow on the
+   * server the two drew "Open" and "Closed" for one round (2026-10-11).
+   */
+  today: string;
   /** true = closed by hand, false = extended past the date, null = follow it. */
   override: boolean | null;
   locked?: boolean;
@@ -35,7 +43,7 @@ export function RoundDeadlineControl({
   const [current, setCurrent] = useState<boolean | null>(override);
   const [pending, startTransition] = useTransition();
 
-  const status = deadlineState(deadline, current);
+  const status = deadlineState(deadline, current, dayAsDate(today));
 
   const set = (next: boolean | null) => {
     setCurrent(next);

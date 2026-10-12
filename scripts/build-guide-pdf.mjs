@@ -23,6 +23,7 @@
 import { runMark } from "./run-mark.mjs";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createHmac, randomBytes } from "node:crypto";
+import { signedInNow } from "./session-cookie.mjs";
 
 const BASE = process.env.GUIDE_BASE_URL ?? "http://127.0.0.1:3102";
 const OUT = "public/guide/tourneyhq-organizer-guide.pdf";
@@ -75,7 +76,7 @@ async function main() {
 
     browser = await chromium.launch();
     const context = await browser.newContext({ baseURL: BASE, colorScheme: "light" });
-    await context.addCookies([{ name: "ng_session", value: sign(user.id), url: BASE }]);
+    await context.addCookies([{ name: "ng_session", value: sign(signedInNow(user.id)), url: BASE }]);
     const page = await context.newPage();
     const res = await page.goto("/guide/steps");
     await page.waitForLoadState("networkidle");

@@ -28,8 +28,23 @@ export function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
 }
 
+/**
+ * A moment inside the day a yyyy-mm-dd string names — its noon, by this
+ * machine's clock — for handing a DAY to a helper that takes a Date.
+ *
+ * It exists for the screens: a component rendered on the server and again in
+ * the browser must be TOLD what day it is, or the two can disagree
+ * (`no-client-screen-draws-from-its-own-clock.test.ts`). The server sends
+ * `todayIso()` as a string; the component turns it back with this, and both
+ * sides then ask every date question of the same day.
+ */
+export function dayAsDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 12);
+}
+
 /** Today, as the same yyyy-mm-dd string a date input produces. */
-export function todayIso(now: Date = new Date()): string {
+export function todayIso(now: Date): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate(),
   ).padStart(2, "0")}`;
@@ -106,7 +121,7 @@ export function formatDeadline(deadline: string, locale: string = DEFAULT_LOCALE
  *
  * A deadline that names no date has not passed — see `parseDeadlineIso`.
  */
-export function deadlinePassed(deadline: string, now: Date = new Date()): boolean {
+export function deadlinePassed(deadline: string, now: Date): boolean {
   const iso = parseDeadlineIso(deadline);
   if (!iso) return false;
   return iso < todayIso(now);
@@ -115,7 +130,7 @@ export function deadlinePassed(deadline: string, now: Date = new Date()): boolea
 export function deadlineState(
   deadline: string,
   override: boolean | null,
-  now: Date = new Date(),
+  now: Date,
 ): DeadlineStatus {
   if (override === true) {
     return { state: "closed-manual", open: false, overridden: true };

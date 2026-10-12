@@ -48,7 +48,11 @@ export function readPin(raw: unknown): { pin: PinPosition | null; error?: string
   // Blank only when NOTHING was typed. A value that is not a whole number is a
   // slip to be named, never quietly read as "this hole isn't set".
   const blank = (v: unknown) => v === undefined || v === null || v === "";
-  if (blank(r.on) && blank(r.off)) return { pin: null };
+  // And nothing CHOSEN either: a side with no paces is an unfinished position,
+  // which falls through to be named — it was read as "this hole isn't set",
+  // and the form answered "Pin sheet cleared" to somebody who had picked L.
+  const sided = r.side === "L" || r.side === "R";
+  if (blank(r.on) && blank(r.off) && !sided) return { pin: null };
   const on = whole(r.on);
   if (on === null || on < 1 || on > MAX_PACES_ON) {
     return { pin: null, error: `Paces on must be a whole number from 1 to ${MAX_PACES_ON}.` };
@@ -62,17 +66,46 @@ export function readPin(raw: unknown): { pin: PinPosition | null; error?: string
   return { pin: { on, side: r.side, off } };
 }
 
+/** One row of the pin-sheet form, as typed. */
+export interface PinRow {
+  on: string;
+  side: PinSide;
+  off: string;
+}
+
+/**
+ * What the form sends for its rows: null for a row nobody touched, and
+ * everything else AS IT IS, finished or not.
+ *
+ * A row used to be sent only when a number had been typed, so a side chosen
+ * on its own was dropped here and never reached `readPin` to be named. The
+ * form must not decide what counts as a position — that is `readPin`'s job,
+ * and it can only refuse what it is shown.
+ */
+export function pinRowsPayload(rows: readonly PinRow[]): ({ on: string; side: PinSide; off: string | number } | null)[] {
+  return rows.map((r) =>
+    r.on.trim() === "" && r.off.trim() === "" && r.side === "C"
+      ? null
+      : { on: r.on.trim(), side: r.side, off: r.side === "C" ? 0 : r.off.trim() },
+  );
+}
+
 /**
  * A whole sheet from caller-supplied data, sized to the round's holes.
  * The first bad hole is named, so the committee is told which one to fix.
  */
-export function readPinSheet(raw: unknown, holes: number): { sheet: PinSheet; error?: string } {
+export function readPinSheet(
+  raw: unknown,
+  holes: number,
+  /** The course's number for the round's first hole — 10 on a back nine — so a refusal names the hole on the form. */
+  firstHole = 1,
+): { sheet: PinSheet; error?: string } {
   if (!Array.isArray(raw)) return { sheet: [], error: "Not a pin sheet." };
   if (raw.length > holes) return { sheet: [], error: `This round has ${holes} holes.` };
   const sheet: PinSheet = [];
   for (let i = 0; i < holes; i++) {
     const { pin, error } = readPin(raw[i]);
-    if (error) return { sheet: [], error: `Hole ${i + 1}: ${error}` };
+    if (error) return { sheet: [], error: `Hole ${i + firstHole}: ${error}` };
     sheet.push(pin);
   }
   return { sheet };

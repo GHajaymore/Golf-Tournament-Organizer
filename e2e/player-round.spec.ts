@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./coverage";
 import { join } from "node:path";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });

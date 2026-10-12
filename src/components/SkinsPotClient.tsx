@@ -48,6 +48,8 @@ export interface SkinsView {
   stakeNote: string;
   net: boolean;
   scope: SkinsScope;
+  /** How many holes the round is; optional so a view built without it still asks. */
+  roundHoles?: number;
   entrantIds: string[];
   /** Asked to join and not paid — not in the pot until somebody takes it. */
   pendingIds: string[];
@@ -150,7 +152,8 @@ export function SkinsPotClient({
           {/* And the nine, when it is not all eighteen: a group's front-nine
               and full-round pots read identically, one above the other. */}
           {`${groupLabel ? `${groupLabel} — ` : ""}Skins — ${view.net ? "net" : "gross"}${
-            view.scope !== "full" ? ` · ${SCOPE_LABEL[view.scope]}` : ""
+            // Not on a nine-hole round: the stored scope names nothing there.
+            view.roundHoles !== 9 && view.scope !== "full" ? ` · ${SCOPE_LABEL[view.scope]}` : ""
           }`}
         </span>
         {/*
@@ -250,14 +253,19 @@ export function SkinsPotClient({
             this one. Putting a buy-in in above turns it into a money game.
           </p>
         )}
-        <div className="field" style={{ width: 150 }}>
-          <label htmlFor={`${fid}-holes`}>Holes</label>
-          <select id={`${fid}-holes`} className="input" value={scope} onChange={(e) => setScope(e.target.value as SkinsScope)}>
-            {(["full", "front", "back"] as const).map((s) => (
-              <option key={s} value={s}>{SCOPE_LABEL[s]}</option>
-            ))}
-          </select>
-        </div>
+        {/* NOT ASKED OF A NINE-HOLE ROUND. There is only the nine: "All 18",
+            "Front 9" and "Back 9" all played the same holes, and each used
+            to save its own pot beside the last. */}
+        {view.roundHoles !== 9 && (
+          <div className="field" style={{ width: 150 }}>
+            <label htmlFor={`${fid}-holes`}>Holes</label>
+            <select id={`${fid}-holes`} className="input" value={scope} onChange={(e) => setScope(e.target.value as SkinsScope)}>
+              {(["full", "front", "back"] as const).map((s) => (
+                <option key={s} value={s}>{SCOPE_LABEL[s]}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button type="button" className="btn btn-primary" disabled={pending} onClick={saveSetup}>
           Save
         </button>

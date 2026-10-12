@@ -28,6 +28,8 @@ export interface DraftFacts {
   eventName: string;
   /** True when there is nothing to narrate yet. */
   empty: boolean;
+  /** Rounds the field plays — what a reminder needs, where a recap needs results. */
+  rounds: number;
 }
 
 /** Two decimal places without a floating-point tail. */
@@ -46,7 +48,7 @@ export async function draftFactsFor(eventId: string): Promise<DraftFacts> {
   const currency = await currencyForEvent(eventId);
   const money = (cents: number) => formatMoney(cents, currency);
   const state = await loadEventState(eventId);
-  if (!state) return { text: "", names: [], eventName: "", empty: true };
+  if (!state) return { text: "", names: [], eventName: "", empty: true, rounds: 0 };
 
   const lines: string[] = [];
   const names = new Set<string>();
@@ -59,7 +61,11 @@ export async function draftFactsFor(eventId: string): Promise<DraftFacts> {
   if (rounds.length > 0) {
     note(
       `Rounds: ${rounds
-        .map((r, i) => `${i + 1}. ${r.format} (${r.holes} holes, ${r.scoringBasis})`)
+        // The DATE where the round has one. A reminder about the next round
+        // is written from this line, and without it the day is the one thing
+        // a draft would have to make up — the kind of invention no check on
+        // names can catch.
+        .map((r, i) => `${i + 1}. ${r.format} (${r.holes} holes, ${r.scoringBasis}${r.playedOn ? `, played on ${r.playedOn}` : ", no date set"})`)
         .join("; ")}`,
     );
   }
@@ -124,5 +130,6 @@ export async function draftFactsFor(eventId: string): Promise<DraftFacts> {
     names: [...names],
     eventName: state.event.name,
     empty,
+    rounds: rounds.length,
   };
 }

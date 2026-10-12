@@ -12,7 +12,7 @@ import { brandForEvent, formattingForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { effectiveCapacity } from "@/lib/services/limits";
+import { fieldLimitFor } from "@/lib/services/waitlist";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { recentChanges } from "@/lib/services/recent-changes";
@@ -43,6 +43,33 @@ export default async function RegistrationPage() {
   // Kept rows only — a withdrawal with no history is deleted, not kept.
   const withdrawn = state.players.filter((p) => p.status === "withdrawn").map((p) => ({ id: p.id, name: p.name }));
 
+  /**
+   * ONE ROW, FOR ALL THREE LISTS (2026-10-11).
+   *
+   * The table below is drawn three times — the field, the waiting list, the
+   * entries waiting for approval — and each list was built by its own copy of
+   * this. Only the field's copy carried the tee, so the Tees dropdown on a
+   * waiting-list row saved and then showed the round's set again (found by the
+   * control crawl: nine choices "lost" on a scramble's waiting list). A field
+   * one list is given is now a field every list is given.
+   */
+  const asRow = (p: (typeof state.players)[number]) => ({
+    id: p.id,
+    name: p.name,
+    handicap: p.handicap,
+    handicapType: p.handicapType,
+    handicapSource: p.handicapSource,
+    seed: p.seed,
+    email: p.email,
+    phone: p.phone,
+    flight: flightByPlayer.get(p.id),
+    teeId: p.teeId,
+    // Serialised, because a Date does not survive the server/client
+    // boundary as a Date. The badge is rendered from this on the client so
+    // "2 days ago" is relative to the reader's clock, not the server's.
+    promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
+  });
+
   return (
     <>
       <SetupFlowRail flow={flow} href="/registration" />
@@ -62,7 +89,7 @@ export default async function RegistrationPage() {
         // The capacity the entry actions apply — the plan's field cap over
         // the stored number — so "Confirmed 10 of 10 · Full" here matches what
         // an eleventh entrant is actually told (walked 2026-09-30).
-        capacity: await effectiveCapacity(state.event.organizationId, state.event.capacity),
+        capacity: await fieldLimitFor(state.event),
         status: state.event.status,
         regDeadline: state.event.regDeadline,
         regOpens: state.event.regOpens,
@@ -78,27 +105,11 @@ export default async function RegistrationPage() {
         phoneLocked: phoneRequiredFor(plan, false),
         registrationToken: state.event.registrationToken,
         locale: (await formattingForEvent(session.eventId)).locale,
+        today: state.today,
       }}
-      confirmed={state.confirmed.map((p) => ({
-        id: p.id,
-        name: p.name,
-        handicap: p.handicap,
-        handicapType: p.handicapType,
-        handicapSource: p.handicapSource,
-        seed: p.seed,
-        email: p.email,
-        phone: p.phone,
-        flight: flightByPlayer.get(p.id),
-        teeId: p.teeId,
-        // Serialised, because a Date does not survive the server/client
-        // boundary as a Date. The badge is rendered from this on the client so
-        // "2 days ago" is relative to the reader's clock, not the server's.
-        promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
-      }))}
-      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed, email: p.email, phone: p.phone }))}
-      pendingEntries={state.players
-        .filter((p) => p.status === "pending")
-        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, handicapSource: p.handicapSource, seed: p.seed, email: p.email, phone: p.phone }))}
+      confirmed={state.confirmed.map(asRow)}
+      waitlist={state.waitlist.map(asRow)}
+      pendingEntries={state.players.filter((p) => p.status === "pending").map(asRow)}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
       roster={roster}

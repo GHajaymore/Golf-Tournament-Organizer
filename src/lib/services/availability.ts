@@ -11,6 +11,7 @@ import {
 import { cleanIsoDate, dayInWords, relativeDay, shortDate } from "@/lib/domain/round-dates";
 import { roundLabel } from "@/lib/domain/round-label";
 import { todayIso } from "@/lib/deadline";
+import { clubDay } from "@/lib/domain/club-clock";
 import { formattingForEvent } from "@/lib/services/organization";
 
 /**
@@ -141,7 +142,7 @@ const EMPTY: AvailabilityView = {
  */
 export function splitBySchedule(
   rounds: AvailabilityRound[],
-  now: Date = new Date(),
+  now: Date,
 ): Pick<AvailabilityView, "next" | "future" | "past"> {
   const today = todayIso(now);
   const past: AvailabilityRound[] = [];
@@ -197,7 +198,9 @@ export async function availabilityFor(
     where: { eventId: state.event.id, stageId: { in: leagueRounds.map((r) => r.id) } },
   });
 
-  const today = todayIso(now);
+  // `now` is the instant; the DAY is the club's (see `domain/club-clock.ts`).
+  const clubNow = clubDay(state.timeZone, now);
+  const today = todayIso(clubNow);
   // The club's own date order — see `shortDate`.
   const { locale } = await formattingForEvent(state.event.id);
   const rounds: AvailabilityRound[] = leagueRounds.map((r) => {
@@ -205,7 +208,7 @@ export async function availabilityFor(
     const chosen = mine && (mine.status === "in" || mine.status === "out") ? (mine.status as "in" | "out") : null;
     const playedOn = cleanIsoDate(r.playedOn);
     const optDeadline = cleanIsoDate(r.optDeadline);
-    const locked = !playerMayChange(r.optDeadline, now);
+    const locked = !playerMayChange(r.optDeadline, clubNow);
     return {
       stageId: r.id,
       closed: r.closedAt != null,
@@ -230,7 +233,7 @@ export async function availabilityFor(
   return {
     playerId,
     asksPlayer,
-    ...splitBySchedule(rounds, now),
+    ...splitBySchedule(rounds, clubNow),
     captainOf: await captainFlightsFor(state, mode, own.map((o) => o.id), leagueRounds, explicit),
   };
 }

@@ -1104,6 +1104,8 @@ describe("rounds and format", () => {
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
+    // The page tells the screen what day it is; it used to ask its own clock.
+    today: "2026-10-11",
     rrMatchesPerPlayer: 3,
     scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
@@ -2302,6 +2304,8 @@ describe("round card — which nine and the deadline", () => {
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
+    // The page tells the screen what day it is; it used to ask its own clock.
+    today: "2026-10-11",
     rrMatchesPerPlayer: 3,
     scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
@@ -2327,6 +2331,34 @@ describe("round card — which nine and the deadline", () => {
   it("keeps 'not fixed' selected instead of snapping back to front", () => {
     const html = render(<StagesClient {...base} stages={[stage({ holes: 9, nine: "full" })]} />);
     expect(html).toMatch(/<option value="full" selected="">/);
+  });
+
+  /**
+   * "NOT FIXED" IS OFFERED ONLY WHERE SOMETHING ELSE SAYS WHICH NINE (sweep 1,
+   * d1, 2026-10-10). In match play each MATCH states its own nine, so a round
+   * can honestly leave it open. A round scored from cards has nowhere else
+   * to say it: every card was scored as the front nine — front pars, front
+   * stroke index — under a label saying the nine was not fixed.
+   */
+  const medal = (over: Partial<StageView> = {}) =>
+    stage({ type: "Stroke Play Round", format: "Stableford", holes: 9, scoringBasis: "net", ...over });
+
+  it("does not offer 'not fixed' on a round scored from cards", () => {
+    const html = render(<StagesClient {...base} stages={[medal()]} />);
+    expect(html).toContain("Which nine");
+    expect(html).toContain("Front nine");
+    expect(html).toContain("Back nine");
+    expect(html).not.toContain("Not fixed");
+  });
+
+  it("shows such a round as the front nine when nothing was chosen, because that is how it is scored", () => {
+    const html = render(<StagesClient {...base} stages={[medal({ nine: "full" })]} />);
+    expect(html).toMatch(/<option value="front" selected="">/);
+  });
+
+  it("CONTROL: and still shows the back nine where the back nine was chosen", () => {
+    const html = render(<StagesClient {...base} stages={[medal({ nine: "back" })]} />);
+    expect(html).toMatch(/<option value="back" selected="">/);
   });
 
   it("keeps an explicitly chosen back nine", () => {
@@ -2711,7 +2743,8 @@ describe("cut line scope", () => {
 });
 
 describe("round scoring window", () => {
-  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01" };
+  // Told what day it is, as the page tells it — it used to ask its own clock.
+  const base = { stageId: "s1", roundLabel: "Round 2", deadline: "2026-08-01", today: "2026-10-11" };
 
   it("reports a round closed by its own deadline", () => {
     const html = render(<RoundDeadlineControl {...base} override={null} />);
@@ -5283,7 +5316,9 @@ describe("MessagesClient", () => {
     },
   ];
   const composable = [{ key: "foursome:s1#Group 1", label: "Your group — Group 1", kind: "foursome" }];
-  const people = [{ name: "Sam Ellis", email: "sam@example.invalid" }];
+  // A person to message is a name and their entry in the tournament — the
+  // picker was sent every entrant's email address until 2026-10-11.
+  const people = [{ name: "Sam Ellis", id: "player-sam" }];
 
   it("lists conversations with their unread counts", async () => {
     const { MessagesClient } = await import("@/components/MessagesClient");
@@ -6489,7 +6524,7 @@ describe("how money works", () => {
 
   it("does not let a read-only viewer change the club default", async () => {
     const html = await money({ mode: "organization", canEdit: false });
-    expect(html).toContain("Only an organization owner or admin can change this");
+    expect(html).toContain("Only a Commissioner or Admin can change this");
     expect(html).toContain("disabled");
   });
 });
@@ -6502,7 +6537,7 @@ describe("registration and field", () => {
       <RegistrationClient
         confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
         event={{
-          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "",
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
           registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
           dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
           requirePhone: false, phoneLocked: false, registrationToken: "",
@@ -7185,19 +7220,30 @@ describe("the single match picker does not invent a rule", () => {
 
 describe("play settings name one thing per heading", () => {
   const settings = {
-    leaderboardVisibility: "players",
+    leaderboardVisibility: "participants",
     scoreEntryBy: "players",
-    scoreEntryWindow: "anytime",
+    scoreEntryWindow: "during",
     voiceEntry: false,
     playerAccess: "code",
     scoreApproval: "players",
-    attendanceMode: "off",
-    attestBy: "one",
+    attendanceMode: "everyone",
+    attestBy: "marker",
   };
+  /**
+   * TWO ROUNDS, because that is why a tournament is asked about weekly
+   * sign-up at all (`event-setup-calm.test.tsx`). This fixture used to get the
+   * section drawn with `attendanceMode: "off"` — a value the app cannot store,
+   * which the screen read as "not everyone" — so it tested a tournament no
+   * club can have (`fixtures-name-real-settings.test.ts`).
+   */
+  const rounds = [
+    { stageId: "s1", label: "Round 1", code: "AAAA11" },
+    { stageId: "s2", label: "Round 2", code: "BBBB22" },
+  ];
   const panel = async (mode: "tournament" | "organization") => {
     const { PlaySettings } = await import("@/components/PlaySettings");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<PlaySettings mode={mode} settings={settings as any} canEdit />);
+    return render(<PlaySettings mode={mode} settings={settings as any} canEdit rounds={rounds} />);
   };
 
   /**
@@ -8108,9 +8154,13 @@ describe("the sign-up password field", () => {
   const signUp = () =>
     renderToStaticMarkup(<LoginPanel initialMode="signup" autoFocusFields={false} />);
 
-  /** The hint element itself, not merely the text. */
+  /**
+   * The hint element itself, not merely the text. It carries an id since
+   * 2026-10-11 — the box names it as its description — so the class is found
+   * wherever it stands among the attributes.
+   */
   const HINT = new RegExp(
-    `<span class="text-muted"[^>]*>At least ${MIN_PASSWORD_LENGTH} characters</span>`,
+    `<span [^>]*class="text-muted"[^>]*>At least ${MIN_PASSWORD_LENGTH} characters</span>`,
   );
 
   it("states the length requirement in a HINT, not only a placeholder", () => {
@@ -9465,14 +9515,14 @@ describe("the weekly sign-up calendar's key", () => {
  */
 describe("changing the weekly sign-up mode, on screen", () => {
   const settings = {
-    leaderboardVisibility: "players",
+    leaderboardVisibility: "participants",
     scoreEntryBy: "players",
-    scoreEntryWindow: "anytime",
+    scoreEntryWindow: "during",
     voiceEntry: false,
     playerAccess: "code",
     scoreApproval: "players",
     attendanceMode: "opt-out",
-    attestBy: "one",
+    attestBy: "marker",
   };
   const panel = async (over: Record<string, unknown> = {}) => {
     const { PlaySettings } = await import("@/components/PlaySettings");
@@ -9921,5 +9971,105 @@ describe("a settled side bet on the Prizes screen", () => {
 
   it("says nothing of a result while it can still change — the control", async () => {
     expect(await html(undefined)).not.toMatch(/Nobody won it|\+\$5\.00/);
+  });
+});
+
+/**
+ * A BET ON THE MATCH IS NOT A POT WITH A DOOR (sweep 1, d2, 2026-10-10).
+ *
+ * "The match" and a Nassau are settled between the two sides of EVERY match
+ * in the round — `gameNets` reads the round's matches and never asks who is
+ * "in". The Nassau row has always said so. The match bet was drawn like a
+ * pot: an opt-in / everyone toggle and a chip for each player under "In the
+ * pot (0)". An organizer who ticked nobody still had every loser charged,
+ * and one who ticked four had the other twenty charged too.
+ *
+ * The screen now says what the money does, for both.
+ */
+describe("a bet on the match on the Prizes screen", () => {
+  const field = [
+    { id: "p1", name: "zz-Ann Reyes", playing: true },
+    { id: "p2", name: "zz-Bo Kite", playing: true },
+  ];
+  const game = (kind: string) => ({
+    id: `g-${kind}`, kind, buyInCents: 1000, stakeNote: "", entrantIds: [], pending: [], entryMode: "opt-in", excluded: [],
+  });
+  const html = async (kind: string) => {
+    const { ContestsClient } = await import("@/components/ContestsClient");
+    return render(<ContestsClient roundLabel="Round 1" stageId="s1" field={field} contests={[]} sideGames={[game(kind)]} headToHead />);
+  };
+
+  for (const kind of ["match", "nassau"]) {
+    it(`${kind}: says it applies to every match, and offers nobody a way in or out`, async () => {
+      const out = await html(kind);
+      expect(out).toContain("Applies to every match in this round");
+      expect(out, "draws who is in, for a bet that charges everybody").not.toContain("In the pot (");
+      expect(out, "offers an entry mode that settles nothing").not.toContain("how a pot fills");
+    });
+  }
+
+  it("CONTROL: a pot the cards decide still shows who is in and how it fills", async () => {
+    const out = await html("birdies");
+    expect(out).toContain("In the pot (0)");
+    expect(out).toContain("how a pot fills");
+    expect(out).not.toContain("Applies to every match in this round");
+  });
+});
+
+/**
+ * A FIELD'S LABEL IS FOR ITS BOX (2026-10-11).
+ *
+ * On the log-in form, tapping the word "Password" opened "Reset your
+ * password". The whole field was one `<label>`, and "Forgot?" — a button — sat
+ * inside it ahead of the box: a label belongs to the FIRST control inside it,
+ * so it belonged to the button. The password box had no label at all, and the
+ * button's own name was lost to a screen reader.
+ *
+ * Found by the first browser test to use the log-in form as a person does
+ * (`e2e/front-door.spec.ts`); every other spec arrives already signed in.
+ */
+describe("a field's label on the log-in panel", () => {
+  const panels = {
+    "log in": () => renderToStaticMarkup(<LoginPanel initialMode="login" autoFocusFields={false} />),
+    "sign up": () => renderToStaticMarkup(<LoginPanel initialMode="signup" autoFocusFields={false} />),
+  };
+  /** Every `<label>…</label>` on the panel, whole. */
+  const labels = (html: string) =>
+    html
+      .split("<label")
+      .slice(1)
+      .map((piece) => "<label" + piece.slice(0, piece.indexOf("</label>")));
+
+  for (const [mode, render] of Object.entries(panels)) {
+    it(`holds no button — ${mode}`, () => {
+      const holding = labels(render()).filter((l) => l.includes("<button"));
+      expect(holding.map((l) => l.slice(0, 80))).toEqual([]);
+    });
+
+    it(`names the box it is for — ${mode}`, () => {
+      const html = render();
+      for (const label of labels(html).filter((l) => !l.includes("<input"))) {
+        const at = label.indexOf('for="');
+        expect(at, `a label that is for nothing: ${label.slice(0, 80)}`).toBeGreaterThan(-1);
+        const id = label.slice(at + 5, label.indexOf('"', at + 5));
+        expect(html, `no box with the id ${id}`).toContain(`id="${id}"`);
+      }
+    });
+  }
+
+  it("the password box is the one 'Password' is for, and 'Forgot?' is its own button", () => {
+    const html = panels["log in"]();
+    const label = labels(html).find((l) => l.includes(">Password"));
+    expect(label, "no label reading Password").toBeTruthy();
+    const at = label!.indexOf('for="');
+    const id = label!.slice(at + 5, label!.indexOf('"', at + 5));
+    const box = html.slice(html.indexOf(`id="${id}"`) - 200, html.indexOf(`id="${id}"`) + 200);
+    expect(box).toContain('name="password"');
+    expect(html).toContain(">Forgot?</button>");
+  });
+
+  it("CONTROL: the reader finds a label that does hold a button", () => {
+    expect(labels('<div><label class="field"><span>Password<button type="button">Forgot?</button></span><input/></label></div>')).toHaveLength(1);
+    expect(labels('<label class="field"><button>x</button></label>')[0]).toContain("<button");
   });
 });

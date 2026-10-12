@@ -3,6 +3,7 @@ import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
 import type { Edition } from "@/lib/landing/edition";
 import { EditionSwitch } from "./EditionSwitch";
+import { CONTACT_EMAIL as FRONT_DOOR_EMAIL } from "@/lib/contact";
 
 /**
  * The front door's frame — its icons, its nav and its footer — shared by `/`
@@ -16,11 +17,18 @@ import { EditionSwitch } from "./EditionSwitch";
  */
 
 /** The contact address, in the one place it is written. */
-export const CONTACT_EMAIL = "hello@tourneyhq.club";
+export const CONTACT_EMAIL = FRONT_DOOR_EMAIL;
 
 /**
  * Whether mail to CONTACT_EMAIL actually arrives — and so whether the page may
  * publish it.
+ *
+ * YES, SINCE 2026-10-11: Ajay set up contact@ (with support@, inquiries@,
+ * admin@ and social@ — see `lib/contact.ts`) and confirmed a test message
+ * arrived, so the address is published and every link is back.
+ *
+ * What this said before, kept because the switch is still here for the day
+ * mail stops arriving:
  *
  * NOT YET (2026-09-27): tourneyhq.club has no MX record, so every
  * @tourneyhq.club address bounces (TourneyHQv2 checked the zone and 8.8.8.8).
@@ -29,7 +37,7 @@ export const CONTACT_EMAIL = "hello@tourneyhq.club";
  * is worse than none — and "Talk to us" leads to sign-up. Flip this to true
  * once a test email to CONTACT_EMAIL has been received, and every link returns.
  */
-export const CONTACT_EMAIL_LIVE = false;
+export const CONTACT_EMAIL_LIVE = true;
 
 /** The address to show, or null while it cannot receive mail. */
 export const contactEmail: string | null = CONTACT_EMAIL_LIVE ? CONTACT_EMAIL : null;
@@ -88,12 +96,10 @@ export function landingNav(at: "home" | "faq" | "privacy" | "terms") {
   const home = at === "home" ? "" : "/";
   // The product menu: every part of the page, with what it shows.
   const product: Array<[string, string, string, string]> = [
-    [`${home}#round`, "01", "One Saturday, both sides", "The draw, the cards, the board, the money"],
-    [`${home}#why`, "02", "Why it's different", "Voice scoring, round codes, the settle-up"],
-    [`${home}#features`, "03", "Every feature", "The real app by screen, and the whole list"],
-    [`${home}#formats`, "16", "Formats", "Stroke play to Chapman, one leaderboard"],
-    [`${home}#money`, "04", "The money", "Outing costs split, prize money awarded"],
-    [`${home}#yours`, "05", "Make it yours", "Your colors on every screen"],
+    [`${home}#round`, "01", "How it works", "One competition, from the first entry to the prize table"],
+    [`${home}#does`, "02", "What it does", "The committee's screen, the formats, the money, your colors"],
+    [`${home}#world`, "03", "Wherever you play", "Your club's money, your country's golf"],
+    [`${home}#features`, "04", "Every feature", "The whole list, searchable"],
   ];
   // One list for the desktop row and the phone menu, so they cannot disagree.
   const links: Array<[string, string]> = [

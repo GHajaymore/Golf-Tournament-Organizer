@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { parseHoleArray } from "../courses";
 import { roundCardStatus, type CardSource, type RoundCardStatus } from "../domain/round-card-status";
@@ -39,7 +40,7 @@ export async function roundCardLines(eventId: string): Promise<RoundCardLine[]> 
       orderBy: { position: "asc" },
     }),
     prisma.course.findMany({
-      where: { events: { some: { eventId } } },
+      where: { ...playedOnBy(eventId) },
       select: { id: true, name: true, pars: true, strokeIndex: true, source: true, verifiedAt: true },
     }),
   ]);

@@ -1,3 +1,4 @@
+import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
@@ -12,7 +13,6 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { SeasonDates } from "@/components/SeasonDates";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
-import { todayIso } from "@/lib/deadline";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import type { ThirdPlaceView } from "@/components/StagesClient";
@@ -231,7 +231,7 @@ export default async function StagesPage() {
     ? missingCardsRefusal(await roundsMissingCards(session.eventId))
     : null;
   const venueRows = await prisma.course.findMany({
-    where: { events: { some: { eventId: session.eventId } } },
+    where: { ...playedOnBy(session.eventId) },
     // Provenance with the name: this is the screen that decides which card a
     // round is scored against, so it is the screen that should say whether
     // anybody has ever checked that card. See domain/card-trust.ts.
@@ -345,7 +345,7 @@ export default async function StagesPage() {
           worth offering where there is a season to date — two or more
           playing rounds — and something left to date. */}
       {seasonUndated > 0 && playingCount >= 2 && (
-        <SeasonDates undated={seasonUndated} suggestedStart={todayIso()} />
+        <SeasonDates undated={seasonUndated} suggestedStart={state.today} />
       )}
       {/* A CARD NOBODY HAS CHECKED, NAMED WHERE IT IS CHOSEN (2026-09-19).
           These rounds are scored against these cards, and a wrong stroke
@@ -363,6 +363,9 @@ export default async function StagesPage() {
         ))}
       <StagesClient
         stages={stages}
+        // Today AT THE CLUB, from the server, so the browser's render asks the
+        // same day — and it is the day the deadline is a deadline in.
+        today={state.today}
         // The lock the banner above states; the actions behind most controls
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}

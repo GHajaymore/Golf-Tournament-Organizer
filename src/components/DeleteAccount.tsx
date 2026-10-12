@@ -44,8 +44,8 @@ export function DeleteAccount({ email, soleOwnerOf }: { email: string; soleOwner
       </p>
       {soleOwnerOf.length > 0 ? (
         <p role="note" style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-          You&rsquo;re the only owner of <strong>{soleOwnerOf.join(", ")}</strong>. Give{" "}
-          {soleOwnerOf.length === 1 ? "it" : "each of them"} another owner in Staff &amp; access, or delete{" "}
+          You&rsquo;re the only Commissioner of <strong>{soleOwnerOf.join(", ")}</strong>. Give{" "}
+          {soleOwnerOf.length === 1 ? "it" : "each of them"} another Commissioner in Staff &amp; access, or delete{" "}
           {soleOwnerOf.length === 1 ? "it" : "them"} from its settings, first.
         </p>
       ) : (

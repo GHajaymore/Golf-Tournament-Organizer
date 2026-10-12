@@ -275,12 +275,15 @@ export async function searchDirectory(
 }
 
 /** One course in full — its card, if it has a usable one, and its rated tees. */
-export async function fetchDirectoryCourse(id: string): Promise<DirectoryCourse | null> {
+export async function fetchDirectoryCourse(id: string, live = true): Promise<DirectoryCourse | null> {
   const clean = id.trim();
   if (!clean) return null;
 
   const row = await prisma.courseCatalog.findUnique({ where: { id: clean } });
   if (row) return fromCatalog(row);
+  // The stored catalogue costs nothing; the directory is a shared allowance,
+  // and whether THIS caller may spend one of its requests is theirs to say.
+  if (!live) return null;
 
   const payload = await getJson(`/api/v1/courses/${encodeURIComponent(clean)}`);
   return payload ? courseFrom(payload) : null;

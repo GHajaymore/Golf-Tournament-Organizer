@@ -100,3 +100,47 @@ describe("a bet on a match needs a match", () => {
     expect((await saveSideGame(strokeStage, "birdies", 500)).ok).toBe(true);
   });
 });
+
+/**
+ * AND A FOURSOMES MATCH KEEPS ITS MATCH BETS (sweep 1, a3, 2026-10-10).
+ *
+ * A round where the side plays one ball has no individual score, so a pot
+ * the CARDS decide — birdies, low net, skins — is rightly refused on it. But
+ * `saveSideGame` refused every kind there, the two bets between SIDES
+ * included, on the stated ground that a Nassau "would survive the question,
+ * but it is refused with the rest rather than carved out".
+ *
+ * The casual-round form carves it out the other way and is right to: it
+ * offers "the match" and a Nassau on a foursomes — that is how a foursomes is
+ * played for money — and setup writes the bet. So the money screen showed a
+ * stake box for a bet that existed, and changing the stake was refused with
+ * "there are no individual scores to decide a pot on", about a bet no
+ * individual score decides.
+ */
+describe("a match played with one ball a side", () => {
+  let foursomes = "";
+
+  beforeAll(async () => {
+    foursomes = (
+      await prisma.stage.create({ data: { eventId, position: 2, type: "Round Robin", format: "Foursomes", holes: 18 } })
+    ).id;
+  });
+
+  for (const kind of ["match", "nassau"]) {
+    it(`takes a new price for ${kind === "match" ? "the match" : "a Nassau"}`, async () => {
+      expect((await saveSideGame(foursomes, kind, 500)).ok, `${kind} could not be staked on a foursomes match`).toBe(true);
+      const again = await saveSideGame(foursomes, kind, 1000);
+      expect(again.ok, `${kind} could not be re-priced`).toBe(true);
+      const row = await prisma.sideGame.findFirst({ where: { stageId: foursomes, kind } });
+      expect(row?.buyInCents).toBe(1000);
+    });
+  }
+
+  it("CONTROL: a pot the cards decide is still refused there, and says why", async () => {
+    for (const kind of ["birdies", "low-net", "low-gross"]) {
+      const r = await saveSideGame(foursomes, kind, 500);
+      expect(r.ok, `${kind} was accepted on a round with no individual scores`).toBe(false);
+      expect("error" in r && r.error).toMatch(/one ball per side/);
+    }
+  });
+});

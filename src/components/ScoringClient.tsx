@@ -190,7 +190,7 @@ export function ScoringClient({
           ))}
           {order.length === 0 && (
             <p className="text-muted" style={{ fontSize: 13, margin: "4px 0" }}>
-              None active — level standings fall back to seed order.
+              None — players level on points share the place.
             </p>
           )}
           {available.length > 0 && (

@@ -1,364 +1,218 @@
 {
- "cup-org-phone.uk": {
-  "w": 1170,
+ "club-board": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "cup-org-phone.us": {
-  "w": 1170,
+ "club-card": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-approve.uk": {
-  "w": 1170,
+ "club-enter": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-approve.us": {
-  "w": 1170,
+ "club-final": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-calendar.uk": {
-  "w": 1170,
+ "club-money": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-calendar.us": {
-  "w": 1170,
+ "club-today": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-code": {
-  "w": 1170,
+ "desk-dashboard": {
+  "w": 2880,
+  "h": 1800,
   "v": [
-   480,
-   720
+   1080,
+   1620,
+   2160
   ]
  },
- "day-teesheet.uk": {
-  "w": 1170,
+ "desk-leaderboard": {
+  "w": 2880,
+  "h": 1800,
   "v": [
-   480,
-   720
+   1080,
+   1620,
+   2160
   ]
  },
- "day-teesheet.us": {
-  "w": 1170,
+ "look-championship-dark": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-week.uk": {
-  "w": 1170,
+ "look-coastal-light": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "day-week.us": {
-  "w": 1170,
+ "look-midnight-dark": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-champs.uk": {
-  "w": 1170,
+ "look-tournament-light": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-champs.us": {
-  "w": 1170,
+ "org-dashboard": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-fourball.uk": {
-  "w": 1170,
+ "org-teesheet": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-fourball.us": {
-  "w": 1170,
+ "public-cup": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-twilight.uk": {
-  "w": 1170,
+ "public-final": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "fmt-twilight.us": {
-  "w": 1170,
+ "public-pairs": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "hero-console.uk": {
-  "w": 2400,
+ "public-stableford": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   1200
+   420,
+   640,
+   860
   ]
  },
- "hero-console.us": {
-  "w": 2400,
+ "world-eur-money": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   1200
+   420,
+   640,
+   860
   ]
  },
- "hero-live.uk": {
-  "w": 1170,
+ "world-gbp-board": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "hero-live.us": {
-  "w": 1170,
+ "world-gbp-money": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "money-expenses.uk": {
-  "w": 1170,
+ "world-inr-board": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "money-expenses.us": {
-  "w": 1170,
+ "world-inr-money": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  },
- "panel-casual-events.uk": {
-  "w": 1170,
+ "world-zar-money": {
+  "w": 1179,
+  "h": 2556,
   "v": [
-   480,
-   720
-  ]
- },
- "panel-casual-events.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-board-light.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-board-light.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-card-dark.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-card-dark.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-card-light.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-card-light.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-hole-light.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-hole-light.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.aud": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.cad": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.eur": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.gbp": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.nzd": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.usd": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-money-light.zar": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-today-light.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "phone-today-light.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "prizes-org-phone.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "prizes-org-phone.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-azalea.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-azalea.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-championship.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-championship.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-coastal.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-coastal.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-tournament.uk": {
-  "w": 1170,
-  "v": [
-   480,
-   720
-  ]
- },
- "theme-tournament.us": {
-  "w": 1170,
-  "v": [
-   480,
-   720
+   420,
+   640,
+   860
   ]
  }
 }

@@ -1,5 +1,6 @@
 import { AnnouncementCard, type AnnouncementItem } from "./AnnouncementCard";
 import { FoldedAnnouncements } from "./FoldedAnnouncements";
+import { sinceWords } from "@/lib/domain/since";
 
 export type { AnnouncementItem } from "./AnnouncementCard";
 
@@ -36,6 +37,11 @@ export function AnnouncementList({
   lineOnceRead?: boolean;
 }) {
   if (items.length === 0) return null;
+  // "4 hours ago" is said HERE, on the server, once — the cards below are
+  // drawn again in the browser on the player's Today, and a card that read
+  // the clock for itself said two different things. See `since` on the item.
+  const now = new Date();
+  items = items.map((a) => ({ ...a, since: a.createdAt ? sinceWords(a.createdAt, now) : "" }));
   if (foldSeen) return <FoldedAnnouncements items={items} />;
   if (lineOnceRead) return <FoldedAnnouncements items={items} earlierFold={false} />;
 

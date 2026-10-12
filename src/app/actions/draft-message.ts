@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { draftFactsFor } from "@/lib/services/draft-facts";
-import { checkDraft, draftPrompt, DRAFT_KINDS, type DraftKind } from "@/lib/domain/draft-check";
+import { checkDraft, draftNeeds, draftPrompt, DRAFT_KINDS, type DraftKind } from "@/lib/domain/draft-check";
 import { askClaude } from "@/lib/services/claude";
 
 /**
@@ -61,10 +61,19 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const facts = await draftFactsFor(session.eventId);
-  if (facts.empty) {
+  // By kind: a reminder about the next round is written BEFORE there is a
+  // result, and was refused with the rest — see `draftNeeds`.
+  const needs = draftNeeds(kind as DraftKind);
+  if (needs === "results" && facts.empty) {
     return {
       ok: false,
       error: "There are no results to write about yet. Enter some scores first.",
+    };
+  }
+  if (needs === "a round" && facts.rounds === 0) {
+    return {
+      ok: false,
+      error: "There is no round to remind anybody about yet. Add one on Rounds & formats first.",
     };
   }
 

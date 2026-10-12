@@ -89,7 +89,7 @@ beforeAll(async () => {
       customYards: JSON.stringify(new Array(18).fill(400)),
       customStrokeIndex: JSON.stringify(SI),
       // One set of tees for everyone, so the conversion is unambiguous.
-      teePolicy: "single",
+      teePolicy: "one",
     },
   });
   eventId = event.id;

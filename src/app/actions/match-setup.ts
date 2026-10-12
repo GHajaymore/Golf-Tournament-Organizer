@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
 import { basisFor } from "@/lib/domain/week-basis";
+import { roundPotKey } from "@/lib/domain/skins-pot";
 import { revalidatePath } from "next/cache";
 import { personalOrganizationFor, organizationIdsForPlayer, settingsForNewEvent, currencyForEvent } from "@/lib/services/organization";
 import { money } from "@/lib/domain/money-format";
@@ -597,11 +598,13 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
           buyInCents: plan.money.stakeCents,
           // Empty unless they are playing for something that is not money.
           stakeNote: plan.money.stakeNote,
-          // Net follows the round: a level round's skins are gross, and a
-          // net pot on a round played off scratch would allocate shots the
-          // players agreed not to give.
-          net: plan.scoringBasis === "net",
-          scope: plan.nine,
+          // Net and the nine follow the ROUND AS STORED, by the function the
+          // money screen reads the pot with. This was `plan.scoringBasis`,
+          // what the form asked for — and a Stableford round is stored net
+          // whatever was asked, so a level one wrote a gross pot its own
+          // money screen never found. A level round's handicaps are all
+          // zero, so its net skins are its gross skins: no shots are given.
+          ...roundPotKey(stage),
           groupKey: "",
         },
       });

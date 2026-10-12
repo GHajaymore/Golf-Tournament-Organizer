@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { setPaceMinutes, setPinSheet } from "@/app/actions/round-day";
-import { MAX_PACES_OFF, MAX_PACES_ON, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
+import { MAX_PACES_OFF, MAX_PACES_ON, pinRowsPayload, type PinRow, type PinSheet, type PinSide } from "@/lib/domain/pin-sheet";
 import { DEFAULT_PACE_MINUTES, hoursAndMinutes, minutesPerHole } from "@/lib/domain/pace";
 import { useAction } from "./useAction";
 import { MoreInfo } from "./MoreInfo";
@@ -14,7 +14,7 @@ import { holeNumber } from "@/lib/domain/hole-number";
  * carries the pins.
  */
 
-type Row = { on: string; side: PinSide; off: string };
+type Row = PinRow;
 
 const toRows = (sheet: PinSheet, holes: number): Row[] =>
   Array.from({ length: holes }, (_, i) => {
@@ -54,12 +54,9 @@ export function RoundDaySetup({
     setSaved("");
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   };
-  const payload = () =>
-    rows.map((r) =>
-      r.on.trim() === "" && r.off.trim() === ""
-        ? null
-        : { on: r.on.trim(), side: r.side, off: r.side === "C" ? 0 : r.off.trim() },
-    );
+  // Every row somebody touched, a side chosen on its own included — see
+  // `pinRowsPayload`: the form does not decide what counts as a position.
+  const payload = () => pinRowsPayload(rows);
   const placed = rows.filter((r) => r.on.trim() !== "").length;
   const target = pace || DEFAULT_PACE_MINUTES;
 

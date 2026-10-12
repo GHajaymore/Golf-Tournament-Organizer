@@ -8,6 +8,8 @@ import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
+import { TimeZonePicker } from "@/components/TimeZonePicker";
+import { clubClockInWords, timeZoneChoices } from "@/lib/domain/club-clock";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { GolfTermsPicker } from "@/components/GolfTermsPicker";
@@ -42,7 +44,7 @@ function heldUntilLabel(
 }
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
-import { cleanSettings } from "@/lib/tournament-settings";
+import { houseDefaultsOf } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 
@@ -200,14 +202,7 @@ export default async function OrganizationPage() {
       <SettingsSectionAnchor id="defaults">
         <PlaySettings
           mode="organization"
-          settings={cleanSettings({
-            leaderboardVisibility: org.defaultLeaderboardVisibility,
-            scoreEntryBy: org.defaultScoreEntryBy,
-            scoreEntryWindow: org.defaultScoreEntryWindow,
-            voiceEntry: org.defaultVoiceEntry,
-            playerAccess: org.defaultPlayerAccess,
-            scoreApproval: org.defaultScoreApproval,
-          })}
+          settings={houseDefaultsOf(org)}
           canEdit={canEdit}
         />
       </SettingsSectionAnchor>
@@ -295,6 +290,15 @@ export default async function OrganizationPage() {
                 and was wrong. */}
             <div style={{ marginTop: 14 }}>
               <LocalePicker locale={org.locale} />
+            </div>
+            {/* And where the 12th ENDS, beside how it is written — the other
+                half of what a closing date means. See domain/club-clock.ts. */}
+            <div style={{ marginTop: 14 }}>
+              <TimeZonePicker
+                timeZone={org.timeZone}
+                zones={timeZoneChoices()}
+                clock={clubClockInWords(org.timeZone, org.locale)}
+              />
             </div>
             {/* The club's season, beside how it writes a date — the same kind
                 of setting, answered once and read by every screen that lists

@@ -191,7 +191,11 @@ export async function addTeamMember(teamId: string, playerId: string): Promise<T
       error:
         player.status === "withdrawn"
           ? `${player.name} has withdrawn. Re-enter them in the field first.`
-          : `${player.name} is not in the field yet. Confirm their place first.`,
+          : player.status === "disqualified"
+            ? // Not "confirm their place first": their place was taken away by
+              // a ruling, and the way back is to reinstate them on purpose.
+              `${player.name} has been disqualified. Reinstate them on Registration & field first, if the ruling was made in error.`
+            : `${player.name} is not in the field yet. Confirm their place first.`,
     };
   }
 
@@ -494,7 +498,9 @@ export async function setStageAllowance(
   await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-    return { ok: false, error: "Enter an allowance between 0 and 100 percent." };
+    // "1 to 100", not "0 to 100": zero is accepted here as "back to the
+    // recommendation", which is not an allowance anybody can type.
+    return { ok: false, error: "Enter an allowance from 1 to 100 percent." };
   }
   const current = await prisma.stage.findUnique({
     where: { id: stageId },

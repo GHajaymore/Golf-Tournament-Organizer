@@ -129,7 +129,13 @@ describe("where it is enforced", () => {
 
     const service = readSource("src", "lib", "services", "round-codes.ts");
     expect(service).toMatch(/prisma\.player\.count\(/);
-    expect(service).toMatch(/status: \{ not: "withdrawn" \}/);
+    // RE-PINNED 2026-10-10. This required `status: { not: "withdrawn" }`,
+    // which is the expression that counted a DISQUALIFIED player as an
+    // entrant about to be locked out — the guard held the defect in place.
+    // The guarantee is that the count leaves out everyone who has left the
+    // field, by the one list that says who that is.
+    expect(service).toMatch(/status: \{ notIn: LEFT_THE_FIELD \}/);
+    expect(service).not.toMatch(/status: \{ not: "withdrawn" \}/);
   });
 
   it("the screen and the refusal read ONE count", () => {

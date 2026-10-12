@@ -116,6 +116,13 @@ export interface AccessReportPerson {
   memberId: string | null;
   /** Whether this email has ever signed in (claimed a password). */
   hasLogin: boolean;
+  /**
+   * Added as staff by somebody else and not back since. While true, `name` is
+   * blank and `hasLogin` is false WHATEVER the account holds: the inviter typed
+   * an address, and an address must not buy the name of the account behind it
+   * or the fact that it exists (2026-10-11).
+   */
+  invited?: boolean;
   /** Effective role per event, keyed by event id. Absent = no access. */
   access: Record<string, { role: Role; source: RoleSource }>;
 }
@@ -149,7 +156,7 @@ export async function organizationAccessReport(organizationId: string): Promise<
     }),
     prisma.organizationMember.findMany({
       where: { organizationId },
-      include: { user: { select: { email: true, name: true, password: true } } },
+      select: { id: true, role: true, invitedUnseenAt: true, user: { select: { email: true, name: true, password: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.account.findMany({
@@ -181,10 +188,12 @@ export async function organizationAccessReport(organizationId: string): Promise<
 
   // Organization staff first — they set the baseline.
   for (const m of members) {
-    const person = ensure(m.user.email, m.user.name);
+    const unseen = m.invitedUnseenAt !== null;
+    const person = ensure(m.user.email, unseen ? "" : m.user.name);
     person.orgRole = m.role;
     person.memberId = m.id;
-    person.hasLogin = !!m.user.password;
+    person.hasLogin = unseen ? false : !!m.user.password;
+    person.invited = unseen;
     if (orgRoleGrantsAdmin(m.role)) {
       for (const e of events) person.access[e.id] = { role: "admin", source: "organization" };
     }

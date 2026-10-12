@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
-import { signOutAction } from "@/app/actions/auth";
+import { signOutAction, signOutEverywhereAction } from "@/app/actions/auth";
 import { NOINDEX } from "@/lib/site";
 import { LOGO_SIZE } from "@/components/Logo";
 import { Lockup } from "@/components/Lockup";
@@ -8,6 +8,9 @@ import { Icon } from "@/components/Icon";
 import { DeleteAccount } from "@/components/DeleteAccount";
 import { SendResetLink } from "@/components/SendResetLink";
 import { soleOwnedClubs } from "@/lib/services/account-deletion";
+import { staffClubsOf } from "@/lib/services/staff-seen";
+import { orgRoleName } from "@/lib/roles";
+import { LeaveClub } from "@/components/LeaveClub";
 
 // Behind a session, and about one person.
 export const metadata = { title: "Your account", robots: NOINDEX };
@@ -20,10 +23,17 @@ export const metadata = { title: "Your account", robots: NOINDEX };
  * like `/choose`, because organizers and players both reach it, and neither
  * shell is the other's. It says who is signed in, sends a new-password link by
  * the same reset email the sign-in page uses, and holds the deletion.
+ *
+ * And, since 2026-10-11, it ends every sign-in at once. The Sign out at the top
+ * is this browser's; "Sign out everywhere" is for the device somebody is NOT
+ * holding — see `signOutEverywhereAction`.
  */
 export default async function AccountPage() {
   const session = await requireSession();
   const soleOwnerOf = await soleOwnedClubs(session.userId);
+  // The clubs that have this person on their staff — added, never asked, so
+  // this page is where they may decline (`leaveOrganization`).
+  const staffAt = (await staffClubsOf(session.userId)).map((c) => ({ ...c, roleName: orgRoleName(c.role) }));
 
   return (
     <main
@@ -57,6 +67,24 @@ export default async function AccountPage() {
           <h2 className="card-title" style={{ fontSize: 15 }}>Password</h2>
           <SendResetLink email={session.email} />
         </section>
+
+        {/* Signed in somewhere you no longer are (2026-10-11). A plain form, so it
+            works on a page whose script has not arrived. Not a two-press
+            control: nothing is destroyed, and the way back is to sign in. */}
+        <section className="card elev-sm" style={{ gap: 8 }}>
+          <h2 className="card-title" style={{ fontSize: 15 }}>Other devices</h2>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
+            Still signed in on a phone you no longer have, or a computer at the club? This signs you out
+            on every device, this one included. Your password stays the same, so you can sign straight back in.
+          </p>
+          <form action={signOutEverywhereAction}>
+            <button type="submit" className="btn btn-secondary">
+              <Icon name="sign-out" /> Sign out everywhere
+            </button>
+          </form>
+        </section>
+
+        {staffAt.length > 0 && <LeaveClub clubs={staffAt} />}
 
         <DeleteAccount email={session.email} soleOwnerOf={soleOwnerOf} />
 

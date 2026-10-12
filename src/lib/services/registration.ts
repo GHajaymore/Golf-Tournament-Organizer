@@ -2,9 +2,10 @@ import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
+import { clubDay } from "../domain/club-clock";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
 import { planForOrganization } from "./entitlements";
-import { effectiveCapacity } from "./limits";
+import { fieldLimitFor } from "./waitlist";
 import { phoneRequiredFor } from "../plans";
 import { isPlayingRound } from "../stage-types";
 import { resolveLocale } from "../domain/locale";
@@ -137,7 +138,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // listed in the order they are played.
     include: {
       stages: { select: { type: true, format: true }, orderBy: { position: "asc" } },
-      organization: { select: { locale: true, country: true, golfTerms: true } },
+      organization: { select: { locale: true, country: true, golfTerms: true, timeZone: true } },
     },
   });
   if (!event || !event.registrationOpen) return null;
@@ -153,11 +154,11 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
    * THE CAPACITY THE ACTION WILL APPLY, not the stored one — the same reason
    * `requirePhone` below goes through the plan. A club moved down to Par keeps
    * the unlimited field it set on a higher tier; `register` caps it at ten
-   * (`effectiveCapacity`), and this page, reading the stored 0, said "Open for
+   * (`fieldLimitFor`), and this page, reading the stored 0, said "Open for
    * entries" to the eleventh person and then told them they were on the
    * waitlist (walked 2026-09-30).
    */
-  const capacity = await effectiveCapacity(event.organizationId, event.capacity);
+  const capacity = await fieldLimitFor(event);
   const status = registrationStatus({
     eventStatus: event.status,
     deadline: event.regDeadline,
@@ -165,6 +166,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     capacity,
     confirmedCount,
     override: event.registrationOverride,
+    now: clubDay(event.organization?.timeZone),
   });
   if (!status.acceptingEntries) return null;
 

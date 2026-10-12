@@ -13,7 +13,6 @@ import {
   type SeasonGroup,
   type SeasonWindow,
 } from "@/lib/domain/club-season";
-import { todayIso } from "@/lib/deadline";
 import { playLabel } from "@/lib/domain/play-kind";
 
 /**
@@ -71,9 +70,17 @@ const LABEL: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(
 export function ClubEventsList({
   events,
   openAction,
+  today,
   season = seasonWindow("", ""),
 }: {
   events: ClubEventRow[];
+  /**
+   * Today, yyyy-mm-dd, FROM THE SERVER. Which season is "this season" turns
+   * on it, and this component is rendered on the server and again in the
+   * browser: asking each for its own today let the two disagree for the hours
+   * a club's evening is already tomorrow on the server (2026-10-11).
+   */
+  today: string;
   /** Moves the active tournament so the play shell shows this one. */
   openAction: (formData: FormData) => Promise<void>;
   /**
@@ -190,7 +197,7 @@ export function ClubEventsList({
       ) : (
         <SeasonSections
           groups={bySeason(shown, season)}
-          currentKey={currentSeason(todayIso(), season)?.key ?? null}
+          currentKey={currentSeason(today, season)?.key ?? null}
           render={(e) => (
             <article
               key={e.eventId}

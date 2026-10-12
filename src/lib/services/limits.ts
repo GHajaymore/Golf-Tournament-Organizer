@@ -5,7 +5,6 @@ import {
   planFor,
   effectiveLimit,
   enforcementEnabled,
-  capacityUnderCap,
   DEFAULT_PLAN,
   type LimitKey,
   type LimitResult,
@@ -210,18 +209,14 @@ export async function seatRefusalFor(organizationId: string, email: string): Pro
 }
 
 /**
- * The capacity an intake should actually use: the organizer's own capacity,
- * tightened to the tier's field cap when enforcement is on.
+ * THE CAPACITY AN INTAKE COUNTS AGAINST lives in `waitlist.ts` now, as
+ * `fieldLimitFor`: the field's own limit, tightened to the tier's field cap.
  *
- * A NO-OP while enforcement is off or the tier is uncapped — it returns the
- * organizer's own capacity unchanged, so nothing about how a club takes entries
- * changes until the owner turns limits on. `0` means unlimited on both sides:
- * an unlimited organizer capacity becomes the tier cap, and an unlimited tier
- * leaves the organizer's number alone.
+ * It was `effectiveCapacity(organizationId, capacity)` here, and taking a bare
+ * number is what let nine callers hand it the wrong one — the `capacity`
+ * column, which stops being the limit the moment an organizer types a manual
+ * target (2026-10-10). The replacement takes the tournament and decides which
+ * column is the limit itself, so there is nothing for a caller to get wrong.
+ * Deleted rather than kept beside it: a second door is how the first mistake
+ * comes back.
  */
-export async function effectiveCapacity(
-  organizationId: string,
-  organizerCapacity: number,
-): Promise<number> {
-  return capacityUnderCap(organizerCapacity, await fieldCapFor(organizationId));
-}
