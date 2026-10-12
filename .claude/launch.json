@@ -15,6 +15,14 @@
       "env": { "NEXT_DIST_DIR": ".next-ci", "AUTH_SECRET": "dev-secret" },
       "port": 3102,
       "autoPort": false
+    },
+    {
+      "name": "tourneyhq-e2e-built",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "start", "--port", "3103"],
+      "env": { "NEXT_DIST_DIR": ".next-e2e", "AUTH_SECRET": "local-e2e-secret", "E2E_PLAIN_HTTP": "1" },
+      "port": 3103,
+      "autoPort": false
     }
   ]
 }

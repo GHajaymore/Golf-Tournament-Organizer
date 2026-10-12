@@ -1,4 +1,8 @@
+import { createRequire } from "node:module";
 import { withBotId } from "botid/next/config";
+
+const require = createRequire(import.meta.url);
+const replayBackport = require("./scripts/react-hydration-replay-backport.cjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -70,6 +74,25 @@ const nextConfig = {
    * Nothing in config reaches that branch.
    */
   htmlLimitedBots: /.*/,
+
+  /**
+   * ONE REACT FIX, PUT INTO THE REACT THAT NEXT 15.5 CARRIES, as the bundle is
+   * built. On a slow connection about one page load in seven had its server
+   * HTML thrown away and drawn again in the browser (React #418), because
+   * React lost its place when it came back to an element whose data had not
+   * arrived yet. Fixed upstream in React 19.3.0 and not in the copy bundled
+   * here. The loader says the whole of it, stops the build if that copy ever
+   * changes shape, and is to be DELETED with this rule when Next is moved to a
+   * version whose React has the fix: scripts/react-hydration-replay-backport.cjs.
+   */
+  webpack(config) {
+    config.module.rules.push({
+      test: replayBackport.TEST,
+      enforce: "pre",
+      use: [{ loader: require.resolve("./scripts/react-hydration-replay-backport.cjs") }],
+    });
+    return config;
+  },
 
   /**
    * Two of this app's credentials live in URLs — the leaderboard share token
