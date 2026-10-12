@@ -318,6 +318,32 @@ describe("a knockout in several flights", () => {
     expect((await prisma.stage.findUnique({ where: { id: stageId }, select: { thirdPlace: true } }))?.thirdPlace).toBe(false);
   });
 
+  it("a THIRD flight is a draw like the first two: its own key word, its ties counted, its results kept", async () => {
+    // Two flights are the two draws the app has always had ("winners", "consolation"). Everything
+    // that read exactly those two would pass every other test in this file, so this one is three.
+    const arranged = (await stored()).bracketDraw;
+    try {
+      expect(await divideIntoFlights("handicap", [8, 8, 6])).toEqual({ ok: true });
+      let s = await state();
+      expect(s.brackets.draws!.map((d) => d.label)).toEqual(["Championship flight", "First flight", "Second flight"]);
+      const third = s.brackets.draws![2].view;
+      expect(third.rounds[0].matches.every((m) => m.key.startsWith("flight3-")), "the third flight's ties are filed under its own word").toBe(true);
+      // A draw of n is n − 1 ties: 7 + 7 + 5.
+      expect(s.boardProgress, "before anybody has played").toMatchObject({ unit: "ties", approved: 0, total: 19 });
+
+      await playOut("Second flight");
+      s = await state();
+      expect(s.brackets.draws![2].view.champion?.playerId, "the third flight's results were not read back").toBe(s.flights!.plan.brackets[2].playerIds[0]);
+      expect(s.boardProgress, "the third flight's five ties are not counted").toMatchObject({ unit: "ties", approved: 5, total: 19 });
+      expect(s.brackets.draws!.slice(0, 2).flatMap((d) => d.view.rounds.flatMap((r) => r.matches)).some((m) => m.winnerId && m.a.playerId && m.b.playerId), "a result in the third flight landed in another").toBe(false);
+      expect(s.drawFrozen, "play in the third flight fixes the division").toBe(true);
+      expect(finishingPositions(s), "the top flight has not finished").toEqual([]);
+    } finally {
+      await prisma.bracketWinner.deleteMany({ where: { eventId } });
+      await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: arranged } });
+    }
+  });
+
   it("counts its progress in ties across every flight, and finishes flight by flight", async () => {
     let s = await state();
     const sizes = s.flights!.plan.brackets.map((b) => b.playerIds.length);
@@ -347,6 +373,11 @@ describe("a knockout in several flights", () => {
     await prisma.bracketWinner.deleteMany({ where: { eventId } });
     expect(await setBracketMode("single")).toEqual({ ok: true });
     expect((await stored()).bracketDraw, "a division means nothing to one bracket").toBe("");
+    // And one bracket cannot be handed a division: the column is its own flat draw's.
+    for (const refused of [await divideIntoFlights("handicap", [16, 6]), await clearFlights(), await renameFlight(0, "Anything")]) {
+      expect(refused).toMatchObject({ ok: false, error: expect.stringMatching(/not arranged in flights/) });
+    }
+    expect((await stored()).bracketDraw, "a division was written onto a single bracket").toBe("");
     let s = await state();
     expect(s.brackets.draws).toBeUndefined();
     expect(bracketDraws(s.brackets).length).toBe(1);
