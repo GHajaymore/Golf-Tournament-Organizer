@@ -448,6 +448,15 @@ export default async function DashboardPage() {
     [],
     isBracketMode(event.bracketMode) ? event.bracketMode : "split",
   );
+  /**
+   * HOW MANY FLIGHTS, ASKED ONCE (2026-10-12). A knockout divided into flights
+   * is in the flights its organizer made on the bracket screen, which are not
+   * the tournament's own `Group` rows — so the Players tile read "0 flights"
+   * over a club match play in three, with the bracket card below it naming all
+   * three. Where the knockout is divided, that division is the answer.
+   */
+  const knockoutInFlights = event.bracketMode === "flights";
+  const flightCount = brackets.draws ? brackets.draws.length : state.groups.length;
 
   // One source of truth for which screens exist in this tournament: the same
   // sidebar the layout renders. A shortcut to a door the sidebar has closed is
@@ -928,7 +937,7 @@ export default async function DashboardPage() {
               state.stages.filter((s) => isPlayingRound(s.type)).map((s) => s.format),
             ),
             players: state.confirmed.length,
-            flights: state.groups.length,
+            flights: flightCount,
             rounds: state.stages.length,
           }}
         />
@@ -1009,7 +1018,7 @@ export default async function DashboardPage() {
           <StatCard
             label="Players"
             value={state.confirmed.length}
-            sub={`${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`}
+            sub={`${flightCount} flight${flightCount === 1 ? "" : "s"}`}
             icon="ph ph-users-three"
           />
           {/* Every tile counts `boardProgress`, which knows both the number
@@ -1271,12 +1280,21 @@ export default async function DashboardPage() {
               <div className="text-muted" style={{ fontSize: 13, marginTop: -2 }}>
                 {/* Off the qualifier's CARDS when it was a medal (2026-10-10):
                     "group standings" described a draw that no group decided. */}
-                {straightKnockout
+                {brackets.draws
+                  ? brackets.draws.length === 1
+                    ? "One bracket, seeded in order"
+                    : `${brackets.draws.length} flights, each its own knockout`
+                  : knockoutInFlights
+                    ? "The field is not divided into flights yet"
+                    : straightKnockout
                   ? "The whole field, seeded in order"
                   : state.qualifiesOnCards
                     ? "Seeded from the qualifying round"
                     : "Seeded from live group standings"}
               </div>
+              {/* Arranged in flights and not yet divided, there is no draw to list: the sentence above
+                  says so, and a row reading "Main draw · 1 match" under it would be a draw nobody made. */}
+              {!(knockoutInFlights && !brackets.draws) && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="trophy" style={{ color: "var(--color-accent-200)", marginRight: 6 }} />{brackets.draws?.[0]?.label ?? bracketMainLabel}</span>
@@ -1302,6 +1320,7 @@ export default async function DashboardPage() {
                   </div>
                 ))}
               </div>
+              )}
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
                 Open the {bracketScreenName(!isStaff).toLowerCase()} <Icon name="arrow-right" />
               </Link>
