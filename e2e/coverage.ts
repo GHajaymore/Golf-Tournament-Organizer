@@ -1,7 +1,7 @@
 import { test as base, expect, type BrowserContext } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { explainHydration } from "./page-errors";
+import { explainHydration, keepWhatTheServerSent } from "./page-errors";
 
 /**
  * WHAT THE BROWSER TESTS ACTUALLY TOUCH, WRITTEN DOWN AS THEY RUN.
@@ -102,6 +102,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   context: async ({ context }, use) => {
     recordCoverage(context);
     await noPushOnWebKit(context);
+    await keepWhatTheServerSent(context);
     await use(context);
   },
   // And any context a spec makes for itself — a second player, a signed-out
@@ -117,6 +118,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
         const context = await (zone ? make({ timezoneId: zone, ...args[0] }) : make(...args));
         recordCoverage(context);
         await noPushOnWebKit(context);
+        await keepWhatTheServerSent(context);
         return context;
       };
       await use();

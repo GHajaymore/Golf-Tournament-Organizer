@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 
 /**
  * A SCREEN THAT THREW, recorded the way every spec records it — and, for a
@@ -138,6 +138,11 @@ export async function explain(page: Page, who: string): Promise<void> {
       page.request.get(url, { headers: { "cache-control": "no-store" } }).then((r) => r.text()),
       page.content(),
     ]);
+    // What the page looked like at the instant React replaced it — the one comparison that is of the
+    // FIRST response and not of a second. See `keepWhatTheServerSent`.
+    const parted = await whereTheyPart(page).catch((err) => `could not read what was kept (${String(err)})`);
+    console.log(`[hydration #418] ${who} ${url}
+  at the moment it was replaced: ${parted ?? "nothing was kept — the page was not cleared from <html> or <body>, so one section was redrawn, not the page"}`);
     const a = text(served);
     const b = text(shown);
     let i = 0;
@@ -154,4 +159,119 @@ export async function explain(page: Page, who: string): Promise<void> {
   } catch (err) {
     console.log(`[hydration #418] ${who}: could not compare (${String(err)})`);
   }
+}
+
+/**
+ * THE PAGE AS IT STOOD AT THE MOMENT THE BROWSER GAVE UP ON IT (2026-10-12).
+ *
+ * `explain` above compares a SECOND request for the page with the page as it
+ * now stands, and the third time this fault struck with a recorder attached —
+ * /me/rules, in a counted round — that comparison said what it had said
+ * before: the same text, the same elements by tag and class. Of course it did.
+ * By then the browser had thrown the server's HTML away and drawn the whole
+ * page again itself, and a second request is a second render. Whatever
+ * differed was in the FIRST response, for the moment before React replaced it,
+ * and nothing was looking then.
+ *
+ * So something looks then. When React cannot hydrate a page it clears the
+ * document and renders it afresh, and clearing the document is a
+ * `removeChild` on <html> or <body>. This runs before any of the page's own
+ * script and keeps the document's markup the first time a piece of real
+ * content is removed from either — the server's page, exactly as the browser
+ * had parsed it, with how far the document had loaded. It costs one comparison
+ * per `removeChild` and keeps nothing on a page that hydrates.
+ *
+ * NOT kept for: a script, style, link, template or streaming holder leaving
+ * (the framework moves those on every page), or anything after the first
+ * fifteen seconds (a toast or a dialog leaving <body> is not a page being
+ * thrown away).
+ */
+export async function keepWhatTheServerSent(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const w = window as unknown as { __thqServed?: { html: string; at: number; ready: string; removed: string } };
+    const original = Node.prototype.removeChild;
+    Node.prototype.removeChild = function <T extends Node>(this: Node, child: T): T {
+      try {
+        if (!w.__thqServed && (this === document.body || this === document.documentElement) && child.nodeType === 1 && performance.now() < 15_000) {
+          const el = child as unknown as Element;
+          const tag = el.tagName;
+          const plumbing =
+            tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "TEMPLATE" || tag === "META" || tag === "TITLE" ||
+            tag === "NEXT-ROUTE-ANNOUNCER" || (el.hasAttribute("hidden") && el.id.startsWith("S:"));
+          if (!plumbing) {
+            w.__thqServed = {
+              html: document.documentElement.outerHTML,
+              at: Math.round(performance.now()),
+              ready: document.readyState,
+              removed: `<${tag.toLowerCase()}${el.id ? `#${el.id}` : ""}${typeof el.className === "string" && el.className ? `.${el.className.trim().split(" ")[0]}` : ""}>`,
+            };
+          }
+        }
+      } catch {
+        /* a recorder never breaks the page it is recording */
+      }
+      return original.call(this, child) as T;
+    };
+  });
+}
+
+/**
+ * Where the page the server sent and the page the browser drew first part,
+ * walked in order from <body>. In order is right HERE, though `elementCounts`
+ * refuses it for a second request: this is one document compared with what
+ * replaced it, in the same browser, after the streamed sections have been
+ * moved into place or not on both sides alike.
+ *
+ * Left out of the walk on both sides: comments, blank text, scripts, styles,
+ * the streaming holders, the route announcer, and the hidden fields a
+ * server-rendered form carries for its action (the browser's own drawing has
+ * none, which is not a difference anybody sees).
+ */
+export async function whereTheyPart(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const kept = (window as unknown as { __thqServed?: { html: string; at: number; ready: string; removed: string } }).__thqServed;
+    if (!kept) return null;
+    const served = new DOMParser().parseFromString(kept.html, "text/html");
+    const skipped = (n: Node): boolean => {
+      if (n.nodeType === 8) return true;
+      if (n.nodeType === 3) return !(n as Text).data.trim();
+      if (n.nodeType !== 1) return true;
+      const el = n as Element;
+      const tag = el.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "TEMPLATE" || tag === "META" || tag === "NEXT-ROUTE-ANNOUNCER") return true;
+      if (el.hasAttribute("hidden") && el.id.startsWith("S:")) return true;
+      return tag === "INPUT" && (el as HTMLInputElement).type === "hidden" && ((el as HTMLInputElement).name ?? "").startsWith("$ACTION");
+    };
+    const label = (n: Node | undefined): string => {
+      if (!n) return "nothing";
+      if (n.nodeType === 3) return `"${(n as Text).data.trim().slice(0, 50)}"`;
+      const el = n as Element;
+      const cls = typeof el.className === "string" && el.className ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : "";
+      return `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${cls}>`;
+    };
+    const found: string[] = [];
+    const walk = (a: Node, b: Node, path: string): void => {
+      if (found.length >= 5) return;
+      const ka = Array.from(a.childNodes).filter((n) => !skipped(n));
+      const kb = Array.from(b.childNodes).filter((n) => !skipped(n));
+      for (let i = 0; i < Math.max(ka.length, kb.length); i += 1) {
+        const x = ka[i];
+        const y = kb[i];
+        if (!x || !y || x.nodeType !== y.nodeType || (x.nodeType === 1 && (x as Element).tagName !== (y as Element).tagName)) {
+          const around = (list: Node[]) => list.slice(Math.max(0, i - 1), i + 2).map((n) => label(n)).join(" ");
+          found.push(`${path}, child ${i + 1}: the server sent ${label(x)}, the browser drew ${label(y)}\n      server there: ${around(ka) || "nothing"}\n      browser there: ${around(kb) || "nothing"}`);
+          return;
+        }
+        if (x.nodeType === 3) {
+          if ((x as Text).data.trim() !== (y as Text).data.trim()) found.push(`${path}: the server wrote ${label(x)}, the browser ${label(y)}`);
+          continue;
+        }
+        walk(x, y, `${path} > ${label(x)}`);
+        if (found.length >= 5) return;
+      }
+    };
+    walk(served.body, document.body, "body");
+    const when = `kept ${kept.at}ms into the page, document "${kept.ready}", as React removed ${kept.removed}`;
+    return found.length ? `${when}\n    ${found.join("\n    ")}` : `${when}\n    and from <body> down the two are the same, element for element and word for word`;
+  });
 }
