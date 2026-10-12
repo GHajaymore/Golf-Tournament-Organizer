@@ -484,6 +484,23 @@ export default async function LandingPage() {
               </div>
             </div>
 
+            {/* A FIELD TOO BIG FOR ONE BRACKET (2026-10-12; Ajay: the website should show a 128-player
+                knockout). The same block as the dashboard above — a laptop where there is room for one,
+                the phone where there is not — so it needs no styling of its own. The screens are the
+                app's: a match play of 128 divided by handicap into eight flights of sixteen. */}
+            <div className="m-wide" style={{ marginTop: "clamp(44px, 6vw, 76px)" }}>
+              <div className="m-line">
+                <h3>128 in the match play? Eight flights, eight champions.</h3>
+                <p>Divide a big field by handicap, by your own flights or at random. Each flight is its own knockout, and every player is told who they play.</p>
+              </div>
+              <div className="m-screen">
+                {plainShot({ name: "desk-matchplay", alt: "The organizer's bracket screen for a match play of 128: eight flights of sixteen divided by handicap, and the Championship flight's draw with its first results.", sizes: SIZES.desk })}
+              </div>
+              <div className="m-twin m-phone">
+                {plainShot({ name: "public-matchplay", alt: "The same draw on a phone, open to anyone with the link: the Championship flight's round of sixteen.", sizes: SIZES.twin })}
+              </div>
+            </div>
+
             <div className="m-colours">
               <div className="m-text">
                 <h3>Your club&rsquo;s colors, on every screen.</h3>
