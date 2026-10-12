@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { indexFigure, indexLabel, hasIndex, NO_INDEX } from "../handicap-label";
-import { parseHandicapInput } from "../registration-intake";
+import { indexFigure, indexLabel, hasIndex, NO_INDEX, parseStrokesInput, STROKES_MIN, STROKES_MAX } from "../handicap-label";
+import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "../registration-intake";
 
 /**
  * The one rule five screens share. Every cell is a version of the same
@@ -86,6 +86,71 @@ describe("a handicap better than scratch", () => {
 
   it("still says nothing has been claimed, whatever number is stored beside it", () => {
     expect(indexLabel({ handicap: -2.4, handicapSource: "none" })).toBe(NO_INDEX);
+  });
+});
+
+describe("a round's handicap, as somebody types it", () => {
+  it("reads a plus handicap as strokes GIVEN — the one notation arithmetic gets backwards", () => {
+    /**
+     * `Number("+2")` is 2. The round's editor read its box that way, so the
+     * figure the screen prints for a plus-two player — "+2" — typed back into
+     * the box beside it, saved a player RECEIVING two.
+     */
+    expect(parseStrokesInput("+2")).toEqual({ ok: true, value: -2 });
+    expect(parseStrokesInput(" +10 ")).toEqual({ ok: true, value: -10 });
+    expect(parseStrokesInput("-2")).toEqual({ ok: true, value: -2 });
+    expect(parseStrokesInput("12")).toEqual({ ok: true, value: 12 });
+  });
+
+  it("reads back, as the number it came from, every figure the editor opens on", () => {
+    for (let stored = STROKES_MIN; stored <= STROKES_MAX; stored += 1) {
+      const shown = indexFigure(stored);
+      expect(parseStrokesInput(shown), shown).toEqual({ ok: true, value: stored });
+    }
+  });
+
+  it("reads the word the screen prints for nought", () => {
+    expect(parseStrokesInput("scratch")).toEqual({ ok: true, value: 0 });
+    expect(parseStrokesInput("Scratch")).toEqual({ ok: true, value: 0 });
+    expect(parseStrokesInput("0")).toEqual({ ok: true, value: 0 });
+    expect(Object.is(parseStrokesInput("+0").ok && (parseStrokesInput("+0") as { value: number }).value, 0)).toBe(true);
+  });
+
+  it("refuses, in words, what it used to change quietly", () => {
+    // An empty box was zero to arithmetic: Save on a cleared box made the player scratch.
+    const empty = parseStrokesInput("");
+    expect(empty.ok).toBe(false);
+    expect(parseStrokesInput("   ").ok).toBe(false);
+    // 12.4 was rounded on the server without a word; this figure is whole strokes.
+    const index = parseStrokesInput("12.4");
+    expect(index).toMatchObject({ ok: false });
+    expect((index as { error: string }).error).toMatch(/whole strokes/);
+    // 77 was cut down to 54, +11 to +10.
+    for (const beyond of ["55", "77", "+11", "-11", "1e9"]) {
+      expect(parseStrokesInput(beyond), beyond).toMatchObject({ ok: false });
+    }
+    for (const nonsense of ["two", "12abc", "1 2", "--3", "+", "+-2", "Infinity", "NaN"]) {
+      expect(parseStrokesInput(nonsense), nonsense).toMatchObject({ ok: false });
+    }
+  });
+
+  it("takes both ends of the range", () => {
+    expect(parseStrokesInput("+10")).toEqual({ ok: true, value: STROKES_MIN });
+    expect(parseStrokesInput("54")).toEqual({ ok: true, value: STROKES_MAX });
+  });
+});
+
+describe("a handicap refused, said to an organizer", () => {
+  it("is said about somebody else's handicap, for both reasons the reader gives", () => {
+    const notANumber = parseHandicapInput("two and a bit");
+    const beyond = parseHandicapInput("77");
+    expect(notANumber).toMatchObject({ ok: false, why: "not-a-number" });
+    expect(beyond).toMatchObject({ ok: false, why: "out-of-range" });
+    for (const why of ["not-a-number", "out-of-range"] as const) {
+      expect(STAFF_HANDICAP_REFUSAL[why]).not.toMatch(/your/i);
+    }
+    // The plus is offered where it can be mistyped, because it is the case this exists for.
+    expect(STAFF_HANDICAP_REFUSAL["not-a-number"]).toContain("+2.4");
   });
 });
 

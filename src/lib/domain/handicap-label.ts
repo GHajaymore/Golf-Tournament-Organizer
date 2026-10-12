@@ -48,6 +48,45 @@ export function indexFigure(handicap: number): string {
   return handicap < 0 ? `+${Math.abs(handicap)}` : `${handicap}`;
 }
 
+/** What a round's own handicap may be: WHS's ceiling, and plus ten at the other end. */
+export const STROKES_MIN = -10;
+export const STROKES_MAX = 54;
+
+export type StrokesParse = { ok: true; value: number } | { ok: false; error: string };
+
+/**
+ * A ROUND'S HANDICAP, AS SOMEBODY TYPES IT: whole strokes, and "+2" gives two.
+ *
+ * The round's handicap box read what was typed with `Number()`, which is
+ * arithmetic, and to arithmetic "+2" is two. So the screen said "plays off +2",
+ * the organizer pressed Set, typed what the screen had just shown them, and a
+ * player who GIVES two strokes was saved as one who RECEIVES two — four strokes
+ * out, in that round only, on every net figure it produced. The box also opened
+ * on "-2", the stored number, beside the "+2" of the sentence it sat in (found
+ * 2026-10-13, reading the editor after the Members form had the same fault).
+ *
+ * Three more things `Number()` let through quietly, each of which is now said:
+ * an empty box was scratch (it is zero to arithmetic); "12.4" was rounded on
+ * the server without a word, when this figure is whole strokes; and 77 was cut
+ * down to 54. "scratch" is read as 0, because it is the word this screen prints.
+ */
+export function parseStrokesInput(raw: string | null | undefined): StrokesParse {
+  const value = (raw ?? "").trim();
+  const HOW = "Enter the strokes as a whole number, like 12 — or +2 for a plus handicap.";
+  if (value === "") return { ok: false, error: HOW };
+  if (value.toLowerCase() === "scratch") return { ok: true, value: 0 };
+  const parsed = Number(value.startsWith("+") ? `-${value.slice(1)}` : value);
+  if (!Number.isFinite(parsed)) return { ok: false, error: HOW };
+  if (!Number.isInteger(parsed)) {
+    return { ok: false, error: "A round's handicap is whole strokes — 12, not 12.4. The index stays on the roster." };
+  }
+  if (parsed < STROKES_MIN || parsed > STROKES_MAX) {
+    return { ok: false, error: "A handicap runs from +10 to 54." };
+  }
+  // "+0" comes to minus zero, which a test comparing with `toBe(0)` calls a different number.
+  return { ok: true, value: parsed === 0 ? 0 : parsed };
+}
+
 export function indexLabel(p: IndexLike): string {
   if ((p.handicapSource ?? "manual") === "none") return NO_INDEX;
   // The nine-hole marker rides along, because "12.4" and "12.4 over nine" are

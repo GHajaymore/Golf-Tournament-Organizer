@@ -108,7 +108,18 @@ export type HandicapParse =
   /** Left blank. Not a zero — a scratch handicap is a claim, and an empty box
    *  is the absence of one. */
   | { ok: true; value: 0; source: "none" }
-  | { ok: false; error: string };
+  /** `why` is for a screen that says it in its own words: `error` is written to
+   *  the PLAYER ("your handicap"), and an organizer is typing somebody else's. */
+  | { ok: false; error: string; why: "not-a-number" | "out-of-range" };
+
+/**
+ * The same two refusals, said to an ORGANIZER about somebody else's handicap.
+ * One wording for the Members form and both boxes on Registration.
+ */
+export const STAFF_HANDICAP_REFUSAL: Record<"not-a-number" | "out-of-range", string> = {
+  "not-a-number": "Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.",
+  "out-of-range": "A handicap index runs from +10 to 54.",
+};
 
 /**
  * Read a handicap the way a golfer writes one.
@@ -138,9 +149,9 @@ export function parseHandicapInput(raw: string | null | undefined): HandicapPars
   // Number(), not parseFloat(): parseFloat stops at the first thing it doesn't
   // understand and returns what it has, so "12.4abc" becomes a handicap.
   const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return { ok: false, error: "Enter your handicap as a number, like 12.4." };
+  if (!Number.isFinite(parsed)) return { ok: false, error: "Enter your handicap as a number, like 12.4.", why: "not-a-number" };
   if (parsed < HANDICAP_MIN || parsed > HANDICAP_MAX) {
-    return { ok: false, error: "That handicap doesn't look right — it should be between +10 and 54." };
+    return { ok: false, error: "That handicap doesn't look right — it should be between +10 and 54.", why: "out-of-range" };
   }
   return { ok: true, value: parsed, source: "manual" };
 }
