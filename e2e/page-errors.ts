@@ -197,10 +197,57 @@ export async function explain(page: Page, who: string): Promise<void> {
  * (the framework moves those on every page), or anything after the first
  * fifteen seconds (a toast or a dialog leaving <body> is not a page being
  * thrown away).
+ *
+ * AND WHAT LED UP TO IT (later the same day). The first time this caught the
+ * fault for real — /cup, in CI, 124ms into the page — it answered the question
+ * it was built for and the answer was "nothing": at the instant React cleared
+ * the page, the page was already, element for element and word for word, the
+ * page it was redrawn as. So the difference is not IN the page the server
+ * sent; it is something that was true for a moment while the browser was
+ * first reading it. A snapshot cannot show a moment that has passed. So this
+ * also keeps a short log of every change made to the document before then —
+ * what was added or taken out, where, and when — and three facts about the
+ * snapshot that the element walk leaves out on purpose: the streamed sections
+ * still waiting to be moved into place, the loading boundaries still showing
+ * their fallback, and when the document finished arriving.
  */
 export async function keepWhatTheServerSent(context: BrowserContext): Promise<void> {
   await context.addInitScript(() => {
-    const w = window as unknown as { __thqServed?: { html: string; at: number; ready: string; removed: string } };
+    const w = window as unknown as {
+      __thqServed?: { html: string; at: number; ready: string; removed: string };
+      __thqChanges?: string[];
+    };
+    // Every change to the document in its first seconds, as "ms what where". Capped, and stopped
+    // once the page has settled: this is a record of a beginning, not a monitor.
+    const changes: string[] = (w.__thqChanges = []);
+    const name = (n: Node | null | undefined): string => {
+      if (!n) return "nothing";
+      if (n.nodeType === 3) return "text";
+      if (n.nodeType === 8) return "<!--" + ((n as Comment).data ?? "").slice(0, 8) + "-->";
+      if (n.nodeType !== 1) return "node";
+      const el = n as Element;
+      const cls = typeof el.className === "string" && el.className ? "." + el.className.trim().split(" ")[0] : "";
+      return "<" + el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + cls + ">";
+    };
+    try {
+      const watcher = new MutationObserver((records) => {
+        const at = Math.round(performance.now());
+        for (const r of records) {
+          if (changes.length >= 600) return watcher.disconnect();
+          if (r.type === "childList") {
+            const added = Array.from(r.addedNodes).map(name).slice(0, 4).join(" ");
+            const removed = Array.from(r.removedNodes).map(name).slice(0, 4).join(" ");
+            changes.push(at + "ms in " + name(r.target) + ":" + (added ? " +" + added : "") + (removed ? " -" + removed : ""));
+          } else if (r.type === "characterData") {
+            changes.push(at + "ms text changed in " + name(r.target.parentNode));
+          }
+        }
+        if (at > 15_000) watcher.disconnect();
+      });
+      watcher.observe(document, { childList: true, subtree: true, characterData: true });
+    } catch {
+      /* a recorder never breaks the page it is recording */
+    }
     const original = Node.prototype.removeChild;
     Node.prototype.removeChild = function <T extends Node>(this: Node, child: T): T {
       try {
@@ -284,6 +331,33 @@ export async function whereTheyPart(page: Page): Promise<string | null> {
     };
     walk(served.body, document.body, "body");
     const when = `kept ${kept.at}ms into the page, document "${kept.ready}", as React removed ${kept.removed}`;
-    return found.length ? `${when}\n    ${found.join("\n    ")}` : `${when}\n    and from <body> down the two are the same, element for element and word for word`;
+    // What the walk above leaves out on purpose, counted: sections streamed in and not yet moved
+    // into place, and loading boundaries by the state their marker gives ($ shown, $? waiting, $! given up).
+    const holders = Array.from(served.querySelectorAll("[hidden]")).filter((el) => el.id.startsWith("S:")).length;
+    const marks = { shown: 0, waiting: 0, gaveUp: 0 };
+    const seek = served.createTreeWalker(served, NodeFilter.SHOW_COMMENT);
+    for (let c = seek.nextNode(); c; c = seek.nextNode()) {
+      const d = (c as Comment).data;
+      if (d === "$") marks.shown += 1;
+      else if (d === "$?") marks.waiting += 1;
+      else if (d === "$!") marks.gaveUp += 1;
+    }
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const arrived = nav
+      ? `the document finished arriving at ${Math.round(nav.responseEnd)}ms and was parsed by ${Math.round(nav.domInteractive)}ms`
+      : "no navigation timing";
+    const streaming = `${holders} streamed section(s) not yet in place; loading boundaries: ${marks.shown} shown, ${marks.waiting} waiting, ${marks.gaveUp} given up; ${arrived}`;
+    // The changes made to the document before it was cleared — the last thirty, which is the half
+    // second that matters. Anything here that is not the framework's own plumbing is the lead.
+    const all = (window as unknown as { __thqChanges?: string[] }).__thqChanges ?? [];
+    const before = all.filter((line) => Number.parseInt(line, 10) <= kept.at);
+    const gap = "\n      ";
+    const led = before.length
+      ? `\n    the ${Math.min(30, before.length)} change(s) before it, of ${before.length}:${gap}${before.slice(-30).join(gap)}`
+      : "\n    and nothing had changed the document before it";
+    const tail = `\n    ${streaming}${led}`;
+    return found.length
+      ? `${when}\n    ${found.join("\n    ")}${tail}`
+      : `${when}\n    and from <body> down the two are the same, element for element and word for word${tail}`;
   });
 }
