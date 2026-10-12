@@ -1023,24 +1023,12 @@ A Korean clock time was "PM 1:05" from the server and "오후 1:05" in the brows
 `a-clock-time-is-written-once.test.ts` refuses a bare `toLocaleTimeString` in `src`.
 `npx -y node@20 file.cjs` runs anything under CI's Node from here.
 
-**THE FIRST REAL EVIDENCE OF THE INTERMITTENT ONE, the same day.** `page-errors.ts` now keeps the
-document at the instant React clears it (`keepWhatTheServerSent`), and the first time that was
-attached when the fault struck — `/cup`, in CI, on a commit that does not touch it — it said:
-
-```
-at the moment it was replaced: kept 124ms into the page, document "complete", as React removed <svg>
-  and from <body> down the two are the same, element for element and word for word
-```
-
-The `<svg>` is only the icon sprite, the first child of `<body>`: React cleared the whole page.
-And the page it cleared was ALREADY the page it redrew, which is also the page the server sent.
-So this fault is not content — not a date, a number, a name or a locale — and every
-"the server wrote X and the browser wrote Y" theory is closed. It is something true for a moment
-in the first tenth of a second. The walk that hit it only READS pages (`look()` adds nothing), so
-it is not the harness changing the document either. The recorder now also logs the last thirty
-changes made to the document before the clear, the streamed sections not yet moved into place,
-the loading boundaries by state, and when the document finished arriving — read that tail before
-re-running, because it is the only place the next lead can come from.
+**What the recorder said, the two times it was attached when the slow-page fault struck** (the
+entry above this one): "kept 124ms into the page … from <body> down the two are the same, element
+for element and word for word", once with the document still "loading". Identical before and
+after is what that fault looks like from outside, and it is what sent the search to TIME. The
+recorder also logs the last thirty changes made to the document before a clear, the streamed
+sections not yet in place, and when the document finished arriving.
 
 ## What gates a merge, and what gates a deploy
 
