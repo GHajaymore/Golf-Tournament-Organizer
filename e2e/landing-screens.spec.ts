@@ -204,12 +204,22 @@ test("the page ends where its footer ends", async ({ page }) => {
   await page.waitForLoadState("networkidle");
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(400);
+  /**
+   * Measured in the DOCUMENT, not on the screen. The first version compared the
+   * footer with `innerHeight` after scrolling to the end, and on a WebKit phone
+   * that read 10px short on a page that was right: there the visual viewport is
+   * 10px less than `innerHeight`, so the last scroll position stops early. How
+   * far the page runs past its footer is the same question with no screen in it.
+   */
   const end = await page.evaluate(() => {
     const footer = document.querySelector(".thq .ftr");
-    return { footer: footer ? Math.round(footer.getBoundingClientRect().bottom) : -1, screen: window.innerHeight };
+    return {
+      footer: footer ? Math.round(footer.getBoundingClientRect().bottom + window.scrollY) : -1,
+      page: document.documentElement.scrollHeight,
+    };
   });
   expect(end.footer, "no footer was found").toBeGreaterThan(0);
-  expect(end.screen - end.footer, `scrolled to the end, the footer stops ${end.screen - end.footer}px short of the bottom of the screen`).toBeLessThanOrEqual(2);
+  expect(end.page - end.footer, `the page runs ${end.page - end.footer}px past the end of its footer`).toBeLessThanOrEqual(2);
 });
 
 /**
