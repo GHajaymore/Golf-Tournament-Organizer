@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { emailConfig, sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { signUpLooksAutomated, AUTOMATED_SIGNUP } from "@/lib/services/bot-check";
 import { passwordProblem } from "@/lib/domain/password";
@@ -166,12 +166,28 @@ export async function claimPassword(email: string, password: string, next?: stri
  * (organizer-provisioned only) is directed to sign-in instead — sending a
  * reset link would let someone hijack an identity nobody has claimed yet.
  */
-export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; sent?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
 
   const limit = await checkRateLimit("password-reset", clean);
   if (!limit.allowed) return { ok: false, error: limit.message };
+
+  /**
+   * NO WAY TO SEND MAIL, SO NO CLAIM THAT ANY WAS SENT (Ajay, 2026-10-11:
+   * "yes for now").
+   *
+   * With no mail provider this used to make a token, fail to send it, and
+   * answer `{ ok: true }` — and the screen then said "a reset link is on its
+   * way" to somebody who would wait for a message that could not come.
+   *
+   * Decided HERE, before the address is looked up, on a fact about the
+   * installation and nothing about the person: the answer is the same for a
+   * registered address and a made-up one, so it is not the oracle the comment
+   * below is about. And no token is made — a working credential nobody can
+   * ever receive is a thing to not have lying about.
+   */
+  if (!emailConfig().configured) return { ok: true, sent: false };
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
   if (user && user.password) {
@@ -188,7 +204,7 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
     await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
   }
   // Always the same answer, whether or not the address is registered.
-  return { ok: true };
+  return { ok: true, sent: true };
 }
 
 /** Complete a password reset from the emailed link. */
@@ -381,6 +397,32 @@ export async function enterTournament(eventId: string, stay?: unknown): Promise<
 }
 
 export async function signOutAction() {
+  await destroySession();
+  redirect("/");
+}
+
+/**
+ * SIGN OUT EVERYWHERE (Ajay, 2026-10-11: "yes do it").
+ *
+ * The ordinary Sign out takes the cookie off THIS browser and nothing else —
+ * right for a shared laptop, and no help at all to somebody who has just
+ * realised they are still signed in on the pro shop's computer, or on a phone
+ * they no longer hold. Until now the only way to end those was to reset the
+ * password, which nobody thinks of when the password is not the worry.
+ *
+ * It uses the line a reset already moves: `sessionsValidFrom` becomes now, and
+ * every cookie issued before this moment is nobody's session on any device
+ * (`sessionRefusal`). The password is untouched, so the person signs straight
+ * back in wherever they actually are.
+ *
+ * WHOSE sessions is the session's own, never an argument — a "use server"
+ * export is a public endpoint. Called by nobody signed in, it writes nothing.
+ */
+export async function signOutEverywhereAction() {
+  const session = await getSession();
+  if (session) {
+    await prisma.user.update({ where: { id: session.userId }, data: { sessionsValidFrom: new Date() } });
+  }
   await destroySession();
   redirect("/");
 }

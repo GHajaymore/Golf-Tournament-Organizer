@@ -4,6 +4,7 @@ import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from 
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 import { Icon } from "./Icon";
 
 /**
@@ -20,7 +21,7 @@ import { Icon } from "./Icon";
  * things people actually notice about a sign-in box.
  */
 type Mode = "login" | "signup";
-type Extra = null | "claim" | "forgot" | "forgot-sent";
+type Extra = null | "claim" | "forgot" | "forgot-sent" | "forgot-unsent";
 
 /**
  * The sign-up question, in an organizer's own words.
@@ -155,7 +156,10 @@ export function LoginPanel({
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      setExtra("forgot-sent");
+      // `sent: false` is a fact about this installation (no mail provider),
+      // the same for every address — so the screen can say so honestly without
+      // saying anything about whether the address has an account.
+      setExtra(result.sent === false ? "forgot-unsent" : "forgot-sent");
     });
   };
 
@@ -241,6 +245,30 @@ export function LoginPanel({
           sub={
             <>
               If <b>{email}</b> has an account, a reset link is on its way. It expires in 15 minutes.
+              Nothing after a few minutes? Check your spam folder, or write to{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+            </>
+          }
+        />
+        <BackLink onClick={() => { setExtra(null); setError(""); }} label="Back to log in" />
+      </>,
+    );
+  }
+
+  /**
+   * The honest version (2026-10-11): this site cannot send mail, so no link
+   * was sent, and here is who to write to. It used to show "Check your email"
+   * whatever had happened, to somebody who would then wait for nothing.
+   */
+  if (extra === "forgot-unsent") {
+    return shell(
+      <>
+        <Title
+          title="We can’t email a reset link"
+          sub={
+            <>
+              This site isn&rsquo;t set up to send email yet, so no reset link was sent. Write to{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&rsquo;ll get you back in.
             </>
           }
         />

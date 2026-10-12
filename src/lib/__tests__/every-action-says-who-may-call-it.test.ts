@@ -74,7 +74,7 @@ const WHO: Record<string, string> = {
   // round code
   savePlayMatchHoles: "round code", savePlayMatchResult: "round code", savePlayCard: "round code", certifyPlayCard: "round code",
   // themselves
-  deleteMyAccount: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
+  deleteMyAccount: "themselves", signOutEverywhereAction: "themselves", setOwnAttendance: "themselves", enterTournament: "themselves", switchEvent: "themselves",
   enterThisTournament: "themselves", withdrawMyEntry: "themselves", askToJoinNamesake: "themselves",
   requestContestEntry: "themselves", requestSideGameEntry: "themselves", requestSkinsEntry: "themselves",
   savePushSubscription: "themselves", removePushSubscription: "themselves", currentPlayStatus: "themselves",

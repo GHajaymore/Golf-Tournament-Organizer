@@ -495,6 +495,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           { q: "No money is showing", a: "Result money appears only once the round is final. Approve the remaining cards or mark the round over." },
           { q: "Handicaps look wrong", a: "Check the member's index, the round's course and tees, and the allowance under Handicaps for this round." },
           { q: "A public leaderboard link leaked", a: "Tournament details → Players & scoring → New link. The old link stops working immediately." },
+          { q: "I'm still signed in on a device I don't have", a: "Open Your account (your name, at the foot of the sidebar) and press Sign out everywhere. Every device is signed out, this one included. Your password stays the same, so sign straight back in." },
         ],
       },
     ],

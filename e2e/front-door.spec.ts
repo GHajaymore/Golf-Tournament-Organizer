@@ -188,13 +188,23 @@ test("a new organizer comes in by the front door, and the door closes behind the
     expect(await labelsForTheWrongThing(page)).toEqual([]);
     await page.getByPlaceholder("you@email.com").fill(address);
     await page.getByRole("button", { name: "Send reset link" }).click();
-    await expect(page.getByText("Check your email")).toBeVisible();
-    return (await page.getByText(/reset link is on its way/).innerText()).split(address).join("<address>");
+    // THIS SERVER HAS NO WAY TO SEND MAIL, and since 2026-10-11 the screen says
+    // so. It used to say "Check your email … a reset link is on its way" here,
+    // to somebody who would wait for a message that could not come — and this
+    // spec pinned that sentence, which is how it stayed. The sending case is
+    // held in `forgot-password-says-what-happened.audit.test.ts`.
+    await expect(page.getByText("We can’t email a reset link")).toBeVisible();
+    await expect(page.getByText("Check your email")).toHaveCount(0);
+    return (await page.getByText(/no reset link was sent/).innerText()).split(address).join("<address>");
   };
   const saidForReal = await forgot(email);
   const saidForNobody = await forgot(`${mark}-nobody@example.invalid`);
   expect(saidForNobody, "the reset screen tells a registered address from an unregistered one").toBe(saidForReal);
-  expect(await prisma.passwordResetToken.count({ where: { userId: user!.id } }), "no reset link was made for a real account").toBe(1);
+  expect(saidForReal, "the screen does not say who to write to").toContain("support@tourneyhq.club");
+  expect(
+    await prisma.passwordResetToken.count({ where: { userId: user!.id } }),
+    "a reset link was made that this server can never send",
+  ).toBe(0);
 
   // ── the reset link: a new password, a new session, and the old one ended ─
   // The emailed link is the one thing a test cannot read (only its hash is
