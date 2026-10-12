@@ -6,7 +6,8 @@ import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
-import { indexLabel, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
+import { indexLabel, indexFigure, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
+import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import { PLANS } from "@/lib/plans";
@@ -143,6 +144,16 @@ export function RosterClient({
   /** Whose handicap record is open. One at a time — see the trigger below. */
   const [recordFor, setRecordFor] = useState<string | null>(null);
   const [form, setForm] = useState<MemberInput>(BLANK);
+  /**
+   * THE HANDICAP BOX, AS TYPED (2026-10-13). It was a number-only field, and a
+   * number-only field does not take "+2.4": the browser throws the plus away
+   * and leaves the box empty, so the only way to give this club's best players
+   * their handicap here was to know to type a minus. The sign-up form and both
+   * importers have always read a handicap the way a golfer writes one
+   * (`parseHandicapInput`); this box now does too, and shows a plus handicap
+   * with its plus when a member is opened to edit.
+   */
+  const [hcpText, setHcpText] = useState("");
   // Ties each add/edit form label to its field (see the form below).
   const fid = useId();
   const [adding, setAdding] = useState(false);
@@ -229,12 +240,14 @@ export function RosterClient({
       handicapType: m.handicapType,
       notes: m.notes,
     });
+    setHcpText(hasIndex(m) ? indexFigure(m.handicap) : "");
   };
 
   const closeForm = () => {
     setEditing(null);
     setAdding(false);
     setForm(BLANK);
+    setHcpText("");
     setError("");
   };
 
@@ -265,6 +278,17 @@ export function RosterClient({
   };
 
   const submitForm = () => {
+    // What is in the box must be a handicap or nothing. Said here, before anything is sent, and in
+    // the secretary's words rather than the player's the sign-up form uses.
+    const read = parseHandicapInput(hcpText);
+    if (!read.ok) {
+      setError(
+        /between/.test(read.error)
+          ? "A handicap index runs from +10 to 54."
+          : "Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap. Leave it empty for no index yet.",
+      );
+      return;
+    }
     const fn = editing ? () => updateMember(editing, form) : () => addMember(form);
     run(fn, () => {
       setNotice(editing ? "Member updated." : `${form.name.trim()} added to the roster.`);
@@ -494,12 +518,16 @@ export function RosterClient({
               <input
                 id={`${fid}-hcp`}
                 className="input"
-                type="number"
-                step="0.1"
-                value={Number.isFinite(form.handicap) ? form.handicap : ""}
+                type="text"
+                inputMode="decimal"
+                value={hcpText}
                 placeholder="No index yet"
                 disabled={pending}
-                onChange={(e) => set({ handicap: parseFloat(e.target.value) })}
+                onChange={(e) => {
+                  setHcpText(e.target.value);
+                  const read = parseHandicapInput(e.target.value);
+                  set({ handicap: read.ok && read.source === "manual" ? read.value : Number.NaN });
+                }}
               />
             </div>
             <div className="field">
@@ -646,6 +674,7 @@ export function RosterClient({
                   setAdding(true);
                   setEditing(null);
                   setForm(BLANK);
+                  setHcpText("");
                 }}
               >
                 <Icon name="user-plus" /> Add member

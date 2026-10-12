@@ -16,6 +16,7 @@ import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/h
 import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { flightLabel } from "@/lib/domain/flight-label";
+import { indexLabel } from "@/lib/domain/handicap-label";
 
 export const metadata = screenMetadata("/grouping");
 
@@ -166,7 +167,7 @@ export default async function GroupingPage() {
                   }}
                 >
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.name}</span>
-                  <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{pl.handicap}</span>
+                  <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{indexLabel(pl)}</span>
                 </div>
               ))}
               {g.players.length === 0 && (

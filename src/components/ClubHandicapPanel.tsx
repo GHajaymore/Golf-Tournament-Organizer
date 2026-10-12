@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { memberHandicapSuggestion, acceptClubHandicap } from "@/app/actions/roster";
 import type { MemberRecord } from "@/lib/services/handicap-record";
+import { indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 
 /**
@@ -69,7 +70,7 @@ export function ClubHandicapPanel({
         setError(res.error ?? "Couldn't apply that handicap.");
         return;
       }
-      setNote(`${memberName} now plays off ${res.handicap}. Rounds already played are unchanged.`);
+      setNote(`${memberName} now plays off ${typeof res.handicap === "number" ? indexFigure(res.handicap) : res.handicap}. Rounds already played are unchanged.`);
       setRecord(null);
       router.refresh();
     });
@@ -114,10 +115,10 @@ export function ClubHandicapPanel({
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
                 <span className="text-muted" style={{ fontSize: 13 }}>
-                  Plays off <b>{currentHandicap}</b> today
+                  Plays off <b>{indexFigure(currentHandicap)}</b> today
                 </span>
                 <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>
-                  {record.suggestion.handicap}
+                  {indexFigure(record.suggestion.handicap)}
                 </span>
                 <span className="text-muted" style={{ fontSize: 13 }}>
                   from the lowest {record.suggestion.lowestCounted} of {record.suggestion.scoresUsed}
@@ -140,7 +141,7 @@ export function ClubHandicapPanel({
                   disabled={pending}
                   onClick={accept}
                 >
-                  <Icon name="check" /> Set {memberName} to {record.suggestion.handicap}
+                  <Icon name="check" /> Set {memberName} to {indexFigure(record.suggestion.handicap)}
                 </button>
               ) : (
                 // Shown, never offered. The association is the authority and the
