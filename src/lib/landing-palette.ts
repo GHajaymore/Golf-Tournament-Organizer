@@ -187,7 +187,7 @@ interface Shade {
  * against; the foregrounds are starting points.
  */
 interface LandingSurface {
-  key: "lacquer" | "cream";
+  key: "lacquer" | "cream" | "leaf";
   hue: number;
   /** The hue this surface's TEXT is set in: warm on cream, cool on the dark ground. */
   inkHue: number;
@@ -323,7 +323,46 @@ const CREAM: LandingSurface = {
   lineAlpha: [0.12, 0.22],
 };
 
-export const LANDING_SURFACES = { lacquer: LACQUER, cream: CREAM } as const;
+/**
+ * Leaf: the dark surface again, in the India-flag green's hue. A TEST (2026-10-13).
+ *
+ * Ajay, looking at the page on his phone: "indoor navi looks okay but outdoors
+ * it looks not great. have not tried green so can you give me couple section
+ * with green while keeping navy so that I can test it?" He means the LIFTED
+ * navy — the cards and panels, `--ground-2` — which in sunlight goes to a grey
+ * near-black with nothing of the colour left in it.
+ *
+ * So this is the lacquer surface with one thing changed, its hue, and its
+ * levels raised: a ground that is going to be judged in full sun wants more
+ * light and more colour in it than one judged in a room. Everything read on
+ * it is solved exactly as it is on the navy, against the lightest level here.
+ *
+ * TWO THINGS THE SOLVER SAYS ABOUT THIS GREEN, and both are the reason it is
+ * no brighter. The flag's own green (#138808, lightness 28%) cannot carry a
+ * word at this page's standard at all: white on it is 4.6:1, and the floor is
+ * 7. And at the depth chosen here the page's orange — the eyebrows, the
+ * highlighted word — comes out a pale peach, because orange is not both vivid
+ * and 7:1 from a green this light. The headline floor of 12:1 is out of reach
+ * too (white itself is 9.7:1 here), so the words are as light as they can go.
+ *
+ * It is drawn on a phone only, on the sections the page marks `m-leaf`
+ * (`landing/styles.ts`), and it is here to be looked at outdoors and then
+ * kept, changed or taken out on his word.
+ */
+const LEAF: LandingSurface = {
+  ...LACQUER,
+  key: "leaf",
+  // The same number as `flag` above, and for the same reason: India green, a
+  // leaf green, well clear of the blue-leaning band `greens-are-leaf-greens`
+  // refuses.
+  hue: HUE.flag,
+  page: { saturation: 0.62, lightness: 0.075 },
+  raised: { saturation: 0.82, lightness: 0.175 },
+  inset: { saturation: 0.82, lightness: 0.125 },
+  panel: { saturation: 0.82, lightness: 0.175, alpha: 0x85 },
+};
+
+export const LANDING_SURFACES = { lacquer: LACQUER, cream: CREAM, leaf: LEAF } as const;
 
 /** Upper case, to match the brand tokens `page.tsx` still states by hand. */
 function hex(h: number, s: number, l: number): string {
@@ -470,8 +509,28 @@ export function landingPalette(appearance: "dark" | "light"): {
  */
 export function landingTokens(appearance: "dark" | "light", indent: string): string {
   const { page, band } = landingPalette(appearance);
+  return tokenLines(page, band, page.page, indent);
+}
+
+/**
+ * The same declarations for a section drawn on the LEAF surface (the outdoor
+ * test — see `LEAF`), on a page that is otherwise navy.
+ *
+ * `ground` says what is behind the section's cards. `"navy"` leaves the page's
+ * own ground where it is and turns only the lifted panels green — a green card
+ * on the navy page. `"leaf"` moves the ground as well, for a section that is
+ * green from edge to edge. The words are the same either way: they are solved
+ * against the lightest green level, and the navy ground is darker than that,
+ * so a word that clears its floor on the card clears it on the page behind.
+ */
+export function leafTokens(ground: "navy" | "leaf", indent: string): string {
+  const page = paletteFor(LEAF);
+  return tokenLines(page, paletteFor(CREAM), ground === "navy" ? paletteFor(LACQUER).page : page.page, indent);
+}
+
+function tokenLines(page: SurfacePalette, band: SurfacePalette, ground: string, indent: string): string {
   const lines = [
-    `--ground:${page.page}; --ground-2:${page.raised}; --panel:${page.panel};`,
+    `--ground:${ground}; --ground-2:${page.raised}; --panel:${page.panel};`,
     `--paper:${band.raised}; --paper-2:${band.inset}; --paper-ink:${band.ink}; --paper-soft:${band.inkSoft};`,
     `--paper-accent:${band.accent};`,
     `--ink:${page.ink}; --ink-soft:${page.inkSoft}; --ink-faint:${page.inkFaint};`,
@@ -498,7 +557,7 @@ export const LANDING_HUES = {
 export const LANDING_FLOORS = FLOOR;
 
 /** Exported so a test can measure against the same reference the solver used. */
-export function landingWorstBackground(surface: "lacquer" | "cream"): string {
+export function landingWorstBackground(surface: "lacquer" | "cream" | "leaf"): string {
   return worstBackground(LANDING_SURFACES[surface]);
 }
 
