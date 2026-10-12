@@ -100,7 +100,9 @@ export const HOME_CSS = `
 }
 @keyframes m-up { from { transform: translateY(108%); } to { transform: none; } }
 .m-home .m-hero h1 { font-size: clamp(2.7rem, 6.2vw, 5.2rem); line-height: 0.98; }
-.m-home .m-hero .m-sub { font-family: var(--m-display); font-weight: 500; font-size: clamp(1.3rem, 2.3vw, 1.75rem); line-height: 1.2; letter-spacing: -0.01em; font-variation-settings: "opsz" 48; max-width: 24ch; }
+.m-home .m-hero .m-sub { font-family: var(--m-display); font-weight: 500; font-size: clamp(1.3rem, 2.3vw, 1.75rem); line-height: 1.2; letter-spacing: -0.01em; font-variation-settings: "opsz" 48; max-width: 26ch; }
+/* two sentences, two lines — said so, where it used to depend on whether "Your" happened to fit */
+.m-home .m-hero .m-sub > span { display: block; text-wrap: balance; }
 .m-home .m-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); grid-template-rows: auto 1fr; grid-template-areas: "copy phone" "try phone"; column-gap: clamp(28px, 5vw, 72px); row-gap: 30px; align-items: start; }
 .m-home .m-hero-grid .m-copy { grid-area: copy; display: grid; gap: 20px; }
 .m-home .m-hero .m-lead { max-width: 44ch; }
@@ -280,7 +282,11 @@ export const HOME_CSS = `
 .m-home .m-card .m-peek { align-self: end; margin-top: 16px; height: 300px; overflow: hidden; padding-inline: 12px; }
 .m-home .m-card .m-peek .m-phone { border-bottom: 0; border-radius: 30px 30px 0 0; box-shadow: none; }
 @media (max-width: 900px) {
-  .m-home .m-card .m-peek { height: 280px; max-width: 300px; margin-inline: auto; width: 100%; }
+  /* THE CUT FALLS AFTER THE POINT, AT ANY WIDTH (2026-10-13). A fixed 280px cut each picture a line
+     short of what its card is about: the dashboard on "1 disputed result", the money on the label
+     above the figure. A shape, not a height, so the cut is the same place in the picture on a 320px
+     phone as on a 430px one: just past the first block of each screen. */
+  .m-home .m-card .m-peek { height: auto; aspect-ratio: 1 / 1.26; max-width: 300px; margin-inline: auto; width: 100%; }
 }
 .m-home .m-colours { margin-top: 18px; border: 1px solid var(--m-line); border-radius: 22px; background: var(--m-ground-rise); padding: clamp(26px, 4vw, 52px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 250px); gap: clamp(28px, 6vw, 90px); align-items: center; overflow: hidden; }
 .m-home .m-colours .m-text { display: grid; gap: 14px; align-content: start; min-width: 0; }
@@ -600,7 +606,9 @@ export const HOME_CSS = `
   .m-home .m-path li { display: inline-flex; align-items: center; gap: 6px; font: 500 0.92rem/1 var(--m-mono); letter-spacing: 0.02em; color: var(--m-on-ground-soft); }
   .m-home .m-path li span { border: 1px solid var(--m-line); border-radius: 999px; padding: 8px 12px; background: var(--m-ground-rise); }
   .m-home .m-path li.m-end span { border-color: var(--m-hl); color: var(--m-hl); font-weight: 600; }
-  .m-home .m-path li + li::before { content: "→"; color: var(--m-hl); font-family: var(--m-mono); }
+  /* the arrow FOLLOWS its step: a line that wraps then ends on an arrow, which reads as "and then",
+     where an arrow leading each step left three of the four lines starting with one */
+  .m-home .m-path li:not(:last-child)::after { content: "→"; color: var(--m-hl); font-family: var(--m-mono); }
 }
 @media (max-width: 760px) {
   .m-home .m-close .m-rings { display: none; }
@@ -632,30 +640,36 @@ export const HOME_CSS = `
   .m-home .m-world.m-armed.m-in .m-coin { transform: none; }
 }
 @media (max-width: 899px) {
-  .m-home .m-world { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding: 26px 16px 10px; gap: 18px; scrollbar-width: none; }
+  .m-home .m-world { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding: 40px 16px 10px; gap: 18px; scrollbar-width: none; }
   .m-home .m-world::-webkit-scrollbar { display: none; }
   .m-home .m-wphone, .m-home .m-wphone:nth-child(n) { flex: 0 0 58%; max-width: 250px; margin-top: 0; scroll-snap-align: center; }
-  .m-home .m-wphone .m-coin { right: -8px; }
+  /* the coin PERCHES on the corner: at this size the old one sat over the two buttons in the app's own header */
+  .m-home .m-wphone .m-coin { right: -8px; top: -30px; width: 46px; height: 46px; font-size: 1.25rem; }
   .m-home .m-world-also { justify-content: flex-start; }
 }
 @media (max-width: 899px) {
   .m-home.m-pin-story #round .m-times, .m-home.m-pin-story #round #steps { display: none; }
   .m-home.m-pin-story .m-story { display: block; position: relative; height: calc(100vh - var(--m-hdr) + 7 * 56vh); height: calc(100svh - var(--m-hdr) + 7 * 56svh); margin-inline: -16px; }
-  .m-home.m-pin-story .m-story .m-pin { display: flex; flex-direction: column; position: sticky; top: var(--m-hdr); height: calc(100vh - var(--m-hdr)); height: calc(100svh - var(--m-hdr)); overflow: hidden; }
+  .m-home.m-pin-story .m-story .m-pin { display: flex; flex-direction: column; position: sticky; top: var(--m-hdr); height: calc(100vh - var(--m-hdr)); height: calc(100svh - var(--m-hdr)); overflow: hidden; --m-foot: 136px; padding-bottom: var(--m-foot); }
   .m-home.m-pin-story .m-story .m-pin::before { content: ""; position: absolute; z-index: 0; left: -20%; right: -20%; top: -6%; height: 62%; background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-ui) 30%, transparent), color-mix(in srgb, var(--flag) 6%, transparent) 64%, transparent); pointer-events: none; }
-  .m-home.m-pin-story .m-story .m-stage { position: relative; z-index: 1; flex: 0 0 46%; display: grid; justify-items: center; align-items: start; padding-top: 18px; overflow: hidden; -webkit-mask-image: linear-gradient(black 74%, transparent); mask-image: linear-gradient(black 74%, transparent); }
+  /* THE SCREEN TAKES WHAT THE WORDS LEAVE (2026-10-13). It was a fixed 46% of the pin, and the words a
+     box as tall as whatever was left over — so on a tall phone the picture stopped half-way down a
+     phone it had room to show, and a band of nothing sat between the last line and the rail. Now the
+     words are as tall as the longest of the seven (they share one grid cell), the rail has its strip
+     at the foot, and the picture has all the rest, at any height. */
+  .m-home.m-pin-story .m-story .m-stage { position: relative; z-index: 1; flex: 1 1 0; min-height: 0; display: grid; justify-items: center; align-items: start; padding-top: 18px; overflow: hidden; -webkit-mask-image: linear-gradient(black 74%, transparent); mask-image: linear-gradient(black 74%, transparent); }
   .m-home.m-pin-story .m-story .m-stage .m-phone { position: relative; width: min(60vw, 250px); aspect-ratio: 393 / 852; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ink) 34%, var(--ground)), 0 0 0 8px color-mix(in srgb, var(--ink) 4%, transparent), 0 30px 80px -20px rgba(0, 0, 0, 0.9); }
   .m-home.m-pin-story .m-story .m-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.4s ease; }
   .m-home.m-pin-story .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
   .m-home.m-pin-story .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
-  .m-home.m-pin-story .m-story .m-beats { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0; margin-inline: 16px; }
-  .m-home.m-pin-story .m-story .m-beat { position: absolute; inset: 0 0 auto 0; display: grid; gap: 8px; align-content: start; opacity: 0; transform: translateY(22px); transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); pointer-events: none; }
+  .m-home.m-pin-story .m-story .m-beats { position: relative; z-index: 2; flex: 0 0 auto; display: grid; margin-inline: 16px; }
+  .m-home.m-pin-story .m-story .m-beat { grid-area: 1 / 1; display: grid; gap: 8px; align-content: start; opacity: 0; transform: translateY(22px); transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); pointer-events: none; }
   .m-home.m-pin-story .m-story .m-beat.m-on { opacity: 1; transform: none; pointer-events: auto; }
   .m-home.m-pin-story .m-story .m-beat .m-what { font: 600 0.72rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
   .m-home.m-pin-story .m-story .m-beat .m-clock { font: 500 clamp(2.5rem, 12vw, 3.4rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
   .m-home.m-pin-story .m-story .m-beat h3 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); max-width: 18ch; }
   .m-home.m-pin-story .m-story .m-beat p { color: var(--m-on-ground-soft); font-size: 1rem; max-width: 38ch; }
-  .m-home.m-pin-story .m-rail { display: block; position: absolute; left: 4px; right: 34px; top: auto; bottom: 92px; width: auto; height: 2px; background: var(--m-line); }
+  .m-home.m-pin-story .m-rail { display: block; position: absolute; left: 4px; right: 34px; top: auto; bottom: calc(92px - var(--m-foot)); width: auto; height: 2px; background: var(--m-line); }
   .m-home.m-pin-story .m-rail::before { content: ""; position: absolute; left: 0; top: 0; height: 2px; width: calc(var(--m-roll, 0) * 100%); background: var(--m-hl); }
   .m-home.m-pin-story .m-rail .m-ball { position: absolute; left: calc(var(--m-roll, 0) * 100%); top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, color-mix(in srgb, var(--ink) 88%, black) 58%, color-mix(in srgb, var(--ink) 66%, black)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 0 22px color-mix(in srgb, var(--ink) 55%, transparent); transition: transform 0.45s ease, opacity 0.45s ease; }
   .m-home.m-pin-story .m-rail .m-cup { position: absolute; right: -30px; top: 50%; width: 28px; height: 10px; margin-top: -5px; border-radius: 50%; background: black; box-shadow: 0 0 0 2px var(--m-line); transition: box-shadow 0.5s ease; }
@@ -666,7 +680,8 @@ export const HOME_CSS = `
 /* a short phone (an SE, a landscape-ish browser bar): the screen gives up height to the words, and the
    words keep clear of the flag standing at the end of the rail */
 @media (max-width: 899px) and (max-height: 700px) {
-  .m-home.m-pin-story .m-story .m-stage { flex-basis: 34%; padding-top: 12px; }
+  .m-home.m-pin-story .m-story .m-pin { --m-foot: 124px; }
+  .m-home.m-pin-story .m-story .m-stage { padding-top: 12px; }
   .m-home.m-pin-story .m-story .m-beat { gap: 6px; }
   .m-home.m-pin-story .m-story .m-beat .m-clock { font-size: 2rem; }
   .m-home.m-pin-story .m-story .m-beat h3 { font-size: 1.3rem; }
@@ -694,6 +709,8 @@ export const HOME_CSS = `
   .m-home .m-btn .m-long { display: none; }
   .m-home .m-btn .m-short { display: inline; }
   .m-home .m-news { font-size: 0.84rem; }
+  .m-home .m-runs { gap: 8px; }
+  .m-home .m-runs li { font-size: 0.88rem; padding: 7px 12px; }
   .m-home #round .m-times { position: relative; margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; scrollbar-width: none; margin-bottom: 18px; }
   .m-home #round .m-times::-webkit-scrollbar { display: none; }
   .m-home #steps { position: relative; display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding: 4px 16px 18px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -710,7 +727,7 @@ export const HOME_CSS = `
   .m-home .m-wall { margin: 34px 0 -70px -22%; height: 330px; }
   .m-home .m-wide .m-screen { aspect-ratio: 5 / 4; }
   .m-home .m-wide .m-screen img { transform: scale(1.9); transform-origin: 2% 96%; }
-  .m-home .m-dock { display: flex; gap: 10px; position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--m-ground-deep) 84%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--m-line); transform: translateY(110%); visibility: hidden; transition: transform 0.3s ease, visibility 0s linear 0.3s; }
+  .m-home .m-dock { display: flex; gap: 10px; position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--m-ground-deep) 95%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--m-line); transform: translateY(110%); visibility: hidden; transition: transform 0.3s ease, visibility 0s linear 0.3s; }
   /* out of sight is also out of reach: slid off the screen it still took keyboard focus */
   .m-home .m-dock.m-up { transform: none; visibility: visible; transition: transform 0.3s ease, visibility 0s; }
   .m-home .m-dock .m-btn { flex: 1 1 0; padding: 13px 12px; font-size: 0.95rem; }
