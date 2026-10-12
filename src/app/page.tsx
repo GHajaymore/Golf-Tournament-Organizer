@@ -295,7 +295,7 @@ export default async function LandingPage() {
                     <circle className="m-ball" r="4" />
                   </svg>
                 </h1>
-                <p className="m-sub m-rise m-d2">Run the whole competition. Your players just type a code.</p>
+                <p className="m-sub m-rise m-d2"><span>Run the whole competition.</span> <span>Your players just type a code.</span></p>
                 <div className="m-rise m-d3">{doors}</div>
                 <ul className="m-facts3 m-rise m-d4">
                   <li>Free for fields of up to {PLANS.free.limits.playersPerEvent}</li>
