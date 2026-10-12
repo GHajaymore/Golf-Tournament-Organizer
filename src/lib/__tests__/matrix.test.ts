@@ -36,7 +36,8 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Role } from "@/lib/roles";
-import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers } from "@/lib/domain/bracket";
+import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers, bracketFinishOrderAll, flightKind } from "@/lib/domain/bracket";
+import { planFlights, proposeShapes } from "@/lib/domain/bracket-flights";
 import { flightCountFor, formGroups } from "@/lib/domain/grouping";
 import { groupByStandings, positionLookup } from "@/lib/domain/draw";
 import {
@@ -2092,4 +2093,92 @@ describe("a side's to-par counts the scores it actually has", () => {
     const card = aggregateTeamCard(team, pars, si, 100, 2);
     expect(card.toPar).toBe(1);
   });
+});
+
+/**
+ * A KNOCKOUT IN SEVERAL FLIGHTS, at every field size, in every shape offered
+ * and by both criteria that need nothing but the field (2026-10-12).
+ *
+ * The arithmetic of dividing has its own file. This cell is the COMBINATION:
+ * a division handed to the bracket builder, played to the end in every flight,
+ * and read back as a finishing order — three modules that are each right on
+ * their own. What must hold whatever the size and shape (Rule 3.2: a match is
+ * won on the course; Committee Procedures 5F(1): the general numerical draw):
+ *
+ *  - every shape holds the whole field, in flights of two or more;
+ *  - a flight of k players takes exactly k − 1 results, so the whole knockout
+ *    takes n − (number of flights), and never crowns anybody before that;
+ *  - no two flights file a tie under the same key;
+ *  - once every flight is played, everybody is placed exactly once, the places
+ *    are whole numbers from 1, and nobody in a lower flight is placed above
+ *    anybody in a higher one.
+ *
+ * The sizes add the ones this feature lives at — one more than a flight, and
+ * a hundred — to the sweep's own.
+ */
+describe("a knockout in flights, at every field size and every shape", () => {
+  for (const n of [...FIELD_SIZES, 9, 17, 18, 33, 100]) {
+    it(`divides, plays and places a field of ${n} in every shape it is offered`, () => {
+      const players = field(n);
+      const entrants = players.map((p) => ({ id: p.id, name: p.name, handicapIndex: p.handicap }));
+      const byId = new Map(players.map((p) => [p.id, p]));
+      const shapes = proposeShapes(n);
+      if (n < 2) {
+        expect(shapes, "one player is not a knockout").toEqual([]);
+        expect(planFlights(entrants, "handicap", [n]).ok).toBe(false);
+        return;
+      }
+      expect(shapes.length).toBeGreaterThan(0);
+      expect(shapes.filter((s) => s.recommended).length, "exactly one shape is suggested").toBe(1);
+
+      for (const shape of shapes) {
+        expect(shape.counts.reduce((a, b) => a + b, 0), `${shape.label} does not hold the field`).toBe(n);
+        expect(Math.min(...shape.counts), `${shape.label} has a flight of one`).toBeGreaterThanOrEqual(2);
+        for (const criterion of ["handicap", "random"] as const) {
+          const made = planFlights(entrants, criterion, shape.counts, `seed-${n}`);
+          if (!made.ok) throw new Error(`${shape.label} by ${criterion}: ${made.error}`);
+          const flights = made.plan.brackets.map((b) => b.playerIds.map((id, i) => ({ ...byId.get(id)!, seed: i + 1 })));
+          const winners: Record<string, string> = {};
+          const views = () => flights.map((f, i) => buildBracket(flightKind(i), f, winners));
+          const where = `${n} players, ${shape.label}, by ${criterion}`;
+
+          const keys = views().flatMap((v) => v.rounds.flatMap((r) => r.matches.map((m) => m.key)));
+          expect(new Set(keys).size, `${where}: two flights share a key`).toBe(keys.length);
+
+          let results = 0;
+          for (let guard = 0; guard < 12; guard += 1) {
+            const open = views().flatMap((v) => v.rounds.flatMap((r) => r.matches)).filter((m) => !m.winnerId && m.a.playerId && m.b.playerId);
+            if (open.length === 0) break;
+            // Until the last tie is in, at least one flight has no champion.
+            expect(views().some((v) => v.champion === null), `${where}: every flight crowned with ties unplayed`).toBe(true);
+            for (const m of open) {
+              // The LOWER seed wins every tie: a finishing order that simply read the seeding back would be wrong.
+              winners[m.key] = (m.a.seed ?? 0) > (m.b.seed ?? 0) ? m.a.playerId! : m.b.playerId!;
+              results += 1;
+            }
+          }
+          expect(results, `${where}: results it took`).toBe(n - flights.length);
+
+          const done = views();
+          for (const [i, v] of done.entries()) {
+            expect(v.champion, `${where}: flight ${i + 1} has no champion`).not.toBeNull();
+            expect(flights[i].some((p) => p.id === v.champion!.playerId), `${where}: flight ${i + 1} was won by somebody not in it`).toBe(true);
+          }
+          const order = bracketFinishOrderAll(done);
+          expect(order.length, `${where}: placed`).toBe(n);
+          expect(new Set(order.map((p) => p.playerId)).size, `${where}: somebody placed twice`).toBe(n);
+          for (const p of order) expect(Number.isInteger(p.rank) && p.rank >= 1 && p.rank <= n, `${where}: ${p.name} is placed ${p.rank}`).toBe(true);
+          expect(Math.min(...order.map((p) => p.rank))).toBe(1);
+          const flightOf = new Map(flights.flatMap((f, i) => f.map((p) => [p.id, i] as const)));
+          let above = 0;
+          for (const [i, f] of flights.entries()) {
+            const ranks = order.filter((p) => flightOf.get(p.playerId) === i).map((p) => p.rank);
+            expect(Math.min(...ranks), `${where}: flight ${i + 1} starts at`).toBe(above + 1);
+            expect(Math.max(...ranks), `${where}: flight ${i + 1} runs into the one below`).toBeLessThanOrEqual(above + f.length);
+            above += f.length;
+          }
+        }
+      }
+    });
+  }
 });
