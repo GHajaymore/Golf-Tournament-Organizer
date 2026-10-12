@@ -40,6 +40,7 @@ vi.mock("next/navigation", () => ({ redirect: () => {} }));
 
 import { hashPassword } from "@/lib/auth";
 import { requestPasswordReset } from "@/app/actions/auth";
+import { clearRateLimit } from "@/lib/rate-limit";
 
 const prisma = new PrismaClient();
 const MARK = `zz-forgot-${process.pid}`;
@@ -48,6 +49,17 @@ const NOBODY = `${MARK}-nobody@example.invalid`;
 let userId = "";
 
 const tokens = () => prisma.passwordResetToken.count({ where: { userId } });
+/**
+ * Each case asks afresh. The limit on reset requests (five an hour for an
+ * address) is not what is being tested, and it is KEYED BY A HASH of the
+ * address — so deleting rows whose key "contains" the address deletes nothing.
+ * The first draft did exactly that, and its control then passed on the sixth
+ * call being refused rather than on the two states differing.
+ */
+const afresh = async () => {
+  await clearRateLimit("password-reset", REAL);
+  await clearRateLimit("password-reset", NOBODY);
+};
 
 beforeAll(async () => {
   const user = await prisma.user.create({ data: { email: REAL, name: "Zz Forgot", password: hashPassword("a-long-Fairway-71-pass") } });
@@ -57,13 +69,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   mail.sent.length = 0;
   await prisma.passwordResetToken.deleteMany({ where: { userId } });
-  // Each case asks afresh: the limit on reset requests is not what is being tested.
-  await prisma.rateLimitHit.deleteMany({ where: { key: { contains: MARK } } }).catch(() => {});
+  await afresh();
 });
 
 afterAll(async () => {
   try {
-    await prisma.rateLimitHit.deleteMany({ where: { key: { contains: MARK } } }).catch(() => {});
+    await afresh();
     await prisma.user.deleteMany({ where: { email: { startsWith: MARK } } });
   } finally {
     await prisma.$disconnect();
@@ -105,10 +116,10 @@ describe("asking for a reset link where the site has no way to send mail", () =>
   it("CONTROL: the two states really differ, so the screen has something to be honest about", async () => {
     mail.configured = true;
     const can = await requestPasswordReset(REAL);
-    await prisma.rateLimitHit.deleteMany({ where: { key: { contains: MARK } } }).catch(() => {});
     mail.configured = false;
     const cannot = await requestPasswordReset(REAL);
-    expect(can).not.toEqual(cannot);
+    expect(can).toEqual({ ok: true, sent: true });
+    expect(cannot).toEqual({ ok: true, sent: false });
   });
 
   it("still refuses something that is not an address, before anything else", async () => {
