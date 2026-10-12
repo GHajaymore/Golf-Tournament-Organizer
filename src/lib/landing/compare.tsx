@@ -40,6 +40,17 @@ import type { LandingPrices } from "./pricing";
 
 export const COMPARED_ON = "29 September 2026";
 
+/**
+ * When the two club platforms PRICES were last read off their own pricing
+ * pages — a narrower claim than COMPARED_ON, which dates every cell of the
+ * feature table. The page prints dollar differences against these figures, so
+ * they are re-read on the day anything about them ships: 12 October 2026,
+ * Golf Genius TM Premium $4,275 a year and $500 onboarding, BlueGolf $2,495 a
+ * year and $499 setup, both for one facility of up to 36 holes. Both unchanged
+ * from the September reading. Move this date only with a fresh reading.
+ */
+export const PRICES_READ_ON = "12 October 2026";
+
 export type Mark = "yes" | "no" | "part" | "na";
 
 /** One cell: a mark with a few words, or a figure (`value`) with a note. */

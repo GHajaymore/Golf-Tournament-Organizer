@@ -116,6 +116,13 @@ describe("the front door's own stylesheet", () => {
       for (const word of m[1].split(/[\s,]+/)) if (/^m-[a-z0-9-]+$/.test(word)) named.add(word);
     }
     expect(defined.size, "no keyframes were found").toBeGreaterThan(5);
+    // One name, one set of keyframes. A second `@keyframes` of the same name does not add to the
+    // first, it REPLACES it for every rule that plays it: a chapter word's sideways "m-drift" was
+    // written below the wall's upward one, and for a night the wall of screens slid sideways
+    // (2026-10-12, found only when the word was removed and the name turned up twice).
+    const names = [...SHEET.matchAll(/@keyframes\s+(m-[a-z0-9-]+)/g)].map((m) => m[1]);
+    const twice = names.filter((n, i) => names.indexOf(n) !== i);
+    expect(twice, "keyframes defined twice — the later one silently wins everywhere").toEqual([]);
     expect([...named].filter((n) => !defined.has(n)).sort(), "an animation with no keyframes — it does nothing").toEqual([]);
     expect([...defined].filter((d) => !named.has(d)).sort(), "keyframes nothing plays").toEqual([]);
   });

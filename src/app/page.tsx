@@ -16,7 +16,7 @@ import { FAQ_COUNT, FORMAT_NAMES } from "@/lib/landing/faq";
 import { featureCount, featureGroups } from "@/lib/landing/features";
 import { LANDING_CSS } from "@/lib/landing/styles";
 import { HOME_CSS } from "@/lib/landing/home-styles";
-import { COMPARED_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
+import { COMPARED_ON, PRICES_READ_ON, RIVALS, TOP_PUBLISHED, compareRows, type Cell } from "@/lib/landing/compare";
 import { SALES_EMAIL } from "@/lib/contact";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
@@ -366,7 +366,6 @@ export default async function LandingPage() {
 
         {/* ═══════════ HOW IT WORKS ═══════════ */}
         <section className="m-chapter" id="round" aria-labelledby="round-h">
-          <span className="m-ghost m-decor" aria-hidden="true"><span>Round</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">How it works</p>
@@ -439,7 +438,6 @@ export default async function LandingPage() {
 
         {/* ═══════════ WHAT IT DOES ═══════════ */}
         <section className="m-chapter" id="does" aria-labelledby="does-h">
-          <span className="m-ghost m-decor" aria-hidden="true"><span>Day</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">What it does</p>
@@ -518,7 +516,6 @@ export default async function LandingPage() {
 
         {/* ═══════════ WHEREVER YOU PLAY ═══════════ */}
         <section className="m-chapter" id="world" aria-labelledby="world-h">
-          <span className="m-ghost m-decor" aria-hidden="true"><span>World</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Wherever you play</p>
@@ -545,7 +542,6 @@ export default async function LandingPage() {
             currency, so the page cannot promise a price or a limit the code
             does not hold. */}
         <section className="m-chapter" id="pricing" aria-labelledby="pricing-h">
-          <span className="m-ghost m-decor" aria-hidden="true"><span>Field</span></span>
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Pricing</p>
@@ -614,7 +610,7 @@ export default async function LandingPage() {
               </ul>
             </div>
             <p className="m-small">
-              Golf Genius and BlueGolf prices are from each company&rsquo;s own website as of {COMPARED_ON}, in US dollars before tax, for
+              Golf Genius and BlueGolf prices are from each company&rsquo;s own website as of {PRICES_READ_ON}, in US dollars before tax, for
               one facility in the US or Canada with up to 36 holes. Prices change, so check with each provider. Both are trademarks of their
               owners; TourneyHQ is not affiliated with or endorsed by either.
               {contactEmail ? <> Several clubs, or a corporate golf program? {PLANS.enterprise.name} is scoped with you: write to <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>.</> : null}

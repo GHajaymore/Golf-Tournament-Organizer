@@ -403,7 +403,6 @@ export const HOME_CSS = `
 @keyframes m-stand { from { opacity: 0; transform: var(--m-rest) translate3d(0, 90px, -260px) rotateX(24deg); } to { opacity: 1; transform: var(--m-rest); } }
 @keyframes m-hover-a { 0%, 100% { transform: var(--m-rest) translateY(0); } 50% { transform: var(--m-rest) translateY(-11px); } }
 @keyframes m-hover-b { 0%, 100% { transform: var(--m-rest) translateY(0); } 50% { transform: var(--m-rest) translateY(9px); } }
-@keyframes m-lay { from { opacity: 0; transform: perspective(1800px) rotateY(-44deg) rotateX(22deg) translateY(60px); } to { opacity: 0.92; transform: perspective(1800px) rotateY(-26deg) rotateX(9deg) rotateZ(1.5deg); } }
 @media (max-width: 900px) {
   .m-home .m-hero-grid { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
   .m-home .m-hero-phone { max-width: 220px; translate: 26px 0; }
@@ -785,22 +784,6 @@ export const HOME_CSS = `
 @media (max-width: 900px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -62%; width: 92%; } }
 @media (min-width: 901px) and (max-width: 1099px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 4% auto auto -16%; width: 84%; } }
 @media (max-width: 400px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 6% auto auto -48%; width: 88%; } }
-/* A CHAPTER WORD BEHIND EACH SECTION (2026-10-12). Asked for more drama, the first answer was light
-   beams over the first screen and four figures set as large as the headline; Ajay, on seeing them:
-   "doesnt look good too bold". Both are gone. What stayed is the quiet one: a word the width of the
-   section, fading downward, drifting as it is passed. Scenery, and marked so. */
-.m-home .m-chapter { position: relative; }
-.m-home .m-chapter > .m-wrap { position: relative; z-index: 1; }
-.m-home .m-ghost { position: absolute; z-index: 0; inset: clamp(4px, 1vw, 18px) 0 auto 0; overflow: hidden; pointer-events: none; user-select: none; white-space: nowrap; font: italic 300 clamp(6.5rem, 24vw, 22rem)/0.92 var(--font-display), "Iowan Old Style", Georgia, serif; letter-spacing: -0.04em; }
-.m-home .m-ghost > span { display: inline-block; padding: 0 0.3em 0.12em 0.02em; color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 11%, transparent) 10%, color-mix(in srgb, var(--brass-ui) 5%, transparent) 62%, transparent 92%); -webkit-background-clip: text; background-clip: text; }
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .m-home .m-ghost > span { animation: m-drift linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
-  }
-}
-@keyframes m-drift { from { transform: translateX(7%); } to { transform: translateX(-24%); } }
-/* only where there is room for it: on a phone it would sit right behind the section label */
-@media (max-width: 900px) { .m-home .m-ghost { display: none; } }
 /* The closing glow reaches below its section on purpose, and that reach was scrollable: the page ran
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */
