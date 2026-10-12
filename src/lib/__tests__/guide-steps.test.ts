@@ -28,6 +28,7 @@ const PINNED: [label: string, file: string][] = [
   ["Save scorecard", "src/components/StrokePlayEntry.tsx"],
   ["Certify my card", "src/components/PlayerCard.tsx"],
   ["Draw sides automatically", "src/components/TeamsClient.tsx"],
+  ["Divide the field", "src/components/BracketFlights.tsx"],
 ];
 
 /** Every [[label]] the guide uses, flattened. */

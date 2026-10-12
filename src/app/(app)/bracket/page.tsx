@@ -281,12 +281,22 @@ export default async function BracketPage() {
         results={results}
         readOnly={!isStaff}
         straight={straight}
+        awaitingFlights={mode === "flights" && !state.flights}
       />
-      {straight && isStaff && (
+      {straight && isStaff && mode !== "flights" && (
         <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
           No qualifying round comes before this bracket, so everyone in the field is in the draw
           ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}), seeded in order.
           Where the numbers are not 4, 8, 16 or 32, the top seeds get byes.
+        </p>
+      )}
+      {/* In flights that sentence was wrong twice over: nobody is "in the draw" until the field is
+          divided, and afterwards "36 players, seeded in order" describes no bracket on the screen. */}
+      {straight && isStaff && mode === "flights" && state.flights && (
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 16, maxWidth: "62ch", lineHeight: 1.5 }}>
+          No qualifying round comes before these flights, so everyone in the field belongs in one of them
+          ({state.qualifiers.length} {state.qualifiers.length === 1 ? "player" : "players"}). Inside a flight
+          the players are seeded in order, and where a flight is not 4, 8, 16 or 32 its top seeds get byes.
         </p>
       )}
       {/* Under the draw. Qualification comes first in time, so reading order

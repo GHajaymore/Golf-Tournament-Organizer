@@ -177,6 +177,7 @@ export default async function LeaderboardPage({
         results={results}
         readOnly
         straight
+        awaitingFlights={mode === "flights" && !state.flights}
       />,
     );
   }

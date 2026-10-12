@@ -146,6 +146,7 @@ export function BracketClient({
   readOnly = false,
   straight = false,
   draws,
+  awaitingFlights = false,
 }: {
   winners: BracketView;
   consolation: BracketView;
@@ -178,6 +179,13 @@ export function BracketClient({
   readOnly?: boolean;
   /** No qualifying round before this bracket: the whole field is in it. */
   straight?: boolean;
+  /**
+   * Arranged in several flights and not yet divided. There is no draw then —
+   * not an empty one. Without this the screen drew a bracket of "TBD v TBD"
+   * under "The whole field, seeded in order": a draw nobody had made, described
+   * by a sentence about a different arrangement.
+   */
+  awaitingFlights?: boolean;
 }) {
   // "Seeded from qualification" was printed over a knockout nobody qualified
   // for — the bracket was the tournament's first round.
@@ -222,12 +230,16 @@ export function BracketClient({
           <div className="page-kicker">Manage</div>
           <h1 className="page-title">{bracketScreenName(readOnly)}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {readOnly
-              ? `${seededFrom} Winners advance automatically as results come in.`
-              : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
+            {awaitingFlights
+              ? readOnly
+                ? "The field has not been divided into flights yet, so there is no draw."
+                : "Nothing is drawn until the field is divided into flights."
+              : readOnly
+                ? `${seededFrom} Winners advance automatically as results come in.`
+                : `${seededFrom} Click a name to advance the winner (results auto-advance the next round).`}
           </p>
         </div>
-        {list.length > 1 && (
+        {!awaitingFlights && list.length > 1 && (
           // Wraps: a knockout in flights may have a dozen of these.
           <div className="seg" style={{ flexWrap: "wrap" }}>
             {list.map((d, i) => (
@@ -239,7 +251,7 @@ export function BracketClient({
           </div>
         )}
       </div>
-      <BracketBoard view={shown} results={results} readOnly={readOnly} />
+      {!awaitingFlights && <BracketBoard view={shown} results={results} readOnly={readOnly} />}
     </>
   );
 }
