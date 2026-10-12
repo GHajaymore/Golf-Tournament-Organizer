@@ -16,6 +16,19 @@
 export interface MessageAudience {
   /** The audience, for emphasis in the sentence. */
   name: string;
+  /**
+   * The sentence the card prints, in two parts: the words before the audience,
+   * and the audience as those words need it written.
+   *
+   * The card printed "Going to everyone in " and then the group's label, which
+   * is right for a group with a NAME ("everyone in Flight A") and wrong for
+   * the four that are a description of who is in them: "Going to everyone in
+   * Everyone at the club", "…everyone in Players only" (read off the screen,
+   * 2026-10-13 — and "Everyone at the club" is the one the picker opens on).
+   * A label that already says who it is, is the sentence.
+   */
+  lead: string;
+  said: string;
   /** The rest of the sentence after the name. */
   detail: string;
   /** One person rather than a group. */
@@ -46,15 +59,23 @@ export function messageAudience(input: {
   if (person) {
     return {
       name: person,
+      lead: "Going to ",
+      said: person,
       detail: "only — a direct message nobody else sees.",
       direct: true,
       textNote: input.alsoText ? NO_TEXT_TO_ONE : "",
     };
   }
+  // A group with no label at all should not render "everyone in ." — it
+  // says nothing rather than saying something false.
+  const name = input.scopeLabel.trim() || "this tournament";
+  // "Everyone at the club", "Everyone in this tournament", "Players only", "Organizers only",
+  // "Your flight", "Your group — Group 1": each says who it is. Anything else is a name.
+  const describesItself = /^(everyone|players only|organi[sz]ers only|your)(\s|$)/i.test(name);
   return {
-    // A group with no label at all should not render "everyone in ." — it
-    // says nothing rather than saying something false.
-    name: input.scopeLabel.trim() || "this tournament",
+    name,
+    lead: describesItself ? "Going to " : "Going to everyone in ",
+    said: describesItself ? name[0].toLowerCase() + name.slice(1) : name,
     detail: "",
     direct: false,
     textNote: "",
