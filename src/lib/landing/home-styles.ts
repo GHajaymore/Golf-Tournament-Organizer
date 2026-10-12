@@ -798,9 +798,17 @@ export const HOME_CSS = `
    first, whole, tilted flat, and half behind it — still scenery, still marked so. */
 .m-home .m-hero-phone .m-phone.m-back.m-left { --m-rest: rotate(-7deg); transform: var(--m-rest); inset: 4% auto auto -30%; width: 88%; }
 .m-home .m-hero-phone .m-phone.m-back img { aspect-ratio: auto; }
-@media (max-width: 900px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -62%; width: 92%; } }
+/* ON A PHONE THE PAIR IS CENTRED AS A PAIR (Ajay, 2026-10-13: "the two screenshots are coming left of
+   the screen with gap on the right"). The front phone was centred and nudged 26px, with the second
+   hung 62% out to its left — right for a laptop, where the organizer's screen fills the right-hand
+   side, and lopsided here, where that screen is not drawn. The second phone now shows half of itself
+   to the left, and the pair is moved right by half of that: a quarter of the front phone's own width,
+   so it is centred at every width without a number per phone. */
+@media (max-width: 900px) {
+  .m-home .m-hero-phone { max-width: min(56vw, 290px); translate: 25% 0; }
+  .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 5% auto auto -50%; width: 90%; }
+}
 @media (min-width: 901px) and (max-width: 1099px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 4% auto auto -16%; width: 84%; } }
-@media (max-width: 400px) { .m-home .m-hero-phone .m-phone.m-back.m-left { inset: 6% auto auto -48%; width: 88%; } }
 /* The closing glow reaches below its section on purpose, and that reach was scrollable: the page ran
    some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
    that sticks while scrolling loses the viewport it sticks to. */
