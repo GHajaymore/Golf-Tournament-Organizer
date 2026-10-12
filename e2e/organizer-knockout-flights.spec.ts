@@ -173,17 +173,17 @@ test("a new organizer divides a field of ten into three flights and plays them t
   });
 
   await test.step("a player moved up and back rejoins at the foot; a flight takes the club's own name", async () => {
-    const mover = page.getByLabel("Move or add a player");
+    const mover = page.getByLabel("Move or add a player", { exact: true });
     const elm = await mover.locator("option", { hasText: "Elm Marsh" }).getAttribute("value");
     await mover.selectOption(elm!);
-    await page.getByLabel("To", { exact: true }).selectOption({ label: "Championship flight" });
+    await page.getByLabel("To flight", { exact: true }).selectOption({ label: "Championship flight" });
     await page.getByRole("button", { name: "Move", exact: true }).click();
     // Both brackets are resized, and the screen says what the move costs.
     await expect(flightCard(page, "Championship flight").locator("summary")).toContainText("5 players · bracket of 8 · 3 byes · 3 rounds", { timeout: 20_000 });
     await expect(flightCard(page, "First flight").locator("summary")).toContainText("2 players · bracket of 2 · no byes · 1 round");
 
     await mover.selectOption(elm!);
-    await page.getByLabel("To", { exact: true }).selectOption({ label: "First flight" });
+    await page.getByLabel("To flight", { exact: true }).selectOption({ label: "First flight" });
     await page.getByRole("button", { name: "Move", exact: true }).click();
     const first = flightCard(page, "First flight");
     await expect(first.locator("summary")).toContainText("3 players · bracket of 4 · 1 bye · 2 rounds", { timeout: 20_000 });
@@ -211,7 +211,7 @@ test("a new organizer divides a field of ten into three flights and plays them t
     await expect(page.getByRole("button", { name: "Change", exact: true })).toHaveCount(0);
     // The division is the draw: still the organizer's to adjust until somebody has played.
     await expect(page.getByRole("button", { name: "Start again" })).toBeVisible();
-    await expect(page.getByLabel("Move or add a player")).toBeEnabled();
+    await expect(page.getByLabel("Move or add a player", { exact: true })).toBeEnabled();
   });
 
   const juniperCtx = await phoneOf(browser, testInfo, baseURL!, "Juniper");

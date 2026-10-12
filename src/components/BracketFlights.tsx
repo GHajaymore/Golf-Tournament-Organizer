@@ -277,7 +277,7 @@ export function BracketFlights({
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
             Move or add a player
-            <select className="input" value={mover} onChange={(e) => setMover(e.target.value)} disabled={pending} style={{ minWidth: 200 }}>
+            <select className="input" aria-label="Move or add a player" value={mover} onChange={(e) => setMover(e.target.value)} disabled={pending} style={{ minWidth: 200 }}>
               <option value="">Choose a player</option>
               {unplaced.length > 0 && (
                 <optgroup label="In no flight">
@@ -297,7 +297,7 @@ export function BracketFlights({
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
             To
-            <select className="input" value={toFlight} onChange={(e) => setToFlight(Number(e.target.value))} disabled={pending}>
+            <select className="input" aria-label="To flight" value={toFlight} onChange={(e) => setToFlight(Number(e.target.value))} disabled={pending}>
               {flights.map((f, i) => (
                 <option key={f.name} value={i}>{f.name}</option>
               ))}
