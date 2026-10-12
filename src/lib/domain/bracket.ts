@@ -405,18 +405,26 @@ export function bracketFinishOrderCombined(
  * The same rule for ANY number of draws, top flight first (2026-10-12).
  *
  * A knockout in several flights places the Championship flight first, then
- * the First flight below everybody the Championship flight placed, and so on:
- * each draw's own places are offset by the number of players placed above it.
- * A flight that is not finished has no order of its own yet and adds nobody —
- * the flights below it are still placed, counted from where the finished ones
- * end, and move down when it finishes. That is the same honesty as the two-draw
- * rule: nobody is ranked in a competition that is still going.
+ * the First flight below everybody IN the Championship flight, and so on:
+ * each draw's own places are offset by the number of players drawn in the
+ * flights above it.
+ *
+ * A PLACE, ONCE GIVEN, NEVER MOVES. A flight that is not finished has no order
+ * of its own yet and adds nobody — but its places are kept for it. The first
+ * cut of this counted only the players already PLACED above, so with the First
+ * flight still out on the course the Second flight's winner read 9th, and
+ * dropped to 17th the afternoon the First flight finished: a finishing place
+ * handed out and then taken back. Who is in which flight is settled on the day
+ * of the draw, and nobody in a lower flight can finish above anybody in a
+ * higher one, so the Second flight's winner is 17th from the moment they win.
  *
  * The first draw must be finished for there to be any order at all, exactly as
  * before: with no champion of the top flight there is no winner to head a list.
  *
  * A player already placed by an earlier draw is never placed again — which is
- * what makes a plate (fed by the main draw's own losers) add nobody.
+ * what makes a plate (fed by the main draw's own losers) add nobody. For the
+ * two draws there have always been this is the old arithmetic unchanged: a
+ * finished draw has placed everybody in it, so its field IS the count placed.
  */
 export function bracketFinishOrderAll(
   views: BracketView[],
@@ -428,15 +436,23 @@ export function bracketFinishOrderAll(
   if (out.length === 0) return out;
 
   const placed = new Set(out.map((p) => p.playerId));
+  let above = drawnInto(first);
   for (const view of rest) {
-    const offset = out.length;
     for (const p of bracketFinishOrder(view)) {
       if (placed.has(p.playerId)) continue;
       placed.add(p.playerId);
-      out.push({ ...p, rank: p.rank + offset });
+      out.push({ ...p, rank: p.rank + above });
     }
+    above += drawnInto(view);
   }
   return out;
+}
+
+/** How many players a draw holds: the people in its first round, a bye being nobody. */
+function drawnInto(view: BracketView): number {
+  let n = 0;
+  for (const m of view.rounds[0]?.matches ?? []) n += (m.a.playerId ? 1 : 0) + (m.b.playerId ? 1 : 0);
+  return n;
 }
 
 /**

@@ -251,15 +251,26 @@ describe("putting the field into brackets", () => {
   });
 
   it("by the tournament's own flights: each flight is a bracket, whatever its size", () => {
-    const entrants = field(11).map((e, i) => ({ ...e, flight: i < 5 ? "Seniors" : i < 9 ? "Ladies" : "Juniors" }));
+    // Twelve, not eleven: at eleven the fixture's stride lands every index in entry order, and a flight
+    // left as entered would pass for one seeded by handicap (the last assertion here is that control).
+    const entrants = field(12).map((e, i) => ({ ...e, flight: i < 5 ? "Seniors" : i < 9 ? "Ladies" : "Juniors" }));
     const made = planFlights(entrants, "flights", []);
     if (!made.ok) throw new Error(made.error);
     expect(made.plan.brackets.map((b) => [b.name, b.playerIds.length, b.size, b.byes])).toEqual([
       ["Seniors", 5, 8, 3],
       ["Ladies", 4, 4, 0],
-      ["Juniors", 2, 2, 0],
+      ["Juniors", 3, 4, 1],
     ]);
     expect([...allIds(made.plan)].sort()).toEqual(entrants.map((e) => e.id).sort());
+    // Inside each flight the best handicap is the top seed — the byes in the Seniors' bracket of
+    // eight are theirs — and NOT whoever happened to enter first (the field is not in handicap order).
+    const index = new Map(entrants.map((e) => [e.id, e.handicapIndex!]));
+    for (const b of made.plan.brackets) {
+      const seeded = b.playerIds.map((id) => index.get(id)!);
+      expect(seeded, `${b.name} is not seeded by handicap`).toEqual([...seeded].sort((x, y) => x - y));
+    }
+    const seniorsAsEntered = entrants.slice(0, 5).map((e) => e.id);
+    expect(made.plan.brackets[0].playerIds, "the fixture cannot tell seeding from entry order").not.toEqual(seniorsAsEntered);
   });
 
   it("refuses, in words an organizer can act on, what cannot be drawn", () => {
@@ -321,6 +332,10 @@ describe("the organizer's own adjustments", () => {
     // checks pass this; only the count catches it, and a reseed would have put a player in two flights.
     expect(planReseeded(start, 1, [...ids, start.brackets[0].playerIds[0]]), "one ADDED from another bracket").toMatchObject({ ok: false });
     expect(planReseeded(start, 9, ids)).toMatchObject({ ok: false });
+    // A flight STORED with somebody in it twice (a plan is never tidied on the way in). A list as
+    // long as the flight, naming everybody in it, can still turn "a, a, b" into "a, b, b".
+    const doubled = parseFlightPlan(JSON.stringify({ v: 2, criterion: "handicap", flights: [{ name: "Only", playerIds: ["a", "a", "b"] }] }))!;
+    expect(planReseeded(doubled, 0, ["a", "b", "b"]), "a reseed changed who is in a doubled flight").toMatchObject({ ok: false });
   });
 
   it("a bracket can be renamed to the club's own word, once", () => {
@@ -348,6 +363,11 @@ describe("the plan as the tournament keeps it", () => {
       ["Championship flight", 16, 0, 4],
       ["Seniors", 8, 3, 3],
     ]);
+    // HOW it was divided comes back too: the screen offers "Draw again" only for a random division,
+    // and says which way the field was divided over every flight.
+    for (const criterion of ["handicap", "random", "flights", "qualifying"] as const) {
+      expect(parseFlightPlan(serializeFlightPlan({ ...plan, criterion }))?.criterion).toBe(criterion);
+    }
   });
 
   it("is not mistaken for one bracket's flat draw, nor a flat draw for a plan", () => {
@@ -459,19 +479,41 @@ describe("several flights, drawn and finished", () => {
     expect(order.find((p) => p.rank === 9)?.playerId).toBe(plan.brackets[1].playerIds[0]);
   });
 
-  it("a flight still being played places nobody, and the flights below it are placed where the finished ones end", () => {
+  it("a flight still being played places nobody, and a place once given never moves when it finishes", () => {
     const winners: Record<string, string> = {};
     playOut(0, winners);
     playOut(2, winners);
-    const views = plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), winners));
-    const order = bracketFinishOrderAll(views);
+    const viewsNow = () => plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), winners));
+    const before = bracketFinishOrderAll(viewsNow());
     const flightOf = new Map(plan.brackets.flatMap((b, i) => b.playerIds.map((id) => [id, i] as const)));
-    expect(order.filter((p) => flightOf.get(p.playerId) === 1), "the First flight has no result and nobody in it is ranked").toEqual([]);
-    expect(order.length).toBe(8 + 5);
-    expect(Math.min(...order.filter((p) => flightOf.get(p.playerId) === 2).map((p) => p.rank))).toBe(9);
-    // and with no champion of the top flight there is no order at all
+    expect(before.filter((p) => flightOf.get(p.playerId) === 1), "the First flight has no result and nobody in it is ranked").toEqual([]);
+    expect(before.length).toBe(8 + 5);
+    // The Second flight's winner is 17th: below the eight of the Championship flight and the eight
+    // of the First, whether or not the First flight has finished. Counted from the players already
+    // PLACED, they read 9th here and dropped to 17th when the First flight came in.
+    expect(Math.min(...before.filter((p) => flightOf.get(p.playerId) === 2).map((p) => p.rank))).toBe(17);
+
+    playOut(1, winners);
+    const after = bracketFinishOrderAll(viewsNow());
+    expect(after.length).toBe(21);
+    const rankAfter = new Map(after.map((p) => [p.playerId, p.rank]));
+    for (const p of before) expect(rankAfter.get(p.playerId), `${p.name} was ${p.rank} and moved when another flight finished`).toBe(p.rank);
+    expect(new Set(after.map((p) => `${flightOf.get(p.playerId)}:${p.rank}`)).size, "no two flights share a place").toBe(
+      new Set(after.map((p) => p.rank)).size,
+    );
+  });
+
+  it("with the top flight still being played there is no order at all, however many flights below it are finished", () => {
     expect(bracketFinishOrderAll(plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), {})))).toEqual([]);
     expect(bracketFinishOrderAll([])).toEqual([]);
+    // Both lower flights played out, the Championship flight not: there is no winner to head a
+    // list, and a list that began at 9th would be read as one that had lost its first eight.
+    const winners: Record<string, string> = {};
+    playOut(1, winners);
+    playOut(2, winners);
+    const views = plan.brackets.map((b, i) => buildBracket(flightKind(i), asPlayers(b.playerIds, byId), winners));
+    expect(views[1].champion, "the fixture did not finish the First flight").not.toBeNull();
+    expect(bracketFinishOrderAll(views)).toEqual([]);
   });
 
   it("the two-draw rule is the same rule: split and plate finish exactly as they did", () => {

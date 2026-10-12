@@ -377,6 +377,9 @@ export function planWithPlayerMoved(plan: FlightPlan, playerId: string, toIndex:
 export function planReseeded(plan: FlightPlan, bracketIndex: number, order: string[]): FlightPlanResult {
   const b = plan.brackets[bracketIndex];
   if (!b) return { ok: false, error: "There is no such bracket." };
+  // "Each once" is its own test only for a flight that was STORED with somebody in it twice (a plan is
+  // never tidied on the way in): there, a list as long as the flight and naming everybody in it can
+  // still swap one of the pair for a second copy of somebody else.
   const want = new Set(order);
   if (want.size !== order.length || order.length !== b.playerIds.length || b.playerIds.some((id) => !want.has(id))) {
     return { ok: false, error: "A seeding has to list the same players, each once." };
