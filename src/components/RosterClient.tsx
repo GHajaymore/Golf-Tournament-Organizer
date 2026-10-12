@@ -7,7 +7,7 @@ import { csvSizeRefusal } from "@/lib/csv";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
 import { indexLabel, indexFigure, hasIndex, NO_INDEX } from "@/lib/domain/handicap-label";
-import { parseHandicapInput } from "@/lib/domain/registration-intake";
+import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 import { PLANS } from "@/lib/plans";
@@ -283,9 +283,9 @@ export function RosterClient({
     const read = parseHandicapInput(hcpText);
     if (!read.ok) {
       setError(
-        /between/.test(read.error)
-          ? "A handicap index runs from +10 to 54."
-          : "Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap. Leave it empty for no index yet.",
+        read.why === "out-of-range"
+          ? STAFF_HANDICAP_REFUSAL["out-of-range"]
+          : `${STAFF_HANDICAP_REFUSAL["not-a-number"]} Leave it empty for no index yet.`,
       );
       return;
     }

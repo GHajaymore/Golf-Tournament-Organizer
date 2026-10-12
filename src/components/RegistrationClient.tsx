@@ -2,7 +2,7 @@
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
 import { dayAsDate } from "@/lib/deadline";
-import { parseHandicapInput } from "@/lib/domain/registration-intake";
+import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore } from "react";
@@ -17,7 +17,7 @@ import { playerTeeCounts } from "@/lib/tournament-settings";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
 import { ConfirmButton } from "./ConfirmButton";
-import { indexLabel } from "@/lib/domain/handicap-label";
+import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -300,7 +300,8 @@ export function RegistrationClient({
     // handicap, 2.4 better than scratch, and parseFloat gets that backwards.
     const h = parseHandicapInput(handicap);
     if (!h.ok) {
-      setAddError(h.error);
+      // In the organizer's words: `h.error` is written to a player about their own handicap.
+      setAddError(STAFF_HANDICAP_REFUSAL[h.why]);
       return;
     }
     setAddError("");
@@ -514,15 +515,33 @@ export function RegistrationClient({
                     <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center" }}>
                       <input
                         className="input"
-                        type="number"
-                        step="0.1"
+                        // A HANDICAP, AS A GOLFER WRITES ONE (2026-10-13). This was a number box,
+                        // opened on the stored figure and read back with parseFloat: a plus
+                        // handicap stood here as "-2.4", and typing "+2.4" over it — which a
+                        // number box refuses to hold — saved nothing, or with the plus dropped,
+                        // 2.4 the wrong way. Text, shown and read like every other handicap.
+                        type="text"
+                        inputMode="decimal"
                         aria-label={`Handicap for ${p.name}`}
-                        defaultValue={p.handicap}
+                        // Keyed on what is stored: the box is the browser's own between saves,
+                        // so without this it goes on showing a figure the server has replaced.
+                        key={`${p.id}:${p.handicap}`}
+                        defaultValue={indexFigure(p.handicap)}
                         disabled={pending || locked}
-                        style={{ width: 52, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                        style={{ width: 56, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                         onBlur={(e) => {
-                          const v = parseFloat(e.target.value);
-                          if (Number.isFinite(v) && v !== p.handicap) commitUpdate(p.id, { handicap: v });
+                          const typed = parseHandicapInput(e.target.value);
+                          // Emptied: nothing is saved (it never was), and the box says again what is stored.
+                          if (typed.ok && typed.source === "none") {
+                            e.target.value = indexFigure(p.handicap);
+                            return;
+                          }
+                          if (!typed.ok) {
+                            setRowError(`${p.name}: ${STAFF_HANDICAP_REFUSAL[typed.why]}`);
+                            return;
+                          }
+                          if (typed.value !== p.handicap) commitUpdate(p.id, { handicap: typed.value });
+                          else setRowError("");
                         }}
                       />
                       <select
@@ -1126,7 +1145,7 @@ export function RegistrationClient({
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.0" disabled={hSource === "none"} /></div>
+            <div className="field"><label htmlFor={`${fid}-hcp`}>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input id={`${fid}-hcp`} className="input" type="text" inputMode="decimal" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.4" disabled={hSource === "none"} /></div>
             <div className="field"><label htmlFor={`${fid}-ghin`}>GHIN #</label><input id={`${fid}-ghin`} className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
           <div className="field">

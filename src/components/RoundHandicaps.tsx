@@ -3,6 +3,7 @@ import { useState } from "react";
 import { setRoundHandicapOverride, applyRoundHandicapToRest } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
 import type { RoundHandicapView } from "@/lib/services/round-handicap";
+import { indexFigure, parseStrokesInput } from "@/lib/domain/handicap-label";
 import { useAction } from "./useAction";
 
 /**
@@ -153,7 +154,9 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                   style={{ padding: "2px 10px", fontSize: 13 }}
                   onClick={() => {
                     setEditing(r.playerId);
-                    setValue(String(r.handicap));
+                    // What the sentence beside it says: "+2", never the stored "-2".
+                    setValue(indexFigure(r.handicap));
+                    setError("");
                   }}
                 >
                   {r.source === "override" ? "Change" : "Set"}
@@ -203,7 +206,8 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                 <>
                   <input
                     className="input"
-                    inputMode="numeric"
+                    // Text, and not the digits-only keypad: a plus handicap is typed with its plus.
+                    inputMode="text"
                     style={{ width: 80 }}
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
@@ -215,12 +219,12 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                     style={{ padding: "2px 10px", fontSize: 13 }}
                     disabled={pending}
                     onClick={() => {
-                      const n = Number(value.trim());
-                      if (!Number.isFinite(n)) {
-                        setError("A handicap is a number of strokes.");
+                      const typed = parseStrokesInput(value);
+                      if (!typed.ok) {
+                        setError(typed.error);
                         return;
                       }
-                      run(() => setRoundHandicapOverride(stageId, r.playerId, n));
+                      run(() => setRoundHandicapOverride(stageId, r.playerId, typed.value));
                     }}
                   >
                     Save
