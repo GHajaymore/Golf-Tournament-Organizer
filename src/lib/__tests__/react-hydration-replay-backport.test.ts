@@ -92,6 +92,34 @@ describe("the hydration replay fix, against the React that Next ships", () => {
     expect(() => loader.backport("export const nothing = 1;", "not React")).toThrow(/not the shape/);
   });
 
+  it("and the build refuses to finish without it: the checked build looks in the chunks a phone is sent", async () => {
+    const { chunksCarrying, REPLAY_FIX_MARK } = (await import(
+      /* @vite-ignore */ `file://${resolve(process.cwd(), "scripts/build-checked.mjs").replace(/\\/g, "/")}`
+    )) as { chunksCarrying: (dist: string, mark?: string) => string[]; REPLAY_FIX_MARK: string };
+    // One name, in the loader that leaves the mark and in the check that looks for it.
+    expect(REPLAY_FIX_MARK).toBe(loader.MARK);
+
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const dist = mkdtempSync(join(tmpdir(), "thq-build-"));
+    try {
+      mkdirSync(join(dist, "static", "chunks", "app"), { recursive: true });
+      writeFileSync(join(dist, "static", "chunks", "main.js"), "console.log('a bundle with no fix in it')");
+      writeFileSync(join(dist, "static", "chunks", "app", "page.js"), "export default 1");
+      expect(chunksCarrying(dist), "a bundle without the fix was passed").toEqual([]);
+      // Not in a chunk: a mark in the build's own log or a source map beside it is not the bundle.
+      writeFileSync(join(dist, "static", "chunks", "main.js.map"), `{"x":"${loader.MARK}"}`);
+      writeFileSync(join(dist, "trace.txt"), loader.MARK);
+      expect(chunksCarrying(dist)).toEqual([]);
+      writeFileSync(join(dist, "static", "chunks", "framework.js"), `window.${loader.MARK}=1`);
+      expect(chunksCarrying(dist).map((p) => p.replace(/\\/g, "/").split("/").pop())).toEqual(["framework.js"]);
+      // A build that was never made has nothing in it either, and says so rather than throwing.
+      expect(chunksCarrying(join(dist, "nowhere"))).toEqual([]);
+    } finally {
+      rmSync(dist, { recursive: true, force: true });
+    }
+  });
+
   it("is in the build: next.config.mjs sends exactly these files through it, before anything else reads them", async () => {
     const config = (await import(/* @vite-ignore */ `file://${resolve(process.cwd(), "next.config.mjs").replace(/\\/g, "/")}`)).default as {
       webpack: (c: { module: { rules: unknown[] } }) => { module: { rules: Array<{ test: RegExp; enforce?: string; use: Array<{ loader: string }> }> } };

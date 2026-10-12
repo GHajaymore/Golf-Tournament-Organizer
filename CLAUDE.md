@@ -984,10 +984,13 @@ React fixed it in facebook/react#35494 (released in 19.3.0, not taken back to 19
 **Until Next is moved to a version that carries that React (16.3 or later),
 `scripts/react-hydration-replay-backport.cjs` puts upstream's change into the bundled
 copy as the browser bundle is built** — a webpack rule in `next.config.mjs`, nothing in
-`node_modules` edited. Three things keep it honest:
+`node_modules` edited. Four things keep it honest:
 
 - it stops the build if either place it touches is not found exactly once, and says to
   delete it when the React underneath already has the fix;
+- `scripts/build-checked.mjs` — every build, production's included — looks in the
+  CHUNKS for the mark the fix leaves and fails without it, so a stale build cache or a
+  change of bundler cannot ship a bundle that lacks it;
 - `react-hydration-replay-backport.test.ts` runs it over every copy of React the
   installed Next ships, so a Next upgrade that changes their shape is red in its own PR;
 - `e2e/slow-page.spec.ts` IS the experiment above, kept: thirty loads through the slow
