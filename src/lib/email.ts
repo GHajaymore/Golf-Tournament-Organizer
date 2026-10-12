@@ -7,6 +7,7 @@ import { orgRoleName } from "@/lib/roles";
 import { emailDocument, emailText, escapeHtml } from "@/lib/domain/email-layout";
 import { emailBrandFor } from "@/lib/services/email-brand";
 import { EMAIL } from "@/lib/themes";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -251,6 +252,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         "Reset your TourneyHQ password",
@@ -321,6 +323,7 @@ export async function sendRegistrationEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `You're registered — ${opts.eventName}`,
@@ -408,6 +411,7 @@ export async function sendStaffInviteEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `You have been added to ${club} on TourneyHQ`,
@@ -523,6 +527,7 @@ export async function sendJoinRequestEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(
         `${opts.askerName} asked to join ${club} on TourneyHQ`,
@@ -615,6 +620,7 @@ export async function sendFieldStatusEmail(
   try {
     const { error } = await resend.emails.send({
       from: FROM,
+      replyTo: SUPPORT_EMAIL,
       to,
       ...(await compose(subject, body, `You're getting this because you're entered in ${eventName} on TourneyHQ.`, {
         preview:

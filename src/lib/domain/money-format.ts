@@ -38,6 +38,9 @@ export const CURRENCIES = [
   { code: "NZD", label: "New Zealand dollar" },
   { code: "ZAR", label: "South African rand" },
   { code: "JPY", label: "Japanese yen" },
+  // Offered since 2026-10-11: "India" has been a date style here all along (`en-IN`),
+  // and a club that can write its dates the Indian way could not choose its money.
+  { code: "INR", label: "Indian rupee" },
 ] as const;
 
 /**
