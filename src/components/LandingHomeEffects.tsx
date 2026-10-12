@@ -546,19 +546,27 @@ export function LandingHomeEffects() {
     const dock = $("#dock");
     const heroDoorsEl = $(".m-hero .m-cta-row");
     const startEl = $("#start");
+    // The footer is outside <main>, and it is the last thing on the page: the bar must not sit on its last line.
+    const footerEl = document.querySelector<HTMLElement>(".thq .ftr");
     if (dock && heroDoorsEl && startEl && canWatch) {
       let heroDoors = false;
       let endDoors = false;
+      let footer = false;
       const doors = new IntersectionObserver(
         (entries) => {
-          entries.forEach((e) => { if (e.target === startEl) endDoors = e.isIntersecting; else heroDoors = e.isIntersecting; });
-          dock.classList.toggle("m-up", !heroDoors && !endDoors);
+          entries.forEach((e) => {
+            if (e.target === startEl) endDoors = e.isIntersecting;
+            else if (e.target === footerEl) footer = e.isIntersecting;
+            else heroDoors = e.isIntersecting;
+          });
+          dock.classList.toggle("m-up", !heroDoors && !endDoors && !footer);
         },
         { threshold: 0.05 },
       );
       observers.push(doors);
       doors.observe(heroDoorsEl);
       doors.observe(startEl);
+      if (footerEl) doors.observe(footerEl);
     }
 
     return () => {

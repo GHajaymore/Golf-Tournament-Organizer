@@ -230,7 +230,8 @@ export const HOME_CSS = `
   .m-home .m-story .m-stage img.m-on { opacity: 1; z-index: 2; }
   .m-home .m-story .m-stage img.m-was { opacity: 1; z-index: 1; }
   .m-home .m-story .m-beat { min-height: 62vh; display: grid; align-content: center; gap: 16px; transition: opacity 0.4s ease; }
-  .m-home .m-story.m-live .m-beat { opacity: 0.3; }
+  /* The moments not yet reached step back, but stay readable: at 0.3 they were 2.3:1, below any floor. */
+  .m-home .m-story.m-live .m-beat { opacity: 0.68; }
   .m-home .m-story.m-live .m-beat.m-on { opacity: 1; }
   .m-home .m-story .m-beat .m-clock { font: 500 clamp(3rem, 6vw, 5.2rem)/1 var(--m-mono); color: var(--m-hl); letter-spacing: -0.03em; }
   .m-home .m-story .m-beat .m-what { font: 600 0.75rem/1 var(--m-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--m-on-ground-soft); }
@@ -710,8 +711,9 @@ export const HOME_CSS = `
   .m-home .m-wall { margin: 34px 0 -70px -22%; height: 330px; }
   .m-home .m-wide .m-screen { aspect-ratio: 5 / 4; }
   .m-home .m-wide .m-screen img { transform: scale(1.9); transform-origin: 2% 96%; }
-  .m-home .m-dock { display: flex; gap: 10px; position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--m-ground-deep) 84%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--m-line); transform: translateY(110%); transition: transform 0.3s ease; }
-  .m-home .m-dock.m-up { transform: none; }
+  .m-home .m-dock { display: flex; gap: 10px; position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--m-ground-deep) 84%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--m-line); transform: translateY(110%); visibility: hidden; transition: transform 0.3s ease, visibility 0s linear 0.3s; }
+  /* out of sight is also out of reach: slid off the screen it still took keyboard focus */
+  .m-home .m-dock.m-up { transform: none; visibility: visible; transition: transform 0.3s ease, visibility 0s; }
   .m-home .m-dock .m-btn { flex: 1 1 0; padding: 13px 12px; font-size: 0.95rem; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -799,4 +801,8 @@ export const HOME_CSS = `
 @keyframes m-drift { from { transform: translateX(7%); } to { transform: translateX(-24%); } }
 /* only where there is room for it: on a phone it would sit right behind the section label */
 @media (max-width: 900px) { .m-home .m-ghost { display: none; } }
+/* The closing glow reaches below its section on purpose, and that reach was scrollable: the page ran
+   some 250px past the footer into nothing. Clipped where the page's main part ends, with clip and not hidden, so nothing
+   that sticks while scrolling loses the viewport it sticks to. */
+.m-home { overflow-y: clip; }
 `;

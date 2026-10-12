@@ -168,8 +168,11 @@ test("the theme slider shows one board in four themes, and dragging moves the ba
       return { tops, loaded: imgs.map((i) => i.complete && i.naturalWidth > 0), width: Math.round(box.width) };
     });
 
+  // The four captures are lazy: they start loading as the frame comes into view, so they are
+  // asked for until they are there. The first run of this test asked once, at once, and failed
+  // on a slider that was working (2026-10-12).
+  await expect.poll(async () => (await onTop()).loaded, { message: "a theme's capture did not load", timeout: 15_000 }).toEqual([true, true, true, true]);
   const rest = await onTop();
-  expect(rest.loaded, "a theme's capture did not load").toEqual([true, true, true, true]);
   expect(rest.width, "the frame is too narrow to show four bands").toBeGreaterThan(200);
   expect(rest.tops, "part of the frame shows no capture at all").not.toContain("nothing");
   const themes = [...new Set(rest.tops)];
@@ -184,4 +187,64 @@ test("the theme slider shows one board in four themes, and dragging moves the ba
   await expect.poll(async () => (await onTop()).tops.join(" "), { message: "moving the slider moved no band" }).not.toBe(rest.tops.join(" "));
   const moved = await onTop();
   expect(new Set(moved.tops).size, "a theme vanished when the slider moved").toBe(4);
+});
+
+/**
+ * THE PAGE ENDS WHERE ITS FOOTER ENDS (2026-10-12).
+ *
+ * The closing section has a glow that reaches below it on purpose, and that
+ * reach was scrollable: the page ran some 250px past the footer into nothing,
+ * at every width. Nothing asked how tall the page was against what it holds —
+ * a sideways check exists for the width (`layout.spec`), and this is its twin
+ * for the length. Found by a measurement written for something else, which
+ * printed the footer's last line ending two thirds of the way down the screen.
+ */
+test("the page ends where its footer ends", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
+  const end = await page.evaluate(() => {
+    const footer = document.querySelector(".thq .ftr");
+    return { footer: footer ? Math.round(footer.getBoundingClientRect().bottom) : -1, screen: window.innerHeight };
+  });
+  expect(end.footer, "no footer was found").toBeGreaterThan(0);
+  expect(end.screen - end.footer, `scrolled to the end, the footer stops ${end.screen - end.footer}px short of the bottom of the screen`).toBeLessThanOrEqual(2);
+});
+
+/**
+ * THE BAR OF TWO BUTTONS ON A PHONE: UP MID-PAGE, AND GONE MEANS GONE.
+ *
+ * A phone keeps "Run an event" and "Enter a code" within reach in a bar at the
+ * bottom once the hero's own buttons have scrolled away. Until 2026-10-12 a bar
+ * that was "down" had only been slid off the screen: it still took keyboard
+ * focus, and at the very end of the page it came back up over the footer's
+ * last line. Down now means not painted and not focusable, and it stays down
+ * wherever the page already offers those buttons, and at the footer.
+ */
+test("a phone's bottom bar is up only mid-page, and unreachable when it is down", async ({ page }) => {
+  const dock = page.locator("#dock");
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  test.skip((page.viewportSize()?.width ?? 0) >= 900, "the bar is a phone's; a laptop keeps the header's buttons");
+
+  const state = () =>
+    dock.evaluate((d) => {
+      const cs = getComputedStyle(d);
+      const box = d.getBoundingClientRect();
+      return { shown: cs.visibility === "visible" && box.top < window.innerHeight - 4, reachable: cs.visibility === "visible" };
+    });
+  const at = async (y: number) => {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    // the bar answers an observer, and slides: asked until it has settled either way
+    await page.waitForTimeout(700);
+    return state();
+  };
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const startTop = await page.evaluate(() => Math.round(document.querySelector("#start")!.getBoundingClientRect().top + window.scrollY));
+
+  expect(await at(0), "at the top, beside the hero's own buttons").toEqual({ shown: false, reachable: false });
+  expect(await at(Math.round(height * 0.45)), "mid-page").toEqual({ shown: true, reachable: true });
+  expect(await at(startTop), "at the sign-up form").toEqual({ shown: false, reachable: false });
+  expect(await at(height), "at the footer").toEqual({ shown: false, reachable: false });
 });
