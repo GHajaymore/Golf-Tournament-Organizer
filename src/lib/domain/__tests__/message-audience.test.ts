@@ -53,6 +53,39 @@ describe("who a message is for", () => {
     expect(a.name).not.toBe("");
   });
 
+  it("writes a sentence that reads, whichever kind of group it is", () => {
+    // Read off the screen, 2026-10-13: "Going to everyone in Everyone at the club." The card put
+    // "everyone in" before every label, and four of the labels already say who they are.
+    const said = (scopeLabel: string, personName = "") => {
+      const a = messageAudience({ personName, scopeLabel, alsoText: false });
+      return a.lead + a.said;
+    };
+    // A group that is a description of its members IS the sentence, in the sentence's own case.
+    expect(said("Everyone at the club")).toBe("Going to everyone at the club");
+    expect(said("Everyone at the society")).toBe("Going to everyone at the society");
+    expect(said("Everyone in this tournament")).toBe("Going to everyone in this tournament");
+    expect(said("Everyone in this round")).toBe("Going to everyone in this round");
+    expect(said("Players only")).toBe("Going to players only");
+    expect(said("Organizers only")).toBe("Going to organizers only");
+    expect(said("Your group — Group 1")).toBe("Going to your group — Group 1");
+    expect(said("Your team")).toBe("Going to your team");
+    // A group with a NAME is somewhere people are in.
+    expect(said("Flight A")).toBe("Going to everyone in Flight A");
+    expect(said("Seniors")).toBe("Going to everyone in Seniors");
+    expect(said("Round 2 — Stroke Play")).toBe("Going to everyone in Round 2 — Stroke Play");
+    expect(said("The Blues")).toBe("Going to everyone in The Blues");
+    // A name that merely BEGINS like one of those words is still a name.
+    expect(said("Yourkshire Terriers")).toBe("Going to everyone in Yourkshire Terriers");
+    expect(said("Everyones Favourites")).toBe("Going to everyone in Everyones Favourites");
+    // Nothing to send to, and one person.
+    expect(said("")).toBe("Going to everyone in this tournament");
+    expect(said("Flight A", "zz-Sam Ellis")).toBe("Going to zz-Sam Ellis");
+    // And no sentence says "everyone" twice.
+    for (const label of ["Everyone at the club", "Everyone in this tournament", "Players only", "Flight A", ""]) {
+      expect(said(label).toLowerCase().split("everyone").length - 1, label).toBeLessThanOrEqual(1);
+    }
+  });
+
   it("treats a whitespace-only name as no person", () => {
     const a = messageAudience({ personName: "   ", scopeLabel: "Everyone", alsoText: true });
     expect(a.direct).toBe(false);

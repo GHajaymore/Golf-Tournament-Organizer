@@ -600,7 +600,10 @@ export function ComposePanel({
   isStaff: boolean;
 }) {
   const [body, setBody] = useState("");
-  const [target, setTarget] = useState(composable[0]?.key ?? "");
+  // Opens on THIS TOURNAMENT where that is somewhere the writer may post, not on the first group in
+  // the list. The first is the whole club, and a message cannot be called back: an organizer on a
+  // tournament's Messages screen, moving the tee times, was one press from telling every member.
+  const [target, setTarget] = useState((composable.find((c) => c.kind === "event") ?? composable[0])?.key ?? "");
   const [person, setPerson] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -722,13 +725,17 @@ export function ComposePanel({
           carries, so it renders BLANK. The card asked "Who is this for?" and
           then showed nothing selected while a real answer was in force. */}
       <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-        {audience.direct ? "Going to " : "Going to everyone in "}
-        <b>{audience.name}</b>
+        {audience.lead}
+        <b>{audience.said}</b>
         {audience.detail ? ` ${audience.detail}` : "."}
       </p>
       <textarea
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        // "Type a message first." stayed on the card under a message that had been typed.
+        onChange={(e) => {
+          setBody(e.target.value);
+          if (error) setError("");
+        }}
         rows={3}
         placeholder="Message…"
         style={{
