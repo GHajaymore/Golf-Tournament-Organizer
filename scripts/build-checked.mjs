@@ -173,11 +173,54 @@ function check(label) {
   return false;
 }
 
+/**
+ * AND THE BROWSER BUNDLE CARRIES THE REACT FIX THIS APP BUILDS IN.
+ *
+ * `scripts/react-hydration-replay-backport.cjs` puts one upstream React fix
+ * into the bundle through a webpack rule. A rule is the kind of thing that
+ * stops applying without anybody deciding it should: a build cache hands back
+ * yesterday's bundle, or the build is one day moved to another bundler, and the
+ * page-thrown-away-on-a-slow-connection fault is back in production with every
+ * check green. So the bundle is asked. The loader leaves a mark the page sets;
+ * a build whose chunks do not hold it has not got the fix, and does not ship.
+ *
+ * Read from the chunks themselves, not from the build's log or its config:
+ * what matters is what a phone is sent.
+ */
+export const REPLAY_FIX_MARK = "__thqHydrationReplayBackport";
+
+export function chunksCarrying(distDir, mark = REPLAY_FIX_MARK) {
+  const root = path.join(distDir, "static", "chunks");
+  const found = [];
+  const walk = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".js") && fs.readFileSync(p, "utf8").includes(mark)) found.push(p);
+    }
+  };
+  walk(root);
+  return found;
+}
+
+function carriesReplayFix(label) {
+  const found = chunksCarrying(dist);
+  if (found.length > 0) {
+    console.log(`[build-checked] ${label}: the hydration replay fix is in the browser bundle (${path.basename(found[0])})`);
+    return true;
+  }
+  console.error(`[build-checked] ${label}: NO CHUNK in ${dist} carries the hydration replay fix.`);
+  console.error("  The rule in next.config.mjs did not reach React's client — see scripts/react-hydration-replay-backport.cjs.");
+  console.error("  If Next now bundles a React that has the fix itself, delete that file, its rule, and this check.");
+  return false;
+}
+
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
 if (isMain) {
   if (process.argv.includes("--check")) {
-    process.exit(check("check") ? 0 : 1);
+    process.exit(check("check") && carriesReplayFix("check") ? 0 : 1);
   }
 
   const first = await build();
@@ -198,13 +241,14 @@ if (isMain) {
       console.error("[build-checked] build 2 failed as well — not retrying again.");
       process.exit(retry.code);
     }
-    process.exit(check("build 2") ? 0 : 1);
+    process.exit(check("build 2") && carriesReplayFix("build 2") ? 0 : 1);
   }
 
-  if (check("build 1")) process.exit(0);
+  // The manifests are the fault a rebuild can clear. A bundle without the fix is not: it fails here.
+  if (check("build 1")) process.exit(carriesReplayFix("build 1") ? 0 : 1);
 
   console.error("[build-checked] Rebuilding once — see the note at the top of scripts/build-checked.mjs.");
   const second = await build();
   if (second.code !== 0) process.exit(second.code);
-  process.exit(check("build 2") ? 0 : 1);
+  process.exit(check("build 2") && carriesReplayFix("build 2") ? 0 : 1);
 }
