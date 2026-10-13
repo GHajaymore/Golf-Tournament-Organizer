@@ -68,7 +68,7 @@ async function setUp(
   names: string[],
   money?: { game: string; stake: string },
   /** Each player's handicap on a net round, in the order typed; 10 for all if not given. */
-  handicaps?: number[],
+  handicaps?: Array<number | string>,
 ) {
   const errors: string[] = [];
   // With the page it came from: "a screen threw" is no use without which one.
@@ -859,6 +859,44 @@ test.describe("a casual round at the course", () => {
       expect(await beaDotsOn(5), "the round still plays Bea off the 10 typed on the first tee").toBe(1);
     }).toPass({ timeout: 20_000 });
     expect(await beaDotsOn(4), "a 20 gets two shots on SI 1").toBe(2);
+  });
+
+  test("set up on a keypad whose decimal key is a comma: 2,50 a head, and a handicap of 12,4", async ({ page }) => {
+    /**
+     * A casual round takes its currency from where it is set up, and a phone
+     * in Germany, France or Spain has a comma on its decimal keypad and no
+     * point. Until 2026-10-13 this screen had a stake reader of its own that
+     * threw every comma away — 2,50 a head was stored as 250.00 — and a
+     * handicap typed 12,4 was read as nothing, so the player was put on
+     * scratch without a word. Found by asking what else reads a figure, the
+     * night the club's stake boxes were found doing the same.
+     *
+     * Three players at 2,50 is a pot of 7.50, which no other reading gives:
+     * 250 a head is 750.00, and a stake of nothing is no pot at all.
+     */
+    await setUp(page, "Stroke Play", true, [ANN, BEA, CAT], { game: "Skins", stake: "2,50" }, ["12,4", "8", "+1,5"]);
+    await page.goto(`/group-games?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle");
+    const text = await page.locator("main").innerText();
+    expect(text, `a stake typed 2,50 is not two fifty a head:\n${text.slice(0, 600)}`).toMatch(/3 × \$2\.50 = \$7\.50/);
+
+    const more = async () => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await page.locator("summary", { hasText: /^More:/ }).click();
+    };
+    await more();
+    const handicap = (name: string) => page.getByRole("textbox", { name: `${name}'s handicap` });
+    await expect(handicap(ANN), "a handicap typed 12,4 on the first tee was not read as 12.4").toHaveValue("12.4");
+    await expect(handicap(BEA), "CONTROL: a whole handicap is not what was typed").toHaveValue("8");
+    await expect(handicap(CAT), "a plus handicap typed +1,5 was not read as +1.5").toHaveValue("+1.5");
+
+    // And corrected afterwards, the same way: it used to snap back to the old figure, silently.
+    await handicap(BEA).fill("9,6");
+    await handicap(BEA).press("Tab");
+    await expect(async () => {
+      await more();
+      await expect(handicap(BEA), "a correction typed 9,6 was not kept as 9.6").toHaveValue("9.6", { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test("switching to off handicaps after the first hole asks, then does it", async ({ page }) => {
