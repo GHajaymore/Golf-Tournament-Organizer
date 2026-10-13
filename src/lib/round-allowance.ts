@@ -1,6 +1,9 @@
 import { findFormat } from "./formats";
 import { isHeadToHead } from "./stage-types";
 
+/** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
+export const FOUR_BALL_STROKE_PLAY = 85;
+
 /**
  * THE ALLOWANCE A ROUND PLAYS AT, WHICH DEPENDS ON THE ROUND AND NOT ONLY ON
  * ITS FORMAT.
@@ -38,9 +41,6 @@ export function recommendedAllowance(format: string, stageType: string | null | 
   if (f.name === "Four-Ball" && !isHeadToHead(stageType ?? "")) return FOUR_BALL_STROKE_PLAY;
   return f.allowance;
 }
-
-/** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
-export const FOUR_BALL_STROKE_PLAY = 85;
 
 /** The allowance actually in force for a round: the committee's, or the
  *  recommendation for that format in that kind of round when they have set none. */
