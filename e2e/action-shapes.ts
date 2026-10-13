@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 /**
@@ -48,10 +48,22 @@ interface ManifestEntry {
 /** Library types whose members are not arguments anybody types in. */
 const OPAQUE = new Set(["Date", "FormData", "File", "Blob", "Map", "Set", "Promise", "Uint8Array", "ArrayBuffer"]);
 
+/**
+ * Where an action's source is, from the name the build wrote for it.
+ *
+ * The build does not write that name the same way everywhere. On Windows it is
+ * the whole path, drive letter and all; on Linux it is the path FROM `src`
+ * ("app/actions/auth.ts"). This read only the first, so on the first run of the
+ * every-action sweep on Linux (the first round on GitHub, 2026-10-13) not one
+ * of 270 actions could be found, and the sweep's own control said so — "actions
+ * whose source could not be read" — before a single verdict was trusted.
+ */
 function repoPath(filename: string): string {
   const flat = filename.replace(/\\/g, "/");
   const at = flat.lastIndexOf("/src/");
-  return at >= 0 ? flat.slice(at + 1) : flat;
+  if (at >= 0) return flat.slice(at + 1);
+  if (flat.startsWith("src/")) return flat;
+  return existsSync(join(process.cwd(), "src", flat)) ? `src/${flat}` : flat;
 }
 
 /**

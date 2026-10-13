@@ -185,6 +185,32 @@ export async function createTournament(page, name, shape, ownerEmail = CLUB_EMAI
   if (ownerEmail === CLUB_EMAIL) await ensureClubRoster();
 }
 
+/**
+ * WHETHER A SAVE BUTTON COMES ALIVE — asked for a few seconds, not once.
+ *
+ * Seven scenarios set a tournament's dates and course and then did
+ * `if (await save.isEnabled()) … else note("already saved")`. A Save button
+ * is enabled by the page noticing an edit, a moment AFTER the edit. Asked in
+ * that moment it says no; the scenario wrote "already saved — nothing
+ * changed" and went on with a tournament that had no course. On the machine
+ * these were written on the answer usually came in time. On GitHub's it did
+ * not, and six stopped ten steps later at a Launch button that — rightly —
+ * would not launch a tournament without one (2026-10-13).
+ *
+ * The same shape as CLAUDE.md's "a spec types into a page that loaded long
+ * ago": a check that asks a page a question before the page has had time to
+ * know the answer. On a real resume, where nothing was changed, this costs
+ * the few seconds and answers no.
+ */
+export async function becomesEnabled(button, ms = 6_000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (await button.isEnabled().catch(() => false)) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
 /** How many members the club has; the club championship imports exactly this many. */
 export const CLUB_ROSTER = 120;
 

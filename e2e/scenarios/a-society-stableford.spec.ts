@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY } from "./kit.mjs";
+import { seed, setPlanFor, names, indexes, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament A: a community golf society on Birdie ($49),
@@ -90,7 +90,7 @@ test("five A", async ({ page, context, baseURL }, testInfo) => {
       await page.getByLabel("Organization name").fill(`${MARK} Fairway Friends Golf Society`);
       const save = page.getByRole("button", { name: "Save changes" }).first();
       // Named on an earlier pass: Save is rightly disabled with nothing changed.
-      if (await save.isEnabled()) await save.click();
+      if (await becomesEnabled(save)) await save.click();
       else note("society already named — nothing to save");
       await page.waitForTimeout(2000);
       await read(page, "/organization", "organization", 1200);

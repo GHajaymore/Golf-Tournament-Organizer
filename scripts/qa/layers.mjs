@@ -99,6 +99,22 @@ export function layersFor(round) {
       reach: true,
     },
     {
+      // Added 2026-10-13: every other layer asks the browser for reduced motion, which is what almost
+      // nobody has set. The first round on GitHub met the page with its motion on by accident (Safari's
+      // engine on Linux ignores the request) and three front-door tests failed on pictures measured before
+      // they had settled. So the front door is also run the way it is seen.
+      key: "motion",
+      name: "With the animation on",
+      standsFor: "nearly every visitor: somebody who has not asked their device for less motion",
+      reallyIs: "the front door's own specs with the page's motion left on, at three sizes",
+      cannotSee: "the app's screens with motion on — they barely move, and are not run this way",
+      cookies: "secure",
+      env: { E2E_MOTION: "full" },
+      specs: ["e2e/landing-screens.spec.ts", "e2e/landing-legible.spec.ts", "e2e/front-door.spec.ts"],
+      projects: [],
+      minutes: 20,
+    },
+    {
       key: "elsewhere",
       name: "Somewhere else",
       standsFor: "a club and a reader on another calendar day from the server, as every club is in production",

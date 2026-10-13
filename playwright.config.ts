@@ -190,7 +190,14 @@ export default defineConfig({
      * is a type error, and the failure arrives from `next build` type-checking
      * this file rather than from Playwright.
      */
-    contextOptions: { reducedMotion: "reduce" },
+    /*
+     * `E2E_MOTION=full` leaves the motion ON (2026-10-13) — which is what nearly everybody is shown, and
+     * what the suite had never once looked at. It was meant as an exception until the first round on
+     * GitHub showed it is also what Safari's engine on Linux runs with whatever is asked here: that build
+     * ignores this setting, so the front door was being measured mid-animation there. A spec about how a
+     * page looks at rest has to WAIT for rest; it cannot assume the page never moves.
+     */
+    contextOptions: { reducedMotion: process.env.E2E_MOTION === "full" ? "no-preference" : "reduce" },
     /**
      * THE READER IS SOMEWHERE ELSE (2026-10-11). Every run here had the
      * browser in the SERVER'S time zone, because both are this machine — and

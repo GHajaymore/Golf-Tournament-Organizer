@@ -58,6 +58,7 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Asked for | Layer | What is really run |
 |---|---|---|
 | Laptop, phone, Android | **The whole suite** | Chromium at 1280 wide, as a Pixel 5, and at 320 wide: every spec, every screen opened as each kind of person, every control operated and read back, every server action called by a stranger |
+| Nearly every visitor | **With the animation on** | The front door's specs with the page's motion left on. Every other layer asks for reduced motion, which almost nobody has set; a test about how a page looks at rest has to wait for rest |
 | A club in another time zone | **Somewhere else** | Every screen again with the browser and the club on another calendar day from the server |
 | US members and organizers | **An American club** | Every screen with the club in Indiana: dollars, the month first, American golf words |
 | International | **Abroad** (three a round) | Every screen with the club in India, Japan, Australia, South Africa, Ireland — and a Scottish club read from a German browser. Three rounds visit them all |

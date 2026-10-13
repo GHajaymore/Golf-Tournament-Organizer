@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament D: the Eagle club's Spring Four-Ball. The
@@ -82,7 +82,7 @@ test("five D", async ({ page, context, baseURL }, testInfo) => {
       await course.fill(COURSE);
       await page.locator('#course-picker-list [role="option"]', { hasText: COURSE_CITY }).first().click();
       const saveEvent = page.locator("button.btn-primary", { hasText: /Save event|Adding the course/ });
-      if (await saveEvent.isEnabled()) {
+      if (await becomesEnabled(saveEvent)) {
         await saveEvent.click();
         await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 30_000 });
       } else note("event details already saved — nothing changed");

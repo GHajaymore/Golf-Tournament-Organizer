@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament I: the Eagle club's Two-Course Open. 36-hole gross
@@ -171,7 +171,7 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
       await course.fill(COURSE);
       await page.locator('#course-picker-list [role="option"]', { hasText: COURSE_CITY }).first().click();
       const save = page.locator("button.btn-primary", { hasText: /Save event|Adding the course/ });
-      if ((await save.count()) && (await save.isEnabled())) {
+      if ((await save.count()) && (await becomesEnabled(save))) {
         await save.click();
         await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 30_000 });
       }
@@ -337,7 +337,7 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
       if (await pub.count()) {
         await pub.click();
         const save = page.getByRole("button", { name: /^Save/ }).last();
-        if (await save.isEnabled()) await save.click();
+        if (await becomesEnabled(save)) await save.click();
         await page.waitForTimeout(2000);
       }
       await read(page, `/live/${facts.shareToken}`, "live-final", 2000);

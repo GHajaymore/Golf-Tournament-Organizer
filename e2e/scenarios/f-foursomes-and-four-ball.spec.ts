@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament } from "./kit.mjs";
+import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament F: the Eagle club's Foursomes & Four-Ball Day. The
@@ -125,7 +125,7 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
       await course.fill(COURSE);
       await page.locator('#course-picker-list [role="option"]', { hasText: COURSE_CITY }).first().click();
       const save = page.locator("button.btn-primary", { hasText: /Save event|Adding the course/ });
-      if ((await save.count()) && (await save.isEnabled())) {
+      if ((await save.count()) && (await becomesEnabled(save))) {
         await save.click();
         await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 30_000 });
       } else note("event details unchanged — resuming");

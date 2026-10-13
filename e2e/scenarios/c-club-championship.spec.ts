@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY } from "./kit.mjs";
+import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament C: a 36-hole Club Championship at an Eagle
@@ -203,7 +203,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await name.fill(`${MARK} Royal Oakridge Golf Club`);
       const save = page.getByRole("button", { name: "Save changes" }).first();
       // Already named on an earlier pass: Save is rightly disabled with nothing changed.
-      if (await save.isEnabled()) await save.click();
+      if (await becomesEnabled(save)) await save.click();
       else note("club already named — nothing to save");
       await page.waitForTimeout(2000);
       await read(page, "/organization", "organization-named", 1500);

@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
+import { seed, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament, becomesEnabled } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament J: the Eagle club's Flighted Net Medal, tees by
@@ -121,7 +121,7 @@ test("five J", async ({ page, context, baseURL }, testInfo) => {
       await course.fill(COURSE);
       await page.locator('#course-picker-list [role="option"]', { hasText: COURSE_CITY }).first().click();
       const save = page.locator("button.btn-primary", { hasText: /Save event|Adding the course/ });
-      if ((await save.count()) && (await save.isEnabled())) {
+      if ((await save.count()) && (await becomesEnabled(save))) {
         await save.click();
         await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 30_000 });
       }
@@ -159,7 +159,7 @@ test("five J", async ({ page, context, baseURL }, testInfo) => {
       note(`tee-policy choice offered: ${await flight.count()}`);
       await flight.click();
       const save = page.getByRole("button", { name: /^Save settings/ });
-      if ((await save.count()) && (await save.first().isEnabled())) await save.first().click();
+      if ((await save.count()) && (await becomesEnabled(save.first()))) await save.first().click();
       await page.waitForTimeout(2500);
     });
     await test.step("three handicap divisions; the third off the Reds", async () => {
