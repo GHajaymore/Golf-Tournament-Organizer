@@ -29,17 +29,21 @@ const stageId = data.partialCard.stageId;
 const prisma = new PrismaClient();
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
-let was = { playerAccess: "", accessCode: "" };
+/** What the fixture held before this spec touched it — null until it has been read, so a setup that fails restores nothing. */
+let was: { how: string; accessCode: string } | null = null;
 test.beforeAll(async () => {
-  was.playerAccess = (await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playerAccess: true } })).playerAccess;
-  was.accessCode = (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { accessCode: true } })).accessCode;
+  const how = (await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { playerAccess: true } })).playerAccess;
+  const accessCode = (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { accessCode: true } })).accessCode;
+  was = { how, accessCode };
   // A tournament that takes players by code as well as by sign-in.
   await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: "both" } });
 });
 /** The fixture's tournament is every later spec's: how its players get in, and the round's code, go back as they were. */
 test.afterAll(async () => {
-  await prisma.stage.update({ where: { id: stageId }, data: { accessCode: was.accessCode } });
-  await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: was.playerAccess } });
+  if (was) {
+    await prisma.stage.update({ where: { id: stageId }, data: { accessCode: was.accessCode } });
+    await prisma.event.update({ where: { id: data.eventId }, data: { playerAccess: was.how } });
+  }
   await prisma.$disconnect();
 });
 
