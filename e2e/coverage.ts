@@ -228,6 +228,9 @@ async function watchRefusals(context: BrowserContext): Promise<void> {
       if (text.length < 6 || text.length > 400) return "";
       if (el.matches('[role="alert"], .form-error')) return "marked";
       if (!/^(P|SPAN|DIV)$/.test(el.tagName) || el.children.length > 2 || el.closest("button, a, table")) return "";
+      // A refusal is a sentence. The first full run with this on (746 tests) recorded one thing, and it
+      // was "-$13.34": a figure owed, drawn in the same red. Words, and more than one of them.
+      if (text.replace(/[^A-Za-z]/g, "").length < 8 || !text.includes(" ")) return "";
       return getComputedStyle(el).color === dangerColourAt(el) ? "red" : "";
     };
     const told = new WeakSet<Element>();
