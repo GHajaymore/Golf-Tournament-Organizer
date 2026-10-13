@@ -228,7 +228,12 @@ test("a club's own course is typed in, checked, given rated tees, used and remov
   await tees.getByRole("button", { name: "Save tees" }).click();
   await expect.poll(async () => (await stored())?.tees.map((t) => [t.name, t.gender, t.courseRating, t.slopeRating, t.par]), { timeout: 20_000, message: "the tees were not stored" }).toEqual([["Blue", "men", 71.4, 128, 72]]);
   const teeTable = teesOf();
-  await expect(teeTable.locator("summary"), "the course's line does not say what tees it has").toContainText("1 set — Blue", { timeout: 20_000 });
+  // The panel's OWN heading: its direct child, not any summary inside it. While a course has no tees
+  // the panel holds a second, folded note ("No tees yet — net scores use…"), so for the moment
+  // between the tees being stored and the panel being redrawn "summary" is two elements, and a
+  // locator that means one of them is refused outright rather than waited for. Round G33-2, on
+  // Safari's engine at phone size, landed in that moment; five other runs of this line did not.
+  await expect(teeTable.locator(":scope > summary"), "the course's line does not say what tees it has").toContainText("1 set — Blue", { timeout: 20_000 });
   // CONTROL: and nobody else's course was given them.
   expect(await prisma.tee.count({ where: { course: { organizationId: clubId }, courseId: { not: course.id }, name: "Blue", courseRating: 71.4 } }), "the tees were put on another course").toBe(0);
   const teeRow = teeTable.locator("tbody tr", { hasText: "Blue" });
