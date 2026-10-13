@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
 import { labelsForTheWrongThing } from "./labels";
+import { landingSettled } from "./landing-settled";
 import { RATE_LIMITS } from "../src/lib/domain/rate-limit";
 
 /**
@@ -65,8 +66,23 @@ test.afterAll(async () => {
  */
 const refusal = (page: Page) => page.locator('p[role="alert"]:not(#__next-route-announcer__)');
 
-/** The panel on the landing page, in the mode asked for. */
+/**
+ * The panel on the landing page, in the mode asked for.
+ *
+ * ONCE THE PAGE HAS STOPPED MOVING. The sign-in box is at the bottom of the
+ * front door, below the story of a round — which becomes two and a half to
+ * three and a half thousand pixels taller when the page's script starts
+ * (`landing-settled.ts`). This spec pressed its way through the box in the half
+ * second after arriving; on Firefox, once in about seventeen runs, the page
+ * grew between the press being aimed and being made, "Send reset link" was
+ * pressed where it had been, and no request left the browser (round 2 on the
+ * second batch, 2026-10-13). A person does not press a button 800ms after a
+ * page appears. What that moment does to a person who is ALREADY at the box —
+ * on Safari's engine they are left looking at the pricing — is the page's own
+ * fault and is put right, with its own test, in the change after this one.
+ */
 async function panel(page: Page, tab: "Log in" | "Sign up") {
+  await landingSettled(page);
   await page.getByRole("tab", { name: tab, exact: true }).click();
   await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute("aria-selected", "true");
 }

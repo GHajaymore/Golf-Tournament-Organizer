@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "./coverage";
 import { PrismaClient } from "@prisma/client";
 import { watchPageErrors } from "./page-errors";
+import { landingSettled } from "./landing-settled";
 
 /**
  * THE BOT CHECK CANNOT SHUT THE FRONT DOOR.
@@ -63,6 +64,8 @@ test.afterAll(async () => {
 });
 
 async function panel(page: Page, tab: "Log in" | "Sign up") {
+  // Once the page has stopped moving: see `panel` in `front-door.spec.ts`.
+  await landingSettled(page);
   await page.getByRole("tab", { name: tab, exact: true }).click();
   await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute("aria-selected", "true");
 }
