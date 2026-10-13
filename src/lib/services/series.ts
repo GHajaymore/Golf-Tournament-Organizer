@@ -38,7 +38,10 @@ function parseTable(json: string): number[] {
   try {
     const v = JSON.parse(json) as unknown;
     if (Array.isArray(v) && v.every((n) => typeof n === "number" && Number.isFinite(n))) {
-      return v as number[];
+      // An empty list is the default too. The standings have always read it
+      // that way (`seriesStandings`); this is the screen that DESCRIBES the
+      // table agreeing with the one that scores on it.
+      return v.length ? (v as number[]) : DEFAULT_POINTS_TABLE;
     }
   } catch {
     // fall through

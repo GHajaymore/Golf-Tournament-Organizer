@@ -76,6 +76,10 @@ export default async function SeriesPage({
         </section>
       ) : (
         <SeriesClient
+          // One season's screen is not the next one's: the boxes that hold a
+          // season's rules are filled when this is first drawn, so a new season
+          // on screen is a new drawing.
+          key={active?.id ?? "none"}
           seasons={seasons}
           activeId={active?.id ?? null}
           events={table?.events ?? []}
