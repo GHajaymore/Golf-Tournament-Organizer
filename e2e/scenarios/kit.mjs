@@ -1,0 +1,195 @@
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { createHmac } from "node:crypto";
+import { signedInNow } from "../../scripts/session-cookie.mjs";
+
+// THE SCENARIO TOURNAMENTS' SHARED KIT — the club, the course, the invented
+// members and their cards, for the eleven tournaments beside this file.
+//
+// These began as five throwaway probes copied into e2e/ for the length of a run
+// (hence the mark, and "five" in a few names). They are the suite's proof that
+// the app does its job with a full field, so since 2026-10-13 they live here,
+// are listed in scripts/qa/layers.mjs, and run as a layer of every round.
+// Every row is marked zz-five, every name invented, every address
+// @example.invalid. A database the suite may write to only — never production.
+export const MARK = "zz-five";
+export const COURSE = `${MARK} Royal Oakridge`;
+export const COURSE_CITY = "Larchmont";
+export const CATALOGUE_ID = `${MARK}-catalogue`;
+// A par-72 parkland: odd stroke indexes out, even home, as a card is made.
+export const PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
+export const SI = [9, 5, 15, 1, 11, 3, 17, 7, 13, 10, 4, 16, 2, 12, 6, 18, 8, 14];
+const YARDS = PARS.map((p, i) => (p === 3 ? 150 + i * 3 : p === 4 ? 360 + i * 4 : 500 + i * 2));
+
+export const sign = (v) =>
+  `${v}.${createHmac("sha256", process.env.AUTH_SECRET ?? "dev-secret").update(v).digest("base64url")}`;
+
+const FIRST = [
+  "Alder", "Brook", "Corrin", "Delphine", "Ewan", "Faye", "Gideon", "Hollis", "Imogen", "Jasper",
+  "Kerensa", "Lorcan", "Marisol", "Niall", "Odile", "Percy", "Quilla", "Rowan", "Saoirse", "Tamsin",
+  "Ulric", "Verity", "Wystan", "Xanthe", "Yorick", "Zinnia", "Anselm", "Bryony", "Cosmo", "Dervla",
+  "Esmond", "Fenella", "Gwilym", "Honora", "Ivo", "Jessamy", "Kit", "Lettice", "Magnus", "Nerys",
+];
+const LAST = [
+  "Ashgrove", "Brackenbury", "Coldwell", "Dunmore", "Elmhirst", "Fernleigh", "Greywell", "Hartsel",
+  "Ivybridge", "Juniper", "Kestrelton", "Larkspur", "Merriweather", "Nettlefold", "Oakhurst",
+];
+
+/** `n` invented, distinct names. Deterministic, so a run can be repeated. */
+export function names(n, offset = 0) {
+  const out = [];
+  for (let i = 0; out.length < n; i++) {
+    const k = i + offset;
+    out.push(`${FIRST[k % FIRST.length]} ${LAST[Math.floor(k / FIRST.length) % LAST.length]}`);
+  }
+  return out;
+}
+
+/** A seeded generator, so the same field plays the same golf each run. */
+export function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
+}
+
+/** Handicap indexes for a club field: most in the teens, a few scratch, a few 30+. */
+export function indexes(n, seed) {
+  const r = rng(seed);
+  return Array.from({ length: n }, () => {
+    const v = Math.round(((r() + r() + r()) / 3) * 36 * 10) / 10;
+    return Math.max(0, Math.min(36, v));
+  });
+}
+
+/**
+ * An 18-hole gross card for a player of course handicap `ch`: their strokes
+ * spread over the hardest holes, plus noise — a birdie here, a double there.
+ */
+export function card(ch, r) {
+  return PARS.map((par, i) => {
+    const shots = Math.floor(ch / 18) + (SI[i] <= ch % 18 ? 1 : 0);
+    const x = r();
+    const noise = x < 0.08 ? -1 : x < 0.62 ? 0 : x < 0.9 ? 1 : 2;
+    return Math.max(1, par + shots + noise - (x < 0.5 && shots > 0 ? 1 : 0));
+  });
+}
+
+/**
+ * KEPT, NOT PURGED (Ajay, 2026-10-09): "keep your test tournaments and its
+ * results. dont delete/purge it." Refuses unless FIVE_PURGE=yes is set on
+ * purpose — nothing in a normal run sets it.
+ */
+export async function teardown() {
+  if (process.env.FIVE_PURGE !== "yes") return;
+  const prisma = new PrismaClient();
+  try {
+    const users = await prisma.user.findMany({ where: { email: { startsWith: MARK } }, select: { id: true } });
+    const orgIds = (
+      await prisma.organizationMember.findMany({ where: { userId: { in: users.map((u) => u.id) } }, select: { organizationId: true } })
+    ).map((m) => m.organizationId);
+    await prisma.event.deleteMany({ where: { OR: [{ organizationId: { in: orgIds } }, { name: { startsWith: MARK } }] } });
+    await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+    await prisma.user.deleteMany({ where: { email: { startsWith: MARK } } });
+    await prisma.courseCatalog.deleteMany({ where: { id: CATALOGUE_ID } });
+    await prisma.course.deleteMany({ where: { name: { startsWith: MARK } } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Two organizers and the course; the clubs themselves are made in the app. */
+export async function seed() {
+  // Reuses what is there: the tournaments already played are kept.
+  const prisma = new PrismaClient();
+  try {
+    const community = await prisma.user.upsert({
+      where: { email: `${MARK}-community@example.invalid` },
+      update: {},
+      create: { email: `${MARK}-community@example.invalid`, name: "Petra Fairway", password: "x:unusable" },
+    });
+    const club = await prisma.user.upsert({
+      where: { email: `${MARK}-club@example.invalid` },
+      update: {},
+      create: { email: `${MARK}-club@example.invalid`, name: "Graham Secretary", password: "x:unusable" },
+    });
+    if (await prisma.courseCatalog.findUnique({ where: { id: CATALOGUE_ID } })) {
+      return { community: sign(signedInNow(community.id)), club: sign(signedInNow(club.id)) };
+    }
+    await prisma.courseCatalog.create({
+      data: {
+        id: CATALOGUE_ID,
+        name: COURSE,
+        city: COURSE_CITY,
+        state: "NY",
+        country: "US",
+        par: PARS.reduce((a, b) => a + b, 0),
+        pars: JSON.stringify(PARS),
+        yards: JSON.stringify(YARDS),
+        strokeIndex: JSON.stringify(SI),
+        tees: JSON.stringify([
+          { name: "White", gender: "any", courseRating: 71.8, slopeRating: 128, par: 72, yards: YARDS.reduce((a, b) => a + b, 0) },
+        ]),
+      },
+    });
+    return { community: sign(signedInNow(community.id)), club: sign(signedInNow(club.id)) };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** What the owner console's setClubPlan does, for the organizer's own club. */
+export async function setPlanFor(email, plan) {
+  const prisma = new PrismaClient();
+  try {
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    const m = await prisma.organizationMember.findFirst({ where: { userId: user.id, role: "owner" }, select: { organizationId: true } });
+    await prisma.subscription.upsert({
+      where: { organizationId: m.organizationId },
+      update: { plan },
+      create: { organizationId: m.organizationId, plan, planTermsApply: true },
+    });
+    return m.organizationId;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** A member who signs in: a User whose email is a Player row's. */
+export async function memberSession(email, name) {
+  const prisma = new PrismaClient();
+  try {
+    const u = await prisma.user.upsert({ where: { email }, update: {}, create: { email, name, password: "x:unusable" } });
+    return sign(signedInNow(u.id));
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Read-only: the rows a screen should agree with. */
+/** The cards held for one round: who, what status, how many holes scored. */
+export async function roundCards(stageId) {
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.scorecard.findMany({ where: { stageId }, select: { playerId: true, status: true, strokes: true } });
+    return rows.map((r) => ({ ...r, scored: JSON.parse(r.strokes).filter((v) => typeof v === "number").length }));
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function eventFacts(eventName) {
+  const prisma = new PrismaClient();
+  try {
+    const e = await prisma.event.findFirst({
+      where: { name: eventName },
+      select: { id: true, status: true, shareToken: true, registrationToken: true, stages: { select: { id: true, description: true, closedAt: true }, orderBy: { position: "asc" } } },
+    });
+    if (!e) return null;
+    const players = await prisma.player.findMany({ where: { eventId: e.id }, select: { id: true, name: true, email: true, status: true, handicap: true } });
+    return { ...e, players };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

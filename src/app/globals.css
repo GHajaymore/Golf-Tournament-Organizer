@@ -836,6 +836,17 @@ body {
   .field-info-btn.field-info-btn {
     min-height: 44px;
   }
+  /* THE SIDEBAR, UNDER A FINGER (2026-10-13). Its links are 32px, which is the
+     console's desktop density and was never a touch question: below 820px the
+     sidebar is not drawn at all — a phone gets the tab bar. A TABLET ON ITS
+     SIDE is wide enough for the sidebar and is worked by a finger, and no test
+     had ever held one: the first round to include a tablet found 23 links at
+     32px on every organizer screen, which is the whole menu of the app for an
+     organizer at the registration desk with an iPad. The page they are on
+     keeps its marker; the list simply breathes. */
+  .side-link {
+    min-height: 44px;
+  }
   /* The info button keeps its 26px circle visually — it sits inline beside a
      field label and a 44px box would push that row apart. The target grows,
      the drawing does not. */

@@ -125,6 +125,9 @@ process.env.AUTH_SECRET ??= "e2e-only-signing-key-not-for-deployment";
 
 export default defineConfig({
   testDir: "./e2e",
+  // The eleven scenario tournaments (e2e/scenarios) are a layer of a round, run a phase at a time
+  // by scripts/qa/round.mjs. Each takes minutes and a field of 120; the standing suite leaves them out.
+  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"],
   // A real database and one dev server: parallel workers would race on the
   // shared fixture. Correctness over speed for a suite this small.
   workers: 1,
@@ -248,7 +251,9 @@ export default defineConfig({
     // Next actually supports.
     command: `npm run build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    // A round (scripts/qa/round.mjs) starts the server itself, once, from one build, and says so:
+    // on CI this would otherwise build a second bundle and collide with it on the port.
+    reuseExistingServer: !process.env.CI || process.env.E2E_REUSE_SERVER === "1",
     timeout: 240_000,
     env: {
       NEXT_DIST_DIR: ".next-e2e",
