@@ -29,20 +29,49 @@
  * round already played is not a thing anyone gets to change their mind about.
  */
 
+import { wholeStrokes } from "./handicap";
+
 /** Where a round's handicap came from, most specific first. */
 export type HandicapSource = "frozen" | "override" | "member";
 
 export interface RoundHandicapInput {
   /** What this round was scored against, once its first card landed. */
   frozen?: number | null;
+  /**
+   * The same frozen fact before it was rounded, where the round kept one.
+   *
+   * An allowance is taken of the UNROUNDED Course Handicap (Rule 6.2a), so a
+   * round that froze only the whole number could not be priced by the Rule once
+   * the roster moved. Null on a round frozen before 2026-10-13, and on one frozen
+   * off a committee's own figure: the whole number is then all there is, and
+   * such a round keeps exactly the strokes it was played off.
+   */
+  frozenExact?: number | null;
   /** The committee's decision for this round, set before play. */
   override?: number | null;
   /** The roster's handicap for this player. The default. */
   member: number;
+  /**
+   * The roster's handicap before rounding — `CourseHandicaps.exact(id)`.
+   *
+   * Optional so that a caller with only a whole number still gets an answer,
+   * and that answer is the whole number. Ignored unless it rounds to `member`:
+   * the two must describe one handicap.
+   */
+  memberExact?: number | null;
 }
 
 export interface ResolvedRoundHandicap {
   handicap: number;
+  /**
+   * What an ALLOWANCE is taken of: the same handicap before it was rounded.
+   *
+   * Equal to `handicap` wherever a whole number is all there is — a committee's
+   * figure, or a round frozen without its exact one. Always rounds to
+   * `handicap`, so a screen showing one and a board scoring off the other
+   * cannot be describing two different players.
+   */
+  exact: number;
   source: HandicapSource;
   /**
    * Whether this round's handicap can still be changed.
@@ -62,7 +91,11 @@ export interface ResolvedRoundHandicap {
 }
 
 const clean = (v: number | null | undefined): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null;
+  typeof v === "number" && Number.isFinite(v) ? wholeStrokes(v) : null;
+
+/** The unrounded figure when it is one and it rounds to `whole`; otherwise `whole` itself. */
+const exactFor = (whole: number, exact: number | null | undefined): number =>
+  typeof exact === "number" && Number.isFinite(exact) && wholeStrokes(exact) === whole ? exact : whole;
 
 /**
  * The handicap for one player in one round.
@@ -83,6 +116,7 @@ export function resolveRoundHandicap(input: RoundHandicapInput): ResolvedRoundHa
   if (frozen !== null) {
     return {
       handicap: frozen,
+      exact: exactFor(frozen, input.frozenExact),
       source: "frozen",
       editable: false,
       differsFromCurrent: frozen === current ? null : current,
@@ -90,10 +124,18 @@ export function resolveRoundHandicap(input: RoundHandicapInput): ResolvedRoundHa
   }
 
   if (override !== null) {
-    return { handicap: override, source: "override", editable: true, differsFromCurrent: null };
+    // A committee's figure is a whole number by decree, and the Rule's own
+    // exception covers it: the allowance is taken of what they said.
+    return { handicap: override, exact: override, source: "override", editable: true, differsFromCurrent: null };
   }
 
-  return { handicap: member, source: "member", editable: true, differsFromCurrent: null };
+  return {
+    handicap: member,
+    exact: exactFor(member, input.memberExact ?? input.member),
+    source: "member",
+    editable: true,
+    differsFromCurrent: null,
+  };
 }
 
 /**
@@ -112,6 +154,34 @@ export function roundHandicapOf(
   return resolveRoundHandicap({ frozen: row?.frozen, override: row?.override, member }).handicap;
 }
 
+/** A round's row as the scoring paths read it: the committee's figure and the frozen fact, both forms. */
+export interface RoundHandicapRow {
+  frozen?: number | null;
+  frozenExact?: number | null;
+  override?: number | null;
+}
+
+/**
+ * The figure an ALLOWANCE is taken of, for one player in one round.
+ *
+ * `roundHandicapOf` for the paths that go on to take 95%, 85% or a share of it:
+ * the same three-way choice, answered before rounding. `memberExact` is
+ * `CourseHandicaps.exact(id)`; with none in hand the whole number stands.
+ */
+export function roundHandicapExactOf(
+  row: RoundHandicapRow | null | undefined,
+  member: number,
+  memberExact?: number | null,
+): number {
+  return resolveRoundHandicap({
+    frozen: row?.frozen,
+    frozenExact: row?.frozenExact,
+    override: row?.override,
+    member,
+    memberExact,
+  }).exact;
+}
+
 /**
  * The value to freeze for a round that is about to receive its first card.
  *
@@ -120,8 +190,20 @@ export function roundHandicapOf(
  * later. A freeze that computed something different would silently re-score
  * the very card that triggered it.
  */
-export function handicapToFreeze(input: Omit<RoundHandicapInput, "frozen">): number {
-  return resolveRoundHandicap({ ...input, frozen: null }).handicap;
+export function handicapToFreeze(input: Omit<RoundHandicapInput, "frozen" | "frozenExact">): number {
+  return resolveRoundHandicap({ ...input, frozen: null, frozenExact: null }).handicap;
+}
+
+/**
+ * The unrounded figure to freeze beside it, or null where there is none to keep.
+ *
+ * Null for a committee's figure — it IS a whole number — so a frozen row says
+ * honestly which kind it is. The same resolution as `handicapToFreeze`, so the
+ * pair always describe one handicap.
+ */
+export function exactHandicapToFreeze(input: Omit<RoundHandicapInput, "frozen" | "frozenExact">): number | null {
+  const resolved = resolveRoundHandicap({ ...input, frozen: null, frozenExact: null });
+  return resolved.exact === resolved.handicap ? null : resolved.exact;
 }
 
 /**

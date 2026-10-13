@@ -193,10 +193,11 @@ export const FAQ: FaqGroup[] = [
             <div className="hc">
               <span>Handicap index</span><span>{hc.index.toFixed(1)}</span>
               <span>Course rating / slope</span><span>{hc.tee.courseRating} / {hc.tee.slopeRating}</span>
-              <span>Course handicap</span><span>{hc.course}</span>
-              <span>Four-ball allowance</span><span>{hc.allowance}%</span>
+              <span>Course handicap</span><span>{hc.exact.toFixed(2)}, played as {hc.course}</span>
+              <span>Four-ball allowance</span><span>{hc.allowance}% of {hc.exact.toFixed(2)}</span>
               <span className="t">Playing handicap</span><span className="t">{hc.playing}</span>
             </div>
+            <p>The allowance is taken of the course handicap before it is rounded, and the result rounded once, as the Rules of Handicapping say (6.2a). Taking it of the rounded figure gives about one player in five a stroke too many or too few.</p>
             <p>Done for every player, every round. A tee with no rating says so rather than guessing.</p>
           </>
         ),

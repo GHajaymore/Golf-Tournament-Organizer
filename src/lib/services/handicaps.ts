@@ -11,6 +11,7 @@ import {
   teeIdFor,
   courseHandicapMap,
   holesPlayed,
+  type CourseHandicaps,
   type IndexHolder,
 } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
@@ -373,7 +374,7 @@ export function roundCourseHandicaps(args: {
    * `holes` decides, which is what every other caller wants.
    */
   holes?: number;
-}): Map<string, number> {
+}): CourseHandicaps {
   const { tees, players, flightTeeOf, stage, event, match } = args;
   const roundTee = teeForPlay(
     tees,

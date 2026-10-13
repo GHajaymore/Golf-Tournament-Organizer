@@ -2,10 +2,10 @@ import "server-only";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
-import { findFormat, sideSizeRange } from "../formats";
-import { holesPlayed } from "../domain/handicap";
+import { effectiveAllowance, findFormat, sideSizeRange } from "../formats";
+import { holesPlayed, playingHandicapFrom } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
-import { roundHandicapOf } from "../domain/round-handicap";
+import { roundHandicapExactOf, roundHandicapOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
@@ -25,7 +25,30 @@ import {
 export interface TeamMemberView {
   playerId: string;
   name: string;
+  /** The whole-number course handicap this player is on for the round — what a screen prints. */
   handicap: number;
+  /**
+   * THE SAME HANDICAP BEFORE IT WAS ROUNDED — what an allowance is taken of.
+   *
+   * Required, so that nothing can build a side without saying it. A four-ball's
+   * 85% or 90% and a foursome's 50% of the combined figure are taken of the
+   * UNROUNDED course handicaps and rounded once (Rule 6.2a); taking them of
+   * `handicap` is a stroke out for about one player in five. Equal to
+   * `handicap` where a whole number is all there is — a committee's figure for
+   * the round, or a round frozen before the exact one was kept.
+   */
+  handicapExact: number;
+  /**
+   * WHAT THIS PLAYER'S OWN BALL PLAYS OFF in this round: the round's allowance
+   * of `handicapExact`, rounded once. Null where the side shares one ball —
+   * nobody there has a playing handicap of their own, only the side does
+   * (`TeamView.playingHandicap`).
+   *
+   * Here so that no screen works it out. The entry screen did, by hand, off the
+   * rounded figure, in a line a guard banning a second pipeline on that screen
+   * could not see because it was spelled as arithmetic.
+   */
+  playing: number | null;
   position: number;
   /**
    * WITHDRAWN AFTER THE SIDES WERE DRAWN — the ordinary Sunday morning.
@@ -159,18 +182,30 @@ export async function teamsForStage(
   // so it has to answer the same way the round is scored.
   const round = await roundHandicapRows(eventId, stageId);
 
+  const ownBall = findFormat(format).ball !== "single";
+  const allowancePct = effectiveAllowance(format, allowanceOverride);
+
   return use.map((t) => {
-    const members = t.members.map((m) => ({
+    const members = t.members.map((m) => {
+      const handicapExact = roundHandicapExactOf(
+        round.get(m.playerId),
+        courseHcp.get(m.playerId) ?? m.player.handicap,
+        courseHcp.exact(m.playerId) ?? m.player.handicap,
+      );
+      return {
       playerId: m.playerId,
       name: m.player.name,
       handicap: roundHandicapOf(round.get(m.playerId), courseHcp.get(m.playerId) ?? m.player.handicap),
+      handicapExact,
+      playing: ownBall ? playingHandicapFrom(handicapExact, allowancePct) : null,
       position: m.position,
       // Left the field by EITHER route. This asked for "withdrawn" alone, so a
       // partner the committee had disqualified still priced the side's
       // handicap and still made up its numbers, with no warning beside it.
       withdrawn: hasLeftTheField(m.player.status),
       disqualified: m.player.status === "disqualified",
-    }));
+      };
+    });
     // Priced off the players who ACTUALLY PLAY — the same set `teamProblems`
     // sizes the side by. Including a withdrawn player anchors a single-ball
     // side (scramble/foursomes/greensomes) to strokes from somebody who never
@@ -178,7 +213,8 @@ export async function teamsForStage(
     // warning beside it. If the whole side withdrew there is no card to score
     // anyway, so fall back to the full set rather than handicap off nobody.
     const playing = members.filter((m) => !m.withdrawn);
-    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicap);
+    // The UNROUNDED figures: a side's handicap is rounded once, at the end.
+    const forHandicap = (playing.length > 0 ? playing : members).map((m) => m.handicapExact);
     return {
       id: t.id,
       name: t.name,
@@ -200,6 +236,7 @@ export async function teamsForStage(
  * the combined handicaps, which is how foursomes' 50% is meant to work.
  */
 export function sidePlayingHandicap(
+  /** Each partner's course handicap, UNROUNDED where there is one — `TeamMemberView.handicapExact`. */
   courseHandicaps: number[],
   format: string,
   allowanceOverride = 0,
@@ -227,11 +264,12 @@ export function sidePlayingHandicap(
   return sideHandicap(courseHandicaps, f.allowance);
 }
 
-/** The allowance actually in force for a round: the committee's, or the
- *  format's recommendation when they haven't set one. */
-export function effectiveAllowance(format: string, override: number): number {
-  return override > 0 ? override : findFormat(format).allowance;
-}
+/**
+ * The allowance actually in force for a round. Lives in `formats.ts`, where the
+ * recommendations are and where a service this file imports from can reach it
+ * too; exported from here as it always was, because a dozen readers ask here.
+ */
+export { effectiveAllowance };
 
 /**
  * How many partners' scores count on each hole for this round.
@@ -414,7 +452,7 @@ export async function teamStandings(
               t.members.map((m) => ({
                 playerId: m.playerId,
                 strokes: parse(own.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
-                courseHandicap: m.handicap,
+                courseHandicap: m.handicapExact,
               })),
               pars,
               strokeIndex,

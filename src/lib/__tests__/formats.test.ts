@@ -15,7 +15,6 @@ import {
   boardKind,
   sharesOneCard,
   sideSizeRange,
-  playingHandicap,
 } from "../formats";
 
 describe("the catalog", () => {
@@ -309,25 +308,3 @@ describe("what a format implies", () => {
   });
 });
 
-describe("playingHandicap", () => {
-  it("applies the format's allowance", () => {
-    expect(playingHandicap(20, "Stroke Play")).toBe(19); // 95%
-    expect(playingHandicap(20, "Match Play")).toBe(20); // 100%
-    expect(playingHandicap(20, "Four-Ball")).toBe(18); // 90%
-  });
-
-  it("honours a committee override", () => {
-    // Allowances are recommendations; a committee may set its own.
-    expect(playingHandicap(20, "Stroke Play", 100)).toBe(20);
-    expect(playingHandicap(20, "Stroke Play", 0)).toBe(0);
-  });
-
-  it("rounds to whole strokes", () => {
-    expect(playingHandicap(9, "Stroke Play")).toBe(9); // 8.55 -> 9
-    expect(playingHandicap(7, "Four-Ball")).toBe(6); // 6.3 -> 6
-  });
-
-  it("handles a scratch player", () => {
-    expect(playingHandicap(0, "Scramble")).toBe(0);
-  });
-});

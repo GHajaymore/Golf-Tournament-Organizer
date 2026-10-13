@@ -320,3 +320,108 @@ describe("what counts as a round having been played", () => {
     expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(3);
   });
 });
+
+/**
+ * THE ALLOWANCE IS TAKEN OF THE FIGURE BEFORE ROUNDING — and a played round
+ * keeps THAT figure too (Rules of Handicapping, 6.2a; 2026-10-13).
+ *
+ * Every test above hands the round a whole-number handicap, where rounding
+ * first and rounding last cannot differ. A golfer's index has a decimal place.
+ * The field is unrated, so the index IS the course handicap before rounding:
+ *
+ *     9.5 at 95%   Rule: 9.025, plays off 9      rounded first: 10, 9.5, plays off 10
+ *
+ * The freeze is the half that needed a column. It writes the whole number a
+ * player was told; had it kept only that, the round would be priced by the Rule
+ * until its first card and off the rounded figure for ever after — re-scoring
+ * the card that triggered it, which is the one thing a freeze must never do.
+ */
+describe("an allowance is taken of the handicap before it is rounded", () => {
+  it("prices a card off 95% of the unrounded figure", async () => {
+    const { event, players, stages } = await tournament("exact", [9.5], 95);
+    expect(await boardHandicap(event.id, stages[0].id, players[0].id)).toBe(9);
+  });
+
+  it("freezing re-scores nobody, to the stroke, and keeps both figures", async () => {
+    // Four indexes; for the first two the two methods differ by a stroke
+    // (rounded first, 9.5 and 8.6 play off 10 and 9).
+    const { event, players, stages } = await tournament("exact-freeze", [9.5, 8.6, 13.5, 14.2], 95);
+    const all = () => Promise.all(players.map((p) => boardHandicap(event.id, stages[0].id, p.id)));
+
+    const before = await all();
+    expect(before).toEqual([9, 8, 13, 13]);
+    await card(event.id, stages[0].id, players[0].id);
+    await freezeRoundHandicaps(event.id, stages[0].id);
+    expect(await all()).toEqual(before);
+
+    const rows = await prisma.roundHandicap.findMany({ where: { stageId: stages[0].id } });
+    const row = (i: number) => rows.find((r) => r.playerId === players[i].id)!;
+    expect([row(0).frozen, row(0).frozenExact]).toEqual([10, 9.5]);
+    expect([row(2).frozen, row(2).frozenExact]).toEqual([14, 13.5]);
+    expect([row(3).frozen, row(3).frozenExact]).toEqual([14, 14.2]);
+  });
+
+  it("holds the frozen figure when the roster moves inside the same whole number", async () => {
+    // 9.5 and 10.4 are both a course handicap of 10. At 95% the first plays off
+    // 9 and the second off 10 — so a round that froze only "10" would move.
+    const { event, players, stages } = await tournament("exact-hold", [9.5], 95);
+    const [p] = players;
+    await card(event.id, stages[0].id, p.id);
+    await freezeRoundHandicaps(event.id, stages[0].id);
+    await prisma.player.update({ where: { id: p.id }, data: { handicap: 10.4 } });
+
+    expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(9);
+    expect(await boardHandicap(event.id, stages[1].id, p.id)).toBe(10);
+  });
+
+  it("scores a round frozen before the exact figure was kept exactly as it was played", async () => {
+    // What every round frozen before this date holds: the whole number alone.
+    // It was played off 95% of 10, which is 10, and it stays played off 10.
+    const { event, players, stages } = await tournament("exact-legacy", [9.5], 95);
+    const [p] = players;
+    await card(event.id, stages[0].id, p.id);
+    await prisma.roundHandicap.create({
+      data: { eventId: event.id, stageId: stages[0].id, playerId: p.id, frozen: 10, frozenAt: new Date() },
+    });
+
+    expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(10);
+    // And the round beside it, not yet played, goes by the Rule.
+    expect(await boardHandicap(event.id, stages[1].id, p.id)).toBe(9);
+  });
+
+  it("takes it of a committee's figure as given, and freezes that as a whole number", async () => {
+    const { event, players, stages } = await tournament("exact-override", [9.5], 95);
+    const [p] = players;
+    await prisma.roundHandicap.create({
+      data: { eventId: event.id, stageId: stages[0].id, playerId: p.id, override: 10 },
+    });
+    expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(10);
+
+    await card(event.id, stages[0].id, p.id);
+    await freezeRoundHandicaps(event.id, stages[0].id);
+    const row = await prisma.roundHandicap.findFirstOrThrow({ where: { stageId: stages[0].id, playerId: p.id } });
+    expect([row.frozen, row.frozenExact]).toEqual([10, null]);
+    expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(10);
+  });
+
+  it("the round's own screen says what the board scores off, before and after the freeze", async () => {
+    const { event, players, stages } = await tournament("exact-screen", [9.5, 12], 95);
+    const check = async () => {
+      const rows = await roundHandicapsFor(event.id, stages[0].id);
+      for (const p of players) {
+        const view = rows.find((r) => r.playerId === p.id)!;
+        expect(view.allowance).toBe(95);
+        expect(view.playing).toBe(await boardHandicap(event.id, stages[0].id, p.id));
+      }
+      return rows.find((r) => r.playerId === players[0].id)!;
+    };
+    const live = await check();
+    expect([live.handicap, live.exact, live.playing]).toEqual([10, 9.5, 9]);
+
+    await card(event.id, stages[0].id, players[0].id);
+    await freezeRoundHandicaps(event.id, stages[0].id);
+    await prisma.player.update({ where: { id: players[0].id }, data: { handicap: 10.4 } });
+    const frozen = await check();
+    expect([frozen.handicap, frozen.exact, frozen.playing, frozen.source]).toEqual([10, 9.5, 9, "frozen"]);
+  });
+});

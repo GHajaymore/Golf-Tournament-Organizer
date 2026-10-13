@@ -4108,6 +4108,7 @@ describe("what a player plays off in one round", () => {
   const row = (over: Record<string, unknown> = {}) => ({
     playerId: "p1", name: "Ainsley", member: 12, override: null as number | null,
     frozen: null as number | null, handicap: 12, source: "member" as const,
+    exact: 12, allowance: 100, playing: 12 as number | null,
     editable: true, differsFromCurrent: null as number | null,
     ...over,
   });

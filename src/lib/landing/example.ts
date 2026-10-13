@@ -1,4 +1,4 @@
-import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { courseHandicapExact, playingHandicapFrom, wholeStrokes } from "@/lib/domain/handicap";
 
 /**
  * The worked handicap example the front door and the FAQ both quote: a 12.4
@@ -8,11 +8,18 @@ import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
  * Computed by the engine the app scores with, so the number a visitor is shown
  * on the way in cannot drift from the number they get once inside. Moved here
  * from page.tsx when the FAQ got a page of its own, so the two answers are one.
+ *
+ * AND UNTIL 2026-10-13 THIS APP GOT IT WRONG TOO, in this very example. It read
+ * course handicap 15, playing handicap 14: 90% of the ROUNDED figure, rounded
+ * again. The Rules of Handicapping (6.2a) take the allowance of the unrounded
+ * course handicap — 14.86 here — and round once, which is 13. `exact` is that
+ * figure, shown beside the whole number so the last line can be checked by
+ * anybody with a calculator.
  */
 export const HANDICAP_EXAMPLE = (() => {
   const index = 12.4;
   const tee = { courseRating: 71.5, slopeRating: 140, par: 72 };
   const allowance = 90;
-  const course = courseHandicap(index, tee);
-  return { index, tee, allowance, course, playing: playingHandicapFrom(course, allowance) };
+  const exact = courseHandicapExact(index, tee);
+  return { index, tee, allowance, exact, course: wholeStrokes(exact), playing: playingHandicapFrom(exact, allowance) };
 })();

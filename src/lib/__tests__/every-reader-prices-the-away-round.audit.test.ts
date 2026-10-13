@@ -59,6 +59,10 @@ const INDEX = 12;
 const playsOff = (t: { courseRating: number; slopeRating: number; par: number }, index = INDEX) =>
   Math.round(index * (t.slopeRating / 113) + (t.courseRating - t.par));
 
+/** The same figure before rounding — what an allowance is taken of (Rule 6.2a). */
+const exactOff = (t: { courseRating: number; slopeRating: number; par: number }, index = INDEX) =>
+  index * (t.slopeRating / 113) + (t.courseRating - t.par);
+
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.course.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -220,11 +224,11 @@ describe("every reader prices the away round off the away club", () => {
     expect(state).not.toBeNull();
     // Stroke Play's 95%, applied by the board and not by a Course Handicap.
     expect(state!.strokeHandicapFor(player.ann, awayRoundId)).toBe(
-      playingHandicapFrom(playsOff(AWAY), 95),
+      playingHandicapFrom(exactOff(AWAY), 95),
     );
     // The control in the same call: the home round is still the host's.
     expect(state!.strokeHandicapFor(player.ann, homeRoundId)).toBe(
-      playingHandicapFrom(playsOff(HOST), 95),
+      playingHandicapFrom(exactOff(HOST), 95),
     );
   });
 
@@ -255,6 +259,21 @@ describe("every reader prices the away round off the away club", () => {
     expect(byId.get(player.bob), "Bob was priced off the host club").toBe(playsOff(AWAY, 20));
     // And the two differ, so neither value is an accident of them matching.
     expect(playsOff(AWAY, 12)).not.toBe(playsOff(AWAY, 20));
+    /**
+     * AND WHAT EACH BALL PLAYS OFF, which is the allowance of the figure BEFORE
+     * rounding (Rule 6.2a). This pair tells the two methods apart for both of
+     * them, by a stroke each way:
+     *
+     *     Ann 12   7.35  -> course 7,  90% of 7.35  = 6.6  -> 7    (of the 7:  6.3 -> 6)
+     *     Bob 20  14.78  -> course 15, 90% of 14.78 = 13.3 -> 13   (of the 15: 13.5 -> 14)
+     */
+    const ann = sides[0].members.find((m) => m.playerId === player.ann)!;
+    const bob = sides[0].members.find((m) => m.playerId === player.bob)!;
+    expect(ann.handicapExact).toBeCloseTo(exactOff(AWAY, 12), 6);
+    expect(bob.handicapExact).toBeCloseTo(exactOff(AWAY, 20), 6);
+    expect([ann.playing, bob.playing]).toEqual([7, 13]);
+    // CONTROL: of the rounded figures it is 6 and 14, so this can fail.
+    expect([Math.round(playsOff(AWAY, 12) * 0.9), Math.round(playsOff(AWAY, 20) * 0.9)]).toEqual([6, 14]);
   });
 
   it("net skins do, which is money", async () => {
@@ -405,8 +424,12 @@ describe("every reader prices the away round off the away club", () => {
       const rows = await roundHandicapsFor(eventId, stageId);
       const row = rows.find((r) => r.playerId === player.ann)!;
       const allowance = stageId === awayTeamRoundId ? 90 : 95;
+      // Off the figure BEFORE rounding, which the screen now carries beside the
+      // whole number. This took the allowance of `row.handicap` itself — the
+      // arithmetic the board no longer does, and a stroke out on the away round.
+      expect(row.allowance).toBe(allowance);
       expect(
-        playingHandicapFrom(row.handicap, allowance),
+        playingHandicapFrom(row.exact, allowance),
         `round ${stageId} disagrees between its screen and its board`,
       ).toBe(state!.strokeHandicapFor(player.ann, stageId));
     }

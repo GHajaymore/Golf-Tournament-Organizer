@@ -2,7 +2,7 @@ import "server-only";
 import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapOf } from "../domain/round-handicap";
+import { roundHandicapExactOf } from "../domain/round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
@@ -488,7 +488,12 @@ export async function skinsPotFor(
       // all, which is the old behaviour and the best available guess.
       courseHandicap: strokesForPot(
         playingHandicapFrom(
-          roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+          // Before rounding: the allowance is taken of this (Rule 6.2a).
+          roundHandicapExactOf(
+            round.get(p.id),
+            courseHcp.get(p.id) ?? p.handicap,
+            courseHcp.exact(p.id) ?? p.handicap,
+          ),
           allowance,
         ),
       ),

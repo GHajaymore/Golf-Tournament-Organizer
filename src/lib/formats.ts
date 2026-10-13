@@ -535,6 +535,12 @@ export function findFormat(name: string): GolfFormat {
   return lookupFormat(name) ?? GOLF_FORMATS[0];
 }
 
+/** The allowance actually in force for a round: the committee's, or the
+ *  format's recommendation when they haven't set one. */
+export function effectiveAllowance(format: string, override: number): number {
+  return override > 0 ? override : findFormat(format).allowance;
+}
+
 /**
  * Formats with a real scoring engine behind them.
  *
@@ -772,14 +778,13 @@ export function sideSizeRange(formatName: string): { min: number; max: number } 
 }
 
 /**
- * Playing handicap for one player, from their course handicap and the
- * format's allowance. Rounded to the nearest whole stroke, which is how
- * allowances are applied in practice.
+ * `playingHandicap(courseHandicap, formatName)` WAS HERE AND IS DELETED ON PURPOSE.
+ *
+ * Nothing called it. It was a third copy of the allowance arithmetic, taking a
+ * rounded course handicap, and an allowance is taken of the UNROUNDED one
+ * (Rule 6.2a). `playingHandicapFrom` in `domain/handicap.ts` is the one place
+ * that is written; a caller with a format in hand passes `findFormat(name).allowance`.
  */
-export function playingHandicap(courseHandicap: number, formatName: string, allowanceOverride?: number): number {
-  const pct = allowanceOverride ?? findFormat(formatName).allowance;
-  return Math.round((courseHandicap * pct) / 100);
-}
 
 /**
  * The Stableford table a given ROUND is scored on.

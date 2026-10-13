@@ -68,7 +68,8 @@ const playsOff = (t: { courseRating: number; slopeRating: number; par: number })
 
 /** Stroke Play's 95%, which the board applies and a Course Handicap does not. */
 const playing = (t: { courseRating: number; slopeRating: number; par: number }) =>
-  playingHandicapFrom(playsOff(t), 95);
+  // Of the course handicap BEFORE it is rounded (Rule 6.2a), not of `playsOff(t)`.
+  playingHandicapFrom(INDEX * (t.slopeRating / 113) + (t.courseRating - t.par), 95);
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -289,10 +290,14 @@ describe("the round configuration screen prices a round off the round's tees", (
       ["away, implied", impliedAwayId],
     ] as const) {
       const row = await memberOn(stageId);
-      expect(
-        playingHandicapFrom(row.handicap, 95),
-        `the ${name} round's screen and its board disagree`,
-      ).toBe(state!.strokeHandicapFor(playerId, stageId));
+      // What the screen says they play off, against what the board scores off.
+      // This took 95% of `row.handicap` — the rounded figure — itself, which is
+      // the arithmetic the board no longer does.
+      expect(row.allowance).toBe(95);
+      expect(row.playing, `the ${name} round's screen and its board disagree`).toBe(
+        state!.strokeHandicapFor(playerId, stageId),
+      );
+      expect(playingHandicapFrom(row.exact, 95)).toBe(row.playing);
     }
   });
 });

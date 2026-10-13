@@ -155,7 +155,8 @@ function playsOff(index: number, holes = 18, allowance = 100): number {
     holes,
     "single",
   );
-  return playingHandicapFrom(m.get("x") ?? index, allowance);
+  // Of the unrounded figure (Rule 6.2a) — `m.get` is the rounded one.
+  return playingHandicapFrom(m.exact("x") ?? index, allowance);
 }
 
 describe("the conversion this is all about", () => {

@@ -2,9 +2,11 @@ import "server-only";
 import { playedOnBy } from "./courses";
 import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { type IndexHolder } from "../domain/handicap";
+import { playingHandicapFrom, type CourseHandicaps, type IndexHolder } from "../domain/handicap";
+import { effectiveAllowance, findFormat } from "../formats";
 import {
   acceptsHandicapChange,
+  exactHandicapToFreeze,
   handicapToFreeze,
   isReturnedCard,
   resolveRoundHandicap,
@@ -77,7 +79,7 @@ async function roundCourseHandicaps(
    * the one field the whole point of this function is to resolve for them.
    */
   players: Omit<IndexHolder, "flightTeeId">[],
-): Promise<Map<string, number>> {
+): Promise<CourseHandicaps> {
   const [event, tees, flightTee] = await Promise.all([
     prisma.event.findUnique({
       where: { id: eventId },
@@ -162,13 +164,22 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
   const courseHcp = await roundCourseHandicaps(eventId, stage, players);
 
   const frozenAt = new Date();
-  const valueFor = (p: (typeof pending)[number]) =>
-    handicapToFreeze({
-      override: byPlayer.get(p.id)?.override ?? null,
-      // The board's own fallback: an unrated field has no conversion to make,
-      // so the roster number is the Course Handicap.
-      member: courseHcp.get(p.id) ?? p.handicap,
-    });
+  const inputFor = (p: (typeof pending)[number]) => ({
+    override: byPlayer.get(p.id)?.override ?? null,
+    // The board's own fallback: an unrated field has no conversion to make,
+    // so the roster number is the Course Handicap.
+    member: courseHcp.get(p.id) ?? p.handicap,
+    memberExact: courseHcp.exact(p.id) ?? p.handicap,
+  });
+  const valueFor = (p: (typeof pending)[number]) => handicapToFreeze(inputFor(p));
+  /**
+   * AND THE FIGURE IT WAS ROUNDED FROM, in the same statement as the whole
+   * number. An allowance is taken of the unrounded Course Handicap (Rule 6.2a),
+   * so a round that froze only `frozen` would be priced by the Rule until its
+   * first card and off the rounded figure for ever after — re-scoring the very
+   * card that triggered the freeze, which is the one thing it must never do.
+   */
+  const exactFor = (p: (typeof pending)[number]) => exactHandicapToFreeze(inputFor(p));
 
   const missing = pending.filter((p) => !byPlayer.has(p.id));
   const held = pending.filter((p) => byPlayer.has(p.id));
@@ -181,7 +192,14 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     ...(missing.length
       ? [
           prisma.roundHandicap.createMany({
-            data: missing.map((p) => ({ eventId, stageId, playerId: p.id, frozen: valueFor(p), frozenAt })),
+            data: missing.map((p) => ({
+              eventId,
+              stageId,
+              playerId: p.id,
+              frozen: valueFor(p),
+              frozenExact: exactFor(p),
+              frozenAt,
+            })),
             skipDuplicates: true,
           }),
         ]
@@ -189,7 +207,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     ...held.map((p) =>
       prisma.roundHandicap.updateMany({
         where: { eventId, stageId, playerId: p.id, frozen: null },
-        data: { frozen: valueFor(p), frozenAt },
+        data: { frozen: valueFor(p), frozenExact: exactFor(p), frozenAt },
       }),
     ),
   ]);
@@ -227,7 +245,10 @@ export async function roundHasReturnedCard(eventId: string, stageId: string): Pr
 }
 
 /** What one round says about its players: the committee's decision and the frozen fact. */
-export type RoundHandicapRows = Map<string, { frozen: number | null; override: number | null }>;
+export type RoundHandicapRows = Map<
+  string,
+  { frozen: number | null; frozenExact: number | null; override: number | null }
+>;
 
 /**
  * What a round says about each of its players, for the scoring paths that
@@ -245,9 +266,11 @@ export type RoundHandicapRows = Map<string, { frozen: number | null; override: n
 export async function roundHandicapRows(eventId: string, stageId: string): Promise<RoundHandicapRows> {
   const rows = await prisma.roundHandicap.findMany({
     where: { eventId, stageId },
-    select: { playerId: true, override: true, frozen: true },
+    select: { playerId: true, override: true, frozen: true, frozenExact: true },
   });
-  return new Map(rows.map((r) => [r.playerId, { frozen: r.frozen, override: r.override }]));
+  return new Map(
+    rows.map((r) => [r.playerId, { frozen: r.frozen, frozenExact: r.frozenExact, override: r.override }]),
+  );
 }
 
 /** One player's handicap for one round, as the round configuration screen shows it. */
@@ -262,6 +285,24 @@ export interface RoundHandicapView {
   frozen: number | null;
   /** The number this round actually uses — a Course Handicap, before allowance. */
   handicap: number;
+  /**
+   * That handicap before it was rounded: what the round's allowance is taken of
+   * (Rule 6.2a). Equal to `handicap` for a committee's figure, and for a round
+   * frozen before the exact figure was kept.
+   */
+  exact: number;
+  /** The round's allowance, in per cent — the committee's, or the format's own. */
+  allowance: number;
+  /**
+   * WHAT THEIR OWN BALL PLAYS OFF in this round: the allowance of `exact`,
+   * rounded once. Null where a side shares one ball and only the side has a
+   * playing handicap.
+   *
+   * On the screen because the board scores off it, and the two could be read as
+   * disagreeing: a course handicap of 7 at 95% is 6 when the figure before
+   * rounding was 6.6, and an organizer working 95% of 7 by hand gets 7.
+   */
+  playing: number | null;
   source: HandicapSource;
   /** False once the round is frozen: the screen says why rather than disabling a box. */
   editable: boolean;
@@ -285,9 +326,11 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     where: { id: stageId, eventId },
     // As the freeze does, and for the same reason: the number shown here is the
     // number the round's cards are priced off, converted for THIS round's tees.
-    select: { holes: true, teeId: true, courseId: true },
+    select: { holes: true, teeId: true, courseId: true, format: true, handicapAllowance: true },
   });
   if (!stage) return [];
+  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+  const ownBall = findFormat(stage.format).ball !== "single";
 
   // Scored, whether or not anything is frozen. A round played before the freeze
   // existed has cards and no rows, and offering to change its handicaps would
@@ -297,7 +340,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   const [rows, players] = await Promise.all([
     prisma.roundHandicap.findMany({
       where: { eventId, stageId },
-      select: { playerId: true, override: true, frozen: true },
+      select: { playerId: true, override: true, frozen: true, frozenExact: true },
     }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
@@ -312,7 +355,13 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   return players.map((p) => {
     const row = byPlayer.get(p.id) ?? null;
     const member = courseHcp.get(p.id) ?? p.handicap;
-    const resolved = resolveRoundHandicap({ frozen: row?.frozen, override: row?.override, member });
+    const resolved = resolveRoundHandicap({
+      frozen: row?.frozen,
+      frozenExact: row?.frozenExact,
+      override: row?.override,
+      member,
+      memberExact: courseHcp.exact(p.id) ?? p.handicap,
+    });
     return {
       playerId: p.id,
       name: p.name,
@@ -320,6 +369,9 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       override: row?.override ?? null,
       frozen: row?.frozen ?? null,
       handicap: resolved.handicap,
+      exact: resolved.exact,
+      allowance,
+      playing: ownBall ? playingHandicapFrom(resolved.exact, allowance) : null,
       source: resolved.source,
       editable: resolved.editable && acceptsHandicapChange(returned),
       differsFromCurrent: resolved.differsFromCurrent,

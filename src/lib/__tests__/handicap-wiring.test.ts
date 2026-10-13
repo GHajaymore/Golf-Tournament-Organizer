@@ -164,8 +164,12 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // named its own venue was scored off another club's slope.
     expect(recompute).toMatch(/roundCourseHandicaps\(\{/);
     expect(recompute).toMatch(/match: matchVenue/);
-    expect(recompute).toMatch(/roundHandicapOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\)/);
-    expect(recompute).toMatch(/members\.map\(\(m\) => playsOff\(m\.player\)\)/);
+    // The EXACT reader, with the unrounded figure handed to it: both uses below
+    // take an allowance, and an allowance is taken before rounding (Rule 6.2a).
+    expect(recompute).toMatch(
+      /roundHandicapExactOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\) \?\? p\.handicap, teamHcp\.exact\(p\.id\)/,
+    );
+    expect(recompute).toMatch(/members\.map\(\(m\) => playsOffExact\(m\.player\)\)/);
     /**
      * THE GUARANTEE, NOT THE SHAPE. This pinned `courseHandicap:
      * playsOff(m.player)` — the field of a `TeamMemberCard`, because the match
@@ -178,7 +182,7 @@ describe("every engine receives a Course Handicap, not an Index", () => {
      * Both negatives kept, and they are the safe direction: any future shape
      * that reaches for the roster index fails here whatever it calls the field.
      */
-    expect(recompute).toMatch(/playingHandicap: playingHandicapFrom\(playsOff\(m\.player\)/);
+    expect(recompute).toMatch(/playingHandicap: playingHandicapFrom\(playsOffExact\(m\.player\)/);
     expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
     expect(recompute).not.toMatch(/playingHandicap: m\.player\.handicap/);
   });
@@ -207,7 +211,10 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // should match" true by construction rather than by coincidence. Two call
     // sites: the shared ball and the four-ball.
     expect(entry).toMatch(/shots: matchStrokesPerHole\(t\.playingHandicap, low,/);
-    expect(entry).toMatch(/shots: matchStrokesPerHole\(playingOfMember\(m\.handicap\), low,/);
+    // What a player's own ball plays off comes with the side (`TeamMemberView.playing`).
+    // The screen used to work it out itself, off the rounded course handicap.
+    expect(entry).toMatch(/shots: matchStrokesPerHole\(m\.playing \?\? 0, low,/);
+    expect(entry).not.toMatch(/AllowancePct\) \/ 100/);
     // The shape it used to have, which reads perfectly well and is wrong.
     expect(entry).not.toMatch(/shots: allocatedStrokes\(m\.handicap, teamAllowance,/);
   });
@@ -265,7 +272,11 @@ describe("individual standings play off the Playing Handicap", () => {
     // behaviour it names was untouched. What matters is that the number going
     // in is this round's Course Handicap and the allowance is applied to it.
     expect(src).toMatch(/const member = byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0;/);
-    expect(src).toMatch(/playingHandicapFrom\(resolved\.handicap, allowance\)/);
+    // And it is the UNROUNDED figure the allowance is taken of. `resolved.handicap`
+    // here was the defect: 95% of a rounded course handicap, rounded again.
+    expect(src).toMatch(/memberExact: byRound\.exact\(playerId\)/);
+    expect(src).toMatch(/playingHandicapFrom\(resolved\.exact, allowance\)/);
+    expect(src).not.toMatch(/playingHandicapFrom\(resolved\.handicap/);
   });
 
   it("leaves flight formation on the Course Handicap", () => {

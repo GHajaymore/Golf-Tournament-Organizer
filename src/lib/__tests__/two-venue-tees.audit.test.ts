@@ -63,7 +63,8 @@ const playsOff = (t: { courseRating: number; slopeRating: number; par: number })
 
 /** Stroke Play's 95% is already applied by `strokeHandicapFor`. */
 const playing = (t: { courseRating: number; slopeRating: number; par: number }) =>
-  playingHandicapFrom(playsOff(t), 95);
+  // Of the course handicap BEFORE it is rounded (Rule 6.2a), not of `playsOff(t)`.
+  playingHandicapFrom(INDEX * (t.slopeRating / 113) + (t.courseRating - t.par), 95);
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });

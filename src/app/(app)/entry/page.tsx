@@ -293,10 +293,10 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
      * keeps their full allowance, and the dots are exactly what they were.
      */
     const teamMatchPlay = isHeadToHead(activeStage.type);
-    const teamAllowancePct = effectiveAllowance(activeStage.format, activeStage.handicapAllowance);
     const sideOnlyFormat = findFormat(activeStage.format).ball === "single";
-    const playingOfMember = (courseHandicap: number) =>
-      Math.round((courseHandicap * teamAllowancePct) / 100);
+    // What each player's own ball plays off comes WITH the side, from
+    // `teamsForStage`. This screen worked it out by hand — a fourth copy of the
+    // allowance arithmetic, taken of the rounded course handicap.
     const lowInMatch = (matchId: string): number => {
       if (!teamMatchPlay) return 0;
       const m = stageMatches.find((x) => x.id === matchId);
@@ -308,7 +308,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       // every player in it. Same split `matchHolesOffTheLow` makes.
       const figures = sideOnlyFormat
         ? [a.playingHandicap, b.playingHandicap]
-        : [...a.members, ...b.members].map((x) => playingOfMember(x.handicap));
+        : [...a.members, ...b.members].map((x) => x.playing ?? 0);
       return Math.min(...figures.map((n) => Math.round(n)));
     };
     const rows: TeamEntryRow[] = [];
@@ -352,7 +352,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
-              shots: matchStrokesPerHole(playingOfMember(m.handicap), low, teamStrokeIndex),
+              shots: matchStrokesPerHole(m.playing ?? 0, low, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
               pickedUp: picksOf(teamId, matchId, m.playerId),
             }));
@@ -368,7 +368,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
               cardRows.map((c) => ({
                 playerId: c.playerId,
                 strokes: c.strokes,
-                courseHandicap: c.handicap,
+                // What the board takes the allowance of — see `TeamMemberView.handicapExact`.
+                courseHandicap: t.members.find((m) => m.playerId === c.playerId)?.handicapExact ?? c.handicap,
               })),
               teamPars,
               teamStrokeIndex,

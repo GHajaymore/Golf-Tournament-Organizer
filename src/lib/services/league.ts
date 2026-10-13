@@ -8,7 +8,7 @@ import { playingHandicapFrom } from "../domain/handicap";
 import { effectiveAllowance, effectiveCountBest } from "./teams";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapOf } from "../domain/round-handicap";
+import { roundHandicapExactOf } from "../domain/round-handicap";
 import {
   meetingPoints,
   meetingsIn,
@@ -193,8 +193,13 @@ export async function leagueMeetings(
   const handicapOf = new Map(players.map((p) => [p.id, p.handicap]));
   /** What a player plays off this week: the frozen round handicap if one was
    *  taken, else the Course Handicap, and only the raw index as a last resort. */
-  const playsOff = (id: string): number =>
-    roundHandicapOf(teamRound.get(id), courseHcp.get(id) ?? handicapOf.get(id) ?? 0);
+  const playsOffExact = (id: string): number =>
+    roundHandicapExactOf(
+      teamRound.get(id),
+      courseHcp.get(id) ?? handicapOf.get(id) ?? 0,
+      // Before rounding: the allowance below is taken of this (Rule 6.2a).
+      courseHcp.exact(id) ?? handicapOf.get(id) ?? 0,
+    );
 
   /**
    * One side as the balls of a match, for `matchHolesOffTheLow`.
@@ -223,7 +228,7 @@ export async function leagueMeetings(
         }
         return {
           strokes,
-          playingHandicap: playingHandicapFrom(playsOff(c.playerId), allowancePct),
+          playingHandicap: playingHandicapFrom(playsOffExact(c.playerId), allowancePct),
         };
       });
 

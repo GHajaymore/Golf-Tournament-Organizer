@@ -73,6 +73,7 @@ import {
 import {
   acceptsHandicapChange,
   isReturnedCard,
+  roundHandicapExactOf,
   roundHandicapOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
@@ -688,7 +689,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
     if (isMatch(shape?.shape)) {
       await prisma.roundHandicap.updateMany({
         where: { eventId, playerId, frozen: { not: null } },
-        data: { frozen: null, frozenAt: null },
+        data: { frozen: null, frozenExact: null, frozenAt: null },
       });
     }
   }
@@ -3295,8 +3296,9 @@ async function recomputeTeamMatch(
       event,
       holes: holeCount,
     });
-    const playsOff = (p: { id: string; handicap: number }) =>
-      roundHandicapOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap);
+    // Before rounding: both uses below take an allowance of it (Rule 6.2a).
+    const playsOffExact = (p: { id: string; handicap: number }) =>
+      roundHandicapExactOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap, teamHcp.exact(p.id) ?? p.handicap);
     const parse = (s: string): (number | null)[] => {
       try {
         return JSON.parse(s) as (number | null)[];
@@ -3329,7 +3331,7 @@ async function recomputeTeamMatch(
     if (format.ball === "single") {
       const one = cards.find((c) => c.playerId === "");
       const hcp = sidePlayingHandicap(
-        members.map((m) => playsOff(m.player)),
+        members.map((m) => playsOffExact(m.player)),
         formatName,
         stage?.handicapAllowance ?? 0,
         stage?.allowanceWeights,
@@ -3347,7 +3349,7 @@ async function recomputeTeamMatch(
       const card = cards.find((c) => c.playerId === m.playerId);
       return {
         strokes: parse(card?.strokes ?? "[]"),
-        playingHandicap: playingHandicapFrom(playsOff(m.player), allowance),
+        playingHandicap: playingHandicapFrom(playsOffExact(m.player), allowance),
         pickedUp: picks(card?.pickedUp),
       };
     });
@@ -5381,7 +5383,12 @@ export async function importScores(
     // strokes — the one place an error stops being recomputable.
     const importRound = await roundHandicapRows(eventId, stageId);
     netHcp = new Map(
-      [...ch].map(([id, v]) => [id, playingHandicapFrom(roundHandicapOf(importRound.get(id), v), allowance)]),
+      [...ch].map(([id, v]) => [
+        id,
+        // Of the UNROUNDED figure, as the board takes it — or the gross this
+        // stores would be a stroke from the one the board derives.
+        playingHandicapFrom(roundHandicapExactOf(importRound.get(id), v, ch.exact(id)), allowance),
+      ]),
     );
     // The nine actually played, re-ranked. Converting a file of NET scores
     // back to gross allocates strokes hole by hole, so reading the raw
@@ -5863,7 +5870,7 @@ export async function clearRoundScores(
   if (!scoped.length) {
     await prisma.roundHandicap.updateMany({
       where: { eventId, stageId },
-      data: { frozen: null, frozenAt: null },
+      data: { frozen: null, frozenExact: null, frozenAt: null },
     });
   }
 

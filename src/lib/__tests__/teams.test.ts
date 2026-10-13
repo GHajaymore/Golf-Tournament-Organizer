@@ -13,6 +13,8 @@ const team = (id: string, sizes: number): TeamView => ({
     playerId: `${id}-${i}`,
     name: `P${i}`,
     handicap: 10,
+    handicapExact: 10,
+    playing: null,
     position: i,
     // Everyone in this fixture is playing. The withdrawn case has its own
     // tests, where the point is that a side notices.
