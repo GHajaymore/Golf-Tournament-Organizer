@@ -17,6 +17,7 @@
  */
 
 import { registrationStatus, type RegistrationInput } from "../registration";
+import { decimalPoint } from "./decimal-text";
 
 export type ApprovalMode = "auto" | "approve";
 
@@ -140,7 +141,8 @@ export const STAFF_HANDICAP_REFUSAL: Record<"not-a-number" | "out-of-range", str
  * entered.
  */
 export function parseHandicapInput(raw: string | null | undefined): HandicapParse {
-  const value = (raw ?? "").trim();
+  // "12,4" is how half of Europe writes 12.4 — see `decimalPoint`.
+  const value = decimalPoint(raw);
   if (value === "") return { ok: true, value: 0, source: "none" };
 
   // "+2.4" is 2.4 better than scratch. The leading plus is golf notation, not

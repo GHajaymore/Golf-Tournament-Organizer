@@ -300,7 +300,12 @@ export function ContestsClient({
 
   const create = () => {
     const cents = parse(stake);
-    if (!Number.isFinite(cents) || cents < 0) {
+    // No figure in it at all is not "zero": the parser hands back 0 for
+    // anything it cannot read (a NaN in a ledger is every number in it gone),
+    // so a stake of "ten", or a box left empty, started a bet for nothing a
+    // head and never reached the sentence below. Found by the first browser
+    // test to start a bet (2026-10-13).
+    if (!/\d/.test(stake) || !Number.isFinite(cents) || cents < 0) {
       setError("Enter a stake per player, or zero for a free contest.");
       return;
     }

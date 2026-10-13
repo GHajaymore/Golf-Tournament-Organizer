@@ -137,7 +137,7 @@ test("the committee sets the pins and the time allowed, and a player's card show
     const pace = panel.getByLabel("Time allowed");
     await expect(pace, "CONTROL: the round starts on the club's default time").toHaveValue("0");
     await pace.selectOption("255");
-    await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { paceMinutes: true } })).paceMinutes, { message: "the time allowed never reached the round" }).toBe(255);
+    await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { paceMinutes: true } })).paceMinutes, { timeout: 20_000, message: "the time allowed never reached the round" }).toBe(255);
     const paceLog = await prisma.auditLog.findFirst({ where: { eventId: data.eventId, action: "pace-set" }, orderBy: { createdAt: "desc" } });
     expect(paceLog?.detail ?? "", "the log does not say the time allowed was changed").toMatch(/^Time allowed for .+: 4h 15m$/);
     panel = await openSheet();

@@ -2,7 +2,7 @@
 import { getSession } from "@/lib/auth";
 import { organizationAccess } from "@/lib/services/org-access";
 import { prisma } from "@/lib/db";
-import { currencyForEvent } from "@/lib/services/organization";
+import { formattingForEvent } from "@/lib/services/organization";
 import { minorUnitsFrom, money } from "@/lib/domain/money-format";
 import { revalidatePath } from "next/cache";
 import { isMoneyMode } from "@/lib/domain/money-mode";
@@ -270,8 +270,8 @@ export async function addFundLine(input: FundInput): Promise<MoneyResult> {
   // and the kitty was out by a hundredfold from the first line. `money()` was
   // taught about currency and this was not; a parser and a formatter that
   // disagree is the same one-rule-two-readers fault, in the half that writes.
-  const currency = await currencyForEvent(who.eventId);
-  const amountCents = minorUnitsFrom((input.amount ?? "").toString(), currency);
+  const { currency, locale } = await formattingForEvent(who.eventId);
+  const amountCents = minorUnitsFrom((input.amount ?? "").toString(), currency, locale);
   if (!isValidAmount(amountCents)) {
     return { ok: false, error: `Enter an amount up to ${money(MAX_EXPENSE_CENTS, currency)}.` };
   }

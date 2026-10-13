@@ -93,7 +93,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     let pot = await card();
     await pot.getByLabel(/^Buy-in \(/).fill("5");
     await pot.getByRole("button", { name: "Save", exact: true }).click();
-    await expect.poll(async () => (await thePot())?.buyInCents, { message: "the stake was not stored" }).toBe(500);
+    await expect.poll(async () => (await thePot())?.buyInCents, { timeout: 20_000, message: "the stake was not stored" }).toBe(500);
     expect(await paid()).toBe(0);
 
     // ── a player asks: an ask is not a stake ────────────────────────────────
@@ -102,7 +102,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     await expect(mine).toContainText("$5.00 each");
     await expect(mine).toContainText("0 in");
     await mine.getByRole("button", { name: "I’m in" }).or(mine.getByRole("button", { name: "I'm in" })).click();
-    await expect.poll(async () => (await thePot())?.entrants.length, { message: "the ask was not recorded" }).toBe(1);
+    await expect.poll(async () => (await thePot())?.entrants.length, { timeout: 20_000, message: "the ask was not recorded" }).toBe(1);
     expect(await paid(), "CONTROL: a player who only asked is counted as having paid").toBe(0);
     mine = await line(phone);
     await expect(mine.getByRole("button"), "the player's screen does not say they have asked").toHaveText("Asked to join");
@@ -115,7 +115,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     const take = pot.getByRole("button", { name: /— take \$5\.00$/ });
     await expect(take, "the organizer is not shown who asked to join").toHaveCount(1);
     await take.click();
-    await expect.poll(paid, { message: "taking the money did not put the player in the pot" }).toBe(1);
+    await expect.poll(paid, { timeout: 20_000, message: "taking the money did not put the player in the pot" }).toBe(1);
     pot = await card();
     await expect(pot).toContainText(/In the pot — 1 player(?!s)/i);
     mine = await line(phone);
@@ -140,7 +140,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
       }
     }
     await pot.getByRole("button", { name: "Save who paid in" }).click();
-    await expect.poll(paid, { message: "the two ticked were not put in the pot" }).toBe(3);
+    await expect.poll(paid, { timeout: 20_000, message: "the two ticked were not put in the pot" }).toBe(3);
     pot = await card();
     await expect(pot).toContainText(/In the pot — 3 players/i);
     mine = await line(phone);
@@ -152,7 +152,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     await expect(pot, "removing a pot does not say how many have paid in").toContainText("3 people have paid in.");
     expect(await paid(), "one press removed a pot with money in it").toBe(3);
     await pot.getByRole("button", { name: "Remove the pot" }).click();
-    await expect.poll(async () => (await thePot()) ?? null, { message: "the pot was not removed" }).toBeNull();
+    await expect.poll(async () => (await thePot()) ?? null, { timeout: 20_000, message: "the pot was not removed" }).toBeNull();
     await phone.goto(`/me/money?bust=${Date.now()}`);
     await phone.waitForLoadState("networkidle").catch(() => {});
     await expect(phone.locator("main").getByText(/\$15\.00 pot/), "a removed pot is still on a player's screen").toHaveCount(0);

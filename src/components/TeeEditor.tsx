@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
+import { decimalPoint } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -84,7 +85,7 @@ export function TeeEditor({
         {
           name: draft.name,
           gender: draft.gender,
-          courseRating: parseFloat(draft.courseRating) || 0,
+          courseRating: parseFloat(decimalPoint(draft.courseRating)) || 0,
           slopeRating: parseInt(draft.slopeRating, 10) || 0,
           par: parseInt(draft.par, 10) || 72,
         },
@@ -105,7 +106,7 @@ export function TeeEditor({
 
   // What the numbers currently entered would do to a mid-handicapper.
   const previewSlope = parseInt(draft.slopeRating, 10) || 0;
-  const previewRating = parseFloat(draft.courseRating) || 0;
+  const previewRating = parseFloat(decimalPoint(draft.courseRating)) || 0;
   const previewPar = parseInt(draft.par, 10) || 72;
   const preview =
     previewSlope > 0

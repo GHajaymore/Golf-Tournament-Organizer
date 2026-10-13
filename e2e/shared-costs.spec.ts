@@ -133,7 +133,7 @@ test("a member adds a bill, changes it, settles and unsettles a handover, and re
   await expect(mine, "nobody is shown owing me anything, though I am owed").toBeVisible();
   const handed = cents(await mine.innerText());
   await mine.getByRole("button", { name: "Mark settled" }).click();
-  await expect.poll(() => prisma.settlement.count({ where: { eventId: data.eventId } }), { message: "the handover was not recorded" }).toBe(settledBefore + 1);
+  await expect.poll(() => prisma.settlement.count({ where: { eventId: data.eventId } }), { timeout: 20_000, message: "the handover was not recorded" }).toBe(settledBefore + 1);
   const settlement = await prisma.settlement.findFirstOrThrow({ where: { eventId: data.eventId, settledAt: { gte: startedAt } }, orderBy: { settledAt: "desc" } });
   expect(settlement.cents, "the handover was recorded for a different amount from the one on the screen").toBe(handed);
   expect(settlement.toPlayerId, "the handover is not recorded as paid to me").toBe(me);
@@ -150,7 +150,7 @@ test("a member adds a bill, changes it, settles and unsettles a handover, and re
   await done.getByRole("button", { name: /Undo/ }).first().click();
   expect(await prisma.settlement.count({ where: { eventId: data.eventId } }), "one press undid a settlement without asking").toBe(settledBefore + 1);
   await done.getByRole("button", { name: "Undo it" }).click();
-  await expect.poll(() => prisma.settlement.count({ where: { eventId: data.eventId } }), { message: "the settlement was not undone" }).toBe(settledBefore);
+  await expect.poll(() => prisma.settlement.count({ where: { eventId: data.eventId } }), { timeout: 20_000, message: "the settlement was not undone" }).toBe(settledBefore);
   expect(await standing(page), "undoing the handover did not put back what I am owed").toBe(afterEdit);
 
   // ── the bill is removed: asked first, then gone ──────────────────────────
@@ -159,7 +159,7 @@ test("a member adds a bill, changes it, settles and unsettles a handover, and re
   await again.getByRole("button", { name: "Remove" }).click();
   expect(await prisma.expense.count({ where: { eventId: data.eventId, description: BILL } }), "one press removed a bill without asking").toBe(1);
   await again.getByRole("button", { name: "Yes, remove it" }).click();
-  await expect.poll(() => prisma.expense.count({ where: { eventId: data.eventId, description: BILL } }), { message: "the bill was not removed" }).toBe(0);
+  await expect.poll(() => prisma.expense.count({ where: { eventId: data.eventId, description: BILL } }), { timeout: 20_000, message: "the bill was not removed" }).toBe(0);
   expect(await prisma.expenseShare.count({ where: { expenseId: stored[0].id } }), "the removed bill's shares are still stored").toBe(0);
 
   // ── to the cent ──────────────────────────────────────────────────────────

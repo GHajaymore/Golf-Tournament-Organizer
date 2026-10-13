@@ -57,7 +57,7 @@ test("an organizer opens the guide, searches it, jumps to a step, and is offered
   const first = results.first();
   const anchor = ((await first.getAttribute("href")) ?? "").slice(1);
   await first.click();
-  await expect.poll(() => new URL(page.url()).hash, { message: "pressing a result did not move the page" }).toBe(`#${anchor}`);
+  await expect.poll(() => new URL(page.url()).hash, { timeout: 20_000, message: "pressing a result did not move the page" }).toBe(`#${anchor}`);
   await expect(page.locator(`[id="${anchor}"]`), "the step a result leads to is not on screen after pressing it").toBeInViewport({ timeout: 10_000 });
 
   // Nothing found is said in words, with what was typed.

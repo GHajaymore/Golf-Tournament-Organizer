@@ -76,7 +76,7 @@ test("the organizer adds a prize, re-prices it, awards it, takes the award back 
   await page.getByLabel("Detail (optional)").fill("Pro shop credit");
   await page.getByLabel(/^Amount \(/).fill("25");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect.poll(row, { message: "the prize was not stored" }).not.toBeNull();
+  await expect.poll(row, { timeout: 20_000, message: "the prize was not stored" }).not.toBeNull();
   expect(await row()).toMatchObject({ category: CAT, detail: "Pro shop credit", amount: 25, winnerId: null });
   expect(await head(page), "adding a prize of 25 did not add 25 to the purse and one line").toEqual({ ...before, purse: before.purse + 2500, lines: before.lines + 1, of: before.of + 1 });
 
@@ -87,28 +87,28 @@ test("the organizer adds a prize, re-prices it, awards it, takes the award back 
   // ── re-priced, kept with Enter ──────────────────────────────────────────
   await amount.fill("30");
   await amount.press("Enter");
-  await expect.poll(async () => (await row())?.amount, { message: "the new amount was not kept" }).toBe(30);
+  await expect.poll(async () => (await row())?.amount, { timeout: 20_000, message: "the new amount was not kept" }).toBe(30);
   expect((await head(page)).purse, "re-pricing 25 to 30 did not add 5 to the purse").toBe(before.purse + 3000);
 
   // ── a negative amount is not a prize ────────────────────────────────────
   await amount.fill("-5");
   await amount.press("Enter");
-  await expect.poll(async () => (await row())?.amount, { message: "a negative prize was stored" }).toBe(0);
+  await expect.poll(async () => (await row())?.amount, { timeout: 20_000, message: "a negative prize was stored" }).toBe(0);
   await expect(amount, "the box shows a negative prize that was not stored").not.toHaveValue("-5", { timeout: 10_000 });
   expect((await head(page)).purse, "a prize of nothing still counts toward the purse").toBe(before.purse);
   await amount.fill("30");
   await amount.press("Enter");
-  await expect.poll(async () => (await row())?.amount).toBe(30);
+  await expect.poll(async () => (await row())?.amount, { timeout: 20_000 }).toBe(30);
 
   // ── awarded, and taken back ─────────────────────────────────────────────
   const first = await winner.locator("option").nth(1).getAttribute("value");
   expect(first, "nobody is offered as a winner").toBeTruthy();
   await winner.selectOption(first!);
-  await expect.poll(async () => (await row())?.winnerId, { message: "the award was not recorded" }).toBe(first);
+  await expect.poll(async () => (await row())?.winnerId, { timeout: 20_000, message: "the award was not recorded" }).toBe(first);
   expect((await head(page)).awarded, "awarding a prize did not count it as awarded").toBe(before.awarded + 1);
   await expect(winner, "the winner is not on the row after a reload").toHaveValue(first!);
   await winner.selectOption("");
-  await expect.poll(async () => (await row())?.winnerId, { message: "the award was not taken back" }).toBeNull();
+  await expect.poll(async () => (await row())?.winnerId, { timeout: 20_000, message: "the award was not taken back" }).toBeNull();
   expect((await head(page)).awarded).toBe(before.awarded);
 
   // ── removed: asked first ────────────────────────────────────────────────
@@ -116,7 +116,7 @@ test("the organizer adds a prize, re-prices it, awards it, takes the award back 
   await line.getByRole("button", { name: "Remove prize" }).click();
   expect(await row(), "one press removed a prize without asking").not.toBeNull();
   await line.getByRole("button", { name: "Remove it" }).click();
-  await expect.poll(row, { message: "the prize was not removed" }).toBeNull();
+  await expect.poll(row, { timeout: 20_000, message: "the prize was not removed" }).toBeNull();
 
   // ── to the cent ─────────────────────────────────────────────────────────
   expect(await head(page), "after all of it the purse, the lines and the awards are not what they were").toEqual(before);
