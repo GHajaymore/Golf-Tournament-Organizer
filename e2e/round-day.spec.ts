@@ -138,8 +138,15 @@ test("the committee sets the pins and the time allowed, and a player's card show
     await expect(pace, "CONTROL: the round starts on the club's default time").toHaveValue("0");
     await pace.selectOption("255");
     await expect.poll(async () => (await prisma.stage.findUniqueOrThrow({ where: { id: stageId }, select: { paceMinutes: true } })).paceMinutes, { timeout: 20_000, message: "the time allowed never reached the round" }).toBe(255);
-    const paceLog = await prisma.auditLog.findFirst({ where: { eventId: data.eventId, action: "pace-set" }, orderBy: { createdAt: "desc" } });
-    expect(paceLog?.detail ?? "", "the log does not say the time allowed was changed").toMatch(/^Time allowed for .+: 4h 15m$/);
+    // Asked until it is there. The action stores the time and THEN writes the line, with a read between
+    // the two; asking once, the instant the time appeared, found no line yet on the slower engines —
+    // four parts of two counted rounds, on an app that had written it a moment later (2026-10-13).
+    await expect
+      .poll(async () => (await prisma.auditLog.findFirst({ where: { eventId: data.eventId, action: "pace-set" }, orderBy: { createdAt: "desc" } }))?.detail ?? "", {
+        timeout: 20_000,
+        message: "the log does not say the time allowed was changed",
+      })
+      .toMatch(/^Time allowed for .+: 4h 15m$/);
     panel = await openSheet();
     await expect(panel.getByLabel("Time allowed"), "the time allowed was not kept").toHaveValue("255");
 
