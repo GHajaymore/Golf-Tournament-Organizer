@@ -1056,6 +1056,27 @@ A tag the table does not hold is still the platform's, and can still differ. AMO
 the platform's too, and are measured by the same spec: no engine has disagreed about one yet.
 To add a language, see `docs/testing.md`.
 
+**AND WHAT THE APP WRITES IN A CLUB'S LANGUAGE, IT MUST READ BACK IN THAT LANGUAGE.** The
+formatter was given the club's locale and the reader was not. A German, French or Spanish club's
+stake, written "5,00" in its own box by this app, was read back as 500.00, and "1.234,56" as 1.23
+— on the skins pot, every side bet, every shared cost and the kitty. Found 2026-10-13 by the
+first browser test to start a side bet; measured before the fix, 90 of 392 locale × currency ×
+amount combinations read back wrong. `one-currency.test.ts` had held "the parser is the exact
+inverse of the formatter, in every currency offered" for months and formatted in en-US every
+time: the rule ranged over two axes and the test walked one.
+
+- `minorUnitsFrom(text, currency, locale)` reads which mark is the decimal one off the TEXT (both
+  marks: the last; one mark more than once: grouping; one mark once: three digits after it group,
+  anything else is the decimal), so the server and every browser read one figure one way. It
+  still gives 0 for junk, never NaN — so a caller that must REFUSE a box with no figure in it
+  checks for a digit itself (`ContestsClient`), because `Number.isFinite` will never say no.
+- `decimalPoint()` in `domain/decimal-text.ts` is the same class for figures that are not money:
+  a handicap "12,4" was refused by the entry form and read as SCRATCH by a casual round, and a
+  course rating "71,3" was stored as 71.0. Any new reader of a decimal somebody types goes
+  through one of the two.
+- `figures-are-read-in-every-language.test.ts` walks every language and currency a club can
+  choose, from the app's own lists; `e2e/side-bet-named-winner.spec.ts` does it as a German club.
+
 **What the recorder said, the two times it was attached when the slow-page fault struck** (the
 entry above this one): "kept 124ms into the page … from <body> down the two are the same, element
 for element and word for word", once with the document still "loading". Identical before and
@@ -1083,6 +1104,18 @@ any functionality." That is `scripts/qa/` and `docs/testing.md`, and three habit
 A round on GitHub is a push to `round/<name>-1` (`round.yml`: about thirty parts side by side).
 Firefox will not start on this Windows machine at all — it is run there or not at all — and
 its first run is where the dates above and `src/lib/leave-on-enter.ts` came from.
+
+**TWO SESSIONS ON ONE MACHINE SHARE ONE FIXTURE, AND A PLAYWRIGHT RUN IN EITHER WIPES THE
+OTHER'S.** Every run seeds the e2e fixture at its start and tears it down at its end, under one
+mark, in the one development database — whichever worktree it is started from. On 2026-10-13 a
+second session's runs (nine of them between 01:25 and 02:08) deleted the rows this session's
+specs were reading: two "caught" results in a break-the-app run were the fixture vanishing, not
+the test working, and both read exactly like success. A wiped fixture produces FAILURES, so a
+"caught" or a red result taken while another session was running is the suspect one. The rule
+the two sessions settled, by message: before any Playwright run, one line to the other session
+("fixture turn: starting, ~N min"), wait for "go", and say "done" when the teardown has finished.
+Unit tests, a build into your own dist directory and a server on your own port collide with
+nothing.
 
 **A background round stopped with TaskStop is NOT stopped.** The shell dies and its children do
 not: on 2026-10-13 a "stopped" round went on reseeding the club for hours under later trials,

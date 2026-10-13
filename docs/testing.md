@@ -89,8 +89,27 @@ Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the me
 | Every dropdown, choice and tick-box is changed, saved and read back | Yes |
 | Every action is tried by the wrong person and refused | Yes |
 | Whole tournaments played from entry to payout | Yes — eleven |
-| **Every action done by the RIGHT person, with the result checked** | **No.** Last measured 36 of 263 (2026-10-10). Every round re-measures it and names each action nothing performs |
+| **Every action done by the RIGHT person, with the result checked** | **No.** 36 of 263 on 2026-10-10; 127 of 272 in the first clean round (2026-10-13, commit `77d59567`), with 17 more performed by specs written after it. Every round re-measures it and names each action nothing performs |
 | Every text box given good, bad and empty input | Only where a spec was written for it |
+| Every figure a club can TYPE, in every language it can choose | Amounts, handicaps and course ratings: yes, since 2026-10-13 (`figures-are-read-in-every-language.test.ts`). Any other decimal somebody types: only once it goes through `minorUnitsFrom` or `decimalPoint` |
+
+**What writing a spec per flow has found.** Ten flows were written in the two nights to
+2026-10-13, and six of them found at least one fault on the first run — eight faults in all,
+each of which every other layer had passed:
+a pin that could not be cleared, commentary nobody but the committee could read, four screens
+dating things by the server's day, a negative prize left standing in its box, "take 5.00" with no
+currency, a stake read as a hundred times what a German club typed, a side bet started for
+nothing a head, and a withdrawal whose confirmation was wiped before it could be read. That rate
+has not fallen yet. So the reach figure is not a formality: the actions nothing performs are
+where the next faults are, and a clean round says nothing about them.
+
+**Roughly thirteen actions cannot be performed here at all**, because they call a paid service
+that a test must not reach: reading a card from a photograph (3), drafting words with the AI
+(`draftMessage`, `suggestCommentary`, `suggestSetup`, `applySetupProposal`), Stripe
+(`startCheckout`, `openBillingPortal`), a text to a whole club (`broadcastToScope`,
+`broadcastWithText`) and push (`savePushSubscription`, `removePushSubscription`). They are refused
+to the wrong person by the every-action sweep and held by database tests; "done by the right
+person in a browser" will stay short of the whole by that many.
 
 The fifth row is the work: a spec per flow, until the named list is empty. The figure is on the
 testing board and in every round's verdict, and it is never quoted from memory — the ledger only
