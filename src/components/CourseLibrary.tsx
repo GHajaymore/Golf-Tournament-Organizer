@@ -223,6 +223,22 @@ export function CourseLibrary({
     );
   };
 
+  /**
+   * What was pasted, and what was said about it, belong to the card they were
+   * pasted for. They were left behind when the form closed, so the next course
+   * opened on the LAST course's card in the paste box and "Read 18 pars and 18
+   * stroke indexes … Check the boxes below, then save" over eighteen empty
+   * boxes — and an empty card saves, as a flat placeholder. The question about
+   * rounds already scored is cleared with them: it names one course's
+   * tournaments and must not sit under another's.
+   */
+  const forgetPaste = () => {
+    setPasteCard("");
+    setPasteNote("");
+    setPasteProblems([]);
+    setScored(null);
+  };
+
   const resetForm = () => {
     setName("");
     setCity("");
@@ -233,6 +249,7 @@ export function CourseLibrary({
     setEditing(null);
     setAdding(false);
     setError("");
+    forgetPaste();
   };
 
   const openEdit = (c: ClubCourse) => {
@@ -247,6 +264,7 @@ export function CourseLibrary({
     setSi(cardOf(c, c.strokeIndex));
     setUnit(c.distanceUnit);
     setError("");
+    forgetPaste();
   };
 
   /**
@@ -328,11 +346,12 @@ export function CourseLibrary({
     });
   };
 
-  const cell = (arr: string[], set: (v: string[]) => void, i: number) => (
+  const cell = (arr: string[], set: (v: string[]) => void, i: number, what: string) => (
     <input
       key={i}
       className="input"
       inputMode="numeric"
+      aria-label={`${what}, hole ${i + 1}`}
       value={arr[i] ?? ""}
       disabled={pending}
       onChange={(e) => {
@@ -746,8 +765,11 @@ export function CourseLibrary({
         </p>
       )}
 
-      {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+      {/* Up here for what is pressed up here — a tick-box, Verify, Remove. A
+          refusal of the CARD is said in the editor, beside its own button: see
+          the note there. */}
+      {error && !(adding || editing) && (
+        <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -801,12 +823,12 @@ export function CourseLibrary({
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
             <div className="field" style={{ minWidth: 220, flex: 1 }}>
-              <label>Course name</label>
-              <input className="input" value={name} disabled={pending} onChange={(e) => setName(e.target.value)} />
+              <label htmlFor="course-name">Course name</label>
+              <input id="course-name" className="input" value={name} disabled={pending} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="field" style={{ minWidth: 180, flex: 1 }}>
-              <label>City</label>
-              <input className="input" value={city} disabled={pending} onChange={(e) => setCity(e.target.value)} />
+              <label htmlFor="course-city">City</label>
+              <input id="course-city" className="input" value={city} disabled={pending} onChange={(e) => setCity(e.target.value)} />
             </div>
           </div>
 
@@ -820,8 +842,9 @@ export function CourseLibrary({
               `saveClubCourse`, so it is an input aid to the one editor, not a
               second writer of the same eighteen numbers. */}
           <div className="field" style={{ marginBottom: 10 }}>
-            <label>Paste the card — par, stroke index, then {distanceWords(unit).noun}; one row each</label>
+            <label htmlFor="course-paste">Paste the card — par, stroke index, then {distanceWords(unit).noun}; one row each</label>
             <textarea
+              id="course-paste"
               className="input"
               rows={3}
               value={pasteCard}
@@ -879,15 +902,15 @@ export function CourseLibrary({
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 600 }}>Par</td>
-                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(pars, setPars, i)}</td>)}
+                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(pars, setPars, i, "Par")}</td>)}
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 600 }}>{distanceWords(unit).row}</td>
-                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(yards, setYards, i)}</td>)}
+                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(yards, setYards, i, distanceWords(unit).row)}</td>)}
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 600 }}>S.I.</td>
-                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(si, setSi, i)}</td>)}
+                  {Array.from({ length: 18 }, (_, i) => <td key={i}>{cell(si, setSi, i, "Stroke index")}</td>)}
                 </tr>
               </tbody>
             </table>
@@ -900,6 +923,19 @@ export function CourseLibrary({
             onRescore={() => save("rescore")}
             onCancel={() => setScored(null)}
           />
+
+          {/* SAID WHERE THE PRESS WAS. A card that is refused — a stroke index
+              used twice, a par nobody plays — was refused in the line above
+              the whole editor: fifty-four boxes and a paste box away from the
+              button, and off the top of a laptop's screen (measured
+              2026-10-13: none of the sentence in view). So pressing "Add
+              course" on a wrong card looked exactly like pressing nothing, on
+              the one form where a typo is most likely and matters longest. */}
+          {error && (
+            <p role="alert" className="form-error" style={{ margin: "12px 0 0" }}>
+              <Icon name="warning-circle" /> {error}
+            </p>
+          )}
 
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button

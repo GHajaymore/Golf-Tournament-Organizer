@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
 import { decimalPoint } from "@/lib/domain/decimal-text";
@@ -50,6 +50,18 @@ export function TeeEditor({
   defaultOpen?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  // One of these per course on the screen, so each one's boxes need names of their own.
+  const uid = useId();
+  /**
+   * OPEN IS DECIDED ONCE, AND THEN IT IS THE PERSON'S. It was worked out on
+   * every draw as "linked to, or has no tees" — so the moment the FIRST set was
+   * saved the course had tees, the answer turned to no, and the panel folded
+   * shut under the person who had just pressed Save. The rating they had typed
+   * was gone from the screen before they could read it back, and a club adding
+   * the women's rating next had to open it again. Found 2026-10-13 by the
+   * first browser test to add a set of tees.
+   */
+  const [unfolded, setUnfolded] = useState(defaultOpen || tees.length === 0);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({
@@ -153,7 +165,9 @@ export function TeeEditor({
 
   return (
     <details
-      open={defaultOpen || tees.length === 0}
+      open={unfolded}
+      // The person's own fold is the one that is kept — see `unfolded`.
+      onToggle={(e) => setUnfolded(e.currentTarget.open)}
       style={{ marginTop: 10 }}
       // A `summary` element is a real disclosure: keyboard-operable and
       // announced as one, which a div with an onClick is not.
@@ -335,8 +349,9 @@ export function TeeEditor({
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <div className="field" style={{ minWidth: 130 }}>
-              <label>Name</label>
+              <label htmlFor={`${uid}-name`}>Name</label>
               <input
+                id={`${uid}-name`}
                 className="input"
                 value={draft.name}
                 placeholder="Blue"
@@ -344,8 +359,9 @@ export function TeeEditor({
               />
             </div>
             <div className="field" style={{ width: 110 }}>
-              <label>Rated for</label>
+              <label htmlFor={`${uid}-for`}>Rated for</label>
               <select
+                id={`${uid}-for`}
                 className="input"
                 value={draft.gender}
                 onChange={(e) => setDraft({ ...draft, gender: e.target.value })}
@@ -356,8 +372,9 @@ export function TeeEditor({
               </select>
             </div>
             <div className="field" style={{ width: 110 }}>
-              <label>Course Rating</label>
+              <label htmlFor={`${uid}-rating`}>Course Rating</label>
               <input
+                id={`${uid}-rating`}
                 className="input"
                 inputMode="decimal"
                 value={draft.courseRating}
@@ -366,8 +383,9 @@ export function TeeEditor({
               />
             </div>
             <div className="field" style={{ width: 100 }}>
-              <label>Slope</label>
+              <label htmlFor={`${uid}-slope`}>Slope</label>
               <input
+                id={`${uid}-slope`}
                 className="input"
                 inputMode="numeric"
                 value={draft.slopeRating}
@@ -376,8 +394,9 @@ export function TeeEditor({
               />
             </div>
             <div className="field" style={{ width: 80 }}>
-              <label>Par</label>
+              <label htmlFor={`${uid}-par`}>Par</label>
               <input
+                id={`${uid}-par`}
                 className="input"
                 inputMode="numeric"
                 value={draft.par}
