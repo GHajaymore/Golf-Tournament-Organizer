@@ -115,7 +115,11 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
         // `use`, so the reader's time zone (see playwright.config.ts) is
         // handed to it here, unless the spec named one of its own.
         const zone = process.env.E2E_TZ;
-        const context = await (zone ? make({ timezoneId: zone, ...args[0] }) : make(...args));
+        // …and the reader's language and region (E2E_LOCALE), on the same terms.
+        const lang = process.env.E2E_LOCALE;
+        const context = await (zone || lang
+          ? make({ ...(zone ? { timezoneId: zone } : {}), ...(lang ? { locale: lang } : {}), ...args[0] })
+          : make(...args));
         recordCoverage(context);
         await noPushOnWebKit(context);
         await keepWhatTheServerSent(context);

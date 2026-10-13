@@ -116,6 +116,32 @@ const sign = (v) => {
  */
 const CLUB_ZONE = process.env.E2E_TZ ?? "";
 
+/**
+ * WHICH COUNTRY THE SEEDED CLUB IS IN (2026-10-13).
+ *
+ * It has always been a Scottish club: pounds, British dates, "fourball" and
+ * "medal". So every walk of every screen was a walk of an international club,
+ * and nothing had ever opened the app as the club most of its first customers
+ * will be — American, in dollars, with the month first. The country decides
+ * the currency, how a date and an amount are written, and which of golf's two
+ * vocabularies a screen speaks, on every screen at once.
+ *
+ * `E2E_CLUB=us` seeds the same club in Indiana; `in`, `ie`, `za`, `au` and
+ * `jp` put it in five more of the countries the landing page names. Unset, it
+ * is in Scotland, as it was.
+ */
+const PLACES = {
+  gb: { city: "Kirkintilloch", country: "GB", currency: "GBP", currencySymbol: "£", locale: "en-GB" },
+  us: { city: "Carmel", country: "US", currency: "USD", currencySymbol: "$", locale: "en-US" },
+  in: { city: "Pune", country: "IN", currency: "INR", currencySymbol: "₹", locale: "en-IN" },
+  ie: { city: "Kilkenny", country: "IE", currency: "EUR", currencySymbol: "€", locale: "en-IE" },
+  za: { city: "Stellenbosch", country: "ZA", currency: "ZAR", currencySymbol: "R", locale: "en-ZA" },
+  au: { city: "Ballarat", country: "AU", currency: "AUD", currencySymbol: "$", locale: "en-AU" },
+  jp: { city: "Karuizawa", country: "JP", currency: "JPY", currencySymbol: "¥", locale: "ja-JP" },
+};
+const CLUB_PLACE = PLACES[(process.env.E2E_CLUB ?? "gb").toLowerCase()];
+if (!CLUB_PLACE) throw new Error(`E2E_CLUB=${process.env.E2E_CLUB} is not a country the seed knows: ${Object.keys(PLACES).join(", ")}`);
+
 /** A moment in the club's today, by this machine's getters — noon, so no date arithmetic below can cross a midnight. */
 const clubNoon = () => {
   if (!CLUB_ZONE) {
@@ -414,11 +440,8 @@ export async function seed() {
       data: {
         name: `${MARK}-Braid Hollow Men’s & Ladies’ Golf Club`,
         kind: "club",
-        city: "Kirkintilloch",
-        country: "GB",
-        currency: "GBP",
-        currencySymbol: "£",
-        locale: "en-GB",
+        // Scotland unless a run asks for a club somewhere else — see CLUB_PLACE.
+        ...CLUB_PLACE,
         // "" unless a run asks for a club somewhere else — see CLUB_ZONE.
         timeZone: CLUB_ZONE,
         themeAppearance: "auto",

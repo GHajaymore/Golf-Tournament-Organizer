@@ -1,0 +1,95 @@
+name: Other browsers
+
+# THE STANDING BROWSER SUITE ON THE ENGINES ci.yml DOES NOT INSTALL.
+#
+# ci.yml runs every push on Chromium, because that is what a red check must be
+# about: the change. This runs the same suite on FIREFOX and on WEBKIT (the
+# engine under Safari, on every iPhone and iPad), on request — a different
+# question, asked when a round of testing is being counted rather than on every
+# commit.
+#
+# It is here, and not only on a developer's machine, for two reasons found on
+# 2026-10-13. Firefox will not start on the Windows machine this app is built
+# on at all ("spawn UNKNOWN", through a clean reinstall). And that machine's
+# WebKit draws every variable font at its default weight, so nothing about how
+# a heading LOOKS in Safari can be learned from it; the Linux build here draws
+# them properly.
+#
+# HOW TO ASK: push a branch whose name starts `browsers/` (the workflow is read
+# from the pushed commit, so it does not have to be on main first), or use
+# "Run workflow". It is not a required check and gates nothing.
+#
+# WHAT IT IS NOT: Safari on a phone, or Firefox on Windows. It is each engine's
+# own Linux build, which is as near as a hosted runner gets.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["browsers/**"]
+
+concurrency:
+  group: browsers-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Local to the runner and destroyed with it — never a real credential.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  suite:
+    name: ${{ matrix.engine }} (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # One engine and one screen size per job, each with a database of its own —
+    # the same reasoning as ci.yml's three legs. Nothing is cancelled when one
+    # fails: the point is the difference between them.
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [firefox, webkit]
+        project: [phone, small-phone, desktop]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Install the browser
+        # The same ten-minute limit ci.yml gives this step, for the same reason:
+        # the apt step behind `--with-deps` has hung for half an hour before.
+        timeout-minutes: 10
+        run: npx playwright install --with-deps ${{ matrix.engine }}
+
+      - name: The standing suite on ${{ matrix.engine }}
+        env:
+          AUTH_SECRET: ci-e2e-secret
+          # playwright.config.ts puts this engine under the three project names,
+          # and starts the server without the Secure cookie flag for WebKit.
+          E2E_ENGINE: ${{ matrix.engine }}
+        run: npx playwright test --project=${{ matrix.project }}
+
+      - name: Keep the trace of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.engine }}-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
