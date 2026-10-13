@@ -1647,8 +1647,16 @@ multiplied and divided by a hundred, and has a control proving it recognises all
 lines it replaced.
 
 A round frozen before that date keeps the strokes it was played off. See
-`docs/deferred-register.md` for the neighbouring things seen and left alone, including that an
-individual round's allowance cannot be changed from any screen.
+`docs/deferred-register.md` for the neighbouring things seen and left alone.
+
+**An individual net round has its allowance on its card, as a team round does** (2026-10-13;
+Appendix C lets a field under thirty play at 100%). `individualAllowanceFor()` in
+`round-allowance.ts` says which rounds have the line, `roundTakesAllowance()` is the same list
+asked by `setStageAllowance` before it stores a figure — a gross medal, a singles match, skins
+and a round scored by hand are refused — and `allowanceSaid()` is the one sentence both panels
+print. The control was missing while the guide said it was there: **a sentence in the help that
+names a control is a claim about a screen, and `guide-steps.test.ts` checks the buttons it names,
+not the place it says they are.**
 
 **AND THE FIGURE ITSELF DEPENDS ON THE ROUND, NOT ONLY ON THE FORMAT.** Appendix C gives a
 four-ball 85% at stroke play and 90% in a match. The format table holds one number per format and
