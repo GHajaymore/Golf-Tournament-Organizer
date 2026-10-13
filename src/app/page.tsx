@@ -466,7 +466,7 @@ export default async function LandingPage() {
               </div>
             </div>
 
-            <div className="m-cards">
+            <div className="m-cards m-leaf">
               <div className="m-card">
                 <h3>Nothing counts until you say so.</h3>
                 <p>Cards are certified, approved or disputed. A result from the course waits for you.</p>
@@ -558,7 +558,7 @@ export default async function LandingPage() {
             Read from PLANS through the owner's overrides, in the visitor's
             currency, so the page cannot promise a price or a limit the code
             does not hold. */}
-        <section className="m-chapter" id="pricing" aria-labelledby="pricing-h">
+        <section className="m-chapter m-leaf m-leaf-ground" id="pricing" aria-labelledby="pricing-h">
           <div className="m-wrap">
             <div className="m-head">
               <p className="m-eyebrow">Pricing</p>

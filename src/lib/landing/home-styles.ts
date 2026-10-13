@@ -46,6 +46,25 @@ export const HOME_CSS = `
   /* the shared header's height: set from the header itself by the page's script, so a pinned row sits under it exactly */
   --m-hdr: 72px;
 }
+/* THE OUTDOOR TEST'S SECTIONS (see .thq .m-leaf in landing/styles.ts, which gives them their colours on a
+   phone). The page's own names for those colours are said AGAIN here, because a name declared on the page
+   was worked out there, once, from the navy — and everything inside would inherit that answer, however
+   the colours underneath it were changed. Only the names that are colours: the fonts, the widths and the
+   header's height stay the page's. */
+.m-home .m-leaf {
+  --m-ground: var(--ground); --m-ground-deep: color-mix(in srgb, var(--ground) 62%, black); --m-ground-rise: var(--ground-2);
+  --m-on-ground: var(--ink); --m-on-ground-soft: var(--ink-soft); --m-line: var(--line-2);
+  --m-hl: var(--brass); --m-label: var(--brass);
+  --m-btn-bg: var(--ink); --m-btn-fg: var(--ground); --m-btn-hover: white;
+  --m-sel-bg: var(--ink); --m-sel-fg: var(--ground); --m-sel-soft: color-mix(in srgb, var(--ground) 72%, var(--ink));
+  --m-stick: var(--ink); --m-cup: var(--line-2);
+  --m-word-1: var(--brass-hi); --m-word-2: var(--brass); --m-word-3: var(--brass-ui);
+  --m-flag: var(--brass-ui);
+  --m-bar: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+@media (max-width: 899px) {
+  .m-home .m-leaf-ground { background: var(--m-ground); }
+}
 .m-home { margin: 0; background: var(--m-ground); color: var(--m-on-ground); font-family: var(--m-body); font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
 .m-home * { box-sizing: border-box; }
 .m-home [hidden] { display: none !important; }

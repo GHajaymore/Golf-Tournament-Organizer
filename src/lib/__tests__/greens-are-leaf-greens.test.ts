@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { ACCENT_PRESETS, FAIRWAY, SECONDARY_PRESETS, THEME_PAIRS, hexToHsl, themeScale, DARK_GROUND, LIGHT_GROUND } from "../themes";
-import { LANDING_HUES, landingTokens } from "../landing-palette";
+import { LANDING_HUES, landingTokens, leafTokens } from "../landing-palette";
 
 /**
  * TOURNEYHQ'S GREEN IS THE INDIA-FLAG GREEN (Ajay, 2026-10-10).
@@ -121,6 +121,13 @@ describe("no colour in the product sits in the deep blue-leaning green band", ()
       const css = landingTokens(appearance, "");
       expect(css).toContain("--flag:");
       expect(offenders(css), `the ${appearance} landing draws a colour in the band`).toEqual([]);
+    }
+    // And the green sections a phone draws (the outdoor test): the whole surface is a green there,
+    // so it is the place a blue-leaning one would do the most damage.
+    for (const ground of ["navy", "leaf"] as const) {
+      const css = leafTokens(ground, "");
+      expect(css).toContain("--ground-2:");
+      expect(offenders(css), `the leaf sections on ${ground} draw a colour in the band`).toEqual([]);
     }
   });
 
