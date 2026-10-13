@@ -380,6 +380,31 @@ describe("the record says only what happened", () => {
     expect(await lines("skins.pot.remove")).toEqual([]);
   });
 
+  /**
+   * THE SERVER'S OWN RULE, WHICH NO BROWSER TEST CAN REACH.
+   *
+   * The prize box refuses a negative amount before it is sent, so breaking
+   * this line in `updatePrize` left `e2e/prizes.spec.ts` green (measured
+   * 2026-10-13: the one break of fifteen that night nothing caught). A
+   * `"use server"` export is called with whatever the caller likes; the box
+   * being careful is not the endpoint being careful.
+   */
+  it("a prize is never less than nothing, whatever is sent", async () => {
+    await as(home.admin, home.event);
+    const own = (await prisma.prize.create({ data: { eventId: home.event, category: `${TAG} longest putt`, amount: 20 }, select: { id: true } })).id;
+    const amount = async () => (await prisma.prize.findUniqueOrThrow({ where: { id: own }, select: { amount: true } })).amount;
+    for (const sent of [-5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      await prisma.prize.update({ where: { id: own }, data: { amount: 20 } });
+      await updatePrize(own, { amount: sent });
+      expect(await amount(), `sent ${sent}`).toBe(0);
+    }
+    // CONTROL: a real amount is kept as sent.
+    await updatePrize(own, { amount: 12.5 });
+    expect(await amount()).toBe(12.5);
+    await prisma.prize.delete({ where: { id: own } });
+    await prisma.auditLog.deleteMany({ where: { eventId: home.event, action: "prize.update" } });
+  });
+
   it("CONTROL: editing and then removing this tournament's own prize is on the record, by name", async () => {
     await as(home.admin, home.event);
     await updatePrize(mine, { amount: 25 });
