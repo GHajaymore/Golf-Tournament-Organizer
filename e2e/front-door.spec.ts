@@ -77,9 +77,10 @@ const refusal = (page: Page) => page.locator('p[role="alert"]:not(#__next-route-
  * grew between the press being aimed and being made, "Send reset link" was
  * pressed where it had been, and no request left the browser (round 2 on the
  * second batch, 2026-10-13). A person does not press a button 800ms after a
- * page appears. What that moment does to a person who is ALREADY at the box —
- * on Safari's engine they are left looking at the pricing — is the page's own
- * fault and is put right, with its own test, in the change after this one.
+ * page appears. A person who is ALREADY at the box when the page grows keeps
+ * their place: measured the same day on Chrome's engine and on Safari's, the
+ * box stays where it was on the screen. (The first version of this note said
+ * Safari left them in the pricing. That was assumed, and was wrong.)
  */
 async function panel(page: Page, tab: "Log in" | "Sign up") {
   await landingSettled(page);
