@@ -1283,3 +1283,23 @@ own tests, not a line added beside a test about something else.
 Recommended: run the backfill everywhere, then delete the hatch, so that the
 state cannot exist at all. Until then the fixture's club is given a Commissioner
 by any spec that manages its staff.
+
+## Two presses whose answer nobody waits for — SEEN, NOT CHANGED (2026-10-13)
+
+`ScoreEntryClient`'s Reopen was the third of three presses on one card — confirm,
+dispute, reopen — and the only one still painted on the screen before the server
+had answered, with the request sent off and nobody listening. That one is fixed.
+Looking for the same shape (`startTransition(() => void action(…))`) finds two
+more, neither reachable as a wrong screen in ordinary use today:
+
+- `MatchTiebreakControl` — the order of a match's tie-breakers is drawn at once
+  and saved behind it. A refusal would leave the screen showing an order that
+  was not kept. Its controls are disabled once setup is locked, which is the
+  refusal it could get.
+- `StagesClient`, "Delete the round anyway" — sent after the question has been
+  answered, and the server does not refuse a forced delete; it can only fail
+  outright, and then says nothing.
+
+Both want the shape `doConfirm` has: wait, then draw what the server said.
+Neither action is performed by any browser test yet (`setMatchTiebreakers`,
+`removeStage`), and the test should come with the change.
