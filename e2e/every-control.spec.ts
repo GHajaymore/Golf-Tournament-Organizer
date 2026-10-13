@@ -102,13 +102,28 @@ async function controlsOn(page: Page): Promise<Control[]> {
       d.open = true;
     });
     const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+    /**
+     * A LABEL WRAPPED ROUND ITS CONTROL IS NAMED BY ITS FIRST LINE.
+     *
+     * Such a label often carries a sentence under the name saying what the
+     * setting does, and the sentence may change with the setting: "Require a
+     * mobile number" reads "…but accepts an entry without one" unticked and
+     * "…and won't accept an entry without one" ticked. Named by its whole text,
+     * that control had one name before the tick and another after, and `find`
+     * — same kind, same place, same name — reported it gone: three "moved"
+     * findings in the first round after the seeded club went onto a paid plan,
+     * which is what unlocked the tick (round G29-1, 2026-10-13). The control
+     * had not moved. Its description had done what a description is for.
+     */
+    const nameIn = (label: HTMLElement | null) =>
+      label ? ((label.innerText ?? "").split("\n").find((line) => line.trim()) ?? label.textContent) : null;
     const labelOf = (el: Element) => {
       const id = el.getAttribute("id");
       const byFor = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
       const field = el.closest(".field");
       return clean(
         el.getAttribute("aria-label") || byFor?.textContent || field?.querySelector("label")?.textContent ||
-          el.closest("label")?.textContent || el.getAttribute("title") || el.getAttribute("name"),
+          nameIn(el.closest("label")) || el.getAttribute("title") || el.getAttribute("name"),
       ).slice(0, 70);
     };
     const shown = (el: Element) => {
