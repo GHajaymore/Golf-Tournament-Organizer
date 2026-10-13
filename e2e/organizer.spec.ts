@@ -81,8 +81,15 @@ test("the score-entry screen shows every player in the field", async ({ page }) 
   // card is only part-filled is exactly the one who would go missing.
   const body = await page.locator("body").innerText();
   expect(body.length, "the score-entry screen rendered nothing").toBeGreaterThan(200);
+  // The field is a dropdown: whose card to enter. This read the whole screen's text and looked for each
+  // name in it, which is true on Chromium only because Chromium counts every choice in a dropdown as text
+  // on the screen. Firefox counts the one that is chosen — so the first run there (2026-10-13) reported
+  // three of four players missing from a screen that offered all four. The choices are asked for as
+  // choices, which is what an organizer opening the dropdown reads, on any engine.
+  const offered = await page.locator("select[id$='-entry-player'] option").allTextContents();
+  expect(offered.length, "score entry offers nobody's card to enter").toBeGreaterThanOrEqual(FIELD.length);
   for (const name of FIELD) {
-    expect(body, `${name} is missing from the score-entry screen`).toContain(name);
+    expect(offered.some((choice) => choice.includes(name)), `${name} is missing from the score-entry screen: it offers ${offered.join(" | ")}`).toBe(true);
   }
 });
 

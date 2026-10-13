@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { setStageHoles, setStageScoringBasis, updateSignup, removeSignup } from "@/app/actions/tournament";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export interface CasualPlayer {
   id: string;
@@ -241,6 +242,7 @@ export function CasualRoundPanel({
                 value={edits[p.id] ?? p.handicap}
                 disabled={pending}
                 onChange={(e) => setEdits((m) => ({ ...m, [p.id]: e.target.value }))}
+                onKeyDown={leaveOnEnter}
                 onBlur={(e) => {
                   const raw = e.target.value.trim();
                   if (raw === p.handicap) return;

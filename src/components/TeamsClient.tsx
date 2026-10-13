@@ -17,6 +17,7 @@ import {
   autoDrawTeams,
   generateTeamMatches,
 } from "@/app/actions/teams";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export interface TeamMemberRow {
   playerId: string;
@@ -413,6 +414,7 @@ export function TeamsClient({
                   defaultValue={t.name}
                   disabled={pending}
                   style={{ fontSize: 14, flex: 1, minHeight: 44, padding: "4px 8px" }}
+                  onKeyDown={leaveOnEnter}
                   onBlur={(e) => {
                     const next = e.target.value.trim();
                     if (!next || next === t.name) {

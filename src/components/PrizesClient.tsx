@@ -7,6 +7,7 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { usePrizeMoney } from "./usePrizeMoney";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export interface PrizeRow {
   id: string;
@@ -88,6 +89,7 @@ export function PrizesClient({
         disabled={pending}
         aria-label={`Amount for ${p.category}`}
         style={{ width: asCells ? 100 : 84, textAlign: "right" }}
+        onKeyDown={leaveOnEnter}
         onBlur={(e) => {
           const v = parseFloat(e.target.value);
           if ((Number.isFinite(v) ? v : 0) !== p.amount) {

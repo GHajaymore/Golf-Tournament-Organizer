@@ -211,7 +211,8 @@ test("the secretary adds, corrects, retires, imports and enters members from the
     const box = page.getByLabel(`Handicap for ${bo}`);
     // Corrected the way it is written. A number box could not hold "+3.1" at all.
     await box.fill("+3.1");
-    await box.blur();
+    // Enter, as somebody finishing a figure presses: until 2026-10-13 it saved nothing here (`leave-on-enter.ts`).
+    await box.press("Enter");
     await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveValue("+3.1", { timeout: 20_000 });
     await page.goto(`/registration?bust=${Date.now()}`);
     await page.waitForLoadState("networkidle").catch(() => {});

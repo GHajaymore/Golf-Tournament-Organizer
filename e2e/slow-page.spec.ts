@@ -68,6 +68,8 @@ type Club = Awaited<ReturnType<typeof seed>>;
 let club: Club;
 let proxy: http.Server;
 let pieces = 0;
+/** The longest the proxy took to hand one document over, start to finish: slow delivery, measured where it is made. */
+let slowestSent = 0;
 
 test.beforeAll(async ({}, testInfo) => {
   if (testInfo.project.name !== "phone") return;
@@ -92,6 +94,7 @@ function slowly(upstream: URL): Promise<http.Server> {
       if (html) delete out["content-length"];
       res.writeHead(back.statusCode ?? 502, out);
       if (!html) return void back.pipe(res);
+      const began = Date.now();
       try {
         for await (const chunk of back as AsyncIterable<Buffer>) {
           for (let at = 0; at < chunk.length; at += PIECE) {
@@ -103,6 +106,7 @@ function slowly(upstream: URL): Promise<http.Server> {
       } catch {
         /* the browser left for the next page */
       }
+      slowestSent = Math.max(slowestSent, Date.now() - began);
       res.end();
     });
     up.on("error", () => {
@@ -165,10 +169,13 @@ test("no page delivered slowly is thrown away and drawn again", async ({ browser
     }
   }
 
-  console.log(`[slow-page] ${loads} loads through the proxy in ${pieces} pieces; the slowest document took ${slowest}ms to arrive; ${threw.length} threw`);
+  console.log(`[slow-page] ${loads} loads through the proxy in ${pieces} pieces; the slowest document took ${slowestSent}ms to hand over (the browser says ${slowest}ms); ${threw.length} threw`);
   // CONTROL: slow delivery happened. A proxy that passed pages straight through would pass this spec every time.
   expect(pieces, "the proxy handed over almost nothing piece by piece").toBeGreaterThan(loads * 20);
-  expect(slowest, "no document took any time to arrive: this was not slow delivery").toBeGreaterThan(400);
+  // Measured at the PROXY since 2026-10-13. It was read from the browser's own navigation timing, which
+  // Chromium fills in and Firefox reported as nought for every document — so the first run on Firefox
+  // said "this was not slow delivery" of thirty pages it had just been handed a piece at a time.
+  expect(slowestSent, "no document took any time to hand over: this was not slow delivery").toBeGreaterThan(400);
   expect(loads).toBe(ROUNDS * SCREENS.length);
   // CONTROL: the bundle under test is the one built with the fix.
   expect(marked, "the React running was not built with scripts/react-hydration-replay-backport.cjs in it").toBe(1);

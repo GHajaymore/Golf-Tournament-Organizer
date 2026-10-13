@@ -4,6 +4,7 @@ import { setBracketWinner, setBracketResult } from "@/app/actions/tournament";
 import type { BracketView } from "@/lib/domain";
 import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { Icon } from "./Icon";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 /** The draw itself, without the console's heading — the player board shows it read-only. */
 export function BracketBoard({
@@ -102,6 +103,7 @@ export function BracketBoard({
                     // A placeholder is not a name, and there is one of these
                     // per finished match — each says whose match it records.
                     aria-label={`Result of ${m.a?.name ?? "TBD"} v ${m.b?.name ?? "TBD"}, ${rd.label}`}
+                    onKeyDown={leaveOnEnter}
                     onBlur={(e) => {
                       const value = e.target.value;
                       // Leaving the box unchanged saves nothing, and says nothing.

@@ -20,6 +20,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { indexLabel, indexFigure } from "@/lib/domain/handicap-label";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 /** The page's origin never changes while it is open, so nothing to subscribe to. */
 const noSubscription = () => () => {};
@@ -529,6 +530,7 @@ export function RegistrationClient({
                         defaultValue={indexFigure(p.handicap)}
                         disabled={pending || locked}
                         style={{ width: 56, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                        onKeyDown={leaveOnEnter}
                         onBlur={(e) => {
                           const typed = parseHandicapInput(e.target.value);
                           // Emptied: nothing is saved (it never was), and the box says again what is stored.
@@ -590,6 +592,7 @@ export function RegistrationClient({
                           ? `Email for ${p.name}`
                           : `Email for ${p.name} — none on file, so they cannot sign in until one is added`
                       }
+                      onKeyDown={leaveOnEnter}
                       onBlur={(e) => {
                         const v = e.target.value.trim();
                         if (v !== (p.email ?? "")) commitUpdate(p.id, { email: v });

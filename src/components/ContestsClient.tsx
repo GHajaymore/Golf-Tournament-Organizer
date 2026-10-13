@@ -19,6 +19,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { useAction } from "./useAction";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -469,6 +470,7 @@ export function ContestsClient({
                     placeholder="0.00"
                     disabled={pending}
                     style={{ width: 82, minHeight: 44, textAlign: "right" }}
+                    onKeyDown={leaveOnEnter}
                     onBlur={(e) => {
                       const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;

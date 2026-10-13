@@ -42,6 +42,13 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".thq h1")).toHaveCount(1);
 
+  // EVERY PICTURE IS ASKED FOR NOW, NOT WHEN IT IS SCROLLED TO. A picture not yet loaded is passed over
+  // below, not measured — and the walk down the page gives each sixty milliseconds, which is long enough
+  // for Chromium to fetch a lazy picture and not for Safari's engine: its first run (2026-10-13) measured
+  // fourteen of fifteen, and said so only because the count is held. Whether a picture is lazy is not
+  // what this spec is about; whether it is sharp, whole and still is.
+  await page.evaluate(() => document.querySelectorAll<HTMLImageElement>(".thq img").forEach((img) => (img.loading = "eager")));
+
   // Rise every section and walk the page so lazy images load.
   await page.evaluate(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("seen")));
   const height = await page.evaluate(() => document.body.scrollHeight);
@@ -50,6 +57,8 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
     await page.waitForTimeout(60);
   }
   await page.waitForLoadState("networkidle");
+  // Arrived, or failed to: `complete` is true of both, and a picture that failed has no width and is counted out.
+  await page.waitForFunction(() => Array.from(document.querySelectorAll<HTMLImageElement>(".thq img")).every((img) => img.complete), null, { timeout: 15_000 }).catch(() => {});
   await page.waitForTimeout(600);
 
   const { faults, read, scenery } = await page.evaluate(async () => {
