@@ -81,10 +81,21 @@ export interface PinRow {
  * on its own was dropped here and never reached `readPin` to be named. The
  * form must not decide what counts as a position — that is `readPin`'s job,
  * and it can only refuse what it is shown.
+ *
+ * WHAT IS SHOWN, though, and not what the form happens to remember
+ * (2026-10-13). With the side on centre the "paces from the edge" box is
+ * greyed and drawn empty, but the row went on holding whatever had been typed
+ * there. So a pin at 22 / 6R, moved to centre and its paces deleted — which is
+ * how anybody clears one — was a row that LOOKED blank and was sent as
+ * unfinished: the committee was told "Paces on must be a whole number from 1
+ * to 60" about a hole with nothing in it, and could not clear the sheet.
+ * Found by the first browser test to type a pin and then take it away. A row
+ * on centre with no paces on is a row nobody has set, whatever is left behind
+ * in a box they cannot see.
  */
 export function pinRowsPayload(rows: readonly PinRow[]): ({ on: string; side: PinSide; off: string | number } | null)[] {
   return rows.map((r) =>
-    r.on.trim() === "" && r.off.trim() === "" && r.side === "C"
+    r.on.trim() === "" && r.side === "C"
       ? null
       : { on: r.on.trim(), side: r.side, off: r.side === "C" ? 0 : r.off.trim() },
   );

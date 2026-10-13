@@ -1,5 +1,6 @@
 import { Icon } from "@/components/Icon";
 import { WayForward } from "@/components/WayForward";
+import { CommentaryFeed } from "@/components/CommentaryFeed";
 import { MoreInfo } from "@/components/MoreInfo";
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
@@ -70,6 +71,9 @@ export default async function PlayBoardPage({
   const state = withBoardRound(loaded, round);
   // The club's own golf words — organizer or organiser (`golf-terms.ts`).
   const terms = await golfTermsForEvent(session.eventId);
+  // What the committee has said, under the heading of every state this screen has: an update is for the
+  // field whether or not there is a board to rank yet. See `CommentaryFeed`.
+  const said = <CommentaryFeed eventId={session.eventId} organizer={terms.organizer} />;
   const choices = leaderboardRounds(loaded.stages);
   const picker =
     choices.length > 1 ? (
@@ -88,6 +92,7 @@ export default async function PlayBoardPage({
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
+        {said}
         <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
           The {terms.organizer} hasn&rsquo;t published standings for this tournament yet.
         </p>
@@ -112,6 +117,7 @@ export default async function PlayBoardPage({
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
+        {said}
         <CupScoreboard board={cup.board} />
         {/* My matches, not "My card": a cup files no card of a player's own. */}
         <WayForward links={[{ href: "/me", label: "My matches", icon: "sword" }]} />
@@ -148,6 +154,7 @@ export default async function PlayBoardPage({
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
+        {said}
         <MoreInfo short="No round yet, so nothing to rank." style={{ marginTop: 10 }}>
           There&rsquo;s no round to play in this tournament yet, so there&rsquo;s nothing to rank.
           The board appears here as soon as there is one.
@@ -244,6 +251,7 @@ export default async function PlayBoardPage({
     return (
       <div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: "0 0 10px" }}>Board</h1>
+        {said}
         {picker}
         {kind === "manual" ? (
           // No "when it's settled": also shown on a finished tournament.
@@ -377,6 +385,7 @@ export default async function PlayBoardPage({
           <Icon name="book-open" /> Rules
         </Link>
       </div>
+      {said}
 
       {picker}
 

@@ -349,7 +349,8 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "list",
         items: [
           "A pairs event over more than one round shows the pairs' **Total over N rounds** above the round's own board — on the public board and on players' phones too — as long as the same pairs played every round. A team board ranks on score to par while a round is being played.",
-          "**Live leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores only.",
+          "**Live leaderboard** refreshes every 30 seconds and shows Live or Final. For the clubhouse screen or the group chat, set **Who can see the leaderboard** to **Anyone with the link** and share the public link — names and scores, and anything you post as commentary.",
+          "**Commentary**: under the Live leaderboard, write a line — a run of birdies, a delay, where the cut is falling — and press [[Post]]. The latest three show above the scores on the public board and on every player's Board, with how long ago, and without your name. Take one down with the ✕ beside it.",
           "**Weather**: [[Suspend play]], add a reason, [[Suspend play now]] — every player and the public board are told. [[Resume play]] when ready.",
           "**Pace of play** on the Dashboard shows each group's Thru and Due in, and names groups running behind.",
           "**Wrong scores**: correct the card on Score entry, or [[Clear scores]] (organizers) for chosen players or the whole round. Entries, flights and tee times are untouched.",

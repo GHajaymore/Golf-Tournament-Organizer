@@ -97,6 +97,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     href: "/me/board",
     steps: [
       "Open Board.",
+      "Anything the committee has posted is above the scores.",
       "Your own line is always shown.",
       "It reads Final once the committee closes the round.",
     ],
