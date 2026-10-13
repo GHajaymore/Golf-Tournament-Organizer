@@ -1,4 +1,4 @@
-import { resolveMatch } from "@/lib/domain/match";
+import { matchIsOver, resolveMatch } from "@/lib/domain/match";
 import { pairingPoints, type LeaguePointsSystem } from "@/lib/domain/league-meeting";
 import type { LeagueMeeting } from "@/lib/services/league";
 
@@ -102,11 +102,22 @@ export function LeagueMeetings({
                       <td>{homeName}</td>
                       <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
                         {/* Unplayed reads as a dash rather than "all square",
-                            which is a claim about a match nobody has started. */}
-                        {resolved.complete
+                            which is a claim about a match nobody has started.
+
+                            That sentence was here and the cell said AS anyway.
+                            A four-ball with no card on either side has no holes
+                            at all, `resolveMatch([])` calls that complete — there
+                            is nothing left to play — and its result is level. So
+                            every four-ball of a week just drawn read "AS"
+                            (2026-10-13). `matchIsOver` is the question that
+                            knows an empty card is not a finished one.
+
+                            A match still out says how it stands and how far it
+                            has got. It said "T", whatever the score. */}
+                        {matchIsOver(p.holes)
                           ? resolved.resultText
-                          : p.holes.some((h) => h !== null)
-                            ? resolved.resultText || "T"
+                          : resolved.played > 0
+                            ? `${resolved.lead === 0 ? "AS" : `${Math.abs(resolved.lead)} UP`} thru ${resolved.played}`
                             : "—"}
                       </td>
                       <td>{awayName}</td>

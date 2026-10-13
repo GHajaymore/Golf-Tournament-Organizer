@@ -12,24 +12,38 @@ import { Icon } from "@/components/Icon";
  *
  * Replacing a drawn week asks first, like the generic draw does — the server
  * refuses outright once a card has a score on it.
+ *
+ * AND DRAWING THE PLAY-OFFS OFF A SEASON WITH A HOLE IN IT ASKS TOO
+ * (2026-10-13). The two questions are separate and can both be put to one
+ * press — a play-off round already drawn, off a season a week short — so what
+ * has been agreed to is remembered across them rather than held as one flag.
  */
 export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [confirm, setConfirm] = useState(false);
+  /** The question on the screen, if there is one. */
+  const [asked, setAsked] = useState<{ kind: "replace" } | { kind: "short"; missing: number } | null>(null);
+  /** What has been said yes to so far in this press. */
+  const [agreed, setAgreed] = useState({ replace: false, shortSeason: false });
   const [note, setNote] = useState("");
 
-  const run = (replace: boolean) => {
+  const run = (yes: { replace: boolean; shortSeason: boolean }) => {
     setError("");
     setNote("");
+    setAgreed(yes);
     startTransition(async () => {
-      const res = await drawLeagueWeek(stageId, replace);
+      const res = await drawLeagueWeek(stageId, yes.replace, yes.shortSeason);
       if (!res.ok) {
-        if (res.needsConfirm) setConfirm(true);
-        else setError(res.error);
+        if (res.needsConfirm) {
+          setAsked(res.missing ? { kind: "short", missing: res.missing } : { kind: "replace" });
+        } else {
+          setAsked(null);
+          setError(res.error);
+        }
         return;
       }
-      setConfirm(false);
+      setAsked(null);
+      setAgreed({ replace: false, shortSeason: false });
       const parts = [`${res.matches} ${res.matches === 1 ? "four-ball" : "four-balls"} drawn.`];
       if (res.byeClub) parts.push(`${res.byeClub} sits out this week.`);
       if (res.unmatched > 0) {
@@ -40,6 +54,10 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
       setNote(parts.join(" "));
     });
   };
+  const decline = () => {
+    setAsked(null);
+    setAgreed({ replace: false, shortSeason: false });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
@@ -47,7 +65,7 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
         type="button"
         className="btn btn-primary"
         disabled={pending}
-        onClick={() => run(false)}
+        onClick={() => run({ replace: false, shortSeason: false })}
         style={{ alignSelf: "flex-start" }}
       >
         <Icon name="shuffle" /> {drawn > 0 ? "Redraw this week" : "Draw this week"}
@@ -57,7 +75,7 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
         club nominated them — first pair against first pair.
       </p>
 
-      {confirm && (
+      {asked?.kind === "replace" && (
         <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
           <span className="card-title" style={{ fontSize: 14 }}>Replace this week&apos;s draw?</span>
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
@@ -65,11 +83,32 @@ export function LeagueDraw({ stageId, drawn }: { stageId: string; drawn: number 
             them and pairs the nominated pairs again.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run(true)}>
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run({ ...agreed, replace: true })}>
               Replace them
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setConfirm(false)}>
+            <button type="button" className="btn btn-secondary" onClick={decline}>
               Keep them
+            </button>
+          </div>
+        </div>
+      )}
+
+      {asked?.kind === "short" && (
+        <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
+          <span className="card-title" style={{ fontSize: 14 }}>Draw the play-offs before the season is finished?</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+            {asked.missing === 1
+              ? "One season meeting was never played"
+              : `${asked.missing} season meetings were never played`}{" "}
+            — a week that was not drawn, or a club that put up no pair. The play-offs would be seeded
+            from the table as it stands today.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => run({ ...agreed, shortSeason: true })}>
+              Draw the play-offs
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={decline}>
+              Not yet
             </button>
           </div>
         </div>

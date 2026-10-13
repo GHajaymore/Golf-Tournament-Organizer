@@ -410,6 +410,17 @@ export const GUIDE_STEPS: GuideSection[] = [
           "Rained off? Change that round's **Played on** date. A tie settled by a play-off hole: [[Record the play-off hole]].",
         ],
       },
+      { kind: "h", text: "A league of clubs" },
+      {
+        kind: "steps",
+        items: [
+          "Clubs that each put up pairs every week: make each club a **flight** with its members in it, and each week a round in a pairs format such as Four-Ball.",
+          "On **Teams & pairs**, under **League**, choose how it is scored — a point a match, a point a hole with a bonus for the match, holes only, or a Nassau — how many pairs a club puts up, and whether the top 2, 4 or 8 play off. [[Save league settings]].",
+          "Each week, on that round's tab: pick two names from a club's list and press [[Nominate pair]], in the order the pairs will play. Then [[Draw this week]]: clubs meet on a rotation, first pair against first pair. Drawing again asks first, and is refused once a card has a score.",
+          "The table counts a meeting as **Played** once every four-ball in it has a result, not when it is drawn. A four-ball nobody has started shows a dash.",
+          "Until every season meeting has a result, the play-offs are headed **as the table stands** and say how many meetings are still to come. Drawing the play-offs with a season week never played asks you first.",
+        ],
+      },
     ],
   },
   {

@@ -22,6 +22,9 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
         <div key={round.stageId} className="card elev-sm">
           <span className="card-title" style={{ fontSize: 14 }}>
             {round.name}
+            {/* Only the first round is seeded from the table; the rounds after
+                it wait for results and say so themselves. */}
+            {playoffs.provisional > 0 && r === 0 ? " — as the table stands" : ""}
           </span>
           <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "grid", gap: 6 }}>
             {round.meetings.map((m, i) => (
@@ -88,6 +91,15 @@ export function LeaguePlayoffs({ playoffs }: { playoffs: Playoffs }) {
           )}
         </div>
       ))}
+      {playoffs.provisional > 0 && (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+          <b style={{ color: "var(--color-text)" }}>Not settled yet.</b>{" "}
+          {playoffs.provisional === 1
+            ? "One season meeting still has no result"
+            : `${playoffs.provisional} season meetings still have no result`}
+          , so the clubs above are who would be through today.
+        </p>
+      )}
       <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55 }}>
         Seeded from the season table, in the order it is printed. A level play-off meeting is
         settled on a play-off hole, and the organizer records who won it.

@@ -53,12 +53,6 @@
    "askToJoinNamesake",
    "declineJoinRequest"
   ],
-  "app/actions/league.ts": [
-   "drawLeagueWeek",
-   "nominatePair",
-   "setPlayoffHoleWinner",
-   "withdrawPair"
-  ],
   "app/actions/messaging.ts": [
    "broadcastToScope",
    "broadcastWithText"
