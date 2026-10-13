@@ -191,3 +191,54 @@ describe("how much testing a changed file asks for", () => {
     expect(existsSync(at(".github/workflows/round.yml"))).toBe(true);
   });
 });
+
+/**
+ * THE LIST OF ACTIONS NOTHING PERFORMS IS THERE, AND IS ABOUT THIS APP.
+ *
+ * `merge.mjs` fails a round when an action arrives that no screen test calls and
+ * the list does not already admit to. From the day that was written to
+ * 2026-10-13 the list did not exist, the check was skipped without a word, and
+ * three documents said it ran. So the file is held here, on every push:
+ * present, and every name on it an action the app still exports — a list that
+ * names what was deleted or renamed is a list nobody is keeping.
+ */
+describe("the list of actions no screen test performs", () => {
+  const path = "scripts/qa/reach-baseline.json";
+  const list = () => JSON.parse(readVerbatim(path)) as { measuredOn: string; neverCalled: Record<string, string[]> };
+
+  it("exists, and says what it was measured on", () => {
+    expect(existsSync(at(path)), `${path} is missing: no round can check for an action nothing performs`).toBe(true);
+    expect(list().measuredOn.length).toBeGreaterThan(10);
+    expect(Object.keys(list().neverCalled).length).toBeGreaterThan(0);
+  });
+
+  it("names only actions the app still exports", () => {
+    const gone: string[] = [];
+    for (const [listed, names] of Object.entries(list().neverCalled)) {
+      // As a round on GitHub names it: `app/actions/x.ts`, which is `src/app/actions/x.ts` here.
+      const file = existsSync(at(listed)) ? listed : `src/${listed}`;
+      if (!existsSync(at(file))) {
+        gone.push(`${listed} (the file)`);
+        continue;
+      }
+      const source = readSource(file);
+      for (const name of names) {
+        if (!source.includes(`export async function ${name}(`) && !source.includes(`export const ${name} =`)) gone.push(`${file}: ${name}`);
+      }
+    }
+    expect(gone, "the list names actions that are no longer there — take them off").toEqual([]);
+  });
+
+  it("holds no name twice, and no file with nothing in it", () => {
+    for (const [file, names] of Object.entries(list().neverCalled)) {
+      expect(names.length, `${file} is listed with nothing under it`).toBeGreaterThan(0);
+      expect(new Set(names).size, `${file} lists a name twice`).toBe(names.length);
+    }
+  });
+
+  it("is what the round's verdict reads, and a missing one is a finding there", () => {
+    const merge = readSource("scripts/qa/merge.mjs");
+    expect(merge).toContain(`join("scripts", "qa", "reach-baseline.json")`);
+    expect(merge).toContain("baselineMissing");
+  });
+});
