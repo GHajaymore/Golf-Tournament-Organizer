@@ -37,6 +37,8 @@ import { rankedScore, unitIsNet } from "@/lib/domain/ranked-score";
 import { boardNames, positionLabel, thruTile, leadersWithYou, tileMark, heroHeadline } from "@/lib/domain/scoreboard";
 import { roundCardFor } from "@/lib/services/round-card";
 import { ScoreboardCard, ScoreboardLeaders, type LeaderTile } from "@/components/Scoreboard";
+// For its effect: the scoreboard's face is declared, and hinted, on the screen that hangs one.
+import "@/components/scoreboard-face";
 import { standingLabels } from "@/lib/domain/standing-labels";
 import { clubEventsFor } from "@/lib/services/club-events";
 import { isWatching, isWaiting } from "@/lib/domain/tournament-switcher";
