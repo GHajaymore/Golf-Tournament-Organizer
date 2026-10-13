@@ -11,6 +11,7 @@ import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/t
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
 import { meFor } from "@/lib/services/me";
 import { cardBrand, golfTermsForEvent } from "@/lib/services/organization";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 import { DistanceUnitProvider } from "@/components/DistanceUnitProvider";
@@ -378,6 +379,8 @@ export default async function PlayCardPage() {
   // index, and a stroke index is what decides where their shots fall.
   // One reading, shared with Today's tiles — see services/round-card.ts.
   const { venue, known, card, unit } = await roundCardFor(state, stage, holes);
+  // The day the card was checked, as the club writes a day — see `dayAtClubForEvent`.
+  const dayAtClub = await dayAtClubForEvent(session.eventId);
 
   /**
    * Handicap strokes per hole, resolved on the SERVER.
@@ -526,7 +529,7 @@ export default async function PlayCardPage() {
         fall, and until now nothing said whether anybody at the club had ever
         checked them. No "fix" link: a player cannot correct the club's card,
         but they can ask, and they should not be the last to know. */}
-    <CardTrustNote card={venue} strokeIndex={known ? card.strokeIndex.slice(0, holes) : null} />
+    <CardTrustNote card={venue} strokeIndex={known ? card.strokeIndex.slice(0, holes) : null} formatDate={dayAtClub} />
     {/* AND WHETHER ANYTHING SCORES THIS CARD (2026-09-20).
         A round whose format is `manual` has no engine — `standingRows` returns
         `[]` on its first line for one — so a player can fill eighteen holes

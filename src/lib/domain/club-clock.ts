@@ -27,6 +27,7 @@
  * accept.
  */
 import { dateWordsFor, fieldsAt, writeDate } from "./date-words";
+import { formatDay } from "./locale";
 
 /** Whether `value` is a time zone this runtime can reason about. */
 export function isTimeZone(value: string | null | undefined): value is string {
@@ -82,6 +83,15 @@ export function clubToday(timeZone: string | null | undefined, at: Date = new Da
 export function clubDay(timeZone: string | null | undefined, at: Date = new Date()): Date {
   const [y, m, d] = clubToday(timeZone, at).split("-").map(Number);
   return new Date(y, m - 1, d, 12);
+}
+
+/**
+ * The day an INSTANT fell on at a club, in that club's words: "3 Apr 2026". For a timestamp somebody
+ * will read as a date — when a card was checked, when money changed hands — where there is a club in
+ * hand and no tournament (`dayAtClubForEvent` in services is the same answer from a tournament's id).
+ */
+export function clubDayInWords(timeZone: string | null | undefined, locale: string | null | undefined, at: Date): string {
+  return formatDay(clubToday(timeZone, at), locale || undefined);
 }
 
 /**

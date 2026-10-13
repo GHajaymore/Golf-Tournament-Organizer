@@ -55,7 +55,7 @@ import { PaceOfPlay } from "@/components/PaceOfPlay";
 import { firstHoleForRound, startHoleNumber } from "@/lib/domain/hole-number";
 import { paceRoundsFor } from "@/lib/services/pace";
 import { wipesOnCloseFor, keepItOffer } from "@/lib/services/close-terms";
-import { formatDay } from "@/lib/domain/locale";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
 import { flightLabel } from "@/lib/domain/flight-label";
 
 /**
@@ -921,7 +921,8 @@ export default async function DashboardPage() {
             ? {
                 deletesOnComplete: true,
                 keepOffer: await keepItOffer(event.organizationId),
-                closesOn: event.closesAt ? formatDay(event.closesAt.toISOString().slice(0, 10)) : undefined,
+                // The club's day in the club's words: it was the server's day, written the American way for every club.
+                closesOn: event.closesAt ? (await dayAtClubForEvent(event.id))(event.closesAt) : undefined,
               }
             : {})}
           summary={{

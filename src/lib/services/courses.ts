@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { parseHoleArray } from "../courses";
 import { resolveDistanceUnit, type DistanceUnit } from "../domain/distance-unit";
 import { pickedCardNote, type PickedCardNote } from "../domain/picked-card";
+import { clubDayInWords } from "../domain/club-clock";
 
 /**
  * EVERY COURSE THIS TOURNAMENT MAY BE PLAYED ON — its linked venues AND its
@@ -139,8 +140,9 @@ export async function clubCourses(
       orderBy: { name: "asc" },
       include: {
         tees: { orderBy: [{ position: "asc" }, { name: "asc" }] },
-        // The owning club's country, for a course that has not set its unit.
-        organization: { select: { country: true } },
+        // The owning club's country, for a course that has not set its unit; and its zone and notation, for
+        // the day its card was checked.
+        organization: { select: { country: true, locale: true, timeZone: true } },
       },
     }),
     prisma.eventCourse.findMany({ where: { eventId }, select: { courseId: true } }),
@@ -163,7 +165,7 @@ export async function clubCourses(
     // courses was meant to stop.
     hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
     inEvent: selected.has(c.id),
-    cardNote: pickedCardNote(c),
+    cardNote: pickedCardNote(c, undefined, (d) => clubDayInWords(c.organization.timeZone, c.organization.locale, d)),
     source: c.source,
     verified: c.verifiedAt !== null,
     verifiedBy: c.verifiedBy,
@@ -193,7 +195,7 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       course: {
         include: {
           tees: { orderBy: [{ position: "asc" }, { name: "asc" }] },
-          organization: { select: { country: true } },
+          organization: { select: { country: true, locale: true, timeZone: true } },
         },
       },
     },
@@ -228,7 +230,7 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       yards: parseHoleArray(l.course.yards) ?? DEFAULT_YARDS,
       strokeIndex: parseHoleArray(l.course.strokeIndex) ?? DEFAULT_SI,
       inEvent: true,
-      cardNote: pickedCardNote(l.course),
+      cardNote: pickedCardNote(l.course, undefined, (d) => clubDayInWords(l.course.organization.timeZone, l.course.organization.locale, d)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

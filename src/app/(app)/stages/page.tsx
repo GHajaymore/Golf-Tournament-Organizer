@@ -32,6 +32,7 @@ import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
 /**
  * What a team round costs its sides in strokes, or null where the question
@@ -247,7 +248,9 @@ export default async function StagesPage() {
     orderBy: { name: "asc" },
   });
   // And the round's course picker says it again the moment one is chosen.
-  const venues = venueRows.map((v) => ({ ...v, cardNote: pickedCardNote(v) }));
+  // The day a card was checked, as the club writes a day — see `dayAtClubForEvent`.
+  const dayAtClub = await dayAtClubForEvent(session.eventId);
+  const venues = venueRows.map((v) => ({ ...v, cardNote: pickedCardNote(v, undefined, dayAtClub) }));
 
   // Matches per player in a round robin = (largest flight size − 1).
   const flightSizes = state.groups.map(
@@ -362,7 +365,7 @@ export default async function StagesPage() {
         .map(({ venue, si }) => (
           <div key={venue.id} className="card elev-sm" style={{ marginBottom: 10 }}>
             <span className="card-title" style={{ fontSize: 14 }}>{venue.name}</span>
-            <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} />
+            <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} formatDate={dayAtClub} />
           </div>
         ))}
       <StagesClient

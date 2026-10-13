@@ -9,7 +9,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
 import { TimeZonePicker } from "@/components/TimeZonePicker";
-import { clubClockInWords, timeZoneChoices } from "@/lib/domain/club-clock";
+import { clubClockInWords, clubToday, timeZoneChoices } from "@/lib/domain/club-clock";
 import { SeasonPicker } from "@/components/SeasonPicker";
 import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { GolfTermsPicker } from "@/components/GolfTermsPicker";
@@ -36,11 +36,14 @@ import { formatDay } from "@/lib/domain/locale";
 function heldUntilLabel(
   sub: { status: string; currentPeriodEnd: Date | null } | null | undefined,
   locale: string | null | undefined,
+  timeZone: string | null | undefined,
 ): string | undefined {
   if (sub?.status !== "canceled" || !sub.currentPeriodEnd) return undefined;
   const until = retainUntilAfter(new Date(sub.currentPeriodEnd));
   if (until.getTime() <= Date.now()) return undefined;
-  return locale ? formatDay(until.toISOString().slice(0, 10), locale) : formatDay(until.toISOString().slice(0, 10));
+  // The club's day, not the server's: see `dayAtClubForEvent`.
+  const day = clubToday(timeZone, until);
+  return locale ? formatDay(day, locale) : formatDay(day);
 }
 import { storedPricingOverrides } from "@/lib/services/platform-pricing";
 import { MoneySetup } from "@/components/MoneySetup";
@@ -337,7 +340,7 @@ export default async function OrganizationPage() {
             hasSubscription: Boolean(org.subscription?.providerSubscriptionId) && org.subscription?.status !== "canceled",
             pastDue: org.subscription?.status === "past_due",
             canEdit,
-            heldUntil: heldUntilLabel(org.subscription, org.locale),
+            heldUntil: heldUntilLabel(org.subscription, org.locale, org.timeZone),
           }}
         />
       </SettingsSectionAnchor>

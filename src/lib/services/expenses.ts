@@ -1,8 +1,5 @@
 import "server-only";
-import { formattingForEvent } from "./organization";
-import { zoneOfEvent } from "./club-clock";
-import { clubToday } from "../domain/club-clock";
-import { formatDay } from "../domain/locale";
+import { dayAtClubForEvent } from "./club-clock";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
@@ -1350,8 +1347,7 @@ export async function moneyFor(
    * organizer's ledger while writing the first browser test of settling up
    * (2026-10-13). A day belongs to a place (CLAUDE.md, "The club's clock").
    */
-  const [{ locale }, zone] = await Promise.all([formattingForEvent(eventId), zoneOfEvent(eventId)]);
-  const dayRecorded = (at: Date) => formatDay(clubToday(zone, at), locale);
+  const dayRecorded = await dayAtClubForEvent(eventId);
 
   return {
     playerId: me?.id ?? "",

@@ -46,6 +46,7 @@ import { lineupHidden, LINEUP_HIDDEN } from "@/lib/domain/cup-lineup";
 import { CupSessionNav } from "@/components/CupSessionNav";
 import { CasualRoundScreen } from "@/components/CasualRoundScreen";
 import { flightLabel } from "@/lib/domain/flight-label";
+import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
 export const metadata = screenMetadata("/entry");
 
@@ -96,6 +97,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     where: { ...playedOnBy(session.eventId) },
   });
   const venueById = new Map(venues.map((c) => [c.id, c]));
+  // The day a course's card was checked, as this club writes a day — see `dayAtClubForEvent`.
+  const dayAtClub = await dayAtClubForEvent(session.eventId);
   /** One venue means the whole tournament is played there — nothing to pick. */
   const soleVenue = venues.length === 1 ? venues[0] : null;
 
@@ -1134,7 +1137,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
       courseName={course.name || state.event.course}
       eventDates={state.event.dates}
       isAdmin={session.viewRole === "admin"}
-      venues={venues.map((v) => ({ id: v.id, name: v.name, cardNote: pickedCardNote(v) }))}
+      venues={venues.map((v) => ({ id: v.id, name: v.name, cardNote: pickedCardNote(v, undefined, dayAtClub) }))}
       // The club's badge at the head of the card. Same reader the console
       // header and the player's own card use, so an organizer checking a
       // returned card and the player who returned it see one club, not two.

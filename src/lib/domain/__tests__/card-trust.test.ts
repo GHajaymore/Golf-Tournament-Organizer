@@ -42,7 +42,10 @@ describe("what to say about a course card", () => {
     );
     expect(note?.level).toBe("checked");
     expect(note?.warn).toBe(false);
-    expect(note?.text).toContain("2026-04-03");
+    // The day in words. This pinned "2026-04-03" until 2026-10-13: it was asserting the fault — the form a
+    // database writes a date in, shown under every scorecard (`shown-days-are-the-clubs.test.ts`).
+    expect(note?.text).toContain("Apr 3, 2026");
+    expect(note?.text).not.toContain("2026-04-03");
     expect(note?.text).toContain("R. Ganizer");
   });
 

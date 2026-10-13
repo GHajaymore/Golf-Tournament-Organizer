@@ -1,3 +1,5 @@
+import { formatDay } from "./locale";
+
 /**
  * WHETHER ANYBODY HAS CHECKED THIS COURSE CARD, SAID OUT LOUD.
  *
@@ -95,6 +97,12 @@ function daysBetween(a: Date, b: Date): number {
   return Math.floor((b.getTime() - a.getTime()) / 86400000);
 }
 
+/** A day by the universal clock, in the default notation: for a caller with no club to ask. Never the bare database form. */
+function utcDayInWords(d: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return formatDay(`${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}`);
+}
+
 /**
  * What to say about this card, if anything.
  *
@@ -104,7 +112,9 @@ function daysBetween(a: Date, b: Date): number {
 export function cardTrustNote(
   card: CardTrust | null | undefined,
   today: Date = new Date(),
-  formatDate: (d: Date) => string = (d) => d.toISOString().slice(0, 10),
+  // The fallback for a caller with no club in scope. A screen that DRAWS this must pass the club's own
+  // (`CardTrustNote` requires it): this one cannot know the club's zone or its notation.
+  formatDate: (d: Date) => string = utcDayInWords,
   /** The card's stroke index, where the caller has it. See `needsStrokeIndex`. */
   strokeIndex?: readonly number[] | null,
 ): TrustNote | null {
