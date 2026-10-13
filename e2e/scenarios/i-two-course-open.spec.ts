@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY } from "./kit.mjs";
+import { seed, memberSession, eventFacts, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament I: the Eagle club's Two-Course Open. 36-hole gross
@@ -156,12 +156,9 @@ test("five I", async ({ page, context, baseURL }, testInfo) => {
   if (PHASE === "I1") {
     await test.step("the secretary creates the Two-Course Open", async () => {
       if (await eventFacts(I_NAME)) return note("already exists — resuming");
-      await open(page, "/tournaments");
-      await page.getByLabel("Create a new tournament").fill(I_NAME);
-      const shape = page.getByLabel("How is it played?");
-      if (await shape.count()) await shape.selectOption({ label: "A series of rounds" });
-      await page.getByRole("button", { name: /Create tournament/ }).click();
-      await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+      // From /choose or from Tournaments, whichever this club is offered; and onto the plan a full field needs.
+      // This scenario may be the first the club has met: on GitHub each one is given a database of its own.
+      await createTournament(page, I_NAME, "A series of rounds");
     });
     await test.step("dates and the home course", async () => {
       await open(page, "/event");

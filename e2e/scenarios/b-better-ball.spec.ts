@@ -1,7 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY } from "./kit.mjs";
+import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament B: the Eagle club's Autumn Better-Ball. The
@@ -54,12 +54,9 @@ test("five B", async ({ page, context, baseURL }, testInfo) => {
       if (await eventFacts(B_NAME)) {
         note("this run's tournament already exists — resuming");
       } else {
-        await open(page, "/tournaments");
-        await page.getByLabel("Create a new tournament").fill(B_NAME);
-        const shape = page.getByLabel("How is it played?");
-        if (await shape.count()) await shape.selectOption({ label: "A series of rounds" });
-        await page.getByRole("button", { name: /Create tournament/ }).click();
-        await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+        // From /choose or from Tournaments, whichever this club is offered; and onto the plan a full field needs.
+        // This scenario may be the first the club has met: on GitHub each one is given a database of its own.
+        await createTournament(page, B_NAME, "A series of rounds");
       }
       await read(page, "/dashboard", "dashboard-new", 1500);
     });

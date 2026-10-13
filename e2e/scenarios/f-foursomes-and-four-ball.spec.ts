@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "../coverage";
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS } from "./kit.mjs";
+import { seed, memberSession, eventFacts, rng, MARK, COURSE, COURSE_CITY, PARS, createTournament } from "./kit.mjs";
 
 /**
  * SCENARIO — tournament F: the Eagle club's Foursomes & Four-Ball Day. The
@@ -109,12 +109,9 @@ test("five F", async ({ page, context, baseURL }, testInfo) => {
       if (await eventFacts(F_NAME)) {
         note("this run's tournament already exists — resuming");
       } else {
-        await open(page, "/tournaments");
-        await page.getByLabel("Create a new tournament").fill(F_NAME);
-        const shape = page.getByLabel("How is it played?");
-        if (await shape.count()) await shape.selectOption({ label: "A series of rounds" });
-        await page.getByRole("button", { name: /Create tournament/ }).click();
-        await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+        // From /choose or from Tournaments, whichever this club is offered; and onto the plan a full field needs.
+        // This scenario may be the first the club has met: on GitHub each one is given a database of its own.
+        await createTournament(page, F_NAME, "A series of rounds");
       }
     });
 

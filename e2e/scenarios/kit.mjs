@@ -12,7 +12,11 @@ import { signedInNow } from "../../scripts/session-cookie.mjs";
 // are listed in scripts/qa/layers.mjs, and run as a layer of every round.
 // Every row is marked zz-five, every name invented, every address
 // @example.invalid. A database the suite may write to only — never production.
-export const MARK = "zz-five";
+// FIVE_MARK is for a trial against a club that does not exist yet: a second mark, so a scenario can be
+// started from nothing on a machine whose zz-five club is kept. It must not begin "zz-five".
+export const MARK = process.env.FIVE_MARK || "zz-five";
+/** The secretary every tournament but the society's is run by. */
+export const CLUB_EMAIL = `${MARK}-club@example.invalid`;
 export const COURSE = `${MARK} Royal Oakridge`;
 export const COURSE_CITY = "Larchmont";
 export const CATALOGUE_ID = `${MARK}-catalogue`;
@@ -137,6 +141,47 @@ export async function seed() {
   } finally {
     await prisma.$disconnect();
   }
+}
+
+/**
+ * CREATE A TOURNAMENT, WHETHER OR NOT THE CLUB HAS ONE YET — and put the club on
+ * the plan a full field needs.
+ *
+ * Nine of the eleven scenarios went straight to the Tournaments screen and its
+ * "Create a new tournament" box. That box is there for a club's SECOND
+ * tournament. A club with none is asked for its first on /choose, by a
+ * different form — and has no club at all until it answers. On the machine
+ * these were written on, the club championship (scenario C) had always been
+ * played first, so the club was always there, on the Eagle plan, and nobody
+ * saw the assumption. The first round on GitHub gave every scenario a database
+ * of its own (2026-10-13): seven stopped at their first step, waiting for a box
+ * a new club is never shown.
+ *
+ * So each scenario stands on its own: this takes whichever form the club is
+ * offered, and then sets the plan, which a field of over a hundred needs and a
+ * new club (ten players, one tournament) does not have. Setting it again on a
+ * club that already has it changes nothing.
+ *
+ * `shape` is the choice as both forms word it: "A single round" or "A series of rounds".
+ */
+export async function createTournament(page, name, shape, ownerEmail = CLUB_EMAIL, plan = "club") {
+  await page.goto(`/choose?bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const first = page.getByLabel("Tournament name");
+  if (await first.count()) {
+    await first.fill(name);
+    await page.getByRole("button", { name: new RegExp(`^${shape}`) }).click();
+    await page.getByRole("button", { name: "Create tournament" }).click();
+  } else {
+    await page.goto(`/tournaments?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.getByLabel("Create a new tournament").fill(name);
+    const how = page.getByLabel("How is it played?");
+    if (await how.count()) await how.selectOption({ label: shape });
+    await page.getByRole("button", { name: /Create tournament/ }).click();
+  }
+  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  await setPlanFor(ownerEmail, plan);
 }
 
 /** What the owner console's setClubPlan does, for the organizer's own club. */
