@@ -1030,12 +1030,65 @@ A Korean clock time was "PM 1:05" from the server and "오후 1:05" in the brows
 `a-clock-time-is-written-once.test.ts` refuses a bare `toLocaleTimeString` in `src`.
 `npx -y node@20 file.cjs` runs anything under CI's Node from here.
 
+**AND THE CLASS IS CLOSED, NOT THE INSTANCE: SINCE 2026-10-13 THE APP WRITES ITS OWN DATES.**
+A thin space, a Korean tilde, a British dash and a Korean "PM" were each patched where they
+showed. The first run of the suite on Firefox and on Safari's engine then found three more in
+one evening — a comma after a British weekday (which redrew the Rounds screen on every load, on
+every iPhone), an hour written "1:05" by the server and "01:05" by Firefox, a Japanese range in
+another notation. Every one is the same fault: two platforms, two editions of the conventions.
+
+So the conventions are read ONCE, by `scripts/build-date-words.mjs` (which proves its table
+against a year of days before writing it), into `src/lib/domain/date-words.data.ts`, and
+`date-words.ts` fills a template in. It asks the platform for arithmetic only. Every date the
+app writes goes through it — `formatDay`, `formatDayAt`, `formatMonthDayAt`, `formatDayRange`,
+`formatClock`, `shortDate`, `clubClockInWords` — and three tests hold that:
+
+- `date-words.test.ts` pins what each country's club reads, typed by hand; refuses a language
+  the picker offers and the table does not hold; and refuses any screen that words a date by
+  asking the platform (`new Intl.DateTimeFormat(locale…`, `toLocaleDateString`);
+- `date-words-are-read.test.ts` swaps the table for one no platform would write, so a caller
+  put back to asking the platform FAILS. On the machine the table was read from the platform
+  writes the same thing, and a test of values alone cannot tell the two apart;
+- `e2e/formats-agree.spec.ts` runs the same functions on both sides, on every engine a round
+  drives.
+
+A tag the table does not hold is still the platform's, and can still differ. AMOUNTS are still
+the platform's too, and are measured by the same spec: no engine has disagreed about one yet.
+To add a language, see `docs/testing.md`.
+
 **What the recorder said, the two times it was attached when the slow-page fault struck** (the
 entry above this one): "kept 124ms into the page … from <body> down the two are the same, element
 for element and word for word", once with the document still "loading". Identical before and
 after is what that fault looks like from outside, and it is what sent the search to TIME. The
 recorder also logs the last thirty changes made to the document before a clear, the streamed
 sections not yet in place, and when the document finished arriving.
+
+## The testing framework: `docs/testing.md`
+
+Ajay, 2026-10-13: "you should be building these permanent test script which covers all aspects
+of the app and use it whenever we make any change in the app. Keep it updated whenever we add
+any functionality." That is `scripts/qa/` and `docs/testing.md`, and three habits come with it:
+
+- **`npm run qa:changed` first, on every finished change.** It reads the files touched and says
+  how much testing that needs: nothing ships (tests), its own tests (words, the front door),
+  one full round (function in one area), or three (core). Quote it in the pull request.
+- **A change is not done until the tests know about it.** A new action needs a spec that DOES
+  it as the person who would; a new format needs a scenario; a new language needs a line in the
+  date table. `docs/testing.md` has the table of what to add for what, and
+  `qa-framework.test.ts` holds the framework's own lists to the files on disk.
+- **"Is everything covered?" is answered with the measured figure, never with the size of the
+  suite.** End-to-end does NOT cover every action yet: 36 of 263 were performed by a browser
+  test when last measured (2026-10-10). Every round re-measures it and names what nothing does.
+
+A round on GitHub is a push to `round/<name>-1` (`round.yml`: about thirty parts side by side).
+Firefox will not start on this Windows machine at all — it is run there or not at all — and
+its first run is where the dates above and `src/lib/leave-on-enter.ts` came from.
+
+**A background round stopped with TaskStop is NOT stopped.** The shell dies and its children do
+not: on 2026-10-13 a "stopped" round went on reseeding the club for hours under later trials,
+which read as the app losing a sign-in mid-walk, and then started a build over the working
+tree. After stopping one, list the processes (`Get-CimInstance Win32_Process` for `node.exe`
+with `playwright`, `next` or `round.mjs` in the command line) and kill what is left.
 
 ## What gates a merge, and what gates a deploy
 

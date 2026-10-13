@@ -77,6 +77,25 @@ On one machine that is about six hours. On GitHub the same layers are cut into a
 (`partsFor` in `layers.mjs`), each with a machine and a database of its own and all drawing one
 build, so a round takes as long as its slowest part.
 
+### Does end-to-end cover everything? Not yet — and the gap has a number
+
+Asked twice by Ajay on 2026-10-12, and the answer he is owed each time is the measured one, not
+"the suite is large".
+
+| | Covered by a browser test |
+|---|---|
+| Every screen opens, as organizer, member and signed out, on every seeded tournament | Yes — the lists are read from the app, so a new screen is included unasked |
+| Every dropdown, choice and tick-box is changed, saved and read back | Yes |
+| Every action is tried by the wrong person and refused | Yes |
+| Whole tournaments played from entry to payout | Yes — eleven |
+| **Every action done by the RIGHT person, with the result checked** | **No.** Last measured 36 of 263 (2026-10-10). Every round re-measures it and names each action nothing performs |
+| Every text box given good, bad and empty input | Only where a spec was written for it |
+
+The fifth row is the work: a spec per flow, until the named list is empty. The figure is on the
+testing board and in every round's verdict, and it is never quoted from memory — the ledger only
+means anything against the build it was recorded on (`scripts/e2e-coverage.mjs` says so when the
+two do not match).
+
 **What no layer covers, and the report says so every time:** a real phone or tablet in a hand; the
 App Store and Google Play builds (an iPhone here is Safari's engine with an iPhone's screen, on a
 Linux machine); Safari and Firefox on a Mac or on Windows; push notifications on Safari's engine.
@@ -143,7 +162,9 @@ A change is not finished until the tests know about it. What to add, by what was
 | A screen | Nothing for the walk or the layout sweep — they read the screens from the filesystem. Its guide and Help lines (`CLAUDE.md`, "Help and docs travel with the change"). |
 | An action, a form, a flow | A spec in `e2e/` that **does** it as the person who would, and reads the result back. Prove it can fail: break the code, watch it go red, put it back. Until it exists the next round reports the action as *no screen test calls it* — a finding, not a note. |
 | A format, a draw, a cut, a money rule | A scenario in `e2e/scenarios/`, or a phase in one: a tournament of that kind played by a full field, with a check against the Rules rather than against the app. List it in `SCENARIOS`. And the cell in `src/lib/__tests__/matrix.test.ts`. |
-| A country, a currency, a language | The row in `LOCALES` / `CURRENCIES` is swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
+| A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
+| A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |
+| A box with no Save button | `onKeyDown={leaveOnEnter}` above its `onBlur` (`src/lib/leave-on-enter.ts`), so Enter keeps what was typed. `saves-on-leave-saves-on-enter.test.ts` finds every box that acts when it is left and holds it to that, or to a stated reason. |
 | A kind of file nothing here names | A line in `TIER_RULES`. Until then it is treated as core, which is the safe mistake. |
 
 Three tests hold this page to the code (`src/lib/__tests__/qa-framework.test.ts`): every scenario
