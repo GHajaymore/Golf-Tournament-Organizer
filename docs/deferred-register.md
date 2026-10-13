@@ -1337,6 +1337,15 @@ that takes none (a singles match among them), so it still cannot be made to
 differ — by a screen or by a direct call. It becomes real the day a match is
 given an allowance of its own.
 
+**The rules sheet states a TEAM round's allowance only when a committee has set
+one.** An individual net round's sheet says "95% of course handicap" since
+2026-10-13, the Rules' figure or the committee's. A four-ball at the Rules' 85%,
+a foursomes at half the pair and a scramble at its shares still say nothing
+about handicaps on `/rules` and `/me/rules`; the round's card in the console
+does. It wants one sentence per kind of team handicap (a flat figure, a share
+of the pair, a split by position), which `RoundTeamScoring` already words for
+the organizer. Recommended: word it once and print it in both places.
+
 **A league night played to a shared ball would be priced off nothing.**
 `leagueMeetings` prices each `TeamScorecard` row off the player it belongs to.
 A shared-ball card belongs to no player, so it would play off scratch, where
