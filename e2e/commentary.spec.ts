@@ -22,7 +22,7 @@ import { watchPageErrors } from "./page-errors";
  *   a line is posted           → on the organizer's board with who wrote it;
  *                                on a player's Board and the public board
  *                                WITHOUT the name, under "From the …"
- *   more than three exist      → a board carries the latest three, newest first
+ *   more than three exist      → a board shows the latest, and the two before it on one tap
  *   it is taken down           → one press asks, the second does it; and it is
  *                                gone from all three screens
  *
@@ -118,13 +118,18 @@ test("the organizer posts a line; a player and the public board read it, unsigne
       data: [1, 2, 3].map((n) => ({ eventId: data.eventId, author, source: "organizer", text: `${MARK}: older line ${n}`, createdAt: new Date(Date.now() - n * hour) })),
     });
     await openBoard();
+    // The latest is on the board as it opens; the two before it are one tap away, and the scores stay near the top.
+    await expect(strip(board).getByText(LINE, { exact: false }).first(), "the newest line is not the one shown").toBeVisible();
+    await expect(strip(board).getByText("older line 1"), "an earlier line is on the board before it was asked for").toBeHidden();
+    const earlier = strip(board).locator("summary");
+    await expect(earlier, "the board does not say how many earlier updates there are").toHaveText("2 earlier updates");
+    await earlier.click();
     const shown = await strip(board).getByRole("listitem").allInnerTexts();
-    expect(shown.length, "the public board carries more or fewer than three lines").toBe(3);
-    expect(shown[0], "the newest line is not first").toContain(LINE);
-    expect(shown[1]).toContain("older line 1");
-    expect(shown[2]).toContain("older line 2");
+    expect(shown.length, "the board keeps more or fewer than two earlier lines").toBe(2);
+    expect(shown[0], "the earlier lines are not newest first").toContain("older line 1");
+    expect(shown[1]).toContain("older line 2");
     expect(shown.join("\n"), "the oldest of four is still on the board").not.toContain("older line 3");
-    expect(shown[1], "an hour-old line does not say how old it is").toContain("an hour ago");
+    expect(shown[0], "an hour-old line does not say how old it is").toContain("an hour ago");
     await prisma.commentary.deleteMany({ where: { eventId: data.eventId, text: { startsWith: `${MARK}: older line` } } });
 
     // ── taken down: the first press asks, and nothing has gone yet ──────────

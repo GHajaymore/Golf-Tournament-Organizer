@@ -14,8 +14,8 @@ import { sinceWords } from "@/lib/domain/since";
  * the boss wearing many hats. go decide" — and a live update only its author
  * can see has no reason to exist, so it is shown.
  *
- * Read-only, on the public board and on a player's Board tab: the latest few
- * lines, newest first, each with how long ago it was said.
+ * Read-only, on the public board and on a player's Board tab: the latest
+ * line, with how long ago it was said, and the two before it behind one tap.
  *
  * WHAT IT DELIBERATELY LEAVES OUT: who wrote it. On the console the author is
  * named, because a committee wants to know which of them posted. This is a
@@ -69,18 +69,49 @@ export async function CommentaryFeed({ eventId, organizer }: { eventId: string; 
       >
         From the {organizer}
       </div>
-      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
-        {lines.map((line) => (
-          <li key={line.id} style={{ minWidth: 0, fontSize: 14.5, lineHeight: 1.45, overflowWrap: "anywhere" }}>
-            {line.text}
-            <span style={{ display: "block", marginTop: 2, fontSize: 13, color: "var(--color-neutral-400)" }}>
-              {/* The same label the console gives a line a machine drafted: a reader is told. */}
-              {line.source === "ai" ? "AjAi · " : ""}
-              {sinceWords(line.createdAt, now)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {/* THE LATEST LINE, AND THE REST ONE TAP AWAY. All three were drawn at first, and on a phone they
+          pushed the scores a whole screen down — on the page people open FOR the scores (seen by
+          photographing it, 2026-10-13). What was said last is the news; what was said before it is there
+          for whoever wants it. A plain <details>: it opens without a script, so it works on a board
+          whose script has not arrived yet. */}
+      <Line line={lines[0]} now={now} />
+      {lines.length > 1 && (
+        <details>
+          <summary
+            style={{
+              cursor: "pointer",
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--color-accent-200)",
+            }}
+          >
+            {lines.length - 1 === 1 ? "1 earlier update" : `${lines.length - 1} earlier updates`}
+          </summary>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 }}>
+            {lines.slice(1).map((line) => (
+              <li key={line.id} style={{ minWidth: 0 }}>
+                <Line line={line} now={now} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
+  );
+}
+
+function Line({ line, now }: { line: { text: string; source: string; createdAt: Date }; now: Date }) {
+  return (
+    <p style={{ margin: 0, minWidth: 0, fontSize: 14.5, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+      {line.text}
+      <span style={{ display: "block", marginTop: 2, fontSize: 13, color: "var(--color-neutral-400)" }}>
+        {/* The same label the console gives a line a machine drafted: a reader is told. */}
+        {line.source === "ai" ? "AjAi · " : ""}
+        {sinceWords(line.createdAt, now)}
+      </span>
+    </p>
   );
 }

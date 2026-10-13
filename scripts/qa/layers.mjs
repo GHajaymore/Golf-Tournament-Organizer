@@ -110,7 +110,10 @@ export function layersFor(round) {
       cannotSee: "the app's screens with motion on — they barely move, and are not run this way",
       cookies: "secure",
       env: { E2E_MOTION: "full" },
-      specs: ["e2e/landing-screens.spec.ts", "e2e/landing-legible.spec.ts", "e2e/front-door.spec.ts"],
+      // Not the readability scan: it photographs the page twice and compares, which needs a page that is
+      // still. What it would have caught with the motion on — a part left faint for good — is asked
+      // directly, by "every part of the front door that waits to arrive does arrive".
+      specs: ["e2e/landing-screens.spec.ts", "e2e/front-door.spec.ts"],
       projects: [],
       minutes: 20,
     },

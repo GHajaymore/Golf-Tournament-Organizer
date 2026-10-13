@@ -322,3 +322,63 @@ test("a phone's bottom bar is up only mid-page, and unreachable when it is down"
   await at(startTop, "at the sign-up form", { shown: false, reachable: false });
   await at(height, "at the footer", { shown: false, reachable: false });
 });
+
+/**
+ * WITH ITS MOTION ON, EVERYTHING THAT WAITS TO ARRIVE DOES ARRIVE (2026-10-13).
+ *
+ * The front door holds a section back — dimmed to a sixth, shifted or tilted —
+ * until it is scrolled to, then lets it settle. That is the page nearly every
+ * visitor gets, and until tonight no test had ever looked at it: the suite asks
+ * for reduced motion, where nothing is held back at all.
+ *
+ * What can go wrong with that is not subtle and is not caught by anything
+ * else. A part is released when 18% of it is on screen. A part too tall for
+ * 18% of it ever to fit a small phone's window is never released — and stays
+ * at a sixth of its ink for good, on the phones with the least room. The
+ * readability scan cannot see it (it photographs the page twice and needs it
+ * still), and reduced motion never arms anything.
+ *
+ * So the page is walked the way a thumb walks it, and then every part that was
+ * armed must have been let go and be at full ink. Run with `E2E_MOTION=full`
+ * this is the test; without it nothing is armed, and it says so rather than
+ * passing on nothing.
+ */
+test("with its motion on, every part of the front door that waits to arrive does arrive", async ({ page }) => {
+  test.skip(process.env.E2E_MOTION !== "full", "nothing is held back when a visitor asks for less motion: run with E2E_MOTION=full");
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".thq h1")).toHaveCount(1);
+  // CONTROL: the motion really is on, and parts really are being held back.
+  const armed = await page.locator(".m-armed").count();
+  expect(armed, "nothing on the page is waiting to arrive — is the motion on?").toBeGreaterThan(5);
+
+  // A thumb's walk: a third of a screen at a time, with a breath at each stop.
+  const [height, screen] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight]);
+  for (let y = 0; y <= height; y += Math.round(screen / 3)) {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+    await page.waitForTimeout(120);
+  }
+
+  const held = () =>
+    page.evaluate(() =>
+      Array.from(document.querySelectorAll(".m-armed:not(.m-in)")).filter((el) => el.getClientRects().length > 0).map((el) => {
+        const box = el.getBoundingClientRect();
+        return `${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 2).join(".")} — ${Math.round(box.height)}px tall in a ${window.innerHeight}px window`;
+      }),
+    );
+  await expect.poll(held, { message: "parts of the page were scrolled past and never let go", timeout: 10_000 }).toEqual([]);
+
+  // Let go is not arrived: each must finish, and finish at full ink and square.
+  await page.waitForFunction(
+    () => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity),
+    null,
+    { timeout: 10_000 },
+  ).catch(() => {});
+  const faint = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".m-armed"))
+      .filter((el) => el.getClientRects().length > 0 && Number(getComputedStyle(el).opacity) < 0.99)
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 2).join(".")} at ${getComputedStyle(el).opacity}`),
+  );
+  expect(faint, "parts of the page that arrived and are still faint").toEqual([]);
+});
