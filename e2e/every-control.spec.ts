@@ -114,16 +114,27 @@ async function controlsOn(page: Page): Promise<Control[]> {
      * findings in the first round after the seeded club went onto a paid plan,
      * which is what unlocked the tick (round G29-1, 2026-10-13). The control
      * had not moved. Its description had done what a description is for.
+     *
+     * Whichever label is the one that names it — its own, or the first in its
+     * field, which for this tick is the same element: the first attempt at this
+     * changed only the last rung below, and the rung above it had already
+     * answered with the whole text. Only for a tick-box or a choice: a label
+     * wrapped round a dropdown has the dropdown's options in its text, and those
+     * names are keys in the tables further down.
      */
-    const nameIn = (label: HTMLElement | null) =>
-      label ? ((label.innerText ?? "").split("\n").find((line) => line.trim()) ?? label.textContent) : null;
+    const nameOf = (label: Element | null | undefined, el: Element) => {
+      if (!label) return null;
+      const wrapsATick = label.contains(el) && el instanceof HTMLInputElement;
+      if (!wrapsATick) return label.textContent;
+      return ((label as HTMLElement).innerText ?? "").split("\n").find((line) => line.trim()) ?? label.textContent;
+    };
     const labelOf = (el: Element) => {
       const id = el.getAttribute("id");
       const byFor = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
       const field = el.closest(".field");
       return clean(
-        el.getAttribute("aria-label") || byFor?.textContent || field?.querySelector("label")?.textContent ||
-          nameIn(el.closest("label")) || el.getAttribute("title") || el.getAttribute("name"),
+        el.getAttribute("aria-label") || nameOf(byFor, el) || nameOf(field?.querySelector("label"), el) ||
+          nameOf(el.closest("label"), el) || el.getAttribute("title") || el.getAttribute("name"),
       ).slice(0, 70);
     };
     const shown = (el: Element) => {
