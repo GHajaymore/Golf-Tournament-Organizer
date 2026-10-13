@@ -71,6 +71,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "To change a role, pick the new one, then confirm with [[Yes — make ‹name› ‹role›]]. Picking alone changes nothing.",
           "Each organizer or assistant uses a staff seat on your plan. The last organizer on a tournament can't be removed or demoted — promote someone else first.",
           "Club staff are added the same way under Club settings, by email address. There is nothing for them to accept: they are staff at once, and are emailed. Until they next sign in the list shows the address you typed and **Invited — not opened yet**, not their name.",
+          "A role at the club is changed the same way as one on a tournament: pick it, then confirm. It reaches further — an **Admin** is an organizer on every tournament the club runs, and the confirmation says so before you agree.",
           "Anyone added can leave again themselves, from Your account → Your clubs. A club's only Commissioner can't leave until somebody else is one.",
         ],
       },

@@ -1249,3 +1249,37 @@ used to count both under the roster's name.
 
 Recommended when it is taken up: count a missed cut as played, with no points;
 keep a no-show, a withdrawal before play and a disqualification as not played.
+
+## A club with nobody in it locks out whoever adds its first member — NOT FIXED, a legacy state only (2026-10-13)
+
+Found by the first browser test to add somebody to a club (`e2e/club-staff.spec.ts`).
+
+`org-access.ts` lets a tournament's organizer administer a club that has **no
+members at all** — the "ownerless" hatch, kept so that a club from before
+memberships existed is not left unadministrable. The moment that club has ANY
+member, the hatch is shut and only its Commissioners and Admins may administer
+it. That is the rule that stops one tournament's organizer taking a club, and
+it is right.
+
+Put together they give this, measured on the e2e fixture's club, which is
+ownerless: the organizer opens Club settings, adds a colleague as Admin, and
+every control on the screen is disabled a moment later — the organizer has no
+membership of their own, and the club is no longer memberless. Add the first
+person as a **Member** instead, who has no rights, and nobody at all can
+administer the club from then on.
+
+**Who can be in that state.** Not a club made through the app: `createOrganizationWithOwner`
+gives its maker the Commissioner's seat, and has since memberships existed. Only
+an organization that predates them and has not been through
+`scripts/backfill-org-owners.ts`. Every club in production today is test data,
+so nobody is waiting on this.
+
+**Why it was not changed in passing.** The obvious repair — when an ownerless
+club's organizer adds its first member, seat the organizer as Commissioner in
+the same write — is a change to who owns a club, in the file the 2026-08-12
+audit called the most dangerous thing it found. It wants its own change and its
+own tests, not a line added beside a test about something else.
+
+Recommended: run the backfill everywhere, then delete the hatch, so that the
+state cannot exist at all. Until then the fixture's club is given a Commissioner
+by any spec that manages its staff.

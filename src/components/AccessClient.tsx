@@ -38,12 +38,17 @@ export function RoleChangeConfirm({
         Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
         {change.lastAdmin ? (
           <span style={{ display: "block", color: "var(--color-danger)", marginTop: 2 }}>
-            <Icon name="warning" /> This is the only {change.adminName} on the event — promote someone else first,
+            <Icon name="warning" /> This is the only {change.adminName}
+            {(change.place ?? "on the event") && ` ${change.place ?? "on the event"}`} — promote someone else first,
             or this will be refused.
           </span>
         ) : change.demotion ? (
           <span className="text-muted" style={{ display: "block", marginTop: 2 }}>
             {change.name} loses {change.from} access.
+          </span>
+        ) : change.grants ? (
+          <span className="text-muted" style={{ display: "block", marginTop: 2 }}>
+            {change.grants}
           </span>
         ) : null}
       </p>
