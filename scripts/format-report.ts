@@ -30,7 +30,7 @@ import { modifiedStablefordForHole } from "../src/lib/domain/stroke";
 import { aggregateTeamCard, singleBallTeamCard, sideHandicap } from "../src/lib/domain/team";
 import { playSkins } from "../src/lib/domain/skins";
 import { resolveMatch } from "../src/lib/domain/match";
-import { courseHandicap } from "../src/lib/domain/handicap";
+import { courseHandicap, courseHandicapExact, playingHandicapFrom } from "../src/lib/domain/handicap";
 
 /* ── One real course and one real field, used by every format ─────────────── */
 
@@ -68,6 +68,13 @@ const CARDS = FIELD.map((p, i) => ({ ...p, strokes: roundFor(i + 1) }));
 
 /** Course handicap off the real WHS conversion, not the raw index. */
 const courseHcp = new Map(CARDS.map((c) => [c.id, courseHandicap(c.index, TEE)]));
+/**
+ * And the same figure before rounding, which is what an allowance is taken of
+ * (Rules of Handicapping, 6.2a). This report took every allowance of the rounded
+ * figure, as the app did until 2026-10-13 — so the page a person was meant to
+ * read against the Rules agreed with the app about a stroke it had wrong.
+ */
+const courseExact = new Map(CARDS.map((c) => [c.id, courseHandicapExact(c.index, TEE)]));
 
 const nameOf = (id: string) => FIELD.find((p) => p.id === id)?.name ?? id;
 const pad = (s: string, n: number) => (s.length >= n ? s : s + " ".repeat(n - s.length));
@@ -92,7 +99,7 @@ function heading(title: string, sub: string) {
 const strokeOpts = (allowance: number, engine: string) => ({
   courseFor: () => ({ pars: PARS, holeDifficulty: SI, holes: 18 }),
   handicapFor: (playerId: string) =>
-    Math.round(((courseHcp.get(playerId) ?? 0) * allowance) / 100),
+    playingHandicapFrom(courseExact.get(playerId) ?? 0, allowance),
   holeStrokesReceived,
   stablefordPointsForHole:
     engine === "modified-stableford" ? modifiedStablefordForHole : stablefordPointsForHole,
@@ -112,7 +119,7 @@ function individualBoard(engine: string, allowance: number) {
     const a = agg.get(c.id)!;
     return {
       name: c.name,
-      hcp: Math.round(((courseHcp.get(c.id) ?? 0) * allowance) / 100),
+      hcp: playingHandicapFrom(courseExact.get(c.id) ?? 0, allowance),
       gross: a.gross,
       net: netOf(a),
       toPar: a.gross - a.parThru,
@@ -207,7 +214,8 @@ function teamBoard(formatName: string) {
     const members = side.members.map((m) => ({
       playerId: m.id,
       strokes: m.strokes as (number | null)[],
-      courseHandicap: courseHcp.get(m.id) ?? 0,
+      // Before rounding: both branches below take an allowance of it.
+      courseHandicap: courseExact.get(m.id) ?? 0,
     }));
 
     let card;
