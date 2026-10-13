@@ -45,11 +45,14 @@ describe("the catalog", () => {
     }
   });
 
-  it("marks conventions as conventions", () => {
-    // The scramble family has no published WHS allowance. Presenting a local
-    // custom as a standard would be a quiet factual error in the UI.
-    expect(findFormat("Scramble").allowanceIsConvention).toBe(true);
-    expect(findFormat("Texas Scramble").allowanceIsConvention).toBe(true);
+  it("marks conventions as conventions, and only those", () => {
+    // A shamble has no line in Appendix C. Presenting a local custom as a
+    // standard would be a quiet factual error in the UI.
+    expect(findFormat("Shamble").allowanceIsConvention).toBe(true);
+    // The scrambles have had one for years (and a side of three since 2024):
+    // presenting a standard as a local custom is the same error the other way.
+    expect(findFormat("Scramble").allowanceIsConvention).toBeUndefined();
+    expect(findFormat("Texas Scramble").allowanceIsConvention).toBeUndefined();
     // Foursomes does have one.
     expect(findFormat("Foursomes").allowanceIsConvention).toBeUndefined();
   });

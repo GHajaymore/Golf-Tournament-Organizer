@@ -189,7 +189,7 @@ export const FAQ: FaqGroup[] = [
         q: "How are course handicaps calculated?",
         a: () => (
           <>
-            <p>To the published World Handicap System method, from the tee&rsquo;s own rating and slope then the format&rsquo;s allowance: the published one where there is one, and a common club convention for scrambles and shambles. Never the raw index.</p>
+            <p>To the published World Handicap System method, from the tee&rsquo;s own rating and slope then the format&rsquo;s allowance: the published one where there is one, and a common club convention for a shamble, which has none. Never the raw index.</p>
             <div className="hc">
               <span>Handicap index</span><span>{hc.index.toFixed(1)}</span>
               <span>Course rating / slope</span><span>{hc.tee.courseRating} / {hc.tee.slopeRating}</span>

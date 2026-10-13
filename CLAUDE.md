@@ -1661,6 +1661,14 @@ stage.type)`); the round's type is a required argument, so a caller cannot ask t
 and `round-allowance.test.ts` refuses a file that reads `findFormat(x).allowance` for a round.
 Best Ball's figure for a side of four is still not the table's — see the register.
 
+**And the table is read against the SOURCE each time, not against the test that says it was.**
+`handicap-allowances.test.ts` held the scrambles to being "a club convention, not a published
+standard", with a paragraph explaining why that was the honest thing to say. Appendix C has carried
+a scramble of four (25/20/15/10) and of two (35/15) for years, and the 2024 edition added a scramble
+of three at 30/20/10 — where the app played 25/20/15, the four's shares with the last one dropped,
+which is nobody's table. A test that asserts a fact about the Rules is as dated as the day somebody
+last read the Rules; the header of that file says when.
+
 ## Course cards: measure a guard before you ship it
 
 A wrong card is invisible — a bad stroke index allocates shots to the wrong holes for the

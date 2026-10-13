@@ -217,9 +217,20 @@ export function committeeWeights(weights: number[] | undefined | null, sideSize:
   return weights.map((w) => Math.round(w));
 }
 
-/** The common 4-person scramble allowance table, best player first. */
+/**
+ * A SCRAMBLE'S SHARES, LOWEST HANDICAP FIRST — Rules of Handicapping, Appendix C.
+ *
+ *     Scramble (4 players)   25% / 20% / 15% / 10%
+ *     Scramble (3 players)   30% / 20% / 10%      (added in the 2024 edition)
+ *     Scramble (2 players)   35% / 15%
+ *
+ * These were described here as "the common" tables and marked as a club
+ * convention, which they were before the appendix carried them. And a side of
+ * three played off 25/20/15, the four's shares with the last one dropped, which
+ * is nobody's table: 2026-10-13, found by reading the appendix line by line.
+ */
 export const SCRAMBLE_WEIGHTS_4 = [25, 20, 15, 10];
-/** The common 2-person scramble allowance table. */
+export const SCRAMBLE_WEIGHTS_3 = [30, 20, 10];
 export const SCRAMBLE_WEIGHTS_2 = [35, 15];
 
 /**

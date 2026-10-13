@@ -20,6 +20,7 @@ import {
   aggregateTeamCard,
   singleBallTeamCard,
   SCRAMBLE_WEIGHTS_2,
+  SCRAMBLE_WEIGHTS_3,
   SCRAMBLE_WEIGHTS_4,
 } from "../domain/team";
 
@@ -261,7 +262,8 @@ export function sidePlayingHandicap(
   const declared = f.weightsBySideSize?.[courseHandicaps.length];
   if (declared) return sideHandicap(courseHandicaps, 0, declared);
   if (/scramble/i.test(f.name)) {
-    const weights = courseHandicaps.length > 2 ? SCRAMBLE_WEIGHTS_4 : SCRAMBLE_WEIGHTS_2;
+    const weights =
+      courseHandicaps.length >= 4 ? SCRAMBLE_WEIGHTS_4 : courseHandicaps.length === 3 ? SCRAMBLE_WEIGHTS_3 : SCRAMBLE_WEIGHTS_2;
     return sideHandicap(courseHandicaps, 0, weights);
   }
   return sideHandicap(courseHandicaps, f.allowance);

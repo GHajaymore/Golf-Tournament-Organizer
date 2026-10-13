@@ -292,7 +292,8 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
  * card prints it): 85% for a four-ball at stroke play, for best ball and for a
  * shamble; half the pair for foursomes and alternate shot; 60% of the lower
  * handicap and 40% of the higher for greensomes and Chapman; 25, 20, 15 and 10
- * for a scramble of four, lowest first, and 35 and 15 for one of two. What is
+ * for a scramble of four, lowest first, 30, 20 and 10 for one of three, and 35
+ * and 15 for one of two. What is
  * held to the Rules here is the ARITHMETIC under those figures: each share is
  * taken of a player's course handicap BEFORE it is rounded, the shares are
  * added, and the total is rounded once (6.2a, and the committee procedures for
@@ -305,8 +306,8 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
 const SHARES: Record<string, Record<number, number[]>> = {
   "Chapman / Pinehurst": { 2: [60, 40] },
   Greensomes: { 2: [60, 40] },
-  Scramble: { 2: [35, 15], 3: [25, 20, 15], 4: [25, 20, 15, 10] },
-  "Texas Scramble": { 2: [35, 15], 3: [25, 20, 15], 4: [25, 20, 15, 10] },
+  Scramble: { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] },
+  "Texas Scramble": { 2: [35, 15], 3: [30, 20, 10], 4: [25, 20, 15, 10] },
 };
 const HALF_THE_PAIR = new Set(["Foursomes", "Alternate Shot"]);
 const OWN_BALL: Record<string, number> = { "Four-Ball": 85, "Best Ball": 85, Shamble: 85 };
