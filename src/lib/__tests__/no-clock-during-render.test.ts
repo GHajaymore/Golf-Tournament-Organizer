@@ -66,6 +66,10 @@ const ALLOWED: Record<string, { reads: number; why: string }> = {
     reads: 1,
     why: "the press handler's double-tap window (a repeat inside 400ms is not a clear) — runs on a tap, never during render",
   },
+  "src/components/LoginPanel.tsx": {
+    reads: 1,
+    why: "the sign-up press stamps when it asked for the bot check (`askForBotCheck`), inside the submit handler's transition — runs on a press, never during render",
+  },
   "src/components/PaceOfPlay.tsx": {
     reads: 2,
     why: "mount-only state plus its half-minute tick, both inside useEffect; the panel draws nothing until there is a clock, because pace is measured on the committee's own",
