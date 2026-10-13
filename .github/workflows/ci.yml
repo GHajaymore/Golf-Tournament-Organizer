@@ -28,9 +28,13 @@ name: CI
 # those are free on a public repository. Wall clock is the thing anyone is
 # actually waiting for.
 
+# NOT on a `round/**` branch. A round is a push of a commit that already has its
+# pull request's checks, so running these again there tested nothing new and
+# took six machines from each round as it started: three rounds pushed together
+# waited up to 21 minutes for a machine (measured 2026-10-13).
 on:
   push:
-    branches: ["**"]
+    branches: ["**", "!round/**"]
   pull_request:
   workflow_dispatch:
 

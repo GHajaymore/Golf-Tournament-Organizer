@@ -52,6 +52,34 @@ const FULL = !!process.env.E2E_EVERYTHING;
 const ONLY_EVENT = process.env.E2E_ONLY_EVENT ?? "";
 /** One screen, named WITHOUT its slash (`E2E_ONLY_SCREEN=event`): Git Bash rewrites a value that starts with one into a Windows path. */
 const ONLY_SCREEN = process.env.E2E_ONLY_SCREEN ? `/${process.env.E2E_ONLY_SCREEN.split("/").filter(Boolean).join("/")}` : "";
+/**
+ * ONE SHARE OF THE CONSOLE'S CONTROLS, for a round's parts: `E2E_CRAWL_PART=2/4`
+ * operates the second quarter of them, and `0/4` operates none — that part is
+ * running the rest of the suite.
+ *
+ * The console crawl is one test and was the longest thing in a round by half an
+ * hour: the round took 74 minutes because its part took 62 while the next
+ * longest took 34 (measured 2026-10-13). A test cannot be cut by `--shard`, so
+ * it is cut here, BY CONTROL. Not by tournament: a control met on one tournament
+ * is not operated again on the next, so a share of the tournaments would operate
+ * nearly every control again and save nothing. And not by screen, which was
+ * tried first: a few screens hold most of the controls, and one share of four
+ * came out with 20 controls of 382. Every share opens every screen — that is
+ * the cheap half — and operates the controls whose name falls to it.
+ *
+ * The shares add up to the crawl. `scripts/qa/layers.mjs` makes a part of each
+ * and `qa-framework.test.ts` holds that none is missing; `scripts/qa/merge.mjs`
+ * adds their counts and holds the total to the crawl's own minimum.
+ */
+const [CRAWL_PART, CRAWL_PARTS] = (process.env.E2E_CRAWL_PART ?? "").split("/").map(Number);
+const IN_PARTS = Number.isInteger(CRAWL_PARTS) && CRAWL_PARTS > 0;
+/** Which share a control belongs to: from its own name, so it is the same share on every machine and every run. */
+const shareOf = (key: string) => {
+  let h = 0;
+  for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h % CRAWL_PARTS;
+};
+const inThisPart = (key: string) => !IN_PARTS || shareOf(key) === CRAWL_PART - 1;
 
 const sign = (v: string) =>
   `${v}.${createHmac("sha256", process.env.AUTH_SECRET ?? "dev-secret").update(v).digest("base64url")}`;
@@ -496,6 +524,8 @@ interface Run {
   session: string;
   screens: string[];
   atLeast: number;
+  /** This crawl is cut into a round's parts by `E2E_CRAWL_PART`. */
+  inParts?: boolean;
 }
 
 async function crawl(page: Page, context: BrowserContext, baseURL: string, run: Run) {
@@ -535,6 +565,8 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
       for (const c of here) {
         const key = `${path}|${c.kind}|${c.label}|${c.choices.length}`;
         if (done.has(key)) continue;
+        // Another machine has this one: see `E2E_CRAWL_PART`.
+        if (run.inParts && !inThisPart(key)) continue;
         // Counted once, but only SETTLED once it has actually been saved
         // somewhere: a control that is locked on a live tournament is met
         // again on the draft, where it can be.
@@ -584,15 +616,17 @@ async function crawl(page: Page, context: BrowserContext, baseURL: string, run: 
   console.log(never.map((n) => `[every-control]   ${n}`).join("\n"));
   console.log(findings.map((f) => `[every-control]   ${f}`).join("\n"));
   // CONTROL: a crawl that operated almost nothing passes by doing nothing.
-  if (!ONLY_EVENT && !ONLY_SCREEN) expect(controls, "the crawl found almost no controls").toBeGreaterThan(run.atLeast);
+  // A share of the screens is held to the minimum by the merge, which adds the shares up.
+  if (!ONLY_EVENT && !ONLY_SCREEN && !(run.inParts && IN_PARTS)) expect(controls, "the crawl found almost no controls").toBeGreaterThan(run.atLeast);
   if (run.atLeast > 0) expect(tally.kept ?? 0, "nothing was ever kept — the crawl is not saving anything").toBeGreaterThan(0);
   expect(findings, `${findings.length} findings across ${choices} choices on ${controls} controls`).toEqual([]);
 }
 
 test("every dropdown, choice and tick-box on every console screen keeps what is chosen", async ({ page, context, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "the console's controls are operated at the desktop width");
+  test.skip(IN_PARTS && CRAWL_PART === 0, "the console crawl is another part of this round");
   test.setTimeout(6 * 60 * 60 * 1000);
-  await crawl(page, context, baseURL!, { who: "secretary", session: club.organizer.session, screens: consoleScreens(), atLeast: 150 });
+  await crawl(page, context, baseURL!, { who: "secretary", session: club.organizer.session, screens: consoleScreens(), atLeast: 150, inParts: true });
 });
 
 /**

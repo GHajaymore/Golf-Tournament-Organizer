@@ -277,6 +277,9 @@ export function layersFor(round) {
  * union of the parts is exactly the layer, and `qa-framework.test.ts` holds
  * that to be so.
  */
+/** How many machines the console crawl is shared between. See `E2E_CRAWL_PART` in e2e/every-control.spec.ts. */
+export const CRAWL_PARTS = 4;
+
 export function partsFor(round) {
   const parts = [];
   const all = ["phone", "small-phone", "desktop"];
@@ -296,8 +299,14 @@ export function partsFor(round) {
     if (layer.specs.length === 0) {
       for (const project of projects) {
         const shards = layer.key === "suite" && project === "desktop" ? 3 : layer.key === "suite" && project === "phone" ? 2 : 1;
+        // The console crawl is one test, on the laptop size of the suite, and as long as everything
+        // else in that size together. It is taken out of the shards and given parts of its own.
+        const crawl = layer.key === "suite" && project === "desktop" ? CRAWL_PARTS : 0;
+        for (let k = 1; k <= crawl; k += 1) {
+          parts.push({ id: `${layer.key}-${project}-crawl-${k}of${crawl}`, layer: layer.key, args: `--only=${layer.key} --projects=${project} --crawl=${k}/${crawl}`, browsers, minutes: layer.minutes });
+        }
         for (let i = 1; i <= shards; i += 1) {
-          parts.push({ id: `${layer.key}-${project}${shards > 1 ? `-${i}of${shards}` : ""}`, layer: layer.key, args: `--only=${layer.key} --projects=${project}${shards > 1 ? ` --shard=${i}/${shards}` : ""}`, browsers, minutes: layer.minutes });
+          parts.push({ id: `${layer.key}-${project}${shards > 1 ? `-${i}of${shards}` : ""}`, layer: layer.key, args: `--only=${layer.key} --projects=${project}${shards > 1 ? ` --shard=${i}/${shards}` : ""}${crawl ? ` --crawl=0/${crawl}` : ""}`, browsers, minutes: layer.minutes });
         }
       }
     } else {

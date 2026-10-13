@@ -125,6 +125,17 @@ for (const r of rows.filter((x) => x.ran)) {
   if (r.didNotRun) findings.push(`${r.key}: ${r.didNotRun} did not run`);
   if (r.hydration) findings.push(`${r.key}: ${r.hydration} hydration mismatch(es) recorded`);
 }
+// The console crawl runs as shares on machines of their own (`E2E_CRAWL_PART`). Each says how many
+// controls it operated; a share cannot know the total, so the crawl's own minimum is held to their sum here.
+const CRAWL_AT_LEAST = 150;
+const shares = (rows.find((r) => r.key === "suite" && r.ran)?.said ?? [])
+  .map((line) => /^\[every-control\] secretary: (\d+) controls/.exec(line))
+  .filter(Boolean)
+  .map((m) => Number(m[1]));
+const crawled = shares.reduce((a, b) => a + b, 0);
+if (shares.length > 1 && crawled <= CRAWL_AT_LEAST) {
+  findings.push(`suite: the console crawl's ${shares.length} shares operated ${crawled} controls between them — the crawl finds more than ${CRAWL_AT_LEAST}`);
+}
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
 if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
 

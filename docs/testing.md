@@ -25,6 +25,7 @@ whether it can be read and used.
 | `npm run qa:round -- <NAME>` | Is this app sound, all over? | Before function or core changes reach production. |
 | `npm run qa:status` | How many clean rounds does this app have? | Whenever somebody asks. Never answer from memory. |
 | The **Round** workflow on GitHub | The same round, its parts side by side, in under an hour | The normal way to run a whole round. |
+| `node scripts/qa/burn-in.mjs` | Do the tests this change adds or touches pass every time, not most times? | Before a round is spent on them. See "What a round costs" below. |
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
@@ -188,6 +189,44 @@ user would have seen, and then it is one of two things:
 
 The second kind must not be used to wave through the first. If there is doubt about which it is,
 it is the first.
+
+## What a round costs, and how it is kept short
+
+Ajay, 2026-10-13: "how can we reduce the testing time without impacting the testing
+efficiencies". Measured that day on a clean round (35 parts):
+
+| | |
+|---|---|
+| Machine time for one round | 445 minutes |
+| Wall clock for one round | 74 minutes |
+| Its longest part | 62 minutes: the laptop suite's first shard, which held the console crawl |
+| Its next longest part | 34 minutes |
+| A part's longest wait for a machine | 21 minutes, with three rounds pushed together |
+| Rounds that week which stopped on a test's own mistake | 2 of the last 7; none of the 7 stopped on the app |
+
+So three things, in order of what they save. None of them removes a test.
+
+1. **A round is not spent on a test's own mistakes.** A test that is wrong about timing passes
+   most of the time, so one run of it proves little. Before a round, `node scripts/qa/burn-in.mjs`
+   runs every spec the change adds or touches five times at laptop and phone size, and each must
+   pass every time. A round that stops on a new test costs that round and the one that confirms
+   the fix: two hours, against the ten minutes this takes.
+2. **A round takes as long as its slowest part, so no part is twice the others.** The console
+   crawl is one test and `--shard` cannot cut a test, so it is cut by SCREEN into four parts
+   (`E2E_CRAWL_PART`, `CRAWL_PARTS` in `layers.mjs`); the merge adds the four counts and holds the
+   total to the crawl's own minimum. When a part grows past about thirty minutes, cut it the same
+   way rather than waiting on it.
+3. **Nothing is run twice for no reason.** The every-push checks do not run on a `round/**`
+   branch: a round is a push of a commit that already has its pull request's checks.
+
+What decides the time of THREE rounds pushed together is not any of that: it is 1,335 minutes of
+machine time over the twenty machines the account may use at once, which is 67 minutes however the
+parts are cut. Doubling the machines (GitHub's paid plan allows forty) is the only thing that
+halves it, and is Ajay's to decide.
+
+**What is not on the list, deliberately:** fewer browsers, fewer rounds for a change to scoring,
+a shorter crawl, or re-running a failed part until it passes. Each of those is where a fault this
+suite found was found.
 
 ## Keeping it true when the app changes
 

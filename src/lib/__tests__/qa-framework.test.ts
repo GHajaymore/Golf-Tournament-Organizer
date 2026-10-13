@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
-import { ABROAD, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
 
 /**
  * THE TESTING FRAMEWORK IS HELD TO THE FILES ON DISK.
@@ -112,11 +112,28 @@ describe("the parts of a round add up to the round", () => {
       for (const size of sizes) {
         const forSize = mine.filter((p) => p.args.includes(`--projects=${size}`) && !p.args.includes(`--projects=${size}-`));
         expect(forSize.length, `${layer.key} has no part for ${size}`).toBeGreaterThan(0);
-        const shards = forSize.map((p) => (p.args.match(/--shard=(\d+)\/(\d+)/) ?? []).slice(1).map(Number));
+        // A share of the console crawl is a part of its own, beside the shards: `--crawl=2/4`.
+        const crawlOf = (p: { args: string }) => (p.args.match(/--crawl=(\d+)\/(\d+)/) ?? []).slice(1).map(Number);
+        const crawling = forSize.filter((p) => (crawlOf(p)[0] ?? 0) > 0);
+        const rest = forSize.filter((p) => !crawling.includes(p));
+        const shards = rest.map((p) => (p.args.match(/--shard=(\d+)\/(\d+)/) ?? []).slice(1).map(Number));
         if (shards.some((s) => s.length)) {
           const of = shards[0][1];
           expect(shards.map((s) => s[0]).sort()).toEqual(Array.from({ length: of }, (_, i) => i + 1));
           expect(shards.every((s) => s[1] === of)).toBe(true);
+        }
+        if (crawling.length) {
+          // Every share is there once, they agree how many there are, and each runs nothing but the crawl...
+          const of = crawlOf(crawling[0])[1];
+          expect(of, `${layer.key} ${size}`).toBe(CRAWL_PARTS);
+          expect(crawling.map((p) => crawlOf(p)[0]).sort()).toEqual(Array.from({ length: of }, (_, i) => i + 1));
+          expect(crawling.every((p) => crawlOf(p)[1] === of && !p.args.includes("--shard="))).toBe(true);
+          // ...and every other part of that size leaves the crawl to them, or it would be run twice — or, with
+          // the flag forgotten on one shard, by a part that takes an hour again.
+          expect(rest.length).toBeGreaterThan(0);
+          expect(rest.every((p) => p.args.includes(`--crawl=0/${of}`)), `${layer.key} ${size}: a part beside the crawl's does not skip it`).toBe(true);
+        } else {
+          expect(rest.some((p) => p.args.includes("--crawl=")), `${layer.key} ${size} skips a crawl nobody runs`).toBe(false);
         }
       }
     }

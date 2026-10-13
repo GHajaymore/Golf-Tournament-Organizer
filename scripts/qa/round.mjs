@@ -51,6 +51,9 @@ const ONLY = value("only") ? value("only").split(",") : null;
 const SKIP = value("skip") ? value("skip").split(",") : [];
 const PROJECTS = value("projects") ? value("projects").split(",") : null;
 const SHARD = value("shard");
+// One share of the console crawl (`--crawl=2/4`), or none of it (`--crawl=0/4`): see e2e/every-control.spec.ts.
+const CRAWL = value("crawl");
+const CRAWL_ONLY = Boolean(CRAWL) && !CRAWL.startsWith("0/");
 const SCENARIO = value("scenario") ? value("scenario").split(",") : null;
 
 const git = (...a) => spawnSync("git", a, { encoding: "utf8" }).stdout.trim();
@@ -272,6 +275,7 @@ for (const layer of layers) {
   }
 
   const env = { AUTH_SECRET: SECRET, E2E_PORT: String(PORT), E2E_REUSE_SERVER: "1", ...layer.env };
+  if (CRAWL) env.E2E_CRAWL_PART = CRAWL;
   if (env.E2E_TZ === "@far-zone") env.E2E_TZ = farZone();
   if (layer.env?.E2E_TZ === "@far-zone" && !env.E2E_TZ) {
     results.push({ ...row(layer), ran: false, why: "no zone is on another day right now" });
@@ -279,13 +283,15 @@ for (const layer of layers) {
   }
   const projects = PROJECTS ?? layer.projects;
   const log = join(OUT, `${layer.key}.log`);
-  const command = ["npx playwright test", ...layer.specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
+  // A share of the crawl is that one spec; every other part runs the layer's own list.
+  const specs = CRAWL_ONLY ? ["e2e/every-control.spec.ts"] : layer.specs;
+  const command = ["npx playwright test", ...specs, ...projects.map((p) => `--project=${p}`), SHARD ? `--shard=${SHARD}` : "", "--reporter=line"].filter(Boolean).join(" ");
   const code = await run(command, { env, log, minutes: layer.minutes });
   const r = read(log);
   const minutes = Math.round((Date.now() - t0) / 60_000);
   // A run that reports nothing passed has not tested anything, whatever its exit code says.
   const empty = r.passed === 0;
-  const partial = [PROJECTS ? PROJECTS.join("+") : "", SHARD ? `shard ${SHARD}` : ""].filter(Boolean).join(", ");
+  const partial = [PROJECTS ? PROJECTS.join("+") : "", SHARD ? `shard ${SHARD}` : "", CRAWL_ONLY ? `crawl ${CRAWL}` : ""].filter(Boolean).join(", ");
   results.push({ ...row(layer), reallyIs: layer.reallyIs + (layer.key === "elsewhere" ? ` (${env.E2E_TZ})` : ""), ran: true, exit: code, ...r, empty, minutes, unit: "tests", partial });
   say(`${layer.key}${partial ? ` (${partial})` : ""}: ${r.passed} passed, ${r.failed} failed${r.flaky ? `, ${r.flaky} flaky` : ""}${r.didNotRun ? `, ${r.didNotRun} did not run` : ""}, hydration ${r.hydration} — exit ${code}, ${minutes} min${r.stopped ? " — STOPPED ON TIME" : ""}`);
   for (const line of r.said) say(`    ${line}`);
