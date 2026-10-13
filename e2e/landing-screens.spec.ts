@@ -231,9 +231,16 @@ test("the theme slider shows one board in four themes, and dragging moves the ba
   // asked for until they are there. The first run of this test asked once, at once, and failed
   // on a slider that was working (2026-10-12).
   await expect.poll(async () => (await onTop()).loaded, { message: "a theme's capture did not load", timeout: 15_000 }).toEqual([true, true, true, true]);
-  const rest = await onTop();
+  // WITH ITS MOTION ON THE BANDS SWAY, and this file runs with motion on. The sample points sit a
+  // sixteenth apart and so do the three boundaries, so four times in every sway all three boundaries
+  // stand on sample points at once — and a point on the edge of two clipped pictures is on neither.
+  // One reading, taken at a random instant, was therefore "nothing" about one run in nine (seen on
+  // GitHub, 2026-10-13, on code identical to a run that passed; worked out by the session trimming
+  // the fonts). A boundary is on a point for an instant; a band with no picture in it stays empty.
+  // So it is asked until a reading has no gap, and a real gap still fails.
+  let rest = await onTop();
   expect(rest.width, "the frame is too narrow to show four bands").toBeGreaterThan(200);
-  expect(rest.tops, "part of the frame shows no capture at all").not.toContain("nothing");
+  await expect.poll(async () => (rest = await onTop()).tops, { message: "part of the frame shows no capture at all", timeout: 10_000 }).not.toContain("nothing");
   const themes = [...new Set(rest.tops)];
   expect(themes.length, `the frame shows ${themes.join(", ")}`).toBe(4);
   expect(themes.filter((t) => t.endsWith("-light")).length, "two of the four are light").toBe(2);

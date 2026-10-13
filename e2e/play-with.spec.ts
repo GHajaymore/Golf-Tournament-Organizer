@@ -70,7 +70,18 @@ test.afterAll(async () => {
 });
 
 async function open(page: Page, path: string) {
-  await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
+  // A screen that has just saved something is still redrawing itself, and Safari's engine calls a
+  // second navigation on top of that one "interrupted" rather than waiting. The redraw is let finish
+  // and the address is asked for again.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await page.goto(`${path}${path.includes("?") ? "&" : "?"}bust=${Date.now()}`);
+      break;
+    } catch (e) {
+      if (attempt >= 2 || !/interrupted by another navigation|NS_BINDING_ABORTED/.test(String(e))) throw e;
+      await page.waitForLoadState("networkidle").catch(() => {});
+    }
+  }
   await page.waitForLoadState("networkidle");
 }
 
