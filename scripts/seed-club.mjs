@@ -756,7 +756,11 @@ export async function seed() {
         courseId: home.id,
         teeId: homeTee("White").id,
         scoringBasis: "net",
-        handicapAllowance: 95,
+        // No allowance of the committee's own: the medal plays at the Rules'
+        // 95%, and its card says so ("the recommended allowance for this
+        // format"). It carried a typed 95 until 2026-10-13, which reads as
+        // "set by your committee" — the Hospice day's nine still does, so both
+        // sentences are on a seeded card.
         playedOn: dayOffset(0),
         // Ordered so the signed-in player (index 0) is late in the draw, on
         // a card still being played, while the early groups are in.
