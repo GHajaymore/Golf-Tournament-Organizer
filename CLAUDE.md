@@ -215,6 +215,31 @@ back (`page.route("**/_next/static/**/*.js", …)`, as `e2e/typed-before-load.sp
 type with `pressSequentially` — and wait for the page to be live before a `fill`, or the spec
 itself is the slow-connection user and fails three steps later on a disabled button.
 
+**AND A SPEC'S SAVE LANDS BEFORE THE NEXT TAP. ON A COURSE THE NEXT TAP COMES FIRST.** A card
+saves itself after every hole. Until 2026-10-13 each save was sent on its own, so on one bar a
+player three holes ahead of their signal had three saves in the air, and they arrived in whatever
+order the network liked: the second to land carried a revision the first had already replaced,
+and the server answered that somebody else had changed the card. The player was shown the
+"Use theirs / Keep mine" chooser over a card nobody but them had touched. Next door to the
+server a save is back in twenty milliseconds and none of this can happen, so every scoring spec
+was green over it.
+
+Two things hold it now. **One save is out at a time** (`usePendingCard`: `mayStartSend`, and
+`landed()` for anything that must follow the last one, which certifying does), and a newer card
+goes when the one before it is back. And **the server does not call a card it already holds a
+conflict** (`scorecard-write.ts`): a retry of a save whose answer was lost is the same card, not
+somebody's edit. `e2e/slow-signal-scoring.spec.ts` holds every save back and scores ahead of
+them; to test anything about what happens BETWEEN a tap and its answer, delay the answer
+(`page.route` on the action's POST) rather than waiting for a quiet network.
+
+**AND A BUILD MADE ON WINDOWS HINTS NO FONT, SO THIS MACHINE CANNOT SEE WHAT A PHONE
+DOWNLOADS.** Until 2026-10-13 every screen fetched five font files before it knew which it would
+draw — 248 KB — and no local run or screenshot showed it, because next/font's manifest comes out
+empty on Windows (`src/app/fonts.ts` says why). Production is built on Linux. So
+`e2e/weight-budget.json` is kept PER PLATFORM, `e2e/fonts.spec.ts` says in a line when the rule
+about hints was not exercised, and the figure to believe is the one the phone part prints on
+GitHub: two hints a screen, three on a player's Today.
+
 **AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
 `E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium
 only, so this is by hand: `npx playwright install webkit` once). Two things to know before

@@ -1,4 +1,5 @@
 import { expect, test } from "./coverage";
+import { landingSettled } from "./landing-settled";
 
 /**
  * EVERY SCREENSHOT ON THE FRONT DOOR IS SHARP, WHOLE AND STILL.
@@ -53,7 +54,8 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
 
   // Rise every section and walk the page so lazy images load.
   await page.evaluate(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("seen")));
-  const height = await page.evaluate(() => document.body.scrollHeight);
+  // The whole page: its height is asked once its script has made it as tall as it gets.
+  const height = await landingSettled(page);
   for (let y = 0; y < height; y += 400) {
     await page.evaluate((top) => window.scrollTo(0, top), y);
     await page.waitForTimeout(60);
@@ -128,7 +130,14 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       for (let tick = 0; tick < 60; tick += 1) {
         await new Promise((r) => setTimeout(r, 100));
         let busy = false;
-        for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) busy = busy || arriving(el);
+        for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) {
+          // …AND IT HAS LANDED. "The same place twice running" was not enough either: on Safari's engine a
+          // screen in the last frames of arriving gave the same reading twice, 100ms apart, at 0.09 of a
+          // degree from flat, and was reported turned (round 6 on the second batch, once in about twenty
+          // runs). A part that has been told to arrive (`m-in`) is at rest when it is where arriving ends —
+          // not turned at all. One that never gets there runs out the wait below and is reported, as before.
+          busy = busy || arriving(el) || (el.classList.contains("m-in") && turned(getComputedStyle(el).transform));
+        }
         const now = pose(img);
         if (!busy && now === was && tick >= 2) return;
         was = now;
@@ -317,17 +326,36 @@ test("a phone's bottom bar is up only mid-page, and unreachable when it is down"
    * machine. Safari's engine on Linux runs with the motion on whatever the suite asks (see
    * `sharpWholeStill`), and failed here for that. The jump is made at once; the wait is for the bar.
    */
-  const at = async (y: number, what: string, want: { shown: boolean; reachable: boolean }) => {
-    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
-    await expect.poll(state, { message: what, timeout: 8_000 }).toEqual(want);
+  /**
+   * AND WHERE TO JUMP TO IS ASKED AT THE MOMENT OF THE JUMP. This read the page's height and the
+   * form's place once, on arrival, and scrolled to them afterwards — and the page is two and a half
+   * thousand pixels taller a second after it loads than when it loads (`landing-settled.ts`). It
+   * scrolled to where the form had been, landed in the pricing section with the bar rightly up, and
+   * reported the bar up "at the sign-up form". So each place is a question put to the page as it is.
+   */
+  type Place = "top" | "middle" | "form" | "end";
+  const at = async (place: Place, what: string, want: { shown: boolean; reachable: boolean }) => {
+    const jump = () =>
+      page.evaluate((to) => {
+        const whole = document.documentElement.scrollHeight;
+        const form = document.querySelector("#start")!.getBoundingClientRect().top + window.scrollY;
+        const top = to === "top" ? 0 : to === "middle" ? Math.round(whole * 0.45) : to === "form" ? Math.round(form) : whole;
+        window.scrollTo({ top, behavior: "instant" });
+      }, place);
+    await jump();
+    await expect
+      .poll(async () => {
+        await jump();
+        return state();
+      }, { message: what, timeout: 8_000 })
+      .toEqual(want);
   };
-  const height = await page.evaluate(() => document.documentElement.scrollHeight);
-  const startTop = await page.evaluate(() => Math.round(document.querySelector("#start")!.getBoundingClientRect().top + window.scrollY));
+  await landingSettled(page);
 
-  await at(0, "at the top, beside the hero's own buttons", { shown: false, reachable: false });
-  await at(Math.round(height * 0.45), "mid-page", { shown: true, reachable: true });
-  await at(startTop, "at the sign-up form", { shown: false, reachable: false });
-  await at(height, "at the footer", { shown: false, reachable: false });
+  await at("top", "at the top, beside the hero's own buttons", { shown: false, reachable: false });
+  await at("middle", "mid-page", { shown: true, reachable: true });
+  await at("form", "at the sign-up form", { shown: false, reachable: false });
+  await at("end", "at the footer", { shown: false, reachable: false });
 });
 
 /**
@@ -361,7 +389,8 @@ test("with its motion on, every part of the front door that waits to arrive does
   expect(armed, "nothing on the page is waiting to arrive — is the motion on?").toBeGreaterThan(5);
 
   // A thumb's walk: a third of a screen at a time, with a breath at each stop.
-  const [height, screen] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight]);
+  const height = await landingSettled(page);
+  const screen = await page.evaluate(() => window.innerHeight);
   for (let y = 0; y <= height; y += Math.round(screen / 3)) {
     await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
     await page.waitForTimeout(120);

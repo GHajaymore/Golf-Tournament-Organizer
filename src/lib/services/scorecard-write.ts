@@ -163,7 +163,21 @@ export async function writeScorecard(input: {
   const expected = expectedRevision === "" ? NO_CARD_REVISION : expectedRevision;
 
   if (expected && existing && storedStrokes) {
-    if (staleAgainst(expected, stored)) {
+    /**
+     * A CARD THAT SAYS WHAT IS ALREADY STORED OVERWRITES NOTHING (2026-10-13).
+     *
+     * A conflict is there to stop one card replacing another unseen. When the
+     * card arriving IS the card stored, there is nothing to replace and
+     * nothing to choose between — yet it was refused all the same whenever
+     * the phone's revision was behind, which it is after its own previous
+     * send: the same card sent twice (signal returning as the pause after a
+     * tap ran out), or signed a moment after its last hole went up. The
+     * player was shown two identical cards and asked which was right.
+     *
+     * The paragraph further down already says it — "saving the SAME strokes
+     * twice is not a conflict" — and this is where that is made true.
+     */
+    if (staleAgainst(expected, stored) && cardRevision(clean) !== stored) {
       return { ok: false, conflict: { strokes: storedStrokes, revision: stored } };
     }
   }

@@ -40,17 +40,66 @@ import localFont from "next/font/local";
  *
  * Every option below is a literal because next/font requires it: the loader
  * is compiled, and a shared constant for the ranges is a build error.
+ *
+ * WHAT IS PRELOADED, AND WHY IT IS SO LITTLE (2026-10-13).
+ *
+ * A preload is a download the page starts before it knows whether it will draw
+ * the face. Every face called from the root layout without `preload: false` is
+ * hinted on EVERY screen — and there were five: Geist Sans, Geist Mono, Fraunces
+ * upright, Fraunces italic and Oswald, 248 KB, on a player's card as on the
+ * front door. Measured across 42 screens on a phone, by what each one fetches
+ * when nothing is hinted: Geist Sans 42, Fraunces upright 42, Geist Mono 4,
+ * Oswald 1 (the player's Today), Fraunces italic none at all.
+ *
+ * So the root layout now hints the two every screen draws — the body face and
+ * the upright heading face — and nothing else:
+ *
+ *   - Fraunces ITALIC is its own call, `preload: false`, and NAMES THE UPRIGHT
+ *     FACE'S FAMILY in its declarations. One family, two styles, exactly as
+ *     before — an italic in a heading is still the real italic, and it arrives
+ *     when a heading asks for it. Without the shared name it would be a second
+ *     family, which a browser never reaches for style: it slants the upright
+ *     face itself instead. The upright call names the family too, so the two
+ *     agree by what is written here rather than by how next/font happens to
+ *     name a face. `font-hosts.test.ts` and `e2e/fonts.spec.ts` hold it.
+ *   - Geist Mono is called here rather than taken from `geist/font/mono`,
+ *     whose call cannot be told not to preload. Same file, same family name,
+ *     same fallbacks.
+ *   - Oswald's LATIN face is not here at all. It is in
+ *     `src/components/scoreboard-face.ts`, which only the screen that hangs a
+ *     scoreboard imports, so next/font hints it there and nowhere else. The
+ *     stack below still names its family first.
+ *
+ * NOBODY SAW IT BECAUSE A WINDOWS BUILD HINTS NOTHING. next/font's manifest
+ * plugin finds its own modules by looking for "/next-font-loader/index.js?" in
+ * the module's request, with forward slashes; on Windows that path is written
+ * with backslashes, the manifest comes out `"app": {}`, and no font is ever
+ * preloaded. Every local run and every screenshot from this machine therefore
+ * showed the app as if this change had already been made. Production is built
+ * on Linux. `e2e/weight-budget.json` is kept per platform for that reason.
  */
 
 /* ── Fraunces: headings. The full weight axis, upright and italic. ── */
 
 const frauncesLatin = localFont({
-  src: [
-    { path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
-    { path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-italic.woff2", weight: "100 900", style: "italic" },
+  src: [{ path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2", weight: "100 900", style: "normal" }],
+  declarations: [
+    { prop: "font-family", value: "frauncesLatin" },
+    { prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" },
   ],
-  declarations: [{ prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" }],
   display: "swap",
+  adjustFontFallback: false,
+});
+
+/** The same family's italic — see "WHAT IS PRELOADED" above. Drawn by no screen today; fetched by the first that does. */
+const frauncesLatinItalic = localFont({
+  src: [{ path: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-italic.woff2", weight: "100 900", style: "italic" }],
+  declarations: [
+    { prop: "font-family", value: "frauncesLatin" },
+    { prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" },
+  ],
+  display: "swap",
+  preload: false,
   adjustFontFallback: false,
 });
 
@@ -99,12 +148,13 @@ const frauncesVietnamese = localFont({
 
 /* ── Oswald: the scoreboard. Its weight axis runs 200–700. ── */
 
-const oswaldLatin = localFont({
-  src: [{ path: "../../node_modules/@fontsource-variable/oswald/files/oswald-latin-wght-normal.woff2", weight: "200 700", style: "normal" }],
-  declarations: [{ prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" }],
-  display: "swap",
-  adjustFontFallback: false,
-});
+/**
+ * The family of Oswald's latin face, which is called in
+ * `src/components/scoreboard-face.ts` — see "WHAT IS PRELOADED" above. Named
+ * here because the stack on <html> leads with it; `font-hosts.test.ts` holds
+ * the two spellings together.
+ */
+const oswaldLatin: Face = { style: { fontFamily: "'oswaldLatin'" } };
 
 const oswaldLatinExt = localFont({
   src: [{ path: "../../node_modules/@fontsource-variable/oswald/files/oswald-latin-ext-wght-normal.woff2", weight: "200 700", style: "normal" }],
@@ -138,14 +188,32 @@ const oswaldCyrillicExt = localFont({
   adjustFontFallback: false,
 });
 
+/* ── Geist Mono: codes, pasted cards, a colour's hex. Never preloaded. ── */
+
+/**
+ * `geist/font/mono` makes this same call with `preload` left on, and a call
+ * cannot be changed from outside. Everything else is the package's own: the
+ * file, the variable, the fallbacks, and a family named after the constant.
+ */
+export const GeistMono = localFont({
+  src: [{ path: "../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2", weight: "100 900" }],
+  variable: "--font-geist-mono",
+  fallback: ["ui-monospace", "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Liberation Mono", "DejaVu Sans Mono", "Courier New", "monospace"],
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+});
+
 type Face = { style: { fontFamily: string } };
 
 /**
  * One family's faces as one stack: every range's face, latin first, then the
- * metric-matched fallback declared in globals.css. See the note above.
+ * metric-matched fallback declared in globals.css. See the note above. A
+ * family that two calls share (Fraunces latin, upright and italic) is named
+ * once.
  */
 export function fontStack(faces: Face[], fallback: string): string {
-  return [...faces.map((f) => f.style.fontFamily), `"${fallback}"`].join(", ");
+  return [...new Set(faces.map((f) => f.style.fontFamily)), `"${fallback}"`].join(", ");
 }
 
 /**
@@ -154,7 +222,7 @@ export function fontStack(faces: Face[], fallback: string): string {
  * `--font-scoreboard`) — set on <html>.
  */
 export const displayFontVars = {
-  "--font-display": fontStack([frauncesLatin, frauncesLatinExt, frauncesVietnamese], "Fraunces Fallback"),
+  "--font-display": fontStack([frauncesLatin, frauncesLatinItalic, frauncesLatinExt, frauncesVietnamese], "Fraunces Fallback"),
   "--font-board": fontStack(
     [oswaldLatin, oswaldLatinExt, oswaldVietnamese, oswaldCyrillic, oswaldCyrillicExt],
     "Oswald Fallback",

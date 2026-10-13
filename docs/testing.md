@@ -71,7 +71,7 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Security, in the repository | Every push | `no-secret-is-committed.test.ts`: no tracked file carries a key, a token or an address with a password in it |
 | Search engines, shared links | In **the whole suite** | `seo.spec`: each public page's title, description, one heading, language and its own canonical address; the share card and its picture; structured data that parses; a sitemap that lists exactly the public pages; and every private screen telling crawlers to keep out |
 | People who cannot see it or use a mouse | In **the whole suite** | `a11y.spec`: axe, against WCAG 2.1 A and AA, on every public page, every organizer screen and every player screen |
-| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget; and `slow-page.spec`, which delivers pages slowly on purpose |
+| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget (kept per platform: a build made on Windows hints no font, so GitHub's figure is the one production matches); `fonts.spec`, every font file a screen downloads is one it draws with; `slow-page.spec`, which delivers pages slowly on purpose; and `slow-signal-scoring.spec`, which holds every save back and scores ahead of them |
 | The app doing its job | **Eleven tournaments, played** | Eleven tournaments of 110–120 invented players, entered, drawn, scored, cut, ranked and paid through the screens, with the results checked against the Rules of Golf and of Handicapping |
 
 On one machine that is about six hours. On GitHub the same layers are cut into about thirty parts

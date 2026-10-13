@@ -3,6 +3,8 @@ import { readSource } from "../../__tests__/source";
 import {
   cardRevision,
   keptCardChanged,
+  mayStartSend,
+  SEND_PATIENCE_MS,
   NO_CARD_REVISION,
   NAG_AFTER_MS,
   pendingKey,
@@ -459,5 +461,51 @@ describe("a card kept for a partner", () => {
     // Not against the revision the server gave, which is the conflict
     // protocol's and says "no card" for a partner who has not started.
     expect(src).not.toMatch(/cardRevision\(strokes\) !== revision\.current/);
+  });
+});
+
+/**
+ * ONE CARD ON ITS WAY AT A TIME.
+ *
+ * A card is sent with the revision the phone last heard, and hears the next
+ * one only when the send comes back. A second card sent beside the first
+ * carries a revision the first is about to make stale, and is answered as a
+ * conflict with the phone's own hole — "this card changed while you were out
+ * of signal", to a player who had only entered two holes quickly on a slow
+ * connection (measured 2026-10-13: asked at 0.9s and 1.5s between holes on a
+ * two-second save, not at 2.5s). `e2e/slow-signal-scoring.spec.ts` is that
+ * measurement, kept. This is the rule the queue asks before it sends.
+ */
+describe("whether a card may be sent now", () => {
+  it("goes when nothing is out", () => {
+    expect(mayStartSend({ out: false, outForMs: 0 })).toBe(true);
+  });
+
+  it("waits while one is out — a slow save is not a lost one", () => {
+    for (const outForMs of [0, 600, 2_000, 5_000, SEND_PATIENCE_MS - 1]) {
+      expect(mayStartSend({ out: true, outForMs }), `${outForMs}ms`).toBe(false);
+    }
+  });
+
+  it("stops waiting for one that has been out past patience: one at a time must not become none", () => {
+    expect(mayStartSend({ out: true, outForMs: SEND_PATIENCE_MS })).toBe(true);
+    expect(mayStartSend({ out: true, outForMs: SEND_PATIENCE_MS * 10 })).toBe(true);
+  });
+
+  it("is patient for longer than the retry timer, so the timer cannot start a second beside a slow first", () => {
+    expect(SEND_PATIENCE_MS).toBeGreaterThan(RETRY_EVERY_MS);
+  });
+
+  it("the queue asks it before every send, marks only its own send as landed, and sends the newest card next", () => {
+    const hook = readSource("src", "components", "usePendingCard.ts");
+    expect(hook).toContain("if (!mayStartSend({ out: inFlight.current !== null, outForMs: Date.now() - lastAttempt.current })) return;");
+    expect(hook).toContain("if (inFlight.current === done) {");
+    expect(hook).toContain("if (value.current !== null && value.current !== sent) {");
+    expect(hook).toContain("if (goAgain) void latestAttempt.current();");
+    // And signing a card waits for a hole that is still on its way.
+    const card = readSource("src", "components", "PlayerCard.tsx");
+    const at = card.indexOf("await card.landed();");
+    expect(at, "signing does not wait for a save that is out").toBeGreaterThan(0);
+    expect(card.indexOf("const res = await saveScorecard(stageId, playerId, sent, revision.current);", at), "the wait is not before the save it protects").toBeGreaterThan(at);
   });
 });

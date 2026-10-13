@@ -46,6 +46,10 @@ function stylesheets(dir: string, found: string[] = []): string[] {
 
 /** The display faces, since 2026-10-08 — see "no build fetches a font". */
 const FONTS = readSource("src/app/fonts.ts");
+/** The scoreboard's latin face, since 2026-10-13 — see "a screen is hinted only the faces it draws". */
+const SCOREBOARD_FACE = readSource("src/components/scoreboard-face.ts");
+/** Every call to next/font in the app, whichever of the two files it is in. */
+const CALLS = [...FONTS.split("localFont({").slice(1), ...SCOREBOARD_FACE.split("localFont({").slice(1)];
 
 const SHEETS = stylesheets(join(process.cwd(), "src")).map((f) =>
   f.slice(process.cwd().length + 1).split("\\").join("/"),
@@ -204,7 +208,7 @@ describe("the heading face has one source", () => {
     // Since 2026-10-08 every face is a variable one from `src/app/fonts.ts`,
     // declared over a weight RANGE. Each range must cover 500 to 700 — a face
     // declared at one weight is synthesised bold by the browser at the others.
-    const ranges = [...FONTS.matchAll(/weight:\s*"(\d+) (\d+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    const ranges = [...(FONTS + SCOREBOARD_FACE).matchAll(/weight:\s*"(\d+) (\d+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
     expect(ranges.length, "no weight ranges found in fonts.ts").toBeGreaterThan(0);
     for (const [lo, hi] of ranges) {
       expect(lo <= 500 && hi >= 700, `a face covers only ${lo}–${hi}`).toBe(true);
@@ -250,8 +254,9 @@ describe("no build fetches a font", () => {
   });
 
   it("names font files that exist", () => {
-    const paths = [...FONTS.matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
-    expect(paths.length).toBeGreaterThan(0);
+    // Both files sit two directories below the repository, so one base resolves either's paths.
+    const paths = [...(FONTS + SCOREBOARD_FACE).matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(paths.length).toBe(13);
     const missing = paths.filter((p) => !existsSync(join(process.cwd(), "src/app", p)));
     expect(missing, "a package update moved these").toEqual([]);
   });
@@ -263,22 +268,20 @@ describe("no build fetches a font", () => {
     }
   });
 
-  it("gives every face its character range, and preloads only the latin ones", () => {
+  it("gives every display face its character range", () => {
     /**
      * A face with no `unicode-range` claims every character, so the first one
      * in the stack would take "ř" and render it as a missing glyph's fallback
-     * instead of letting the latin-ext face have it. And a preload on a range
-     * most pages never use is bytes on every first visit for nobody.
+     * instead of letting the latin-ext face have it.
      */
-    const faces = FONTS.split("localFont({").slice(1);
-    // The ninth (2026-10-11) is Fraunces' display cut — its optical-size axis,
-    // latin only, for the front door's headlines. It is held to both rules
-    // below like every other: a range of its own, and no preload.
-    expect(faces.length, "Fraunces in 3 ranges and its display cut, Oswald in 5").toBe(9);
-    for (const face of faces) expect(face).toMatch(/prop: "unicode-range"/);
-    const preloaded = faces.filter((f) => !/preload: false/.test(f));
-    expect(preloaded.length, "only the two latin faces preload").toBe(2);
-    for (const f of preloaded) expect(f).toMatch(/-latin-wght-normal\.woff2/);
+    const display = CALLS.filter((f) => /@fontsource-variable\//.test(f));
+    // Fraunces in three ranges — its latin range as two calls since 2026-10-13,
+    // upright and italic — and its display cut (2026-10-11: the optical-size
+    // axis, latin only, for the front door's headlines); Oswald in five.
+    expect(display.length, "Fraunces: latin upright, latin italic, display cut, latin-ext, vietnamese; Oswald in 5").toBe(10);
+    for (const face of display) expect(face).toMatch(/prop: "unicode-range"/);
+    // Geist Mono is one file for every character it has, as its package ships it.
+    expect(CALLS.length, "the ten display faces and Geist Mono").toBe(11);
   });
 
   it("keeps the fallbacks Google's build shipped, and puts each last", () => {
@@ -288,12 +291,92 @@ describe("no build fetches a font", () => {
      * Google published — a Cyrillic name in a heading drew visibly larger. So
      * the two are declared in globals.css, and no face computes its own.
      */
-    for (const face of FONTS.split("localFont({").slice(1)) expect(face).toMatch(/adjustFontFallback: false/);
+    for (const face of CALLS) expect(face).toMatch(/adjustFontFallback: false/);
     const css = readSource("src/app/globals.css");
     const block = (family: string) => css.match(new RegExp(`font-family:\\s*"${family}";[^}]*`))?.[0] ?? "";
     expect(block("Fraunces Fallback")).toMatch(/local\("Times New Roman"\)[\s\S]*size-adjust:\s*115\.45%/);
     expect(block("Oswald Fallback")).toMatch(/local\("Arial"\)[\s\S]*size-adjust:\s*81\.43%/);
     expect(FONTS).toMatch(/"Fraunces Fallback"\)/);
     expect(FONTS).toMatch(/"Oswald Fallback",?\s*\)/);
+  });
+});
+
+describe("a screen is hinted only the faces it draws", () => {
+  /**
+   * A face called with its preload on is downloaded by every screen whose
+   * layout or page imports the call, before any of them knows whether it will
+   * draw a letter in it. Until 2026-10-13 five faces were called that way from
+   * the root layout — 248 KB on every screen in the app — and a player's card
+   * draws two. Measured over 42 screens: the body face and the upright heading
+   * face are on all of them, the scoreboard's on one, Geist Mono on four, and
+   * the heading's italic on none.
+   *
+   * Nothing here could see it from this machine: a build made on Windows
+   * writes an empty font manifest and hints nothing (`src/app/fonts.ts`). So
+   * these read the calls themselves; `e2e/fonts.spec.ts` asks the browser, and
+   * `e2e/weight.spec.ts` holds the bytes.
+   */
+  const preloads = (calls: string[]) => calls.filter((f) => !/preload: false/.test(f));
+  const FILES = sources(join(process.cwd(), "src"))
+    .map((f) => f.slice(process.cwd().length + 1).split("\\").join("/"))
+    .filter((f) => !f.includes("__tests__"));
+  const importing = (what: RegExp) => FILES.filter((f) => what.test(readSource(f)));
+
+  it("preloads one face from the root layout's own file: the upright heading", () => {
+    const calls = FONTS.split("localFont({").slice(1);
+    // The control: the calls were found, and most of them say they do not preload.
+    expect(calls.length).toBe(10);
+    const on = preloads(calls);
+    expect(on.length, "a second face is preloaded on every screen in the app").toBe(1);
+    expect(on[0]).toMatch(/fraunces-latin-wght-normal\.woff2/);
+    expect(on[0], "the heading's italic is back in the preloaded call").not.toMatch(/italic/);
+  });
+
+  it("takes Geist Mono from its own call, because the package's cannot be told not to preload", () => {
+    expect(importing(/["']geist\/font\/mono["']/), "geist/font/mono preloads on every route that imports it").toEqual([]);
+    const mono = FONTS.split("localFont({").slice(1).filter((f) => /GeistMono-Variable\.woff2/.test(f));
+    expect(mono.length).toBe(1);
+    expect(mono[0]).toMatch(/preload: false/);
+    expect(mono[0]).toMatch(/variable: "--font-geist-mono"/);
+    expect(readSource("src/app/layout.tsx")).toMatch(/GeistMono\.variable/);
+  });
+
+  it("keeps the heading's italic in the upright face's family", () => {
+    /**
+     * Two calls, one family. Named differently they are two families, and a
+     * browser does not go to a second family for a style: it slants the
+     * upright face. Nothing would look broken enough to report.
+     */
+    const latin = FONTS.split("localFont({").slice(1).filter((f) => /fraunces-latin-wght-(normal|italic)\.woff2/.test(f));
+    expect(latin.length).toBe(2);
+    for (const call of latin) expect(call).toMatch(/\{ prop: "font-family", value: "frauncesLatin" \}/);
+    expect(latin.filter((f) => /style: "italic"/.test(f)).length).toBe(1);
+  });
+
+  it("declares the scoreboard's latin face once, outside every layout, under the name the stack leads with", () => {
+    const calls = SCOREBOARD_FACE.split("localFont({").slice(1);
+    expect(calls.length).toBe(1);
+    expect(calls[0]).toMatch(/oswald-latin-wght-normal\.woff2/);
+    expect(preloads(calls).length, "the one screen that hangs a scoreboard is hinted its face").toBe(1);
+    expect(calls[0]).toMatch(/\{ prop: "font-family", value: "oswaldLatin" \}/);
+    expect(FONTS, "the stack on <html> no longer leads with the scoreboard face's family").toMatch(/fontFamily: "'oswaldLatin'"/);
+    expect(FONTS, "the latin face is called from the root layout's file again").not.toMatch(/oswald-latin-wght-normal/);
+
+    const face = /["']@\/components\/scoreboard-face["']/;
+    const layouts = importing(face).filter((f) => /(^|\/)(layout|template)\.tsx$/.test(f) || f === "src/app/fonts.ts");
+    expect(layouts, "a layout that imports the face preloads it on every screen under it").toEqual([]);
+  });
+
+  it("has every screen that hangs a scoreboard bring the scoreboard's face", () => {
+    /**
+     * `Scoreboard.tsx` cannot import the face itself — it is rendered in unit
+     * tests, where next/font does not exist — so the screen does. A screen
+     * that forgot would hang its board in squeezed Arial.
+     */
+    const screens = importing(/from "@\/components\/Scoreboard"/);
+    // The control: the one screen that does is found.
+    expect(screens).toContain("src/app/(player)/me/page.tsx");
+    const without = screens.filter((f) => !/["']@\/components\/scoreboard-face["']/.test(readSource(f)));
+    expect(without, "these render a scoreboard without its face").toEqual([]);
   });
 });

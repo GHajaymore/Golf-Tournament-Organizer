@@ -588,6 +588,11 @@ export function PlayerCard({
         //
         // (The dispute path below deliberately does NOT save first — see it.)
         //
+        // And wait for a hole that is still on its way (2026-10-13). The last
+        // hole is tapped and the card signed in one breath; the hole's own
+        // save was out, this one went with the revision from before it, and
+        // the player signing their card was told the committee had edited it.
+        await card.landed();
         // Captured, not re-read after the await: `settle()` below has to know
         // whether THIS card is the one still outstanding.
         const sent = latest.current;

@@ -182,6 +182,42 @@ describe("a queued card that would land on somebody else's change", () => {
     expect(res.ok).toBe(true);
   });
 
+  it("does not call a retry of a card that ALREADY LANDED a conflict — the case the test above was written for and did not make", async () => {
+    /**
+     * The phone sent ten holes and never heard back (the signal went as the
+     * answer was coming). It still holds the revision from BEFORE that send,
+     * and it sends the same ten holes again. The card stored is the card
+     * arriving: nothing would be overwritten, and there is nothing to choose
+     * between.
+     *
+     * Until 2026-10-13 this was refused — the phone's revision was behind, and
+     * that was the whole question asked — so the player was shown two
+     * identical cards and asked which was right. The test above names this
+     * very case ("a retry that already succeeded") and then hands over a
+     * revision that is NOT behind, which is the one arrangement in which the
+     * fault cannot show.
+     */
+    const before = await given(PARS.map((p, i) => (i < 9 ? p : null)));
+    const ten = PARS.map((p, i) => (i < 10 ? p : null));
+    const first = await saveScorecard(stageId, playerId, ten, before);
+    expect(first.ok).toBe(true);
+
+    const again = await saveScorecard(stageId, playerId, ten, before);
+    expect(again.ok, "the same card sent twice was called a conflict with itself").toBe(true);
+    expect(await stored()).toEqual(ten);
+    if (!again.ok || !first.ok) return;
+    expect(again.revision, "the retry hands back a different revision from the send it repeats").toBe(first.revision);
+
+    // CONTROL: the same stale revision with a DIFFERENT card is still refused.
+    // To the server the phone's own earlier hole and a committee's correction
+    // are the same thing — a card it was not told about — which is why the
+    // phone sends one card at a time (`usePendingCard`).
+    const eleven = PARS.map((p, i) => (i < 11 ? p : null));
+    const stale = await saveScorecard(stageId, playerId, eleven, before);
+    expect(stale.ok, "CONTROL: a different card from a stale revision was written").toBe(false);
+    expect(await stored()).toEqual(ten);
+  });
+
   it("writes unconditionally when the caller names no revision", async () => {
     // The console's entry screen has the card in front of it. Requiring a
     // revision everywhere would have made this change break every other

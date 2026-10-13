@@ -28,6 +28,24 @@ export const NAG_AFTER_MS = 120_000;
 export const RETRY_EVERY_MS = 15_000;
 
 /**
+ * How long one send may be out before another may be started beside it.
+ *
+ * One card goes at a time (`usePendingCard`), because a second sent beside the
+ * first carries a revision the first is about to make stale. But a request can
+ * hang — a phone that walked out of coverage mid-send hears nothing for as long
+ * as the network stack cares to wait — and "one at a time" must not become
+ * "none, until that one gives up". Past this, the one that is out is treated
+ * as lost and the newest card may go. Far longer than any save that is merely
+ * slow, so two are never out together on a connection that is working.
+ */
+export const SEND_PATIENCE_MS = 20_000;
+
+/** Whether a send may start now, given whether one is out and for how long. */
+export function mayStartSend(input: { out: boolean; outForMs: number }): boolean {
+  return !input.out || input.outForMs >= SEND_PATIENCE_MS;
+}
+
+/**
  * What one attempt to send actually did.
  *
  * There are THREE outcomes, and the type exists because the code was written as

@@ -1,4 +1,4 @@
-import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Page, type Request as PageRequest } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
@@ -66,9 +66,77 @@ async function who(context: BrowserContext): Promise<string> {
  * passes: the redraw is let finish and the address is asked for again. Any
  * other failure to navigate is the test's to hear, at once.
  */
+/**
+ * AND IT ASKS BEFORE THE SAVE IT HAS JUST MADE IS BACK.
+ *
+ * The other half of the same sentence. A box that saves when it is left sends
+ * its save as the spec's next line runs, and that line is very often `goto` —
+ * a whole new document, which CANCELS a request still on its way. The save
+ * never lands, the reloaded page shows the old value, and the spec reports the
+ * app losing an edit. `members.spec` typed a handicap of +3.1, pressed Enter,
+ * reloaded, and read +2.4 (round 7 on the second batch, 2026-10-13; it had
+ * passed every round before, and this batch makes pages answer sooner).
+ *
+ * A person who leaves a screen by its menu does not do this: the app moves
+ * without a new document and the save carries on. So before a spec asks for an
+ * address, any server action that page still has in flight is let come back.
+ *
+ * Measured, with every save held a second and a half: a stake typed and Enter
+ * pressed, then the browser's own reload at once — nothing stored; then `goto`
+ * at once — stored, the `goto` 1.9s late; `page.reload()` the same; and a
+ * `goto` with nothing in flight, 0.2s.
+ *
+ * WHAT THIS GIVES UP, said plainly: no spec that goes through here can observe
+ * an edit lost to a hard reload mid-save. Nothing in the app promises to keep
+ * one; a test that wants to see it must hold the save back itself
+ * (`slow-signal-scoring.spec.ts` does, with `page.route`).
+ */
+const savesInFlight = new WeakMap<Page, Set<PageRequest>>();
+function watchSaves(context: BrowserContext): void {
+  // Whose it was is remembered from when it left: a save cancelled by a reload has no frame to ask
+  // by the time it fails.
+  const owner = new WeakMap<PageRequest, Page>();
+  const pageOf = (request: PageRequest): Page | null => {
+    try {
+      return request.frame().page();
+    } catch {
+      return null; // a worker's request, or a frame already gone
+    }
+  };
+  context.on("request", (request) => {
+    if (!request.headers()["next-action"]) return;
+    const page = pageOf(request);
+    if (!page) return;
+    owner.set(request, page);
+    if (!savesInFlight.has(page)) savesInFlight.set(page, new Set());
+    savesInFlight.get(page)!.add(request);
+  });
+  const done = (request: PageRequest) => {
+    const page = owner.get(request);
+    if (page) savesInFlight.get(page)?.delete(request);
+  };
+  context.on("requestfinished", done);
+  context.on("requestfailed", done);
+}
+async function savesAreBack(page: Page): Promise<void> {
+  const until = Date.now() + 10_000;
+  while ((savesInFlight.get(page)?.size ?? 0) > 0 && Date.now() < until) await new Promise((r) => setTimeout(r, 25));
+}
+
 function waitsItsTurn(page: Page): void {
+  // A new document has no saves of the old one's left to wait for. Without this, a save that a spec
+  // was HOLDING BACK when the page was reloaded is never reported finished or failed, and every later
+  // `goto` on that page waited the full ten seconds for it (measured by this wait's own control).
+  page.on("domcontentloaded", () => savesInFlight.get(page)?.clear());
+  // Asking for the same page again cancels a save exactly as asking for another does.
+  const reload = page.reload.bind(page);
+  page.reload = async (...args: Parameters<Page["reload"]>) => {
+    await savesAreBack(page);
+    return reload(...args);
+  };
   const goto = page.goto.bind(page);
   page.goto = async (...args: Parameters<Page["goto"]>) => {
+    await savesAreBack(page);
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await goto(...args);
@@ -83,6 +151,7 @@ function waitsItsTurn(page: Page): void {
 export function recordCoverage(context: BrowserContext): void {
   if (watched.has(context)) return;
   watched.add(context);
+  watchSaves(context);
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
   // spec's every context passes through.
