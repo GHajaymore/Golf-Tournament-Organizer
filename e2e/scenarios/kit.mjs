@@ -182,6 +182,52 @@ export async function createTournament(page, name, shape, ownerEmail = CLUB_EMAI
   }
   await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
   await setPlanFor(ownerEmail, plan);
+  if (ownerEmail === CLUB_EMAIL) await ensureClubRoster();
+}
+
+/** How many members the club has; the club championship imports exactly this many. */
+export const CLUB_ROSTER = 120;
+
+/**
+ * THE CLUB'S MEMBERS, WHERE NO SCENARIO HAS PUT THEM THERE YET.
+ *
+ * Nine scenarios draw their field from the club's roster — "Add from the club
+ * roster", "Select all" — and the roster is made by the club championship
+ * (scenario C), which imports 120 members through the screen. That is C's
+ * subject. For the others it is where they START, and on a database of their
+ * own there was nobody to select: the second thing the first round on GitHub
+ * found, one step behind the first.
+ *
+ * So a club with fewer than the 120 is given them here, as rows — the same
+ * people C would import, name for name and address for address, so a member
+ * who signs in (`memberSession`) is the same person whichever scenario met the
+ * club first. A club that already has them is left exactly as it is. C still
+ * imports through the screen, and is still the proof that the import works.
+ */
+export async function ensureClubRoster(ownerEmail = CLUB_EMAIL) {
+  const prisma = new PrismaClient();
+  try {
+    const user = await prisma.user.findUnique({ where: { email: ownerEmail }, select: { id: true } });
+    const m = await prisma.organizationMember.findFirst({ where: { userId: user.id, role: "owner" }, select: { organizationId: true } });
+    const organizationId = m.organizationId;
+    const have = new Set((await prisma.member.findMany({ where: { organizationId }, select: { email: true } })).map((x) => x.email));
+    const field = names(CLUB_ROSTER);
+    const idx = indexes(CLUB_ROSTER, 7);
+    const missing = field
+      .map((name, i) => ({
+        organizationId,
+        name,
+        handicap: idx[i],
+        handicapSource: "manual",
+        email: `${MARK}-c-${String(i).padStart(3, "0")}@example.invalid`,
+        phone: `55501${String(i).padStart(4, "0")}`,
+      }))
+      .filter((row) => !have.has(row.email));
+    if (missing.length) await prisma.member.createMany({ data: missing });
+    return missing.length;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 /** What the owner console's setClubPlan does, for the organizer's own club. */

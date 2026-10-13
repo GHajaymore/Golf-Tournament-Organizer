@@ -92,13 +92,26 @@ test("no screen people open most has put on weight", async ({ browser, browserNa
   }
   for (const [name, w] of Object.entries(measured)) console.log(`[weight] ${name}: ${kb(w.total)} in ${w.requests} requests — document ${kb(w.document)}, script ${kb(w.script)}, style ${kb(w.style)}, other ${kb(w.other)}`);
 
-  if (WRITE || !existsSync(BUDGET)) {
-    writeFileSync(BUDGET, JSON.stringify(measured, null, 1) + "\n");
-    console.log(`[weight] budget written to ${BUDGET}`);
-    expect(WRITE, `${BUDGET} did not exist, so it has been written from this run — check it in`).toBe(true);
+  /**
+   * ONE BUDGET PER KIND OF MACHINE, because the same screen does not weigh the
+   * same on each. Recorded on Windows, every app screen was about 105 KB of
+   * fonts; the first round on GitHub (Linux, 2026-10-13) weighed 248 KB and
+   * failed seven screens for "putting on weight". Nothing had been added. A
+   * font named late in a list is fetched only when nothing earlier in the list
+   * is on the machine, and Windows carries faces of its own that Linux does
+   * not — so Linux downloads two more files. An Android phone is the Linux
+   * case, which makes the HEAVIER figure the one a player on a course is
+   * paying, and the lighter one the flattering exception.
+   */
+  const all = existsSync(BUDGET) ? (JSON.parse(readFileSync(BUDGET, "utf8")) as Record<string, Record<string, Weight>>) : {};
+  if (WRITE || !all[process.platform]) {
+    all[process.platform] = measured;
+    writeFileSync(BUDGET, JSON.stringify(all, null, 1) + "\n");
+    console.log(`[weight] budget for ${process.platform} written to ${BUDGET}`);
+    expect(WRITE, `${BUDGET} had no budget for ${process.platform}, so it has been written from this run — check it in`).toBe(true);
     return;
   }
-  const budget = JSON.parse(readFileSync(BUDGET, "utf8")) as Record<string, Weight>;
+  const budget = all[process.platform];
   const faults: string[] = [];
   for (const [name, w] of Object.entries(measured)) {
     const was = budget[name];
