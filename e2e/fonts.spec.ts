@@ -173,8 +173,11 @@ test("a heading's italic is the real one, and it waits to be asked for", async (
       if (!heading) return { family: "", styles: [] };
       const stack = getComputedStyle(heading).fontFamily;
       const first = stack.split(",")[0].split('"').join("").split("'").join("").trim();
-      const faces = await document.fonts.load(`italic 600 24px ${stack}`, "Aa");
-      return { family: first, styles: faces.filter((f) => f.family.split('"').join("").split("'").join("").trim() === first).map((f) => f.style) };
+      // The heading's own family and no further. Asked for the whole stack, the browser also tries the
+      // metric-matched fallback, which is `local("Times New Roman")`: a Linux machine has no such font,
+      // and the whole request is refused with "NetworkError" — which is how GitHub's first run of this failed.
+      const faces = await document.fonts.load(`italic 600 24px "${first}"`, "Aa");
+      return { family: first, styles: faces.map((f) => f.style) };
     });
   });
   await context.close();

@@ -70,65 +70,65 @@
    "document": 153600,
    "script": 152576,
    "style": 9216,
-   "other": 1705984,
-   "total": 2020352,
-   "requests": 43
+   "other": 1630208,
+   "total": 1944576,
+   "requests": 41
   },
   "the public board": {
    "document": 50176,
    "script": 146432,
    "style": 9216,
-   "other": 253952,
-   "total": 459776,
-   "requests": 22
+   "other": 107520,
+   "total": 312320,
+   "requests": 19
   },
   "a player's Today": {
    "document": 58368,
    "script": 154624,
-   "style": 9216,
-   "other": 253952,
-   "total": 476160,
-   "requests": 23
+   "style": 10240,
+   "other": 136192,
+   "total": 359424,
+   "requests": 22
   },
   "a player's card": {
    "document": 54272,
    "script": 191488,
    "style": 9216,
-   "other": 253952,
-   "total": 508928,
-   "requests": 32
+   "other": 107520,
+   "total": 361472,
+   "requests": 29
   },
   "a player's board": {
-   "document": 55296,
+   "document": 54272,
    "script": 145408,
    "style": 9216,
-   "other": 254976,
-   "total": 464896,
-   "requests": 23
+   "other": 107520,
+   "total": 316416,
+   "requests": 19
   },
   "the organizer's dashboard": {
    "document": 58368,
    "script": 172032,
    "style": 9216,
-   "other": 253952,
-   "total": 493568,
-   "requests": 28
+   "other": 107520,
+   "total": 346112,
+   "requests": 25
   },
   "score entry": {
    "document": 56320,
    "script": 242688,
    "style": 9216,
-   "other": 253952,
-   "total": 562176,
+   "other": 109568,
+   "total": 416768,
    "requests": 38
   },
   "the leaderboard": {
-   "document": 54272,
+   "document": 53248,
    "script": 182272,
    "style": 9216,
-   "other": 253952,
-   "total": 499712,
-   "requests": 32
+   "other": 107520,
+   "total": 352256,
+   "requests": 29
   }
  }
 }
