@@ -146,17 +146,23 @@ test("the rest of the card entered in a burst and signed at once is certified, w
   watchPageErrors(page, errors);
   const before = await stored();
   const empty = before.strokes.map((s, i) => (s == null ? i + 1 : 0)).filter(Boolean);
-  expect(empty.length, "CONTROL: there is nothing left to enter, so nothing is on its way when the card is signed").toBeGreaterThan(0);
+  expect(empty.length, "CONTROL: fewer than two holes are left, so no save can be out when the last is entered").toBeGreaterThan(1);
 
   await onOneBar(page);
   await openCard(page);
   const asked = neverAsked(page);
 
-  for (const hole of empty) {
+  // All but the last in a burst, then a breath — long enough for that save to LEAVE, and it takes two
+  // seconds to come back. A burst with no breath in it never has a save out at all: every tap puts the
+  // send off again, which is how the first draft of this test signed a card with nothing on its way
+  // and could not tell a card that waits from one that does not.
+  for (const hole of empty.slice(0, -1)) {
     await par(page, hole);
     await page.waitForTimeout(250);
   }
-  // Signed in the same breath as the last hole: its save has not come back, and may not have left.
+  if (empty.length > 1) await page.waitForTimeout(900);
+  await par(page, empty[empty.length - 1]);
+  // Signed in the same breath as the last hole: one save is out, and the last hole has not left.
   const sign = page.getByRole("button", { name: "Certify my card" });
   await expect(sign, "a complete card cannot be signed").toBeEnabled({ timeout: 10_000 });
   await sign.click();
