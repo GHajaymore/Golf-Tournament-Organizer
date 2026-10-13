@@ -80,7 +80,14 @@ async function expectedHandicaps(eventName: string) {
       const g = ev!.groups.find((x) => x.id === p.groupId);
       const tee = tees.find((t) => t.id === g?.teeId) ?? roundTee;
       const raw = (p.handicap * tee.slopeRating) / 113 + (tee.courseRating - tee.par);
-      out.set(p.name, { tee: tee.name, rounded: Math.round((Math.round(raw) * 95) / 100), unrounded: Math.round((raw * 95) / 100) });
+      // `unrounded` is the Rule's (6.2a): 95% of the course handicap BEFORE it is rounded, rounded
+      // once, a half upwards. `rounded` is what the app did until 2026-10-13, kept so the note
+      // below can say which of the two a wrong row followed.
+      out.set(p.name, {
+        tee: tee.name,
+        rounded: Math.round((Math.round(raw + 1e-9) * 95) / 100 + 1e-9),
+        unrounded: Math.round((raw * 95) / 100 + 1e-9),
+      });
     }
     return { policy: ev!.teePolicy, groups: ev!.groups.map((g) => `${g.name}:${tees.find((t) => t.id === g.teeId)?.name ?? "round's"}`), out };
   } finally {
@@ -245,9 +252,15 @@ test("five J", async ({ page, context, baseURL }, testInfo) => {
         const got = g - n;
         if (got === e.rounded) asRounded += 1;
         if (got === e.unrounded) asUnrounded += 1;
-        if (got !== e.rounded && got !== e.unrounded) {
+        /**
+         * THE RULE'S FIGURE, AND ONLY THAT. This accepted either — "Rules give 9 (or 8
+         * unrounded)" — and so walked 120 players through a board that was a stroke out
+         * for a fifth of them and wrote nothing. A check that accepts two answers has
+         * measured that the app is one of two things.
+         */
+        if (got !== e.unrounded) {
           neither += 1;
-          if (neither <= 4) note(`${name} (${e.tee}): received ${got}, Rules give ${e.rounded} (or ${e.unrounded} unrounded)`);
+          if (neither <= 4) note(`${name} (${e.tee}): received ${got}, the Rules give ${e.unrounded} (rounded first it is ${e.rounded})`);
         }
       }
       note(`checked ${checked} rows — by tee ${JSON.stringify(byTee)}; match rounded-CH ${asRounded}, unrounded-CH ${asUnrounded}, neither ${neither}`);
