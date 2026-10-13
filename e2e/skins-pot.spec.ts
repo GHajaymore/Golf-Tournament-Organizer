@@ -117,7 +117,7 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     await take.click();
     await expect.poll(paid, { message: "taking the money did not put the player in the pot" }).toBe(1);
     pot = await card();
-    await expect(pot).toContainText(/In the pot — 1 player\b/i);
+    await expect(pot).toContainText(/In the pot — 1 player(?!s)/i);
     mine = await line(phone);
     await expect(mine.getByRole("button"), "the player's screen does not say they are in").toHaveText(/You(’|')re in/);
     await expect(mine).toContainText("$5.00 pot");
@@ -130,9 +130,12 @@ test("a player asks into the skins, the organizer takes the money, two more are 
     expect(total, "the field is not offered to tick").toBeGreaterThanOrEqual(3);
     let ticked = 0;
     for (let i = 0; i < total; i += 1) if (await boxes.nth(i).isChecked()) ticked += 1;
+    // The tick is drawn by its label (the box itself is not on screen), so the label is what a finger presses.
+    const names = pot.locator("label.radio");
     for (let i = 0; i < total && ticked < 3; i += 1) {
       if (!(await boxes.nth(i).isChecked())) {
-        await boxes.nth(i).check({ force: true });
+        await names.nth(i).click();
+        await expect(boxes.nth(i)).toBeChecked();
         ticked += 1;
       }
     }
