@@ -70,6 +70,19 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "strokes",
+    question: "How many strokes do I get?",
+    href: "/me/card",
+    steps: [
+      "A dot marks each hole you get a stroke on.",
+      "Under Net it says your playing handicap.",
+      "That is your course handicap with the round's allowance.",
+      "The allowance is taken before rounding, as the Rules say.",
+      "So 95% of 7 can be 6.",
+      "Your organizer can show you the figures.",
+    ],
+  },
+  {
     id: "sign",
     question: "How do I sign my card?",
     href: "/me/card",
