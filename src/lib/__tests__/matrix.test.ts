@@ -926,7 +926,7 @@ describe("round handicaps, at every field size and every allowance", () => {
     it(`applies the round's allowance on top, not instead, for a field of ${n}`, () => {
       for (const format of FORMAT_NAMES) {
         for (const pct of ALLOWANCES) {
-          const allowance = effectiveAllowance(format, pct);
+          const allowance = effectiveAllowance(format, pct, "Stroke Play Round");
           expect(allowance).toBeGreaterThan(0);
 
           for (let i = 0; i < n; i += 1) {

@@ -1647,8 +1647,19 @@ multiplied and divided by a hundred, and has a control proving it recognises all
 lines it replaced.
 
 A round frozen before that date keeps the strokes it was played off. See
-`docs/deferred-register.md` for five neighbouring things seen and left alone, including that an
+`docs/deferred-register.md` for the neighbouring things seen and left alone, including that an
 individual round's allowance cannot be changed from any screen.
+
+**AND THE FIGURE ITSELF DEPENDS ON THE ROUND, NOT ONLY ON THE FORMAT.** Appendix C gives a
+four-ball 85% at stroke play and 90% in a match. The format table holds one number per format and
+for Four-Ball held the match-play one, so a four-ball medal was offered 90% as "the recommended
+allowance for this format" — and the seeded club's own four-ball round carried 85% "set by your
+committee, in place of the usual 90%", typed over the app's figure by whoever wrote the fixture.
+A fixture that has to correct the app is a finding nobody filed. `round-allowance.ts` is the one
+reader (`recommendedAllowance(format, stage.type)`, `effectiveAllowance(format, override,
+stage.type)`); the round's type is a required argument, so a caller cannot ask the format alone,
+and `round-allowance.test.ts` refuses a file that reads `findFormat(x).allowance` for a round.
+Best Ball's figure for a side of four is still not the table's — see the register.
 
 ## Course cards: measure a guard before you ship it
 

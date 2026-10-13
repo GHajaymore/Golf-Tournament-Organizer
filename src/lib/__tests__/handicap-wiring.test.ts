@@ -264,7 +264,8 @@ describe("individual standings play off the Playing Handicap", () => {
     // individual standings used the raw Course Handicap, so every medal ran
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
-    expect(src).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
+    // And the round's type with it: the allowance is the ROUND's (`round-allowance.ts`).
+    expect(src).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance, stage\.type\)/);
     // The per-round Course Handicap still reaches playingHandicapFrom with the
     // round's allowance. Asserted on the two facts rather than on one exact
     // expression: the round-handicap override put `resolveRoundHandicap`

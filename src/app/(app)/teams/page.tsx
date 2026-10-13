@@ -7,7 +7,7 @@ import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
-import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
+import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
@@ -96,8 +96,8 @@ export default async function TeamsPage({
           min: range.min,
           max: range.max,
           sharesOneCard: format.ball === "single",
-          allowance: effectiveAllowance(active.format, active.handicapAllowance),
-          recommendedAllowance: format.allowance,
+          allowance: effectiveAllowance(active.format, active.handicapAllowance, active.type),
+          recommendedAllowance: recommendedAllowance(active.format, active.type),
           allowanceOverridden: active.handicapAllowance > 0,
           allowanceIsConvention: !!format.allowanceIsConvention,
           // Only formats scored by a per-player split (greensomes' 60/40) get

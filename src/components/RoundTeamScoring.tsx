@@ -214,7 +214,11 @@ export function RoundTeamScoring({
           {info.allowanceOverridden
             ? info.shares
               ? " — set by your committee, in place of the split below."
-              : ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
+              : info.allowance === info.recommendedAllowance
+                ? // A committee that types the usual figure has still said something;
+                  // "in place of the usual 85%" over an 85% would read as a mistake.
+                  " — set by your committee; it is also the usual figure for this format."
+                : ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
             : info.allowanceIsConvention
               ? " — the common club convention for this format, not a published standard."
               : " — the recommended allowance for this format."}

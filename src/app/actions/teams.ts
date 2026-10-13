@@ -504,7 +504,7 @@ export async function setStageAllowance(
   }
   const current = await prisma.stage.findUnique({
     where: { id: stageId },
-    select: { format: true, handicapAllowance: true },
+    select: { format: true, handicapAllowance: true, type: true },
   });
   const next = Math.round(percent);
   // Compared as the allowance IN FORCE, so "back to the recommended 90%" on a
@@ -513,8 +513,8 @@ export async function setStageAllowance(
     eventId,
     stageId,
     !!current &&
-      effectiveAllowance(current.format, current.handicapAllowance) !==
-        effectiveAllowance(current.format, next),
+      effectiveAllowance(current.format, current.handicapAllowance, current.type) !==
+        effectiveAllowance(current.format, next, current.type),
     force,
   );
   if (refusal) return refusal;

@@ -2,7 +2,8 @@ import "server-only";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
-import { effectiveAllowance, findFormat, sideSizeRange } from "../formats";
+import { findFormat, sideSizeRange } from "../formats";
+import { effectiveAllowance, recommendedAllowance } from "../round-allowance";
 import { holesPlayed, playingHandicapFrom } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
 import { roundHandicapExactOf, roundHandicapOf } from "../domain/round-handicap";
@@ -122,7 +123,9 @@ export async function teamsForStage(
      */
     prisma.stage.findUnique({
       where: { id: stageId },
-      select: { holes: true, teeId: true, courseId: true },
+      // `type`, because what a four-ball's own ball plays off depends on whether
+      // the round is stroke play or a match — see `round-allowance.ts`.
+      select: { holes: true, teeId: true, courseId: true, type: true },
     }),
     prisma.event.findUnique({
       where: { id: eventId },
@@ -183,7 +186,7 @@ export async function teamsForStage(
   const round = await roundHandicapRows(eventId, stageId);
 
   const ownBall = findFormat(format).ball !== "single";
-  const allowancePct = effectiveAllowance(format, allowanceOverride);
+  const allowancePct = effectiveAllowance(format, allowanceOverride, stage?.type);
 
   return use.map((t) => {
     const members = t.members.map((m) => {
@@ -265,11 +268,11 @@ export function sidePlayingHandicap(
 }
 
 /**
- * The allowance actually in force for a round. Lives in `formats.ts`, where the
- * recommendations are and where a service this file imports from can reach it
- * too; exported from here as it always was, because a dozen readers ask here.
+ * The allowance actually in force for a round, and the one recommended for it.
+ * They live in `round-allowance.ts`; exported from here as they always were,
+ * because a dozen readers ask here.
  */
-export { effectiveAllowance };
+export { effectiveAllowance, recommendedAllowance };
 
 /**
  * How many partners' scores count on each hole for this round.
@@ -412,7 +415,9 @@ export async function teamStandings(
     prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
     // How the committee said this round is written down — read HERE, at the
     // sink, so none of the eight callers can forget it (`oneCardPerSide`).
-    prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoreInput: true } }),
+    // And the round's TYPE, for the allowance: a four-ball is 85% at stroke
+    // play and 90% in a match.
+    prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { scoreInput: true, type: true } }),
   ]);
   /**
    * ONE CARD FOR THE SIDE ON A TWO-BALL ROUND (2026-10-10): the committee's
@@ -456,7 +461,7 @@ export async function teamStandings(
               })),
               pars,
               strokeIndex,
-              effectiveAllowance(format, allowanceOverride),
+              effectiveAllowance(format, allowanceOverride, stageRow?.type),
               countBest,
               basis.trim().toLowerCase() === "gross" ? "gross" : "net",
             );

@@ -1349,6 +1349,21 @@ The two can differ by a stroke for the higher handicaps in a match. Ajay's call
 whether a club should be able to choose; nothing is wrong for a club outside
 those four.
 
+**Best Ball plays at 85% whatever the size of the side or the number of balls
+that count, and Appendix C does not.** The table gives best 1 of 4 at 75%, best
+2 of 4 at 85% and best 3 of 4 (and all four) at 100%; a pair playing their best
+ball is a four-ball, 85% at stroke play. The app's Best Ball allows sides of two
+to four and any count, at one figure, and calls that figure "the recommended
+allowance for this format". It is right for a pair and for best 2 of 4, ten
+points generous for best 1 of 4, and fifteen short for best 3 of 4. Not fixed
+with the four-ball figure (`round-allowance.ts`, 2026-10-13) because it needs
+the allowance worked per SIDE: a round can hold sides of different sizes, and
+the table says nothing for a side of three. Recommended: work it from the side's
+size and the round's count where the table gives a figure, keep 85% and say
+"club convention" where it does not, and ask before cards are re-scored. Until
+then a committee running best 1 of 4 should set 75% itself, which the round's
+card lets it do.
+
 And one thing that is deliberate: **a round frozen before 2026-10-13 keeps the
 strokes it was played off**, which were worked the old way. It holds the whole
 number alone, and the allowance is taken of that. Every club today is test data.

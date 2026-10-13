@@ -3256,7 +3256,7 @@ async function recomputeTeamMatch(
       })
     : null;
   const course = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage);
-  const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
+  const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0, stage?.type);
 
   /**
    * What each player on a side plays off in this round.
@@ -5376,7 +5376,7 @@ export async function importScores(
       event,
       holes,
     });
-    const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+    const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster
     // where the round holds an override would bake the difference into stored

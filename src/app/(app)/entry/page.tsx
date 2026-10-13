@@ -334,7 +334,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
        * `playingHandicap` is already allowance-applied — `singleBallTeamCard`
        * uses it raw — so the allowance is 100 rather than applied twice.
        */
-      const teamAllowance = effectiveAllowance(activeStage.format, activeStage.handicapAllowance);
+      const teamAllowance = effectiveAllowance(activeStage.format, activeStage.handicapAllowance, activeStage.type);
       // Zero on a medal round, so `- low` is the identity there and nothing
       // about a four-ball medal changes.
       const low = lowInMatch(matchId);

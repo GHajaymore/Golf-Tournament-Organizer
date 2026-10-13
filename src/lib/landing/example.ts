@@ -2,8 +2,8 @@ import { courseHandicapExact, playingHandicapFrom, wholeStrokes } from "@/lib/do
 
 /**
  * The worked handicap example the front door and the FAQ both quote: a 12.4
- * index on a card rated 71.5 off 140 slope, playing four-ball at its 90%
- * allowance — the single calculation most golf software gets wrong.
+ * index on a card rated 71.5 off 140 slope, playing a four-ball MATCH at its 90%
+ * allowance (at stroke play a four-ball is 85%) — the single calculation most golf software gets wrong.
  *
  * Computed by the engine the app scores with, so the number a visitor is shown
  * on the way in cannot drift from the number they get once inside. Moved here

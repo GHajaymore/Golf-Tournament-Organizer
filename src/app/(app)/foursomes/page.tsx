@@ -295,7 +295,7 @@ export default async function FoursomesPage({
    * score, which is worse than printing none: a player marks a net score on
    * the strength of a dot that was not there.
    */
-  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
   const courseHandicaps = roundCourseHandicaps({
     tees: eventTees,
     players: state.confirmed,

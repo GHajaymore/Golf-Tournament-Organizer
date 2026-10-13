@@ -535,11 +535,13 @@ export function findFormat(name: string): GolfFormat {
   return lookupFormat(name) ?? GOLF_FORMATS[0];
 }
 
-/** The allowance actually in force for a round: the committee's, or the
- *  format's recommendation when they haven't set one. */
-export function effectiveAllowance(format: string, override: number): number {
-  return override > 0 ? override : findFormat(format).allowance;
-}
+/**
+ * `effectiveAllowance(format, override)` WAS HERE. It answered from the format
+ * alone, and the allowance a round plays at depends on the ROUND as well: a
+ * four-ball is 85% at stroke play and 90% at match play (Appendix C). It is in
+ * `round-allowance.ts`, which asks for the round's type and will not compile
+ * without it.
+ */
 
 /**
  * Formats with a real scoring engine behind them.

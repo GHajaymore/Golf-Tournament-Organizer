@@ -941,7 +941,7 @@ export function strokeHandicapResolver(ctx: {
 }): (playerId: string, stageId: string) => number {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
-    const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+    const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
     // This round's own map first — its tees and its hole count. The pair
     // below is the event-wide answer and stays as the fallback, so a caller
     // that supplies no per-stage maps behaves exactly as it did.
@@ -2925,7 +2925,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const own = courseHcpByMatch.get(matchId);
       if (!own) return handicapFor(playerId, m.stageId);
       const stage = stageById.get(m.stageId);
-      const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+      const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
       const member = own.get(playerId) ?? courseHcp.get(playerId) ?? 0;
       const resolved = resolveRoundHandicap({
         ...(roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? {}),

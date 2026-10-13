@@ -1615,7 +1615,10 @@ export async function seed() {
         courseId: home.id,
         teeId: homeTee("White").id,
         scoringBasis: "net",
-        handicapAllowance: 85,
+        // No allowance of the committee's own. This said `handicapAllowance: 85`,
+        // because the app offered a four-ball 90% whatever the round and 85% is
+        // the Rules' figure for a four-ball at STROKE play (Appendix C). The app
+        // says 85% itself now, so the fixture stops typing over it.
         playedOn: dayOffset(-3),
         teeSheet: teeSheetFor(teamField),
         teeSheetPublished: true,

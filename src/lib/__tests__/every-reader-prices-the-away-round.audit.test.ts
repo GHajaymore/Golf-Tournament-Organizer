@@ -113,16 +113,19 @@ beforeAll(async () => {
     ],
   });
 
-  const round = (position: number, courseId: string, teeId: string | null, format: string) =>
+  const round = (position: number, courseId: string, teeId: string | null, format: string, handicapAllowance = 0) =>
     prisma.stage.create({
-      data: { eventId, position, type: "Stroke Play Round", format, holes: 18, courseId, teeId },
+      data: { eventId, position, type: "Stroke Play Round", format, holes: 18, courseId, teeId, handicapAllowance },
     });
   const [r1, r2, r3] = await Promise.all([
     round(0, host.id, null, "Stroke Play"),
     round(1, away.id, awayTee.id, "Stroke Play"),
     // A team round away, for `teamsForStage` — the seeded club's own away round
     // is a team round, which is why this cell is worth having.
-    round(2, away.id, awayTee.id, "Four-Ball"),
+    // At the committee's own 90%. A four-ball at STROKE play is 85% by Appendix C,
+    // and at 85% this pair's handicaps come out the same rounded first or last; at
+    // 90% they differ by a stroke each way, which is what the side test below needs.
+    round(2, away.id, awayTee.id, "Four-Ball", 90),
   ]);
   homeRoundId = r1.id;
   awayRoundId = r2.id;
@@ -247,7 +250,8 @@ describe("every reader prices the away round off the away club", () => {
      * worse rather than better: one side handicap is the only number the pair
      * receives all round.
      */
-    const sides = await teamsForStage(eventId, awayTeamRoundId, "Four-Ball", 0, 18);
+    // 90: the round's own figure, as every caller in the app hands it over.
+    const sides = await teamsForStage(eventId, awayTeamRoundId, "Four-Ball", 90, 18);
     expect(sides, "the side is missing, so this asserts nothing").toHaveLength(1);
     const byId = new Map(sides[0].members.map((m) => [m.playerId, m.handicap]));
     /**

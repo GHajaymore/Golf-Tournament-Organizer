@@ -22,8 +22,13 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  * in five, in every net round with an allowance. This is the browser form of
  * that finding: the next round can find it again without anybody remembering.
  *
- * The seeded club's four-ball is live, its first round scored, its allowance
- * set by the committee to 85%:
+ * AND THEN THE FIGURE ITSELF. A four-ball is 85% at stroke play and 90% in a
+ * match (Appendix C). The app offered 90% for both, and the seeded round carried
+ * 85% "set by your committee, in place of the usual 90%". The app says 85% for
+ * a stroke-play four-ball itself now, and this holds it to that.
+ *
+ * The seeded club's four-ball is live, its first round scored at stroke play,
+ * with no allowance of the committee's own:
  *
  *   the round's board          → every side's NET is the Rule's, at 85%
  *                                 (and at least one side's would be different
@@ -35,8 +40,10 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  *                                 "Keep 85%" stores nothing
  *   … → Change it anyway       → stored; the board is the Rule's at 100%, which
  *                                 is every player's whole course handicap
- *   Back to 90%                → the format's own; the board is the Rule's at 90%
- *   85 again                   → and the board is back where it began
+ *   Back to 85%                → the Rules' own for a four-ball at stroke play;
+ *                                 the board is back where it began
+ *   a committee's 90           → asked; the board is the Rule's at 90%
+ *   a committee's 85           → said to be the committee's, and the usual figure
  *   Scores that count → best 2 → asked; then both balls count on every hole
  *   the round's handicaps      → say the course handicap, the figure before
  *                                 rounding, and what the player plays off
@@ -131,7 +138,8 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   const stage = await prisma.stage.findFirstOrThrow({ where: { eventId: ev.id, position: 0 } });
   const event = await prisma.event.findUniqueOrThrow({ where: { id: ev.id } });
   expect(stage.format, "the seeded round is not a four-ball").toBe("Four-Ball");
-  expect(stage.handicapAllowance, "the seeded round's allowance is not the committee's 85%").toBe(85);
+  expect(stage.type, "the seeded four-ball is not a stroke-play round").toBe("Stroke Play Round");
+  expect(stage.handicapAllowance, "the seeded round carries an allowance of the committee's own").toBe(0);
   expect(event.configUnlocked, "the seeded four-ball's setup is already unlocked").toBe(false);
 
   // ── The round, read from the rows: tees, card, sides, and each ball's card ──
@@ -198,7 +206,7 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   };
 
   // ── as it stands: 85%, best ball ───────────────────────────────────────────
-  await holds(85, 1, "at the committee's 85%");
+  await holds(85, 1, "at stroke play's 85%, which nobody set");
   // Par is on the card, so the figures above are against the right course.
   expect(pars).toHaveLength(strokeIndex.length);
 
@@ -230,7 +238,7 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   };
   let { card, allowance } = await openRound();
   await expect(allowance).toContainText("85%");
-  await expect(allowance).toContainText("set by your committee, in place of the usual 90%");
+  await expect(allowance, "a four-ball at stroke play is not offered the Rules' 85%").toContainText("the recommended allowance for this format");
 
   // Locked: pressing Change opens the box, and Save is not offered to be pressed.
   /** The line that starts with these words, and the button beside it. */
@@ -263,7 +271,7 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   await box.fill("0");
   await card.getByRole("button", { name: "Save", exact: true }).click();
   await expect(card.getByText(/0% is playing off scratch/)).toBeVisible();
-  expect(await stored(), "a refused allowance was stored").toBe(85);
+  expect(await stored(), "a refused allowance was stored").toBe(0);
 
   // ── asked first, with the cards at stake; declining stores nothing ─────────
   const cardsIn = cards.filter((c) => (JSON.parse(c.strokes) as (number | null)[]).some((x) => typeof x === "number")).length;
@@ -273,10 +281,10 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   await expect(asked, "the round was not asked about before being re-scored").toBeVisible();
   await expect(asked).toContainText(`This round already has ${cardsIn} cards entered.`);
   await expect(card.getByText(/Changing the allowance re-scores every one of them/)).toBeVisible();
-  expect(await stored(), "the allowance was stored before the question was answered").toBe(85);
+  expect(await stored(), "the allowance was stored before the question was answered").toBe(0);
   await card.getByRole("button", { name: "Keep 85%", exact: true }).click();
   await expect(asked).toBeHidden();
-  expect(await stored(), "declining stored the new allowance").toBe(85);
+  expect(await stored(), "declining stored the new allowance").toBe(0);
   await holds(85, 1, "after declining");
 
   // ── and going ahead ────────────────────────────────────────────────────────
@@ -290,22 +298,32 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   await setTo(100);
   ({ allowance } = await openRound());
   await expect(allowance).toContainText("100%");
+  await expect(allowance).toContainText("set by your committee, in place of the usual 85%");
   // At 100% every player plays off their whole course handicap, by either method.
   const full = await holds(100, 1, "at 100%");
   for (const [name, totals] of expected(100, 1, roundedFirst)) expect(full.get(name)).toEqual(totals);
 
   // ── back to the format's own ───────────────────────────────────────────────
   box = await change();
-  await card.getByRole("button", { name: "Back to 90%", exact: true }).click();
+  await card.getByRole("button", { name: "Back to 85%", exact: true }).click();
   await card.getByRole("button", { name: "Change it anyway", exact: true }).click();
-  await expect.poll(stored, { message: "Back to 90% was not stored as no committee figure" }).toBe(0);
+  await expect.poll(stored, { message: "Back to 85% was not stored as no committee figure" }).toBe(0);
   ({ allowance } = await openRound());
-  await expect(allowance).toContainText("90%");
+  await expect(allowance).toContainText("85%");
   await expect(allowance).toContainText("the recommended allowance for this format");
-  await holds(90, 1, "at the format's 90%");
+  await holds(85, 1, "back at stroke play's 85%");
+
+  // ── a committee's own 90, and then its own 85 ──────────────────────────────
+  await setTo(90);
+  ({ allowance } = await openRound());
+  await expect(allowance).toContainText("set by your committee, in place of the usual 85%");
+  await holds(90, 1, "at a committee's 90%");
 
   await setTo(85);
-  await holds(85, 1, "back at 85%");
+  ({ allowance } = await openRound());
+  // Typed, so it is the committee's; and it is also what the Rules give. Not "in place of the usual 85%".
+  await expect(allowance).toContainText("set by your committee; it is also the usual figure for this format");
+  await holds(85, 1, "at a committee's 85%");
 
   // ── how many balls count ───────────────────────────────────────────────────
   ({ card } = await openRound());

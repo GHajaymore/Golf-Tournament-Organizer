@@ -30,7 +30,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
-import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
+import { effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
@@ -45,6 +45,8 @@ import { dayAtClubForEvent } from "@/lib/services/club-clock";
  */
 function teamScoringFor(s: {
   format: string;
+  /** The round's type: a four-ball's recommended allowance depends on it. */
+  type: string;
   handicapAllowance: number;
   allowanceWeights: number[];
   countBest: number;
@@ -65,8 +67,8 @@ function teamScoringFor(s: {
     // choice for a different reason than a foursomes does.
     fixedReason: teamEntryFixedReason(s.format, s.scoringBasis),
     name: f.name,
-    allowance: effectiveAllowance(s.format, s.handicapAllowance),
-    recommendedAllowance: f.allowance,
+    allowance: effectiveAllowance(s.format, s.handicapAllowance, s.type),
+    recommendedAllowance: recommendedAllowance(s.format, s.type),
     allowanceOverridden: s.handicapAllowance > 0,
     allowanceIsConvention: !!f.allowanceIsConvention,
     recommendedShares: declared,

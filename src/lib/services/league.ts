@@ -215,7 +215,7 @@ export async function leagueMeetings(
    * balls of nulls rather than nothing, so an unplayed pairing still reads as
    * unplayed instead of as a walkover.
    */
-  const allowancePct = effectiveAllowance(stage.format, stage.handicapAllowance);
+  const allowancePct = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
   const ballsFor = (teamId: string): MatchBall[] =>
     cards
       .filter((c) => c.teamId === teamId)

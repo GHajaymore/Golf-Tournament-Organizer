@@ -3,7 +3,8 @@ import { playedOnBy } from "./courses";
 import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playingHandicapFrom, type CourseHandicaps, type IndexHolder } from "../domain/handicap";
-import { effectiveAllowance, findFormat } from "../formats";
+import { findFormat } from "../formats";
+import { effectiveAllowance } from "../round-allowance";
 import {
   acceptsHandicapChange,
   exactHandicapToFreeze,
@@ -326,10 +327,10 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     where: { id: stageId, eventId },
     // As the freeze does, and for the same reason: the number shown here is the
     // number the round's cards are priced off, converted for THIS round's tees.
-    select: { holes: true, teeId: true, courseId: true, format: true, handicapAllowance: true },
+    select: { holes: true, teeId: true, courseId: true, format: true, handicapAllowance: true, type: true },
   });
   if (!stage) return [];
-  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
   const ownBall = findFormat(stage.format).ball !== "single";
 
   // Scored, whether or not anything is frozen. A round played before the freeze

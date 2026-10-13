@@ -95,7 +95,7 @@ test("the questions page lays out its handicap sum, its formats and its prices",
       "Handicap index", "12.4",
       "Course rating / slope", "71.5 / 140",
       "Course handicap", "14.86, played as 15",
-      "Four-ball allowance", "90% of 14.86",
+      "Four-ball match allowance", "90% of 14.86",
       "Playing handicap", "13",
     ]);
     await expect(answer).toContainText("before it is rounded");

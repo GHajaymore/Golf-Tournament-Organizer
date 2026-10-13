@@ -34,7 +34,7 @@ import { skinsBoard } from "../services/points-standings";
  * handicap before rounding, so the figures below can be checked by hand.
  *
  *     medal, 95%       9.5  -> 9.025 -> 9          rounded first: 10 -> 9.5  -> 10
- *     four-ball, 90%   10.5 -> 9.45  -> 9          rounded first: 11 -> 9.9  -> 10
+ *     four-ball, 85%   8.6  -> 7.31  -> 7          rounded first: 9  -> 7.65 -> 8
  *     foursomes, 50%   10.6 + 9.6 = 20.2 -> 10.1 -> 10
  *                                                  rounded first: 11 + 10 = 21 -> 10.5 -> 11
  *
@@ -62,7 +62,7 @@ const SI = Array.from({ length: 18 }, (_, i) => i + 1);
 const INDEXES: Record<string, number> = {
   half: 9.5, // the medal
   scratch: 0,
-  tenAndAHalf: 10.5, // the four-ball
+  tenAndAHalf: 8.6, // the four-ball, which at stroke play is 85% (Appendix C)
   partner: 0,
   higher: 10.6, // the foursomes
   lower: 9.6,
@@ -164,7 +164,7 @@ describe("the fixture can tell the two methods apart", () => {
   it("CONTROL: rounded first, each of the three is one stroke different", () => {
     const once = (exact: number, pct: number) => Math.floor((exact * pct) / 100 + 0.5);
     expect([once(9.5, 95), once(Math.round(9.5), 95)]).toEqual([9, 10]);
-    expect([once(10.5, 90), once(Math.round(10.5), 90)]).toEqual([9, 10]);
+    expect([once(8.6, 85), once(Math.round(8.6), 85)]).toEqual([7, 8]);
     expect([once(10.6 + 9.6, 50), once(Math.round(10.6) + Math.round(9.6), 50)]).toEqual([10, 11]);
   });
 });
@@ -205,19 +205,19 @@ describe("the medal, at 95%", () => {
   });
 });
 
-describe("the four-ball, at 90%", () => {
-  it("each ball plays off 90% of its own unrounded handicap", async () => {
+describe("the four-ball, at stroke play's 85%", () => {
+  it("each ball plays off 85% of its own unrounded handicap", async () => {
     const [side] = await teamsForStage(eventId, fourBallId, "Four-Ball", 0, 18);
     const m = side.members.find((x) => x.playerId === player.tenAndAHalf)!;
-    expect([m.handicap, m.handicapExact, m.playing]).toEqual([11, 10.5, 9]);
+    expect([m.handicap, m.handicapExact, m.playing]).toEqual([9, 8.6, 7]);
     expect(side.members.find((x) => x.playerId === player.partner)!.playing).toBe(0);
   });
 
-  it("and the side's net on the board is 90 less those nine strokes", async () => {
+  it("and the side's net on the board is 90 less those seven strokes", async () => {
     const rows = await teamStandings(eventId, fourBallId, "Four-Ball", PARS, SI, "net");
     expect(rows).toHaveLength(1);
     expect(rows[0].gross).toBe(90);
-    expect(rows[0].net).toBe(81);
+    expect(rows[0].net).toBe(83);
   });
 });
 
@@ -237,7 +237,7 @@ describe("the foursomes, at 50% of the pair", () => {
  * NUMBER — the case a frozen whole number alone gets wrong.
  *
  * 9.5 becomes 10.4: still a course handicap of 10, and at 95% now 9.88, which
- * is 10. 10.5 becomes 11.4: still 11, and at 90% now 10.26, which is 10. 10.6
+ * is 10. 8.6 becomes 9.4: still 9, and at 85% now 7.99, which is 8. 10.6
  * becomes 11.3 and 9.6 becomes 10.3: still 11 and 10, and half of 21.6 is 10.8,
  * which is 11. Every reader must go on saying what the round was played off,
  * and each of them reads the frozen row by its own route: the board from
@@ -247,7 +247,7 @@ describe("the foursomes, at 50% of the pair", () => {
 describe("after the freeze, every reader still says what the round was played off", () => {
   beforeAll(async () => {
     for (const stageId of [medalId, fourBallId, foursomesId]) await freezeRoundHandicaps(eventId, stageId);
-    const moved: Record<string, number> = { half: 10.4, tenAndAHalf: 11.4, higher: 11.3, lower: 10.3 };
+    const moved: Record<string, number> = { half: 10.4, tenAndAHalf: 9.4, higher: 11.3, lower: 10.3 };
     for (const [who, handicap] of Object.entries(moved)) {
       await prisma.player.update({ where: { id: player[who] }, data: { handicap } });
     }
@@ -281,9 +281,9 @@ describe("after the freeze, every reader still says what the round was played of
   it("the four-ball side and its net", async () => {
     const [side] = await teamsForStage(eventId, fourBallId, "Four-Ball", 0, 18);
     const m = side.members.find((x) => x.playerId === player.tenAndAHalf)!;
-    expect([m.handicap, m.handicapExact, m.playing]).toEqual([11, 10.5, 9]);
+    expect([m.handicap, m.handicapExact, m.playing]).toEqual([9, 8.6, 7]);
     const rows = await teamStandings(eventId, fourBallId, "Four-Ball", PARS, SI, "net");
-    expect(rows[0].net).toBe(81);
+    expect(rows[0].net).toBe(83);
   });
 
   it("the foursomes pair", async () => {
