@@ -26,6 +26,8 @@
  * means its own clock by both; there is no other reading an organizer would
  * accept.
  */
+import { dateWordsFor, fieldsAt, writeDate } from "./date-words";
+import { formatDay } from "./locale";
 
 /** Whether `value` is a time zone this runtime can reason about. */
 export function isTimeZone(value: string | null | undefined): value is string {
@@ -84,12 +86,26 @@ export function clubDay(timeZone: string | null | undefined, at: Date = new Date
 }
 
 /**
+ * The day an INSTANT fell on at a club, in that club's words: "3 Apr 2026". For a timestamp somebody
+ * will read as a date — when a card was checked, when money changed hands — where there is a club in
+ * hand and no tournament (`dayAtClubForEvent` in services is the same answer from a tournament's id).
+ */
+export function clubDayInWords(timeZone: string | null | undefined, locale: string | null | undefined, at: Date): string {
+  return formatDay(clubToday(timeZone, at), locale || undefined);
+}
+
+/**
  * The clock on the club's wall, for the settings screen: "Sunday 11 October,
  * 14:05". Words rather than an offset, because an organizer checks a zone by
  * looking at the time, not by knowing what "UTC−04:00" means.
  */
 export function clubClockInWords(timeZone: string | null | undefined, locale: string, at: Date = new Date()): string {
   if (!isTimeZone(timeZone)) return "";
+  // In the app's own words where it holds this club's conventions (`date-words.ts`), so the settings
+  // screen reads the same from the server and in every browser; the platform's for any other tag.
+  const words = dateWordsFor(locale);
+  const fields = words ? fieldsAt(at, timeZone as string) : null;
+  if (words && fields) return writeDate(words, "wall", fields);
   try {
     return new Intl.DateTimeFormat(locale, {
       timeZone,

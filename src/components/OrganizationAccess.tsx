@@ -389,7 +389,11 @@ export function OrganizationAccess({
         {report.events.length === 0 ? (
           <span className="text-muted" style={{ fontSize: 13 }}>No tournaments yet.</span>
         ) : (
-          <div className="table-scroll">
+          // A region a KEYBOARD can scroll. This table is read-only — nothing in it takes focus — and it
+          // is wider than its card whenever the club has several tournaments, so somebody without a
+          // mouse could not reach the columns past the edge at all (found by the first accessibility
+          // audit, 2026-10-13). A stop in the tab order with a name, and the arrow keys do the rest.
+          <div className="table-scroll" tabIndex={0} role="region" aria-label="Who is in which tournament — scroll sideways for more">
             <table className="table" style={{ fontSize: 13, minWidth: 520 }}>
               <thead>
                 <tr>

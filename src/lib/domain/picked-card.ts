@@ -54,7 +54,12 @@ export const IMPORTED_UNCHECKED =
 const said = (n: { warn: boolean; text: string } | null): PickedCardNote | null =>
   n ? { warn: n.warn, text: n.text } : null;
 
-export function pickedCardNote(card: StoredCard | null | undefined, today: Date = new Date()): PickedCardNote | null {
+export function pickedCardNote(
+  card: StoredCard | null | undefined,
+  today: Date = new Date(),
+  /** How to write the day the card was checked — the club's (`clubDayInWords`). Every screen that picks a course passes one. */
+  formatDate?: (d: Date) => string,
+): PickedCardNote | null {
   if (!card) return null;
   const pars = parseIndex(card.pars);
   if (pars.length === 0 || pars.every((p) => !p)) return { warn: true, text: NO_CARD_YET };
@@ -64,7 +69,7 @@ export function pickedCardNote(card: StoredCard | null | undefined, today: Date 
    * Missing stroke index first: it is the one that makes a number WRONG
    * rather than doubtful, and `cardTrustNote` already words it.
    */
-  if (needsStrokeIndex(si)) return said(cardTrustNote(card, today, undefined, si));
+  if (needsStrokeIndex(si)) return said(cardTrustNote(card, today, formatDate, si));
 
   /**
    * INCOMPLETE OR INCONSISTENT. Pars and stroke index only — yardage is
@@ -81,9 +86,8 @@ export function pickedCardNote(card: StoredCard | null | undefined, today: Date 
     return { warn: true, text: `This course's scorecard doesn't look right. ${problem}` };
   }
 
-  // The date in `cardTrustNote`'s own form, the same one the round screen and
-  // the player's card print — a club's locale is not known on every screen
-  // that picks a course, and a hardcoded one is what `no-hardcoded-locale`
-  // exists to refuse.
-  return said(cardTrustNote(card, today, undefined, si));
+  // The day in the CLUB's form (2026-10-13). This said a club's locale "is not known on every screen that
+  // picks a course" and printed the database's own "2026-09-20" instead; each of those screens does know
+  // whose course it is, and now says so by passing `formatDate`.
+  return said(cardTrustNote(card, today, formatDate, si));
 }

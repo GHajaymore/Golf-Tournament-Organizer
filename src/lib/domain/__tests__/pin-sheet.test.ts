@@ -110,6 +110,30 @@ describe("a side chosen with no paces", () => {
     expect(readPin({ on: "", side: "C", off: "" })).toEqual({ pin: null });
     expect(readPin({ on: "", off: "" })).toEqual({ pin: null });
   });
+
+  /**
+   * A PIN TAKEN AWAY (2026-10-13). 22 / 6R, moved to centre, its paces
+   * deleted: on centre the "from the edge" box is greyed and drawn EMPTY, but
+   * the row still held the 6. It was sent as an unfinished position and the
+   * committee was refused — "Paces on must be a whole number" — over a hole
+   * with nothing showing in it, so a sheet could not be cleared that way.
+   * `e2e/round-day.spec.ts` found it, by typing a pin and taking it away.
+   */
+  it("a row moved to centre and emptied is not set, whatever is left in the box nobody can see", async () => {
+    const { pinRowsPayload } = await import("../pin-sheet");
+    const cleared = { on: "", side: "C" as const, off: "6" };
+    expect(pinRowsPayload([cleared])[0], "a hole that shows nothing was sent as a position").toBeNull();
+    // And the whole sheet then reads as cleared, not as hole 1 being wrong.
+    const sheet = readPinSheet(pinRowsPayload([cleared, { on: "", side: "C", off: "" }]), 2);
+    expect(sheet.error).toBeUndefined();
+    expect(sheet.sheet.every((p) => p === null)).toBe(true);
+    // CONTROL: the same leftover on a side that SHOWS its box is still an unfinished position, and is named.
+    const unfinished = pinRowsPayload([{ on: "", side: "R" as const, off: "6" }]);
+    expect(unfinished[0]).not.toBeNull();
+    expect(readPinSheet(unfinished, 1).error ?? "").toMatch(/^Hole 1: .*paces on/i);
+    // CONTROL: and a centre pin that IS set keeps its paces on and drops the hidden figure.
+    expect(pinRowsPayload([{ on: "18", side: "C" as const, off: "6" }])[0]).toEqual({ on: "18", side: "C", off: 0 });
+  });
 });
 
 describe("a refusal names the hole the committee is looking at", () => {

@@ -57,6 +57,7 @@ export function WithdrawButton({
   eventName,
   waiting = false,
   awaiting = false,
+  onDone,
 }: {
   eventId: string;
   eventName: string;
@@ -64,6 +65,17 @@ export function WithdrawButton({
   waiting?: boolean;
   /** Within `waiting`: with the organizer to approve rather than queuing. */
   awaiting?: boolean;
+  /**
+   * Told the sentence this button answers with, once the withdrawal is done.
+   *
+   * The list this sits in is redrawn by the withdrawal itself, and a row that
+   * can no longer be withdrawn from no longer draws this button — so the
+   * answer below was on screen for as long as the redraw took and no longer
+   * (found by the first browser test to withdraw, 2026-10-13: three sizes,
+   * three times "the member is not told they have withdrawn"). Whoever draws
+   * the row keeps the sentence.
+   */
+  onDone?: (said: string) => void;
 }) {
   const [asking, setAsking] = useState(false);
   const [done, setDone] = useState(false);
@@ -121,7 +133,10 @@ export function WithdrawButton({
             start(async () => {
               setError("");
               const res = await withdrawMyEntry(eventId);
-              if (res.ok) setDone(true);
+              if (res.ok) {
+                setDone(true);
+                onDone?.(words.done);
+              }
               else setError(res.error ?? "That didn't work.");
             })
           }

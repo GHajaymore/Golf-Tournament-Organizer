@@ -199,17 +199,45 @@ test("and sends it by itself when the signal comes back", async ({ page, context
  * can be made.
  */
 
-/** Edit the stored card behind the browser, the way an organizer would. */
-async function committeeEdits(index: number, to: number) {
+/** Edit the stored card behind the browser, the way an organizer would. Answers with the score it wrote. */
+async function committeeEdits(index: number, wanted: number): Promise<number> {
   const prisma = new PrismaClient();
   try {
     const { stageId, playerId, strokes } = data.partialCard;
-    const next = [...strokes];
-    next[index] = to;
+    const stored = await prisma.scorecard.findFirst({ where: { stageId, playerId }, select: { strokes: true } });
+    const withScore = (score: number) => {
+      const card = [...strokes];
+      card[index] = score;
+      return card;
+    };
+    // The score asked for, unless the card stored already says exactly that: then one fewer, so the edit is an edit.
+    const says = (card: (number | null)[]) => !!stored && JSON.stringify(JSON.parse(stored.strokes)) === JSON.stringify(card);
+    const to = says(withScore(wanted)) ? wanted - 1 : wanted;
+    const next = withScore(to);
+    /**
+     * AN EDIT THAT CHANGES NOTHING IS NOT AN EDIT, AND THIS REFUSES TO MAKE ONE.
+     *
+     * A conflict is "the card stored is not the card this phone started from",
+     * judged on what the card SAYS. The second test below used to make the
+     * same correction as the first — the 1st to a 9 — over a card the first
+     * had already left saying exactly that, so the committee "edited" the card
+     * into itself and there was nothing to conflict with. It passed anyway,
+     * most nights, on an accident: the phone sent its card twice at once, and
+     * the second copy conflicted with the phone's own first. When the two did
+     * not overlap, no chooser came ("element(s) not found", twenty seconds of
+     * nothing); when a third copy followed, the chooser came and went
+     * ("element was detached"). Those are the two signatures CLAUDE.md carried
+     * for a year as an intermittent. Found 2026-10-13 by running the pair
+     * twenty-five times and reading what one failure had SENT.
+     */
+    if (says(next)) {
+      throw new Error(`the committee's edit changes nothing: the card stored already has ${to} on hole ${index + 1}, so there is nothing for a phone to conflict with`);
+    }
     await prisma.scorecard.updateMany({
       where: { stageId, playerId },
       data: { strokes: JSON.stringify(next) },
     });
+    return to;
   } finally {
     await prisma.$disconnect();
   }
@@ -225,7 +253,7 @@ test("a card changed while you were offline asks instead of overwriting", async 
   await expect(page.locator('[role="status"]')).toContainText(/no signal/i, { timeout: 10_000 });
 
   // While the phone is out of coverage, the committee corrects the 1st.
-  await committeeEdits(0, 9);
+  const corrected = await committeeEdits(0, 9);
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -239,7 +267,7 @@ test("a card changed while you were offline asks instead of overwriting", async 
 
   // And it shows the hole in dispute rather than all eighteen — a decision
   // nobody can make by scanning two full rows on a phone.
-  await expect(chooser).toContainText("9");
+  await expect(chooser).toContainText(String(corrected));
 });
 
 test("taking their card clears the queue without sending anything", async ({ page, context }) => {

@@ -24,6 +24,7 @@ import { RoundPicker } from "@/components/RoundPicker";
 import { cupBoard } from "@/lib/services/cup";
 import { CupScoreboard } from "@/components/CupScoreboard";
 import { PlaySuspendedBanner } from "@/components/PlaySuspendedBanner";
+import { CommentaryFeed } from "@/components/CommentaryFeed";
 import { playStatusOf } from "@/lib/domain/play-status";
 import { golfTermsForEvent } from "@/lib/services/organization";
 
@@ -239,6 +240,10 @@ export default async function PublicLeaderboardPage({
             </div>
           )}
         </header>
+
+        {/* What the committee has said, above the scores it is about. Read on every request, not from the
+            board's cache: a line posted is a line the next refresh shows. */}
+        <CommentaryFeed eventId={event.id} organizer={(await golfTermsForEvent(event.id)).organizer} />
 
         {/* A TEAM CUP'S SCORE — the figure everybody following the trip opened
             this link for, and the whole of the board for a cup.

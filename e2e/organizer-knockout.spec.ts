@@ -70,7 +70,11 @@ async function decide(page: Page, winner: string, loser: string, round: "Semifin
     .getByRole("textbox", { name: new RegExp(`^Result of (${pair.join("|")}) v (${pair.join("|")}), ${round}$`) });
   await expect(result, `no margin box for ${winner} v ${loser}`).toBeVisible({ timeout: 20_000 });
   await result.fill(margin);
-  await result.press("Tab");
+  // ENTER, as a person finishing a figure presses. This pressed Tab until 2026-10-13, and the first run
+  // on Firefox lost the final's "1 UP": the final's box is the last thing on the page that can take the
+  // focus, Tab had nowhere to go, and a box that only saved when LEFT was never left. Enter saved nothing
+  // in any browser. It leaves the box now (`src/lib/leave-on-enter.ts`); the semi-finals below still Tab.
+  await result.press(round === "Final" ? "Enter" : "Tab");
   // The box saves when it is left, and now says so. Moving on before it does
   // is how a "1 UP" was lost on CI (2026-10-05) — as it would be for anybody.
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible({ timeout: 20_000 });

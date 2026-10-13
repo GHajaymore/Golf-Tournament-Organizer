@@ -5,6 +5,7 @@ import { cutAdvancesEveryone } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { plural } from "@/lib/format";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export function CutControl({
   formId,
@@ -145,6 +146,7 @@ export function CutControl({
               aria-label={`Players who make the cut for ${roundLabel}`}
               disabled={pending}
               onChange={(e) => setN(parseInt(e.target.value, 10) || 1)}
+              onKeyDown={leaveOnEnter}
               onBlur={() => commit(on, m, n, pct)}
             />
           ) : (
@@ -158,6 +160,7 @@ export function CutControl({
               aria-label={`Percent of the field who make the cut for ${roundLabel}`}
               disabled={pending}
               onChange={(e) => setPct(parseInt(e.target.value, 10) || 1)}
+              onKeyDown={leaveOnEnter}
               onBlur={() => commit(on, m, n, pct)}
             />
           )}

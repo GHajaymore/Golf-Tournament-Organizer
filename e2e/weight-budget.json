@@ -1,0 +1,134 @@
+{
+ "win32": {
+  "the front door": {
+   "document": 152819,
+   "script": 149916,
+   "style": 8826,
+   "other": 1630459,
+   "total": 1942020,
+   "requests": 41
+  },
+  "the public board": {
+   "document": 49596,
+   "script": 143118,
+   "style": 8826,
+   "other": 107325,
+   "total": 308865,
+   "requests": 19
+  },
+  "a player's Today": {
+   "document": 57814,
+   "script": 151939,
+   "style": 8826,
+   "other": 136339,
+   "total": 354918,
+   "requests": 21
+  },
+  "a player's card": {
+   "document": 53734,
+   "script": 188632,
+   "style": 8826,
+   "other": 108074,
+   "total": 359266,
+   "requests": 30
+  },
+  "a player's board": {
+   "document": 54122,
+   "script": 141948,
+   "style": 8826,
+   "other": 107325,
+   "total": 312221,
+   "requests": 18
+  },
+  "the organizer's dashboard": {
+   "document": 57852,
+   "script": 170217,
+   "style": 8826,
+   "other": 138328,
+   "total": 375223,
+   "requests": 27
+  },
+  "score entry": {
+   "document": 55652,
+   "script": 239679,
+   "style": 8826,
+   "other": 107325,
+   "total": 411482,
+   "requests": 35
+  },
+  "the leaderboard": {
+   "document": 53302,
+   "script": 179808,
+   "style": 8826,
+   "other": 109566,
+   "total": 351502,
+   "requests": 32
+  }
+ },
+ "linux": {
+  "the front door": {
+   "document": 153600,
+   "script": 152576,
+   "style": 9216,
+   "other": 1705984,
+   "total": 2020352,
+   "requests": 43
+  },
+  "the public board": {
+   "document": 50176,
+   "script": 146432,
+   "style": 9216,
+   "other": 253952,
+   "total": 459776,
+   "requests": 22
+  },
+  "a player's Today": {
+   "document": 58368,
+   "script": 154624,
+   "style": 9216,
+   "other": 253952,
+   "total": 476160,
+   "requests": 23
+  },
+  "a player's card": {
+   "document": 54272,
+   "script": 191488,
+   "style": 9216,
+   "other": 253952,
+   "total": 508928,
+   "requests": 32
+  },
+  "a player's board": {
+   "document": 55296,
+   "script": 145408,
+   "style": 9216,
+   "other": 254976,
+   "total": 464896,
+   "requests": 23
+  },
+  "the organizer's dashboard": {
+   "document": 58368,
+   "script": 172032,
+   "style": 9216,
+   "other": 253952,
+   "total": 493568,
+   "requests": 28
+  },
+  "score entry": {
+   "document": 56320,
+   "script": 242688,
+   "style": 9216,
+   "other": 253952,
+   "total": 562176,
+   "requests": 38
+  },
+  "the leaderboard": {
+   "document": 54272,
+   "script": 182272,
+   "style": 9216,
+   "other": 253952,
+   "total": 499712,
+   "requests": 32
+  }
+ }
+}

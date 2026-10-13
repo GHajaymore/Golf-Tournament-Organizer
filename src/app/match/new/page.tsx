@@ -14,6 +14,7 @@ import { tournamentClashFor } from "@/lib/services/tournament-clash";
 import { organizationIdsForPlayer } from "@/lib/services/organization";
 import { TournamentClashNotice } from "@/components/TournamentClashNotice";
 import { golfTermsForEvent } from "@/lib/services/organization";
+import { clubDayInWords } from "@/lib/domain/club-clock";
 
 export const metadata = { title: "Set up a round", robots: NOINDEX };
 
@@ -70,6 +71,8 @@ export default async function NewMatchPage() {
     select: {
       id: true, name: true, city: true, pars: true, strokeIndex: true,
       source: true, verifiedAt: true, verifiedBy: true,
+      // Whose course it is: the day its card was checked is that club's day, in its notation.
+      organization: { select: { locale: true, timeZone: true } },
     },
   });
 
@@ -166,7 +169,7 @@ export default async function NewMatchPage() {
             hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
             // Said the moment the course is picked: missing, incomplete or
             // never checked. See `picked-card.ts`.
-            cardNote: pickedCardNote(c),
+            cardNote: pickedCardNote(c, undefined, (d) => clubDayInWords(c.organization.timeZone, c.organization.locale, d)),
           }))}
           myName={session.name}
           localCurrency={localCur}

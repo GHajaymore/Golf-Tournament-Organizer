@@ -38,9 +38,18 @@ const READ_AT_LEAST = 15;
 test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
 async function sharpWholeStill(page: import("@playwright/test").Page) {
+  // Waiting for each picture to come to rest is real time: a second or more for one that arrives with a flourish.
+  test.setTimeout(120_000);
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".thq h1")).toHaveCount(1);
+
+  // EVERY PICTURE IS ASKED FOR NOW, NOT WHEN IT IS SCROLLED TO. A picture not yet loaded is passed over
+  // below, not measured — and the walk down the page gives each sixty milliseconds, which is long enough
+  // for Chromium to fetch a lazy picture and not for Safari's engine: its first run (2026-10-13) measured
+  // fourteen of fifteen, and said so only because the count is held. Whether a picture is lazy is not
+  // what this spec is about; whether it is sharp, whole and still is.
+  await page.evaluate(() => document.querySelectorAll<HTMLImageElement>(".thq img").forEach((img) => (img.loading = "eager")));
 
   // Rise every section and walk the page so lazy images load.
   await page.evaluate(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("seen")));
@@ -50,6 +59,8 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
     await page.waitForTimeout(60);
   }
   await page.waitForLoadState("networkidle");
+  // Arrived, or failed to: `complete` is true of both, and a picture that failed has no width and is counted out.
+  await page.waitForFunction(() => Array.from(document.querySelectorAll<HTMLImageElement>(".thq img")).every((img) => img.complete), null, { timeout: 15_000 }).catch(() => {});
   await page.waitForTimeout(600);
 
   const { faults, read, scenery } = await page.evaluate(async () => {
@@ -80,9 +91,51 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       const [a, b, c, d] = m[1].split(",").map(Number);
       return Math.abs(b) > 1e-3 || Math.abs(c) > 1e-3 || Math.abs(a - 1) > 1e-3 || Math.abs(d - 1) > 1e-3;
     };
-    for (const img of Array.from(document.querySelectorAll<HTMLImageElement>(".thq img"))) {
+    /**
+     * BROUGHT ON SCREEN, AND GIVEN TIME TO ARRIVE (2026-10-13). A section of this page waits, tilted and
+     * dimmed, until it is scrolled to, and then settles over a second or so. This spec measured every
+     * picture where it stood after one quick walk down the page — which is "at rest" only if nothing on
+     * the page moves. Nothing did, because the suite asks for reduced motion; Safari's engine on Linux
+     * does not honour that request, and the first round there measured the organizer's laptop screen
+     * still tilted, a second into arriving. Nearly everybody sees this page WITH its motion.
+     *
+     * So each picture is put in the middle of the screen and waited for: until nothing above it is still
+     * arriving. A picture that never arrives runs out the wait and is reported turned, as it should be.
+     * Motion that never ends (the hero's slow float) is not waited for, and is reported if it is on a
+     * picture meant to be read.
+     */
+    const arriving = (el: Element) =>
+      (el.classList.contains("m-armed") && !el.classList.contains("m-in")) ||
+      el.getAnimations().some((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity);
+    /**
+     * Where the picture is and how it is turned, as one string. A browser's own list of what is animating
+     * is not enough: Safari's engine drops a transition from that list a few frames before the element has
+     * actually reached the end of it, and the organizer's laptop screen was measured a quarter of a degree
+     * from flat. At rest means it has STOPPED — the same place twice running.
+     */
+    const pose = (img: HTMLImageElement) => {
       const box = img.getBoundingClientRect();
-      if (box.width < 80 || !img.naturalWidth) continue; // hidden tabs, icons, not yet loaded
+      let s = `${box.width.toFixed(2)}x${box.height.toFixed(2)}`;
+      for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        s += `|${cs.transform}|${cs.opacity}`;
+      }
+      return s;
+    };
+    const settle = async (img: HTMLImageElement) => {
+      img.scrollIntoView({ block: "center", behavior: "instant" });
+      let was = "";
+      for (let tick = 0; tick < 60; tick += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        let busy = false;
+        for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) busy = busy || arriving(el);
+        const now = pose(img);
+        if (!busy && now === was && tick >= 2) return;
+        was = now;
+      }
+    };
+    for (const img of Array.from(document.querySelectorAll<HTMLImageElement>(".thq img"))) {
+      if (img.getBoundingClientRect().width < 80 || !img.naturalWidth) continue; // hidden tabs, icons, not yet loaded
       const name = (img.currentSrc || img.src).split("/").pop();
       // Scenery, said twice — see the head of this file. Half a claim is a fault, not an excuse.
       const layer = img.closest(".m-decor");
@@ -92,11 +145,17 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       }
       read += 1;
       const [fileW, fileH] = await fileSize(img.currentSrc || img.src);
+      const [srcW] = await fileSize(img.src);
+      // Only what is meant to be READ is waited for: scenery may move for ever, and nobody measures it.
+      // And it is waited for LAST, with nothing awaited between the wait and the looking: some screens take
+      // turns (a loop that fades to the next every few seconds), and a picture found still, then measured a
+      // moment later, was caught mid-fade — reported "animated" for a fade that is over in half a second.
+      await settle(img);
+      const box = img.getBoundingClientRect();
       const density = fileW / box.width;
       if (density < dpr - 0.05) out.push(`${name}: soft — ${density.toFixed(2)} px per CSS px, needs ${dpr}`);
       // What a retina laptop would be given (2026-09-30): a srcset lets a 1x screen take a
       // smaller copy, so the largest copy on offer must still carry 2x at this width.
-      const [srcW] = await fileSize(img.src);
       const offered = Math.max(srcW, ...(img.srcset || "").split(",").map((c) => parseInt(c.trim().split(/\s+/)[1] || "0", 10)).filter((n) => n > 0));
       if (offered / box.width < 1.95) out.push(`${name}: no 2x copy — largest ${offered}px for ${Math.round(box.width)} CSS px`);
       const natural = fileH / fileW;
@@ -172,9 +231,16 @@ test("the theme slider shows one board in four themes, and dragging moves the ba
   // asked for until they are there. The first run of this test asked once, at once, and failed
   // on a slider that was working (2026-10-12).
   await expect.poll(async () => (await onTop()).loaded, { message: "a theme's capture did not load", timeout: 15_000 }).toEqual([true, true, true, true]);
-  const rest = await onTop();
+  // WITH ITS MOTION ON THE BANDS SWAY, and this file runs with motion on. The sample points sit a
+  // sixteenth apart and so do the three boundaries, so four times in every sway all three boundaries
+  // stand on sample points at once — and a point on the edge of two clipped pictures is on neither.
+  // One reading, taken at a random instant, was therefore "nothing" about one run in nine (seen on
+  // GitHub, 2026-10-13, on code identical to a run that passed; worked out by the session trimming
+  // the fonts). A boundary is on a point for an instant; a band with no picture in it stays empty.
+  // So it is asked until a reading has no gap, and a real gap still fails.
+  let rest = await onTop();
   expect(rest.width, "the frame is too narrow to show four bands").toBeGreaterThan(200);
-  expect(rest.tops, "part of the frame shows no capture at all").not.toContain("nothing");
+  await expect.poll(async () => (rest = await onTop()).tops, { message: "part of the frame shows no capture at all", timeout: 10_000 }).not.toContain("nothing");
   const themes = [...new Set(rest.tops)];
   expect(themes.length, `the frame shows ${themes.join(", ")}`).toBe(4);
   expect(themes.filter((t) => t.endsWith("-light")).length, "two of the four are light").toBe(2);
@@ -244,17 +310,82 @@ test("a phone's bottom bar is up only mid-page, and unreachable when it is down"
       const box = d.getBoundingClientRect();
       return { shown: cs.visibility === "visible" && box.top < window.innerHeight - 4, reachable: cs.visibility === "visible" };
     });
-  const at = async (y: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), y);
-    // the bar answers an observer, and slides: asked until it has settled either way
-    await page.waitForTimeout(700);
-    return state();
+  /**
+   * The bar answers an observer and slides, so it is ASKED UNTIL it says what it should, not asked once
+   * after a fixed pause. It was asked after 700ms, with the page left to scroll at its own pace — and
+   * with the page's motion on, a scroll to the sign-up form is itself still under way at 700ms on a slow
+   * machine. Safari's engine on Linux runs with the motion on whatever the suite asks (see
+   * `sharpWholeStill`), and failed here for that. The jump is made at once; the wait is for the bar.
+   */
+  const at = async (y: number, what: string, want: { shown: boolean; reachable: boolean }) => {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+    await expect.poll(state, { message: what, timeout: 8_000 }).toEqual(want);
   };
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
   const startTop = await page.evaluate(() => Math.round(document.querySelector("#start")!.getBoundingClientRect().top + window.scrollY));
 
-  expect(await at(0), "at the top, beside the hero's own buttons").toEqual({ shown: false, reachable: false });
-  expect(await at(Math.round(height * 0.45)), "mid-page").toEqual({ shown: true, reachable: true });
-  expect(await at(startTop), "at the sign-up form").toEqual({ shown: false, reachable: false });
-  expect(await at(height), "at the footer").toEqual({ shown: false, reachable: false });
+  await at(0, "at the top, beside the hero's own buttons", { shown: false, reachable: false });
+  await at(Math.round(height * 0.45), "mid-page", { shown: true, reachable: true });
+  await at(startTop, "at the sign-up form", { shown: false, reachable: false });
+  await at(height, "at the footer", { shown: false, reachable: false });
+});
+
+/**
+ * WITH ITS MOTION ON, EVERYTHING THAT WAITS TO ARRIVE DOES ARRIVE (2026-10-13).
+ *
+ * The front door holds a section back — dimmed to a sixth, shifted or tilted —
+ * until it is scrolled to, then lets it settle. That is the page nearly every
+ * visitor gets, and until tonight no test had ever looked at it: the suite asks
+ * for reduced motion, where nothing is held back at all.
+ *
+ * What can go wrong with that is not subtle and is not caught by anything
+ * else. A part is released when 18% of it is on screen. A part too tall for
+ * 18% of it ever to fit a small phone's window is never released — and stays
+ * at a sixth of its ink for good, on the phones with the least room. The
+ * readability scan cannot see it (it photographs the page twice and needs it
+ * still), and reduced motion never arms anything.
+ *
+ * So the page is walked the way a thumb walks it, and then every part that was
+ * armed must have been let go and be at full ink. Run with `E2E_MOTION=full`
+ * this is the test; without it nothing is armed, and it says so rather than
+ * passing on nothing.
+ */
+test("with its motion on, every part of the front door that waits to arrive does arrive", async ({ page }) => {
+  test.skip(process.env.E2E_MOTION !== "full", "nothing is held back when a visitor asks for less motion: run with E2E_MOTION=full");
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".thq h1")).toHaveCount(1);
+  // CONTROL: the motion really is on, and parts really are being held back.
+  const armed = await page.locator(".m-armed").count();
+  expect(armed, "nothing on the page is waiting to arrive — is the motion on?").toBeGreaterThan(5);
+
+  // A thumb's walk: a third of a screen at a time, with a breath at each stop.
+  const [height, screen] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight]);
+  for (let y = 0; y <= height; y += Math.round(screen / 3)) {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+    await page.waitForTimeout(120);
+  }
+
+  const held = () =>
+    page.evaluate(() =>
+      Array.from(document.querySelectorAll(".m-armed:not(.m-in)")).filter((el) => el.getClientRects().length > 0).map((el) => {
+        const box = el.getBoundingClientRect();
+        return `${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 2).join(".")} — ${Math.round(box.height)}px tall in a ${window.innerHeight}px window`;
+      }),
+    );
+  await expect.poll(held, { message: "parts of the page were scrolled past and never let go", timeout: 10_000 }).toEqual([]);
+
+  // Let go is not arrived: each must finish, and finish at full ink and square.
+  await page.waitForFunction(
+    () => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity),
+    null,
+    { timeout: 10_000 },
+  ).catch(() => {});
+  const faint = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".m-armed"))
+      .filter((el) => el.getClientRects().length > 0 && Number(getComputedStyle(el).opacity) < 0.99)
+      .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 2).join(".")} at ${getComputedStyle(el).opacity}`),
+  );
+  expect(faint, "parts of the page that arrived and are still faint").toEqual([]);
 });

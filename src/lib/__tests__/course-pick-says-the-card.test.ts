@@ -26,19 +26,19 @@ function filesUnder(dir: string): string[] {
 
 /** Where each picker's courses come from, and what proves they carry the note. */
 const FED_BY: Record<string, Array<[file: string[], proof: string]>> = {
-  "components/NewMatchForm.tsx": [[["src", "app", "match", "new", "page.tsx"], "cardNote: pickedCardNote(c)"]],
+  "components/NewMatchForm.tsx": [[["src", "app", "match", "new", "page.tsx"], "cardNote: pickedCardNote(c,"]],
   "components/CourseLibrary.tsx": [[["src", "components", "CourseLibrary.tsx"], "cardNote: c.cardNote"]],
   "components/EventSetupClient.tsx": [
     [["src", "components", "EventSetupClient.tsx"], "cardNote: c.cardNote"],
     [["src", "app", "(app)", "event", "page.tsx"], "cardNote: c.cardNote"],
   ],
-  "components/StagesClient.tsx": [[["src", "app", "(app)", "stages", "page.tsx"], "cardNote: pickedCardNote(v)"]],
+  "components/StagesClient.tsx": [[["src", "app", "(app)", "stages", "page.tsx"], "cardNote: pickedCardNote(v,"]],
   "components/RoundVenue.tsx": [
-    [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: pickedCardNote(v)"],
+    [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: pickedCardNote(v,"],
     [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: c.cardNote"],
   ],
   "components/ScoreEntryClient.tsx": [
-    [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: pickedCardNote(v)"],
+    [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: pickedCardNote(v,"],
     [["src", "app", "(app)", "entry", "page.tsx"], "cardNote: c.cardNote"],
   ],
 };

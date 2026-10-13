@@ -13,6 +13,7 @@ import {
   type TeeLike,
 } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
+import { decimalPoint } from "@/lib/domain/decimal-text";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { Icon } from "./Icon";
 
@@ -234,7 +235,7 @@ export function VenuePrompt({
       !teeId && (teeName.trim() || cr || slope)
         ? {
             name: teeName,
-            courseRating: parseFloat(cr) || 0,
+            courseRating: parseFloat(decimalPoint(cr)) || 0,
             slopeRating: parseInt(slope, 10) || 0,
             par: parseInt(teePar, 10) || 72,
           }

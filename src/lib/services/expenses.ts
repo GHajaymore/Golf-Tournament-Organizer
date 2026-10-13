@@ -1,4 +1,5 @@
 import "server-only";
+import { dayAtClubForEvent } from "./club-clock";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
@@ -1335,6 +1336,19 @@ export async function moneyFor(
   // by, so a pot's "N in" and the settle-up beneath it cannot disagree.
   const playedOnceOver = await playedOnceRoundIsOver(eventId, [...contestRows, ...sideGameRows]);
 
+  /**
+   * THE DAY A HANDOVER WAS RECORDED — the club's day, in the club's words.
+   *
+   * It was `settledAt.toISOString().slice(0, 10)`: the day by the SERVER's
+   * clock, which is UTC, printed as "2026-10-13". Two faults in ten characters.
+   * A handover recorded at nine in the evening in New York was dated tomorrow;
+   * and it was the one date on either money screen written as a database
+   * writes one, beside prizes and rounds written "Oct 13, 2026". Read off the
+   * organizer's ledger while writing the first browser test of settling up
+   * (2026-10-13). A day belongs to a place (CLAUDE.md, "The club's clock").
+   */
+  const dayRecorded = await dayAtClubForEvent(eventId);
+
   return {
     playerId: me?.id ?? "",
     netCents: me ? standingNets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
@@ -1350,7 +1364,7 @@ export async function moneyFor(
       toName: nameOf.get(s.toPlayerId) ?? "Unknown",
       cents: s.cents,
       recordedBy: s.recordedBy,
-      settledAt: s.settledAt.toISOString().slice(0, 10),
+      settledAt: dayRecorded(s.settledAt),
       owedCents: s.owedCents,
       rulesVersion: s.rulesVersion,
       /**

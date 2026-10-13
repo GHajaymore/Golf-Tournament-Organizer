@@ -89,6 +89,8 @@ export function ClubEventsList({
    */
   season?: SeasonWindow;
 }) {
+  /** Tournaments withdrawn from on this visit, and the sentence each was answered with. */
+  const [withdrew, setWithdrew] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [course, setCourse] = useState("");
@@ -349,7 +351,20 @@ export function ClubEventsList({
                 )}
 
                 {/* Taking a name off — until entries close (Ajay, 2026-09-26). */}
-                {e.canWithdraw && <WithdrawButton eventId={e.eventId} eventName={e.name} waiting={e.waiting} awaiting={e.awaiting} />}
+                {e.canWithdraw ? (
+                  <WithdrawButton
+                    eventId={e.eventId}
+                    eventName={e.name}
+                    waiting={e.waiting}
+                    awaiting={e.awaiting}
+                    onDone={(said) => setWithdrew((was) => ({ ...was, [e.eventId]: said }))}
+                  />
+                ) : withdrew[e.eventId] ? (
+                  /* What the button said, kept after the redraw took the button away — see `onDone`. */
+                  <span className="text-muted" style={{ fontSize: 13 }} role="status">
+                    {withdrew[e.eventId]}
+                  </span>
+                ) : null}
               </div>
             </article>
           )}

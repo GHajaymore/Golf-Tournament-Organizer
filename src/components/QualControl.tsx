@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export function QualControl({
   mode,
@@ -76,6 +77,7 @@ export function QualControl({
             value={ov}
             disabled={pending}
             onChange={(e) => setOv(parseInt(e.target.value, 10) || 1)}
+            onKeyDown={leaveOnEnter}
             onBlur={() => startTransition(() => setQualifyMode("overall", ov))}
           />
           <span className="text-muted">overall</span>

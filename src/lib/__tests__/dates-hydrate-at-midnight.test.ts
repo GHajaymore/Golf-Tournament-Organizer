@@ -61,12 +61,27 @@ describe("the first render of a message's date", () => {
 });
 
 describe("the score-entry stamp", () => {
-  it("formats in UTC until mounted", () => {
+  /**
+   * The stamp is written by `formatDayAt` since 2026-10-13 (the app's own
+   * words, `date-words.ts`). What this holds is the same guarantee as before,
+   * asked of the function and then of the screen: pinned to UTC the two zones
+   * write one day; and the screen pins it until it has mounted.
+   */
+  it("the function writes one day in both zones while pinned to UTC, and the reader's own once it is not", async () => {
+    const { formatDayAt } = await import("@/lib/domain/locale");
+    const at = new Date(JUST_AFTER_MIDNIGHT_UTC);
+    const server = inZone("UTC", () => formatDayAt(at, "en-GB", "UTC"));
+    const browser = inZone("America/Los_Angeles", () => formatDayAt(at, "en-GB", "UTC"));
+    expect(server).toBe("26 Sept 2026");
+    expect(browser).toBe(server);
+    // CONTROL: without the pin the reader in Los Angeles is still on the 25th, so the pin is doing something.
+    expect(inZone("America/Los_Angeles", () => formatDayAt(at, "en-GB"))).toBe("25 Sept 2026");
+  });
+
+  it("the screen pins it to UTC until mounted", () => {
     const src = readSource("src/components/ScoreEntryClient.tsx");
-    const end = src.indexOf("format(new Date(active.scoredAt))");
-    expect(end, "the stamp is not formatted here any more").toBeGreaterThan(0);
-    const stamp = src.slice(src.lastIndexOf("new Intl.DateTimeFormat", end), end);
-    expect(stamp).toMatch(/mounted \? \{\} : \{ timeZone: "UTC" \}/);
+    expect(src, "the stamp is not written here any more").toContain('formatDayAt(new Date(active.scoredAt), locale, mounted ? undefined : "UTC")');
     expect(src).toMatch(/useEffect\(\(\) => setMounted\(true\), \[\]\)/);
+    expect(src, "the stamp is formatted in place again, by whichever engine draws it").not.toMatch(/new Intl\.DateTimeFormat\(/);
   });
 });

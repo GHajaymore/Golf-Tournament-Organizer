@@ -177,14 +177,68 @@ export function wholeMoney(
  *
  * Asks `minorUnitDigits` the same question `money` asks, so the two cannot
  * disagree: whatever this parses, that formats back to the same string.
+ *
+ * AND IN EVERY LANGUAGE THE FORMATTER WRITES IN (2026-10-13). That sentence was
+ * true in English only. The formatter was given the club's locale and this was
+ * not, so it threw away every comma as a thousands separator: a German,
+ * French or Spanish club's stake, written "5,00" in its own box by this app,
+ * was read back as 500.00 — and "1.234,56" as 1.23. The round-trip test above
+ * this function's tests only ever formatted in en-US. Measured the night it was
+ * found: 90 of 392 locale × currency × amount combinations read back wrong.
+ *
+ * Which mark is the decimal one is read off the TEXT, not asked of the
+ * platform, so the server and every browser read a figure the same way:
+ *
+ *   both marks present          the LAST is the decimal: "1.234,56", "1,234.56"
+ *   one mark, more than once    they group: "1.000.000", "1,00,000"
+ *   one mark, once              three digits after it group ("1.234", "1,234" —
+ *                               no money here has three decimals); anything
+ *                               else is the decimal ("5,00", "10.5")
+ *
+ * The one case the text cannot settle is a currency that DOES have three
+ * decimals (the Kuwaiti dinar); there, and only there, the club's locale is
+ * asked which mark it writes a decimal with.
  */
-export function minorUnitsFrom(text: string, currency: string = DEFAULT_CURRENCY): number {
-  // Digits, one decimal point and a leading minus — a refund is negative, and
-  // thousands separators and a currency symbol are things people paste.
-  const cleaned = String(text ?? "").replace(/[^0-9.-]/g, "");
-  const n = Number(cleaned);
+export function minorUnitsFrom(
+  text: string,
+  currency: string = DEFAULT_CURRENCY,
+  locale: string = "en-US",
+): number {
+  const digits = minorUnitDigits(currency);
+  // Digits, the two marks and a leading minus — a refund is negative, and
+  // spaces, apostrophes and a currency symbol are things people paste. A
+  // typographic minus is a minus.
+  const raw = String(text ?? "").split(String.fromCharCode(0x2212)).join("-");
+  const negative = /^[^0-9.,]*-/.test(raw);
+  const kept = raw.replace(/[^0-9.,]/g, "");
+  const lastDot = kept.lastIndexOf(".");
+  const lastComma = kept.lastIndexOf(",");
+  let decimalAt = -1;
+  if (lastDot >= 0 && lastComma >= 0) {
+    decimalAt = Math.max(lastDot, lastComma);
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const at = Math.max(lastDot, lastComma);
+    const mark = kept[at];
+    const once = kept.indexOf(mark) === at;
+    const after = kept.length - at - 1;
+    if (once && after !== 3) decimalAt = at;
+    else if (once && digits === 3 && mark === decimalMarkOf(locale)) decimalAt = at;
+  }
+  const whole = (decimalAt >= 0 ? kept.slice(0, decimalAt) : kept).replace(/[.,]/g, "");
+  const part = decimalAt >= 0 ? kept.slice(decimalAt + 1).replace(/[.,]/g, "") : "";
+  if (!whole && !part) return 0;
+  const n = Number(`${whole || "0"}.${part || "0"}`);
   if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 10 ** minorUnitDigits(currency));
+  return Math.round((negative ? -n : n) * 10 ** digits);
+}
+
+/** The mark a locale writes a decimal with — asked only for a three-decimal currency. */
+function decimalMarkOf(locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === "decimal")?.value ?? ".";
+  } catch {
+    return ".";
+  }
 }
 
 /**

@@ -65,7 +65,21 @@ test("the organizer starts a named birdie pot, re-prices it, and takes it off", 
       include: { entrants: true },
     });
   const open = async () => {
-    await page.goto(`/group-games?bust=${Date.now()}`);
+    // The screen redraws itself after a save, and that redraw is a navigation of its own. Chromium lets a
+    // new address overtake it; Firefox and Safari's engine refuse the newcomer ("NS_BINDING_ABORTED",
+    // "interrupted by another navigation") — found the first time this ran on either, 2026-10-13. A person
+    // is not in this race: they cannot type an address while a save is still landing. So the spec lets
+    // the redraw finish, and asks again if it was still beaten to it.
+    await page.waitForLoadState("networkidle").catch(() => {});
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await page.goto(`/group-games?bust=${Date.now()}`);
+        break;
+      } catch (e) {
+        if (attempt >= 3 || !/NS_BINDING_ABORTED|interrupted by another navigation/.test(String(e))) throw e;
+        await page.waitForLoadState("load").catch(() => {});
+      }
+    }
     await page.waitForLoadState("networkidle").catch(() => {});
     expect(new URL(page.url()).pathname, "sent away from Group games — not signed in?").toBe("/group-games");
   };

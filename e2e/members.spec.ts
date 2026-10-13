@@ -201,8 +201,51 @@ test("the secretary adds, corrects, retires, imports and enters members from the
     await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveCount(1);
     await expect(page.getByLabel(`Handicap for ${ada}`)).toHaveCount(1);
     await expect(page.getByLabel(`Handicap for ${cy}`)).toHaveCount(0);
-    // The plus handicap went into the field as the number it is: 2.4 BETTER than scratch.
-    await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveValue("-2.4");
+    // The plus handicap went into the field as what it is — 2.4 BETTER than scratch — and the
+    // tournament's own row writes it the way the Members list does. (Until 2026-10-13 this line
+    // expected "-2.4": it was pinning the stored number, which was the defect.)
+    await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveValue("+2.4");
+  });
+
+  await test.step("on the tournament's own screen a plus handicap is shown, corrected and added with its plus", async () => {
+    const box = page.getByLabel(`Handicap for ${bo}`);
+    // Corrected the way it is written. A number box could not hold "+3.1" at all.
+    await box.fill("+3.1");
+    // Enter, as somebody finishing a figure presses: until 2026-10-13 it saved nothing here (`leave-on-enter.ts`).
+    await box.press("Enter");
+    await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveValue("+3.1", { timeout: 20_000 });
+    await page.goto(`/registration?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await expect(page.getByLabel(`Handicap for ${bo}`), "kept, and still 3.1 better than scratch").toHaveValue("+3.1");
+
+    // Nonsense is refused in words, by name, and nothing is saved.
+    await page.getByLabel(`Handicap for ${bo}`).fill("three or so");
+    await page.getByLabel(`Handicap for ${bo}`).blur();
+    await expect(page.getByText(`${bo}: Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.`)).toBeVisible();
+    await page.getByLabel(`Handicap for ${bo}`).fill("77");
+    await page.getByLabel(`Handicap for ${bo}`).blur();
+    await expect(page.getByText(`${bo}: A handicap index runs from +10 to 54.`)).toBeVisible();
+    // Emptied is not scratch: the box says again what is stored.
+    await page.getByLabel(`Handicap for ${bo}`).fill("");
+    await page.getByLabel(`Handicap for ${bo}`).blur();
+    await expect(page.getByLabel(`Handicap for ${bo}`)).toHaveValue("+3.1");
+    await page.goto(`/registration?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await expect(page.getByLabel(`Handicap for ${bo}`), "none of the three refusals saved anything").toHaveValue("+3.1");
+
+    // And somebody new, added from this screen as a plus handicap.
+    const dee = who("Dee");
+    await page.getByLabel("Player name").fill(dee);
+    // By its placeholder: every row of the field has an "Email for …" box of its own.
+    await page.getByPlaceholder("name@email").fill(mail("dee"));
+    // This tournament asks for a mobile. A number from the range kept for fiction; nothing is sent to it.
+    await page.getByPlaceholder("+1…").fill("+1 555 555 0142");
+    await page.getByLabel("Handicap", { exact: true }).fill("+1.5");
+    await page.getByRole("button", { name: "Add to field" }).click();
+    await expect(page.getByLabel(`Handicap for ${dee}`)).toHaveValue("+1.5", { timeout: 20_000 });
+    await page.goto(`/registration?bust=${Date.now()}`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await expect(page.getByLabel(`Handicap for ${dee}`), "added 1.5 BETTER than scratch, not with no handicap at all").toHaveValue("+1.5");
   });
 
   await test.step("who has entered may not be removed, and is told why; who never has, may", async () => {

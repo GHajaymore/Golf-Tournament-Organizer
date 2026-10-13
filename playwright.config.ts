@@ -39,7 +39,59 @@ const PORT = Number(process.env.E2E_PORT ?? 3101);
  * is the closest a Windows machine gets, and it is not the last word.
  */
 const ENGINE = process.env.E2E_ENGINE ?? "";
+
+/**
+ * A TABLET, AND THE BROWSERS PEOPLE ACTUALLY INSTALL (2026-10-13).
+ *
+ * Ajay's list for a round: "laptop, tablet, mobile, all kind of browsers, ios,
+ * google play, us and international members/organizers". Three of those had
+ * never been asked of this suite, and each is a switch here rather than a
+ * fourth and fifth project, for the reason `E2E_ENGINE` gives: every spec
+ * already says which of the three names it runs on.
+ *
+ * `E2E_DEVICES=tablet` puts a tablet under each name — held upright under
+ * "phone" and "small-phone" (the player's app and the public boards), on its
+ * side under "desktop" (the organizer's console). An iPad on WebKit, an
+ * Android tablet on Chromium. It is the one device that is BOTH wide enough
+ * for the console and worked by a finger, and both widths it has fall between
+ * the phone and the laptop this suite measured — 640 to 834 upright, where a
+ * layout written for 393 and for 1280 has never been looked at.
+ *
+ * `E2E_CHANNEL=chrome` or `msedge` runs the Chromium projects on the browser
+ * installed on this machine — real Chrome, real Edge — rather than the build
+ * Playwright ships. The same engine a version or two apart, so it is the
+ * cheapest row in the table; it is here so the table has no empty row.
+ *
+ * `E2E_LOCALE=de-DE` gives every page a reader whose browser is set to another
+ * language and region, the way `E2E_TZ` gives it another clock. The club's
+ * own country decides how the app writes a date and an amount; a screen that
+ * asks the BROWSER instead writes it one way on the server and another in
+ * front of that reader, and nothing here could have seen it.
+ */
+const DEVICES = process.env.E2E_DEVICES ?? "";
+const CHANNEL = process.env.E2E_CHANNEL ?? "";
+const withChannel = <T extends object>(use: T): T => (CHANNEL && ENGINE === "" ? { ...use, channel: CHANNEL } : use);
+
+function onTablet(name: "phone" | "small-phone" | "desktop") {
+  if (DEVICES !== "tablet") return null;
+  if (ENGINE === "webkit") {
+    if (name === "desktop") return { ...devices["iPad Pro 11 landscape"] };
+    if (name === "phone") return { ...devices["iPad (gen 7)"] };
+    return { ...devices["iPad Mini"] };
+  }
+  if (ENGINE === "firefox") {
+    // No mobile emulation in Firefox: the size and a touch screen.
+    const viewport = name === "desktop" ? { width: 1138, height: 712 } : name === "phone" ? { width: 712, height: 1138 } : { width: 640, height: 1024 };
+    return { browserName: "firefox" as const, viewport, hasTouch: true };
+  }
+  if (name === "desktop") return { ...devices["Galaxy Tab S4 landscape"] };
+  if (name === "phone") return { ...devices["Galaxy Tab S4"] };
+  return { ...devices["Galaxy Tab S9"] };
+}
+
 function onEngine(name: "phone" | "small-phone" | "desktop") {
+  const tablet = onTablet(name);
+  if (tablet) return tablet;
   if (ENGINE === "webkit") {
     if (name === "desktop") return { ...devices["Desktop Safari"], viewport: { width: 1280, height: 900 } };
     if (name === "phone") return { ...devices["iPhone 13"] };
@@ -73,6 +125,9 @@ process.env.AUTH_SECRET ??= "e2e-only-signing-key-not-for-deployment";
 
 export default defineConfig({
   testDir: "./e2e",
+  // The eleven scenario tournaments (e2e/scenarios) are a layer of a round, run a phase at a time
+  // by scripts/qa/round.mjs. Each takes minutes and a field of 120; the standing suite leaves them out.
+  testIgnore: process.env.E2E_SCENARIOS === "1" ? [] : ["**/scenarios/**"],
   // A real database and one dev server: parallel workers would race on the
   // shared fixture. Correctness over speed for a suite this small.
   workers: 1,
@@ -135,7 +190,14 @@ export default defineConfig({
      * is a type error, and the failure arrives from `next build` type-checking
      * this file rather than from Playwright.
      */
-    contextOptions: { reducedMotion: "reduce" },
+    /*
+     * `E2E_MOTION=full` leaves the motion ON (2026-10-13) — which is what nearly everybody is shown, and
+     * what the suite had never once looked at. It was meant as an exception until the first round on
+     * GitHub showed it is also what Safari's engine on Linux runs with whatever is asked here: that build
+     * ignores this setting, so the front door was being measured mid-animation there. A spec about how a
+     * page looks at rest has to WAIT for rest; it cannot assume the page never moves.
+     */
+    contextOptions: { reducedMotion: process.env.E2E_MOTION === "full" ? "no-preference" : "reduce" },
     /**
      * THE READER IS SOMEWHERE ELSE (2026-10-11). Every run here had the
      * browser in the SERVER'S time zone, because both are this machine — and
@@ -149,6 +211,8 @@ export default defineConfig({
      * `e2e/coverage.ts` gives the same zone to a context a spec makes itself.
      */
     ...(process.env.E2E_TZ ? { timezoneId: process.env.E2E_TZ } : {}),
+    // And in another language and region — see E2E_LOCALE at the top of this file.
+    ...(process.env.E2E_LOCALE ? { locale: process.env.E2E_LOCALE } : {}),
   },
 
   projects: [
@@ -157,7 +221,7 @@ export default defineConfig({
       // Pixel 5 is 393x851 with a coarse pointer — a real device profile
       // rather than a narrow desktop window, which is the distinction the
       // touch-target rules are gated on.
-      use: onEngine("phone") ?? { ...devices["Pixel 5"] },
+      use: onEngine("phone") ?? withChannel({ ...devices["Pixel 5"] }),
     },
     {
       name: "small-phone",
@@ -165,14 +229,14 @@ export default defineConfig({
       // The Pixel 5 profile above is 393px and comfortably wide enough to hide
       // an overflow that a 320px screen would show, so testing only the larger
       // one proves less than it appears to.
-      use: onEngine("small-phone") ?? {
+      use: onEngine("small-phone") ?? withChannel({
         ...devices["Pixel 5"],
         viewport: { width: 320, height: 568 },
-      },
+      }),
     },
     {
       name: "desktop",
-      use: onEngine("desktop") ?? { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } },
+      use: onEngine("desktop") ?? withChannel({ ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } }),
     },
   ],
 
@@ -194,7 +258,9 @@ export default defineConfig({
     // Next actually supports.
     command: `npm run build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    // A round (scripts/qa/round.mjs) starts the server itself, once, from one build, and says so:
+    // on CI this would otherwise build a second bundle and collide with it on the port.
+    reuseExistingServer: !process.env.CI || process.env.E2E_REUSE_SERVER === "1",
     timeout: 240_000,
     env: {
       NEXT_DIST_DIR: ".next-e2e",

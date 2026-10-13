@@ -1,0 +1,236 @@
+name: Round
+
+# A WHOLE ROUND OF TESTING, ITS PARTS SIDE BY SIDE.
+#
+# ci.yml answers "did this change break something" on every push, on one
+# browser. A ROUND answers a different question — "is this app sound, all
+# over" — and it is asked before function or core changes reach production,
+# and three times running before a release (docs/testing.md).
+#
+# On one machine a round is about six hours: every layer in
+# scripts/qa/layers.mjs, one after another, against one database. Nothing in a
+# layer depends on another, so here each PART gets a machine and a database of
+# its own, all of them drawing ONE build, and the round takes as long as its
+# slowest part. Ajay, 2026-10-13: "make the testing efficient."
+#
+#   plan      reads the parts out of layers.mjs — the list is never kept here
+#   build     the database suite, then one production build, handed to every part
+#   part      one per part: scripts/qa/round.mjs with that part's arguments
+#   verdict   scripts/qa/merge.mjs adds them up, by the same rules a one-machine
+#             round is judged by, and writes the table as this run's summary
+#
+# HOW TO ASK FOR ONE
+#   push a branch named  round/<anything>-1   (-2, -3 for the second and third
+#   of a count: the number decides which three countries the round visits), or
+#   use "Run workflow" once this file is on main.
+#
+# It is not a required check and gates nothing by itself. A round is evidence;
+# whoever reads the verdict decides (and records it: `npm run qa:status`).
+#
+# WHAT IT IS NOT: a phone in a hand, the App Store or Google Play build, or
+# Safari and Firefox on a Mac or on Windows. Every browser here is its Linux
+# build. The summary says so each time.
+
+on:
+  workflow_dispatch:
+    inputs:
+      round:
+        description: "Which round of a count: 1, 2 or 3 (decides the countries visited)"
+        required: true
+        default: "1"
+  push:
+    branches: ["round/**"]
+
+concurrency:
+  group: round-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Local to each runner and destroyed with it — never a real credential.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      parts: ${{ steps.plan.outputs.parts }}
+      round: ${{ steps.plan.outputs.round }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read the parts of a round
+        id: plan
+        env:
+          ASKED: ${{ github.event.inputs.round }}
+          REF: ${{ github.ref_name }}
+          RUN: ${{ github.run_number }}
+        run: |
+          ROUND="$ASKED"
+          if [ -z "$ROUND" ]; then ROUND=$(echo "$REF" | grep -oE '[0-9]+$' || true); fi
+          if [ -z "$ROUND" ]; then ROUND=1; fi
+          echo "round=$ROUND" >> "$GITHUB_OUTPUT"
+          echo "tag=G${RUN}-${ROUND}" >> "$GITHUB_OUTPUT"
+          echo "parts=$(node scripts/qa/round.mjs --parts --round=$ROUND)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Database suite and the one build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: The database suite, then the build every part will run
+        run: node scripts/qa/round.mjs build --build --build-only
+      - name: Hand the build on
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          # Without the compiler's cache: it is most of the size and no part compiles.
+          path: |
+            .next-e2e
+            !.next-e2e/cache
+          include-hidden-files: true
+          retention-days: 3
+      - name: Keep the logs if it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: .qa/rounds/build/
+          include-hidden-files: true
+          retention-days: 7
+
+  part:
+    name: ${{ matrix.part.id }}
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    # A part that fails says so on its own line and stops nothing: the point of
+    # a round is everything it found, not the first thing.
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJson(needs.plan.outputs.parts) }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Take the build
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: .next-e2e
+      - name: Install the browser this part drives
+        # A part with no browser (the dependency check) installs none: with no
+        # name given, this command would fetch all of them.
+        if: matrix.part.browsers != ''
+        # The limit ci.yml gives this step, for the reason it gives: the apt
+        # step behind --with-deps has hung for half an hour before.
+        timeout-minutes: 12
+        run: npx playwright install --with-deps ${{ matrix.part.browsers }}
+      - name: ${{ matrix.part.id }}
+        run: node scripts/qa/round.mjs ${{ needs.plan.outputs.tag }} --round=${{ needs.plan.outputs.round }} --id=${{ matrix.part.id }} ${{ matrix.part.args }}
+      - name: Hand on what it found
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.part.id }}
+          path: |
+            .qa/rounds/${{ needs.plan.outputs.tag }}/
+            .e2e/coverage/
+          include-hidden-files: true
+          retention-days: 7
+      - name: Keep the trace of what failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-${{ matrix.part.id }}
+          path: |
+            test-results/
+            .qa/tmp/
+          include-hidden-files: true
+          retention-days: 7
+
+  verdict:
+    name: Verdict
+    needs: [plan, build, part]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Take the build (the reach report is read against it)
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: .next-e2e
+      - name: Take every part
+        uses: actions/download-artifact@v4
+        with:
+          pattern: part-*
+          path: parts
+      - name: Add them up
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          # One ledger of what was reached, from every machine's. The files are
+          # named by process id, which two machines can share, so each keeps
+          # its part's name in front.
+          mkdir -p .e2e/coverage
+          for dir in parts/*/; do
+            id=$(basename "$dir")
+            for f in "$dir".e2e/coverage/*.txt; do
+              [ -f "$f" ] && cp "$f" ".e2e/coverage/${id}-$(basename "$f")"
+            done
+          done
+          node scripts/e2e-coverage.mjs --json > reach.json || echo '{}' > reach.json
+          STATUS=0
+          node scripts/qa/merge.mjs "$TAG" $(find parts -name part.json | sort) --expect-parts --reach=reach.json || STATUS=$?
+          cat ".qa/rounds/$TAG/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit $STATUS
+      - name: Keep the verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdict
+          path: |
+            .qa/rounds/${{ needs.plan.outputs.tag }}/verdict.json
+            .qa/rounds/${{ needs.plan.outputs.tag }}/summary.md
+            reach.json
+          include-hidden-files: true
+          retention-days: 30

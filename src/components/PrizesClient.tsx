@@ -7,6 +7,7 @@ import { useMoney } from "@/components/CurrencyProvider";
 import { usePrizeMoney } from "./usePrizeMoney";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 export interface PrizeRow {
   id: string;
@@ -88,11 +89,16 @@ export function PrizesClient({
         disabled={pending}
         aria-label={`Amount for ${p.category}`}
         style={{ width: asCells ? 100 : 84, textAlign: "right" }}
+        onKeyDown={leaveOnEnter}
         onBlur={(e) => {
-          const v = parseFloat(e.target.value);
-          if ((Number.isFinite(v) ? v : 0) !== p.amount) {
-            startTransition(() => updatePrize(p.id, { amount: Number.isFinite(v) ? v : 0 }));
-          }
+          const typed = parseFloat(e.target.value);
+          // What will be KEPT: an amount above nothing, or nothing. The server keeps the same rule
+          // (`updatePrize`), and the box must show that and not what was typed: "-5" was stored as no
+          // prize and went on standing in the box as minus five — the screen saying one thing and the
+          // purse above it another. Found by the first browser test to re-price a prize (2026-10-13).
+          const kept = Number.isFinite(typed) && typed > 0 ? typed : 0;
+          if (kept !== typed) e.target.value = kept ? String(kept) : "";
+          if (kept !== p.amount) startTransition(() => updatePrize(p.id, { amount: kept }));
         }}
       />
     );

@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
-import { clubDay, clubToday } from "../domain/club-clock";
+import { clubDay, clubDayInWords, clubToday } from "../domain/club-clock";
+import { formattingForEvent } from "./organization";
 
 /**
  * WHOSE DAY IT IS — the club's, read once per request.
@@ -41,6 +42,25 @@ export async function todayForEvent(eventId: string | null | undefined): Promise
  * The club's day as a `Date`, for the helpers that take one and ask it what
  * day it is. A DAY, not the present instant — see `clubDay`.
  */
+/**
+ * THE DAY AN INSTANT FELL ON AT THIS TOURNAMENT'S CLUB, WRITTEN THE CLUB'S WAY
+ * (2026-10-13). For a timestamp somebody is going to READ as a date: when a
+ * handover was recorded, when a course card was checked, when a tournament
+ * closes.
+ *
+ * Four screens each took the first ten characters of the timestamp's ISO form
+ * — the day by the server's clock, UTC — and printed it either bare
+ * ("2026-10-13") or through `formatDay` with no locale, which is American for
+ * every club. So the day was wrong for a club on the other side of midnight
+ * and the notation was nobody's choice. `shown-days-are-the-clubs.test.ts`
+ * refuses that spelling outside a short list. Returns a formatter, so one
+ * question of the database words a whole list.
+ */
+export async function dayAtClubForEvent(eventId: string | null | undefined): Promise<(at: Date) => string> {
+  const [zone, locale] = await Promise.all([zoneOfEvent(eventId), eventId ? formattingForEvent(eventId).then((f) => f.locale) : undefined]);
+  return (at: Date) => clubDayInWords(zone, locale, at);
+}
+
 export async function clubDayForEvent(eventId: string | null | undefined): Promise<Date> {
   return clubDay(await zoneOfEvent(eventId));
 }

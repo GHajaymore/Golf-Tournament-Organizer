@@ -39,6 +39,13 @@ export async function signUpLooksAutomated(
   }
 }
 
-/** What a refused sign-up is told: what to do, not why the machine doubted them. */
+/**
+ * What a refused sign-up is told: what to do, not why the machine doubted them.
+ *
+ * The second sentence since 2026-10-13: a content blocker that stops the
+ * check's script is the commonest reason a PERSON gets here (the request is
+ * then sent without the check — `lib/bot-check-fetch.ts`), and for them
+ * refreshing changes nothing.
+ */
 export const AUTOMATED_SIGNUP =
-  "We couldn't confirm this sign-up came from a person using a browser. Refresh the page and try again.";
+  "We couldn't confirm this sign-up came from a person using a browser. Refresh the page and try again — and if a content blocker is on, allow it for this site first.";

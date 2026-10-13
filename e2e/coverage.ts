@@ -1,4 +1,4 @@
-import { test as base, expect, type BrowserContext } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { explainHydration, keepWhatTheServerSent } from "./page-errors";
@@ -50,14 +50,50 @@ async function who(context: BrowserContext): Promise<string> {
   return "anonymous";
 }
 
+/**
+ * A SPEC ASKS FOR AN ADDRESS WHILE THE SCREEN IS STILL REDRAWING ITSELF.
+ *
+ * A screen that has just saved something refreshes itself, and a spec's next
+ * line is very often `goto` — to read the result on another screen, or the
+ * same one afresh. Chromium waits its turn. Safari's engine (and Firefox, as
+ * `NS_BINDING_ABORTED`) reports the second navigation as "interrupted by
+ * another navigation" and fails the test on a line that does nothing wrong.
+ * A person cannot do this: they tap after the screen has settled.
+ *
+ * It was fixed spec by spec twice (`named-side-bet`, `play-with`) and then
+ * failed a counted round from a third (`round-day`, on an iPhone's engine,
+ * 2026-10-13). So it is answered here, where every page of every context
+ * passes: the redraw is let finish and the address is asked for again. Any
+ * other failure to navigate is the test's to hear, at once.
+ */
+function waitsItsTurn(page: Page): void {
+  const goto = page.goto.bind(page);
+  page.goto = async (...args: Parameters<Page["goto"]>) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await goto(...args);
+      } catch (e) {
+        if (attempt >= 2 || !/interrupted by another navigation|NS_BINDING_ABORTED/.test(String(e))) throw e;
+        await page.waitForLoadState("networkidle").catch(() => {});
+      }
+    }
+  };
+}
+
 export function recordCoverage(context: BrowserContext): void {
   if (watched.has(context)) return;
   watched.add(context);
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
   // spec's every context passes through.
-  for (const page of context.pages()) explainHydration(page);
-  context.on("page", (page) => explainHydration(page));
+  for (const page of context.pages()) {
+    explainHydration(page);
+    waitsItsTurn(page);
+  }
+  context.on("page", (page) => {
+    explainHydration(page);
+    waitsItsTurn(page);
+  });
   context.on("request", (request) => {
     const action = request.headers()["next-action"];
     if (action) {
@@ -115,7 +151,11 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
         // `use`, so the reader's time zone (see playwright.config.ts) is
         // handed to it here, unless the spec named one of its own.
         const zone = process.env.E2E_TZ;
-        const context = await (zone ? make({ timezoneId: zone, ...args[0] }) : make(...args));
+        // …and the reader's language and region (E2E_LOCALE), on the same terms.
+        const lang = process.env.E2E_LOCALE;
+        const context = await (zone || lang
+          ? make({ ...(zone ? { timezoneId: zone } : {}), ...(lang ? { locale: lang } : {}), ...args[0] })
+          : make(...args));
         recordCoverage(context);
         await noPushOnWebKit(context);
         await keepWhatTheServerSent(context);

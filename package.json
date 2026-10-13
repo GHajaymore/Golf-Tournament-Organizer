@@ -28,7 +28,10 @@
     "smoke": "node scripts/smoke-routes.mjs",
     "smoke:all": "node scripts/smoke-all.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "qa:changed": "node scripts/qa/what-changed.mjs",
+    "qa:round": "node scripts/qa/round.mjs",
+    "qa:status": "node scripts/qa/status.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -75,7 +78,7 @@
     "@sentry/nextjs": "^10.76.0",
     "botid": "^1.5.11",
     "geist": "^1.7.2",
-    "next": "15.5.25",
+    "next": "15.5.27",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "^6.18.1",
@@ -95,10 +98,11 @@
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "@types/web-push": "^3.6.4",
+    "axe-core": "^4.13.0",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.25",
+    "eslint-config-next": "^15.5.27",
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",

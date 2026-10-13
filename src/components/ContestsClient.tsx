@@ -19,6 +19,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { useAction } from "./useAction";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -299,7 +300,12 @@ export function ContestsClient({
 
   const create = () => {
     const cents = parse(stake);
-    if (!Number.isFinite(cents) || cents < 0) {
+    // No figure in it at all is not "zero": the parser hands back 0 for
+    // anything it cannot read (a NaN in a ledger is every number in it gone),
+    // so a stake of "ten", or a box left empty, started a bet for nothing a
+    // head and never reached the sentence below. Found by the first browser
+    // test to start a bet (2026-10-13).
+    if (!/\d/.test(stake) || !Number.isFinite(cents) || cents < 0) {
       setError("Enter a stake per player, or zero for a free contest.");
       return;
     }
@@ -469,6 +475,7 @@ export function ContestsClient({
                     placeholder="0.00"
                     disabled={pending}
                     style={{ width: 82, minHeight: 44, textAlign: "right" }}
+                    onKeyDown={leaveOnEnter}
                     onBlur={(e) => {
                       const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;

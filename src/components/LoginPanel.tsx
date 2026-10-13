@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
+import { askForBotCheck } from "@/lib/bot-check-fetch";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import { signupMissing } from "@/lib/domain/signup-missing";
 import type { OrgKind } from "@/lib/domain/org-profile";
@@ -125,6 +126,9 @@ export function LoginPanel({
     }
     setError("");
     startTransition(async () => {
+      // The one request on this page the bot check is FOR — and so the only
+      // one that waits for it (`lib/bot-check-fetch.ts`).
+      askForBotCheck(Date.now());
       const result = await signUp(name, email, password, kind, intendedNext());
       /**
        * Same branch signing in takes. An email that was invited but never

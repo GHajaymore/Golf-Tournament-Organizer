@@ -74,13 +74,20 @@ describe("pickedCardNote", () => {
   it("warns again when the check is over a year old", () => {
     const note = pickedCardNote(card({ verifiedAt: "2025-06-01T00:00:00Z", verifiedBy: "ZZ Secretary" }), TODAY);
     expect(note?.warn).toBe(true);
-    expect(note?.text).toContain("2025-06-01 by ZZ Secretary");
+    // In words, and in the club's own when the screen passes them (below) — not "2025-06-01".
+    expect(note?.text).toContain("Jun 1, 2025 by ZZ Secretary");
     expect(note?.text).toContain("over a year ago");
   });
 
   it("says, without warning, when a complete card was checked recently", () => {
     const note = pickedCardNote(card({ verifiedAt: new Date("2026-09-20T00:00:00Z"), verifiedBy: "ZZ Secretary" }), TODAY);
-    expect(note).toEqual({ warn: false, text: "Card checked on 2026-09-20 by ZZ Secretary." });
+    expect(note).toEqual({ warn: false, text: "Card checked on Sep 20, 2026 by ZZ Secretary." });
+  });
+
+  it("writes the day the way the screen that picked the course says a day is written", () => {
+    const british = (d: Date) => `${d.getUTCDate()} Sept ${d.getUTCFullYear()}`;
+    const note = pickedCardNote(card({ verifiedAt: new Date("2026-09-20T00:00:00Z"), verifiedBy: "ZZ Secretary" }), TODAY, british);
+    expect(note).toEqual({ warn: false, text: "Card checked on 20 Sept 2026 by ZZ Secretary." });
   });
 
   it("treats a complete nine-hole card as complete", () => {

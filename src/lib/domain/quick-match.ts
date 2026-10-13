@@ -2,6 +2,7 @@ import { holesPlayed } from "./handicap";
 import { perPlayerPotRefusal } from "./shared-ball";
 import { PLANS } from "../plans";
 import { isCurrencyCode } from "./money-format";
+import { decimalPoint } from "./decimal-text";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -639,7 +640,9 @@ export type MatchPlanResult = { ok: true; plan: MatchPlan } | { ok: false; error
  */
 export function parseHandicap(raw: string | number | null | undefined): number {
   if (typeof raw === "number") return clampHandicap(raw);
-  const text = (raw ?? "").trim();
+  // "12,4" is how half of Europe writes 12.4, and was read as nothing — which
+  // put the player on scratch without a word (see `decimalPoint`).
+  const text = decimalPoint(raw);
   if (!text) return 0;
   const plus = /^\+/.test(text);
   const n = Number(text.replace(/^\+/, ""));

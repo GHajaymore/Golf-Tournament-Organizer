@@ -80,7 +80,9 @@ async function decide(page: Page, winner: string, loser: string, round: "Semifin
   const result = page.getByRole("textbox", { name: new RegExp(`^Result of (${pair.join("|")}) v (${pair.join("|")}), ${round}$`) });
   await expect(result, `no margin box for ${winner} v ${loser}`).toBeVisible({ timeout: 20_000 });
   await result.fill(margin);
-  await result.press("Tab");
+  // Enter for a final, Tab for the rest: both keep the margin. Tab alone lost one on Firefox, where the
+  // last box on a page has nowhere to send the focus (`organizer-knockout.spec.ts`, `leave-on-enter.ts`).
+  await result.press(round === "Final" ? "Enter" : "Tab");
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible({ timeout: 20_000 });
 }
 

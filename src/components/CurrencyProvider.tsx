@@ -98,7 +98,7 @@ export function useMoney() {
        * half that was missed: every input multiplied by a hundred, so a ¥500
        * buy-in became ¥50,000.
        */
-      parse: (text: string) => parseMoney(text, currency),
+      parse: (text: string) => parseMoney(text, currency, locale),
     }),
     [currency, locale],
   );

@@ -210,7 +210,14 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand, organ
           </div>
           {/* Your name opens your account — the one page about the person
               rather than their clubs (2026-10-03). */}
-          <Link href="/account" title="Your account" style={{ flex: 1, minWidth: 0, color: "inherit", textDecoration: "none" }}>
+          {/* `touch-target`: two lines of 13px text are 40px, four short of a finger's worth on a
+              tablet held sideways — the one device that shows this sidebar and is touched. */}
+          <Link
+            href="/account"
+            title="Your account"
+            className="touch-target"
+            style={{ flex: 1, minWidth: 0, color: "inherit", textDecoration: "none", display: "flex", flexDirection: "column", justifyContent: "center" }}
+          >
             <div style={{ fontSize: 13 }}>{name}</div>
             <div className="text-muted" style={{ fontSize: 13 }}>
               {roleLabel(viewRole)}

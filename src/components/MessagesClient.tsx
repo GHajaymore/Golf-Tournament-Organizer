@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/messaging";
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
 import { messageAudience } from "@/lib/domain/message-audience";
+import { formatMonthDayAt } from "@/lib/domain/locale";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 
@@ -47,11 +48,9 @@ export function when(ts: number, locale: string, now: number | null): string {
    * midnight. Pinning the zone on the pre-mount render makes the two agree;
    * once mounted, the reader's local date is the right one for them.
    */
-  const date = new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-    ...(now === null ? { timeZone: "UTC" } : {}),
-  }).format(new Date(ts));
+  // Through `formatMonthDayAt`, which writes it from the app's own table: the two sides must agree
+  // about the WORDS as well as the zone, and two engines' own formatters need not (`date-words.ts`).
+  const date = formatMonthDayAt(new Date(ts), locale, now === null ? "UTC" : undefined);
   /**
    * THE CLOCK IS AN ARGUMENT, and `null` until the component has mounted.
    *

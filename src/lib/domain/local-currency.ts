@@ -1,6 +1,6 @@
 import { editionFor } from "@/lib/landing/edition";
 import { countryCode } from "./country";
-import { isCurrencyCode, minorUnitDigits } from "./money-format";
+import { isCurrencyCode, minorUnitsFrom } from "./money-format";
 
 /**
  * A typed stake as minor units of THIS currency: "5" is 500 cents, but ¥500 is
@@ -11,8 +11,13 @@ import { isCurrencyCode, minorUnitDigits } from "./money-format";
 export function stakeMinorUnits(typed: string, currency: string): number {
   // A minus is not a stake. Stripping it with the symbols turned "-3" into 3.
   if ((typed ?? "").trim().startsWith("-")) return 0;
-  const n = Number((typed ?? "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 10 ** minorUnitDigits(currency)) : 0;
+  // ONE READER OF A TYPED AMOUNT (2026-10-13). This had its own, which threw
+  // every comma away — and a casual round takes its currency from where it is
+  // being set up, so in the eurozone the stake is typed on a keypad whose
+  // decimal key IS a comma: "2,50" a hole was stored as 250.00. Found the same
+  // night as the club's stake boxes, by asking what else reads a figure.
+  const n = minorUnitsFrom(typed ?? "", currency);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /**

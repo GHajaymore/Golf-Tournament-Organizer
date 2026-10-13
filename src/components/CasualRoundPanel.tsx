@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { setStageHoles, setStageScoringBasis, updateSignup, removeSignup } from "@/app/actions/tournament";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { leaveOnEnter } from "@/lib/leave-on-enter";
+import { decimalPoint } from "@/lib/domain/decimal-text";
 
 export interface CasualPlayer {
   id: string;
@@ -241,8 +243,11 @@ export function CasualRoundPanel({
                 value={edits[p.id] ?? p.handicap}
                 disabled={pending}
                 onChange={(e) => setEdits((m) => ({ ...m, [p.id]: e.target.value }))}
+                onKeyDown={leaveOnEnter}
                 onBlur={(e) => {
-                  const raw = e.target.value.trim();
+                  // "12,4" is 12.4 (`decimalPoint`): read as unreadable, it put the
+                  // old figure back in the box without a word.
+                  const raw = decimalPoint(e.target.value);
                   if (raw === p.handicap) return;
                   // "+2" is a plus handicap and is stored negative. Anything
                   // unreadable is left alone rather than written as nought.

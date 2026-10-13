@@ -23,7 +23,12 @@ export function CardTrustNote({
   card: CardTrust | null | undefined;
   /** Where the card can be checked, for a reader who may. */
   fix?: string;
-  formatDate?: (d: Date) => string;
+  /**
+   * How to write the day the card was checked: the club's day, the club's way (`dayAtClubForEvent`).
+   * REQUIRED, since 2026-10-13: left out, both screens that draw this printed "Card checked on
+   * 2026-09-30" under every scorecard, to players as well as organizers.
+   */
+  formatDate: (d: Date) => string;
   /**
    * The card's stroke index, where the caller has it.
    *

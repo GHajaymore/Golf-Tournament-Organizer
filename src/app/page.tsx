@@ -89,7 +89,10 @@ function planDiff(prices: LandingPrices): [string, React.ReactNode[]][] {
  * reuses it everywhere else the same picture appears.
  */
 const SIZES = {
-  heroPhone: "(max-width: 899px) 220px, 330px",
+  // The width the stylesheet draws it at (`.m-hero-phone` below 900px). It said 220px after the pair
+  // was made to scale with the screen, so a 640-wide tablet was sent a picture for 220 and drew it
+  // at 290, soft — found by the first round to hold a tablet (2026-10-13).
+  heroPhone: "(max-width: 899px) min(56vw, 290px), 330px",
   heroDesk: "(max-width: 899px) 1px, 900px",
   story: "(max-width: 899px) min(60vw, 250px), 300px",
   step: "250px",
