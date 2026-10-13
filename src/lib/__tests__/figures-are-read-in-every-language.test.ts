@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { money, minorUnitsFrom, CURRENCIES } from "@/lib/domain/money-format";
+import { stakeMinorUnits } from "@/lib/domain/local-currency";
 import { LOCALES } from "@/lib/domain/locale";
 import { DATE_WORD_TAGS } from "@/lib/domain/date-words";
 import { decimalPoint } from "@/lib/domain/decimal-text";
@@ -119,6 +122,48 @@ describe("an amount somebody types is read the way they meant it", () => {
     expect(provider).not.toContain("parseMoney(text, currency)");
     // And the one amount the SERVER reads from text — a line of the kitty.
     expect(readSource("src/app/actions/money-setup.ts")).toContain("minorUnitsFrom((input.amount ?? \"\").toString(), currency, locale)");
+  });
+});
+
+describe("there is one reader of a typed amount", () => {
+  it("a casual round's stake goes through it — 2,50 a hole is not 250.00", () => {
+    // A casual round takes its currency from where it is set up, so in the eurozone this box is
+    // typed on a keypad whose decimal key is a comma.
+    expect(stakeMinorUnits("2,50", "EUR")).toBe(250);
+    expect(stakeMinorUnits("2.50", "EUR")).toBe(250);
+    expect(stakeMinorUnits("1.000,50", "EUR")).toBe(100_050);
+    expect(stakeMinorUnits("5", "USD")).toBe(500);
+    expect(stakeMinorUnits("500", "JPY")).toBe(500);
+    // CONTROL: what it refused before, it still refuses.
+    for (const not of ["-3", "−3", "", "abc", "0", "0,00"]) expect(stakeMinorUnits(not, "EUR"), JSON.stringify(not)).toBe(0);
+  });
+
+  it("nothing in the app strips a typed figure down to digits and a point for itself", () => {
+    // The spelling both hand-rolled readers shared: every comma thrown away. A reader written
+    // later with the same idea is refused here and sent to `minorUnitsFrom` or `decimalPoint`.
+    const own: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "__tests__" && entry.name !== "node_modules") walk(path);
+        } else if (/\.tsx?$/.test(entry.name)) {
+          const src = readSource(path);
+          // The STRIPPING spelling: a class used to find something (a 9 not inside a number, in
+          // `parseHandicapType`) reads no figure and is not this.
+          if (src.includes("replace(/[^0-9.]/") || src.includes("replace(/[^\\d.]/")) own.push(path.split("\\").join("/"));
+        }
+      }
+    };
+    walk("src");
+    expect(own).toEqual([]);
+    // CONTROL: the sweep reads real files, and finds the one reader that keeps BOTH marks.
+    expect(readSource("src/lib/domain/money-format.ts")).toContain("replace(/[^0-9.,]/");
+  });
+
+  it("the casual round's handicap box and the cup's points box read a decimal comma", () => {
+    expect(readSource("src/components/CasualRoundPanel.tsx")).toContain("decimalPoint(e.target.value)");
+    expect(readSource("src/components/CupLineup.tsx")).toContain("Number(decimalPoint(");
   });
 });
 
