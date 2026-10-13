@@ -85,6 +85,7 @@ export default async function SeriesPage({
           events={table?.events ?? []}
           standings={table?.standings ?? []}
           unlinked={table?.unlinked ?? 0}
+          unplaced={table?.unplaced ?? 0}
           currentEventId={currentEvent?.id ?? ""}
           currentEventSeriesId={currentEvent?.seriesId ?? null}
           canEdit={session.viewRole === "admin"}

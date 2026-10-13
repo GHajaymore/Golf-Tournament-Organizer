@@ -1210,3 +1210,42 @@ a schema change and a lifecycle decision, not a correction.
 
 Until then a two-round stroke event with uneven attendance ranks wrongly, and
 `isRanked`'s own docstring is where a fix belongs.
+
+## A member who missed a cut has not "played" that tournament, as a season counts it — OPEN, Ajay's call (2026-10-13)
+
+Found by drawing the season table with a real championship in it for the first
+time (`e2e/club-record.spec.ts`).
+
+A season scores a tournament from its FINISHING POSITIONS, and a player cut
+after round one holds none: `finishingPositions` reads the stroke standings
+where `ranked` means "holds a position", and a card that stopped short does
+not. So in a championship of twenty-eight cut to sixteen:
+
+    the sixteen who finished    a place, its points, and Played 1
+    the twelve who were cut     not in the season table at all
+
+**No points for a missed cut is ordinary golf** — it is what the professional
+tours' season races do — and it is not what this entry is about.
+
+**"Played" is.** A season can require a number of tournaments before a member
+is ranked (`minEvents`, "Rounds to qualify"). A member who entered two
+tournaments, finished one and missed the cut in the other reads Played 1, and
+under "2 to qualify" is left off the ranking as somebody who has not turned up
+enough — having turned up twice. The tours count a missed cut as an event
+played.
+
+It was not changed in passing, for two reasons. The rule that keeps a NO-SHOW
+out of "played" is the one that stopped three absentees scoring sixty points
+each (`series-no-card.test.ts`), and a missed cut has to be told apart from a
+no-show, a withdrawal and a disqualification before any of them may count —
+which the season's reader cannot do today: all four arrive as "not ranked".
+And how a club's own order of merit treats a missed cut is the committee's
+rule, so it wants a decision and possibly a setting, not a default chosen here.
+
+What the screen does now, which is at least true: it says how many entries hold
+no finishing place and why ("a missed cut, a withdrawal or a card not
+returned"), separately from entries that placed and have no roster record. It
+used to count both under the roster's name.
+
+Recommended when it is taken up: count a missed cut as played, with no points;
+keep a no-show, a withdrawal before play and a disqualification as not played.

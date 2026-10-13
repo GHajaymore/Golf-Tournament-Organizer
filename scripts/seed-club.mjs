@@ -2515,8 +2515,48 @@ export async function seed() {
       });
     }
 
+    /* ------------------------------------------- a plan, and a season on it */
+
+    /**
+     * A BIRDIE CLUB, WITH AN ORDER OF MERIT UNDER WAY.
+     *
+     * Until 2026-10-13 this club had no plan at all, which is the free one —
+     * and so did the e2e fixture's. The season table comes with Birdie, so
+     * every walk that opened Season standings, on either club, found a
+     * sentence saying it was locked. The screen behind it had never been drawn
+     * by anything, and the first time it was used it turned out a club could
+     * only ever start one season (`e2e/seasons.spec.ts`). (The honours board
+     * was open all along: a club from before the plan terms keeps it.)
+     *
+     * A state nothing can express is a state nobody walks. So this club pays:
+     * the every-screen walk, the control crawl and the stranger sweep now see
+     * the table with a finished championship counted in it, a medal that is
+     * not finished and says so, and a champion waiting to go on the board. The
+     * LOCKED state is still walked — the e2e fixture's club is still on no plan.
+     *
+     * No `planTermsApply`: the row unlocks what Birdie includes and leaves the
+     * club past the published limits, like any club that predates them. Eleven
+     * tournaments and a roster of this size are more than Birdie allows a new
+     * club, and this fixture is not about that.
+     */
+    await prisma.subscription.create({ data: { organizationId: org.id, plan: "society", status: "active" } });
+    const season = await prisma.series.create({
+      data: {
+        organizationId: org.id,
+        name: `${MARK}-Order of Merit`,
+        description: "",
+        // A table SHORTER than the field, so the places past it score nothing:
+        // the cell a twenty-place default table cannot reach with sixteen home.
+        pointsTable: JSON.stringify([50, 40, 32, 26, 22, 18, 15, 12, 10, 8]),
+        bestOf: 0,
+        minEvents: 0,
+      },
+    });
+    await prisma.event.updateMany({ where: { id: { in: [champs.id, medal.id] } }, data: { seriesId: season.id } });
+
     return {
       org,
+      season: { id: season.id, name: season.name },
       organizer: { session: sign(signedInNow(organizer.id)), email: organizer.email },
       player: { session: sign(signedInNow(player.id)), email: player.email, name: player.name },
       events: built,

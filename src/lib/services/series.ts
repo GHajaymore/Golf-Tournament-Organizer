@@ -82,7 +82,7 @@ export async function seriesForOrg(organizationId: string): Promise<SeriesView[]
  * across a season — there is nothing to join it to next week — so it is
  * dropped rather than counted under a name that might belong to two people.
  */
-export async function finishOrderFor(eventId: string): Promise<EventFinish | null> {
+export async function finishOrderFor(eventId: string): Promise<(EventFinish & { placed: number }) | null> {
   const state = await loadEventState(eventId);
   if (!state) return null;
 
@@ -117,7 +117,9 @@ export async function finishOrderFor(eventId: string): Promise<EventFinish | nul
     .filter((o) => memberByPlayer.has(o.playerId))
     .map((o) => ({ memberId: memberByPlayer.get(o.playerId)!, name: o.name, rank: o.rank }));
 
-  return { eventId, eventName: state.event.name, finishers };
+  // `placed` is everybody who holds a finishing place, roster record or not:
+  // what separates "we could not track them" from "they did not finish".
+  return { eventId, eventName: state.event.name, finishers, placed: ordered.length };
 }
 
 export interface SeriesTable {
@@ -128,8 +130,10 @@ export interface SeriesTable {
   series: SeriesView;
   events: Array<{ id: string; name: string; dates: string; counted: boolean }>;
   standings: SeriesStanding[];
-  /** Entries dropped because they had no roster link, so nothing is silently lost. */
+  /** Entries that HELD A PLACE and were dropped because they had no roster link, so nothing is silently lost. */
   unlinked: number;
+  /** Entries that hold no finishing place at all: a missed cut, a withdrawal, no card returned. */
+  unplaced: number;
 }
 
 /**
@@ -180,6 +184,7 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
       events: [],
       standings: [],
       unlinked: 0,
+      unplaced: 0,
     };
   }
 
@@ -200,10 +205,25 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
   );
 
   const finishes: EventFinish[] = [];
+  /**
+   * TWO REASONS AN ENTRY IS NOT IN THE TABLE, AND THEY ARE NOT ONE NUMBER.
+   *
+   * This was `entered - finishers`, printed under "have no roster record, so
+   * they aren't tracked across the season". Drawn for the first time with a
+   * real championship in it (2026-10-13), it read "12 entries have no roster
+   * record" over a field entered whole from the roster: the twelve were the
+   * members who missed the cut. Everybody the season does not score was being
+   * blamed on the roster — a missed cut, a withdrawal, a card never returned.
+   *
+   * A place with no roster record is something the club can PUT RIGHT (link
+   * the entry on Members). No place at all is just what happened.
+   */
   let unlinked = 0;
+  let unplaced = 0;
   for (const r of resolved) {
     if (!r) continue;
-    unlinked += Math.max(0, r.entered - r.f.finishers.length);
+    unlinked += Math.max(0, r.f.placed - r.f.finishers.length);
+    unplaced += Math.max(0, r.entered - r.f.placed);
     finishes.push(r.f);
   }
 
@@ -229,5 +249,6 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
     })),
     standings: seriesStandings(finishes, config),
     unlinked,
+    unplaced,
   };
 }

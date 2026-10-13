@@ -38,6 +38,7 @@ export function SeriesClient({
   events,
   standings,
   unlinked,
+  unplaced = 0,
   currentEventId,
   currentEventSeriesId,
   canEdit,
@@ -48,6 +49,8 @@ export function SeriesClient({
   standings: SeriesStanding[];
   /** Entries with no roster link, which cannot be tracked across a season. */
   unlinked: number;
+  /** Entries that hold no finishing place: a missed cut, a withdrawal, no card returned. */
+  unplaced?: number;
   currentEventId: string;
   currentEventSeriesId: string | null;
   canEdit: boolean;
@@ -173,6 +176,18 @@ export function SeriesClient({
             {events.filter((e) => !e.counted).map((e) => e.name).join(", ")} —{" "}
             {events.filter((e) => !e.counted).length === 1 ? "not finished yet, so it doesn't" : "not finished yet, so they don't"}{" "}
             count. Mark a tournament completed to bring it into the season.
+          </p>
+        )}
+
+        {/* Said apart from the sentence below it. They were one number under
+            the roster's name until a real championship was drawn here: twelve
+            members who missed the cut read as twelve entries the roster had
+            lost. Nothing is wrong with these, and nothing is to be put right. */}
+        {unplaced > 0 && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {unplaced} {unplaced === 1 ? "entry holds" : "entries hold"} no finishing place — a
+            missed cut, a withdrawal or a card not returned — so{" "}
+            {unplaced === 1 ? "it scores" : "they score"} nothing for that tournament.
           </p>
         )}
 
