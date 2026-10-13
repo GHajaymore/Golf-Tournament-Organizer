@@ -84,6 +84,9 @@ describe("which rounds have an allowance line of their own", () => {
     // none is a round whose result is a MATCH.
     expect(line("Stroke Play", "Round Robin", "net")).toEqual({ allowance: 95, recommended: 95, overridden: false });
     expect(line("Match Play", "Round Robin", "net")).toBeNull();
+    // A kind of round nobody has taught the app about is offered nothing.
+    expect(line("Stroke Play", "Qualifier", "net")).toBeNull();
+    expect(line("Stroke Play", "", "net")).toBeNull();
     const offered: string[] = [];
     for (const format of FORMAT_NAMES) {
       for (const type of TYPES) {
