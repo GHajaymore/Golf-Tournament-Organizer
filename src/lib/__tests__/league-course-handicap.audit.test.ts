@@ -207,3 +207,35 @@ describe("a league four-ball is scored off the Course Handicap", () => {
     expect(rated, "holes won under a rated tee vs a neutral one").not.toBe(neutral);
   });
 });
+
+/**
+ * AND OFF THE ALLOWANCE OF THAT HANDICAP BEFORE IT IS ROUNDED (Rule 6.2a).
+ *
+ * The one reader `every-reader-takes-the-allowance-of-one-figure.audit.test.ts`
+ * did not put a value behind: breaking the league's pricing to take 90% of the
+ * rounded figure left every test green (2026-10-13). After the test above the
+ * tees are neutral — slope 113, rating equal to par — so an index is its own
+ * course handicap before rounding:
+ *
+ *     10.5 at 90%   Rule: 9.45, plays off 9      rounded first: 11, 9.9, plays off 10
+ *
+ * Four identical cards, a four on every hole, and the other three players are
+ * scratch — so the match is played off nought, and the one handicapped ball
+ * wins exactly the holes it has a stroke on. Stroke index is hole order: nine
+ * holes by the Rule, and the 10th halved.
+ */
+describe("a league four-ball takes its allowance of the handicap before rounding", () => {
+  it("gives the 10.5 nine strokes at 90%, so the 10th is halved", async () => {
+    await prisma.stage.update({ where: { id: stageId }, data: { handicapAllowance: 90 } });
+    const b1 = await prisma.player.findFirstOrThrow({ where: { eventId, name: `${TAG} B1` } });
+    await prisma.player.update({ where: { id: b1.id }, data: { handicap: 10.5 } });
+
+    const [meeting] = await leagueMeetings(eventId, stageId, "holes");
+    expect(meeting.pairings).toHaveLength(1);
+    const pairing = meeting.pairings[0];
+    // Whichever letter club B's side is filed under in this pairing.
+    const theirs = pairing.clubB === clubBId ? "B" : "A";
+    expect(pairing.holes.slice(0, 9), "the nine holes the Rule gives a stroke on").toEqual(new Array(9).fill(theirs));
+    expect(pairing.holes[9], "a stroke on the 10th is 90% of the ROUNDED handicap").not.toBe(theirs);
+  });
+});

@@ -1581,6 +1581,75 @@ entered twelve, the plan refused two, and the entry loop passed anyway on the na
 in the form. An organizer-from-nothing spec that needs a bigger field needs a club on a bigger
 plan — and any entry loop should end by reading the field back.
 
+## Handicaps: an allowance is taken BEFORE rounding
+
+Rules of Handicapping, 6.2a and Appendix C: a handicap allowance is "applied to the unrounded
+Course Handicap as the final step", and the result is rounded once, a half upwards. For a format
+with one team handicap (foursomes, greensomes, a scramble) the allowance is applied to each
+partner's unrounded figure, the results combined, and the total rounded at the end.
+
+Until 2026-10-13 the app rounded the course handicap, took the allowance of that, and rounded
+again — **on purpose, with a comment saying so**, since the first handicap commit in August.
+Measured over every index from 0.0 to 36.0 on four sets of tees:
+
+```
+                    95%            90%            85%
+  a stroke out for  22-25%         22-23%         20-22%     of a field
+```
+
+in every net round with an allowance below 100, which is every individual net round and every
+four-ball. The USGA's own example (8.6 and 10.3 off 71.0/125, par 71, at 85%) is 8 and 10; the
+app said 9 and 9. The FAQ's worked example, headed as the calculation most golf software gets
+wrong, printed 14 where the Rule gives 13.
+
+**What to carry forward:**
+
+- **The figures live in two forms and only one may meet an allowance.** `courseHandicap()` is the
+  whole number a player is told; `courseHandicapExact()` is what it was rounded from. A field's
+  handicaps are a `CourseHandicaps` — a `Map` of whole numbers, with `.exact(id)`. A round's
+  answer is `resolveRoundHandicap(...).exact`, or `roundHandicapExactOf(row, whole, exact)`. A
+  side member carries `handicapExact`, and `playing` where they play their own ball. **Never
+  hand `playingHandicapFrom`, `allocatedStrokes` or `sidePlayingHandicap` a rounded figure**;
+  `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller, and refuses the
+  arithmetic written out by hand anywhere but in `domain/handicap.ts`.
+- **A whole number is right where a whole number is all there is**: a committee's own figure for
+  the round (the Rule's exception covers it), and a round frozen before the exact figure was
+  kept. `RoundHandicap.frozenExact` is written in the same statement as `frozen`. A reader that
+  selects `frozen` and not `frozenExact` prices a frozen round a stroke differently from the
+  board for one player in five.
+- **`wholeStrokes()` is the only rounding.** 33.9 off an 85 slope is 25.5 exactly and arrives as
+  25.499999999999996, which a bare `Math.round` calls 25.
+
+**Why eleven thousand green tests could not see it, three ways:**
+
+- **Nearly every fixture hands the engine a WHOLE-number handicap**, where rounding first and
+  rounding last cannot differ. A golfer's index has a decimal place. That is an axis, and nothing
+  walked it. `allowance-is-taken-of-the-exact-figure.test.ts` walks every tenth from plus 5.0 to
+  54.0, on six sets of tees, at nine allowances, against the Rule worked in WHOLE NUMBERS
+  (everything is an exact count of 113,000ths of a stroke) so that it shares neither formula nor
+  floating point with the code.
+- **The tests that did use an index worked out what to expect the way the app did.** Three
+  database-backed tests had a helper `playing(tee) = playingHandicapFrom(roundedCourseHandicap, 95)`.
+  A test that derives its expectation by the code's own method agrees with the code whether or
+  not the code is right. Work the expectation from the RULE, by a route the code does not take.
+- **"On purpose" in a comment is not a decision, and neither is a reason that sounds right.** The
+  comment argued that the rounded figure is "a real, quoted number a player is told on the first
+  tee". True, and beside the point: the Rule says what the allowance is taken of. When a comment
+  defends a calculation, check the calculation against the SOURCE it is supposed to follow, not
+  against the comment's own reasoning. It was found by writing a browser test that refused to
+  take the board's word for the board.
+
+And the guard that was already there: the score-entry screen had this arithmetic written out by
+hand, in a file whose own test bans a second pipeline on that screen. The test banned a function
+NAME (`playingHandicapFrom(`); the copy was spelled `Math.round((courseHandicap * pct) / 100)` and
+walked past it for months. **Ban the shape, not the spelling** — the new sweep matches a handicap
+multiplied and divided by a hundred, and has a control proving it recognises all three of the
+lines it replaced.
+
+A round frozen before that date keeps the strokes it was played off. See
+`docs/deferred-register.md` for five neighbouring things seen and left alone, including that an
+individual round's allowance cannot be changed from any screen.
+
 ## Course cards: measure a guard before you ship it
 
 A wrong card is invisible — a bad stroke index allocates shots to the wrong holes for the
