@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { typedAllowance } from "@/lib/domain/team";
+import { allowanceSaid } from "@/lib/domain/allowance-words";
 import {
   setStageAllowance,
   setStageAllowanceWeights,
@@ -211,17 +212,15 @@ export function RoundTeamScoring({
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           Handicap allowance <b style={{ color: "var(--color-text)" }}>{info.allowance}%</b>
           {sharedBall ? " of the side's combined course handicaps" : ""}
-          {info.allowanceOverridden
-            ? info.shares
-              ? " — set by your committee, in place of the split below."
-              : info.allowance === info.recommendedAllowance
-                ? // A committee that types the usual figure has still said something;
-                  // "in place of the usual 85%" over an 85% would read as a mistake.
-                  " — set by your committee; it is also the usual figure for this format."
-                : ` — set by your committee, in place of the usual ${info.recommendedAllowance}%.`
-            : info.allowanceIsConvention
-              ? " — the common club convention for this format, not a published standard."
-              : " — the recommended allowance for this format."}
+          {/* The words after the figure are `allowanceSaid`'s, which an individual
+              round's line (`RoundAllowance`) reads too. */}
+          {allowanceSaid({
+            allowance: info.allowance,
+            recommended: info.recommendedAllowance,
+            overridden: info.allowanceOverridden,
+            isConvention: info.allowanceIsConvention,
+            replacesSplit: !!info.shares,
+          })}
         </p>
         <button
           type="button"

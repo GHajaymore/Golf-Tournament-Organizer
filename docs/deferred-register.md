@@ -1311,7 +1311,11 @@ Handicapping, 6.2a; see CLAUDE.md, "Handicaps"). Reading every place a
 percentage meets a handicap turned up five more things. None is that defect, and
 each wants its own change rather than a line added beside this one.
 
-**An individual round's allowance cannot be changed.** Stroke Play and
+**An individual round's allowance cannot be changed. — DONE the same day**: the
+card of every individual net round has a **Handicap allowance** line with
+[[Change]] (`RoundAllowance`, `individualAllowanceFor`), the rules sheet states
+the figure on every such round, and `e2e/round-allowance.spec.ts` changes it
+and holds the board to the Rules at both figures. What it said: Stroke Play and
 Stableford play at 95%, which is Appendix C's figure for a field of thirty or
 more; the same appendix suggests 100% for a smaller one. A team round has a
 [[Change]] beside its allowance on the round's card. An individual round has no
@@ -1327,8 +1331,11 @@ hands `deriveNetHoles` the round's course handicap; the entry screen and the
 round-code screen read `matchHandicapFor`, which applies `effectiveAllowance`.
 They agree while that is 100, which it is for Match Play and Nassau, and no
 screen can set another on a head-to-head round — so today the two cannot be made
-to differ. Read, not reproduced. It becomes real the day the control above
-exists on every round.
+to differ. Read, not reproduced. The control that now exists is offered only on
+individual STROKE rounds, and `setStageAllowance` refuses a figure on a round
+that takes none (a singles match among them), so it still cannot be made to
+differ — by a screen or by a direct call. It becomes real the day a match is
+given an allowance of its own.
 
 **A league night played to a shared ball would be priced off nothing.**
 `leagueMeetings` prices each `TeamScorecard` row off the player it belongs to.

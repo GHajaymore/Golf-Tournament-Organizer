@@ -1101,7 +1101,7 @@ describe("rounds and format", () => {
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {
     // The page tells the screen what day it is; it used to ask its own clock.
@@ -2301,7 +2301,7 @@ describe("round card — which nine and the deadline", () => {
     closed: false,
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, allowance: null, handicaps: [], ...over,
   });
   const base = {
     // The page tells the screen what day it is; it used to ask its own clock.

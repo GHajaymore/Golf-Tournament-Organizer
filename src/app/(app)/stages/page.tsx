@@ -32,6 +32,7 @@ import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
+import { individualAllowanceFor } from "@/lib/round-allowance";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
 /**
@@ -200,6 +201,8 @@ export default async function StagesPage() {
     // the Teams screen behind a second round selector, so a format was chosen
     // in one place and priced in another.
     teamScoring: teamScoringFor(s),
+    // And what an INDIVIDUAL net round plays at, with the control to change it.
+    allowance: individualAllowanceFor(s),
     handicaps: roundHandicaps[s.id] ?? [],
     attendance: !tracksPerRound(attendanceMode as AttendanceMode)
       ? null

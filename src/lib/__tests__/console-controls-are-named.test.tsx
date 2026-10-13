@@ -193,7 +193,7 @@ describe("console form controls are named", () => {
           holes: 18, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", carryEnabled: false, carryPct: 0,
           carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
           deadlineOverride: null, optDeadline: "", attendance: null, matchCount: 0, courseId: null, nine: "full",
-          teamScoring: null, handicaps: [],
+          teamScoring: null, allowance: null, handicaps: [],
         }]} />,
     );
     expect(html).toContain("Played as a side");
@@ -219,7 +219,7 @@ describe("console form controls are named", () => {
           holes: 9, playedOn: "", deadline: "", scoringBasis: "net", scoreInput: "", carryEnabled: false, carryPct: 0,
           carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall",
           deadlineOverride: null, optDeadline: "", attendance: null,
-          matchCount: 0, courseId: null, nine: "front", teamScoring: null, handicaps: [],
+          matchCount: 0, courseId: null, nine: "front", teamScoring: null, allowance: null, handicaps: [],
         }]} />,
     );
     expect(html).toContain("Which nine");

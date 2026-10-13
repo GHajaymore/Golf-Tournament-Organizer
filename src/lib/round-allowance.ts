@@ -1,5 +1,5 @@
-import { findFormat } from "./formats";
-import { isHeadToHead } from "./stage-types";
+import { findFormat, isManualFormat, needsTeams } from "./formats";
+import { isHeadToHead, isIndividualStrokeRound } from "./stage-types";
 
 /** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
 export const FOUR_BALL_STROKE_PLAY = 85;
@@ -46,4 +46,56 @@ export function recommendedAllowance(format: string, stageType: string | null | 
  *  recommendation for that format in that kind of round when they have set none. */
 export function effectiveAllowance(format: string, override: number, stageType: string | null | undefined): number {
   return override > 0 ? override : recommendedAllowance(format, stageType);
+}
+
+/**
+ * Whether a round takes a share of a handicap at all: a team round, by its
+ * format's own panel, or an individual net round, by the line on its card. What
+ * the action asks before it stores a figure, so that what a screen OFFERS and
+ * what the server ACCEPTS are one list.
+ */
+export function roundTakesAllowance(s: { format: string; type: string; scoringBasis: string; handicapAllowance: number }): boolean {
+  return needsTeams(s.format) || individualAllowanceFor(s) !== null;
+}
+
+/** What an individual net round's card says about its allowance. */
+export interface RoundAllowanceInfo {
+  /** The allowance in force — the committee's, or the recommendation. */
+  allowance: number;
+  recommended: number;
+  /** The committee has set a figure of its own. */
+  overridden: boolean;
+}
+
+/**
+ * THE ALLOWANCE LINE OF AN INDIVIDUAL NET ROUND, or null where a round has none.
+ *
+ * Null for a team round, which has its own panel; for a match, played at the
+ * full difference between the two; for a gross round, which gives no strokes;
+ * for skins and a Nassau, which are bets laid over a round; and for a round
+ * scored by hand. Stableford is always off handicap, so it has the line
+ * whatever its "result calculation" says.
+ *
+ * Here and not on the screen so that the rule has a test: a line offered on a
+ * round that ignores it is a control with nothing behind it, and one missing
+ * from a round that honours it is the gap this closed (2026-10-13 — a medal's
+ * allowance could not be changed from any screen, and Appendix C lets a field
+ * under thirty play at 100%).
+ */
+export function individualAllowanceFor(s: {
+  format: string;
+  type: string;
+  scoringBasis: string;
+  handicapAllowance: number;
+}): RoundAllowanceInfo | null {
+  if (needsTeams(s.format) || isManualFormat(s.format)) return null;
+  if (!isIndividualStrokeRound(s)) return null;
+  const engine = findFormat(s.format).engine;
+  if (engine !== "stroke" && engine !== "stableford" && engine !== "modified-stableford") return null;
+  if (engine === "stroke" && s.scoringBasis.trim().toLowerCase() === "gross") return null;
+  return {
+    allowance: effectiveAllowance(s.format, s.handicapAllowance, s.type),
+    recommended: recommendedAllowance(s.format, s.type),
+    overridden: s.handicapAllowance > 0,
+  };
 }

@@ -364,3 +364,77 @@ describe("and a team round's pricing asks too", () => {
     expect((await stageOf(id)).allowanceWeights).toEqual([50, 50]);
   });
 });
+
+describe("and an individual net round's allowance asks, where the round takes one", () => {
+  /**
+   * THE LINE AN INDIVIDUAL ROUND GAINED ON 2026-10-13 (`RoundAllowance`). It
+   * calls the same action a team round's panel does, so it asks the same
+   * question — and the action now REFUSES a figure on a round that takes none,
+   * because it is a public endpoint and no screen offers the control there.
+   *
+   * One card on each round, which is all `enteredCardCount` needs.
+   */
+  async function round(format: string, type: string, scoringBasis: string, played = true) {
+    const { eventId, player } = await seed();
+    const stage = await prisma.stage.create({
+      data: { eventId, position: 1, type, format, holes: 18, scoringBasis },
+    });
+    if (played) {
+      await prisma.scorecard.create({
+        data: { eventId, stageId: stage.id, playerId: player.id, strokes: JSON.stringify([4, ...new Array(17).fill(null)]) },
+      });
+    }
+    await asOrganizer(eventId);
+    return stage.id;
+  }
+  const allowanceOf = async (id: string) =>
+    (await prisma.stage.findUnique({ where: { id }, select: { handicapAllowance: true } }))!.handicapAllowance;
+
+  it("changes freely before anybody has played — the control", async () => {
+    const id = await round("Stroke Play", "Stroke Play Round", "net", false);
+    expect(await setStageAllowance(id, 100)).toEqual({ ok: true });
+    expect(await allowanceOf(id)).toBe(100);
+  });
+
+  it("asks under a card on a net medal and on a Stableford, without writing, and goes ahead when told", async () => {
+    for (const [format, basis] of [["Stroke Play", "net"], ["Stroke Play", "both"], ["Stableford", "stableford"]] as const) {
+      const id = await round(format, "Stroke Play Round", basis);
+      expect(await setStageAllowance(id, 100), `${format} · ${basis}`).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+      expect(await allowanceOf(id), `${format} · ${basis}: refused and wrote anyway`).toBe(0);
+      expect(await setStageAllowance(id, 100, true)).toEqual({ ok: true });
+      expect(await allowanceOf(id)).toBe(100);
+      // Back to the Rules' 95% is a change too, and is asked about.
+      expect(await setStageAllowance(id, 0)).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+      expect(await allowanceOf(id)).toBe(100);
+    }
+  });
+
+  it("does not ask when the allowance in force does not change", async () => {
+    // Individual stroke play is 95%: typing 95 over the default is not a change.
+    const id = await round("Stroke Play", "Stroke Play Round", "net");
+    expect(await setStageAllowance(id, 95)).toEqual({ ok: true });
+    expect(await allowanceOf(id)).toBe(95);
+    expect(await setStageAllowance(id, 0)).toEqual({ ok: true });
+  });
+
+  it("refuses a figure on a round that takes no allowance, and stores nothing", async () => {
+    const refused = { ok: false, error: "This round takes no handicap allowance, so there is none to set." };
+    for (const [format, type, basis] of [
+      ["Stroke Play", "Stroke Play Round", "gross"],
+      ["Match Play", "Round Robin", "net"],
+      ["Skins", "Stroke Play Round", "net"],
+      ["Other (scored by hand)", "Stroke Play Round", "net"],
+    ] as const) {
+      const id = await round(format, type, basis, false);
+      expect(await setStageAllowance(id, 90), `${format} · ${type} · ${basis}`).toEqual(refused);
+      expect(await allowanceOf(id), `${format}: refused and wrote anyway`).toBe(0);
+    }
+  });
+
+  it("still lets a figure left on such a round be cleared", async () => {
+    const id = await round("Stroke Play", "Stroke Play Round", "gross", false);
+    await prisma.stage.update({ where: { id }, data: { handicapAllowance: 90 } });
+    expect(await setStageAllowance(id, 0)).toEqual({ ok: true });
+    expect(await allowanceOf(id)).toBe(0);
+  });
+});

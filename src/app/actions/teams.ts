@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
 import { effectiveAllowance, effectiveCountBest, snakeDraw } from "@/lib/services/teams";
+import { roundTakesAllowance } from "@/lib/round-allowance";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked } from "@/lib/services/action-shared";
@@ -481,7 +482,16 @@ export async function autoDrawTeams(
 }
 
 /**
- * Set the committee's handicap allowance for a team round.
+ * Set the committee's handicap allowance for a round: a team round's, from its
+ * own panel, or an individual net round's, from the line on its card
+ * (`RoundAllowance`, 2026-10-13).
+ *
+ * REFUSED on a round that takes no allowance — a gross medal, a singles match,
+ * skins, a round scored by hand. No screen offers the control there, and this
+ * is a public endpoint: a figure stored on a singles match would be read by the
+ * screens that show its strokes and not by the reader that decides its holes
+ * (`docs/deferred-register.md`), two answers about one match. Clearing is
+ * always allowed, so a figure left behind by a change of format can be removed.
  *
  * Zero clears it and returns the round to the allowance its format
  * recommends — a stored 0 is an absence of opinion, not a 0% allowance.
@@ -495,7 +505,7 @@ export async function setStageAllowance(
   force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
-  await assertUnlocked(eventId, "change teams");
+  await assertUnlocked(eventId, "change a round's handicap allowance");
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     // "1 to 100", not "0 to 100": zero is accepted here as "back to the
@@ -504,9 +514,12 @@ export async function setStageAllowance(
   }
   const current = await prisma.stage.findUnique({
     where: { id: stageId },
-    select: { format: true, handicapAllowance: true, type: true },
+    select: { format: true, handicapAllowance: true, type: true, scoringBasis: true },
   });
   const next = Math.round(percent);
+  if (next > 0 && current && !roundTakesAllowance(current)) {
+    return { ok: false, error: "This round takes no handicap allowance, so there is none to set." };
+  }
   // Compared as the allowance IN FORCE, so "back to the recommended 90%" on a
   // round already playing 90% is not a change.
   const refusal = await rescoreRefusal(
