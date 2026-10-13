@@ -38,8 +38,8 @@ vi.mock("@/lib/domain/date-words.data", () => {
         rangeInYear: "IN-YEAR|{d1}|{b1}|{d2}|{b2}|{y1}",
         rangeAcross: "ACROSS|{d1}|{b1}|{y1}|{d2}|{b2}|{y2}",
       },
-      // Twelve-hour, so the tee sheet's question has two answers to tell apart.
-      "en-US": { months, monthsLong: months, days, daysLong: days, am: "a", pm: "p", hour12: true, day: "", monthDay: "", weekdayDay: "", stamp: "", time: "", wall: "", rangeInMonth: "", rangeInYear: "", rangeAcross: "" },
+      // Twelve-hour HERE, where every platform says Japan runs to 24: a caller that asks the platform says so.
+      "ja-JP": { months, monthsLong: months, days, daysLong: days, am: "a", pm: "p", hour12: true, day: "", monthDay: "", weekdayDay: "", stamp: "", time: "", wall: "", rangeInMonth: "", rangeInYear: "", rangeAcross: "" },
     },
   };
 });
@@ -94,7 +94,7 @@ describe("each thing that writes a date fills in the table", () => {
   it("which clock the tee sheet runs on", async () => {
     const { usesTwentyFourHourClock } = await import("@/lib/domain/locale");
     expect(usesTwentyFourHourClock("en-GB")).toBe(true);
-    expect(usesTwentyFourHourClock("en-US")).toBe(false);
+    expect(usesTwentyFourHourClock("ja-JP")).toBe(false);
   });
 
   it("a message's date in the thread", async () => {
