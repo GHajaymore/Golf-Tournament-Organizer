@@ -84,14 +84,34 @@ if (builds.length > 1) missing.push(`the parts ran on different builds (${builds
 const reach = value("reach") && existsSync(value("reach")) ? shape(JSON.parse(readFileSync(value("reach"), "utf8"))) : parts.length === 1 ? first.reach : null;
 function shape(report) {
   if (report.neverCalled) return report;
-  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened };
+  return { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [] };
 }
 const newlyUnreached = [];
+/** Actions the list still calls unreached that this round performed: the list can come down. */
+const nowReached = [];
 const baselinePath = join("scripts", "qa", "reach-baseline.json");
+/**
+ * THE LIST THIS IS HELD AGAINST MUST EXIST, OR THE CHECK DID NOT RUN.
+ *
+ * It read `existsSync(baselinePath)` as one more condition, and the file had
+ * never been written — so from the day this was built to 2026-10-13 no round
+ * checked for an action nothing performs, while this file's header, `layers.mjs`
+ * and `docs/testing.md` all said every round did. Every reach FIGURE in those
+ * rounds was measured and true; the guard on it was a check whose failure looked
+ * like its success. A missing list is a finding now, said in words.
+ */
+const baselineMissing = Boolean(reach) && !missing.length && !existsSync(baselinePath);
 if (reach && !missing.length && existsSync(baselinePath)) {
-  const known = JSON.parse(readFileSync(baselinePath, "utf8")).neverCalled ?? {};
-  for (const [file, names] of Object.entries(reach.neverCalled)) {
+  // A build on GitHub names an action's file `app/actions/x.ts`; one made on Windows names it
+  // `src/app/actions/x.ts`. One name for both, or a round run here calls every listed action new.
+  const plain = (map) => Object.fromEntries(Object.entries(map).map(([file, names]) => [file.replace(/^src\//, ""), names]));
+  const known = plain(JSON.parse(readFileSync(baselinePath, "utf8")).neverCalled ?? {});
+  const unreached = plain(reach.neverCalled);
+  for (const [file, names] of Object.entries(unreached)) {
     for (const name of names) if (!(known[file] ?? []).includes(name)) newlyUnreached.push(`${file}: ${name}`);
+  }
+  for (const [file, names] of Object.entries(known)) {
+    for (const name of names) if (!(unreached[file] ?? []).includes(name)) nowReached.push(`${file}: ${name}`);
   }
 }
 
@@ -106,6 +126,7 @@ for (const r of rows.filter((x) => x.ran)) {
   if (r.hydration) findings.push(`${r.key}: ${r.hydration} hydration mismatch(es) recorded`);
 }
 for (const n of newlyUnreached) findings.push(`reach: no screen test calls ${n} (not in reach-baseline.json: new, or its test was lost)`);
+if (baselineMissing) findings.push("reach: scripts/qa/reach-baseline.json is missing, so nothing checked for an action no screen test performs");
 
 const onlyAPart = Boolean(flag("part"));
 const verdict = findings.length ? "NOT CLEAN" : missing.length ? "CLEAN, BUT NOT ALL OVER" : "CLEAN";
@@ -129,6 +150,12 @@ const summary = [
   "",
   findings.length ? `## Findings\n\n${findings.map((f) => `- ${f}`).join("\n")}` : "No findings.",
   "",
+  // Good news, and work: these are on the list of actions nothing performs, and this round performed them.
+  nowReached.length ? `## Can come off \`reach-baseline.json\` (${nowReached.length})\n\n${nowReached.map((f) => `- ${f}`).join("\n")}\n` : "",
+  // To be READ, not counted: see `watchRefusals` in e2e/coverage.ts. "red" is a guess from the colour.
+  reach?.refusalsOutOfSight?.length
+    ? `## Refusals that appeared with none of them on the screen (${reach.refusalsOutOfSight.length}) — read these\n\n${reach.refusalsOutOfSight.map((r) => `- \`${r.screen}\` after pressing ${r.pressed.map((p) => `"${p}"`).join(" or ")} (${r.kind}, ${r.times}x): ${cell(r.words)}`).join("\n")}\n`
+    : "",
   missing.length ? `## Left out\n\n${missing.map((f) => `- ${f}`).join("\n")}\n` : "",
   "**Not covered by any layer:** a real phone or tablet in a hand, the App Store and Google Play builds, Firefox and Safari on Windows or a Mac. See `docs/testing.md`.",
   "",

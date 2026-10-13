@@ -298,7 +298,7 @@ let reach = null;
 const cov = spawnSync(process.execPath, ["scripts/e2e-coverage.mjs", "--json"], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
 if (cov.status === 0) {
   const report = JSON.parse(cov.stdout);
-  reach = { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened };
+  reach = { actions: report.actions, screens: report.screens, neverCalled: Object.fromEntries(report.files.filter((f) => f.neverCalled.length).map((f) => [f.file, f.neverCalled])), screensNeverOpened: report.screensNeverOpened, refusalsOutOfSight: report.refusalsOutOfSight ?? [] };
 }
 
 const minutes = Math.round((Date.now() - started) / 60_000);

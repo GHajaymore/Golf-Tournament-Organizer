@@ -825,8 +825,25 @@ export function ScoreEntryClient({
   };
   const doReopen = () => {
     if (!active) return;
-    setStatus(active.id, "pending");
-    startTransition(() => void reopenMatch(active.id));
+    const id = active.id;
+    // NOT OPTIMISTIC, as `doConfirm` and `doDispute` above — and this was the
+    // one of the three left as it had been: the row was painted reopened and
+    // the request sent off with nobody listening for its answer. Only an
+    // organizer may reopen a result, so a refusal (a sign-in that has lapsed,
+    // a role changed since the screen was drawn) left the screen saying a
+    // confirmed match was open again.
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        await reopenMatch(id);
+        setStatus(id, "pending");
+        setSaveState("saved");
+      } catch {
+        setSaveState("failed");
+        setSaveNote("That result could not be reopened.");
+      }
+    });
   };
 
   /**

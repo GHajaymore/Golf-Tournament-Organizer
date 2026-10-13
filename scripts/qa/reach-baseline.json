@@ -1,0 +1,154 @@
+{
+ "measuredOn": "round G23-4 on GitHub (commit a054c9d, app 6ed0d1fb4c52, 2026-10-13), less the actions the specs written after it perform",
+ "note": "Server actions no screen test performs. It may only get shorter: a round fails on any unperformed action that is not listed here. See scripts/qa/merge.mjs and docs/testing.md.",
+ "neverCalled": {
+  "app/actions/account.ts": [
+   "deleteMyAccount"
+  ],
+  "app/actions/attendance.ts": [
+   "setAttendance",
+   "setStageOptDeadline"
+  ],
+  "app/actions/auth.ts": [
+   "setPreviewAction"
+  ],
+  "app/actions/bet-name.ts": [
+   "renameBet"
+  ],
+  "app/actions/billing.ts": [
+   "openBillingPortal",
+   "startCheckout"
+  ],
+  "app/actions/card-photo.ts": [
+   "readCourseCardPhoto",
+   "readGroupCardPhoto",
+   "readScorecardPhoto"
+  ],
+  "app/actions/club-deletion.ts": [
+   "deleteClub"
+  ],
+  "app/actions/commentary.ts": [
+   "suggestCommentary"
+  ],
+  "app/actions/courses.ts": [
+   "applySourceCard",
+   "checkCourseAgainstSource",
+   "importClubCourseCard",
+   "nameMatchVenue",
+   "setMatchCourse"
+  ],
+  "app/actions/cup.ts": [
+   "hideCupLineup",
+   "removeCupMatch",
+   "renameCupTeam"
+  ],
+  "app/actions/draft-message.ts": [
+   "draftMessage"
+  ],
+  "app/actions/handicap-policy.ts": [
+   "saveHandicapPolicy"
+  ],
+  "app/actions/join.ts": [
+   "approveJoinRequest",
+   "askToJoinNamesake",
+   "declineJoinRequest"
+  ],
+  "app/actions/league.ts": [
+   "drawLeagueWeek",
+   "nominatePair",
+   "setPlayoffHoleWinner",
+   "withdrawPair"
+  ],
+  "app/actions/messaging.ts": [
+   "broadcastToScope",
+   "broadcastWithText"
+  ],
+  "app/actions/organization.ts": [
+   "saveOrganizationNoun",
+   "saveOrganizationSeason"
+  ],
+  "app/actions/owner.ts": [
+   "createDiscountCode",
+   "saveTierLimits",
+   "saveTierPrices",
+   "setClubPlan",
+   "setDiscountCodeActive"
+  ],
+  "app/actions/play.ts": [
+   "certifyPlayCard",
+   "leavePlay",
+   "savePlayMatchResult"
+  ],
+  "app/actions/push.ts": [
+   "getVapidPublicKey",
+   "removePushSubscription",
+   "savePushSubscription"
+  ],
+  "app/actions/roster.ts": [
+   "acceptClubHandicap",
+   "addFieldToRoster"
+  ],
+  "app/actions/round-expiry.ts": [
+   "keepRound"
+  ],
+  "app/actions/setup-suggest.ts": [
+   "applySetupProposal",
+   "suggestSetup"
+  ],
+  "app/actions/teams.ts": [
+   "deleteTeam",
+   "generateTeamMatches",
+   "removeTeamMember",
+   "renameTeam",
+   "setStageAllowance",
+   "setStageAllowanceWeights",
+   "setStageCountBest"
+  ],
+  "app/actions/tee-sheet.ts": [
+   "setTeeSheetPublished"
+  ],
+  "app/actions/tournament.ts": [
+   "applyMatchResult",
+   "applyRoundHandicapToRest",
+   "clearFlights",
+   "clearMatch",
+   "clearRoundScores",
+   "cloneEvent",
+   "confirmMatch",
+   "createSingleMatch",
+   "createThirdPlaceMatch",
+   "dateUndatedRounds",
+   "deleteEvent",
+   "disputeMatch",
+   "generateNextRound",
+   "movePlayerToGroup",
+   "rejectBracketReport",
+   "removeSignups",
+   "removeStage",
+   "renameGroup",
+   "reopenMatch",
+   "reopenScorecard",
+   "reseedFlight",
+   "rotatePublicToken",
+   "saveCustomCourse",
+   "saveScoring",
+   "saveTiebreakers",
+   "setConfigUnlocked",
+   "setFlightsConfirmed",
+   "setInviteMessage",
+   "setMatchTiebreakers",
+   "setQualifyPerGroup",
+   "setRequirePhone",
+   "setSingleMatchRule",
+   "setStageCarry",
+   "setStageCutScope",
+   "setStageDeadline",
+   "setStageDeadlineOverride",
+   "setStageFormat",
+   "setStageHoles",
+   "setStagePlayedOn",
+   "setThirdPlace",
+   "switchEvent"
+  ]
+ }
+}

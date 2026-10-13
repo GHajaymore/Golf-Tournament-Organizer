@@ -38,6 +38,7 @@ export function SeriesClient({
   events,
   standings,
   unlinked,
+  unplaced = 0,
   currentEventId,
   currentEventSeriesId,
   canEdit,
@@ -48,6 +49,8 @@ export function SeriesClient({
   standings: SeriesStanding[];
   /** Entries with no roster link, which cannot be tracked across a season. */
   unlinked: number;
+  /** Entries that hold no finishing place: a missed cut, a withdrawal, no card returned. */
+  unplaced?: number;
   currentEventId: string;
   currentEventSeriesId: string | null;
   canEdit: boolean;
@@ -59,13 +62,61 @@ export function SeriesClient({
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const active = seasons.find((s) => s.id === activeId) ?? null;
+  const [startingAnother, setStartingAnother] = useState(false);
+  /**
+   * THE BOXES BELOW ARE ONE SEASON'S, and the page gives this component a new
+   * `key` whenever the season on screen changes — so this is read afresh for
+   * each. Without that it was read ONCE: a club that started its first season
+   * opened "Scoring & rules" on an empty points box, and a club with two saw
+   * the first season's rules under the second and saved them onto it.
+   */
   const [draft, setDraft] = useState({
+    name: active ? active.name : "",
     pointsTable: active ? active.pointsTable.join(", ") : "",
     bestOf: active ? String(active.bestOf) : "0",
     minEvents: active ? String(active.minEvents) : "0",
   });
 
   const counted = events.filter((e) => e.counted).length;
+  /** The season the open tournament is in, when it is not the one on screen. */
+  const elsewhere = currentEventSeriesId && currentEventSeriesId !== activeId ? (seasons.find((s) => s.id === currentEventSeriesId) ?? null) : null;
+
+  /** Start a season and go to it. The name is kept if the club is refused. */
+  const start = () => {
+    let made = "";
+    run(
+      async () => {
+        const res = await createSeries(newName);
+        made = res.seriesId ?? "";
+        return res;
+      },
+      () => {
+        setNewName("");
+        setStartingAnother(false);
+        if (made) router.push(`/series?id=${made}`);
+      },
+    );
+  };
+  const nameAndStart = (label: string) => (
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+      <div className="field" style={{ flex: 1, minWidth: 200 }}>
+        <label htmlFor="season-new-name">{label}</label>
+        <input
+          id="season-new-name"
+          className="input"
+          value={newName}
+          placeholder="e.g. Winter League 2026"
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newName.trim() && !pending) start();
+          }}
+        />
+      </div>
+      <button type="button" className="btn btn-primary" disabled={pending || !newName.trim()} onClick={start}>
+        <Icon name="plus" /> Start a season
+      </button>
+    </div>
+  );
 
   if (seasons.length === 0) {
     return (
@@ -77,31 +128,7 @@ export function SeriesClient({
           leaderboard; the season adds them up on finishing position, so rounds played in different
           formats still combine.
         </p>
-        {canEdit && (
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div className="field" style={{ flex: 1, minWidth: 200 }}>
-              <label htmlFor="season-new-name">Season name</label>
-              <input
-                id="season-new-name"
-                className="input"
-                value={newName}
-                placeholder="e.g. Winter League 2026"
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending || !newName.trim()}
-              onClick={() => {
-                run(() => createSeries(newName));
-                setNewName("");
-              }}
-            >
-              <Icon name="plus" /> Start a season
-            </button>
-          </div>
-        )}
+        {canEdit && nameAndStart("Season name")}
         {error && <p className="form-error">{error}</p>}
       </div>
     );
@@ -114,6 +141,7 @@ export function SeriesClient({
           {seasons.length > 1 ? (
             <select
               className="input"
+              aria-label="Season"
               style={{ maxWidth: 280 }}
               value={activeId ?? ""}
               onChange={(e) => router.push(`/series?id=${e.target.value}`)}
@@ -151,6 +179,18 @@ export function SeriesClient({
           </p>
         )}
 
+        {/* Said apart from the sentence below it. They were one number under
+            the roster's name until a real championship was drawn here: twelve
+            members who missed the cut read as twelve entries the roster had
+            lost. Nothing is wrong with these, and nothing is to be put right. */}
+        {unplaced > 0 && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            {unplaced} {unplaced === 1 ? "entry holds" : "entries hold"} no finishing place — a
+            missed cut, a withdrawal or a card not returned — so{" "}
+            {unplaced === 1 ? "it scores" : "they score"} nothing for that tournament.
+          </p>
+        )}
+
         {unlinked > 0 && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
             {unlinked} {unlinked === 1 ? "entry has" : "entries have"} no roster record, so{" "}
@@ -184,13 +224,44 @@ export function SeriesClient({
                   )
                 }
               >
+                {/* A tournament is in ONE season. Adding it here while it is in
+                    another takes it out of that one, so the button says so
+                    rather than letting a second season quietly empty the first. */}
                 {currentEventSeriesId === activeId
                   ? "Remove this tournament from the season"
-                  : "Add this tournament to the season"}
+                  : elsewhere
+                    ? "Move this tournament to this season"
+                    : "Add this tournament to the season"}
               </button>
             )}
+            {/* A CLUB HAS MORE THAN ONE SEASON IN ITS LIFE. Until 2026-10-13
+                "Start a season" was drawn only while the club had none, so a
+                club that finished its winter league could start the summer one
+                only by deleting the winter's. The list above was already
+                written for several; nothing could make the second. */}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: "2px 10px", fontSize: 13 }}
+              aria-expanded={startingAnother}
+              onClick={() => setStartingAnother((o) => !o)}
+            >
+              {startingAnother ? "Not now" : "Start another season"}
+            </button>
           </div>
         )}
+
+        {/* WHERE it is now is a sentence, not part of the button: a season's
+            name is as long as the club made it, and a button that carried one
+            ran off the side of a phone the first time it was drawn. */}
+        {canEdit && elsewhere && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            The tournament you have open is in {elsewhere.name}. A tournament counts towards one
+            season, so moving it here takes it out of that one.
+          </p>
+        )}
+
+        {startingAnother && canEdit && nameAndStart("The new season’s name")}
 
         {showSettings && canEdit && active && (
           <div
@@ -204,10 +275,21 @@ export function SeriesClient({
               background: "var(--color-bg)",
             }}
           >
+            <div className="field">
+              <label htmlFor="season-name">Season name</label>
+              <input
+                id="season-name"
+                className="input"
+                style={{ maxWidth: 360 }}
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              />
+            </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <div className="field" style={{ flex: 1, minWidth: 220 }}>
-                <label>Points for each position</label>
+                <label htmlFor="season-points">Points for each position</label>
                 <input
+                  id="season-points"
                   className="input"
                   value={draft.pointsTable}
                   placeholder="100, 80, 65, 55…"
@@ -215,8 +297,9 @@ export function SeriesClient({
                 />
               </div>
               <div className="field" style={{ width: 110 }}>
-                <label>Best of</label>
+                <label htmlFor="season-best-of">Best of</label>
                 <input
+                  id="season-best-of"
                   className="input"
                   inputMode="numeric"
                   value={draft.bestOf}
@@ -224,8 +307,9 @@ export function SeriesClient({
                 />
               </div>
               <div className="field" style={{ width: 130 }}>
-                <label>Rounds to qualify</label>
+                <label htmlFor="season-min-rounds">Rounds to qualify</label>
                 <input
+                  id="season-min-rounds"
                   className="input"
                   inputMode="numeric"
                   value={draft.minEvents}
@@ -246,6 +330,7 @@ export function SeriesClient({
                 onClick={() =>
                   run(() =>
                     updateSeries(active.id, {
+                      name: draft.name,
                       pointsTable: draft.pointsTable,
                       bestOf: parseInt(draft.bestOf, 10) || 0,
                       minEvents: parseInt(draft.minEvents, 10) || 0,

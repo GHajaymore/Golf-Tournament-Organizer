@@ -14,6 +14,8 @@ import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { useAction } from "./useAction";
 import { roleName, orgRoleName } from "@/lib/roles";
+import { describeOrgRoleChange } from "@/lib/access-roles";
+import { RoleChangeConfirm } from "./AccessClient";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -94,14 +96,42 @@ export function OrganizationAccess({
   /** The role each waiting person would be given, keyed by request. */
   const [grant, setGrant] = useState<Record<string, string>>({});
   const { pending, error, run } = useAction();
+  // The role change waiting for a second, deliberate press: one at a time, as on a tournament's
+  // access screen. Picking a role on another row moves the question there.
+  const [confirm, setConfirm] = useState<{ memberId: string; next: string } | null>(null);
+
+  /**
+   * A REFUSAL IS SAID WHERE THE PRESS WAS.
+   *
+   * There are three places to press on this screen — somebody asking to be let
+   * in, a row of the roster, and "Add staff" at the bottom — and one line at
+   * the very top where every refusal was printed. Measured 2026-10-13 at laptop
+   * size: "Enter a valid email address." under a press of Add staff was wholly
+   * off the screen, so the button looked as though it had done nothing. The
+   * same thing the course editor did, found the same morning.
+   */
+  const [pressed, setPressed] = useState("");
+  const press = (where: string, fn: Parameters<typeof run>[0], after?: () => void) => {
+    setPressed(where);
+    run(fn, after);
+  };
+  const refusedAt = (where: string) =>
+    error && pressed === where ? (
+      <p role="alert" className="form-error" style={{ margin: "6px 0 0" }}>
+        <Icon name="warning-circle" /> {error}
+      </p>
+    ) : null;
 
   const staff = report.people.filter((p) => p.orgRole);
+  // The count the server guards on, so "the only Commissioner" reads the same in the warning as in the refusal.
+  const ownerCount = staff.filter((p) => p.orgRole === "owner").length;
   const eventOnly = report.people.filter((p) => !p.orgRole);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
+      {/* Only a refusal that belongs to no press in particular. */}
+      {error && !pressed && (
+        <p role="alert" style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}
@@ -167,7 +197,7 @@ export function OrganizationAccess({
                       type="button"
                       className="btn btn-primary"
                       disabled={pending}
-                      onClick={() => run(() => approveJoinRequest(ask.id, grant[ask.id] ?? "admin"))}
+                      onClick={() => press(`ask:${ask.id}`, () => approveJoinRequest(ask.id, grant[ask.id] ?? "admin"))}
                     >
                       Add them
                     </button>
@@ -175,12 +205,13 @@ export function OrganizationAccess({
                       type="button"
                       className="btn btn-secondary"
                       disabled={pending}
-                      onClick={() => run(() => declineJoinRequest(ask.id))}
+                      onClick={() => press(`ask:${ask.id}`, () => declineJoinRequest(ask.id))}
                     >
                       Decline
                     </button>
                   </div>
                 )}
+                {refusedAt(`ask:${ask.id}`)}
               </div>
             ))}
           </div>
@@ -272,14 +303,34 @@ export function OrganizationAccess({
                             <input
                               type="radio"
                               name={`orgrole-${p.memberId}`}
-                              checked={p.orgRole === o.v}
+                              checked={(confirm?.memberId === p.memberId ? confirm.next : p.orgRole) === o.v}
                               disabled={!canEdit || pending}
-                              onChange={() => run(() => setOrganizationMemberRole(p.memberId!, o.v))}
+                              // Re-picking the role they hold just withdraws the question.
+                              onChange={() => setConfirm(p.orgRole === o.v ? null : { memberId: p.memberId!, next: o.v })}
                             />
                             {o.l}
                           </label>
                         ))}
                       </div>
+                      {/* ASKED, THEN DONE. This committed on the radio: one stray tap
+                          made a member an organizer on every tournament the club
+                          runs, or a co-organizer a guest, and the only sign was
+                          the row redrawing. A tournament's access screen has
+                          asked first since that was found there; this is the
+                          same question, in the same words. */}
+                      {confirm?.memberId === p.memberId &&
+                        (() => {
+                          const change = describeOrgRoleChange({ name: p.name || p.email, role: p.orgRole ?? "" }, confirm.next, ownerCount, orgRoleName, from);
+                          return change ? (
+                            <RoleChangeConfirm
+                              change={change}
+                              pending={pending}
+                              onConfirm={() => press(`row:${p.memberId}`, () => setOrganizationMemberRole(p.memberId!, confirm.next), () => setConfirm(null))}
+                              onCancel={() => setConfirm(null)}
+                            />
+                          ) : null;
+                        })()}
+                      {refusedAt(`row:${p.memberId}`)}
                     </td>
                     <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
                       {Object.keys(p.access).length}
@@ -292,7 +343,7 @@ export function OrganizationAccess({
                         title="Remove from organization"
                         confirmLabel="Remove them"
                         disabled={!canEdit || pending}
-                        onConfirm={() => run(() => removeOrganizationMember(p.memberId!))}
+                        onConfirm={() => press(`row:${p.memberId}`, () => removeOrganizationMember(p.memberId!))}
                       />
                     </td>
                   </tr>
@@ -352,7 +403,8 @@ export function OrganizationAccess({
             className="btn btn-primary btn-block"
             disabled={!canEdit || pending || !email.trim()}
             onClick={() =>
-              run(
+              press(
+                "add",
                 () => addOrganizationMember(email, name, role),
                 () => {
                   setEmail("");
@@ -364,6 +416,7 @@ export function OrganizationAccess({
           >
             <Icon name="plus" /> Add staff
           </button>
+          {refusedAt("add")}
           {!canEdit && (
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
               Only a Commissioner or Admin can manage staff.

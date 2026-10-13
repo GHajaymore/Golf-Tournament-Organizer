@@ -1210,3 +1210,96 @@ a schema change and a lifecycle decision, not a correction.
 
 Until then a two-round stroke event with uneven attendance ranks wrongly, and
 `isRanked`'s own docstring is where a fix belongs.
+
+## A member who missed a cut has not "played" that tournament, as a season counts it — OPEN, Ajay's call (2026-10-13)
+
+Found by drawing the season table with a real championship in it for the first
+time (`e2e/club-record.spec.ts`).
+
+A season scores a tournament from its FINISHING POSITIONS, and a player cut
+after round one holds none: `finishingPositions` reads the stroke standings
+where `ranked` means "holds a position", and a card that stopped short does
+not. So in a championship of twenty-eight cut to sixteen:
+
+    the sixteen who finished    a place, its points, and Played 1
+    the twelve who were cut     not in the season table at all
+
+**No points for a missed cut is ordinary golf** — it is what the professional
+tours' season races do — and it is not what this entry is about.
+
+**"Played" is.** A season can require a number of tournaments before a member
+is ranked (`minEvents`, "Rounds to qualify"). A member who entered two
+tournaments, finished one and missed the cut in the other reads Played 1, and
+under "2 to qualify" is left off the ranking as somebody who has not turned up
+enough — having turned up twice. The tours count a missed cut as an event
+played.
+
+It was not changed in passing, for two reasons. The rule that keeps a NO-SHOW
+out of "played" is the one that stopped three absentees scoring sixty points
+each (`series-no-card.test.ts`), and a missed cut has to be told apart from a
+no-show, a withdrawal and a disqualification before any of them may count —
+which the season's reader cannot do today: all four arrive as "not ranked".
+And how a club's own order of merit treats a missed cut is the committee's
+rule, so it wants a decision and possibly a setting, not a default chosen here.
+
+What the screen does now, which is at least true: it says how many entries hold
+no finishing place and why ("a missed cut, a withdrawal or a card not
+returned"), separately from entries that placed and have no roster record. It
+used to count both under the roster's name.
+
+Recommended when it is taken up: count a missed cut as played, with no points;
+keep a no-show, a withdrawal before play and a disqualification as not played.
+
+## A club with nobody in it locks out whoever adds its first member — NOT FIXED, a legacy state only (2026-10-13)
+
+Found by the first browser test to add somebody to a club (`e2e/club-staff.spec.ts`).
+
+`org-access.ts` lets a tournament's organizer administer a club that has **no
+members at all** — the "ownerless" hatch, kept so that a club from before
+memberships existed is not left unadministrable. The moment that club has ANY
+member, the hatch is shut and only its Commissioners and Admins may administer
+it. That is the rule that stops one tournament's organizer taking a club, and
+it is right.
+
+Put together they give this, measured on the e2e fixture's club, which is
+ownerless: the organizer opens Club settings, adds a colleague as Admin, and
+every control on the screen is disabled a moment later — the organizer has no
+membership of their own, and the club is no longer memberless. Add the first
+person as a **Member** instead, who has no rights, and nobody at all can
+administer the club from then on.
+
+**Who can be in that state.** Not a club made through the app: `createOrganizationWithOwner`
+gives its maker the Commissioner's seat, and has since memberships existed. Only
+an organization that predates them and has not been through
+`scripts/backfill-org-owners.ts`. Every club in production today is test data,
+so nobody is waiting on this.
+
+**Why it was not changed in passing.** The obvious repair — when an ownerless
+club's organizer adds its first member, seat the organizer as Commissioner in
+the same write — is a change to who owns a club, in the file the 2026-08-12
+audit called the most dangerous thing it found. It wants its own change and its
+own tests, not a line added beside a test about something else.
+
+Recommended: run the backfill everywhere, then delete the hatch, so that the
+state cannot exist at all. Until then the fixture's club is given a Commissioner
+by any spec that manages its staff.
+
+## Two presses whose answer nobody waits for — SEEN, NOT CHANGED (2026-10-13)
+
+`ScoreEntryClient`'s Reopen was the third of three presses on one card — confirm,
+dispute, reopen — and the only one still painted on the screen before the server
+had answered, with the request sent off and nobody listening. That one is fixed.
+Looking for the same shape (`startTransition(() => void action(…))`) finds two
+more, neither reachable as a wrong screen in ordinary use today:
+
+- `MatchTiebreakControl` — the order of a match's tie-breakers is drawn at once
+  and saved behind it. A refusal would leave the screen showing an order that
+  was not kept. Its controls are disabled once setup is locked, which is the
+  refusal it could get.
+- `StagesClient`, "Delete the round anyway" — sent after the question has been
+  answered, and the server does not refuse a forced delete; it can only fail
+  outright, and then says nothing.
+
+Both want the shape `doConfirm` has: wait, then draw what the server said.
+Neither action is performed by any browser test yet (`setMatchTiebreakers`,
+`removeStage`), and the test should come with the change.

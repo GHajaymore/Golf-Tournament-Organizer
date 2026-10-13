@@ -87,7 +87,10 @@ export async function updateSeries(seriesId: string, patch: SeriesPatch): Promis
   if (patch.pointsTable !== undefined) {
     const parsed = parseTable(patch.pointsTable);
     if (!parsed) return { ok: false, error: "Points must be numbers, like 100, 80, 65." };
-    data.pointsTable = JSON.stringify(parsed);
+    // An empty box is the default table, STORED as the default table. It used
+    // to be stored as an empty list, which the standings read as the default
+    // and the sentence above them read as nothing: "points · best 5 count".
+    data.pointsTable = JSON.stringify(parsed.length ? parsed : DEFAULT_POINTS_TABLE);
   }
   if (patch.bestOf !== undefined) {
     if (!Number.isFinite(patch.bestOf) || patch.bestOf < 0) {
