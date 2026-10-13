@@ -65,6 +65,12 @@ really run, and what it cannot see — so a row in the report is never read as m
 | Chrome, Edge | **As installed** | The real Chrome and the real Edge, not the test build |
 | iOS | **An iPhone**, **Safari**, **An iPad** | WebKit — Safari's engine — as an iPhone 13, an iPhone SE, a Mac, and an iPad upright and on its side |
 | Firefox | **Firefox** | The standing suite on Firefox at three sizes |
+| Security, from outside | In **the whole suite** | `security.spec`: the headers every answer is sent in; that no screen opens signed out and nothing of a club comes back instead; that a "go on to" address cannot be another site; that no secret is in the scripts a browser downloads; that a name, a title, a club's colour and a notice are text wherever they are drawn; that another site cannot act as you; that a wrong address never shows the inside of the app. With `every-action-vs-a-stranger`, which calls every server action as the wrong person |
+| Security, known holes | **Known holes in the libraries** | npm's advisory database, asked about everything a deployment installs. High or critical is a finding |
+| Security, in the repository | Every push | `no-secret-is-committed.test.ts`: no tracked file carries a key, a token or an address with a password in it |
+| Search engines, shared links | In **the whole suite** | `seo.spec`: each public page's title, description, one heading, language and its own canonical address; the share card and its picture; structured data that parses; a sitemap that lists exactly the public pages; and every private screen telling crawlers to keep out |
+| People who cannot see it or use a mouse | In **the whole suite** | `a11y.spec`: axe, against WCAG 2.1 A and AA, on every public page, every organizer screen and every player screen |
+| A weak signal | In **the whole suite** | `weight.spec`: what a phone downloads for the screens people open most, held to a budget; and `slow-page.spec`, which delivers pages slowly on purpose |
 | The app doing its job | **Eleven tournaments, played** | Eleven tournaments of 110–120 invented players, entered, drawn, scored, cut, ranked and paid through the screens, with the results checked against the Rules of Golf and of Handicapping |
 
 On one machine that is about six hours. On GitHub the same layers are cut into about thirty parts

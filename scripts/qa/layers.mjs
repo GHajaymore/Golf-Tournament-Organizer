@@ -89,7 +89,7 @@ export function layersFor(round) {
       key: "suite",
       name: "The whole suite",
       standsFor: "an organizer on a laptop; a player on an Android phone and on a small phone; a visitor signed out",
-      reallyIs: "Chromium at 1280×900, as a Pixel 5 (393 wide, touch) and at 320 wide — every spec, the every-screen walk, the control crawl, the every-action sweep",
+      reallyIs: "Chromium at 1280×900, as a Pixel 5 (393 wide, touch) and at 320 wide — every spec, the every-screen walk, the control crawl, the every-action sweep; and with them the security checks from outside (security.spec), what a search engine is given (seo.spec), the accessibility audit of every screen (a11y.spec) and the weight of the screens people open most (weight.spec)",
       cannotSee: "any other browser, a tablet, a club outside Scotland — the layers below",
       cookies: "secure",
       env: { E2E_EVERYTHING: "1" },
@@ -217,6 +217,16 @@ export function layersFor(round) {
       minutes: 60,
     },
     {
+      key: "dependencies",
+      kind: "command",
+      name: "Known holes in the libraries",
+      standsFor: "security: a published vulnerability in something the app ships with",
+      reallyIs: "npm's advisory database, asked about every package a deployment installs; anything rated high or critical is a finding",
+      cannotSee: "a hole nobody has published, and whether a published one can be reached from this app",
+      command: "node scripts/qa/dependencies.mjs",
+      minutes: 10,
+    },
+    {
       key: "firefox",
       name: "Firefox",
       standsFor: "Firefox on a laptop, and at a phone's and a small phone's width",
@@ -254,6 +264,11 @@ export function partsFor(round) {
   for (const layer of layersFor(round)) {
     if (layer.kind === "scenarios") {
       for (const s of SCENARIOS) parts.push({ id: `scenario-${s.key}`, layer: layer.key, args: `--only=scenarios --scenario=${s.key}`, browsers: "chromium", minutes: 45 });
+      continue;
+    }
+    if (layer.kind === "command") {
+      // No browser and no server: it asks a registry a question.
+      parts.push({ id: layer.key, layer: layer.key, args: `--only=${layer.key}`, browsers: "", minutes: layer.minutes });
       continue;
     }
     const browsers = layer.env?.E2E_ENGINE ?? (layer.env?.E2E_CHANNEL ? `chromium ${layer.env.E2E_CHANNEL}` : "chromium");

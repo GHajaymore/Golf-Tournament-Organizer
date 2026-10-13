@@ -53,6 +53,8 @@ describe("a round names things that exist", () => {
         expect(phase.startsWith(s.key.toUpperCase()), `${s.key} lists a phase called ${phase}`).toBe(true);
       }
       expect(s.phases.length, `${s.key} plays no phases`).toBeGreaterThan(1);
+      // And the file itself starts where the list does.
+      expect(source.includes(`"${s.phases[0]}"`), `${s.file} does not know a phase called ${s.phases[0]}`).toBe(true);
       // The flags are a pattern a phase's notes are read with: it has to compile, and it has to
       // include the three every scenario shares — a thrown page, a sideways scroll, a 5xx.
       expect(() => new RegExp(s.flags)).not.toThrow();
@@ -103,7 +105,8 @@ describe("the parts of a round add up to the round", () => {
   it("a layer cut by screen size is cut into all of its sizes, and by shard into all of its shards", () => {
     const parts = partsFor(1) as Array<{ id: string; layer: string; args: string }>;
     for (const layer of layersFor(1) as Array<{ key: string; kind?: string; specs: string[]; projects: string[] }>) {
-      if (layer.kind === "scenarios" || layer.specs.length) continue;
+      // Only a layer that runs every spec is cut; a scenario and a plain command are a part each.
+      if (layer.kind === "scenarios" || layer.kind === "command" || layer.specs.length) continue;
       const sizes = layer.projects.length ? layer.projects : ["phone", "small-phone", "desktop"];
       const mine = parts.filter((p) => p.layer === layer.key);
       for (const size of sizes) {

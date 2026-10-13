@@ -7,6 +7,10 @@ const replayBackport = require("./scripts/react-hydration-replay-backport.cjs");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // The server does not say what it is built with. Next adds `X-Powered-By: Next.js` to every
+  // answer unless told not to — a small thing, and the first line of anybody's notes on what to
+  // try against a site. Found by `e2e/security.spec.ts` the first time anything asked (2026-10-13).
+  poweredByHeader: false,
   /**
    * Self-contained server bundle (server.js + a trimmed node_modules) — this is
    * what the Electron desktop shell runs, so it doesn't need the whole project

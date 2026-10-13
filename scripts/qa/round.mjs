@@ -219,6 +219,21 @@ for (const layer of layers) {
     continue;
   }
   const t0 = Date.now();
+  if (layer.kind === "command") {
+    const log = join(OUT, `${layer.key}.log`);
+    const code = await run(layer.command, { log, minutes: layer.minutes });
+    const lines = strip(readFileSync(log, "utf8")).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const failures = lines.filter((l) => l.startsWith("✗")).map((l) => l.slice(1).trim().slice(0, 220));
+    // Exit 2 is "could not ask" — it did not run, which is not the same as nothing found.
+    if (code === 2) {
+      results.push({ ...row(layer), ran: false, why: lines.slice(-1)[0] ?? "it could not ask" });
+      say(`${layer.key}: NOT RUN — ${lines.slice(-1)[0] ?? "it could not ask"}`);
+      continue;
+    }
+    results.push({ ...row(layer), ran: true, exit: code, passed: failures.length ? 0 : 1, failed: failures.length, failures, flaky: 0, didNotRun: 0, hydration: 0, said: lines.slice(0, 1), empty: false, minutes: Math.round((Date.now() - t0) / 60_000), unit: "checks", partial: "" });
+    say(`${layer.key}: ${lines.slice(-1)[0] ?? ""} — exit ${code}`);
+    continue;
+  }
   if (!(await serve(layer.cookies))) {
     results.push({ ...row(layer), ran: false, why: "the test server did not start" });
     say(`${layer.key}: NOT RUN — the test server did not start`);

@@ -1,0 +1,66 @@
+{
+ "the front door": {
+  "document": 152819,
+  "script": 149916,
+  "style": 8826,
+  "other": 1630459,
+  "total": 1942020,
+  "requests": 41
+ },
+ "the public board": {
+  "document": 49596,
+  "script": 143118,
+  "style": 8826,
+  "other": 107325,
+  "total": 308865,
+  "requests": 19
+ },
+ "a player's Today": {
+  "document": 57814,
+  "script": 151939,
+  "style": 8826,
+  "other": 136339,
+  "total": 354918,
+  "requests": 21
+ },
+ "a player's card": {
+  "document": 53734,
+  "script": 188632,
+  "style": 8826,
+  "other": 108074,
+  "total": 359266,
+  "requests": 30
+ },
+ "a player's board": {
+  "document": 54122,
+  "script": 141948,
+  "style": 8826,
+  "other": 107325,
+  "total": 312221,
+  "requests": 18
+ },
+ "the organizer's dashboard": {
+  "document": 57852,
+  "script": 170217,
+  "style": 8826,
+  "other": 138328,
+  "total": 375223,
+  "requests": 27
+ },
+ "score entry": {
+  "document": 55652,
+  "script": 239679,
+  "style": 8826,
+  "other": 107325,
+  "total": 411482,
+  "requests": 35
+ },
+ "the leaderboard": {
+  "document": 53302,
+  "script": 179808,
+  "style": 8826,
+  "other": 109566,
+  "total": 351502,
+  "requests": 32
+ }
+}

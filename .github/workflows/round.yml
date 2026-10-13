@@ -153,6 +153,9 @@ jobs:
           name: build
           path: .next-e2e
       - name: Install the browser this part drives
+        # A part with no browser (the dependency check) installs none: with no
+        # name given, this command would fetch all of them.
+        if: matrix.part.browsers != ''
         # The limit ci.yml gives this step, for the reason it gives: the apt
         # step behind --with-deps has hung for half an hour before.
         timeout-minutes: 12
