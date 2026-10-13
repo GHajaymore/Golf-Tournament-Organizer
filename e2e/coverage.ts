@@ -19,6 +19,8 @@ import { explainHydration, keepWhatTheServerSent } from "./page-errors";
  *   A <id>          a server action was called (the `next-action` header;
  *                   the build's manifest names it)
  *   P <role> <path> a screen was opened, and as whom
+ *   R <role> <path> … a refusal appeared after a press with none of it on the
+ *                   screen (see `watchRefusals`)
  *
  * `scripts/e2e-coverage.mjs` reads the ledger against the app's own lists —
  * every action the build exports, every screen it routes — and prints what was
@@ -148,20 +150,145 @@ function waitsItsTurn(page: Page): void {
   };
 }
 
+/**
+ * A REFUSAL NOBODY CAN SEE IS A BUTTON THAT DOES NOTHING.
+ *
+ * Found twice in one morning (2026-10-13), by the first browser tests to use
+ * two screens. In the course editor a card with a stroke index used twice was
+ * refused in a line printed above the whole form; in Club settings "Enter a
+ * valid email address." was printed above the roster while the button that
+ * had been pressed was at the bottom of the page. Measured at laptop size,
+ * both times: NONE of the sentence was on the screen. The person presses, and
+ * nothing appears to happen.
+ *
+ * Twice is a class, and walking screens to find the rest finds them at a
+ * constant rate for ever. So every page of every context in the suite watches
+ * for it: when words that look like a refusal appear within four seconds of a
+ * press and none of them is on the screen, a line goes in the ledger —
+ *
+ *   R <role> <path> | pressed: <what> | <marked or red> | <the words>
+ *
+ * — and `scripts/e2e-coverage.mjs` prints them with the reach. Every spec that
+ * ever provokes a refusal is now a probe for this, without knowing it.
+ *
+ * WHAT COUNTS AS A REFUSAL: an element marked as one (`role="alert"`, or the
+ * shared `.form-error`), or a short line drawn in the danger colour. The
+ * second kind is a guess, and is labelled "red" for that reason — neither of
+ * the two that started this was marked at all, so a watcher of marked
+ * refusals alone would have seen neither. A red line can be something else (a
+ * kitty that is short, a negative amount): the report prints the words so a
+ * person can tell, and it is a list to READ, not a count to fail on.
+ *
+ * WHAT IT CANNOT SEE: a refusal that is on the screen and still far from the
+ * button; one that appears with no press before it; and anything a spec never
+ * provokes. It measures, like the rest of this file. It does not prove.
+ */
+const OUT_OF_SIGHT = "[refusal out of sight] ";
+async function watchRefusals(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const w = window as unknown as { __thqRefusalWatch?: boolean };
+    if (w.__thqRefusalWatch) return;
+    w.__thqRefusalWatch = true;
+    let pressedAt = -1e9;
+    let pressedWhat = "";
+    const words = (el: Element | null) => ((el?.textContent ?? "") || (el?.getAttribute("aria-label") ?? "")).replace(/\s+/g, " ").trim();
+    document.addEventListener(
+      "click",
+      (e) => {
+        const at = e.target instanceof Element ? e.target : null;
+        pressedAt = performance.now();
+        pressedWhat = words(at?.closest("button, a, [role=button], summary, label") ?? at).slice(0, 40);
+      },
+      true,
+    );
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Enter") return;
+        pressedAt = performance.now();
+        pressedWhat = "Enter";
+      },
+      true,
+    );
+    // The danger colour WHERE THE WORDS ARE, not at the top of the document: a club's look is hung on
+    // the screen's own wrapper, and the document underneath keeps the app's default. The first draft
+    // asked the document, was told a dark theme's red, and saw nothing on a light screen — found by
+    // its own control, on a refusal known to be off the screen.
+    const dangerColourAt = (el: HTMLElement) => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-danger)";
+      (el.parentElement ?? document.body).appendChild(probe);
+      const colour = getComputedStyle(probe).color;
+      probe.remove();
+      return colour;
+    };
+    const kindOf = (el: Element): "" | "marked" | "red" => {
+      if (!(el instanceof HTMLElement) || el.closest("#__next-route-announcer__")) return "";
+      const text = words(el);
+      if (text.length < 6 || text.length > 400) return "";
+      if (el.matches('[role="alert"], .form-error')) return "marked";
+      if (!/^(P|SPAN|DIV)$/.test(el.tagName) || el.children.length > 2 || el.closest("button, a, table")) return "";
+      return getComputedStyle(el).color === dangerColourAt(el) ? "red" : "";
+    };
+    const told = new WeakSet<Element>();
+    const look = (el: Element | null) => {
+      if (!el || told.has(el)) return;
+      if (performance.now() - pressedAt > 4_000) return;
+      const kind = kindOf(el);
+      if (!kind) return;
+      told.add(el);
+      const what = pressedWhat;
+      // A moment for the screen to bring it into view itself, if it is going to.
+      setTimeout(() => {
+        if (!el.isConnected) return;
+        const box = el.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0) return;
+        const onScreen = box.bottom > 0 && box.top < window.innerHeight && box.right > 0 && box.left < window.innerWidth;
+        if (!onScreen) console.info(`[refusal out of sight] ${location.pathname} | pressed: ${what || "?"} | ${kind} | ${words(el).slice(0, 140)}`);
+      }, 400);
+    };
+    const start = () =>
+      new MutationObserver((records) => {
+        for (const r of records) {
+          if (r.type === "characterData") {
+            look(r.target.parentElement);
+            continue;
+          }
+          r.addedNodes.forEach((n) => {
+            if (n.nodeType === Node.TEXT_NODE) return look(n.parentElement);
+            if (!(n instanceof HTMLElement)) return;
+            look(n);
+            const inside = n.querySelectorAll('[role="alert"], .form-error, p, span');
+            for (let i = 0; i < inside.length && i < 40; i += 1) look(inside[i]);
+          });
+        }
+      }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    if (document.documentElement) start();
+    else document.addEventListener("DOMContentLoaded", start, { once: true });
+  });
+}
+
 export function recordCoverage(context: BrowserContext): void {
   if (watched.has(context)) return;
   watched.add(context);
   watchSaves(context);
+  const hear = (page: Page) =>
+    page.on("console", (message) => {
+      const text = message.text();
+      if (text.startsWith(OUT_OF_SIGHT)) void who(context).then((role) => note(`R ${role} ${text.slice(OUT_OF_SIGHT.length)}`));
+    });
   // Every page of every context explains a hydration mismatch if one lands on
   // it — see `explainHydration`. Here, because this is the one place every
   // spec's every context passes through.
   for (const page of context.pages()) {
     explainHydration(page);
     waitsItsTurn(page);
+    hear(page);
   }
   context.on("page", (page) => {
     explainHydration(page);
     waitsItsTurn(page);
+    hear(page);
   });
   context.on("request", (request) => {
     const action = request.headers()["next-action"];
@@ -206,6 +333,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
   // The default context every `page` fixture uses.
   context: async ({ context }, use) => {
     recordCoverage(context);
+    await watchRefusals(context);
     await noPushOnWebKit(context);
     await keepWhatTheServerSent(context);
     await use(context);
@@ -226,6 +354,7 @@ export const test = base.extend<object, { coverageOfHandMadeContexts: void }>({
           ? make({ ...(zone ? { timezoneId: zone } : {}), ...(lang ? { locale: lang } : {}), ...args[0] })
           : make(...args));
         recordCoverage(context);
+        await watchRefusals(context);
         await noPushOnWebKit(context);
         await keepWhatTheServerSent(context);
         return context;

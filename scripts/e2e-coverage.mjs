@@ -69,6 +69,8 @@ for (const key of Object.keys(paths)) {
 // ── What the tests touched ────────────────────────────────────────────────
 const hitActions = new Map();
 const hitScreens = new Map();
+/** Refusals that appeared after a press with none of them on the screen: the words, and how often. */
+const outOfSight = new Map();
 let lines = 0;
 if (existsSync(LEDGER)) {
   for (const name of readdirSync(LEDGER)) {
@@ -85,6 +87,17 @@ if (existsSync(LEDGER)) {
         if (!screen) continue;
         if (!hitScreens.has(screen.route)) hitScreens.set(screen.route, new Set());
         hitScreens.get(screen.route).add(role);
+      } else if (line.startsWith("R ")) {
+        // R <role> <path> | pressed: <what> | <marked or red> | <the words>
+        const [head, pressed = "", kind = "", ...rest] = line.slice(2).split(" | ");
+        const path = head.split(" ").slice(1).join(" ");
+        const words = rest.join(" | ");
+        const screen = screens.find((s) => s.pattern.test(path));
+        const key = `${screen ? screen.route : path} | ${kind} | ${words}`;
+        const was = outOfSight.get(key) ?? { screen: screen ? screen.route : path, kind, words, pressed: new Set(), times: 0 };
+        was.pressed.add(pressed.replace("pressed: ", ""));
+        was.times += 1;
+        outOfSight.set(key, was);
       }
     }
   }
@@ -110,6 +123,11 @@ const report = {
     .sort((a, b) => b.neverCalled.length - a.neverCalled.length),
   screensNeverOpened: screens.filter((s) => !hitScreens.has(s.route)).map((s) => s.route).sort(),
   screensOpened: Object.fromEntries([...hitScreens.entries()].map(([route, roles]) => [route, [...roles].sort()])),
+  // Read these; do not count them. "marked" is a refusal by its own markup; "red" is a short line in
+  // the danger colour, which is usually one and sometimes a figure — see `watchRefusals` in e2e/coverage.ts.
+  refusalsOutOfSight: [...outOfSight.values()]
+    .map((r) => ({ screen: r.screen, kind: r.kind, words: r.words, pressed: [...r.pressed].sort(), times: r.times }))
+    .sort((a, b) => a.screen.localeCompare(b.screen) || a.words.localeCompare(b.words)),
 };
 
 if (process.argv.includes("--json")) {
@@ -128,4 +146,10 @@ if (process.argv.includes("--json")) {
   }
   console.log("\nSCREENS NEVER OPENED:");
   console.log("  " + (report.screensNeverOpened.join("  ") || "none"));
+  console.log("\nREFUSALS THAT APPEARED AFTER A PRESS WITH NONE OF THEM ON THE SCREEN:");
+  if (!report.refusalsOutOfSight.length) console.log("  none seen (of the refusals the tests provoked)");
+  for (const r of report.refusalsOutOfSight) {
+    console.log(`  ${r.screen} — ${r.kind}, ${r.times}x, after pressing ${r.pressed.map((p) => `"${p}"`).join(" or ")}`);
+    console.log(`    ${r.words}`);
+  }
 }
