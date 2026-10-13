@@ -12,6 +12,7 @@
  */
 
 import { formatMonth, DEFAULT_LOCALE } from "./locale";
+import { dateWordsFor, fieldsOfDay, writeDate } from "./date-words";
 /** "2026-05-19" — the only shape this module accepts or returns. */
 export type IsoDate = string;
 
@@ -115,6 +116,12 @@ export function weekdayOf(date: IsoDate): string {
  */
 export function shortDate(date: IsoDate, locale: string): string {
   if (!isIsoDate(date)) return "";
+  // The app's own words where it holds this club's conventions. This line is on the Rounds screen, drawn
+  // by the server and again by the browser: Safari wrote a British one "Tue, 13 Oct" against the server's
+  // "Tue 13 Oct" and the whole screen was drawn twice on every load (found 2026-10-13, `date-words.ts`).
+  const words = dateWordsFor(locale || DEFAULT_LOCALE);
+  const day = fieldsOfDay(date);
+  if (words && day) return writeDate(words, "weekdayDay", day);
   const [y, m, d] = date.split("-").map(Number);
   const t = new Date(Date.UTC(y, m - 1, d, 12));
   try {

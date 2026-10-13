@@ -21,9 +21,23 @@ import { readSource } from "./source";
  * currency and the locale it was handed are unusable. That is the one place an
  * American default is the right answer, because the alternative is a money
  * screen that throws.
+ *
+ * AND THE TABLE `locale.ts` WRITES DATES FROM (2026-10-13), which is the same
+ * owner in two more files. `date-words.data.ts` is the conventions themselves,
+ * one line per club language, so it names every one of them as a KEY — that is
+ * a list of what the app can write, not a choice of how to write something.
+ * `date-words.ts` asks the platform which calendar day an instant falls on in
+ * a zone and reads the answer back as FIGURES, in a fixed locale with Western
+ * digits, for the reason `club-clock.ts` gives below. Neither can be reached
+ * by a screen except through a function that takes the club's locale.
  */
 
-const OWNERS = ["src/lib/domain/locale.ts", "src/lib/domain/money-format.ts"];
+const OWNERS = [
+  "src/lib/domain/locale.ts",
+  "src/lib/domain/money-format.ts",
+  "src/lib/domain/date-words.ts",
+  "src/lib/domain/date-words.data.ts",
+];
 
 /**
  * NOT A FORMAT, SO NOT THIS RULE.

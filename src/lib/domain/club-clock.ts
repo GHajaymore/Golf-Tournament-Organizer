@@ -26,6 +26,7 @@
  * means its own clock by both; there is no other reading an organizer would
  * accept.
  */
+import { dateWordsFor, fieldsAt, writeDate } from "./date-words";
 
 /** Whether `value` is a time zone this runtime can reason about. */
 export function isTimeZone(value: string | null | undefined): value is string {
@@ -90,6 +91,11 @@ export function clubDay(timeZone: string | null | undefined, at: Date = new Date
  */
 export function clubClockInWords(timeZone: string | null | undefined, locale: string, at: Date = new Date()): string {
   if (!isTimeZone(timeZone)) return "";
+  // In the app's own words where it holds this club's conventions (`date-words.ts`), so the settings
+  // screen reads the same from the server and in every browser; the platform's for any other tag.
+  const words = dateWordsFor(locale);
+  const fields = words ? fieldsAt(at, timeZone as string) : null;
+  if (words && fields) return writeDate(words, "wall", fields);
   try {
     return new Intl.DateTimeFormat(locale, {
       timeZone,

@@ -54,6 +54,7 @@ import { MicNote } from "./MicNote";
 import { ConfirmButton } from "./ConfirmButton";
 import { startDictation, type Dictation } from "@/lib/dictation";
 import { holeNumber } from "@/lib/domain/hole-number";
+import { formatDayAt } from "@/lib/domain/locale";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -1289,10 +1290,7 @@ export function ScoreEntryClient({
                     <Icon name="clock-counter-clockwise" style={{ marginRight: 3 }} />
                     {active.enteredBy ? `Entered by ${active.enteredBy}` : "Entered"}
                     {active.scoredAt
-                      ? ` · ${new Intl.DateTimeFormat(locale, {
-                          month: "short", day: "numeric", year: "numeric",
-                          ...(mounted ? {} : { timeZone: "UTC" }),
-                        }).format(new Date(active.scoredAt))}`
+                      ? ` · ${formatDayAt(new Date(active.scoredAt), locale, mounted ? undefined : "UTC")}`
                       : ""}
                   </span>
                 )}

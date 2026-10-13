@@ -32,6 +32,7 @@
  */
 
 import { isCurrencyCode, money, DEFAULT_CURRENCY } from "./money-format";
+import { dateWordsFor, fieldsAt, fieldsOfDay, writeDate, writeDayRange, type DateShape } from "./date-words";
 
 export { DEFAULT_CURRENCY };
 
@@ -251,6 +252,9 @@ export function firstDayOfWeek(locale: string = DEFAULT_LOCALE): 0 | 1 {
  * en-AU, en-CA and en-NZ say 12-hour. An unknown tag keeps the old answer.
  */
 export function usesTwentyFourHourClock(locale: string = DEFAULT_LOCALE): boolean {
+  // The app's own table first: a tee sheet is drawn on both sides, and two engines need not agree here either.
+  const words = dateWordsFor(locale);
+  if (words) return !words.hour12;
   try {
     const cycle = new Intl.DateTimeFormat(locale, { hour: "numeric" }).resolvedOptions().hourCycle;
     return cycle === "h23" || cycle === "h24";
@@ -271,6 +275,14 @@ export function usesTwentyFourHourClock(locale: string = DEFAULT_LOCALE): boolea
 export function formatDay(iso: string, locale: string = DEFAULT_LOCALE): string {
   const value = (iso ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // WRITTEN BY THE APP wherever it knows this club's conventions (`date-words.ts`): the server and every
+  // browser then write the same bytes. The platform below is for a tag the table does not hold.
+  const words = dateWordsFor(locale);
+  const day = fieldsOfDay(value);
+  // The 31st of February has the shape of a day and is not one. `Date` would quietly write the 3rd of
+  // March; what is not a day goes back as it was handed in, like anything else that is not one.
+  if (!day) return value;
+  if (words) return writeDate(words, "day", day);
   const d = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return value;
   try {
@@ -314,6 +326,14 @@ const OWN_DAY_PERIODS: Record<string, readonly [string, string]> = {
 };
 
 export function formatClock(at: Date, locale: string | undefined, options: Intl.DateTimeFormatOptions): string {
+  // SINCE 2026-10-13 THE WHOLE LINE IS THE APP'S OWN, not only the day-period word, for every language
+  // the table holds: the first run on Firefox found the HOUR written "1:05" by the server and "01:05" by
+  // the browser. What follows is for a tag the table does not hold, the device's own language
+  // (`locale` undefined, which only a browser may ask for), and a shape the table does not keep.
+  const words = dateWordsFor(locale);
+  const shape = clockShape(options);
+  const fields = words && shape ? fieldsAt(at, options.timeZone) : null;
+  if (words && shape && fields) return writeDate(words, shape, fields);
   const format = new Intl.DateTimeFormat(locale, options);
   const own = OWN_DAY_PERIODS[format.resolvedOptions().locale.split("-")[0]];
   if (!own) return plainSpaces(format.format(at));
@@ -322,6 +342,50 @@ export function formatClock(at: Date, locale: string | undefined, options: Intl.
   // Which half of the day, asked in a form no locale data can vary: the hour on a 24-hour clock, in digits.
   const hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: options.timeZone }).format(at));
   return plainSpaces(parts.map((p) => (p.type === "dayPeriod" ? own[hour < 12 ? 0 : 1] : p.value)).join(""));
+}
+
+/**
+ * Which of the table's two clock shapes these options ask for, or null for anything else. The two are
+ * spelled exactly as the callers spell them: a time of day, and a day with its time for a line in a log.
+ */
+function clockShape(options: Intl.DateTimeFormatOptions): DateShape | null {
+  const asked = Object.entries(options)
+    .filter(([key, value]) => key !== "timeZone" && value !== undefined)
+    .map(([key, value]) => `${key}:${value}`)
+    .sort()
+    .join(" ");
+  if (asked === "hour:numeric minute:2-digit") return "time";
+  if (asked === "day:numeric hour:2-digit minute:2-digit month:short") return "stamp";
+  return null;
+}
+
+/**
+ * The day an INSTANT falls on — "14 May 2026" — in a zone, or on the device's
+ * own clock when none is given. For a stamp ("Entered by Ann · 14 May 2026"),
+ * where the thing in hand is a time something happened and not a calendar day.
+ * A screen drawn on both sides passes "UTC" until it has mounted.
+ */
+export function formatDayAt(at: Date, locale: string = DEFAULT_LOCALE, timeZone?: string): string {
+  const words = dateWordsFor(locale);
+  const fields = words ? fieldsAt(at, timeZone) : null;
+  if (words && fields) return writeDate(words, "day", fields);
+  try {
+    return plainSpaces(new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric", ...(timeZone ? { timeZone } : {}) }).format(at));
+  } catch {
+    return "";
+  }
+}
+
+/** The same without the year — "14 May" — for a message in a thread. */
+export function formatMonthDayAt(at: Date, locale: string = DEFAULT_LOCALE, timeZone?: string): string {
+  const words = dateWordsFor(locale);
+  const fields = words ? fieldsAt(at, timeZone) : null;
+  if (words && fields) return writeDate(words, "monthDay", fields);
+  try {
+    return plainSpaces(new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", ...(timeZone ? { timeZone } : {}) }).format(at));
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -344,6 +408,12 @@ export function formatDayRange(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(a)) return formatDay(b, locale);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(b)) return formatDay(a, locale);
   if (a === b) return formatDay(a, locale);
+  // The app's own templates where it holds them; `formatRange` below for any other tag. The docstring's
+  // warning about hand-built ranges still stands: these are not hand-built, they are the platform's own
+  // three answers (same month, same year, across a year) read once and kept — see `date-words.ts`.
+  const words = dateWordsFor(locale);
+  const [from, to] = [fieldsOfDay(a), fieldsOfDay(b)];
+  if (words && from && to) return writeDayRange(words, from, to);
   const start = new Date(`${a}T00:00:00Z`);
   const end = new Date(`${b}T00:00:00Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return formatDay(a, locale);

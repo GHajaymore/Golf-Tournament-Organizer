@@ -3,6 +3,7 @@ import { build } from "esbuild";
 import * as locale from "../src/lib/domain/locale";
 import * as moneyFormat from "../src/lib/domain/money-format";
 import * as roundDates from "../src/lib/domain/round-dates";
+import * as clubClock from "../src/lib/domain/club-clock";
 
 /**
  * THE SERVER AND THE BROWSER WRITE A DATE AND AN AMOUNT IN THE SAME BYTES —
@@ -29,15 +30,26 @@ import * as roundDates from "../src/lib/domain/round-dates";
  * the same bytes. A disagreement the app has not met yet fails here, on the
  * day a Node or a Chromium upgrade introduces it, instead of on a screen.
  *
- * What it does NOT cover: Safari and Firefox, whose locale data is different
- * again. The suite drives Chromium only.
+ * SINCE 2026-10-13 THE DATES ARE THE APP'S OWN. The first run of this spec on
+ * Firefox and on Safari's engine found twelve and thirteen differences, every
+ * one a date or a time: a comma after a British weekday, a padded hour, a
+ * Japanese range. So `domain/date-words.ts` now writes every date from a table
+ * in the repository and asks neither side's platform for a word — and for a
+ * date this spec has become the proof of THAT: both sides agree because both
+ * run the same lines. Amounts are still the platform's, and still measured
+ * here, and so is any tag the table does not hold.
+ *
+ * Which engines: Chromium in every push, and Firefox and Safari's engine in
+ * the layers of a round that drive them (`scripts/qa/layers.mjs`). A phone two
+ * years old carries a fourth edition that nothing here runs; for a date that
+ * no longer matters, and for an amount it still could.
  */
 
 /**
  * Everything the app's formatters write, by name. Self-contained on purpose:
  * it is run here and, as source, inside the page.
  */
-function everyFormat(api: { locale: typeof locale; money: typeof moneyFormat; rounds: typeof roundDates }): Record<string, string> {
+function everyFormat(api: { locale: typeof locale; money: typeof moneyFormat; rounds: typeof roundDates; clock: typeof clubClock }): Record<string, string> {
   const out: Record<string, string> = {};
   const tags = api.locale.LOCALES.map((l) => l.tag);
   const codes = api.money.CURRENCIES.map((c) => c.code as string);
@@ -74,7 +86,11 @@ function everyFormat(api: { locale: typeof locale; money: typeof moneyFormat; ro
     // so both words of every language are compared.
     out[`recent changes ${tag}`] = api.locale.formatClock(moment, tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
     out[`recent changes before noon ${tag}`] = api.locale.formatClock(new Date("2026-05-14T01:05:00Z"), tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-    out[`message date ${tag}`] = new Intl.DateTimeFormat(tag, { month: "short", day: "numeric", timeZone: "UTC" }).format(moment);
+    out[`message date ${tag}`] = api.locale.formatMonthDayAt(moment, tag, "UTC");
+    out[`score stamp ${tag}`] = api.locale.formatDayAt(moment, tag, "UTC");
+    // The club's wall clock, in a zone that is not the server's: the figures are the zone's, the words the club's.
+    out[`wall clock ${tag}`] = api.clock.clubClockInWords("Asia/Tokyo", tag, moment);
+    out[`24-hour clock ${tag}`] = String(api.locale.usesTwentyFourHourClock(tag));
     out[`time of day ${tag}`] = api.locale.formatClock(moment, tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     out[`time of day before noon ${tag}`] = api.locale.formatClock(new Date("2026-05-14T01:05:00Z"), tag, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     for (const code of codes) {
@@ -98,13 +114,13 @@ const spelled = (s: string) =>
 
 test("the server and the browser format every date and amount the app offers in the same bytes", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "one browser engine: the three projects share it");
-  const here = everyFormat({ locale, money: moneyFormat, rounds: roundDates });
+  const here = everyFormat({ locale, money: moneyFormat, rounds: roundDates, clock: clubClock });
 
   // The same source, bundled for the page.
   const bundle = await build({
     stdin: {
       contents:
-        'export * as locale from "./src/lib/domain/locale"; export * as money from "./src/lib/domain/money-format"; export * as rounds from "./src/lib/domain/round-dates";',
+        'export * as locale from "./src/lib/domain/locale"; export * as money from "./src/lib/domain/money-format"; export * as rounds from "./src/lib/domain/round-dates"; export * as clock from "./src/lib/domain/club-clock";',
       resolveDir: process.cwd(),
       loader: "ts",
     },
