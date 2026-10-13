@@ -130,7 +130,14 @@ async function sharpWholeStill(page: import("@playwright/test").Page) {
       for (let tick = 0; tick < 60; tick += 1) {
         await new Promise((r) => setTimeout(r, 100));
         let busy = false;
-        for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) busy = busy || arriving(el);
+        for (let el: Element | null = img; el && el !== document.body; el = el.parentElement) {
+          // …AND IT HAS LANDED. "The same place twice running" was not enough either: on Safari's engine a
+          // screen in the last frames of arriving gave the same reading twice, 100ms apart, at 0.09 of a
+          // degree from flat, and was reported turned (round 6 on the second batch, once in about twenty
+          // runs). A part that has been told to arrive (`m-in`) is at rest when it is where arriving ends —
+          // not turned at all. One that never gets there runs out the wait below and is reported, as before.
+          busy = busy || arriving(el) || (el.classList.contains("m-in") && turned(getComputedStyle(el).transform));
+        }
         const now = pose(img);
         if (!busy && now === was && tick >= 2) return;
         was = now;
