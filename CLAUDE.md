@@ -163,6 +163,35 @@ nothing about the paths nobody walked, and nothing was measuring those.
 "A round" is the whole suite, and it is "clean" only with its reach stated beside it. A run
 that did not exercise the list is a smoke test, whatever it is called.
 
+**A SCREEN EVERY WALK OPENS AND NOBODY USES IS NOT A TESTED SCREEN.** Four areas were used in a
+browser for the first time on 2026-10-13, each because the reach report named its actions as
+never performed, and every one held something that was live in production:
+
+    Season standings    a club could only ever have one season; a second showed the first's
+                        rules; members who missed a cut were "entries with no roster record"
+    the course editor   a refused card was refused above the whole form — none of the sentence
+                        on the screen — so Add course looked like a button that did nothing
+    Club settings       one tap on a radio changed somebody's role at the club
+    the honours board   (nothing: the board was right, and the test's first draft was wrong
+                        about which clubs keep one)
+
+Three things to carry forward from them:
+
+- **A REFUSAL IS SAID WHERE THE PRESS WAS.** Two of those were one fault: one line for every
+  refusal at the top of a long screen, and the button at the bottom. So `e2e/coverage.ts` watches
+  for it on every page of every test — words that look like a refusal, within four seconds of a
+  press, with none of them on the screen — and `scripts/e2e-coverage.mjs` lists what it saw
+  beside the reach (`R` lines). It is a list to READ: a "red" entry is a guess from the colour.
+- **THE CLUBS THE SUITE WALKS DECIDE WHAT IT CAN SEE.** Both were on no plan, which is the free
+  one, so every walk found the season table locked. The seeded club is a Birdie club now, with a
+  season holding its finished championship; the e2e fixture's club is still on no plan, so the
+  locked state is walked too. And that fixture club has no Commissioner, which no club made
+  through the app can be: a spec that manages its staff seats the secretary first
+  (`club-staff.spec.ts`), and the deferred register has what the ownerless state does.
+- **A STEP THAT DID NOT RUN SAYS SO.** `club-course.spec.ts` first printed "NOT WALKED" for a card
+  with a score on it — the fixture could not reach that — and then built the state for itself.
+  A branch that skips in silence is a step counted as passed.
+
 **Two habits this cost to learn, both the same night:**
 
 - **Commit before any mutation check.** "Break it, watch the test go red, put it back" was done
@@ -239,6 +268,20 @@ empty on Windows (`src/app/fonts.ts` says why). Production is built on Linux. So
 `e2e/weight-budget.json` is kept PER PLATFORM, `e2e/fonts.spec.ts` says in a line when the rule
 about hints was not exercised, and the figure to believe is the one the phone part prints on
 GitHub: two hints a screen, three on a player's Today.
+
+**AND THE FRONT DOOR IS NOT ITS FULL HEIGHT WHEN IT HAS LOADED.** The story of a round is a plain
+section until the page's script starts, and then a scroll-told track: on a phone the page is
+14,021px tall half a second after it loads and 16,559px a second after, and everything below the
+story — the pricing, the sign-in box — is 2,500 to 3,500px further down. Three rounds on one
+batch each stopped on a front-door test because of it (2026-10-13): one read where the sign-up
+form was on arrival and scrolled there later; one pressed "Send reset link" in the instant the
+page grew, and the press landed where the button had been. Three more walks read the page's
+height on arrival and would NOT have failed — they would have stopped short of the bottom and
+called the rest clean. **Any test of the front door awaits `landingSettled(page)`
+(`e2e/landing-settled.ts`) before it measures or presses**, and one that scrolls to a thing asks
+where the thing is at the moment it scrolls. The visitor is fine: somebody already at the
+sign-up form keeps their place to the pixel on Chrome's engine and on Safari's — measured, after
+it had been assumed otherwise and written down as a fault that was not there.
 
 **AND THE SUITE IS CHROMIUM UNLESS YOU ASK.** Most players hold an iPhone, which is WebKit.
 `E2E_ENGINE=webkit npx playwright test` runs the same three projects on it (CI installs Chromium

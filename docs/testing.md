@@ -103,6 +103,22 @@ nothing a head, and a withdrawal whose confirmation was wiped before it could be
 has not fallen yet. So the reach figure is not a formality: the actions nothing performs are
 where the next faults are, and a clean round says nothing about them.
 
+**And it did not fall the next morning.** Four more areas were used in a browser for the first
+time on 2026-10-13, and three held faults that were live: a club could only ever have one season,
+and a second season wore the first one's rules; members who missed a cut were described as
+entries with no roster record; the course editor refused a wrong card in a sentence that was not
+on the screen; and one tap on a radio changed somebody's role at the club. The fourth, the
+honours board, was right — and the test written for it was wrong about it, which is the other
+thing a spec per flow finds.
+
+**Two of those were one fault, and the round now looks for it everywhere.** A refusal printed at
+the top of a long screen, under a press made at the bottom, is a button that appears to do
+nothing. Every page of every browser test watches for words that look like a refusal, appearing
+within four seconds of a press, with none of them on the screen (`watchRefusals` in
+`e2e/coverage.ts`); `scripts/e2e-coverage.mjs` lists them beside the reach. It is a list to read,
+not a count to fail on: an entry marked "red" was recognised by its colour alone, and a kitty
+that is short is red too.
+
 **Roughly thirteen actions cannot be performed here at all**, because they call a paid service
 that a test must not reach: reading a card from a photograph (3), drafting words with the AI
 (`draftMessage`, `suggestCommentary`, `suggestSetup`, `applySetupProposal`), Stripe
@@ -185,6 +201,9 @@ A change is not finished until the tests know about it. What to add, by what was
 | A country, a currency, a language | A language's dates are the app's own: add its tag to `TAGS` in `scripts/build-date-words.mjs`, run it, **read the new line by eye** (it is what a club will see), and only then offer it in `LOCALES` — `date-words.test.ts` refuses a tag the picker offers and the table does not hold. The row in `LOCALES` / `CURRENCIES` is then swept by `formats-agree`. A place for the seeded club is a line in `scripts/seed-club.mjs` and in `ABROAD`. |
 | A date or a time on a screen | Nothing new: write it with `formatDay` / `formatDayAt` / `formatMonthDayAt` / `formatDayRange` / `formatClock` / `shortDate`. A screen that asks the platform to word one itself is refused by `date-words.test.ts`, because two browsers word it two ways. |
 | A box with no Save button | `onKeyDown={leaveOnEnter}` above its `onBlur` (`src/lib/leave-on-enter.ts`), so Enter keeps what was typed. `saves-on-leave-saves-on-enter.test.ts` finds every box that acts when it is left and holds it to that, or to a stated reason. |
+| A sentence that says no | Print it beside the press it answers, with `role="alert"` (and the shared `form-error` class), never in one line at the top of a long screen. The spec that provokes it asserts `toBeInViewport()` as well as `toBeVisible()`; the round lists any refusal that appeared off the screen. |
+| A screen behind a plan | A spec that opens it on a club that HAS the plan. The seeded club is on Birdie; the e2e fixture's club is on none, so a spec there gives it a plan row for as long as it runs and takes it away again (`seasons.spec.ts`). |
+| Anything on the front door | `await landingSettled(page)` before measuring or pressing: the page grows by thousands of pixels when its script starts (`e2e/landing-settled.ts`). |
 | A kind of file nothing here names | A line in `TIER_RULES`. Until then it is treated as core, which is the safe mistake. |
 
 Three tests hold this page to the code (`src/lib/__tests__/qa-framework.test.ts`): every scenario
