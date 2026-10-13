@@ -37,6 +37,8 @@ const WRITE = process.env.WEIGHT_BUDGET === "write";
 const ALLOW = 1.1;
 
 type Weight = { document: number; script: number; style: number; other: number; total: number; requests: number };
+/** The heaviest things that are not the document, a script or a style sheet: fonts and pictures, by file. */
+const heaviest = new Map<string, string[]>();
 
 async function weigh(context: BrowserContext, path: string): Promise<Weight> {
   const page = await context.newPage();
@@ -45,7 +47,11 @@ async function weigh(context: BrowserContext, path: string): Promise<Weight> {
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
   const kind = new Map<string, string>();
   const size = new Map<string, number>();
-  cdp.on("Network.responseReceived", (e) => kind.set(e.requestId, e.type));
+  const address = new Map<string, string>();
+  cdp.on("Network.responseReceived", (e) => {
+    kind.set(e.requestId, e.type);
+    address.set(e.requestId, e.response.url);
+  });
   cdp.on("Network.loadingFinished", (e) => size.set(e.requestId, e.encodedDataLength));
   await page.goto(path, { waitUntil: "load" });
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
@@ -57,6 +63,14 @@ async function weigh(context: BrowserContext, path: string): Promise<Weight> {
     w.total += bytes;
     w.requests += 1;
   }
+  heaviest.set(
+    path,
+    [...size]
+      .filter(([id]) => !["Document", "Script", "Stylesheet"].includes(kind.get(id) ?? ""))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([id, bytes]) => `${(address.get(id) ?? "?").split("/").pop()?.split("?")[0]} ${Math.round(bytes / 1024)} KB`),
+  );
   await page.close();
   return w;
 }
@@ -83,6 +97,8 @@ test("no screen people open most has put on weight", async ({ browser, browserNa
   for (const [name, state, path] of visits) {
     const context = await browser.newContext({ ...device, ...(state ? { storageState: state } : {}) });
     measured[name] = await weigh(context, path);
+    // By file, so a difference between two machines can be READ rather than guessed at.
+    console.log(`[weight]   ${name}, fonts and pictures by file: ${(heaviest.get(path) ?? []).join(", ")}`);
     await context.close();
   }
   // CONTROL: something real came down for every one of them.
@@ -96,12 +112,12 @@ test("no screen people open most has put on weight", async ({ browser, browserNa
    * ONE BUDGET PER KIND OF MACHINE, because the same screen does not weigh the
    * same on each. Recorded on Windows, every app screen was about 105 KB of
    * fonts; the first round on GitHub (Linux, 2026-10-13) weighed 248 KB and
-   * failed seven screens for "putting on weight". Nothing had been added. A
-   * font named late in a list is fetched only when nothing earlier in the list
-   * is on the machine, and Windows carries faces of its own that Linux does
-   * not — so Linux downloads two more files. An Android phone is the Linux
-   * case, which makes the HEAVIER figure the one a player on a course is
-   * paying, and the lighter one the flattering exception.
+   * failed seven screens for "putting on weight". Nothing had been added:
+   * the same build fetches about 143 KB more of fonts and pictures there.
+   * WHY is not yet known — the run that found it logged sums, not files — so
+   * the files are now logged by name (above) and the next round says which.
+   * Until it does, treat the heavier figure as the honest one: a phone is
+   * not a Windows machine either.
    */
   const all = existsSync(BUDGET) ? (JSON.parse(readFileSync(BUDGET, "utf8")) as Record<string, Record<string, Weight>>) : {};
   if (WRITE || !all[process.platform]) {
