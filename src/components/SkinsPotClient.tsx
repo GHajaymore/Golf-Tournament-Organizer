@@ -333,7 +333,10 @@ export function SkinsPotClient({
                     )
                   }
                 >
-                  {name(id)} — take {money(view.buyInCents)}
+                  {/* A sentence, so the amount carries its currency — this card's own rule (see `withSymbol`
+                      above). It read "take 5.00": five of what, on the one button here that is about
+                      taking somebody's money. Found by the first browser test to ask into a pot (2026-10-13). */}
+                  {name(id)} — take {withSymbol(view.buyInCents)}
                 </button>
               ))}
             </div>
