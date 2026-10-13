@@ -359,6 +359,65 @@ test("a phone's bottom bar is up only mid-page, and unreachable when it is down"
 });
 
 /**
+ * WHOEVER IS ALREADY AT THE SIGN-UP FORM IS STILL AT IT WHEN THE PAGE'S SCRIPT STARTS.
+ *
+ * The page is drawn before its script arrives — half a second before, next
+ * door to the server; several seconds, on a phone with one bar. "Run an event"
+ * is a link to the form at the bottom, and it works at once. When the script
+ * then starts, the story of a round becomes a track two and a half to three
+ * and a half thousand pixels taller, ABOVE the form.
+ *
+ * A browser is supposed to keep a reader's place when a page grows above
+ * them, and the form's place in the DOCUMENT moves a long way — 11,903 to
+ * 14,441 on Safari's engine, measured 2026-10-13. Whether its place on the
+ * SCREEN moves was assumed the same day, wrongly, to be "yes, on Safari": this
+ * test was written to prove that fault and found none. On Chrome's engine and
+ * on Safari's the form stays where it was to the pixel, at three sizes.
+ *
+ * It is kept because that is the browser's doing and not the page's: nothing in
+ * the page holds the place, so a change that stops the browser doing it (an
+ * `overflow-anchor`, a form moved inside the part that grows) would leave
+ * somebody who tapped "Run an event" and began typing looking at the pricing.
+ * WHAT IT CANNOT SEE: an older iPhone, whose Safari may not keep the place at
+ * all. That is a check on a real phone, and is on the list owed.
+ *
+ * So the script is held back, the form is gone to, and when the script has run:
+ *
+ *   the script really was late      → the story was not yet a track (control)
+ *   the page really did grow        → by more than a thousand pixels, on a phone
+ *                                      (control: nothing moved is no test)
+ *   the form                        → is where it was on the screen
+ */
+test("a visitor already at the sign-up form is still at it once the page's script has started", async ({ page }) => {
+  test.setTimeout(60_000);
+  const hold = 2_500;
+  await page.route("**/_next/static/**/*.js", async (route) => {
+    await new Promise((r) => setTimeout(r, hold));
+    await route.continue().catch(() => {});
+  });
+  // The page as it is drawn, not as it is once its script has loaded.
+  await page.goto(`/?bust=${Date.now()}`, { waitUntil: "commit" });
+  await page.waitForSelector("#start", { state: "attached" });
+  const read = () =>
+    page.evaluate(() => ({
+      live: !!document.querySelector("#story.m-live"),
+      page: document.documentElement.scrollHeight,
+      formOnScreen: Math.round(document.querySelector("#start")!.getBoundingClientRect().top),
+    }));
+  // What the "Run an event" link does: go to the form.
+  await page.evaluate(() => document.querySelector("#start")!.scrollIntoView({ block: "start", behavior: "instant" }));
+  const before = await read();
+  expect(before.live, "CONTROL: the page's script had already started, so nothing was being held back").toBe(false);
+
+  await page.waitForFunction(() => !!document.querySelector("#story.m-live"), null, { timeout: 30_000 });
+  await landingSettled(page);
+  const after = await read();
+  const phone = (page.viewportSize()?.width ?? 0) < 900;
+  if (phone) expect(after.page - before.page, "CONTROL: the page did not grow when its script started, so this measured nothing").toBeGreaterThan(1_000);
+  expect(Math.abs(after.formOnScreen - before.formOnScreen), `the sign-up form moved ${after.formOnScreen - before.formOnScreen}px on the screen when the page's script started (the page grew ${after.page - before.page}px above it)`).toBeLessThanOrEqual(4);
+});
+
+/**
  * WITH ITS MOTION ON, EVERYTHING THAT WAITS TO ARRIVE DOES ARRIVE (2026-10-13).
  *
  * The front door holds a section back — dimmed to a sixth, shifted or tilted —
