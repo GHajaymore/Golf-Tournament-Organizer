@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  mayStartSend,
   pendingKey,
   RETRY_EVERY_MS,
   shouldPoll,
@@ -47,6 +48,14 @@ export interface PendingCard<T> {
    * a warning that is always there is one nobody reads.
    */
   settle: () => void;
+  /**
+   * Resolves when no card is on its way — at once, when none is.
+   *
+   * For the one caller that saves a card ITSELF, beside the queue: signing.
+   * A save started while a queued one is still out carries the revision from
+   * before it, and is answered as a conflict with the phone's own hole.
+   */
+  landed: () => Promise<void>;
 }
 
 export function usePendingCard<T>({
@@ -93,6 +102,9 @@ export function usePendingCard<T>({
   const queuedAt = useRef(0);
   const lastAttempt = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The send that is out, as something to wait on — and null when none is. See `attempt`. */
+  const inFlight = useRef<Promise<void> | null>(null);
+  const latestAttempt = useRef<() => Promise<void>>(async () => {});
 
   /** Anything left from a previous visit means the last one did not finish. */
   useEffect(() => {
@@ -108,10 +120,41 @@ export function usePendingCard<T>({
 
   const attempt = useCallback(async () => {
     if (!enabled || holding || value.current === null) return;
+    /**
+     * ONE CARD ON ITS WAY AT A TIME (2026-10-13).
+     *
+     * A card is sent with the revision this phone last heard from the server,
+     * and hears the new one only when the send comes back. Three things start
+     * a send — the pause after a tap, the signal returning, the retry timer —
+     * and nothing stopped a second starting while the first was out. The
+     * second then carried the OLD revision; by the time it arrived the server
+     * held the first, and answered that the card had changed underneath it.
+     *
+     * So on a connection that takes two seconds to save, a player who entered
+     * the next hole inside those two seconds was told "This card changed while
+     * you were out of signal — somebody else, usually the committee, edited
+     * this card", by their own previous hole, and "Use theirs" threw the new
+     * hole away. Measured in a browser the night it was found: asked at 0.9s
+     * and 1.5s between holes, not at 2.5s.
+     *
+     * A send that is asked for while one is out is not started. It is not
+     * lost either: when the one that is out comes back, whatever is NEWEST
+     * goes next, with the revision that answer carried.
+     */
+    // …unless the one that is out has been out so long it is taken for lost
+    // (`SEND_PATIENCE_MS`): one at a time must not become none at all.
+    if (!mayStartSend({ out: inFlight.current !== null, outForMs: Date.now() - lastAttempt.current })) return;
+    const sent = value.current;
+    let land: () => void = () => {};
+    const done = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    inFlight.current = done;
     lastAttempt.current = Date.now();
     setSending(true);
+    let goAgain = false;
     try {
-      const outcome = await send(value.current);
+      const outcome = await send(sent);
       /**
        * The server answered and did NOT take the card.
        *
@@ -124,6 +167,13 @@ export function usePendingCard<T>({
        */
       if (outcome === "held") {
         setHeld(true);
+        return;
+      }
+      // A newer card was entered while this one was out. The device copy and
+      // the queue are the NEWER card's — clearing them here would leave its
+      // holes on neither the phone nor the server — and it goes next.
+      if (value.current !== null && value.current !== sent) {
+        goAgain = true;
         return;
       }
       // Cleared ONLY here. Anywhere else and there is a moment where neither
@@ -151,12 +201,22 @@ export function usePendingCard<T>({
         (typeof navigator !== "undefined" && navigator.onLine === false);
       setRefused(!networkish);
     } finally {
-      setSending(false);
+      // Only its own mark: a send given up on may come back after a newer one
+      // has gone out, and must not report the newer one as landed.
+      if (inFlight.current === done) {
+        inFlight.current = null;
+        setSending(false);
+      }
+      land();
+      // Through the ref, not this closure: the card that goes next is sent by
+      // whatever `attempt` is current, which may have been rebuilt meanwhile.
+      if (goAgain) void latestAttempt.current();
     }
     // `holding` is a dependency, not a value read at push time: the hole that
     // completes the card flips it false in the same render that schedules the
     // send, so the debounced attempt has to be the new one.
   }, [enabled, holding, key, send]);
+  latestAttempt.current = attempt;
 
   const push = useCallback(
     (next: T) => {
@@ -278,6 +338,7 @@ export function usePendingCard<T>({
     }),
     push,
     recovered,
+    landed: () => inFlight.current ?? Promise.resolve(),
     clearRecovered: () => {
       setRecovered(null);
       try {
