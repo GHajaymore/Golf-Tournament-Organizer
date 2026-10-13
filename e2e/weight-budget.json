@@ -1,68 +1,68 @@
 {
  "win32": {
   "the front door": {
-   "document": 152819,
-   "script": 149916,
-   "style": 8826,
+   "document": 152803,
+   "script": 152686,
+   "style": 8816,
    "other": 1630459,
-   "total": 1942020,
+   "total": 1944764,
    "requests": 41
   },
   "the public board": {
-   "document": 49596,
-   "script": 143118,
-   "style": 8826,
+   "document": 49640,
+   "script": 146015,
+   "style": 8816,
    "other": 107325,
-   "total": 308865,
+   "total": 311796,
    "requests": 19
   },
   "a player's Today": {
-   "document": 57814,
-   "script": 151939,
-   "style": 8826,
+   "document": 57909,
+   "script": 154795,
+   "style": 9760,
    "other": 136339,
-   "total": 354918,
-   "requests": 21
+   "total": 358803,
+   "requests": 22
   },
   "a player's card": {
-   "document": 53734,
-   "script": 188632,
-   "style": 8826,
-   "other": 108074,
-   "total": 359266,
-   "requests": 30
+   "document": 53727,
+   "script": 191401,
+   "style": 8816,
+   "other": 108825,
+   "total": 362769,
+   "requests": 31
   },
   "a player's board": {
-   "document": 54122,
-   "script": 141948,
-   "style": 8826,
-   "other": 107325,
-   "total": 312221,
-   "requests": 18
+   "document": 54256,
+   "script": 145808,
+   "style": 8816,
+   "other": 108074,
+   "total": 316954,
+   "requests": 20
   },
   "the organizer's dashboard": {
-   "document": 57852,
-   "script": 170217,
-   "style": 8826,
-   "other": 138328,
-   "total": 375223,
+   "document": 57834,
+   "script": 173006,
+   "style": 8816,
+   "other": 138329,
+   "total": 377985,
    "requests": 27
   },
   "score entry": {
-   "document": 55652,
-   "script": 239679,
-   "style": 8826,
+   "document": 55643,
+   "script": 242531,
+   "style": 8816,
    "other": 107325,
-   "total": 411482,
+   "total": 414315,
    "requests": 35
   },
   "the leaderboard": {
-   "document": 53302,
-   "script": 179808,
-   "style": 8826,
-   "other": 109566,
-   "total": 351502,
-   "requests": 32
+   "document": 53295,
+   "script": 182665,
+   "style": 8816,
+   "other": 107325,
+   "total": 352101,
+   "requests": 29
   }
  },
  "linux": {

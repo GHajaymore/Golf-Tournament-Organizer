@@ -112,12 +112,25 @@ test("no screen people open most has put on weight", async ({ browser, browserNa
    * ONE BUDGET PER KIND OF MACHINE, because the same screen does not weigh the
    * same on each. Recorded on Windows, every app screen was about 105 KB of
    * fonts; the first round on GitHub (Linux, 2026-10-13) weighed 248 KB and
-   * failed seven screens for "putting on weight". Nothing had been added:
-   * the same build fetches about 143 KB more of fonts and pictures there.
-   * WHY is not yet known — the run that found it logged sums, not files — so
-   * the files are now logged by name (above) and the next round says which.
-   * Until it does, treat the heavier figure as the honest one: a phone is
-   * not a Windows machine either.
+   * failed seven screens for "putting on weight". Nothing had been added.
+   *
+   * WHY, measured the same day from the files this logs by name. A build made
+   * on Windows HINTS NO FONT AT ALL: next/font's manifest plugin looks for its
+   * own modules by a path written with forward slashes, on Windows that path
+   * has backslashes, and the manifest it writes is empty — so a font comes
+   * down only when a letter is drawn in it. A build made on Linux, which is
+   * what production is, hints every face its layout calls with the preload
+   * on, and until that day those were five: Geist Mono 70 KB, Geist Sans
+   * 69 KB, Fraunces italic 45 KB, Fraunces upright 36 KB, Oswald 28 KB, on
+   * every screen, three of them for nothing. Given a Linux build's manifest,
+   * the Windows build weighed 248 KB too, file for file.
+   *
+   * The three are no longer hinted (`src/app/fonts.ts`), so the two budgets
+   * now agree on the fonts — and they stay two, because the mechanism that
+   * could part them again is still there. The Linux line is the one that
+   * describes a phone; it can only be recorded from a run on GitHub (the
+   * `[weight]` lines of the phone job), and `e2e/fonts.spec.ts` is the rule
+   * itself: no screen downloads a font it does not draw.
    */
   const all = existsSync(BUDGET) ? (JSON.parse(readFileSync(BUDGET, "utf8")) as Record<string, Record<string, Weight>>) : {};
   if (WRITE || !all[process.platform]) {

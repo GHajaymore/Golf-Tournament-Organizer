@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
-import { displayFontVars } from "./fonts";
+import { GeistMono, displayFontVars } from "./fonts";
 /**
  * THE ICON FONT IS GONE.
  *
@@ -80,6 +79,13 @@ import { siteOrigin } from "@/lib/site";
  * `--font-heading-weight` and a long tail of `fontWeight: 500`), 600 and 700;
  * the Google call named exactly those three, and a variable face covers them
  * with the same file.
+ *
+ * WHAT THIS LAYOUT PRELOADS IS WHAT EVERY SCREEN DRAWS, and nothing more
+ * (2026-10-13): Geist Sans for the body and Fraunces upright for the heading.
+ * A face called from here with its preload on is fetched by every screen in
+ * the app, so Geist Mono comes from `./fonts` with it off rather than from
+ * `geist/font/mono`, and the scoreboard's Oswald is hinted by the one screen
+ * that hangs a scoreboard. See "WHAT IS PRELOADED" in `./fonts.ts`.
  */
 
 export const metadata: Metadata = {
