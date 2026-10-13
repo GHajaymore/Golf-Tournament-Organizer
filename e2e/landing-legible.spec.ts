@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./coverage";
+import { landingSettled } from "./landing-settled";
 
 /**
  * EVERY WORD ON THE FRONT DOOR IS READABLE AGAINST WHAT IS ACTUALLY BEHIND IT.
@@ -56,6 +57,10 @@ async function settle(page: Page, path: string) {
   await page.waitForLoadState("networkidle");
   await page.evaluate(() => Promise.all([...document.images].map((i) => i.decode().catch(() => undefined))));
   await page.evaluate(() => window.scrollTo(0, 0));
+  // Every word's place is read off the page next, and the walk stops at the page's height: both are
+  // taken once the script has made the page as tall as it gets, or the walk ends short of the bottom
+  // and calls what it never reached readable (`landing-settled.ts`).
+  await landingSettled(page);
   await page.waitForTimeout(300);
 }
 
