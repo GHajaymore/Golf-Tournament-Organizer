@@ -1,0 +1,57 @@
+[
+  {
+    "what": "M1 a match's result is stored as it was sent again",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));",
+    "to": "  const clean: HoleResult[] | null = Array.isArray(holes) ? holes : null;",
+    "audit": [
+      "src/lib/__tests__/a-match-result-is-a-card-of-its-length.audit.test.ts"
+    ]
+  },
+  {
+    "what": "M3 the round-code door calls a match complete only when every hole is filled",
+    "file": "src/app/actions/play.ts",
+    "from": "  const complete = matchIsOver(clean);",
+    "to": "  const complete = clean.every((h) => h !== null);",
+    "audit": [
+      "src/lib/__tests__/play-score-entry.audit.test.ts"
+    ]
+  },
+  {
+    "what": "M5 a file of hole results stamps every row as scored",
+    "file": "src/app/actions/tournament.ts",
+    "from": "scoredAt: matchIsOver(holes) ? new Date() : null",
+    "to": "scoredAt: new Date()",
+    "audit": [
+      "src/lib/__tests__/a-match-result-is-a-card-of-its-length.audit.test.ts"
+    ]
+  },
+  {
+    "what": "M6 a file of hole results is not sized to the round",
+    "file": "src/app/actions/tournament.ts",
+    "from": "          holesPlayed(stage.holes),\n        ) ?? [];",
+    "to": "          0,\n        ) ?? [];",
+    "audit": [
+      "src/lib/__tests__/a-match-result-is-a-card-of-its-length.audit.test.ts"
+    ]
+  },
+  {
+    "what": "M7 a card still being filled in is asked against the list's own length",
+    "file": "src/lib/domain/match.ts",
+    "from": "  return matchIsOver(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));",
+    "to": "  return matchIsOver([...holes]);",
+    "unit": [
+      "src/lib/domain/__tests__/engine.test.ts",
+      "src/lib/__tests__/render.test.tsx"
+    ]
+  },
+  {
+    "what": "M8 the round-code screen holds a decided card back until every cell is filled",
+    "file": "src/components/PlayClient.tsx",
+    "from": "    holding: !!props.submitWhole && !matchIsOverAfter(holes, holeCount0),",
+    "to": "    holding: !!props.submitWhole && holes.filter((h) => h !== null).length < holeCount0,",
+    "unit": [
+      "src/lib/__tests__/render.test.tsx"
+    ]
+  }
+]
