@@ -263,7 +263,8 @@ new test can fail"). For a browser test that is a build per break, so it is not 
 2. Write the list: a JSON array, one entry a break. `scripts/qa/breaks.mjs` says what an entry
    holds: the file, the one line to change and what to change it to, and the tests that should
    notice (a browser spec, unit tests, database tests).
-3. On a branch named `breaks/<anything>`, on top of that commit, commit the list as
+3. `node scripts/qa/breaks.mjs --check <list>` says whether every break would apply, before any
+   machine is spent. Then, on a branch named `breaks/<anything>`, on top of that commit, commit the list as
    `qa-breaks.json` at the root, and push. The **Breaks** workflow gives every break a machine and
    a database. The branch is thrown away afterwards; the list is never merged.
 4. Read the verdict. A job is GREEN when a test went red, so a red job is a break the tests missed.

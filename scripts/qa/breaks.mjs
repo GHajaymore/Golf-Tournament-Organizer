@@ -9,6 +9,7 @@
  * things right way? you have 4 roles to make it efficient"). So a list of
  * breaks is a file, and `.github/workflows/breaks.yml` gives each one a machine.
  *
+ *     node scripts/qa/breaks.mjs --check qa-breaks.json         would every break apply? (changes nothing)
  *     node scripts/qa/breaks.mjs --plan qa-breaks.json          the list, as a matrix for the workflow
  *     node scripts/qa/breaks.mjs --run=3 qa-breaks.json         apply break 3, run its tests, say what happened
  *     node scripts/qa/breaks.mjs --verdict <directory>          add the results up
@@ -161,6 +162,19 @@ if (isMain) {
   if (flag("plan")) {
     const list = readBreaks(rest[0]);
     console.log(JSON.stringify(list.map((b, i) => ({ index: i + 1, what: b.what.slice(0, 90), browser: b.spec ? "yes" : "" }))));
+  } else if (flag("check")) {
+    // Before machines are spent on it: would every break apply? Changes nothing.
+    const list = readBreaks(rest[0]);
+    let bad = 0;
+    list.forEach((b, i) => {
+      const r = applyBreak(readFileSync(b.file, "utf8"), b);
+      if (r.text === null) {
+        bad += 1;
+        console.log(`NOT APPLIED       ${i + 1} ${b.what} — the line was found ${r.seen} times in ${b.file}`);
+      }
+    });
+    console.log(`${list.length} breaks; ${bad} would not apply`);
+    process.exit(bad ? 1 : 0);
   } else if (flag("run")) {
     const index = Number(value("run"));
     const result = run(index, rest[0]);
@@ -172,7 +186,7 @@ if (isMain) {
   } else if (flag("verdict")) {
     process.exit(verdict(rest[0] ?? ".qa/breaks"));
   } else {
-    console.error("usage: node scripts/qa/breaks.mjs --plan <list.json> | --run=<n> <list.json> | --verdict <directory> [--expect=<n>]");
+    console.error("usage: node scripts/qa/breaks.mjs --check <list.json> | --plan <list.json> | --run=<n> <list.json> | --verdict <directory> [--expect=<n>]");
     process.exit(2);
   }
 }
