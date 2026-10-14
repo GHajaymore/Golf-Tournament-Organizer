@@ -253,7 +253,10 @@ test.describe("a casual round at the course", () => {
       // moved on past it, blank (2026-10-09).
       if (h === 1) await answer.dblclick();
       else await answer.click();
-      await expect(answer).toHaveAttribute("aria-pressed", "true");
+      // What the card RECORDED, read off the strip of holes, which stays put.
+      // The answer itself is pressed for 160ms before the card moves on, and a
+      // slow machine looked for it after it had gone (Firefox, 2026-10-14).
+      await expect(page.getByRole("button", { name: `Hole ${h}, ${w ? `won by ${w}` : "halved"}` })).toBeVisible();
       if (h === 9) {
         // At the turn, read fresh: the card reopens on the 10th, the match
         // stands where nine holes put it, and the money waits for the end —
@@ -364,7 +367,8 @@ test.describe("a casual round at the course", () => {
         const answer = page.getByRole("button", { name: w ? `Hole ${h} to ${w}` : `Hole ${h} halved` });
         await expect(answer).toBeVisible();
         await answer.click();
-        await expect(answer).toHaveAttribute("aria-pressed", "true");
+        // Recorded, off the strip: the answer is pressed for only 160ms.
+        await expect(page.getByRole("button", { name: `Hole ${h}, ${w ? `won by ${w}` : "halved"}` })).toBeVisible();
       }
       await expect(page.getByText("Saving…")).toHaveCount(0, { timeout: 30_000 });
     };
@@ -763,7 +767,9 @@ test.describe("a casual round at the course", () => {
         const answer = p.getByRole("button", { name });
         await expect(answer).toBeVisible();
         await answer.click();
-        await expect(answer).toHaveAttribute("aria-pressed", "true");
+        // Recorded, off the strip: the answer is pressed for only 160ms.
+        const said = [2, 4].includes(h) ? `won by ${ANN}` : [11, 13, 15].includes(h) ? `won by (?!${ANN})` : "halved";
+        await expect(p.getByRole("button", { name: new RegExp(`^Hole ${h}, ${said}`) })).toBeVisible();
       }
       await expect(p.getByText("18/18 holes")).toBeVisible();
       await expect(async () => {

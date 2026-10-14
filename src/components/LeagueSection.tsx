@@ -70,7 +70,13 @@ export async function LeagueSection({
           Running a club league — flights as clubs, pairs nominated each week,
           meetings and a table? Choose a scoring system to switch it on.
         </p>
+        {/* THE SAME PANEL BEFORE AND AFTER THE LEAGUE IS ON — hence the key, here
+            and on the one below. They are drawn at two places in this file, and
+            the save that switches a league on moves the screen from this branch
+            to that one: without the key React threw this panel away and made a
+            new one, shut, and the word "Saved." went with the old one. */}
         <LeagueSettings
+          key="league-settings"
           points=""
           matchBonus={matchBonus}
           pairs={pairs}
@@ -147,6 +153,7 @@ export async function LeagueSection({
         {LEAGUE_POINTS_LABEL[system]}
       </p>
       <LeagueSettings
+        key="league-settings"
         points={system}
         matchBonus={matchBonus}
         pairs={pairs}

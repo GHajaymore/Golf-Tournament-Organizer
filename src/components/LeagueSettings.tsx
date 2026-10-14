@@ -49,6 +49,8 @@ export function LeagueSettings({
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  /** Whether the panel is open. Starts open while the league is off; see the note at `<details>`. */
+  const [open, setOpen] = useState(points === "");
   const [pending, startTransition] = useTransition();
 
   const touched = () => {
@@ -73,10 +75,23 @@ export function LeagueSettings({
 
   return (
     // Open while the league is off: the switch is the only thing on offer.
+    //
+    // AND IT STAYS AS IT IS WHEN A SAVE LANDS. The save that switches a league
+    // ON used to shut the panel in the same instant: the secretary pressed Save
+    // and the form they were in vanished, with "Saved." inside it. Two things
+    // did that, and both had to go. This read `open={points === ""}` straight
+    // off the stored value, which the save had just changed; and the panel is
+    // drawn at two places in `LeagueSection`, before and after the league is
+    // on, so React made a NEW one for the second place and its state — open,
+    // saved — began again (it carries a key there now). Whether the word was
+    // seen at all was a race between two renders: Chrome usually showed it for
+    // a moment and Firefox did not, which is how a full run found it
+    // (2026-10-13). Open or shut is the reader's from the first draw on.
     <details
       className="card elev-sm"
       style={{ marginTop: 12 }}
-      open={points === "" || undefined}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
     >
       <summary style={{ cursor: "pointer", fontWeight: 600 }}>
         League settings

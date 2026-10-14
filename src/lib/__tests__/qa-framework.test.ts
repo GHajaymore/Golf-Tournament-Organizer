@@ -3,7 +3,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
-import { ABROAD, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
+import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
+import { BASELINE, VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
 
 /**
  * THE TESTING FRAMEWORK IS HELD TO THE FILES ON DISK.
@@ -112,14 +113,56 @@ describe("the parts of a round add up to the round", () => {
       for (const size of sizes) {
         const forSize = mine.filter((p) => p.args.includes(`--projects=${size}`) && !p.args.includes(`--projects=${size}-`));
         expect(forSize.length, `${layer.key} has no part for ${size}`).toBeGreaterThan(0);
-        const shards = forSize.map((p) => (p.args.match(/--shard=(\d+)\/(\d+)/) ?? []).slice(1).map(Number));
+        // A share of the console crawl is a part of its own, beside the shards: `--crawl=2/4`.
+        const crawlOf = (p: { args: string }) => (p.args.match(/--crawl=(\d+)\/(\d+)/) ?? []).slice(1).map(Number);
+        const crawling = forSize.filter((p) => (crawlOf(p)[0] ?? 0) > 0);
+        const rest = forSize.filter((p) => !crawling.includes(p));
+        const shards = rest.map((p) => (p.args.match(/--shard=(\d+)\/(\d+)/) ?? []).slice(1).map(Number));
         if (shards.some((s) => s.length)) {
           const of = shards[0][1];
           expect(shards.map((s) => s[0]).sort()).toEqual(Array.from({ length: of }, (_, i) => i + 1));
           expect(shards.every((s) => s[1] === of)).toBe(true);
         }
+        if (crawling.length) {
+          // Every share is there once, they agree how many there are, and each runs nothing but the crawl...
+          const of = crawlOf(crawling[0])[1];
+          expect(of, `${layer.key} ${size}`).toBe(CRAWL_PARTS);
+          expect(crawling.map((p) => crawlOf(p)[0]).sort()).toEqual(Array.from({ length: of }, (_, i) => i + 1));
+          expect(crawling.every((p) => crawlOf(p)[1] === of && !p.args.includes("--shard="))).toBe(true);
+          // ...and every other part of that size leaves the crawl to them, or it would be run twice — or, with
+          // the flag forgotten on one shard, by a part that takes an hour again.
+          expect(rest.length).toBeGreaterThan(0);
+          expect(rest.every((p) => p.args.includes(`--crawl=0/${of}`)), `${layer.key} ${size}: a part beside the crawl's does not skip it`).toBe(true);
+        } else {
+          expect(rest.some((p) => p.args.includes("--crawl=")), `${layer.key} ${size} skips a crawl nobody runs`).toBe(false);
+        }
       }
     }
+  });
+
+  it("a layer that runs a list of specs is one part, or every share of it once", () => {
+    // Chrome as installed, an iPad, an Android tablet, Safari: each was one machine for
+    // twenty to thirty minutes, and is cut by `--shard` (SHARDS in layers.mjs). A share
+    // left out is a third of an iPad nobody looked at, under a round that reads clean.
+    const parts = partsFor(1) as Array<{ id: string; layer: string; args: string }>;
+    let cut = 0;
+    for (const layer of layersFor(1) as Array<{ key: string; kind?: string; specs: string[] }>) {
+      if (layer.kind === "scenarios" || layer.kind === "command" || layer.specs.length === 0) continue;
+      const mine = parts.filter((p) => p.layer === layer.key);
+      const shards = mine.map((p) => (p.args.match(/--shard=(\d+)\/(\d+)/) ?? []).slice(1).map(Number));
+      if (mine.length === 1) {
+        expect(mine[0].args, `${layer.key} is one part and is told to run a share of itself`).toBe(`--only=${layer.key}`);
+        continue;
+      }
+      cut += 1;
+      const of = shards[0][1];
+      expect(of, layer.key).toBe(mine.length);
+      expect(shards.map((s) => s[0]).sort((a, b) => a - b), layer.key).toEqual(Array.from({ length: of }, (_, i) => i + 1));
+      expect(shards.every((s) => s[1] === of), layer.key).toBe(true);
+      expect(mine.every((p) => p.args.startsWith(`--only=${layer.key} --shard=`)), layer.key).toBe(true);
+    }
+    // CONTROL: some layer of this kind really is cut, or the check above looked at nothing.
+    expect(cut).toBeGreaterThanOrEqual(3);
   });
 
   it("every scenario is a part", () => {
@@ -240,5 +283,78 @@ describe("the list of actions no screen test performs", () => {
     const merge = readSource("scripts/qa/merge.mjs");
     expect(merge).toContain(`join("scripts", "qa", "reach-baseline.json")`);
     expect(merge).toContain("baselineMissing");
+  });
+});
+
+/**
+ * PROVING A TEST BY BREAKING THE APP (`scripts/qa/breaks.mjs`, `breaks.yml`).
+ *
+ * The one thing this tool must never do is report a break as tried when it was
+ * not. A replace that silently matched nothing leaves every test green, which
+ * reads exactly like "the tests cannot catch this" — the result that gets a
+ * good test weakened. It happened three times in one day by hand (CLAUDE.md,
+ * "A `node -e` string replace on a checked-out file usually does nothing").
+ */
+describe("a deliberate break is applied exactly, or is said not to have been", () => {
+  const one = { what: "w", file: "f.ts", from: "return a + b;", to: "return a - b;" };
+
+  it("changes the one line it names and nothing else", () => {
+    const out = applyBreak("const x = 1;\n  return a + b;\nconst y = 2;\n", one);
+    expect(out.text).toBe("const x = 1;\n  return a - b;\nconst y = 2;\n");
+    expect(out.seen).toBe(1);
+  });
+
+  it("keeps a checked-out file's line endings, and finds a line written with \\n across them", () => {
+    const twoLines = { ...one, from: "const x = 1;\n  return a + b;", to: "const x = 1;\n  return a - b;" };
+    const out = applyBreak("const x = 1;\r\n  return a + b;\r\nconst y = 2;\r\n", twoLines);
+    expect(out.text).toBe("const x = 1;\r\n  return a - b;\r\nconst y = 2;\r\n");
+  });
+
+  it("refuses a line that is not there, and one that is there twice", () => {
+    expect(applyBreak("nothing like it\n", one)).toEqual({ text: null, seen: 0 });
+    expect(applyBreak("return a + b;\nreturn a + b;\n", one)).toEqual({ text: null, seen: 2 });
+  });
+
+  it("takes the nth of several when the list says which", () => {
+    const text = "return a + b;\nother\nreturn a + b;\n";
+    expect(applyBreak(text, { ...one, nth: 2 }).text).toBe("return a + b;\nother\nreturn a - b;\n");
+    expect(applyBreak(text, { ...one, nth: 1 }).text).toBe("return a - b;\nother\nreturn a + b;\n");
+    expect(applyBreak(text, { ...one, nth: 3 }).text).toBeNull();
+  });
+
+  it("only a test going red counts as caught, and the three ways of proving nothing have their own words", () => {
+    expect(VERDICTS).toEqual(["CAUGHT", "NOT CAUGHT", "NOT APPLIED", "DOES NOT COMPILE", "DID NOT RUN"]);
+    const script = readSource("scripts/qa/breaks.mjs");
+    // The job is green on CAUGHT and on nothing else.
+    expect(script).toContain('process.exit(result.verdict === "CAUGHT" ? 0 : 1);');
+    // A browser run that never ran a test is not a failure of a test.
+    expect(script).toMatch(/if \(!ran\) \{\s*result\.verdict = "DID NOT RUN";/);
+    // The verdict counts against how many breaks were asked for, so one that never reported is missed, not ignored.
+    expect(script).toContain("caught === (expected || results.length) && results.length > 0");
+  });
+
+  it("no break counts as caught unless the same tests pass with nothing broken", () => {
+    // The first browser list this tool was given: the fix under test was wrong, the test failed
+    // on its own, and a break that undid the fix came back CAUGHT. A test that is already red
+    // catches everything.
+    expect(BASELINE).toEqual(["PASSES UNBROKEN", "FAILS UNBROKEN"]);
+    const script = readSource("scripts/qa/breaks.mjs");
+    expect(script).toContain('const sound = base?.verdict === "PASSES UNBROKEN";');
+    expect(script).toContain('const caught = sound ? results.filter((r) => r.verdict === "CAUGHT").length : 0;');
+    expect(script).toContain("return sound && caught === (expected || results.length) && results.length > 0 ? 0 : 1;");
+    const flow = readVerbatim(".github/workflows/breaks.yml");
+    expect(flow).toContain("node scripts/qa/breaks.mjs --baseline qa-breaks.json");
+    expect(flow).toContain("needs: [plan, baseline, break]");
+  });
+
+  it("the workflow gives each break a machine, and the every-push checks leave its branches alone", () => {
+    const flow = readVerbatim(".github/workflows/breaks.yml");
+    expect(flow).toContain('branches: ["breaks/**"]');
+    expect(flow).toContain("node scripts/qa/breaks.mjs --plan qa-breaks.json");
+    expect(flow).toContain("node scripts/qa/breaks.mjs --run=${{ matrix.break.index }} qa-breaks.json");
+    expect(flow).toContain("--expect=${{ needs.plan.outputs.count }}");
+    expect(flow).toContain("fail-fast: false");
+    const ci = readVerbatim(".github/workflows/ci.yml");
+    expect(ci).toContain('branches: ["**", "!round/**", "!breaks/**"]');
   });
 });

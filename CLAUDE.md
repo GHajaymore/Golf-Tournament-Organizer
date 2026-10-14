@@ -1581,6 +1581,56 @@ entered twelve, the plan refused two, and the entry loop passed anyway on the na
 in the form. An organizer-from-nothing spec that needs a bigger field needs a club on a bigger
 plan — and any entry loop should end by reading the field back.
 
+## A club league: what has been ARRANGED has not HAPPENED
+
+A league of clubs (flights as clubs, pairs nominated each week, `LeagueSection` on Teams & pairs)
+was first run in a browser on 2026-10-13, as its secretary would, and four of the five things it
+turned up were one mistake: a statement about golf made from what had been set up rather than
+from what had been played.
+
+    the table       "Played 1" for every club the moment a week was DRAWN — a meeting exists
+                    from the draw, and the table counted the meetings that exist
+    the meetings    "AS", all square, for every four-ball of a week just drawn — an empty card
+                    has no holes left to play, so `resolveMatch([])` is complete and level. The
+                    line carried a comment saying an unplayed match must read as a dash
+    the play-offs   "Final: (1) Ardlui v Balfron (2)" before a ball was struck: the bracket is
+                    seeded from the table at every moment, and nobody had played, so it was
+                    the first two clubs in the alphabet
+    the draw        the final drawn with two of three season weeks never played. Its check,
+                    "every meeting before them has a result", is made of the meetings that
+                    EXIST, and a week nobody drew has none to be unfinished
+
+Three things to carry forward:
+
+- **`matchIsOver(holes)` is the question; `resolveMatch(holes).complete` is not.** The trap is
+  written up in `domain/match.ts` and was walked into again one file away, under a comment
+  describing the right behaviour. A comment that states the rule is not the rule.
+- **A check built from the rows that exist cannot see the row that was never made.** "Nothing is
+  unfinished" is true of a week with no meetings in it. Count what there SHOULD be
+  (`LeagueTable.unsettled`: a week of N clubs is N/2 meetings) and compare.
+- **Ask, where a committee may mean it.** A league can abandon a week to the weather and go to
+  its play-offs, so `drawLeagueWeek(stageId, replace, shortSeason)` asks rather than refuses —
+  and its two questions are separate: saying yes to replacing a draw is not saying yes to a
+  short season.
+
+`e2e/interclub-league.spec.ts` runs the season from switching the league on to recording the
+play-off hole, and works every four-ball out for itself (90% before rounding, off the lowest of
+the four, better ball, the usual wording of a result). Week 1 and the final are typed into the
+score-entry screen; weeks 2 and 3 are written as rows, and it says so. What it cannot see is in
+its header.
+
+**AND A LOOKUP BY `id: { in: [...] }` HAS NO ORDER.** `nominatePair` looked its two
+players up in the tournament, rightly, and then took the pair's order from the
+rows that came back: a secretary who picked One and then Four got "Four / One"
+whenever the database returned them that way round. It was found by ONE failed
+check in about twenty-five passes of the league's browser test, which read as
+the test being impatient ("… was not put up"). The page the failed job kept
+showed the pair had been put up, under the other name. **A failure that looks
+like impatience is read from the page it kept, not from its message** — and
+where an action is handed a list, the list's order is the caller's:
+`a-pair-is-named-in-the-order-it-was-picked.audit.test.ts` sends each pair both
+ways round, because whichever way the database prefers, one of them differs.
+
 ## Handicaps: an allowance is taken BEFORE rounding
 
 Rules of Handicapping, 6.2a and Appendix C: a handicap allowance is "applied to the unrounded

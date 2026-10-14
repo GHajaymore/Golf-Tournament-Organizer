@@ -25,6 +25,8 @@ whether it can be read and used.
 | `npm run qa:round -- <NAME>` | Is this app sound, all over? | Before function or core changes reach production. |
 | `npm run qa:status` | How many clean rounds does this app have? | Whenever somebody asks. Never answer from memory. |
 | The **Round** workflow on GitHub | The same round, its parts side by side, in under an hour | The normal way to run a whole round. |
+| `node scripts/qa/burn-in.mjs` | Do the tests this change adds or touches pass every time, not most times? | Before a round is spent on them. See "What a round costs" below. |
+| The **Breaks** workflow on GitHub | Does each new test go red when the app is broken the way it is meant to catch? | With every change that adds a test. See "Proving a test by breaking the app". |
 
 `ci.yml` is not on this list because nobody runs it: it runs itself on every push, on one browser,
 and answers "did this change break something that was working". A round is a different question.
@@ -188,6 +190,95 @@ user would have seen, and then it is one of two things:
 
 The second kind must not be used to wave through the first. If there is doubt about which it is,
 it is the first.
+
+## What a round costs, and how it is kept short
+
+Ajay, 2026-10-13: "how can we reduce the testing time without impacting the testing
+efficiencies". Measured that day on a clean round (35 parts):
+
+| | |
+|---|---|
+| Machine time for one round | 445 minutes |
+| Wall clock for one round | 74 minutes |
+| Its longest part | 62 minutes: the laptop suite's first shard, which held the console crawl |
+| Its next longest part | 34 minutes |
+| A part's longest wait for a machine | 21 minutes, with three rounds pushed together |
+| Rounds that week which stopped on a test's own mistake | 2 of the last 7; none of the 7 stopped on the app |
+
+So three things, in order of what they save. None of them removes a test.
+
+1. **A round is not spent on a test's own mistakes.** A test that is wrong about timing passes
+   most of the time, so one run of it proves little. Before a round, `node scripts/qa/burn-in.mjs`
+   runs every spec the change adds or touches five times at laptop and phone size, and each must
+   pass every time. A round that stops on a new test costs that round and the one that confirms
+   the fix: two hours, against the ten minutes this takes.
+2. **A round takes as long as its slowest part, so no part is twice the others.** The console
+   crawl is one test and `--shard` cannot cut a test, so it is cut by SCREEN into four parts
+   (`E2E_CRAWL_PART`, `CRAWL_PARTS` in `layers.mjs`); the merge adds the four counts and holds the
+   total to the crawl's own minimum. When a part grows past about thirty minutes, cut it the same
+   way rather than waiting on it.
+3. **Nothing is run twice for no reason.** The every-push checks do not run on a `round/**`
+   branch: a round is a push of a commit that already has its pull request's checks.
+
+**Measured again the same evening, with all three in and forty machines** (Ajay upgraded the
+account; `round/league-1`, 39 parts):
+
+| | |
+|---|---|
+| Wall clock for one round | 39 minutes, for the same checks and eight more |
+| The build and the database suite every part waits for | 6 minutes |
+| Its longest part | 33 minutes: Firefox at laptop size |
+| Its next longest | Firefox phone 30, the iPhone 30, the iPad 27, Chrome 24, the Android tablet 23, Firefox small phone 22, Safari 21 |
+| A share of the console crawl, which had been 62 | 16 minutes |
+| Everything in the standing suite itself | 16 to 19 minutes a part |
+
+So the limit had moved, as rule 2 says it will: to the other browsers, each still running a whole
+suite on one machine. Ajay, that evening: "the test round you promised me was 35 mins. why its
+taking so long?" Those eight parts are cut in two by `--shard` (`SHARDS` in `layers.mjs`), which
+puts the longest part at about seventeen minutes and a round at about twenty-five. **When a round
+is slower than it was said to be, measure the parts before explaining it**: the first answer that
+came to mind that evening was the queue, and the queue was nought.
+
+4. **A deliberate break is proven on a machine of its own, not one after another on a desk.**
+   A browser test is only worth its green if the app, broken, turns it red, and that takes a
+   build per break. Eighteen of them run one at a time on the machine the app is written on took
+   eighty-five minutes and held its working tree the whole time. `breaks.yml` gives each break a
+   machine: push the list to a `breaks/**` branch (see "Proving a test by breaking the app").
+
+What decides the time of THREE rounds pushed together is machine time over the machines the
+account may use at once: about 1,400 minutes over forty is 35 minutes of queue-free running, so
+three rounds together finish in a little over the time of one and a half.
+
+**What is not on the list, deliberately:** fewer browsers, fewer rounds for a change to scoring,
+a shorter crawl, or re-running a failed part until it passes. Each of those is where a fault this
+suite found was found.
+
+## Proving a test by breaking the app
+
+A test is only worth its green if the app, broken, turns it red. Every change that adds a test
+breaks the code it covers, watches the test fail, and puts the code back (`CLAUDE.md`, "Prove a
+new test can fail"). For a browser test that is a build per break, so it is not done on a desk:
+
+1. Commit the work. A break is judged against that commit, and is undone with `git checkout`.
+2. Write the list: a JSON array, one entry a break. `scripts/qa/breaks.mjs` says what an entry
+   holds: the file, the one line to change and what to change it to, and the tests that should
+   notice (a browser spec, unit tests, database tests).
+3. `node scripts/qa/breaks.mjs --check <list>` says whether every break would apply, before any
+   machine is spent. Then, on a branch named `breaks/<anything>`, on top of that commit, commit the list as
+   `qa-breaks.json` at the root, and push. The **Breaks** workflow gives every break a machine and
+   a database. The branch is thrown away afterwards; the list is never merged.
+4. Read the verdict. A job is GREEN when a test went red, so a red job is a break the tests missed.
+
+| Result | What it means |
+|---|---|
+| CAUGHT | A test the break names failed — and the same tests PASS with nothing broken, which the run checks first on a machine of its own (job 0). If they do not, the verdict says NOTHING PROVEN: a break "caught" by a test that was already red proves nothing, and the first browser list this workflow was given did exactly that. |
+| NOT CAUGHT | They all passed. Either the tests cannot see that fault, or the break changes nothing anybody would notice. Work out which and write it in the pull request; do not assume. |
+| NOT APPLIED | The line was not found exactly once, so nothing was broken. Never read this as "not caught". |
+| DOES NOT COMPILE | The type checker refused the break, so nothing ran. Rewrite the break. |
+| DID NOT RUN | A browser test's build or server failed. A break that leaves a variable unused fails the build's lint: keep it used (`x * 0`, `x && ""`). |
+
+One break on a desk, to see it work before pushing a list: `node scripts/qa/breaks.mjs --run=1
+qa-breaks.json`. Quote the count in the pull request, with every break that was not caught explained.
 
 ## Keeping it true when the app changes
 

@@ -82,6 +82,24 @@ const refusal = (page: Page) => page.locator('p[role="alert"]:not(#__next-route-
  * box stays where it was on the screen. (The first version of this note said
  * Safari left them in the pricing. That was assumed, and was wrong.)
  */
+/**
+ * THE RESET FORM PUTS THE CURSOR IN ITS FIRST BOX WHEN IT ARRIVES, and a test
+ * that types before it has done so types in the wrong box.
+ *
+ * One round stopped here on Safari's engine (2026-10-13): the second box was
+ * filled about 150ms after the page loaded, the cursor was pulled back to the
+ * first box in that instant, and both passwords went into it — the failed run's
+ * own screenshot shows fifty dots in "New password", nothing in "Confirm", and
+ * the button rightly grey. Three theories about the app losing what was typed
+ * were tested first and none reproduced it (300 attempts); typing at a
+ * person's speed, in the second box, while the page came alive, kept every
+ * character where it was typed. Nobody reaches the second box in a sixth of a
+ * second, so this is the test's to wait for, and it waits for the thing itself.
+ */
+async function cursorIsInTheFirstBox(page: Page) {
+  await expect(page.getByPlaceholder(/At least \d+ characters/), "the reset form did not put the cursor in its first box").toBeFocused();
+}
+
 async function panel(page: Page, tab: "Log in" | "Sign up") {
   await landingSettled(page);
   await page.getByRole("tab", { name: tab, exact: true }).click();
@@ -240,6 +258,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
 
   await page.goto(`/reset-password?token=${token}`);
   expect(await labelsForTheWrongThing(page)).toEqual([]);
+  await cursorIsInTheFirstBox(page);
   await page.getByPlaceholder(/At least \d+ characters/).fill(NEW_PASSWORD);
   await page.getByPlaceholder("Re-enter password").fill(NEW_PASSWORD);
   await page.getByRole("button", { name: /Set password & sign in/ }).click();
@@ -253,6 +272,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 });
   await page.goto(`/reset-password?token=${token}`);
+  await cursorIsInTheFirstBox(page);
   await page.getByPlaceholder(/At least \d+ characters/).fill("eight-Birdies-in-33-a-row");
   await page.getByPlaceholder("Re-enter password").fill("eight-Birdies-in-33-a-row");
   await page.getByRole("button", { name: /Set password & sign in/ }).click();

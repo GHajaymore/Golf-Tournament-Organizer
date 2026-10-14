@@ -101,7 +101,17 @@ export async function nominatePair(
     where: { eventId, id: { in: playerIds } },
     select: { id: true },
   });
-  const clean = [...new Set(inEvent.map((p) => p.id))];
+  /**
+   * IN THE ORDER THE CAPTAIN PICKED THEM. Only ids that came back from the
+   * lookup above are kept — but their ORDER is the caller's, because the query
+   * has none: the database returns the two rows however it likes, and this
+   * took the pair's name and its first player from that. A secretary who
+   * picked One and then Four got "Four / One" whenever the rows came back that
+   * way round (`a-pair-is-named-in-the-order-it-was-picked.audit.test.ts`).
+   */
+  const found = new Set(inEvent.map((p) => p.id));
+  const sent: unknown[] = Array.isArray(playerIds) ? playerIds : [];
+  const clean = [...new Set(sent.filter((id): id is string => typeof id === "string" && found.has(id)))];
   if (clean.length !== 2) {
     return {
       ok: false,
@@ -309,7 +319,14 @@ export type LeagueDrawResult =
       /** Pairs left without an opponent because the other club put up fewer. */
       unmatched: number;
     }
-  | { ok: false; error: string; needsConfirm?: boolean; existing?: number };
+  | {
+      ok: false;
+      error: string;
+      needsConfirm?: boolean;
+      existing?: number;
+      /** Season meetings that were never played, when that is what is being asked about. */
+      missing?: number;
+    };
 
 /**
  * DRAW ONE LEAGUE WEEK: which clubs meet, and which pair plays which.
@@ -325,8 +342,21 @@ export type LeagueDrawResult =
  * NOT LOCKED BY LAUNCH, like nominating: a league is live all season and is
  * drawn every week. What it does refuse is replacing a week somebody has
  * already scored — same rule, same wording, as the generic draw.
+ *
+ * AND IT ASKS BEFORE DRAWING THE PLAY-OFFS OFF A SEASON WITH A HOLE IN IT
+ * (`shortSeason`). The check below it — "every meeting before them has a
+ * result" — is made of the meetings that EXIST, and a week nobody drew has
+ * none, so it had nothing to say: with one week of three played and a pair
+ * put up on the final's tab, Draw made the final (2026-10-13). A league may
+ * well abandon a week to the weather and go to its play-offs; that is the
+ * committee's call, so it is asked rather than refused, with the number of
+ * meetings that were never played.
  */
-export async function drawLeagueWeek(stageId: string, replace = false): Promise<LeagueDrawResult> {
+export async function drawLeagueWeek(
+  stageId: string,
+  replace = false,
+  shortSeason = false,
+): Promise<LeagueDrawResult> {
   const eventId = await requireStaff();
 
   const stage = await prisma.stage.findFirst({
@@ -385,14 +415,31 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
     const bonus = event?.leagueMatchBonus;
 
     const before = playoffRound === 0 ? season : [playoffs[playoffRound - 1]];
+    // A week of N clubs is N/2 meetings; fewer is a week not drawn, or a club with no pair up.
+    const meetingsAWeek = Math.floor(clubs.length / 2);
+    let missing = 0;
     for (const earlier of before) {
-      const open = (await leagueMeetings(eventId, earlier, system, bonus)).filter((m) => !m.complete);
+      const held = await leagueMeetings(eventId, earlier, system, bonus);
+      if (playoffRound === 0) missing += Math.max(0, meetingsAWeek - held.length);
+      const open = held.filter((m) => !m.complete);
       if (open.length > 0) {
         return {
           ok: false,
           error: `${open[0].clubAName} v ${open[0].clubBName} is not finished yet. The play-offs are drawn once every meeting before them has a result.`,
         };
       }
+    }
+
+    if (missing > 0 && !shortSeason) {
+      return {
+        ok: false,
+        error:
+          missing === 1
+            ? "One season meeting was never played."
+            : `${missing} season meetings were never played.`,
+        needsConfirm: true,
+        missing,
+      };
     }
 
     const bracket = await leaguePlayoffs(eventId, system, bonus);

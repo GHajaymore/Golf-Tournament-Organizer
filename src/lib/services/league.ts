@@ -315,6 +315,13 @@ export interface LeagueTable {
   rows: LeagueTableRow[];
   /** What decided the order, in the committee's own words. */
   orderNote: string;
+  /**
+   * How many of the season's meetings have no result yet — one still out on
+   * the course, one drawn and not played, and one in a week that has not been
+   * drawn at all. Nought is a season that is over, and the only state in which
+   * the order above is the order the play-offs are seeded in.
+   */
+  unsettled: number;
 }
 
 /**
@@ -371,6 +378,19 @@ export interface LeaguePlayoffs {
   /** Club id to name, for everything above. */
   names: Record<string, string>;
   champion: string | null;
+  /**
+   * How many season meetings still have no result WHILE THE PLAY-OFFS HAVE NOT
+   * BEEN DRAWN, or nought. Above nought, the first round printed here is where
+   * the table stands today and not who is in it.
+   *
+   * The bracket is seeded from the table at every moment, which is right: a
+   * league wants to see who would be through. It printed that with nothing to
+   * say it was not settled — "Final: (1) Ardlui v Balfron (2)" over a league
+   * in which nobody had played, the two clubs being first in the alphabet
+   * (2026-10-13). Once the play-offs are drawn the meetings are real whatever
+   * the season holds, so this is nought from then on.
+   */
+  provisional: number;
 }
 
 /**
@@ -461,6 +481,7 @@ export async function leaguePlayoffs(
     })),
     names: Object.fromEntries(table.rows.map((r) => [r.clubId, r.name])),
     champion: playoffChampion(bracket, outcomes.at(-1) ?? []),
+    provisional: (outcomes[0] ?? []).length === 0 ? table.unsettled : 0,
   };
 }
 
@@ -499,7 +520,7 @@ export async function leagueTable(
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });
-  if (clubs.length === 0) return { rows: [], orderNote: "" };
+  if (clubs.length === 0) return { rows: [], orderNote: "", unsettled: 0 };
 
   /**
    * THE SEASON ONLY. A play-off meeting decides who goes through, not where
@@ -521,12 +542,42 @@ export async function leagueTable(
     h2h.get(b)?.set(a, -result);
   };
 
+  /**
+   * A week of an N-club league is N/2 meetings, with one club sitting out when
+   * N is odd. Counted so that the table can say how much of the season is
+   * still to come — see `LeagueTable.unsettled`.
+   */
+  const meetingsAWeek = Math.floor(clubs.length / 2);
+  let unsettled = 0;
+
   for (const stageId of season) {
-    for (const m of await leagueMeetings(eventId, stageId, system, matchBonus)) {
+    const week = await leagueMeetings(eventId, stageId, system, matchBonus);
+    unsettled += Math.max(0, meetingsAWeek - week.filter((m) => m.complete).length);
+    for (const m of week) {
       add(points, m.clubAId, m.pointsA);
       add(points, m.clubBId, m.pointsB);
-      add(played, m.clubAId, 1);
-      add(played, m.clubBId, 1);
+      /**
+       * PLAYED IS A MEETING WITH A RESULT, not a meeting that was drawn.
+       *
+       * This counted every meeting `leagueMeetings` returned, and a meeting
+       * exists from the moment a week is drawn — so on the Monday a secretary
+       * drew Thursday's four-balls, every club in the league had "Played 1"
+       * beside "Won 0" and no points, and a fixture list published three
+       * weeks ahead read "Played 3" before a ball was struck. The pairs'
+       * own table on the leaderboard said "P 0" of the same four-balls, with
+       * a line under it: "A pairing nobody has started yet counts for neither
+       * side." Two panels, one question, two answers. Read off a league built
+       * for the purpose, 2026-10-13.
+       *
+       * Complete rather than started, to match `won` just below ("only once
+       * it is over") and the play-off draw, which waits until "every meeting
+       * before them has a result". The win-percentage countback divides one
+       * by the other, so they have to count the same thing.
+       */
+      if (m.complete) {
+        add(played, m.clubAId, 1);
+        add(played, m.clubBId, 1);
+      }
 
       /**
        * HOLES WON AND LOST, for the committee's countbacks — counted from
@@ -582,5 +633,5 @@ export async function leagueTable(
     chain,
     h2h,
   );
-  return { rows, orderNote: clubOrderNote(chain, tiebreakerLabel) };
+  return { rows, orderNote: clubOrderNote(chain, tiebreakerLabel), unsettled };
 }

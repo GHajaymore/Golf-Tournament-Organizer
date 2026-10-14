@@ -29,6 +29,16 @@ import type { ClubNominations } from "@/lib/services/league-nomination";
 export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId: string }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState("");
+  /**
+   * A refused Withdraw is said beside the pair, not under the roster.
+   *
+   * There was one line for both refusals, at the foot of "Available to pick".
+   * Withdraw is pressed in the card ABOVE that one, so a pair with a card on it
+   * was refused a roster's length away from the button — with twelve on the
+   * roster, off the screen. The same fault as the course editor's and the club
+   * staff form's (CLAUDE.md, "a refusal is said where the press was").
+   */
+  const [withdrawRefused, setWithdrawRefused] = useState("");
   const [pending, startTransition] = useTransition();
 
   const unpaired = club.roster.filter((r) => !r.pairId);
@@ -46,6 +56,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
 
   const nominate = () => {
     startTransition(async () => {
+      setWithdrawRefused("");
       const result = await nominatePair(stageId, club.clubId, picked);
       if (result.ok) setPicked([]);
       else setError(result.error);
@@ -54,8 +65,10 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
 
   const withdraw = (pairId: string) => {
     startTransition(async () => {
+      setError("");
+      setWithdrawRefused("");
       const result = await withdrawPair(pairId);
-      if (!result.ok) setError(result.error);
+      if (!result.ok) setWithdrawRefused(result.error);
     });
   };
 
@@ -122,6 +135,11 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
             ))}
           </ul>
         )}
+        {withdrawRefused && (
+          <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
+            {withdrawRefused}
+          </p>
+        )}
       </div>
 
       <div className="card elev-sm">
@@ -175,7 +193,7 @@ export function PairBuilder({ club, stageId }: { club: ClubNominations; stageId:
         )}
 
         {error && (
-          <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
+          <p role="alert" style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>{error}</p>
         )}
 
         <button
