@@ -99,7 +99,11 @@ test("the organizer's own invitation is kept, under a box a screen reader can na
 
 const required = async () => (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { requirePhone: true } })).requirePhone;
 
-test("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
+// NOT YET PROVEN, and so not run: on GitHub (breaks/phone, 2026-10-14) this failed on the
+// UNCHANGED app at desktop and phone size, and the run kept no message to say which step. A
+// test that fails with nothing broken proves nothing either way. Debug it against a local run
+// before turning it back on; until then the round reports it as skipped, not passed.
+test.fixme("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   watchPageErrors(page, errors, "organizer");
