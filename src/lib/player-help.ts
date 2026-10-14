@@ -83,6 +83,19 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
     ],
   },
   {
+    id: "tees",
+    question: "Which tees do I play?",
+    href: "/me/card",
+    steps: [
+      "Your organizer decides the tees.",
+      "For the tournament, for your flight, or for you.",
+      "Your card names the tees you are on.",
+      "You cannot change them here. Ask your organizer.",
+      "On a higher par than others? You get the difference as strokes.",
+      "Not in Stableford, where par already counts.",
+    ],
+  },
+  {
     id: "sign",
     question: "How do I sign my card?",
     href: "/me/card",
