@@ -7,7 +7,7 @@ import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
 import { effectiveAllowance, effectiveCountBest } from "./teams";
 import { parStrokesApply } from "../round-allowance";
-import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
 import {
@@ -157,7 +157,7 @@ export async function leagueMeetings(
   const cards = await prisma.teamScorecard.findMany({ where: { eventId, stageId } });
   const players = await prisma.player.findMany({
     where: { eventId },
-    select: { id: true, handicap: true, handicapType: true, teeId: true },
+    select: FIELD_PLAYER,
   });
 
   /**

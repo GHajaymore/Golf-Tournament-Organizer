@@ -1,5 +1,4 @@
 "use server";
-import { teeMatcherFor } from "@/lib/services/handicaps";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -170,11 +169,10 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     "public",
   );
 
-  // What they typed, turned into the set they play from. Unmatched or
-  // ambiguous stays null, which means the round’s tees and is correctable on
-  // the field screen — a guess would not be. Resolved above the lock: it reads
-  // the event's tees, not the confirmed count.
-  const teeFor = await teeMatcherFor(event.id);
+  // NO TEES ARE SET HERE. This turned what an entrant typed in "Preferred tee"
+  // into the set they play from, where it beat their flight's: a stranger on a
+  // public form deciding a condition of the competition. The organizer decides
+  // the tees (`TEE_POLICY`), so an entrant starts on the tournament's.
 
   /**
    * COUNT, DECIDE THE STATUS, AND CREATE UNDER THE EVENT'S INTAKE LOCK. Two
@@ -219,7 +217,6 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     await tx.player.create({
       data: {
         eventId: event.id,
-        teeId: teeFor(person.preferredTee),
         memberId,
         name: person.name,
         handicap: person.handicap,

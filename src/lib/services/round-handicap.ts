@@ -1,8 +1,8 @@
 import "server-only";
 import { playedOnBy } from "./courses";
-import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer, FIELD_PLAYER, type FieldPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps, type IndexHolder } from "../domain/handicap";
+import { NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps } from "../domain/handicap";
 import { findFormat } from "../formats";
 import { effectiveAllowance, parStrokesApply } from "../round-allowance";
 import {
@@ -80,7 +80,7 @@ async function roundCourseHandicaps(
    * the default set), so taking the whole type here would ask each caller for
    * the one field the whole point of this function is to resolve for them.
    */
-  players: Omit<IndexHolder, "flightTeeId">[],
+  players: FieldPlayer[],
 ): Promise<CourseHandicaps> {
   const [event, tees, flightTee] = await Promise.all([
     prisma.event.findUnique({
@@ -155,7 +155,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, handicap: true, handicapType: true, teeId: true },
+      select: FIELD_PLAYER,
     }),
   ]);
 
@@ -374,7 +374,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
+      select: { ...FIELD_PLAYER, name: true },
       orderBy: { seed: "asc" },
     }),
   ]);

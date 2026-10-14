@@ -10,7 +10,6 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { fieldLimitFor } from "@/lib/services/waitlist";
 import { boardChanged } from "@/lib/services/board-refresh";
-import { teeMatcherFor } from "@/lib/services/handicaps";
 import { withEventIntakeLock } from "@/lib/services/intake-lock";
 import { ownWithdrawalOpen } from "@/lib/registration";
 import { clubDayForEvent } from "@/lib/services/club-clock";
@@ -218,7 +217,10 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
     };
   }
 
-  const teeFor = await teeMatcherFor(eventId);
+  // Kept as what the club's record says they usually play, for the organizer
+  // to read. It does NOT put them on those tees: the organizer decides the tees
+  // (tournament, then flight, then one player), and an entry that wrote its own
+  // would beat the flight's — see `TEE_POLICY`.
   const preferredTee = member?.preferredTee ?? "";
 
   /**
@@ -256,7 +258,6 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       data: {
         eventId,
         memberId: member?.id ?? null,
-        teeId: teeFor(preferredTee),
         name: member?.name || session.name || session.email,
         email: session.email,
         phone,

@@ -1201,6 +1201,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * with everybody who had no stored tee priced correctly beside them.
          */
         courseId: t.courseId,
+        // Whose card the set is rated for: the ladies' default reads it, here
+        // as in `teeRatingsOf`, or the board and every other reader of a round
+        // would put a woman on different tees.
+        gender: t.gender,
       },
     ]),
   );

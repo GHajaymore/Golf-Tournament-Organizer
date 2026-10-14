@@ -76,7 +76,8 @@ describe("the public sign-up form is named", () => {
         waitlistOnly={false} spotsLeft={12} approvalMode="auto" prefill={null} requirePhone />,
     );
     expect(html).toContain("Handicap index");
-    expect(html).toContain("Preferred tee");
+    // The form does not ask which tees: the organizer decides them.
+    expect(html).not.toContain("Preferred tee");
     expect(unnamedControls(html)).toEqual([]);
   });
 });

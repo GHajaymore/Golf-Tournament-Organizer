@@ -257,6 +257,13 @@ export interface IndexHolder {
    * what found all eight; the same trick that found the two `send` call sites.
    */
   flightTeeId: string | null;
+  /**
+   * As the roster records it. Read for one thing: a woman with no set of her
+   * own and none from her flight plays the course's ladies' set (`teeIdFor`).
+   * Optional here so that a field built by hand in a test need not say; the
+   * service that loads a real field (`roundCourseHandicaps`) requires it.
+   */
+  gender?: string | null;
 }
 
 /**
@@ -377,6 +384,24 @@ export function teeIdFor(
    * the field is on.
    */
   onThisCourse: (teeId: string) => boolean,
+  /**
+   * THE LADIES' SET, FOR A WOMAN — `ladiesTeeFor(gender, ladiesTeeOn(...))`,
+   * and null for anybody it does not apply to.
+   *
+   * The rung between a flight and the tournament (Ajay, 2026-10-13: the
+   * organizer decides the tees at three levels, tournament, then flight, then
+   * one player; "use the common sense of defaulting the tees based on gender").
+   * A DEFAULT, not a level: it is what a woman plays where nobody has said
+   * otherwise, and anything the organizer set beats it — her flight's set, or
+   * her own. Under one set for everyone it is not consulted at all, which is
+   * how a committee puts a mixed field on the same tees.
+   *
+   * Required, and last only so that it could be added without re-ordering
+   * every existing call. A caller that left it out would put the ladies on the
+   * men's rating on one screen while the board beside it had them on their
+   * own, so the compiler is made to find every one.
+   */
+  ladiesTeeId: string | null,
 ): string {
   /** A rung is only a rung if it points at a set that is actually here. */
   const here = (id: string | null | undefined) => (id && onThisCourse(id) ? id : null);
@@ -389,8 +414,49 @@ export function teeIdFor(
   // answer whether it is the answer — and on a tournament whose courses have
   // no tees at all it would turn a harmless "" into a different harmless "".
   if (policy === "one") return defaultTeeId ?? "";
-  if (policy === "flight") return here(flightTeeId) ?? defaultTeeId ?? "";
-  return here(playerTeeId) ?? here(flightTeeId) ?? defaultTeeId ?? "";
+  if (policy === "flight") return here(flightTeeId) ?? here(ladiesTeeId) ?? defaultTeeId ?? "";
+  return here(playerTeeId) ?? here(flightTeeId) ?? here(ladiesTeeId) ?? defaultTeeId ?? "";
+}
+
+/**
+ * Whether a recorded gender is a woman's. The roster takes what a club's file
+ * says — "F", "female", "Ladies" — so this reads the spellings a file has.
+ * Anything else, a blank included, is not known to be: nobody is moved to
+ * other tees on a guess.
+ */
+export function isWoman(gender: string | null | undefined): boolean {
+  return /^(f|w|female|woman|women|lady|ladies|girl|girls)$/i.test((gender ?? "").trim());
+}
+
+/** Whether a set of tees is rated for women: `Tee.gender`, in any of the spellings it has been stored with. */
+export function teeIsForWomen(teeGender: string | null | undefined): boolean {
+  return isWoman(teeGender);
+}
+
+/**
+ * THE LADIES' SET ON ONE COURSE, or null where the course has none.
+ *
+ * Where a course rates several sets for women — a directory card often rates
+ * every colour for both — it is the one with the LOWEST course rating, which
+ * is the shortest: what a club means by "the ladies' tees". A tie goes to the
+ * set further down the card.
+ */
+export function ladiesTeeOn(
+  tees: Iterable<readonly [string, { courseId?: string; gender?: string | null; courseRating: number }]>,
+  courseId: string | null | undefined,
+): string | null {
+  if (!courseId) return null;
+  let best: { id: string; rating: number } | null = null;
+  for (const [id, t] of tees) {
+    if (t.courseId !== courseId || !teeIsForWomen(t.gender)) continue;
+    if (!best || t.courseRating <= best.rating) best = { id, rating: t.courseRating };
+  }
+  return best?.id ?? null;
+}
+
+/** The ladies' set for THIS player: the course's, for a woman; null for anybody else. */
+export function ladiesTeeFor(gender: string | null | undefined, ladiesTeeId: string | null): string | null {
+  return isWoman(gender) ? ladiesTeeId : null;
 }
 
 /**
@@ -493,7 +559,7 @@ export function courseHandicapMap(
    * map of ratings alone cannot answer that, which is exactly why a stored tee
    * from another venue used to win.
    */
-  teesById: Map<string, TeeRating & { courseId?: string }>,
+  teesById: Map<string, TeeRating & { courseId?: string; gender?: string | null }>,
   defaultTeeId: string | null,
   holes: number,
   /**
@@ -535,10 +601,13 @@ export function courseHandicapMap(
     if (row.courseId === undefined) return true;
     return row.courseId === playingAt;
   };
+  // The ladies' set at the course being played, once for the field.
+  const ladies = ladiesTeeOn(teesById, playingAt);
+  const teeOf = (p: IndexHolder) =>
+    teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse, ladiesTeeFor(p.gender, ladies));
   const out = new CourseHandicaps();
   for (const p of players) {
-    const raw =
-      teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse)) ?? null;
+    const raw = teesById.get(teeOf(p)) ?? null;
     // Index and rating are each converted to the holes being played, once.
     // See indexForHoles for the four cases and the doubling bug the old
     // one-case conversion caused.
@@ -558,7 +627,7 @@ export function courseHandicapMap(
   if (holes !== 9) {
     out.setFieldPars(
       field
-        .map((p) => teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse))?.par)
+        .map((p) => teesById.get(teeOf(p))?.par)
         .filter((par): par is number => typeof par === "number"),
     );
   }

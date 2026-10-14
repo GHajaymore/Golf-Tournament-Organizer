@@ -24,7 +24,10 @@ describe("nine-hole rounds don't halve twice", () => {
     // nine-hole rounds — see nine-hole-index.test.ts for the behaviour.
     const src = read("src/lib/services/handicaps.ts");
     expect(src).toMatch(/indexForHoles\(p\.handicap, p\.handicapType, holes\)/);
-    expect(src).toMatch(/indexForHoles\(player\.handicap, player\.handicapType, holes\)/);
+    // The second reader this pinned, `courseHandicapForPlayer`, had no callers
+    // and was deleted on 2026-10-13: a rule kept in a function nobody calls is
+    // a second copy waiting to be used.
+    expect(src).not.toMatch(/courseHandicapForPlayer/);
     expect(src).not.toMatch(/handicapType === "9" && holes !== 9/);
   });
 

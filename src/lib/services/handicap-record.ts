@@ -3,7 +3,7 @@ import { playedOnByAny } from "./courses";
 import { prisma } from "../db";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { teeRatingFor } from "./handicaps";
-import { courseHandicap, holesPlayed, teeIdFor, indexForHoles } from "../domain/handicap";
+import { courseHandicap, holesPlayed, teeIdFor, indexForHoles, ladiesTeeFor, ladiesTeeOn } from "../domain/handicap";
 import { resolveRoundHandicap } from "../domain/round-handicap";
 import {
   handicapRecordFrom,
@@ -94,7 +94,7 @@ export async function memberHandicapRecord(
      * nine or an eighteen, and passing a nine-hole index raw into an 18-hole
      * round doubles nothing and halves nothing — it just uses the wrong number.
      */
-    select: { id: true, eventId: true, handicap: true, teeId: true, groupId: true, handicapType: true },
+    select: { id: true, eventId: true, handicap: true, teeId: true, groupId: true, handicapType: true, gender: true },
   });
   if (entries.length === 0) {
     return {
@@ -207,6 +207,12 @@ export async function memberHandicapRecord(
             const at = event.defaultTeeId ? teeById.get(event.defaultTeeId)?.courseId : undefined;
             return !at || teeById.get(id)?.courseId === at;
           },
+          // The ladies' set at that course, for a woman nobody had put elsewhere —
+          // the rung the board read on the day, so the record reads it too.
+          ladiesTeeFor(
+            entry.gender,
+            ladiesTeeOn(teeById, event.defaultTeeId ? teeById.get(event.defaultTeeId)?.courseId : undefined),
+          ),
         ),
       ) ?? null;
     const rating = teeRatingFor(tee, holes);

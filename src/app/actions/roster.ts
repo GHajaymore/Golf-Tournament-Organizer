@@ -1,6 +1,5 @@
 "use server";
 import { configurationLocked } from "@/lib/domain/lifecycle-state";
-import { teeMatcherFor } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
@@ -564,9 +563,6 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   // — see `entryContactNeeds` and `contactGap`.
   const needs = await entryContactNeeds(event);
 
-  // Read once, outside the loop: adding forty members should not read the
-  // tee table forty times.
-  const teeFor = await teeMatcherFor(eventId);
 
   for (const m of members) {
     if (takenIds.has(m.id) || (m.email && takenEmails.has(m.email))) {
@@ -625,10 +621,11 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
         eventId,
         memberId: m.id,
         name: m.name,
-        // The set on the member's record, turned into this tournament's tee.
-        // Unmatched or ambiguous stays null — the round's tees, visible and
-        // correctable on the field screen rather than guessed at here.
-        teeId: teeFor(m.preferredTee),
+        // No `teeId`: the set on the member's record is what they USUALLY play,
+        // and it used to be written here as their own, where it beat their
+        // flight's. The organizer decides the tees (`TEE_POLICY`); a member
+        // starts on their flight's or the tournament's, and a woman on the
+        // course's ladies' set, which is what `gender` below is carried for.
         // Snapshot, not a reference: correcting this member's index next month
         // must not change the result of the tournament they're entering now.
         handicap: m.handicap,

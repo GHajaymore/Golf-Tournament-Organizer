@@ -154,6 +154,8 @@ export async function teamsForStage(
               handicap: true,
               handicapType: true,
               teeId: true,
+              // For the ladies' default set — see `teeIdFor`.
+              gender: true,
               // Who is actually playing. See `TeamMemberView.withdrawn`.
               status: true,
             },

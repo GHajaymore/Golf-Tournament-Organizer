@@ -9,7 +9,7 @@ import type { HoleResult } from "../domain/types";
 import { holesPlayed } from "../domain/handicap";
 import { strokeHandicapResolver } from "./tournament";
 import { roundHandicapRows } from "./round-handicap";
-import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "./handicaps";
 
 /**
  * Standings for the formats that read an ordinary card a different way.
@@ -64,7 +64,7 @@ async function playingHandicapFor(
   const [players, stage, tees, roundRows] = await Promise.all([
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, handicap: true, handicapType: true, teeId: true },
+      select: FIELD_PLAYER,
     }),
     prisma.stage.findUnique({ where: { id: stageId } }),
     // This club's tees only — the same scoping `roundHandicapsFor` uses, and
@@ -89,6 +89,7 @@ async function playingHandicapFor(
     handicap: p.handicap,
     handicapType: p.handicapType,
     teeId: p.teeId,
+    gender: p.gender,
   }));
   const forRound = (holes: number) =>
     roundCourseHandicaps({ tees, players: idx, field: idx, flightTeeOf: flightTee, stage, event, holes });

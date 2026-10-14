@@ -23,7 +23,7 @@ describe("a player's own set", () => {
 
   for (const policy of TEE_POLICY) {
     it(`under "${policy}": the control is offered exactly when scoring would read it`, () => {
-      const read = teeIdFor(policy, "players", "flights", "rounds", everywhere) === "players";
+      const read = teeIdFor(policy, "players", "flights", "rounds", everywhere, null) === "players";
       expect(playerTeeCounts(policy)).toBe(read);
     });
   }
@@ -65,7 +65,7 @@ describe("a flight's set", () => {
     it(`under "${policy}": the control is shown exactly when scoring would read it`, async () => {
       const { flightTeeCounts } = await import("../tournament-settings");
       // A player with no set of their own, in a flight that claims one.
-      const read = teeIdFor(policy, null, "flights", "rounds", everywhere) === "flights";
+      const read = teeIdFor(policy, null, "flights", "rounds", everywhere, null) === "flights";
       expect(flightTeeCounts(policy)).toBe(read);
     });
   }

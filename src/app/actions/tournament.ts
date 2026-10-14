@@ -4,7 +4,7 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
-import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "@/lib/services/handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -2912,7 +2912,7 @@ async function deriveMatchFromItsCards(
     tees: netTees,
     players: [playerA, playerB]
       .filter((x): x is NonNullable<typeof x> => !!x)
-      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId })),
+      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId, gender: p.gender })),
     // The lowest par being played is the field's, not this pair's (Rule 6.2b).
     field: await confirmedField(eventId),
     flightTeeOf: netFlightTee,
@@ -3289,7 +3289,7 @@ async function recomputeTeamMatch(
       prisma.teamMember.findMany({
         where: { teamId },
         include: {
-          player: { select: { id: true, handicap: true, handicapType: true, teeId: true } },
+          player: { select: FIELD_PLAYER },
         },
       }),
     ]);
@@ -5360,7 +5360,7 @@ export async function importScores(
       prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
       prisma.player.findMany({
         where: { eventId, status: "confirmed" },
-        select: { id: true, handicap: true, handicapType: true, teeId: true },
+        select: FIELD_PLAYER,
       }),
       prisma.tee.findMany({
         // Scoped to this tournament's courses. Unscoped, this returned every

@@ -3,7 +3,7 @@ import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
-import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
@@ -212,7 +212,7 @@ export async function skinsPotFor(
        * assigned a different set. The same name-for-an-id fault that had a
        * tournament scoring against another course's stroke index.
        */
-      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, status: true },
+      select: { ...FIELD_PLAYER, name: true, status: true },
       orderBy: { seed: "asc" },
     }),
     // Every table this round's cards can be in — see `roundStrokes`, which
@@ -386,13 +386,14 @@ export async function skinsPotFor(
       handicap: p.handicap,
       handicapType: p.handicapType,
       teeId: p.teeId,
+      gender: p.gender,
     })),
     // The FIELD's lowest par, not the pot's (Rule 6.2b): a pot of players all
     // off the longer par would otherwise give none of them the stroke the
     // board gives every one, and a skin is won hole by hole.
     field: players
       .filter((p) => p.status === "confirmed")
-      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId })),
+      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId, gender: p.gender })),
     flightTeeOf: flightTee,
     stage,
     event,

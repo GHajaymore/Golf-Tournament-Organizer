@@ -2,20 +2,20 @@ import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import {
-  courseHandicap,
   nineHoleTee,
   isRated,
   explainHandicap,
   indexForHoles,
   type TeeRating,
   teeIdFor,
+  ladiesTeeFor,
+  ladiesTeeOn,
   courseHandicapMap,
   holesPlayed,
   type CourseHandicaps,
   type IndexHolder,
 } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
-import { matchTee } from "../domain/tee-match";
 import { formationReadsHandicap } from "../domain/grouping";
 import { defaultTeeFor, type TeeLike } from "../domain/venue";
 
@@ -77,7 +77,7 @@ export async function handicapsForRound(
       // groupId comes too, because a flight can claim a set of tees and the
       // player inherits it — that is how a club championship expresses three
       // divisions off three tees without 120 separate decisions.
-      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, groupId: true },
+      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, groupId: true, gender: true },
       orderBy: { seed: "asc" },
     }),
     prisma.tee.findMany({
@@ -126,6 +126,8 @@ export async function handicapsForRound(
     if (!playingAt) return true;
     return teeById.get(id)?.courseId === playingAt;
   };
+  // The ladies' set at the course being played — the same rung `courseHandicapMap` reads.
+  const ladies = ladiesTeeOn(teeById, playingAt);
 
   return players.map((p) => {
     const tee =
@@ -136,6 +138,7 @@ export async function handicapsForRound(
           flightTee.get(p.groupId ?? "") ?? null,
           defaultTeeId,
           onThisCourse,
+          ladiesTeeFor(p.gender, ladies),
         ),
       ) ?? null;
     const rating = teeRatingFor(tee, holes);
@@ -307,11 +310,18 @@ export function teeForPlay(
  */
 export function teeRatingsOf(
   tees: readonly TeeLike[],
-): Map<string, TeeRating & { courseId: string }> {
+): Map<string, TeeRating & { courseId: string; gender: string | null }> {
   return new Map(
     tees.map((t) => [
       t.id,
-      { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par, courseId: t.courseId },
+      {
+        courseRating: t.courseRating,
+        slopeRating: t.slopeRating,
+        par: t.par,
+        courseId: t.courseId,
+        // Whose card the set is rated for: the ladies' default reads it (`ladiesTeeOn`).
+        gender: t.gender ?? null,
+      },
     ]),
   );
 }
@@ -344,11 +354,22 @@ export function teeRatingsOf(
  * that agree by construction agree whether or not they are right — see
  * CLAUDE.md on what consolidation takes away.
  */
+/** A player as `roundCourseHandicaps` needs them: what decides their handicap, and their tees. */
+export type FieldPlayer = Omit<IndexHolder, "flightTeeId" | "gender"> & { gender: string | null };
+/** The columns that make one — select this rather than listing them, so a new one reaches every reader. */
+export const FIELD_PLAYER = { id: true, handicap: true, handicapType: true, teeId: true, gender: true } as const;
+
 export function roundCourseHandicaps(args: {
   /** This club's tees, whole rows — `teeForPlay`'s fallback sorts on name and rating. */
   tees: TeeLike[];
-  /** The field, without `flightTeeId`: this resolves that from `flightTeeOf`. */
-  players: readonly Omit<IndexHolder, "flightTeeId">[];
+  /**
+   * The field, without `flightTeeId`: this resolves that from `flightTeeOf`.
+   * WITH `gender`, required: a woman with no set of her own and none from her
+   * flight plays the course's ladies' set, and a reader whose query left the
+   * column out would have her on the tournament's set while the board beside
+   * it had her on her own.
+   */
+  players: readonly FieldPlayer[];
   /**
    * EVERYONE CONFIRMED IN THE TOURNAMENT — `confirmedField(eventId)`, or
    * `players` again where that is already all of them.
@@ -359,7 +380,7 @@ export function roundCourseHandicaps(args: {
    * side, one match. A default would let each of them find its own lowest par
    * and disagree with the board by a stroke with nothing on any screen wrong.
    */
-  field: readonly Omit<IndexHolder, "flightTeeId">[];
+  field: readonly FieldPlayer[];
   /** `flightTeeByPlayer(eventId)`, so the `flight` policy has something to read. */
   flightTeeOf: Map<string, string | null>;
   /** The round. Null is honest — a stage that no longer exists prices off the event. */
@@ -406,10 +427,10 @@ export function roundCourseHandicaps(args: {
  * The tournament's confirmed field, as `roundCourseHandicaps` wants it for
  * `field` — for a caller that has only part of the field in hand.
  */
-export async function confirmedField(eventId: string): Promise<Omit<IndexHolder, "flightTeeId">[]> {
+export async function confirmedField(eventId: string): Promise<FieldPlayer[]> {
   return prisma.player.findMany({
     where: { eventId, status: "confirmed" },
-    select: { id: true, handicap: true, handicapType: true, teeId: true },
+    select: FIELD_PLAYER,
   });
 }
 
@@ -453,27 +474,16 @@ export async function teePolicyFor(eventId: string): Promise<string> {
 }
 
 /**
- * Resolve what a golfer TYPED into the set they play from.
+ * `teeMatcherFor` WAS HERE AND IS DELETED ON PURPOSE (2026-10-13).
  *
- * Returns a function rather than a value because intake happens in a loop —
- * a CSV of sixty names would otherwise read the tee table sixty times.
- *
- * Every unresolved answer becomes null, which means "the round's tees" and
- * is visible and correctable on the field screen. That is deliberate: the
- * alternative to admitting we do not know is guessing, and a guessed tee is
- * a wrong Course Handicap that looks exactly like a right one.
+ * It turned what a golfer TYPED in "Preferred tee" into the set they play
+ * from, for three entry doors — the public form, a member entering themselves
+ * and adding a member from the roster — and each stored the answer as the
+ * player's own tees, where it beat their flight's. Nobody on the committee had
+ * decided it. The organizer decides the tees (`TEE_POLICY` in
+ * `tournament-settings.ts`); the text is still kept on the entry as what the
+ * golfer usually plays.
  */
-export async function teeMatcherFor(eventId: string): Promise<(text: string | null | undefined) => string | null> {
-  const tees = await prisma.tee.findMany({
-    // This tournament's course only. An unscoped read would let "white" match
-    // another club's set — the same widening that once let a stored teeId
-    // resolve to a foreign rating.
-    where: { course: playedOnBy(eventId) },
-    select: { id: true, name: true },
-    orderBy: [{ position: "asc" }],
-  });
-  return (text) => matchTee(text, tees);
-}
 
 /**
  * `teeSetupFor` WAS HERE AND IS DELETED ON PURPOSE.
@@ -491,63 +501,6 @@ export async function teeMatcherFor(eventId: string): Promise<(text: string | nu
  * `a-card-is-priced-by-its-own-round.test.ts` now hold the rule; this note holds
  * the reason, so that reintroducing it has to be a decision rather than a guess.
  */
-
-/** One player's course handicap, for the paths that only need a single number. */
-export async function courseHandicapForPlayer(
-  playerId: string,
-  holes: number,
-  defaultTeeId: string | null,
-): Promise<number> {
-  const player = await prisma.player.findUnique({
-    where: { id: playerId },
-    // The event's policy comes with the player, so this path applies the same
-    // rule as the round-wide one. Resolving the tee two different ways is how
-    // one screen ends up disagreeing with another about a net score.
-    select: {
-      handicap: true,
-      handicapType: true,
-      teeId: true,
-      event: { select: { teePolicy: true } },
-      // The flight's claim comes with the player, so this single-number path
-      // answers the same as the round-wide one. Resolving the tee two ways is
-      // how one screen ends up disagreeing with another about a net score.
-      group: { select: { teeId: true } },
-    },
-  });
-  if (!player) return 0;
-  /**
-   * The same course check the round-wide path makes, read for the two or three
-   * ids this path can possibly consider rather than the whole table.
-   *
-   * A stored tee from another venue is a rating from somewhere else, not a
-   * stale one — see `onThisCourse` in `teeIdFor`. Resolving it differently
-   * here is how one screen comes to disagree with another about a net score,
-   * which is the thing the comments above this query are already about.
-   */
-  const considered = [player.teeId, player.group?.teeId, defaultTeeId].filter(
-    (id): id is string => !!id,
-  );
-  const courseOfTee = new Map(
-    (
-      await prisma.tee.findMany({
-        where: { id: { in: considered } },
-        select: { id: true, courseId: true },
-      })
-    ).map((t) => [t.id, t.courseId]),
-  );
-  const playingAt = defaultTeeId ? courseOfTee.get(defaultTeeId) : undefined;
-  const teeId =
-    teeIdFor(
-      player.event?.teePolicy ?? "own",
-      player.teeId,
-      player.group?.teeId ?? null,
-      defaultTeeId,
-      (id) => !playingAt || courseOfTee.get(id) === playingAt,
-    ) || null;
-  const tee = teeId ? await prisma.tee.findUnique({ where: { id: teeId } }) : null;
-  const index = indexForHoles(player.handicap, player.handicapType, holes);
-  return courseHandicap(index, teeRatingFor(tee, holes));
-}
 
 export interface TeeView {
   id: string;

@@ -308,6 +308,8 @@ export interface TeeLike {
   slopeRating: number;
   par: number;
   position?: number;
+  /** Whose card the set is rated for. Read by the ladies' default (`ladiesTeeOn`). */
+  gender?: string | null;
 }
 
 /**
