@@ -190,8 +190,8 @@ day and will drift: search for the expression.
 
 ### 4 Handicap
 - Course-handicap conversion, FOUR pipelines: `courseHandicapMap` (boards, pots, sides; carries 6.2b); `handicapsForRound` -> `explainHandicap` handicaps.ts:146 (tee name / "rated" at entry/page.tsx:531, me/card/page.tsx:409, `teeNamesForRound`); `courseHandicapForPlayer` (had no callers; DELETED 2026-10-13); handicap-record.ts:227. The last three give no 6.2b strokes.
-- Playing handicap in a round: five readers pinned by every-reader-*.audit tests (deliberately unmerged).
-- Deferred register: a singles net match is derived with no allowance while its screens apply one.
+- Playing handicap in a round: five readers pinned by every-reader-*.audit tests (deliberately unmerged). Since 2026-10-14 their ARITHMETIC is one function, `playingHandicapInRound`; what each reader hands it (which tees, which field, which row) is still its own and still pinned by those tests. Because they now agree by construction, the function is pinned to the Rules by hand in `a-round-is-priced-one-way.test.ts`.
+- Deferred register: a singles net match is derived with no allowance while its screens apply one. CLOSED 2026-10-14 — and it was the strokes for the pars that differed, not the allowance; one chain now (`playingHandicapInRound`).
 
 ### 5 A card
 - Per-hole formulas are single (`stablefordPointsForHole`, `modifiedStablefordForHole`, `holeStrokesReceived`). But the LOOP over a card is written six times: `computeStrokeCard` stroke.ts:115; `aggregateStroke` stroke-agg.ts:176; `cardPoints` card-points.ts:19; points-standings.ts:221-236; expenses.ts:1018-1027 with derived-games.ts:131 (low-net pot); team.ts:106-127, 265-276. They disagree on a played hole: `s == null` (stroke.ts:167; points-standings.ts:227) vs `s <= 0` (stroke-agg.ts:221; card-points.ts).
