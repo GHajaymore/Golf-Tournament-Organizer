@@ -1,3 +1,4 @@
+import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
@@ -312,7 +313,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
     // A withdrawn (or disqualified) player's card is as far as it will get;
     // nobody waits on it.
     const withdrawn = new Set(
-      state.players.filter((p) => p.status === "withdrawn" || p.status === "disqualified").map((p) => p.id),
+      state.players.filter((p) => hasLeftTheField(p.status)).map((p) => p.id),
     );
     const stillOut = [...agg.entries()].filter(
       ([playerId, row]) => row.thru > 0 && row.thru < holes && !withdrawn.has(playerId),

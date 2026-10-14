@@ -1,3 +1,4 @@
+import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
@@ -1241,7 +1242,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   // And DISQUALIFIED players, the same way: out of the field, results kept on
   // the record, DQ on the sheet (2026-10-08 — see actions/disqualify.ts).
-  const leftField = (p: { status: string }) => p.status === "withdrawn" || p.status === "disqualified";
+  const leftField = (p: { status: string }) => hasLeftTheField(p.status);
   const withdrawnIds = new Set(players.filter(leftField).map((p) => p.id));
   const withdrawnPlayed = players.filter(
     (p) => leftField(p) && scorecards.some((c) => c.playerId === p.id && hasAnyHole(c.strokes)),

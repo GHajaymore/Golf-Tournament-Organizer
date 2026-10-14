@@ -35,7 +35,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | Step | Layer | The question | State |
 |---|---|---|---|
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
-| 2 | The field | who is in the tournament, and in this round | under way: whether a cut has been made is one answer, recorded; a player found by address is found one way (2026-10-14); the confirmed-field queries open |
+| 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
 | 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
 | 5 | A card | gross, net, points, to par | not started |
@@ -92,6 +92,24 @@ handicap readers became one (counted off the diff, not the inventory). The four
   `my-entries-are-asked-one-way.test.ts` refuses another;
   `an-empty-address-is-nobody.audit.test.ts` proves it on real rows against the
   old query, which finds both address-less players.
+- **A round's cut settings, and the cut a round is played for** (step 2):
+  `cutRuleOf` is the one reading of `cutScope` / `cutMode` / `cutCount` /
+  `cutPercent` (four copies became one; `a-cut-rule-is-read-once.test.ts`), and
+  `cutAfterRound` is the cut made AFTER a round. The sweep for a fifth copy
+  found the rules sheet reading them for itself, off the round being played —
+  which is the cut INTO it: no cut printed while round 1 was played, a cut
+  promised once round 2 had begun, and no "in each flight" or "and ties".
+  `e2e/the-cut-a-round-is-played-for.spec.ts` reads it as the organizer and a
+  player, in its own throwaway medal with round 1 in play.
+- **Leaving the field** (step 2): three inline copies of "withdrawn or
+  disqualified" ask `hasLeftTheField` / `LEFT_THE_FIELD`;
+  `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say
+  something different to each (which way back there is) are a different
+  question and were left.
+- **Checked and consistent** (step 2): "confirmed" is spelled one way in
+  every query that asks for the field (`status: "confirmed"`), and the two
+  readers of "who contested the last round" — the round-robin cut and the
+  board's highlight of it — count the same round's matches.
 - **Checked and right as written** (step 2): `player-access.ts`'s
   `status: { not: "withdrawn" }` asks who still needs an address's sign-in, and
   a disqualified player keeps theirs on purpose (they can still owe or be

@@ -43,7 +43,7 @@ import { holeStrokesReceived, allocationHoles } from "../domain";
 import { roundStrokes } from "./round-cards";
 import { holesPlayed } from "../domain/handicap";
 import { canAddExpense, resolveExpenseEntry } from "../domain/expense-entry";
-import { hasLeftTheField } from "../domain/left-the-field";
+import { hasLeftTheField, LEFT_THE_FIELD } from "../domain/left-the-field";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -1172,7 +1172,7 @@ export async function moneyFor(
     prisma.player.findMany({
       // Disqualified with withdrawn: both left the field and both can still
       // owe a share of a cost already spent (see `hasLeftTheField`).
-      where: { eventId, status: { in: ["confirmed", "withdrawn", "disqualified"] } },
+      where: { eventId, status: { in: ["confirmed", ...LEFT_THE_FIELD] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),
