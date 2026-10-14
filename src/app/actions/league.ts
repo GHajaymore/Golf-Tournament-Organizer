@@ -101,7 +101,17 @@ export async function nominatePair(
     where: { eventId, id: { in: playerIds } },
     select: { id: true },
   });
-  const clean = [...new Set(inEvent.map((p) => p.id))];
+  /**
+   * IN THE ORDER THE CAPTAIN PICKED THEM. Only ids that came back from the
+   * lookup above are kept — but their ORDER is the caller's, because the query
+   * has none: the database returns the two rows however it likes, and this
+   * took the pair's name and its first player from that. A secretary who
+   * picked One and then Four got "Four / One" whenever the rows came back that
+   * way round (`a-pair-is-named-in-the-order-it-was-picked.audit.test.ts`).
+   */
+  const found = new Set(inEvent.map((p) => p.id));
+  const sent: unknown[] = Array.isArray(playerIds) ? playerIds : [];
+  const clean = [...new Set(sent.filter((id): id is string => typeof id === "string" && found.has(id)))];
   if (clean.length !== 2) {
     return {
       ok: false,
