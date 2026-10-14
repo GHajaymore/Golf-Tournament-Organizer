@@ -5,7 +5,8 @@ import { money, minorUnitsFrom, CURRENCIES } from "@/lib/domain/money-format";
 import { stakeMinorUnits } from "@/lib/domain/local-currency";
 import { LOCALES } from "@/lib/domain/locale";
 import { DATE_WORD_TAGS } from "@/lib/domain/date-words";
-import { decimalPoint } from "@/lib/domain/decimal-text";
+import { decimalPoint, readDecimal } from "@/lib/domain/decimal-text";
+import { readHandicapIndex } from "@/lib/domain/handicap-label";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { parseHandicap } from "@/lib/domain/quick-match";
 import { readSource } from "./source";
@@ -162,8 +163,13 @@ describe("there is one reader of a typed amount", () => {
   });
 
   it("the casual round's handicap box and the cup's points box read a decimal comma", () => {
-    expect(readSource("src/components/CasualRoundPanel.tsx")).toContain("decimalPoint(e.target.value)");
-    expect(readSource("src/components/CupLineup.tsx")).toContain("Number(decimalPoint(");
+    // Through the one reader of a typed figure since 2026-10-13, which reads the
+    // comma for every box (`a-typed-figure-is-read-one-way.test.ts`): each of the
+    // two had its own `Number(decimalPoint(…))`, which is what this used to pin.
+    expect(readSource("src/components/CasualRoundPanel.tsx")).toContain("readHandicapIndex(e.target.value)");
+    expect(readSource("src/components/CupLineup.tsx")).toContain("readDecimal(target.replace(");
+    expect(readHandicapIndex("12,4")).toEqual({ kind: "index", value: 12.4 });
+    expect(readDecimal("14,5")).toEqual({ kind: "number", value: 14.5 });
   });
 });
 

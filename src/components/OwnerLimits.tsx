@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { saveTierLimits } from "@/app/actions/owner";
 import { Icon } from "./Icon";
@@ -60,7 +61,7 @@ export function OwnerLimits({
       for (const c of COLUMNS) {
         const s = (vals[t.key]?.[c.key] ?? "").trim();
         // Blank is a real, deliberate value here: no cap.
-        per[c.key] = s === "" ? null : Number(s);
+        per[c.key] = s === "" ? null : figureOr(readWhole(s), Number.NaN);
       }
       plans[t.key] = per;
     }

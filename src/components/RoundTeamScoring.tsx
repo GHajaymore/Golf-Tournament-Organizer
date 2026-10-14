@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { typedAllowance } from "@/lib/domain/team";
@@ -349,7 +350,9 @@ export function RoundTeamScoring({
             className="btn btn-primary"
             disabled={pending}
             onClick={() => {
-              const nums = shares.map((s) => parseInt(s, 10));
+              // A box that holds no whole number goes as "not one" (the action
+              // refuses −1 by name): `parseInt("2o")` was a share of 2.
+              const nums = shares.map((s) => figureOr(readWhole(s), Number.NaN));
               save(
                 "split",
                 (force) =>
@@ -441,7 +444,7 @@ export function RoundTeamScoring({
             className="btn btn-primary"
             disabled={pending}
             onClick={() => {
-              const n = parseInt(countBest, 10);
+              const n = figureOr(readWhole(countBest), Number.NaN);
               save(
                 "countBest",
                 (force) => setStageCountBest(stageId, Number.isFinite(n) ? n : 0, force),

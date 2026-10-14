@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
@@ -87,8 +88,7 @@ export function ScoringClient({
   };
 
   const onChange = (key: keyof Values, raw: string) => {
-    const n = parseFloat(raw);
-    save({ ...values, [key]: Number.isFinite(n) ? n : 0 });
+    save({ ...values, [key]: figureOr(readDecimal(raw), 0) });
   };
 
   // Worked example: 2 wins, 1 halve, 12 net holes won — four holes a match

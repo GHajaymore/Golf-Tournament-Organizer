@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
 import { saveSideGame, setSideGameEntrants, confirmSideGameEntry, removeSideGame } from "@/app/actions/side-games";
@@ -318,7 +319,7 @@ export function ContestsClient({
         // Never carried for a kind that has no hole: a stale "7" left in the
         // box from a previous long-drive entry would file the poker night on
         // the 7th.
-        hole: contestHasHole(kind) ? Number(hole) || 0 : 0,
+        hole: contestHasHole(kind) ? figureOr(readWhole(hole), 0) : 0,
       });
       if (res.ok) {
         setAdding(false);

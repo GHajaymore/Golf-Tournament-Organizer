@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount, setTournamentDates } from "@/app/actions/tournament";
@@ -766,7 +767,7 @@ export function EventSetupClient({
                 <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
               </div>
               {f.capacity > 0 && (
-                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} max={fieldCap ?? undefined} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
+                <input aria-label="Field capacity (players)" className="input" type="number" value={f.capacity} max={fieldCap ?? undefined} onChange={(e) => set("capacity", figureOr(readWhole(e.target.value), 0))} style={{ width: 90 }} />
               )}
             </div>
             {fieldCap !== null && (
@@ -790,7 +791,7 @@ export function EventSetupClient({
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               <div className="field" style={{ flex: 1 }}>
                 <label htmlFor={`${fid}-target`}>Target player count</label>
-                <input id={`${fid}-target`} className="input" type="number" value={manualTarget} onChange={(e) => setManualTarget(parseInt(e.target.value, 10) || 0)} />
+                <input id={`${fid}-target`} className="input" type="number" value={manualTarget} onChange={(e) => setManualTarget(figureOr(readWhole(e.target.value), 0))} />
               </div>
               <button
                 type="button"

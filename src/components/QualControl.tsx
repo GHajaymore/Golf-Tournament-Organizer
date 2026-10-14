@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -76,7 +77,7 @@ export function QualControl({
             style={{ width: 80 }}
             value={ov}
             disabled={pending}
-            onChange={(e) => setOv(parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => setOv(figureOr(readWhole(e.target.value), 1) || 1)}
             onKeyDown={leaveOnEnter}
             onBlur={() => startTransition(() => setQualifyMode("overall", ov))}
           />

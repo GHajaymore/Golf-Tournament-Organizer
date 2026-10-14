@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import React, { useEffect, useState, useTransition } from "react";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
@@ -2453,7 +2454,7 @@ export function StagesClient({
               max={MAX_ROUNDS_AT_ONCE}
               value={howMany}
               disabled={pending}
-              onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, parseInt(e.target.value, 10) || 1)))}
+              onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, figureOr(readWhole(e.target.value), 1) || 1)))}
               style={{ width: 72, textAlign: "center" }}
               aria-label="How many rounds to add"
             />

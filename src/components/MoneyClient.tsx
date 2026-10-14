@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import {
   EXPENSE_CATEGORIES,
   expenseCategoryLabel,
@@ -175,7 +176,8 @@ export function MoneyClient({
       return { playerId, weight: 1, amountCents: centsFrom(typed[playerId] ?? "") };
     }
     if (splitMode === "percent") {
-      return { playerId, weight: Math.max(0, Math.round(Number(typed[playerId] ?? "") || 0)) };
+      // A percentage typed "12,5" is twelve and a half, not nothing (`readDecimal`).
+      return { playerId, weight: Math.max(0, Math.round(figureOr(readDecimal(typed[playerId] ?? ""), 0))) };
     }
     if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
     return { playerId, weight: 1 };
@@ -716,7 +718,7 @@ export function MoneyClient({
                         aria-label={`Shares for ${p.name}`}
                         value={weights[id] ?? 1}
                         onChange={(e) =>
-                          setWeights((prev) => ({ ...prev, [id]: Math.max(0, Number(e.target.value) || 0) }))
+                          setWeights((prev) => ({ ...prev, [id]: Math.max(0, figureOr(readDecimal(e.target.value), 0)) }))
                         }
                         style={{ width: 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                       />

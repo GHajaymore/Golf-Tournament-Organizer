@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
 import { readSource } from "./source";
 import { decimalPoint, figureOr, plainFigure, readDecimal, readWhole } from "../domain/decimal-text";
 import { INDEX_MAX, INDEX_MIN, indexRefusal, parseStrokesInput, readHandicapIndex } from "../domain/handicap-label";
@@ -257,5 +258,97 @@ describe("what the server will store as an index", () => {
     expect(panel).toMatch(/read\.kind === "out-of-range"\) return putBack\(/);
     // And a refusal from the server is shown, not dropped.
     expect(panel).toMatch(/if \(!res\.ok\) return putBack\(/);
+  });
+});
+
+/**
+ * NO SCREEN READS A TYPED NUMBER ITS OWN WAY.
+ *
+ * `parseFloat`, `parseInt` and `Number(` on what somebody typed are how the 48
+ * came to be. Each is refused on a screen and in an action, except for the
+ * lines below, where the text was never typed by anybody: a dropdown's value
+ * (the app wrote the options), a slider, a length off a stylesheet, the digits
+ * of a label being sorted, and a NUMBER handed to an action and then checked.
+ * A new line has to be one of those and be put here with its reason — or go
+ * through `readDecimal` / `readWhole`.
+ */
+describe("no screen reads a typed number its own way", () => {
+  function sources(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        if (e.name === "__tests__" || e.name === "node_modules") continue;
+        sources(rel, out);
+      } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) out.push(rel);
+    }
+    return out;
+  }
+  // Every screen: the components and the pages. NOT the actions: an action is
+  // handed a number, coerces it and range-checks it, and what it is handed was
+  // read by one of the screens here.
+  const files = [...sources("src/components"), ...sources("src/app")].filter((f) => !f.startsWith("src/app/actions/") && !f.startsWith("src/app/api/"));
+  // ANY use of the three, not a guess at which arguments look typed: the first
+  // version of this matched `Number(e.target.value)` and its like, and walked
+  // past `Number(hole)`, `Number(prices[t.key])` and four more.
+  const BUILT_IN = /(^|[^A-Za-z_.])(parseFloat|parseInt|Number)\(/;
+
+  /** The line, and why it is not somebody's typing. */
+  const NOT_TYPED: [string, string][] = [
+    ["setRoundIdx(parseInt(e.target.value, 10))", "a dropdown of rounds"],
+    ["commitCarry(carryEnabled, parseInt(e.target.value, 10))", "a slider"],
+    ["setBulkHoles(holesPlayed(parseInt(e.target.value, 10)))", "a dropdown: 9 or 18"],
+    ["setInterval(parseInt(e.target.value, 10))", "a dropdown of minutes"],
+    ["parseFloat(getComputedStyle(row).columnGap", "a length off the stylesheet"],
+    ['parseInt(a.replace(/\\D/g, ""), 10)', "the digits of a label, to sort flights by number"],
+    ['parseInt(b.replace(/\\D/g, ""), 10)', "the digits of a label, to sort flights by number"],
+    ["setToFlight(Number(e.target.value))", "a dropdown of flights"],
+    ["setPlayoffSize(Number(e.target.value) as LeaguePlayoffSize)", "a dropdown of play-off sizes"],
+    ["const v = Number(e.target.value);", "a dropdown of paces"],
+    ["const n = Number(e.target.value);", "a dropdown of countbacks"],
+    ["setEvery(Number(e.target.value))", "a dropdown of intervals"],
+    ['a: side === "a" ? Number(e.target.value) : seedA,', "a dropdown of seeds"],
+    ['b: side === "b" ? Number(e.target.value) : seedB,', "a dropdown of seeds"],
+    ["setGroupIdx(Number(e.target.value))", "a dropdown of groups"],
+    [".sort((a, b) => Number(b[0]) - Number(a[0]))", "the keys of a count of group sizes"],
+    ["sizeName[Number(s)]", "the key of a count of group sizes"],
+    ["const to = Number(el.dataset.to);", "a figure the front door's own markup carries"],
+    ["divide(Number(range.value));", "the front door's slider"],
+    ["at = Number(range.value);", "the front door's slider"],
+    ["indexFigure(Number(r.exact.toFixed(2)))", "a figure the app computed, shortened to print"],
+  ];
+
+  it("CONTROL: the sweep reads the screens and recognises the lines it replaced", () => {
+    expect(files.length).toBeGreaterThan(250);
+    for (const old of [
+      "courseRating: parseFloat(decimalPoint(draft.courseRating)) || 0,",
+      "slopeRating: parseInt(draft.slopeRating, 10) || 0,",
+      "const typed = parseFloat(e.target.value);",
+      "const n = raw.startsWith(\"+\") ? -Number(raw.slice(1)) : Number(raw);",
+      "weight: Math.max(0, Math.round(Number(typed[playerId] ?? \"\") || 0))",
+    ]) {
+      expect(BUILT_IN.test(old), old).toBe(true);
+    }
+    expect(BUILT_IN.test("figureOr(readWhole(e.target.value), 1)")).toBe(false);
+    expect(BUILT_IN.test("hole: contestHasHole(kind) ? Number(hole) || 0 : 0,")).toBe(true);
+    expect(BUILT_IN.test("const n = Number(prices[t.key]);")).toBe(true);
+    // And it is not fooled by a longer name, or by a method of Number.
+    expect(BUILT_IN.test("{holeNumber(i, firstHole)}")).toBe(false);
+    expect(BUILT_IN.test("if (!Number.isFinite(n)) return;")).toBe(false);
+  });
+
+  it("every built-in reader left on a screen is on the list of lines nobody typed", () => {
+    const strays: string[] = [];
+    const seen = new Set<string>();
+    for (const f of files) {
+      for (const line of readSource(f).split("\n")) {
+        if (!BUILT_IN.test(line)) continue;
+        const known = NOT_TYPED.find(([text]) => line.includes(text));
+        if (known) seen.add(known[0]);
+        else strays.push(`${f}: ${line.trim().slice(0, 110)}`);
+      }
+    }
+    expect(strays, "read it with readDecimal / readWhole, or say here why nobody typed it").toEqual([]);
+    // And the list holds nothing that has since gone: a stale line is a hole in the sweep.
+    expect(NOT_TYPED.map(([text]) => text).filter((text) => !seen.has(text))).toEqual([]);
   });
 });

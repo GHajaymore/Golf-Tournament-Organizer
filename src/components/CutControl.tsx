@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
 import { cutAdvancesEveryone } from "@/lib/domain/cut";
@@ -145,7 +146,7 @@ export function CutControl({
               value={n}
               aria-label={`Players who make the cut for ${roundLabel}`}
               disabled={pending}
-              onChange={(e) => setN(parseInt(e.target.value, 10) || 1)}
+              onChange={(e) => setN(figureOr(readWhole(e.target.value), 1) || 1)}
               onKeyDown={leaveOnEnter}
               onBlur={() => commit(on, m, n, pct)}
             />
@@ -159,7 +160,7 @@ export function CutControl({
               value={pct}
               aria-label={`Percent of the field who make the cut for ${roundLabel}`}
               disabled={pending}
-              onChange={(e) => setPct(parseInt(e.target.value, 10) || 1)}
+              onChange={(e) => setPct(figureOr(readWhole(e.target.value), 1) || 1)}
               onKeyDown={leaveOnEnter}
               onBlur={() => commit(on, m, n, pct)}
             />

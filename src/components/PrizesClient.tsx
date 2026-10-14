@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { useId, useState, useTransition } from "react";
 import { addPrize, updatePrize, setPrizeWinner, removePrize, applyPrizeStructure } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
@@ -91,7 +92,7 @@ export function PrizesClient({
         style={{ width: asCells ? 100 : 84, textAlign: "right" }}
         onKeyDown={leaveOnEnter}
         onBlur={(e) => {
-          const typed = parseFloat(e.target.value);
+          const typed = figureOr(readDecimal(e.target.value), Number.NaN);
           // What will be KEPT: an amount above nothing, or nothing. The server keeps the same rule
           // (`updatePrize`), and the box must show that and not what was typed: "-5" was stored as no
           // prize and went on standing in the box as minus five — the screen saying one thing and the
@@ -156,7 +157,7 @@ export function PrizesClient({
   const awarded = prizes.filter((p) => p.winnerId).length;
 
   const submit = () => {
-    const amt = parseFloat(amount);
+    const amt = figureOr(readDecimal(amount), Number.NaN);
     if (!category.trim()) return;
     startTransition(async () => {
       await addPrize(category, Number.isFinite(amt) ? amt : 0, detail);
