@@ -474,7 +474,7 @@ export function roundMoneyFinality(input: {
  *                    rest of the field cannot change a pot they are not in
  */
 async function roundFieldFor(
-  state: Pick<EventState, "roundFieldSize" | "event" | "confirmed">,
+  state: Pick<EventState, "roundFieldSize" | "cutMade" | "event" | "confirmed">,
   eventId: string,
   stageId: string,
   cards: ReadonlyArray<{ stageId: string; playerId: string }>,
@@ -493,7 +493,12 @@ async function roundFieldFor(
     const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));
     ids = ids.filter((id) => !out.has(id));
   }
-  if (size < state.confirmed.length) {
+  // After the cut, the survivors — asked as the board and the player app ask
+  // it. This read "the board's field is smaller than the entry list", which a
+  // round after a cut ALWAYS is, made or not: one card started in round 2
+  // before round 1 closed made that card the whole field, and its pots final
+  // once it was finished (`a-cut-is-made-once-for-every-reader.audit.test.ts`).
+  if (state.cutMade(stageId)) {
     const onRound = new Set(cards.filter((c) => c.stageId === stageId).map((c) => c.playerId));
     ids = ids.filter((id) => onRound.has(id));
   }

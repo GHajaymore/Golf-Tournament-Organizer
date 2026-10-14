@@ -918,14 +918,22 @@ test.describe("a casual round at the course", () => {
      * them), and a reload shows the server never took it. The control is a
      * real correction, which must still save — a box that refuses everything
      * passes the three above it.
+     *
+     * EIGHT PLAYERS, AND THE LAST ONE'S BOX — the most a casual round holds
+     * and the lowest box the panel can draw. With two players the top of the
+     * panel is on screen with every box at 393 and at 320 wide: moving the
+     * refusal back up there left this test green at both sizes (2026-10-14),
+     * so two players could not tell where the refusal was said.
      */
-    await setUp(page, "Stroke Play", true, [ANN, BEA], undefined, ["12.4", "8"]);
+    const LAST = "Hal Zed";
+    const field = [ANN, BEA, CAT, DOT, "Eve Zed", "Fay Zed", "Gus Zed", LAST];
+    await setUp(page, "Stroke Play", true, field, undefined, [...new Array(7).fill("8"), "12.4"]);
     const more = async () => {
       await page.goto(`/entry?bust=${Date.now()}`);
       await page.locator("summary", { hasText: /^More:/ }).click();
     };
-    const box = page.getByRole("textbox", { name: `${ANN}'s handicap` });
-    const refusal = page.getByRole("alert").filter({ hasText: `${ANN}'s handicap was left as it was` });
+    const box = page.getByRole("textbox", { name: `${LAST}'s handicap` });
+    const refusal = page.getByRole("alert").filter({ hasText: `${LAST}'s handicap was left as it was` });
 
     for (const [typed, why] of [
       ["", "an empty box is not scratch"],
@@ -942,7 +950,7 @@ test.describe("a casual round at the course", () => {
       await expect(refusal, `the reason "${typed}" was refused is not on screen with the box`).toBeInViewport();
       await more();
       await expect(box, `"${typed}" reached the server`).toHaveValue("12.4");
-      await expect(page.getByRole("textbox", { name: `${BEA}'s handicap` }), "CONTROL: the other player was not touched").toHaveValue("8");
+      await expect(page.getByRole("textbox", { name: `${ANN}'s handicap` }), "CONTROL: the other players were not touched").toHaveValue("8");
     }
 
     // CONTROL: a real correction is still taken.

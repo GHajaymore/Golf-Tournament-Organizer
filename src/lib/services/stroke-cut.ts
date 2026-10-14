@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { loadEventState, settingsOf } from "./tournament";
 import { allowsAutoConfirm } from "../tournament-settings";
-import { cutBlockers, cutBlockedSentence, cutRuleOf } from "../domain/cut-ready";
+import { cutBlockers, cutBlockedSentence, cutRuleOf, cutHasBeenMade } from "../domain/cut-ready";
 import { survivorsWithTies, type CutRule } from "../domain/cut";
 import { isPlayingRound, isIndividualStrokeRound } from "../stage-types";
 import { holesPlayed } from "../domain/handicap";
@@ -215,10 +215,10 @@ export async function strokeCutField(eventId: string, stageId: string): Promise<
   ).filter((s) => isPlayingRound(s.type));
   const i = rounds.findIndex((s) => s.id === stageId);
   const round = rounds[i];
-  const feeder = rounds[i - 1];
-  if (!round || !feeder || !round.cutEnabled || !feeder.closedAt) return null;
-  if (!individualStroke(feeder) || !individualStroke(round)) return null;
+  if (!round) return null;
   const cards = await prisma.scorecard.findMany({ where: { eventId, stageId }, select: { playerId: true } });
+  // The one answer to whether the cut has been made — the board asks it too.
+  if (!cutHasBeenMade(round, i > 0 ? rounds[i - 1] : undefined, cards.length)) return null;
   return new Set(cards.map((c) => c.playerId));
 }
 

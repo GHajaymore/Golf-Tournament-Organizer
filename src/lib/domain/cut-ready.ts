@@ -15,6 +15,32 @@ export function cutRuleOf(next: { cutScope: string; cutMode: string; cutCount: n
   };
 }
 
+/**
+ * WHETHER THE CUT INTO THIS ROUND HAS BEEN MADE — the one answer.
+ *
+ * A round after a stroke cut belongs to the players who made it, and the app
+ * keeps that as who holds a card for it: `applyStrokeCut` gives each survivor
+ * one when the round before is closed. So the cut is made when the round has a
+ * cut, comes out of a CLOSED individual stroke round, and holds cards.
+ *
+ * Every condition is needed. "It holds a card" alone is what four readers used
+ * to ask, and it is also true of a card somebody STARTED in round 2 while round
+ * 1 was still open — which the card guard allows, since no cut has been made —
+ * and the dashboard then counted a cut with one survivor
+ * (`a-cut-is-made-once-for-every-reader.audit.test.ts`).
+ *
+ * `feeder` is the playing round before this one, or undefined for the first.
+ */
+export function cutHasBeenMade(
+  round: { cutEnabled: boolean; type: string; format: string },
+  feeder: { closedAt: Date | null; type: string; format: string } | undefined,
+  cardsInRound: number,
+): boolean {
+  if (!round.cutEnabled || !feeder || !feeder.closedAt) return false;
+  if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) return false;
+  return cardsInRound > 0;
+}
+
 /** "Top 16 and ties", "Top 25% in each flight and ties". */
 export function cutRuleWords(rule: CutRule): string {
   const top = rule.mode === "percent" ? `Top ${rule.percent}%` : `Top ${rule.count}`;

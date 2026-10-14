@@ -14,7 +14,7 @@ import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../fo
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut, cutProgress } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
@@ -706,6 +706,12 @@ export interface EventState {
    * every card is in.
    */
   roundFieldSize: (stageId: string) => number | null;
+  /**
+   * Whether the cut into this round has been made (`cutHasBeenMade`), from the
+   * rows already loaded — the same answer `strokeCutField` gives the player app.
+   * Once it has, the round's field is whoever holds a card for it.
+   */
+  cutMade: (stageId: string) => boolean;
   /**
    * Holes this player has on ONE round's card (2026-10-08).
    *
@@ -1564,6 +1570,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * `done` is kept as an alias of `certified` so every existing reader keeps
    * compiling while they are moved over one at a time.
    */
+  /** See `cutHasBeenMade`: one answer for the board, the money and the player app. */
+  const cutMadeInto = (s: { id: string; cutEnabled: boolean; type: string; format: string }): boolean => {
+    const i = playRounds.findIndex((r) => r.id === s.id);
+    return cutHasBeenMade(s, i > 0 ? playRounds[i - 1] : undefined, scorecards.filter((c) => c.stageId === s.id).length);
+  };
   const roundProgress = (s: DbStage) => {
     /**
      * A TEAM ROUND FILES ITS CARDS SOMEWHERE ELSE, and is counted in SIDES.
@@ -1661,7 +1672,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       // cut is made; after it, "top 16 and ties" may be 17, and a survivor who
       // leaves is one fewer card owed. (An uncut round counts the confirmed
       // field, which a departure has already left.)
-      const cutApplied = s.cutEnabled && scorecards.some((c) => c.stageId === s.id);
+      const cutApplied = cutMadeInto(s);
       const roundHoles = holesPlayed(s.holes);
       const full = (strokes: string) => {
         try {
@@ -2193,10 +2204,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     const round = playRounds[i];
     const feeder = playRounds[i - 1];
     if (!strokeRoundIds.has(round.id)) continue;
-    if (!round.cutEnabled || !feeder.closedAt) continue;
-    if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) continue;
+    if (!cutMadeInto(round)) continue;
     const field = new Set(scorecards.filter((c) => c.stageId === round.id).map((c) => c.playerId));
-    if (field.size === 0) continue;
     for (const p of confirmed) {
       if (!field.has(p.id) && !cutAfter.has(p.id)) cutAfter.set(p.id, nameOfRound(feeder.id));
     }
@@ -2849,7 +2858,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const noCardIn = (r: DbStage): Player[] => {
     const own = cutCards(r);
     const holders = new Set(own.map((c) => c.playerId));
-    const field = r.cutEnabled && own.length > 0 ? confirmed.filter((p) => holders.has(p.id)) : confirmed;
+    const field = cutMadeInto(r) ? confirmed.filter((p) => holders.has(p.id)) : confirmed;
     const out = outOn(r.id);
     const played = new Set(own.filter((c) => hasAnyHole(c.strokes)).map((c) => c.playerId));
     return field.filter((p) => !played.has(p.id) && !out.has(p.id));
@@ -2969,6 +2978,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       if (!s || isManualFormat(s.format) || needsTeams(s.format) || boardKind(s.format) === "nassau") return null;
       if (!roundIsStroke(s.type, s.format)) return null;
       return roundProgress(s).total;
+    },
+    cutMade: (stageId: string) => {
+      const s = playRounds.find((r) => r.id === stageId);
+      return !!s && cutMadeInto(s);
     },
     roundThru: (playerId: string, stageId: string) => strokeAgg.get(playerId)?.holesPlayedByStage.get(stageId) ?? 0,
     outOn,
