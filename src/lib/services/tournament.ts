@@ -1571,9 +1571,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * compiling while they are moved over one at a time.
    */
   /** See `cutHasBeenMade`: one answer for the board, the money and the player app. */
-  const cutMadeInto = (s: { id: string; cutEnabled: boolean; type: string; format: string }): boolean => {
+  const cutMadeInto = (s: { id: string; cutEnabled: boolean; cutMadeAt: Date | null; type: string; format: string }): boolean => {
     const i = playRounds.findIndex((r) => r.id === s.id);
-    return cutHasBeenMade(s, i > 0 ? playRounds[i - 1] : undefined, scorecards.filter((c) => c.stageId === s.id).length);
+    return cutHasBeenMade(s, i > 0 ? playRounds[i - 1] : undefined);
   };
   const roundProgress = (s: DbStage) => {
     /**

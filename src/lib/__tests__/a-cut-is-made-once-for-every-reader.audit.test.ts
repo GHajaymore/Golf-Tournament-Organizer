@@ -165,6 +165,9 @@ describe("whether a cut has been made", () => {
     // All eighteen holes: a whole card, which is what a pot waits for.
     const res = await saveScorecard(r2, id.a, new Array(18).fill(4));
     expect(res.ok, "the card guard lets them: no cut has been made").toBe(true);
+    // And D, who will MISS the cut (75 against a cut to two), tees off too.
+    await as("d");
+    expect((await saveScorecard(r2, id.d, [5, 5, 5, ...new Array(15).fill(null)])).ok).toBe(true);
 
     const now = await round2();
     expect(now.cutField, "control: the player app still says the round is everybody's").toBeNull();
@@ -184,5 +187,46 @@ describe("whether a cut has been made", () => {
     expect(after.size, "the dashboard's field of round 2 is the field the cut made").toBe(2);
     // CONTROL for the board half: once it is made, the four it left out say so.
     expect(after.missedCut).toEqual([id.c, id.d, id.e, id.f].sort());
+  });
+
+  it("takes out the card of a player it leaves out who started early, and says so with their holes", async () => {
+    /**
+     * Measured before the fix: D, who started round 2 before round 1 closed,
+     * came through a cut to two on a 75 — in round 2's field, ranked, and not
+     * marked as having missed it. A card with holes on it was never removed.
+     * The FIRST cut into a round now takes it out; its holes go to Recent
+     * changes, which is the committee's record and all it needs to put D back.
+     */
+    const holders = (await prisma.scorecard.findMany({ where: { stageId: r2 }, select: { playerId: true } })).map((c) => c.playerId).sort();
+    expect(holders, "only the two who made the cut hold a round 2 card").toEqual([id.a, id.b].sort());
+    // CONTROL: A's own early card, a survivor's, is the card A still holds — not a fresh empty one.
+    const aCard = await prisma.scorecard.findFirst({ where: { stageId: r2, playerId: id.a }, select: { strokes: true } });
+    expect(JSON.parse(aCard!.strokes)).toEqual(new Array(18).fill(4));
+    const said = await prisma.auditLog.findMany({ where: { eventId, action: "cut-applied" }, select: { detail: true } });
+    expect(said.map((l) => l.detail)).toContainEqual(
+      `${TAG} d's Round 2 card was taken out: they did not make the cut. It held 3 holes (5 5 5), started before Round 1 was closed. To put them back in, enter it again in Score entry.`,
+    );
+    // And the cut is recorded.
+    expect((await prisma.stage.findUnique({ where: { id: r2 }, select: { cutMadeAt: true } }))?.cutMadeAt).not.toBeNull();
+  });
+
+  it("re-made after a correction, keeps a card that has holes on it, as before", async () => {
+    /**
+     * The other half, and the reason the rule is "first cut": B made the cut,
+     * was told so, and has played a hole. Round 1 is corrected — C's 74 was a
+     * 69 — and closed again, so the cut is re-made and B (71) is now third.
+     * B's card stays: taking a round somebody was told to play is the
+     * committee's call, not a side effect of fixing a typo.
+     */
+    await prisma.scorecard.updateMany({ where: { stageId: r2, playerId: id.b }, data: { strokes: JSON.stringify([4, ...new Array(17).fill(null)]) } });
+    await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.c }, data: { strokes: JSON.stringify(card(69)) } });
+    await as("admin");
+    expect(await setRoundClosed(r1, false)).toEqual({ ok: true });
+    const made = (await prisma.stage.findUnique({ where: { id: r2 }, select: { cutMadeAt: true } }))?.cutMadeAt;
+    expect(await setRoundClosed(r1, true)).toEqual({ ok: true });
+    const holders = (await prisma.scorecard.findMany({ where: { stageId: r2 }, select: { playerId: true } })).map((c) => c.playerId).sort();
+    expect(holders, "C goes through; B keeps the card with a hole on it").toEqual([id.a, id.b, id.c].sort());
+    // Recorded when it was FIRST made, and not moved by re-making it.
+    expect((await prisma.stage.findUnique({ where: { id: r2 }, select: { cutMadeAt: true } }))?.cutMadeAt).toEqual(made);
   });
 });

@@ -374,6 +374,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   playedOn: "last year's date is never this year's",
   closedAt:
     "when the organizer declared last year's round finished. A copy has not been played, let alone closed — and carrying it would start the new tournament with a round the board treats as settled, unranking every player in it for a card nobody has had the chance to return",
+  cutMadeAt:
+    "when last year's cut was made into this round. A copy's cut has not been made — carrying it would read the copy's first cut as a re-made one, and keep the card of a player it leaves out",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",
   carryForwardAsked:

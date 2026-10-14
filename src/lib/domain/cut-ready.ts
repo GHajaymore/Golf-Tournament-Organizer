@@ -20,25 +20,25 @@ export function cutRuleOf(next: { cutScope: string; cutMode: string; cutCount: n
  *
  * A round after a stroke cut belongs to the players who made it, and the app
  * keeps that as who holds a card for it: `applyStrokeCut` gives each survivor
- * one when the round before is closed. So the cut is made when the round has a
- * cut, comes out of a CLOSED individual stroke round, and holds cards.
+ * one when the round before is closed, and records when (`Stage.cutMadeAt`).
+ * So the cut is made when the round has a cut, the cut has been recorded, and
+ * the individual stroke round it comes out of is CLOSED — re-opening that round
+ * to correct a card opens the next one to everybody again until it is closed.
  *
- * Every condition is needed. "It holds a card" alone is what four readers used
- * to ask, and it is also true of a card somebody STARTED in round 2 while round
- * 1 was still open — which the card guard allows, since no cut has been made —
- * and the dashboard then counted a cut with one survivor
- * (`a-cut-is-made-once-for-every-reader.audit.test.ts`).
+ * Until 2026-10-14 nothing recorded it, and four readers inferred it from "the
+ * round holds a card" — also true of a card somebody STARTED in round 2 while
+ * round 1 was still open, which the card guard allows since no cut has been
+ * made. The dashboard then counted a cut with one survivor, and the money
+ * waited for that one card (`a-cut-is-made-once-for-every-reader.audit.test.ts`).
  *
  * `feeder` is the playing round before this one, or undefined for the first.
  */
 export function cutHasBeenMade(
-  round: { cutEnabled: boolean; type: string; format: string },
+  round: { cutEnabled: boolean; cutMadeAt: Date | null; type: string; format: string },
   feeder: { closedAt: Date | null; type: string; format: string } | undefined,
-  cardsInRound: number,
 ): boolean {
-  if (!round.cutEnabled || !feeder || !feeder.closedAt) return false;
-  if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) return false;
-  return cardsInRound > 0;
+  if (!round.cutEnabled || !round.cutMadeAt || !feeder || !feeder.closedAt) return false;
+  return isIndividualStrokeRound(feeder) && isIndividualStrokeRound(round);
 }
 
 /** "Top 16 and ties", "Top 25% in each flight and ties". */

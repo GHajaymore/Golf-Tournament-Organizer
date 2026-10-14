@@ -1734,6 +1734,15 @@ model Stage {
   cutMode    String  @default("count") // count | percent
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)
+  /**
+   * When a stroke cut was first made INTO this round (`applyStrokeCut`), or null
+   * for one never made. Written once; a cut re-made after a correction keeps it.
+   *
+   * Until 2026-10-14 nothing recorded that a cut had been made, and every reader
+   * inferred it from whether the round held cards — which a card started early,
+   * while the round before was still open, also satisfies. See `cutHasBeenMade`.
+   */
+  cutMadeAt  DateTime?
 
   /**
    * The venue for this round, when the tournament rotates them — a

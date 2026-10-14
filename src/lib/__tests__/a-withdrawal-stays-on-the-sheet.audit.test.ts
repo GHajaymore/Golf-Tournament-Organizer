@@ -72,7 +72,8 @@ beforeAll(async () => {
   eventId = event.id;
   const base = { eventId, type: "Stroke Play Round", format: "Individual Stroke Play", holes: 18, scoringBasis: "net", handicapAllowance: 100, description: "" };
   r1 = (await prisma.stage.create({ data: { ...base, position: 0, closedAt: new Date() } })).id;
-  r2 = (await prisma.stage.create({ data: { ...base, position: 1, cutEnabled: true, cutMode: "count", cutCount: 3 } })).id;
+  // Made, as `applyStrokeCut` leaves it: the survivors hold its cards, and it records when.
+  r2 = (await prisma.stage.create({ data: { ...base, position: 1, cutEnabled: true, cutMode: "count", cutCount: 3, cutMadeAt: new Date() } })).id;
   // Everyone pars round 1; handicaps decide the cut on net: Ann, Bea, Cat
   // (off 10) through, Dan (off 2) out.
   const field: Array<[string, number]> = [["Ann", 10], ["Bea", 10], ["Cat", 10], ["Dan", 2]];

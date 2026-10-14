@@ -1022,6 +1022,10 @@ export async function seed() {
         cutScope: "overall",
         cutMode: "count",
         cutCount: 16,
+        // Made — as `applyStrokeCut` records it. The survivors' cards are
+        // written below, the way the cut leaves them; without this the app
+        // reads round 2 as everybody's (`cutHasBeenMade`).
+        cutMadeAt: new Date(),
         teeSheetPublished: true,
       },
     });
