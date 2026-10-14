@@ -14,9 +14,8 @@ import { resolveMatch } from "../domain/match";
 import { aggregateStroke } from "../domain/stroke-agg";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { holesPlayed } from "../domain/handicap";
-import { cardForStage, courseForRound } from "./course-resolution";
+import { roundCard } from "./course-resolution";
 import { teamStandings } from "./teams";
-import { resolveCourse } from "../courses";
 
 /**
  * WHAT HAPPENED, ROUND BY ROUND — the day's result for any kind of play.
@@ -60,10 +59,7 @@ export async function resultLinesFor(state: EventState): Promise<OutingLine[]> {
    */
   const cardByStage = new Map(
     stages.map((stage) => {
-      const venue =
-        courseForRound(courses.find((c) => c.id === (stage.courseId ?? "")) ?? null, state.event) ??
-        resolveCourse(state.event);
-      const card = cardForStage(venue, stage);
+      const card = roundCard(stage, state.event, courses.find((c) => c.id === (stage.courseId ?? "")) ?? null);
       return [stage.id, { pars: card.pars, holeDifficulty: card.strokeIndex }] as const;
     }),
   );

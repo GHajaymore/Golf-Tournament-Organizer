@@ -37,8 +37,7 @@ import { loadEventState, settingsOf, type HoleResultArr, type EventState } from 
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import { matchIsOver } from "../domain/match";
 import { nassauIsDecided } from "../domain/nassau";
-import { resolveCourse } from "../courses";
-import { cardForStage, courseForRound } from "./course-resolution";
+import { roundCard } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 import { roundStrokes } from "./round-cards";
 import { holesPlayed } from "../domain/handicap";
@@ -847,10 +846,7 @@ async function gameNets(
          * settle-up and the leaderboard disagreed about the same round.
          */
         const roundCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
-        const course = cardForStage(
-          courseForRound(roundCourse, state.event) ?? resolveCourse(state.event),
-          stage,
-        );
+        const course = roundCard(stage, state.event, roundCourse);
         const pars = course.pars;
 
         /**

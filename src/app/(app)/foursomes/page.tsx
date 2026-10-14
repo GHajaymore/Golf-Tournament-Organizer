@@ -23,8 +23,7 @@ import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sh
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
+import { roundCard } from "@/lib/services/course-resolution";
 import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
@@ -235,7 +234,7 @@ export default async function FoursomesPage({
   const roundCourse = stage?.courseId
     ? await prisma.course.findUnique({ where: { id: stage.courseId } })
     : null;
-  const course = cardForStage(courseForRound(roundCourse, state.event) ?? resolveCourse(state.event), stage);
+  const course = roundCard(stage, state.event, roundCourse);
   const brand = await brandForEvent(session.eventId);
   // The club's own date order for the round tabs and the printed cards (`shortDate`).
   const { locale } = await formattingForEvent(session.eventId);

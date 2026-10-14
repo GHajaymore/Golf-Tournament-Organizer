@@ -12,7 +12,7 @@ import {
 } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
-import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
+import { COURSE_REF, roundCard } from "./course-resolution";
 import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
 import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
@@ -1878,12 +1878,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     if (cached) return cached;
     const stage = stageById.get(stageId);
     const roundCourse = stage?.courseId ? venuesById.get(stage.courseId) ?? null : null;
-    const resolved = courseForRound(roundCourse, event) ?? course;
-    // Narrowed to the nine actually played, the same way the match path does
-    // it: nine holes of an eighteen-hole card carry stroke indexes scattered
-    // through 1..18, and allocating off those gives the wrong holes.
-    const holes = holesPlayed(stage?.holes);
-    const applied = applyNine(resolved, cleanNine(stage?.nine), holes);
+    // The one chain (`roundCard`): the round's venue, then the tournament's
+    // course, narrowed to the nine actually played — nine holes of an
+    // eighteen-hole card carry stroke indexes scattered through 1..18, and
+    // allocating off those gives the wrong holes.
+    const applied = roundCard(stage, event, roundCourse);
     const value = { pars: applied.pars, holeDifficulty: applied.strokeIndex };
     roundCards.set(stageId, value);
     return value;

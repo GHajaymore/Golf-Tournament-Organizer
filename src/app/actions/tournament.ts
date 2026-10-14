@@ -1,7 +1,7 @@
 "use server";
 import { byAddress } from "@/lib/domain/my-entry";
 import type { Match as MatchRow } from "@prisma/client";
-import { COURSE_REF } from "@/lib/services/course-resolution";
+import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
@@ -143,8 +143,7 @@ import {
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
+import { cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
@@ -3271,7 +3270,7 @@ async function recomputeTeamMatch(
         where: { id: stage.courseId, ...playedOnBy(eventId) },
       })
     : null;
-  const course = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage);
+  const course = roundCard(stage, event, roundVenue);
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0, stage?.type);
 
   /**
@@ -5454,7 +5453,7 @@ export async function importScores(
           where: { id: stage.courseId, ...playedOnBy(eventId) },
         })
       : null;
-    netSi = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage).strokeIndex;
+    netSi = roundCard(stage, event, roundVenue).strokeIndex;
     if (netSi.length === 0) {
       return {
         ok: false,

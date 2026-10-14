@@ -1,5 +1,5 @@
 import "server-only";
-import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
+import { COURSE_REF, roundCard as roundCardOf } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
@@ -21,7 +21,6 @@ import {
   type Transfer,
   type SkinsScope,
 } from "../domain/skins-pot";
-import { resolveCourse } from "../courses";
 import { parseTeeSheet } from "../domain/tee-sheet";
 import { roundStrokes } from "./round-cards";
 import { needsTeams } from "../formats";
@@ -251,7 +250,6 @@ export async function skinsPotFor(
   const roundCourse = stage.courseId
     ? await prisma.course.findUnique({ where: { id: stage.courseId } })
     : null;
-  const course = courseForRound(roundCourse, event) ?? resolveCourse(event);
 
   /**
    * The card the ROUND was played on, before the pot's scope narrows it again.
@@ -264,10 +262,11 @@ export async function skinsPotFor(
    * board resolves the card properly — so the two disagreed and only the pot
    * paid out.
    *
-   * `cardForStage` is the one sanctioned way to narrow a card to the holes a
-   * round was played on, and this file was not among those calling it.
+   * `roundCard` (course-resolution.ts) is the one sanctioned way to a round's
+   * card, narrowed to the holes it was played on; this file was not among
+   * those calling it.
    */
-  const roundCard = cardForStage(course, stage);
+  const roundCard = roundCardOf(stage, event, roundCourse);
 
   /**
    * Ranked 1..N for the holes actually being played.

@@ -1,8 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
-import { COURSE_REF, cardForStage, courseForRound } from "./course-resolution";
+import { COURSE_REF, roundCard } from "./course-resolution";
 import { playedOnBy } from "./courses";
-import { resolveCourse } from "../courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
 import { NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
 import { effectiveAllowance, effectiveCountBest } from "./teams";
@@ -151,7 +150,7 @@ export async function leagueMeetings(
   const weekVenue = stage.courseId
     ? await prisma.course.findFirst({ where: { id: stage.courseId, ...playedOnBy(eventId) } })
     : null;
-  const card = cardForStage(courseForRound(weekVenue, event) ?? resolveCourse(event), stage);
+  const card = roundCard(stage, event, weekVenue);
   const countBest = effectiveCountBest(stage.format, stage.countBest);
 
   const cards = await prisma.teamScorecard.findMany({ where: { eventId, stageId } });

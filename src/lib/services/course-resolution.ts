@@ -1,4 +1,4 @@
-import { parseHoleArray } from "../courses";
+import { parseHoleArray, resolveCourse } from "../courses";
 import { holesPlayed } from "../domain/handicap";
 
 /**
@@ -369,6 +369,25 @@ export function cardForStage<
   T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
 >(course: T, stage: { holes?: number | null; nine?: string | null } | null | undefined): T {
   return applyNine(course, cleanNine(stage?.nine), holesPlayed(stage?.holes));
+}
+
+/**
+ * A ROUND'S CARD: the round's own venue, then the tournament's course, narrowed
+ * to the nine actually played — the one chain.
+ *
+ * Six callers wrote `cardForStage(courseForRound(venue, event) ?? resolveCourse(event), stage)`
+ * out for themselves (2026-10-14, `docs/one-rule-one-place.md` step 3), and five
+ * callers once handed `cardForStage` the TOURNAMENT's course for a round played
+ * away: every side's to-par out by four on the board a club sends its members.
+ * The venue is the caller's to look up — some hold a map of the tournament's
+ * courses, some ask the database scoped to them — and the rest is here.
+ */
+export function roundCard(
+  stage: { holes?: number | null; nine?: string | null } | null | undefined,
+  event: EventCourseFields,
+  venue: StoredCourse | null,
+) {
+  return cardForStage(courseForRound(venue, event) ?? resolveCourse(event), stage);
 }
 
 /**
