@@ -37,8 +37,8 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
 | 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
 | 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
-| 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; one chain for a round 2026-10-14 (a singles match from its cards fixed); two side pipelines open |
-| 5 | A card | gross, net, points, to par | not started |
+| 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked |
+| 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing |
 | 6 | A round | finished or not, ranking, ties, a match result | not started |
 | 7 | Across rounds | cut, flights, brackets, season table | not started |
 | 8 | Money | pots, splits, who owes whom | not started |
@@ -114,6 +114,18 @@ handicap readers became one (counted off the diff, not the inventory). The four
   away off the home course's tees, 22.0 where the Rule gives 13.4
   (`a-differential-is-from-the-tees-of-the-round.audit.test.ts`). Live
   2026-10-14.
+- **What a stroke can be** (step 5): `isStroke` in `domain/score-payload.ts`,
+  a whole number from 1 to `MAX_STROKES_PER_HOLE`; every writer of a card asks
+  it, and `a-stroke-is-one-test.test.ts` refuses the range written by hand (a
+  file of cards had it twice with its own 30). **Checked and consistent** (step
+  5), on that footing: the card loops that call a hole played when `s != null`
+  and the ones that want `s > 0` cannot disagree, because no stored card holds
+  a 0 — 28,395 cards measured, read-only, on 2026-10-14, and nothing but 1..30
+  or empty in any of them. The eight to-par sums are each "strokes minus par
+  over the holes played" and agree on that footing; they were left as they
+  are rather than rewritten on a difference that cannot arise. The low-net pot's
+  net is the board's: `state.strokeHandicapFor` off `roundCard`, gross less the
+  rounded strokes received over the holes played.
 - **Checked and consistent** (step 3): the map of each player's flight tees is
   built four times, all four the same one line (a flight's id to its tees, then
   each player through their flight); which tees WIN is `teeIdFor`'s alone.

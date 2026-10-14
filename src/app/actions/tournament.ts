@@ -5512,12 +5512,14 @@ export async function importScores(
       const raw = (Array.isArray(row.strokes) ? row.strokes : [])
         .slice(0, 18)
         .map((v) => (isStroke(v) ? v : null));
+      // And the gross it converts back to is a stroke too: a net 30 off two
+      // shots is a 32 no card could hold, so it is a blank like any other.
       const strokes = isNet
-        ? raw.map((v, i) =>
-            v === null
-              ? null
-              : v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length)),
-          )
+        ? raw.map((v, i) => {
+            if (v === null) return null;
+            const gross = v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length));
+            return isStroke(gross) ? gross : null;
+          })
         : raw;
       /**
        * A MATCH ROUND FILES ITS CARDS ON THE FIXTURE (2026-10-10).
