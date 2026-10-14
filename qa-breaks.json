@@ -1,0 +1,41 @@
+[
+  {
+    "what": "P1b the whole before-state: a match from its cards priced off the round's figure alone",
+    "file": "src/app/actions/tournament.ts",
+    "from": "      ? playingHandicapInRound(stage, netRound.get(p.id), {",
+    "to": "      ? ((r: { frozen?: number | null } | undefined, m: { whole: number; exact: number; parStrokes: number }) => (r && typeof r.frozen === \"number\" ? r.frozen : m.whole))(netRound.get(p.id), {",
+    "audit": [
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "S1 a 0 is a stroke",
+    "file": "src/lib/domain/score-payload.ts",
+    "from": "Number.isInteger(v) && v >= 1 && v <= MAX_STROKES_PER_HOLE;",
+    "to": "Number.isInteger(v) && v >= 0 && v <= MAX_STROKES_PER_HOLE;",
+    "unit": [
+      "src/lib/__tests__/a-stroke-is-one-test.test.ts"
+    ]
+  },
+  {
+    "what": "S2 a file of team cards writes the range out by hand again (the sweep's own target)",
+    "file": "src/app/actions/tournament.ts",
+    "from": "      .slice(0, holes)\n      .map((v) => (isStroke(v) ? v : null));",
+    "to": "      .slice(0, holes)\n      .map((v) => (typeof v === \"number\" && v >= 1 && v <= 30 ? v : null));",
+    "unit": [
+      "src/lib/__tests__/a-stroke-is-one-test.test.ts"
+    ]
+  },
+  {
+    "what": "S3 a file of cards stores whatever it is given on a hole",
+    "file": "src/app/actions/tournament.ts",
+    "from": "        .slice(0, 18)\n        .map((v) => (isStroke(v) ? v : null));",
+    "to": "        .slice(0, 18)\n        .map((v) => v);",
+    "audit": [
+      "src/lib/__tests__/imported-cards-score-the-match.audit.test.ts",
+      "src/lib/__tests__/an-imported-card-is-returned.audit.test.ts",
+      "src/lib/__tests__/net-import-uses-the-round-card.audit.test.ts",
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  }
+]
