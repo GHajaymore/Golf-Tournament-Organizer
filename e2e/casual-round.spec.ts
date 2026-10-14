@@ -913,7 +913,7 @@ test.describe("a casual round at the course", () => {
      * "124" for 12.4 went to a server that stored it — six strokes a hole.
      *
      * Three refusals and a CONTROL. After each refusal the box holds the old
-     * figure, the reason is on screen WITH the box (a refusal said at the top
+     * figure, the reason is said BESIDE the box (a refusal said at the top
      * of a panel the player has scrolled past is a box that seems to ignore
      * them), and a reload shows the server never took it. The control is a
      * real correction, which must still save — a box that refuses everything
@@ -946,8 +946,13 @@ test.describe("a casual round at the course", () => {
       await box.press("Tab");
       await expect(refusal, `"${typed}" was not refused in words`).toContainText(why);
       await expect(box, `"${typed}" was left in the box`).toHaveValue("12.4");
-      await box.scrollIntoViewIfNeeded();
-      await expect(refusal, `the reason "${typed}" was refused is not on screen with the box`).toBeInViewport();
+      // BESIDE the box, measured as a distance: "both on screen after a scroll"
+      // depends on where the scroll lands, and failed on a small phone with the
+      // reason 8px under the box and the box at the screen's bottom edge.
+      const b = (await box.boundingBox())!;
+      const r = (await refusal.boundingBox())!;
+      const apart = Math.max(r.y - (b.y + b.height), b.y - (r.y + r.height), 0);
+      expect(apart, `the reason "${typed}" was refused is said ${Math.round(apart)}px from the box`).toBeLessThanOrEqual(120);
       await more();
       await expect(box, `"${typed}" reached the server`).toHaveValue("12.4");
       await expect(page.getByRole("textbox", { name: `${ANN}'s handicap` }), "CONTROL: the other players were not touched").toHaveValue("8");

@@ -77,8 +77,10 @@ export function CasualRoundPanel({
   const saveStatus = useSaveStatus(pending);
   const [error, setError] = useState("");
   // A handicap that was refused, said BESIDE the boxes. The line above is drawn
-  // at the top of the panel, which on a phone is a screen above the box the
-  // thumb is on: a refusal there is a box that seems to ignore what was typed.
+  // at the top of the panel, above the switches and every player's row: with a
+  // full field of eight, far from the last boxes, and off a small phone's
+  // screen — a box that seems to ignore what was typed. (With two players it
+  // is close enough not to matter; the browser test plays eight.)
   const [handicapRefusal, setHandicapRefusal] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
 
