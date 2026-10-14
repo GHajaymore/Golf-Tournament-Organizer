@@ -75,7 +75,12 @@ test.afterAll(async () => {
   }
 });
 
-test("the organizer's own invitation is kept, under a box a screen reader can name", async ({ page, context, baseURL }) => {
+// NOT YET PROVEN, and so not run: on GitHub (breaks/invite, 2026-10-14) this failed on the
+// UNCHANGED app as well, like the test below. The two share only the setup — their own club on
+// Birdie, the fixture's organizer added as its admin — so suspect that first (does the console
+// open this club's Registration for that organizer?). `setInviteMessage` stays on the reach
+// baseline until this runs.
+test.fixme("the organizer's own invitation is kept, under a box a screen reader can name", async ({ page, context, baseURL }) => {
   // `setInviteMessage`, reached by no browser test. Found by the box rather than
   // by its position: its "Message" caption was tied to nothing until 2026-10-14,
   // so a screen reader announced an unnamed text area — and this could not find it.
