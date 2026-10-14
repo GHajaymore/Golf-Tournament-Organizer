@@ -163,24 +163,6 @@ export function skinsPot(
 }
 
 /**
- * A player's position across a whole season, for a league that plays weekly.
- *
- * Summed rather than re-derived, because a week already settled does not
- * change when a later week is played.
- */
-export function seasonPosition(weeks: PotResult[]): Array<{ playerId: string; netCents: number }> {
-  const totals = new Map<string, number>();
-  for (const w of weeks) {
-    for (const s of w.shares) {
-      totals.set(s.playerId, (totals.get(s.playerId) ?? 0) + s.netCents);
-    }
-  }
-  return [...totals.entries()]
-    .map(([playerId, netCents]) => ({ playerId, netCents }))
-    .sort((a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId));
-}
-
-/**
  * Nobody won a hole outright, so every player takes their stake back.
  *
  * Asked of `claimedSkins`, never of the payouts: in exactly this case every

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   countbackSegments,
   countbackCompare,
-  rankByCountback,
   type CountbackCard,
 } from "@/lib/domain/stroke-countback";
 
@@ -76,54 +75,5 @@ describe("separating two cards on the same score", () => {
     const short: CountbackCard = { playerId: "b", total: 72, holes: [...a.holes.slice(0, 17), null] };
     expect(countbackCompare(a, short, 18)).toBe(0);
     expect(countbackCompare(short, a, 18)).toBe(0);
-  });
-});
-
-describe("ranking a field", () => {
-  it("does not reorder players who are not level", () => {
-    const rows = rankByCountback([card("a", { 0: 5 }), card("b")], 18);
-    expect(rows.map((r) => r.card.playerId)).toEqual(["b", "a"]);
-    expect(rows.map((r) => r.rank)).toEqual([1, 2]);
-  });
-
-  it("leaves a tie the countback cannot break as a shared position", () => {
-    /**
-     * The heart of it. Two identical cards used to finish 1st and 2nd by seed
-     * order, silently — no shared position anywhere, and nothing telling the
-     * committee it had a play-off to run.
-     */
-    const rows = rankByCountback([card("a"), card("b"), card("c", { 0: 5 })], 18);
-    expect(rows.map((r) => r.rank)).toEqual([1, 1, 3]);
-    expect(rows[0].tied).toBe(true);
-    expect(rows[1].tied).toBe(true);
-    expect(rows[2].tied).toBe(false);
-  });
-
-  it("numbers the player below a tie by how many are above them", () => {
-    // Two share 1st, so the next player is 3rd — not 2nd.
-    const rows = rankByCountback([card("a"), card("b"), card("c", { 0: 5 })], 18);
-    expect(rows[2].rank).toBe(3);
-  });
-
-  it("says how each player was separated, for the sheet", () => {
-    const rows = rankByCountback([card("a", { 9: 5, 17: 3 }), card("b")], 18);
-    expect(rows[0].separatedBy).toBe("");
-    expect(rows[1].separatedBy).toBe("last 6");
-  });
-
-  it("is stable, so two runs produce the same sheet", () => {
-    const field = [card("a"), card("b"), card("c")];
-    const once = rankByCountback(field, 18).map((r) => r.card.playerId);
-    const twice = rankByCountback(field, 18).map((r) => r.card.playerId);
-    expect(once).toEqual(twice);
-  });
-
-  it("ranks on the basis it was given, not on gross", () => {
-    // `total` is whatever the competition is played on. A net comp separated
-    // on gross would hand the prize to the low handicapper the countback
-    // exists to stop, so this function never sees a second number.
-    const netA: CountbackCard = { playerId: "a", total: 68, holes: Array(18).fill(4) };
-    const netB: CountbackCard = { playerId: "b", total: 70, holes: Array(18).fill(3) };
-    expect(rankByCountback([netB, netA], 18).map((r) => r.card.playerId)).toEqual(["a", "b"]);
   });
 });

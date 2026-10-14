@@ -3,7 +3,6 @@ import {
   splitExactly,
   skinsPot,
   settle,
-  seasonPosition,
   scopeRange,
   isSkinsScope,
 } from "../skins-pot";
@@ -191,31 +190,6 @@ describe("settling up", () => {
       { playerId: "c", netCents: 600 },
     ];
     expect(settle(nets)).toEqual(settle(nets));
-  });
-});
-
-describe("a season's running position", () => {
-  const week = (netByPlayer: Record<string, number>) => ({
-    potCents: 0, stakeCents: 0, playerCount: 0, claimedSkins: 0, unclaimedSkins: 0,
-    carryCents: 0, provisional: false,
-    shares: Object.entries(netByPlayer).map(([playerId, netCents]) => ({
-      playerId, skins: 0, wonCents: 0, stakeCents: 0, netCents,
-    })),
-  });
-
-  it("adds each week up, best off first", () => {
-    const table = seasonPosition([
-      week({ a: -500, b: 500 }),
-      week({ a: 1500, b: -1500 }),
-    ]);
-    expect(table[0]).toEqual({ playerId: "a", netCents: 1000 });
-    expect(table[1]).toEqual({ playerId: "b", netCents: -1000 });
-  });
-
-  it("includes a player who missed a week without inventing a stake for them", () => {
-    const table = seasonPosition([week({ a: -500, b: 500 }), week({ a: 500 })]);
-    expect(table.find((r) => r.playerId === "b")!.netCents).toBe(500);
-    expect(table.find((r) => r.playerId === "a")!.netCents).toBe(0);
   });
 });
 

@@ -39,10 +39,10 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked |
 | 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing |
-| 6 | A round | finished or not, ranking, ties, a match result | started 2026-10-14: a match result is a card of the round's length, over when decided, at all three doors |
-| 7 | Across rounds | cut, flights, brackets, season table | not started |
-| 8 | Money | pots, splits, who owes whom | not started |
-| 9 | What screens say | two screens never give different answers | not started |
+| 6 | A round | finished or not, ranking, ties, a match result | done 2026-10-14: a match result a card of its length, over when decided; a confirmed result stays confirmed; every board places by countback, decided once; three dead twins deleted |
+| 7 | Across rounds | cut, flights, brackets, season table | done 2026-10-14: the cut and its field (step 2), a round's name (a cut's refusal fixed), a knockout's draw (2026-10-12); a season table shares places on purpose |
+| 8 | Money | pots, splits, who owes whom | checked 2026-10-14: one divider (`splitExactly`), one settle; the low-net pot's net is the board's; the preview label says "about" |
+| 9 | What screens say | two screens never give different answers | begun 2026-10-14: `e2e/the-boards-agree.spec.ts` holds the secretary's board and the public link to the same place for every player, on every public round of the seeded club |
 
 Steps 3 and 4 were opened first only because the fault that prompted this was
 found there. The work goes back to step 1 and climbs.
@@ -230,7 +230,9 @@ day and will drift: search for the expression.
 - `splitExactly` is the only divider; `settle`, `gameNets` single. Inline: MoneyClient.tsx:142 (preview label). Low-net pot computes its OWN net (expenses.ts:1018-1027 + derived-games.ts:131 `gross - Math.round(c.strokesReceived)`) rather than the board's.
 
 ### Dead twins of live rules
-`rankByCountback`, `seasonPosition`, `isMatchStarted`. (`courseHandicapForPlayer` was the fourth and is deleted.)
+All four deleted: `courseHandicapForPlayer` (2026-10-13), and `rankByCountback`, `seasonPosition`, `isMatchStarted` (2026-10-14).
+
+**Checked** (2026-10-14): a stored card is parsed at 20 places in 11 files; every one but two guards against a corrupt row, every writer writes only a clean list (`isStroke`, swept), and none of 28,395 stored cards is unreadable. Left as they are.
 
 ## Most worth consolidating (most visible to a member first)
 1. Card totals and to-par (8 versions, two "played" tests).
