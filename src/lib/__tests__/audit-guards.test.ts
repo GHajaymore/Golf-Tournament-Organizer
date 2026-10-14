@@ -2017,7 +2017,8 @@ describe("a round's card is narrowed in exactly one place", () => {
     );
     expect(card).toMatch(/roundCardFor\(state, stage, holes\)/);
     const helper = stripComments(readFileSync(join(process.cwd(), "src/lib/services/round-card.ts"), "utf8"));
-    expect(helper).toMatch(/applyNine\(/);
+    // Through `roundCard` since 2026-10-14, which narrows with `cardForStage`.
+    expect(helper).toMatch(/\broundCard\(|applyNine\(/);
   });
 
   /**
@@ -2050,8 +2051,10 @@ describe("a round's card is narrowed in exactly one place", () => {
       // `strokeCourseFor` is the second sanctioned reader: it is the same
       // narrowing, already resolved per ROUND and cached on `EventState`, and
       // three of these moved onto it when the sweep below was written.
-      expect(body, `${rel} should resolve its card through cardForStage or strokeCourseFor`).toMatch(
-        /cardForStage\(|strokeCourseFor\(/,
+      // And `roundCard` since 2026-10-14: the round's venue, the tournament's
+      // course, then `cardForStage` — the chain these files wrote out.
+      expect(body, `${rel} should resolve its card through roundCard, cardForStage or strokeCourseFor`).toMatch(
+        /\broundCard\(|cardForStage\(|strokeCourseFor\(/,
       );
     }
   });
@@ -2509,8 +2512,8 @@ describe("the tee sheet is drawn for the selected round", () => {
   it("prints the card the round is actually played on", () => {
     // It printed the EVENT's card, so a two-course tournament put round one's
     // par and stroke index on round two's scorecards.
-    expect(page).toMatch(/cardForStage\(/);
-    expect(page).toMatch(/courseForRound\(roundCourse, state\.event\)/);
+    // Through the one chain, handed the round's own course.
+    expect(page).toMatch(/roundCard\(stage, state\.event, roundCourse\)/);
   });
 });
 
