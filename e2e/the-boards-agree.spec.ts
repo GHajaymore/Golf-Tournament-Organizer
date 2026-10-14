@@ -25,10 +25,11 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  * every name on both carries the same place text — "T1" against "T1", "3"
  * against "3", "–" against "–".
  *
- * WHAT IT CANNOT SEE: a player's own board on their phone (`/me/board`, which
- * prints the same component as the public link), a tournament whose board is
- * not public, and a knockout or cup, whose results are a draw, not places. It
- * reads; it changes nothing.
+ * And a member's own board on their phone (`/me/board`), in every one of those
+ * tournaments the seeded member is in, is held to the console the same way.
+ *
+ * WHAT IT CANNOT SEE: a tournament whose board is not public, and a knockout or
+ * cup, whose results are a draw, not places. It reads; it changes nothing.
  */
 
 const prisma = new PrismaClient();
@@ -90,6 +91,12 @@ test("every player and side has the same place on the secretary's board and on t
   const visitor = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   const outside = await visitor.newPage();
   watchPageErrors(outside, errors, "visitor");
+  // A member, on their own phone's board: the third screen a club compares.
+  const memberCtx = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  await memberCtx.addCookies([{ name: "ng_session", value: club.player.session, url: baseURL! }]);
+  const member = await memberCtx.newPage();
+  watchPageErrors(member, errors, "member");
+  let memberRounds = 0;
 
   const disagree: string[] = [];
   const said: string[] = [];
@@ -129,13 +136,29 @@ test("every player and side has the same place on the secretary's board and on t
           if (norm(place).startsWith("T")) shared += 1;
           if (norm(place) !== norm(there)) disagree.push(`${label}: ${name} is ${place} on the console and ${there} on the public link`);
         }
+
+        // And on a member's own board, where they are in this tournament.
+        await memberCtx.addCookies([{ name: "ng_active_event", value: sign(ev.id), url: baseURL! }]);
+        await member.goto(`/me/board?round=${stage.id}&bust=${Date.now()}`);
+        await member.waitForLoadState("networkidle").catch(() => {});
+        const theirs = (await listPlaces(member)) ?? (await tablePlaces(member));
+        if (!theirs) continue;
+        memberRounds += 1;
+        for (const [name, place] of inside) {
+          const there = theirs.get(name);
+          if (there === undefined) continue;
+          if (norm(place) !== norm(there)) disagree.push(`${label}: ${name} is ${place} on the console and ${there} on a member's board`);
+        }
       }
     }
   } finally {
     await visitor.close();
+    await memberCtx.close();
   }
 
-  console.log([`${rounds} rounds compared, ${compared} places, ${shared} of them shared`, ...said].join("\n"));
+  console.log([`${rounds} rounds compared, ${compared} places, ${shared} of them shared; ${memberRounds} on a member's board too`, ...said].join("\n"));
+  // CONTROL: the seeded member is in some of these tournaments, so their board must have been read.
+  expect(memberRounds, "no member's board was compared").toBeGreaterThanOrEqual(1);
   // CONTROL: the seeded club has public boards with results, so a comparison of nothing is a broken instrument.
   expect(rounds, "no round was compared — the readers cannot see the boards").toBeGreaterThanOrEqual(3);
   expect(compared, "no place was compared").toBeGreaterThanOrEqual(20);
