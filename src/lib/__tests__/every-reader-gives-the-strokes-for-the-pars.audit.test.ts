@@ -100,6 +100,7 @@ beforeAll(async () => {
   ]);
   tee.white = white.id;
   tee.red = red.id;
+  tee.gold = (await prisma.tee.findFirstOrThrow({ where: { courseId: course.id, name: `${TAG} gold` } })).id;
 
   const event = await prisma.event.create({
     data: {
@@ -133,6 +134,8 @@ beforeAll(async () => {
   // A stroke round SET to points, the older way of storing a Stableford.
   round.points = (await make(4, "Stroke Play", { scoringBasis: "stableford" })).id;
   round.second = (await make(5, "Stroke Play")).id;
+  // A four-ball whose only side is the two ladies: its sides are PART of the field.
+  round.ladies = (await make(6, "Four-Ball")).id;
 
   for (const [i, who] of Object.keys(FIELD).entries()) {
     const p = await prisma.player.create({
@@ -159,6 +162,34 @@ beforeAll(async () => {
       data: pair.map((who, position) => ({ teamId: side.id, playerId: player[who], position })),
     });
   }
+
+  const ladies = await prisma.team.create({ data: { eventId, stageId: round.ladies, name: `${TAG} ladies`, seed: 1 } });
+  await prisma.teamMember.createMany({
+    data: ["ann", "bea"].map((who, position) => ({ teamId: ladies.id, playerId: player[who], position })),
+  });
+
+  /**
+   * SOMEBODY WHO PLAYED AND THEN WITHDREW, off the gold tees — a LOWER par than
+   * anybody still in the field. The board prices her card (it reads WD over the
+   * figures she returned), so she is in the board's map and in nobody else's.
+   * She is not in the field: her tees must not make the lowest par 70 on the
+   * board and 71 everywhere else.
+   */
+  const eve = await prisma.player.create({
+    data: {
+      eventId,
+      name: `${TAG} eve`,
+      email: `${TAG}.eve@example.invalid`.toLowerCase(),
+      seed: 9,
+      status: "withdrawn",
+      handicap: 20,
+      teeId: tee.gold,
+    },
+  });
+  player.eve = eve.id;
+  await prisma.scorecard.create({
+    data: { eventId, stageId: round.medal, playerId: eve.id, strokes: JSON.stringify(new Array(18).fill(5)) },
+  });
 
   // A net skins pot on the medal with ONLY the two ladies in it.
   const pot = await prisma.skinsPot.create({
@@ -246,6 +277,18 @@ describe("a net medal off two pars", () => {
   });
 });
 
+describe("somebody who has left the field", () => {
+  it("is priced for the card she returned, and her tees decide nobody else's strokes", async () => {
+    const state = await loadEventState(eventId);
+    // She is on the board's books: 20.0 off the gold tees at 95%.
+    const gold = (20 * 10 * GOLD.slopeRating + (Math.round(GOLD.courseRating * 10) - GOLD.par * 10) * 113) * 95;
+    expect(state!.strokeHandicapFor(player.eve, round.medal)).toBe(Math.floor((2 * gold + 113_000) / (2 * 113_000)));
+    // And the lowest par the FIELD is playing is still 71: one stroke for the ladies, not two.
+    expect(state!.strokeHandicapFor(player.ann, round.medal)).toBe(byTheRules("ann", 95));
+    expect(state!.strokeHandicapFor(player.col, round.medal)).toBe(byTheRules("col", 95));
+  });
+});
+
 describe("the rounds the Rule leaves out", () => {
   it("Stableford gives none: each player is already measured against the par of their own tees", async () => {
     const state = await loadEventState(eventId);
@@ -281,6 +324,16 @@ describe("a four-ball, where each player plays their own ball", () => {
       // 85%: a four-ball at stroke play (Appendix C).
       expect(m.playing, who).toBe(byTheRules(who, 85));
       expect(m.parStrokes, who).toBe(ratingOf(who).par - LOWEST_PAR);
+    }
+  });
+
+  it("a round whose only side is the two ladies still measures from the field's lowest par", async () => {
+    const sides = await teamsForStage(eventId, round.ladies, "Four-Ball", 0, 18);
+    expect(sides).toHaveLength(1);
+    for (const who of ["ann", "bea"]) {
+      const m = sides[0].members.find((x) => x.playerId === player[who])!;
+      expect(m.parStrokes, who).toBe(1);
+      expect(m.playing, who).toBe(byTheRules(who, 85));
     }
   });
 
