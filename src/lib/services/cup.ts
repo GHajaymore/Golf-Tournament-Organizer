@@ -312,7 +312,7 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
         const kind = sessionKind(s.format);
         return {
           id: s.id,
-          name: s.description.trim() || `Session ${i + 1}`,
+          name: sessionName(s, i),
           kind,
           sideSize: kind === "Singles" ? 1 : Math.max(1, lookupFormat(s.format.trim())?.sideSize ?? 1),
           published: published.has(s.id),

@@ -255,6 +255,17 @@ describe("generateCutRound refuses a round with nothing to cut on", () => {
     expect(result.ok === false && result.reason).toBe("no-results");
   });
 
+  it("names the round by its number among ALL the rounds, as the board does", async () => {
+    // A qualifying medal played first: the round robin is the board's Round 2.
+    // The refusal counted round robins only, and called it Round 1.
+    const { eventId, r2 } = await seedTwoRounds(NOT_PLAYED);
+    await prisma.stage.create({ data: { eventId, position: -1, type: "Stroke Play Round", format: "Stroke Play", holes: 18 } });
+
+    const result = await generateCutRound(eventId, r2);
+
+    expect(result.ok === false && result.reason === "no-results" && result.roundName).toBe("Round 2");
+  });
+
   it("changes nothing at all when it refuses", async () => {
     /**
      * The refusal has to come BEFORE the reform, not after it. An overall cut
