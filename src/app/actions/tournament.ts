@@ -63,7 +63,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
+import { cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -5511,7 +5511,7 @@ export async function importScores(
       // the card is capped at the sizes a card can be.
       const raw = (Array.isArray(row.strokes) ? row.strokes : [])
         .slice(0, 18)
-        .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+        .map((v) => (isStroke(v) ? v : null));
       const strokes = isNet
         ? raw.map((v, i) =>
             v === null
@@ -5751,7 +5751,7 @@ export async function importTeamScores(
     // Coerced hole by hole, exactly as `importScores` does it.
     const strokes = (Array.isArray(row.strokes) ? row.strokes : [])
       .slice(0, holes)
-      .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+      .map((v) => (isStroke(v) ? v : null));
     const match = matchOf(teamId);
     const matchId = match?.id ?? "";
     await prisma.teamScorecard.upsert({
