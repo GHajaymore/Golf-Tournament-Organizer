@@ -57,11 +57,13 @@ describe("Reports hands the export the answer", () => {
 describe("the other exports take the board's places", () => {
   const reports = () => readSource("src/app/(app)/reports/page.tsx");
   it("team standings", () => {
-    // `teamPlaceValue`: the figure `teamStandings` sorts on (2026-10-10).
-    expect(reports()).toMatch(/placesByValue\(teams, \(t\) => teamPlaceValue\(basis, t\), \(t\) => t\.played > 0\)/);
+    // The place `teamStandings` decided — countback and all, null for a side
+    // with no card — since 2026-10-14 (`a-side-is-placed-once.test.ts`).
+    expect(reports()).toMatch(/\]\)\)\(teams\.map\(\(t\) => t\.place\)\)/);
   });
   it("modified Stableford", () => {
-    expect(reports()).toMatch(/placesByValue\(mod, \(r\) => r\.points, \(r\) => r\.played > 0\)/);
+    // The place `modifiedStablefordBoard` decided, countback and all (2026-10-14).
+    expect(reports()).toMatch(/\]\)\)\(mod\.map\(\(r\) => r\.place\)\)/);
   });
   it("neither numbers by list index any more", () => {
     expect(reports()).not.toMatch(/String\(i \+ 1\)/);

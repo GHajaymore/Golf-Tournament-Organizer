@@ -561,7 +561,7 @@ async function gather(eventId: string, roundId: string): Promise<LiveBoardView |
  * entries — the shape number is the backstop for a local server, which has
  * no deployment id and keeps its cache across restarts.
  */
-export const LIVE_BOARD_SHAPE = 6; // 6: `pairTotals`, a pairs event's total over its rounds (2026-10-10)
+export const LIVE_BOARD_SHAPE = 7; // 7: `teamRows[].place` and `modStableford[].place`, placed by countback (2026-10-14)
 const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
 
 /**

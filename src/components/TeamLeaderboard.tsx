@@ -108,7 +108,8 @@ export function TeamStandingsTable({
    * `#` column agreed with the sort and both were wrong together.
    */
   // "T1" for a shared place, as every other board prints it — see `placeTexts`.
-  const places = placeTexts(placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0));
+  // The place `teamStandings` decided, countback and all; never re-numbered here.
+  const places = placeTexts(rows.map((r) => r.place));
 
   return (
     <>

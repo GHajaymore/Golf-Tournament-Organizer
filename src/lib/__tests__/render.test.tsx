@@ -869,9 +869,9 @@ describe("leaderboards for every format", () => {
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
           { teamId: "t1", name: "Side A", members: ["Ann", "Bob"], memberIds: ["p1", "p2"], playingHandicap: 7,
-            gross: 72, net: 65, points: 0, played: 18, toPar: 0 },
+            gross: 72, net: 65, points: 0, played: 18, toPar: 0, place: 1 },
           { teamId: "t2", name: "Side B", members: [], memberIds: [], playingHandicap: 0,
-            gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+            gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
     expect(html).toContain("Side A");
@@ -924,7 +924,7 @@ describe("leaderboards for every format", () => {
     // The format has no floor at zero, so the board must not choke on it.
     const html = render(
       <ModifiedStablefordLeaderboard
-        rows={[{ playerId: "p1", name: "Ann", handicap: 12, points: -4, played: 18, gross: 95 }]} />,
+        rows={[{ playerId: "p1", name: "Ann", handicap: 12, points: -4, played: 18, gross: 95, place: 1 }]} />,
     );
     expect(html).toContain("Ann");
     expect(html).toContain("-4");
@@ -983,15 +983,16 @@ describe("leaderboards for every format", () => {
     expect(placeOf(html, "Bob"), "two players on one skin each were 1st and 2nd").toBe("T1");
   });
 
-  it("shares a modified Stableford place between two players level on points", () => {
-    // Both on 12. The sort falls through points, then gross, then the NAME —
-    // so this pair was placed alphabetically and printed as 1st and 2nd.
+  it("prints a shared modified Stableford place as T1", () => {
+    // `modifiedStablefordBoard` decides the place, countback and all
+    // (`a-points-board-is-placed-by-countback.audit.test.ts`); the board prints it.
+    // This pair was once placed alphabetically and printed as 1st and 2nd.
     const html = render(
       <ModifiedStablefordLeaderboard
         rows={[
-          { playerId: "p1", name: "Ann", handicap: 10, points: 12, played: 18, gross: 78 },
-          { playerId: "p2", name: "Bob", handicap: 14, points: 12, played: 18, gross: 82 },
-          { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84 },
+          { playerId: "p1", name: "Ann", handicap: 10, points: 12, played: 18, gross: 78, place: 1 },
+          { playerId: "p2", name: "Bob", handicap: 14, points: 12, played: 18, gross: 82, place: 1 },
+          { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84, place: 3 },
         ]} />,
     );
     expect(placeOf(html, "Ann")).toBe("T1");
@@ -1004,11 +1005,11 @@ describe("leaderboards for every format", () => {
       <TeamLeaderboard format="Four-Ball" basis="net"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
-            gross: 72, net: 65, points: 0, played: 18, toPar: -7 },
+            gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
           { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
-            gross: 74, net: 65, points: 0, played: 18, toPar: -7 },
+            gross: 74, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
           { teamId: "t3", name: "Cats", members: ["Cal"], memberIds: ["p3"], playingHandicap: 4,
-            gross: 71, net: 67, points: 0, played: 18, toPar: -5 },
+            gross: 71, net: 67, points: 0, played: 18, toPar: -5, place: 3 },
         ]} />,
     );
     expect(placeOf(html, "Ants")).toBe("T1");
@@ -1026,9 +1027,9 @@ describe("leaderboards for every format", () => {
       <TeamLeaderboard format="Four-Ball" basis="stableford"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
-            gross: 72, net: 65, points: 38, played: 18, toPar: 0 },
+            gross: 72, net: 65, points: 38, played: 18, toPar: 0, place: 1 },
           { teamId: "t2", name: "Bees", members: ["Bob"], memberIds: ["p2"], playingHandicap: 9,
-            gross: 80, net: 71, points: 38, played: 18, toPar: 0 },
+            gross: 80, net: 71, points: 38, played: 18, toPar: 0, place: 1 },
         ]} />,
     );
     expect(placeOf(html, "Ants")).toBe("T1");
@@ -1072,7 +1073,7 @@ describe("leaderboards for every format", () => {
           memberIds: ["p1", "p2", "p3", "p4"],
           playingHandicap: 0,
           gross: card.grossTotal, net: card.netTotal, points: card.pointsTotal,
-          played: card.played, toPar: card.toPar,
+          played: card.played, toPar: card.toPar, place: 1,
         }]} />,
     );
     expect(html, "one par returned should read level, not four under").toContain(">E<");
@@ -1084,9 +1085,9 @@ describe("leaderboards for every format", () => {
       <TeamLeaderboard format="Scramble" basis="net"
         rows={[
           { teamId: "t1", name: "Ants", members: ["Ann"], memberIds: ["p1"], playingHandicap: 7,
-            gross: 72, net: 65, points: 0, played: 18, toPar: -7 },
+            gross: 72, net: 65, points: 0, played: 18, toPar: -7, place: 1 },
           { teamId: "t2", name: "Bees", members: [], memberIds: [], playingHandicap: 0,
-            gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+            gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
         ]} />,
     );
     expect(placeOf(html, "Ants")).toBe("1");

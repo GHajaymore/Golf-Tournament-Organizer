@@ -25,7 +25,7 @@
 import { todaysThru } from "./scoreboard";
 import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
 import { placesByValue } from "./flight-places";
-import { teamPlaceValue, type WeekBasis } from "./week-basis";
+import { type WeekBasis } from "./week-basis";
 
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
@@ -159,11 +159,12 @@ export function cardThru(row: BoardForCard["rows"][number]): string {
  * already put on that basis.
  */
 export function sideRowsForCard(
-  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number }[],
+  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number; place: number | null }[],
   basis: WeekBasis,
   holes: number,
 ): BoardForCard["rows"] {
-  const places = placesByValue(sides, (s) => teamPlaceValue(basis, s), (s) => s.played > 0);
+  // The place `teamStandings` decided, countback and all.
+  const places = sides.map((s) => s.place);
   return sides.map((s, i) => ({
     rank: places[i] ?? 0,
     name: s.name,
@@ -200,7 +201,7 @@ export interface BoardKindView {
   teamBasis: WeekBasis;
   holeCount: number;
   skins: { outcome: { standings: readonly { playerId: string; skins: number }[] }; nameById: Record<string, string> } | null;
-  modStableford: readonly { name: string; points: number; played: number }[] | null;
+  modStableford: readonly { name: string; points: number; played: number; place: number | null }[] | null;
   nassau: readonly unknown[] | null;
   manualFormat: boolean;
   straightKnockout: boolean;
@@ -240,7 +241,8 @@ export function rowsForBoardKind(
   if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Open the board for the Nassau." };
   if (view.kind === "modified-stableford" && view.modStableford) {
     const ms = view.modStableford;
-    const places = placesByValue(ms, (r) => r.points, (r) => r.played > 0);
+    // The place the board decided, countback and all.
+    const places = ms.map((r) => r.place);
     return {
       rows: ms.map((r, i) => ({
         rank: places[i] ?? 0,

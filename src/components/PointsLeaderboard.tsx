@@ -259,7 +259,8 @@ export function ModifiedStablefordTable({
   // Level on points is level. The sort falls back to gross and then to
   // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
   // and 2nd alphabetically.
-  const places = placeTexts(placesByValue(rows, (r) => r.points, (r) => r.played > 0));
+  // The place `modifiedStablefordBoard` decided, countback and all.
+  const places = placeTexts(rows.map((r) => r.place));
   return (
     <>
       <div className={bare ? undefined : "card elev-sm"}>

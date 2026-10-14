@@ -356,10 +356,10 @@ describe("a team round's card", () => {
   // Gross and net orders deliberately OPPOSITE, so a card ranked on the wrong
   // basis cannot pass by accident.
   const sides = [
-    { name: "zz-Ann & Bea", gross: 70, net: 66, points: 0, played: 18, toPar: -1 },
-    { name: "zz-Cat & Dot", gross: 74, net: 62, points: 0, played: 18, toPar: 3 },
-    { name: "zz-Eve & Fay", gross: 36, net: 36, points: 0, played: 9, toPar: 0 },
-    { name: "zz-Gus & Hal", gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+    { name: "zz-Ann & Bea", gross: 70, net: 66, points: 0, played: 18, toPar: -1, place: 1 },
+    { name: "zz-Cat & Dot", gross: 74, net: 62, points: 0, played: 18, toPar: 3, place: 2 },
+    { name: "zz-Eve & Fay", gross: 36, net: 36, points: 0, played: 9, toPar: 0, place: 3 },
+    { name: "zz-Gus & Hal", gross: 0, net: 0, points: 0, played: 0, toPar: 0, place: null },
   ];
   const card = (basis: "gross" | "net") =>
     resultsCard(
@@ -381,14 +381,14 @@ describe("a team round's card", () => {
     expect(c.live, "a side is nine holes in").toBe(true);
   });
 
-  it("shares a place where the round's own basis has two sides level", () => {
-    // The engine hands the sides in board order; the card places them as the
-    // page's table does. Level on NET, apart on gross. A side's to-par is on
-    // the round's own basis (`toParOnBasis`), and the table places on it.
+  it("prints the place the engine decided, a shared one as T1", () => {
+    // `teamStandings` decides a side's place, countback and all
+    // (`a-side-is-placed-by-countback.audit.test.ts`); the card prints it as the
+    // page's table does. Level on NET, apart on gross.
     const level = (basis: "gross" | "net") =>
       [
-        { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18 },
-        { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18 },
+        { name: "zz-Ann & Bea", gross: 70, net: 64, points: 0, played: 18, place: 1 },
+        { name: "zz-Cat & Dot", gross: 74, net: 64, points: 0, played: 18, place: basis === "net" ? 1 : 2 },
       ].map((s) => ({ ...s, toPar: (basis === "gross" ? s.gross : s.net) - 71 }));
     const places = (basis: "gross" | "net") => {
       const c = resultsCard({ ...board(), rows: sideRowsForCard(level(basis), basis, 18), isStroke: true, unit: `${basis} strokes` }, "public", "zz-club");
@@ -456,7 +456,7 @@ describe("rowsForBoardKind", () => {
 
   it("ranks Modified Stableford on its points table", () => {
     const k = rowsForBoardKind(
-      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18 }, { name: "zz-Bea", points: 7, played: 9 }] }),
+      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18, place: 1 }, { name: "zz-Bea", points: 7, played: 9, place: 2 }] }),
       false,
     );
     const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");

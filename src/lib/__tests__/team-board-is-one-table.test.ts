@@ -67,9 +67,10 @@ describe("the sides a member sees and the sides an organizer sees", () => {
   });
 
   it("places a player's side the way the board places it", () => {
-    // `placesByValue`, the same function the table uses, so Today cannot print
-    // a different number from the board the button beside it links to.
-    expect(readSource(TODAY)).toMatch(/placesByValue\(/);
+    // The place `teamStandings` decided, which the table prints too, so Today
+    // cannot print a different number from the board the button beside it
+    // links to (`a-side-is-placed-once.test.ts`).
+    expect(readSource(TODAY)).toMatch(/sidesThisRound\[myIdx\]\?\.place/);
   });
 
   it("describes the round in one sentence, written once", () => {
