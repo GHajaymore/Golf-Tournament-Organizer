@@ -436,6 +436,13 @@ test("a secretary runs a four-club league from its first week to its champion, a
     await league.getByRole("button", { name: "Save league settings" }).click();
     await expect(league.getByText("Saved.")).toBeVisible();
     expect(await stored()).toEqual({ leaguePoints: "match", leagueMatchBonus: 2, leaguePairs: 2, leaguePlayoffClubs: 2 });
+    // The save that switches the league on does not shut the form it was pressed in: the word
+    // "Saved." stays where the press was, with the settings still open under it. It used to be a
+    // race — the stored value changed and the panel closed over the word in the same instant.
+    await expect(league.getByLabel("Scoring"), "the settings shut when the league was switched on").toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(league.getByText("Saved."), "\"Saved.\" was shown and then taken away").toBeVisible();
+    await expect(league.getByLabel("Scoring")).toBeVisible();
 
     // ── 2. before a ball is struck: nobody has played, and nobody is in the final ─
     await open(0);
