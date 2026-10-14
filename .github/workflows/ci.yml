@@ -259,7 +259,14 @@ jobs:
     runs-on: ubuntu-latest
     # It installs a browser and builds a bundle of its own before it runs a
     # single test.
-    timeout-minutes: 30
+    #
+    # 45, not 30 (2026-10-14). The desktop job had grown to finish SECONDS inside
+    # thirty — 29:50 and 29:02 on the pull request, 29:04 and 28:16 on `main` — and
+    # on the merge of #881 a slightly slower machine crossed the line with every
+    # test passing (428 green, none red, three tests from the end). A cancelled e2e
+    # skips `verify`, so the deploy never ran and production missed the merge. The
+    # limit is for a hang, not for a suite doing its work.
+    timeout-minutes: 45
 
     # ── ONE VIEWPORT PER JOB ────────────────────────────────────────────────
     #

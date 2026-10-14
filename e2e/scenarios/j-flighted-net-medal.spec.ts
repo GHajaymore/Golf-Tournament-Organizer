@@ -132,7 +132,13 @@ test("five J", async ({ page, context, baseURL }, testInfo) => {
         await save.click();
         await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible({ timeout: 30_000 });
       }
-      note(`red tees on the home course: ${(await redTees(J_NAME)) ? "yes" : "NO"}`);
+      // The course is stored by the save above, and on a busy machine after it says "Saved".
+      // Asked once, straight after, this found no course and so added no Red set (round 2,
+      // 2026-10-14) — and the third flight then had no Red tees to be put on. Wait for it.
+      await expect
+        .poll(async () => !!(await redTees(J_NAME)), { message: "the tournament's course was never stored, so there is nowhere to put a Red set", timeout: 30_000 })
+        .toBe(true);
+      note("red tees on the home course: yes");
     });
     await test.step("the field: the whole club roster", async () => {
       if ((await eventFacts(J_NAME))!.players.length >= 120) return note("field already in");
