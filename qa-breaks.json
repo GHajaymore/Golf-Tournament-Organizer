@@ -1,0 +1,26 @@
+[
+  {
+    "what": "BURN-IN 1: the-boards-agree.spec.ts with a member's board (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/the-boards-agree.spec.ts",
+    "from": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE.",
+    "to": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE. (burn-in 1)",
+    "spec": "e2e/the-boards-agree.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "BURN-IN 2: the-boards-agree.spec.ts with a member's board (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/the-boards-agree.spec.ts",
+    "from": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE.",
+    "to": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE. (burn-in 2)",
+    "spec": "e2e/the-boards-agree.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "BURN-IN 3: the-boards-agree.spec.ts with a member's board (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/the-boards-agree.spec.ts",
+    "from": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE.",
+    "to": " * THE ORGANIZER'S BOARD AND THE PUBLIC BOARD GIVE EVERY PLAYER THE SAME PLACE. (burn-in 3)",
+    "spec": "e2e/the-boards-agree.spec.ts",
+    "project": "desktop"
+  }
+]
