@@ -1,0 +1,38 @@
+[
+  {
+    "what": "S1 a Modified Stableford tie goes to the lower gross again",
+    "file": "src/lib/services/points-standings.ts",
+    "from": "    return b.points - a.points || countback(a, b) || a.name.localeCompare(b.name);",
+    "to": "    return b.points - a.points || a.gross - b.gross || a.name.localeCompare(b.name);",
+    "audit": [
+      "src/lib/__tests__/a-points-board-is-placed-by-countback.audit.test.ts"
+    ]
+  },
+  {
+    "what": "S2 cards level on points share the place whatever the countback says",
+    "file": "src/lib/services/points-standings.ts",
+    "from": "prev.points === r.points && countback(prev, r) === 0;",
+    "to": "prev.points === r.points;",
+    "audit": [
+      "src/lib/__tests__/a-points-board-is-placed-by-countback.audit.test.ts"
+    ]
+  },
+  {
+    "what": "S3 the points countback runs the wrong way (fewest points wins)",
+    "file": "src/lib/services/points-standings.ts",
+    "from": "pars.length, true);",
+    "to": "pars.length, false);",
+    "audit": [
+      "src/lib/__tests__/a-points-board-is-placed-by-countback.audit.test.ts"
+    ]
+  },
+  {
+    "what": "S4 the points board numbers its cards itself again (the sweep's own target)",
+    "file": "src/components/PointsLeaderboard.tsx",
+    "from": "  const places = placeTexts(rows.map((r) => r.place));",
+    "to": "  const places = placeTexts(placesByValue(rows, (r) => r.points, (r) => r.played > 0));",
+    "unit": [
+      "src/lib/__tests__/a-side-is-placed-once.test.ts"
+    ]
+  }
+]
