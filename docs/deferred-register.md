@@ -1486,3 +1486,15 @@ because the fix changes how the leaderboard breaks a tie — all three readers a
 `roundCard(stage, event, venue).strokeIndex` per match — and nothing a club holds can show it
 yet. Do it with a test that halves a match at an away course whose hardest holes differ from
 the home card's, and asserts the winner both ways.
+
+**Captions tied to no box: about thirty candidates, measured 2026-10-14, read-only.** The
+invitation box on Registration had `<label>Message</label>` with no `htmlFor`, so a screen
+reader announced an unnamed text area; that one is fixed, and its browser test finds the box
+by the label. A sweep for the same shape — a bare `<label>Text</label>` directly over an
+`<input>`, `<textarea>` or `<select>` with no `aria-label` — finds about 37 places, VenuePrompt
+the most (9); the count is rough, because the search window also catches some option groups,
+whose caption is fine. Most of those boxes have a placeholder, which a screen reader falls
+back on and which disappears once somebody types, which is probably why `a11y.spec.ts` passes
+them. Left because it is thirty small changes to screens across the app, on the last of a
+week's budget. Do it with a source sweep that refuses a bare caption over a single box (with
+a control), then tie each one with the component's `useId`.
