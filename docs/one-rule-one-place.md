@@ -35,7 +35,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | Step | Layer | The question | State |
 |---|---|---|---|
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
-| 2 | The field | who is in the tournament, and in this round | under way: whether a cut has been made is one answer, recorded (2026-10-14); the confirmed-field queries and "me" twins open |
+| 2 | The field | who is in the tournament, and in this round | under way: whether a cut has been made is one answer, recorded; a player found by address is found one way (2026-10-14); the confirmed-field queries open |
 | 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
 | 5 | A card | gross, net, points, to par | not started |
@@ -81,6 +81,17 @@ handicap readers became one (counted off the diff, not the inventory). The four
   changes; a re-made cut keeps a card somebody was told to play.
   `a-cut-is-made-once-for-every-reader.audit.test.ts`; 8 of 11 breaks caught on
   the first try, and the two the fixture could not see made it stronger.
+- **A player found by address** (step 2): `byAddress(email)` in
+  `domain/my-entry.ts`, spread into the query. 27 player queries in 23 files
+  wrote the match out for themselves — the "me" readers the inventory named
+  and twenty more it had not — and most had no refusal for an empty address,
+  which matches every entry made without one: one person would be handed every
+  address-less player's card, match and money. Not live (sessions carry a real
+  address), and nothing stopped it. For an empty address the piece is a
+  condition no row meets, so there is nothing for a caller to forget.
+  `my-entries-are-asked-one-way.test.ts` refuses another;
+  `an-empty-address-is-nobody.audit.test.ts` proves it on real rows against the
+  old query, which finds both address-less players.
 - **Checked and right as written** (step 2): `player-access.ts`'s
   `status: { not: "withdrawn" }` asks who still needs an address's sign-in, and
   a disqualified player keeps theirs on purpose (they can still owe or be

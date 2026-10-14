@@ -1446,3 +1446,24 @@ match the strokes are the difference between the two, so the reference cancels
 and nothing changes; it is written down because the figure printed beside each
 player on a match card can include a stroke for a par neither of them is
 "giving" the other.
+
+## Left alone beside one answer to whether a cut has been made — SEEN, NOT CHANGED (2026-10-14)
+
+**No browser test makes a cut over a card started early.** The finding came
+from reading the readers side by side, and it is held by
+`a-cut-is-made-once-for-every-reader.audit.test.ts`, which goes through the
+real actions (a player saves the card, the organizer closes the round) but not
+through a screen. A browser test needs a two-round tournament with a cut that
+is not yet made, which neither the seeded club (its championship is finished)
+nor the e2e fixture holds; building one through the screens is the work.
+
+**Nothing on the dashboard says, at the moment of closing, whose card the cut
+took out.** It is written to Recent changes, by name and with the holes, and
+the guide says where to look. Saying it in the close confirmation itself means
+carrying a sentence back through `setRoundClosed` and the three controls that
+call it, two of which unmount once the cut is made.
+
+**A cut that could not be made reads as not made.** If round 1 closes with no
+ranked card, `applyStrokeCut` refuses and records nothing, so round 2 stays
+open to everybody — the same as before. The old inference ("the round holds a
+card") said the same thing for the same reason.
