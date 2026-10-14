@@ -22,9 +22,18 @@ import { seed, teardown } from "../scripts/seed-club.mjs";
  *   gross   the strokes on the card, added up
  *   net     gross less the strokes the player receives: the allowance of their
  *           course handicap BEFORE rounding (Rule 6.2a), from their own tees,
- *           spread by the stroke index of the holes actually played
+ *           AND, in stroke play, one more for each stroke by which the par of
+ *           their tees is above the lowest par the field is playing (Rule
+ *           6.2b), all spread by the stroke index of the holes actually played
  *   points  Stableford: two for a net par, one more for each stroke better and
- *           one fewer for each worse, never less than nothing
+ *           one fewer for each worse, never less than nothing — and NO strokes
+ *           for the pars, which the Rule withholds where a round is counted
+ *           against par
+ *
+ * Until 2026-10-13 this read 6.2a and stopped, and so did the app: the seeded
+ * medal is men off par 71 and ladies off par 72, every lady was a stroke short,
+ * and this test agreed with the board about all of them. A test that works a
+ * figure out "by the Rules" is as good as the Rules its author read.
  *
  * each from the stored rows — the card, the index, the tees' rating and slope,
  * the round's course and nine — in whole numbers, and each held against the
@@ -140,6 +149,8 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
   const wrong: string[] = [];
   let checked = 0;
   let tellApart = 0;
+  /** Checked players given strokes for tees of a higher par: without one, 6.2b could be missing and nothing here would show it. */
+  let onHigherPar = 0;
   const rounds: string[] = [];
 
   const tees = await prisma.tee.findMany();
@@ -160,7 +171,7 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
      * card they have is complete — a card "thru" twelve is on the board with
      * twelve holes' strokes, and what a part-played card nets is not a Rule.
      */
-    type Sum = { gross: number; net: number; pts: number; cards: number; broken: boolean; tells: boolean; off: number[] };
+    type Sum = { gross: number; net: number; pts: number; cards: number; broken: boolean; tells: boolean; pars: boolean; off: number[] };
     const sums = new Map<string, Sum>();
     let anyCard = false;
     let allNet = true;
@@ -184,10 +195,38 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
       if (!net) allNet = false;
       if (stage.format === "Stableford") stableford = true;
 
+      // The tees one player is held to in this round: their own if they are at
+      // this course, then their flight's, then the round's.
+      const here2 = (t: (typeof tees)[number] | null) => (t && roundTee && t.courseId === roundTee.courseId ? t : null);
+      const teeFor = (p: (typeof players)[number]) =>
+        event.teePolicy === "one"
+          ? roundTee
+          : event.teePolicy === "flight"
+            ? (here2(teeOf(p.group?.teeId)) ?? roundTee)
+            : (here2(teeOf(p.teeId)) ?? here2(teeOf(p.group?.teeId)) ?? roundTee);
+      /**
+       * THE LOWEST PAR THE FIELD IS PLAYING (Rule 6.2b): among the tees of
+       * everybody confirmed in the tournament — not of every set the course
+       * has, and not only of the players with a card in.
+       *
+       * Given in stroke play counted in strokes; not in Stableford, and not
+       * over nine holes, where the app gives none because a set of tees holds
+       * the par of its eighteen and not of each nine (the deferred register
+       * says so).
+       */
+      const pointsRound = stage.format === "Stableford" || stage.scoringBasis.trim().toLowerCase() === "stableford";
+      const fieldPars = players
+        .filter((x) => x.status === "confirmed")
+        .map((x) => teeFor(x)?.par)
+        .filter((n): n is number => typeof n === "number" && n > 0);
+      const lowestPar = fieldPars.length > 0 ? Math.min(...fieldPars) : null;
+      const parStrokesFor = (t: Tee | null) =>
+        !pointsRound && holes === 18 && t && lowestPar !== null && t.par > lowestPar ? t.par - lowestPar : 0;
+
       for (const c of cards) {
         const p = players.find((x) => x.id === c.playerId);
         if (!p) continue;
-        const sum = sums.get(p.id) ?? { gross: 0, net: 0, pts: 0, cards: 0, broken: false, tells: false, off: [] };
+        const sum = sums.get(p.id) ?? { gross: 0, net: 0, pts: 0, cards: 0, broken: false, tells: false, pars: false, off: [] };
         sums.set(p.id, sum);
         const strokes = JSON.parse(c.strokes) as (number | null)[];
         const played = strokes.slice(0, holes).filter((s) => typeof s === "number" && s > 0).length;
@@ -198,14 +237,7 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
         }
         const gross = (strokes.slice(0, holes) as number[]).reduce((a, b) => a + b, 0);
 
-        // The player's own tees if they are at this course, then their flight's, then the round's.
-        const here2 = (t: (typeof tees)[number] | null) => (t && roundTee && t.courseId === roundTee.courseId ? t : null);
-        const tee =
-          event.teePolicy === "one"
-            ? roundTee
-            : event.teePolicy === "flight"
-              ? (here2(teeOf(p.group?.teeId)) ?? roundTee)
-              : (here2(teeOf(p.teeId)) ?? here2(teeOf(p.group?.teeId)) ?? roundTee);
+        const tee = teeFor(p);
 
         // ── what they play off ───────────────────────────────────────────────
         const row = said4.find((r) => r.playerId === p.id);
@@ -229,6 +261,17 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
           playing = nearest(n18 * pct, unit * 100);
           first = nearest(nearest(n18, unit) * pct, 100);
         }
+        // Rule 6.2b, after the allowance and with no allowance taken of it. A
+        // round that has frozen keeps what it froze — nothing, for one frozen
+        // before the app gave these strokes.
+        const forPars =
+          typeof row?.frozen === "number"
+            ? pointsRound
+              ? 0
+              : (row.frozenParStrokes ?? 0)
+            : parStrokesFor(tee);
+        playing += forPars;
+        if (forPars > 0) sum.pars = true;
 
         const shots = strokeIndex.map((rank) => shotsOn(playing, rank, holes));
         sum.gross += gross;
@@ -267,6 +310,7 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
         if (drawn.net !== String(sum.net)) wrong.push(`${where}: net ${drawn.net}, the Rules give ${sum.net} (gross ${sum.gross}${allNet ? "" : "; a gross competition"})`);
       }
       if (sum.tells) tellApart += 1;
+      if (sum.pars) onHigherPar += 1;
     }
     checked += here;
     rounds.push(`${ev.slug}: ${here}`);
@@ -274,13 +318,14 @@ test("every stroke-play and Stableford board the seeded club has prints the gros
 
   testInfo.annotations.push({ type: "boards", description: rounds.join("; ") });
   testInfo.annotations.push({ type: "left out", description: said.join("; ") || "nothing" });
-  console.log(`[boards-by-the-rules] ${checked} players on ${rounds.length} individual boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
+  console.log(`[boards-by-the-rules] ${checked} players on ${rounds.length} individual boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${onHigherPar} on tees of a higher par; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
 
   expect(said, "a round could not be checked").toEqual([]);
   // CONTROLS: the field is big enough to mean something, and can tell the Rule from rounding first.
   expect(rounds.length, "almost no seeded round was checked").toBeGreaterThanOrEqual(4);
   expect(checked, "almost no card was checked").toBeGreaterThanOrEqual(40);
   expect(tellApart, "no checked player plays off a different handicap rounded first, so a wrong allowance could not show").toBeGreaterThan(0);
+  expect(onHigherPar, "no checked player is on tees of a higher par than the field's lowest, so missing strokes for the pars could not show").toBeGreaterThan(0);
   expect(wrong, `${wrong.length} figures on a board are not the Rules'`).toEqual([]);
   expect(errors, errors.join("\n")).toEqual([]);
 });
@@ -324,6 +369,8 @@ test("every team board the seeded club has prints the gross and net its cards an
   const rounds: string[] = [];
   let checked = 0;
   let tellApart = 0;
+  /** Balls given strokes for tees of a higher par. Printed, not required: the seeded sides may all be off one par. */
+  let onHigherPar = 0;
   const tees = await prisma.tee.findMany();
   const teeOf = (id: string | null | undefined) => (id ? (tees.find((t) => t.id === id) ?? null) : null);
 
@@ -348,6 +395,29 @@ test("every team board the seeded club has prints the gross and net its cards an
       }
       const net = stage.scoringBasis.trim().toLowerCase() !== "gross";
       const roundTee = teeOf(stage.teeId) ?? teeOf(event.defaultTeeId);
+      // The tees one player is held to in this round: their own if they are at
+      // this course, then their flight's, then the round's.
+      const here2 = (x: (typeof tees)[number] | null) => (x && roundTee && x.courseId === roundTee.courseId ? x : null);
+      const teeFor = (p: { teeId: string | null; group: { teeId: string | null } | null }) =>
+        event.teePolicy === "one"
+          ? roundTee
+          : event.teePolicy === "flight"
+            ? (here2(teeOf(p.group?.teeId)) ?? roundTee)
+            : (here2(teeOf(p.teeId)) ?? here2(teeOf(p.group?.teeId)) ?? roundTee);
+      /**
+       * Rule 6.2b: where every player plays their own ball, one on tees of a
+       * higher par than the lowest the FIELD is playing is given the difference,
+       * after the allowance. The field is everybody confirmed in the tournament.
+       * Not over nine holes, not in a round counted in points, and not for a
+       * side that shares one ball — the app gives none there and says so in
+       * the deferred register.
+       */
+      const field = await prisma.player.findMany({ where: { eventId: ev.id, status: "confirmed" }, include: { group: true } });
+      const fieldPars = field.map((x) => teeFor(x)?.par).filter((n): n is number => typeof n === "number" && n > 0);
+      const lowestPar = fieldPars.length > 0 ? Math.min(...fieldPars) : null;
+      const pointsRound = stage.scoringBasis.trim().toLowerCase() === "stableford";
+      const parStrokesFor = (t: Tee | null) =>
+        !shared && !pointsRound && holes === 18 && t && lowestPar !== null && t.par > lowestPar ? t.par - lowestPar : 0;
       const teams = await prisma.team.findMany({
         where: { stageId: stage.id },
         include: { members: { orderBy: { position: "asc" }, include: { player: { include: { group: true } } } } },
@@ -368,16 +438,11 @@ test("every team board the seeded club has prints the gross and net its cards an
         // Each member's unrounded course handicap, in 1,130ths (a nine halves it: 2,260ths).
         const n18 = playing.map((m) => {
           const p = m.player;
-          const here2 = (x: (typeof tees)[number] | null) => (x && roundTee && x.courseId === roundTee.courseId ? x : null);
-          const tee =
-            event.teePolicy === "one"
-              ? roundTee
-              : event.teePolicy === "flight"
-                ? (here2(teeOf(p.group?.teeId)) ?? roundTee)
-                : (here2(teeOf(p.teeId)) ?? here2(teeOf(p.group?.teeId)) ?? roundTee);
+          const tee = teeFor(p);
           const tenths = Math.round(p.handicap * 10);
           return tee ? course1130(tenths, tee) : tenths * 113;
         });
+        const forPars = playing.map((m) => parStrokesFor(teeFor(m.player)));
         const unit = holes === 9 ? 2260 : 1130;
         const where = `${label} · ${t.name}`;
         const drawn = board.out.get(t.name);
@@ -418,7 +483,8 @@ test("every team board the seeded club has prints the gross and net its cards an
           const count = stage.countBest > 0 ? Math.min(stage.countBest, playing.length) : 1;
           const balls = playing.map((m, i) => {
             const card = cards.find((c) => c.teamId === t.id && c.playerId === m.player.id);
-            const own = net ? nearest(n18[i] * pct, unit * 100) : 0;
+            const own = net ? nearest(n18[i] * pct, unit * 100) + forPars[i] : 0;
+            if (net && forPars[i] > 0) onHigherPar += 1;
             if (net && own !== nearest(nearest(n18[i], unit) * pct, 100)) differs = true;
             return { strokes: card ? (JSON.parse(card.strokes) as (number | null)[]) : [], own };
           });
@@ -453,7 +519,7 @@ test("every team board the seeded club has prints the gross and net its cards an
 
   testInfo.annotations.push({ type: "boards", description: rounds.join("; ") });
   testInfo.annotations.push({ type: "left out", description: said.join("; ") || "nothing" });
-  console.log(`[boards-by-the-rules] ${checked} sides on ${rounds.length} team boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
+  console.log(`[boards-by-the-rules] ${checked} sides on ${rounds.length} team boards (${rounds.join("; ")}); ${tellApart} of them play off a different handicap rounded first; ${onHigherPar} balls on tees of a higher par; ${wrong.length} wrong${said.length ? `; ${said.join("; ")}` : ""}`);
 
   expect(said, "a round or a side could not be checked").toEqual([]);
   expect(rounds.length, "almost no seeded team round was checked").toBeGreaterThanOrEqual(6);

@@ -78,9 +78,10 @@ function shotsOn(playing: number, strokeIndex: number) {
   return -(Math.floor(given / 18) + (strokeIndex > 18 - (given % 18) ? 1 : 0));
 }
 
-type Card = { name: string; indexTenths: number; tee: Tee; strokes: number[] };
+/** `parStrokes`: Rule 6.2b's difference for tees of a higher par than the field's lowest, added after the allowance. */
+type Card = { name: string; indexTenths: number; tee: Tee; strokes: number[]; parStrokes: number };
 const totals = (c: Card, strokeIndex: number[], pct: number) => {
-  const playing = byTheRule(c.indexTenths, c.tee, pct);
+  const playing = byTheRule(c.indexTenths, c.tee, pct) + c.parStrokes;
   const gross = c.strokes.reduce((a, b) => a + b, 0);
   return { gross, net: gross - strokeIndex.reduce((n, si) => n + shotsOn(playing, si), 0) };
 };
@@ -151,6 +152,25 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
   const players = await prisma.player.findMany({ where: { eventId: ev.id }, include: { group: true } });
   const stored = await prisma.scorecard.findMany({ where: { stageId: stage.id } });
   const cardsIn = stored.filter((c) => (JSON.parse(c.strokes) as (number | null)[]).some((x) => typeof x === "number")).length;
+  // The tees one player is held to, in the organizer's order: their own if they are at this course,
+  // then their flight's, then — for a woman nobody has placed — the course's ladies' set (the women's
+  // set with the lowest course rating, a tie to the one further down the card), then the round's.
+  const courseTees = await prisma.tee.findMany({ where: { courseId: roundTee.courseId }, orderBy: { position: "asc" } });
+  const WOMAN = /^(f|w|female|woman|women|lady|ladies|girl|girls)$/i;
+  const ladies = courseTees.reduce<(typeof courseTees)[number] | null>(
+    (best, t) => (WOMAN.test(t.gender.trim()) && (!best || t.courseRating <= best.courseRating) ? t : best),
+    null,
+  );
+  expect(event.teePolicy, "the seeded medal is not played from each player's own tees").toBe("own");
+  const teeOf = async (p: (typeof players)[number]) => {
+    const own = p.teeId ? await prisma.tee.findUnique({ where: { id: p.teeId } }) : null;
+    const flight = p.group?.teeId ? await prisma.tee.findUnique({ where: { id: p.group.teeId } }) : null;
+    const here = (t: typeof own) => (t && t.courseId === roundTee.courseId ? t : null);
+    return here(own) ?? here(flight) ?? (WOMAN.test((p.gender ?? "").trim()) ? ladies : null) ?? roundTee;
+  };
+  // Rule 6.2b: the lowest par the FIELD is playing, and the difference to anybody above it — a medal
+  // counted in strokes, over eighteen holes, so it applies.
+  const lowestPar = Math.min(...(await Promise.all(players.filter((p) => p.status === "confirmed").map(teeOf))).map((t) => t.par));
   const complete: Card[] = [];
   for (const c of stored) {
     const strokes = JSON.parse(c.strokes) as (number | null)[];
@@ -158,19 +178,17 @@ test("a committee plays a live medal at 100% and back at 95%, is asked first eac
     const p = players.find((x) => x.id === c.playerId);
     if (!p || p.status !== "confirmed") continue;
     expect(p.handicapType, `${p.name} holds a nine-hole index`).not.toBe("9");
-    expect(event.teePolicy, "the seeded medal is not played from each player's own tees").toBe("own");
-    // Their own tees if they are at this course, then their flight's, then the round's.
-    const own = p.teeId ? await prisma.tee.findUnique({ where: { id: p.teeId } }) : null;
-    const flight = p.group?.teeId ? await prisma.tee.findUnique({ where: { id: p.group.teeId } }) : null;
-    const here = (t: typeof own) => (t && t.courseId === roundTee.courseId ? t : null);
-    const tee = here(own) ?? here(flight) ?? roundTee;
+    const tee = await teeOf(p);
     complete.push({
       name: p.name,
       indexTenths: Math.round(p.handicap * 10),
       tee: { courseRating: tee.courseRating, slopeRating: tee.slopeRating, par: tee.par },
       strokes: strokes as number[],
+      parStrokes: Math.max(0, tee.par - lowestPar),
     });
   }
+  // CONTROL: somebody checked is on tees of a higher par, or a board that left out 6.2b would pass.
+  expect(complete.filter((c) => c.parStrokes > 0).length, "no checked card is on tees of a higher par than the field's lowest").toBeGreaterThan(0);
   expect(complete.length, "almost no seeded card is complete").toBeGreaterThanOrEqual(6);
   const expected = (pct: number) => new Map(complete.map((c) => [c.name, totals(c, strokeIndex, pct)]));
 

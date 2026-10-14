@@ -44,7 +44,15 @@ const SETTINGS: Record<string, readonly string[]> = {
  * Where a value outside the list is the subject: the cleaner's own test hands
  * it nonsense to prove nonsense is turned away.
  */
-const HANDS_OVER_NONSENSE_ON_PURPOSE = ["src/lib/__tests__/tournament-settings.test.ts"];
+const HANDS_OVER_NONSENSE_ON_PURPOSE = [
+  "src/lib/__tests__/tournament-settings.test.ts",
+  // `teePolicy: "player"` — "Players choose their own tees" — was retired on
+  // 2026-10-13 and is no longer a value the app OFFERS. It is still a value a
+  // tournament made before that day HOLDS, so it is a state a club can be in,
+  // and these two are the tests that it is read as the setting it was scored as.
+  "src/lib/__tests__/the-organizer-decides-the-tees.test.ts",
+  "src/lib/__tests__/the-organizer-decides-the-tees.audit.test.ts",
+];
 
 function filesUnder(dir: string, keep: (path: string) => boolean, out: string[] = []): string[] {
   for (const name of readdirSync(join(process.cwd(), dir))) {

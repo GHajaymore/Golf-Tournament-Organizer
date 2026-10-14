@@ -56,8 +56,6 @@ const UNREACHED: Record<string, string> = {
   // ── Overtaken by later work, kept until the work that replaced them is settled ──
   "handicaps.ts:teePolicyFor":
     "The tee policy for 'paths that convert handicaps themselves rather than going through handicapsForRound'. There are no such paths left — which is the outcome it wanted. Kept as the one reader if a path ever needs it again.",
-  "handicaps.ts:courseHandicapForPlayer":
-    "One player's course handicap for the same set of paths. Same reason.",
   "league-nomination.ts:clubsIn":
     "Flights that have fielded a side. The league screens ask `flightsIn` instead, which is the right question before the first nomination — see its comment.",
   "tournament.ts:expectedRrTotal":

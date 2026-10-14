@@ -159,6 +159,28 @@ export interface RoundHandicapRow {
   frozen?: number | null;
   frozenExact?: number | null;
   override?: number | null;
+  /** The strokes for tees of a higher par, as they stood when the round froze. See `roundParStrokesOf`. */
+  frozenParStrokes?: number | null;
+}
+
+/**
+ * THE STROKES FOR PLAYING TEES OF A HIGHER PAR, for one player in one round
+ * (Rules of Handicapping 6.2b — see `roundPlayingHandicap` in `handicap.ts`).
+ *
+ * `live` is the field's own answer today, `CourseHandicaps.parStrokes(id)`.
+ *
+ * A ROUND THAT HAS FROZEN KEEPS WHAT IT FROZE, for the reason it freezes a
+ * handicap at all: a tee moved on the roster next month must not re-score a
+ * medal played last week. And a round frozen before 2026-10-13 froze none —
+ * it was played and published without these strokes — so it reads nought and
+ * keeps exactly the nets it was given. The fault is corrected from the next
+ * round on, not by moving finishing places after the prize-giving.
+ */
+export function roundParStrokesOf(row: RoundHandicapRow | null | undefined, live: number): number {
+  if (row && typeof row.frozen === "number") {
+    return typeof row.frozenParStrokes === "number" && Number.isFinite(row.frozenParStrokes) ? row.frozenParStrokes : 0;
+  }
+  return Number.isFinite(live) ? live : 0;
 }
 
 /**

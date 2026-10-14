@@ -3,7 +3,7 @@ import { useState } from "react";
 import { addCupMatch, removeCupMatch, setCupSettings, publishCupLineup, hideCupLineup } from "@/app/actions/cup";
 import { forfeitMatch } from "@/app/actions/tournament";
 import { useAction } from "./useAction";
-import { decimalPoint } from "@/lib/domain/decimal-text";
+import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
 
 type Run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => void;
@@ -99,7 +99,7 @@ function CupSettings({
         e.preventDefault();
         // "14,5" is fourteen and a half (`decimalPoint`): read as nothing, it set the cup back to
         // "more than half" without a word.
-        run(() => setCupSettings(Number(decimalPoint(target.replace("½", ".5"))) || 0, who));
+        run(() => setCupSettings(figureOr(readDecimal(target.replace("½", ".5")), 0), who));
       }}
     >
       <label style={{ display: "grid", gap: 4, fontSize: 13 }}>

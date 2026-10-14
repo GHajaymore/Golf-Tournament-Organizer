@@ -3,12 +3,13 @@ import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
-import { roundHandicapExactOf } from "@/lib/domain/round-handicap";
+import { roundHandicapExactOf, roundParStrokesOf } from "@/lib/domain/round-handicap";
+import { parStrokesApply } from "@/lib/round-allowance";
 import { effectiveAllowance, effectiveCountBest, teamsForStage, teamStandings } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
 import { isHeadToHead } from "@/lib/stage-types";
 import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
-import { playingHandicapFrom } from "@/lib/domain/handicap";
+import { NO_PAR_STROKES, roundPlayingHandicap } from "@/lib/domain/handicap";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -22,8 +23,7 @@ import { parseTeeSheet, teeSheetDrift, driftSentence } from "@/lib/domain/tee-sh
 import { strokeCutField } from "@/lib/services/stroke-cut";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
+import { roundCard } from "@/lib/services/course-resolution";
 import { brandForEvent, formattingForEvent, golfTermsForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
 import { MoreInfo } from "@/components/MoreInfo";
@@ -234,7 +234,7 @@ export default async function FoursomesPage({
   const roundCourse = stage?.courseId
     ? await prisma.course.findUnique({ where: { id: stage.courseId } })
     : null;
-  const course = cardForStage(courseForRound(roundCourse, state.event) ?? resolveCourse(state.event), stage);
+  const course = roundCard(stage, state.event, roundCourse);
   const brand = await brandForEvent(session.eventId);
   // The club's own date order for the round tabs and the printed cards (`shortDate`).
   const { locale } = await formattingForEvent(session.eventId);
@@ -299,6 +299,7 @@ export default async function FoursomesPage({
   const courseHandicaps = roundCourseHandicaps({
     tees: eventTees,
     players: state.confirmed,
+    field: state.confirmed,
     flightTeeOf: await flightTeeByPlayer(session.eventId),
     stage,
     event: state.event,
@@ -322,6 +323,17 @@ export default async function FoursomesPage({
    */
   const frozenHandicapOf = (id: string): number =>
     roundHandicapExactOf(roundHcpRows.get(id), courseHandicaps.get(id) ?? 0, courseHandicaps.exact(id) ?? 0);
+  /**
+   * THE STROKES FOR TEES OF A HIGHER PAR (Rule 6.2b), as the board gives them:
+   * what the round froze, or the field's answer today, and nought where the
+   * round's format gives none. A card that left them off would print one dot
+   * fewer than the round scores for everybody on the longer par.
+   */
+  const givesParStrokes = !!stage && parStrokesApply(stage.format, stage.scoringBasis);
+  const parStrokesOf = (id: string): number =>
+    givesParStrokes ? roundParStrokesOf(roundHcpRows.get(id), courseHandicaps.parStrokes(id)) : NO_PAR_STROKES;
+  /** What one player's own ball plays off in this round: allowance, rounded once, then those strokes. */
+  const playsOff = (id: string): number => roundPlayingHandicap(frozenHandicapOf(id), allowance, parStrokesOf(id));
   /**
    * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
    * round's nine and RE-RANKS its stroke index — so this was
@@ -442,7 +454,7 @@ export default async function FoursomesPage({
   const playingOf = new Map<string, number>();
   for (const t of teams) {
     for (const m of t.members) {
-      playingOf.set(m.playerId, playingHandicapFrom(frozenHandicapOf(m.playerId), allowance));
+      playingOf.set(m.playerId, playsOff(m.playerId));
     }
   }
   /** The lowest figure in a side's match — its own scale, so a shared ball is
@@ -481,8 +493,8 @@ export default async function FoursomesPage({
   if (matchPlay && teamRound && !teamRound.teams) {
     for (const m of matches) {
       if (!m.playerAId || !m.playerBId) continue;
-      const a = playingHandicapFrom(frozenHandicapOf(m.playerAId), allowance);
-      const b = playingHandicapFrom(frozenHandicapOf(m.playerBId), allowance);
+      const a = playsOff(m.playerAId);
+      const b = playsOff(m.playerBId);
       const low = Math.min(Math.round(a), Math.round(b));
       lowForPlayer.set(m.playerAId, low);
       lowForPlayer.set(m.playerBId, low);
@@ -538,12 +550,12 @@ export default async function FoursomesPage({
            * differential is "just for golf. Not for any skins or other
            * bet/money game."
            */
-          playingHandicap: playingHandicapFrom(ch, allowance),
+          playingHandicap: playsOff(pl.id),
           /** Strokes received in this match, where the round is one. */
           matchStrokes: (() => {
             const low = lowForPlayer.get(pl.id);
             if (low === undefined) return null;
-            return matchStrokesCount(playingHandicapFrom(ch, allowance), low);
+            return matchStrokesCount(playsOff(pl.id), low);
           })(),
           /**
            * One entry per hole: how many shots, so two reads as two dots.
@@ -558,8 +570,8 @@ export default async function FoursomesPage({
           shots: (() => {
             const low = lowForPlayer.get(pl.id);
             return low === undefined
-              ? allocatedStrokes(ch, allowance, cardStrokeIndex)
-              : matchStrokesPerHole(playingHandicapFrom(ch, allowance), low, cardStrokeIndex);
+              ? allocatedStrokes(ch, allowance, cardStrokeIndex, parStrokesOf(pl.id))
+              : matchStrokesPerHole(playsOff(pl.id), low, cardStrokeIndex);
           })(),
         };
       }),

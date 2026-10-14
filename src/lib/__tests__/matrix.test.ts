@@ -32,7 +32,7 @@ import {
   allowsAutoConfirm,
   canApproveScores,
   usesAccessCodes,
-  canChooseOwnTee,
+  readTeePolicy,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Role } from "@/lib/roles";
@@ -1006,6 +1006,7 @@ describe("team draws, at every field size and every team format", () => {
         name: p.name,
         handicap: p.handicap,
         handicapExact: p.handicap,
+        parStrokes: 0,
         playing: null,
         position,
         // Everybody drawn here is playing. `teamProblems` now reads this as
@@ -1329,11 +1330,18 @@ describe("tee policy, on every field size", () => {
     ["blue", BLUE],
   ]);
 
-  it("names the four policies and nothing else", () => {
-    // A fifth value would need a decision everywhere the policy is read.
-    // `own` and `player` score identically and differ only in who may set the
-    // tee, which is why both appear here and only `one` changes the number.
-    expect([...TEE_POLICY].sort()).toEqual(["flight", "one", "own", "player"]);
+  it("names the three policies and nothing else", () => {
+    // A fourth value would need a decision everywhere the policy is read.
+    // There WAS a fourth — `player`, "Players choose their own tees" — retired
+    // on 2026-10-13: the organizer decides the tees. It was scored as `own`.
+    expect([...TEE_POLICY].sort()).toEqual(["flight", "one", "own"]);
+  });
+
+  it("reads a tournament stored with the retired policy as the one it was scored as", () => {
+    expect(readTeePolicy("player")).toBe("own");
+    for (const policy of TEE_POLICY) expect(readTeePolicy(policy)).toBe(policy);
+    // And the resolver itself, handed the old word raw, still lets a player's own set count.
+    expect(teeIdFor("player", "blue", null, "white", () => true, null)).toBe("blue");
   });
 
   for (const n of FIELD_SIZES) {
@@ -1436,36 +1444,36 @@ describe("tee policy, on every field size", () => {
   it("resolves the id itself the same way, so one reader answers for all", () => {
     // teeIdFor is what both the scoring path and the printed card go through.
     // Arguments are (policy, player, flight, round, is-it-on-this-course).
-    expect(teeIdFor("one", "blue", null, "white", here)).toBe("white");
-    expect(teeIdFor("own", "blue", null, "white", here)).toBe("blue");
-    expect(teeIdFor("own", null, null, "white", here)).toBe("white");
+    expect(teeIdFor("one", "blue", null, "white", here, null)).toBe("white");
+    expect(teeIdFor("own", "blue", null, "white", here, null)).toBe("blue");
+    expect(teeIdFor("own", null, null, "white", here, null)).toBe("white");
     // No round tee and no player tee is "unrated", not a crash.
-    expect(teeIdFor("one", "blue", null, null, here)).toBe("");
+    expect(teeIdFor("one", "blue", null, null, here, null)).toBe("");
     // An unrecognised policy behaves as "own" — a bad stored value must not
     // silently impose a restriction nobody chose.
-    expect(teeIdFor("nonsense", "blue", null, "white", here)).toBe("blue");
+    expect(teeIdFor("nonsense", "blue", null, "white", here, null)).toBe("blue");
   });
 
   it("lets a FLIGHT claim its own tees, which is how a club championship works", () => {
     // Championship off the blues, seniors off the whites, ladies off the reds:
     // three decisions rather than one per player, which is the only version a
     // club would actually use on a field of 120.
-    expect(teeIdFor("flight", null, "white", "blue", here)).toBe("white");
+    expect(teeIdFor("flight", null, "white", "blue", here, null)).toBe("white");
     // A flight claiming nothing falls through to the round's set.
-    expect(teeIdFor("flight", null, null, "blue", here)).toBe("blue");
+    expect(teeIdFor("flight", null, null, "blue", here, null)).toBe("blue");
 
     // SPECIFICITY WINS ABOVE THE POLICY, AND THE POLICY IS THE FLOOR.
     // "By division" means the flight may differ and an individual may not —
     // otherwise one player quietly opting onto another set would break the
     // division the committee drew.
-    expect(teeIdFor("flight", "red", "white", "blue", here)).toBe("white");
+    expect(teeIdFor("flight", "red", "white", "blue", here, null)).toBe("white");
     // "One set for everyone" overrides both, which is what it says.
-    expect(teeIdFor("one", "red", "white", "blue", here)).toBe("blue");
+    expect(teeIdFor("one", "red", "white", "blue", here, null)).toBe("blue");
     // Where individuals may differ, a player beats their flight, and a flight
     // beats the round.
-    expect(teeIdFor("own", "red", "white", "blue", here)).toBe("red");
-    expect(teeIdFor("own", null, "white", "blue", here)).toBe("white");
-    expect(teeIdFor("player", null, "white", "blue", here)).toBe("white");
+    expect(teeIdFor("own", "red", "white", "blue", here, null)).toBe("red");
+    expect(teeIdFor("own", null, "white", "blue", here, null)).toBe("white");
+    expect(teeIdFor("player", null, "white", "blue", here, null)).toBe("white");
   });
 
   it("steps past a set that is not at the course being played", () => {
@@ -1484,16 +1492,16 @@ describe("tee policy, on every field size", () => {
     const atThisCourse = (id: string) => id === "home-white" || id === "home-blue";
 
     // The player's set is at another club: fall through to the round's.
-    expect(teeIdFor("own", "away-red", null, "home-white", atThisCourse)).toBe("home-white");
+    expect(teeIdFor("own", "away-red", null, "home-white", atThisCourse, null)).toBe("home-white");
     // So is the flight's — a division drawn at one venue does not travel.
-    expect(teeIdFor("flight", null, "away-red", "home-white", atThisCourse)).toBe("home-white");
+    expect(teeIdFor("flight", null, "away-red", "home-white", atThisCourse, null)).toBe("home-white");
     // Both, falling all the way through.
-    expect(teeIdFor("own", "away-red", "away-blue", "home-white", atThisCourse)).toBe("home-white");
+    expect(teeIdFor("own", "away-red", "away-blue", "home-white", atThisCourse, null)).toBe("home-white");
     // A player's set that IS here still wins, which is the whole point of the
     // preference existing.
-    expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse)).toBe("home-blue");
+    expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse, null)).toBe("home-blue");
     // And the round's own set is taken whether or not the predicate likes it.
-    expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse)).toBe("away-red");
+    expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse, null)).toBe("away-red");
   });
 });
 
@@ -1572,7 +1580,6 @@ describe("every tournament setting, against every other", () => {
       expect(typeof canPlayerSavePartial(s)).toBe("boolean");
       expect(typeof allowsAutoConfirm(s)).toBe("boolean");
       expect(typeof usesAccessCodes(s)).toBe("boolean");
-      expect(typeof canChooseOwnTee(s.teePolicy)).toBe("boolean");
     }
   });
 
@@ -1697,12 +1704,11 @@ describe("every tournament setting, against every other", () => {
     }
   });
 
-  it("only lets a player pick a tee under the one policy that means it", () => {
-    // "own" is the ORGANIZER assigning each player a set; "player" is the
-    // golfer choosing. They read almost identically in a settings list and
-    // mean opposite things about who decides.
+  it("offers no tee policy under which a player picks their own tees", () => {
+    // The organizer decides, at every level. A settings combination that named
+    // the retired policy would be one this enumeration could not have built.
     for (const s of ALL) {
-      expect(canChooseOwnTee(s.teePolicy)).toBe(s.teePolicy === "player");
+      expect(["one", "flight", "own"]).toContain(s.teePolicy);
     }
   });
 });

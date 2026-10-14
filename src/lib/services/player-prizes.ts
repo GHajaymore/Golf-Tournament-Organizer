@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 
@@ -30,7 +31,7 @@ export async function prizesForEntrant(eventId: string, email: string): Promise<
   const address = email.trim().toLowerCase();
   if (!address) return [];
   const entered = await prisma.player.findFirst({
-    where: { eventId, status: "confirmed", email: { equals: address, mode: "insensitive" } },
+    where: { eventId, status: "confirmed", ...byAddress(address) },
     select: { id: true },
   });
   if (!entered) return [];

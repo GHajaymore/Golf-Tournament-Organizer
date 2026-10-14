@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { isExpenseCategory } from "@/lib/domain/expense-categories";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -99,7 +100,7 @@ async function callerPlayer(eventId: string, email: string) {
   const clean = (email ?? "").trim().toLowerCase();
   if (!clean) return null;
   return prisma.player.findFirst({
-    where: { eventId, email: { equals: clean, mode: "insensitive" } },
+    where: { eventId, ...byAddress(clean) },
     select: { id: true },
   });
 }

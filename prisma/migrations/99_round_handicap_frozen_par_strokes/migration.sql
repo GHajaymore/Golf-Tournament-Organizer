@@ -1,0 +1,23 @@
+-- A round keeps the strokes it gave for tees of a higher par (2026-10-13).
+--
+-- Rules of Handicapping, Rule 6.2b: where players in one competition play tees
+-- of different pars, in stroke play or match play counted in strokes, a player
+-- on the tees of the higher par receives additional strokes equal to the
+-- difference:
+--
+--     Playing Handicap = (Course Handicap x allowance) + difference in pars
+--
+-- The app gave none. On a course whose forward tees are par 72 beside par 71
+-- for the rest, everybody on the forward tees was one stroke short in every
+-- net medal and every net match.
+--
+-- The figure depends on the whole field (it is a difference from the LOWEST
+-- par being played), so it is frozen with the handicap, in the same statement,
+-- for the reason the handicap is frozen: somebody moved to other tees next
+-- month must not re-score a round played last week.
+--
+-- Nullable with no default, and NULL reads as nought: every round already
+-- frozen was played and published without these strokes and keeps exactly the
+-- nets it was given. Adds a column and writes no row, so it is safe on a
+-- populated table and on an empty one.
+ALTER TABLE "RoundHandicap" ADD COLUMN "frozenParStrokes" INTEGER;

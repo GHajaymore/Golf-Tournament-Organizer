@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import React, { useEffect, useState, useTransition } from "react";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
@@ -28,6 +29,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
+import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import {
   chainIssues,
   issuesForRound,
@@ -961,7 +963,10 @@ function StageCard({
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
   if (nextStage?.cutEnabled) {
-    transitionParts.push(nextStage.cutMode === "percent" ? `cuts to top ${nextStage.cutPercent}%` : `cuts to top ${nextStage.cutCount}`);
+    // In the words the rules sheet prints (`cutRuleWords`): "top 8 in each flight
+    // and ties" — a cut to "top 8" was the summary of a per-flight cut too.
+    const ties = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
+    transitionParts.push(`cuts to ${cutRuleWords(cutRuleOf(nextStage), ties).toLowerCase()}`);
   }
   const customizeParts: string[] = [];
   if (deadline) customizeParts.push(`Due ${deadline}`);
@@ -2453,7 +2458,7 @@ export function StagesClient({
               max={MAX_ROUNDS_AT_ONCE}
               value={howMany}
               disabled={pending}
-              onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, parseInt(e.target.value, 10) || 1)))}
+              onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, figureOr(readWhole(e.target.value), 1) || 1)))}
               style={{ width: 72, textAlign: "center" }}
               aria-label="How many rounds to add"
             />

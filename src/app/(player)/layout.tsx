@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import Link from "next/link";
 import { Suspense } from "react";
 import { DeniedNotice } from "@/components/DeniedNotice";
@@ -129,7 +130,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     moneyOn && !!switcher.current?.watching && !!session.eventId
       ? (
           await prisma.player.findMany({
-            where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+            where: { eventId: session.eventId, ...byAddress(session.email) },
             select: { status: true },
           })
         ).some((p) => hasLeftTheField(p.status))

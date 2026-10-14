@@ -1385,3 +1385,85 @@ strokes it was played off**, which were worked the old way. It holds the whole
 number alone, and the allowance is taken of that. Every club today is test data.
 A club that wanted such a round re-scored by the Rule would clear its scores and
 enter them again.
+
+## Left alone beside the strokes for tees of a higher par, and the tee rule — SEEN, NOT CHANGED (2026-10-13)
+
+Rule 6.2b went in (`roundPlayingHandicap`, CLAUDE.md "Tees of a higher par, and
+who chooses the tees"), and so did Ajay's ruling that the organizer decides the
+tees. These were seen beside them and left, each for a stated reason.
+
+**A nine-hole round gives no strokes for the pars.** A set of tees stores the par
+of its eighteen, not of each nine: half of 72 is 36 whether the nines are 36 and
+36 or 35 and 37, so the difference in pars between two sets over nine holes is
+not something the row knows. Giving a stroke on a guess is worse than giving
+none. To do it properly a tee (or the course card per tee) needs its par by nine.
+Until then a committee can set a player's handicap for the round by hand, on the
+round's card.
+
+**A side that shares one ball gives none either** (foursomes, greensomes, a
+scramble). Appendix C says how the side's handicap is taken from its players';
+what a difference in pars adds to a SIDE is a committee procedure the app does
+not have, and the cases are thin: two partners sharing a ball play the same
+tees except in mixed foursomes, where the tees differ by player and the par
+usually does not.
+
+**The field whose lowest par counts is everybody confirmed in the tournament**,
+not the survivors of a cut and not the players with a card in. So after a cut
+that removed everybody on the lower par, the survivors on the higher par still
+receive the difference. Rule 6.2b says "the tees with the lowest par" in the
+competition; reading that as the round's own field would mean a player's
+handicap changing between rounds of one championship because of who missed the
+cut. Left as the tournament's field, and written down so that it is a decision.
+
+**Somebody who withdrew after playing keeps the strokes they played off, and
+their tees no longer count** towards the lowest par for anybody else. That moves
+nobody already frozen; before a round freezes it can move the live figure by a
+stroke the moment the only player on a lower par withdraws. Seen, and judged the
+right way round: a par nobody is playing should not lower anybody's handicap.
+
+**The ladies' default knows a woman only where the roster says so.** The roster's
+form has a Gender box now and an imported file may carry one; the public entry
+form does not ask, so an entrant who is not a member is on the tournament's tees
+until the organizer moves her or puts her in a flight with its own. Asking on a
+public form is a product question (it is a personal question, and it is the
+entrant influencing her tees), so it was not added silently.
+
+**Where a course rates several sets for women, the default is the lowest-rated**,
+which is the shortest. A course card from the directory often rates every colour
+for both, and "the ladies' tees" then has no single answer in the data. A club
+that wants another set puts it on the flight or the player. If clubs ask, the
+answer is a "ladies play" choice beside the tournament's tees.
+
+**A member's handicap RECORD resolves its round's tees from the tournament's
+default set alone** (`handicap-record.ts`), not through `teeForPlay`, so a round
+whose own tees were set (`Stage.teeId`) is rated off the tournament's. It reads
+the ladies' rung now like every other reader, but that older gap is still there.
+It feeds a member's suggested index and nothing on a board. It is layer 3 of the
+one-rule-one-place work (`docs/one-rule-one-place.md`).
+
+**A match's two players are priced from the whole field's lowest par.** In a
+match the strokes are the difference between the two, so the reference cancels
+and nothing changes; it is written down because the figure printed beside each
+player on a match card can include a stroke for a par neither of them is
+"giving" the other.
+
+## Left alone beside one answer to whether a cut has been made — SEEN, NOT CHANGED (2026-10-14)
+
+**No browser test makes a cut over a card started early.** The finding came
+from reading the readers side by side, and it is held by
+`a-cut-is-made-once-for-every-reader.audit.test.ts`, which goes through the
+real actions (a player saves the card, the organizer closes the round) but not
+through a screen. A browser test needs a two-round tournament with a cut that
+is not yet made, which neither the seeded club (its championship is finished)
+nor the e2e fixture holds; building one through the screens is the work.
+
+**Nothing on the dashboard says, at the moment of closing, whose card the cut
+took out.** It is written to Recent changes, by name and with the holes, and
+the guide says where to look. Saying it in the close confirmation itself means
+carrying a sentence back through `setRoundClosed` and the three controls that
+call it, two of which unmount once the cut is made.
+
+**A cut that could not be made reads as not made.** If round 1 closes with no
+ranked card, `applyStrokeCut` refuses and records nothing, so round 2 stays
+open to everybody — the same as before. The old inference ("the round holds a
+card") said the same thing for the same reason.

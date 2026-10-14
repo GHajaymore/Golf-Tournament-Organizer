@@ -162,7 +162,7 @@ test("five J", async ({ page, context, baseURL }, testInfo) => {
     });
     await test.step("each flight plays its own tees", async () => {
       await open(page, "/event");
-      const flight = page.locator("label", { hasText: "Each flight plays its own tees" }).first();
+      const flight = page.locator("label", { hasText: "A flight may play its own tees" }).first();
       note(`tee-policy choice offered: ${await flight.count()}`);
       await flight.click();
       const save = page.getByRole("button", { name: /^Save settings/ });

@@ -1,10 +1,11 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import type { Match as MatchRow } from "@prisma/client";
-import { COURSE_REF } from "@/lib/services/course-resolution";
+import { COURSE_REF, roundCard } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
 import { parseDeadlineIso } from "@/lib/deadline";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
-import { roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -75,8 +76,10 @@ import {
   isReturnedCard,
   roundHandicapExactOf,
   roundHandicapOf,
+  roundParStrokesOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
+import { parStrokesApply } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -88,6 +91,7 @@ import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } fr
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
+import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
@@ -131,7 +135,6 @@ import {
   deriveNetHoles,
   isTiebreakerKey,
   isBracketMode,
-  playingHandicapFrom,
   holeStrokesReceived,
   allocationHoles,
   serializeBracketDraw,
@@ -140,13 +143,12 @@ import {
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
-import { resolveCourse } from "@/lib/courses";
-import { cardForStage, cardForMatch, courseForMatch, courseForRound } from "@/lib/services/course-resolution";
+import { cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
-import { holesPlayed } from "@/lib/domain/handicap";
+import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
@@ -496,6 +498,12 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     return { ok: false, error: "Email is required — it's how this player signs in." };
   }
   if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  // A handicap that was typed is one a golfer can have. Not finite is "left
+  // blank", which is allowed and is recorded below as no index.
+  if (Number.isFinite(input.handicap)) {
+    const refused = indexRefusal(input.handicap);
+    if (refused) return { ok: false, error: refused };
+  }
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
@@ -543,7 +551,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    */
   const duplicate = cleanEmail
     ? await prisma.player.findFirst({
-        where: { eventId, email: { equals: cleanEmail, mode: "insensitive" } },
+        where: { eventId, ...byAddress(cleanEmail) },
         select: { name: true, status: true },
       })
     : await prisma.player.findFirst({
@@ -628,6 +636,11 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   const data: Record<string, string | number> = {};
   if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
   if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) {
+    // THE RANGE, HERE AS WELL AS IN THE FORMS. This stored any finite number:
+    // the Registration box checks what is typed, a casual round's box did
+    // not, and an action is a public endpoint whichever form calls it.
+    const refused = indexRefusal(patch.handicap);
+    if (refused) return { ok: false, error: refused };
     data.handicap = patch.handicap;
     // Somebody typed this one, so it stops being unknown — including the case
     // this action exists for, correcting an index that arrived blank in a CSV.
@@ -654,7 +667,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
         where: {
           eventId,
           id: { not: playerId },
-          email: { equals: cleanEmail, mode: "insensitive" },
+          ...byAddress(cleanEmail),
         },
         select: { name: true },
       });
@@ -689,7 +702,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
     if (isMatch(shape?.shape)) {
       await prisma.roundHandicap.updateMany({
         where: { eventId, playerId, frozen: { not: null } },
-        data: { frozen: null, frozenExact: null, frozenAt: null },
+        data: { frozen: null, frozenExact: null, frozenParStrokes: null, frozenAt: null },
       });
     }
   }
@@ -2911,7 +2924,9 @@ async function deriveMatchFromItsCards(
     tees: netTees,
     players: [playerA, playerB]
       .filter((x): x is NonNullable<typeof x> => !!x)
-      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId })),
+      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId, gender: p.gender })),
+    // The lowest par being played is the field's, not this pair's (Rule 6.2b).
+    field: await confirmedField(eventId),
     flightTeeOf: netFlightTee,
     match,
     stage,
@@ -3255,7 +3270,7 @@ async function recomputeTeamMatch(
         where: { id: stage.courseId, ...playedOnBy(eventId) },
       })
     : null;
-  const course = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage);
+  const course = roundCard(stage, event, roundVenue);
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0, stage?.type);
 
   /**
@@ -3273,6 +3288,12 @@ async function recomputeTeamMatch(
     orderBy: [{ position: "asc" }],
   });
   const teamRound = await roundHandicapRows(eventId, match.stageId);
+  // One field for BOTH sides. Each side's handicaps are worked out from its own
+  // members below, and the strokes for tees of a higher par (Rule 6.2b) are a
+  // difference from the lowest par the field is playing — which two maps of
+  // two players each would otherwise each find for themselves.
+  const teamField = await confirmedField(eventId);
+  const givesParStrokes = parStrokesApply(formatName, stage?.scoringBasis);
 
   const sideCard = async (teamId: string) => {
     const [cards, members] = await Promise.all([
@@ -3280,7 +3301,7 @@ async function recomputeTeamMatch(
       prisma.teamMember.findMany({
         where: { teamId },
         include: {
-          player: { select: { id: true, handicap: true, handicapType: true, teeId: true } },
+          player: { select: FIELD_PLAYER },
         },
       }),
     ]);
@@ -3290,6 +3311,7 @@ async function recomputeTeamMatch(
     const teamHcp = roundCourseHandicaps({
       tees: teeRows,
       players: members.map((m) => m.player),
+      field: teamField,
       flightTeeOf: teamFlightTee,
       match: matchVenue,
       stage,
@@ -3349,7 +3371,13 @@ async function recomputeTeamMatch(
       const card = cards.find((c) => c.playerId === m.playerId);
       return {
         strokes: parse(card?.strokes ?? "[]"),
-        playingHandicap: playingHandicapFrom(playsOffExact(m.player), allowance),
+        playingHandicap: roundPlayingHandicap(
+          playsOffExact(m.player),
+          allowance,
+          givesParStrokes
+            ? roundParStrokesOf(teamRound.get(m.player.id), teamHcp.parStrokes(m.player.id))
+            : NO_PAR_STROKES,
+        ),
         pickedUp: picks(card?.pickedUp),
       };
     });
@@ -5344,7 +5372,7 @@ export async function importScores(
       prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
       prisma.player.findMany({
         where: { eventId, status: "confirmed" },
-        select: { id: true, handicap: true, handicapType: true, teeId: true },
+        select: FIELD_PLAYER,
       }),
       prisma.tee.findMany({
         // Scoped to this tournament's courses. Unscoped, this returned every
@@ -5371,6 +5399,7 @@ export async function importScores(
     const ch = roundCourseHandicaps({
       tees,
       players,
+      field: players,
       flightTeeOf: importFlightTee,
       stage,
       event,
@@ -5387,7 +5416,15 @@ export async function importScores(
         id,
         // Of the UNROUNDED figure, as the board takes it — or the gross this
         // stores would be a stroke from the one the board derives.
-        playingHandicapFrom(roundHandicapExactOf(importRound.get(id), v, ch.exact(id)), allowance),
+        roundPlayingHandicap(
+          roundHandicapExactOf(importRound.get(id), v, ch.exact(id)),
+          allowance,
+          // As the board gives them (Rule 6.2b), or the gross this stores is a
+          // stroke from the one the board derives for anybody on the longer par.
+          parStrokesApply(stage.format, stage.scoringBasis)
+            ? roundParStrokesOf(importRound.get(id), ch.parStrokes(id))
+            : NO_PAR_STROKES,
+        ),
       ]),
     );
     // The nine actually played, re-ranked. Converting a file of NET scores
@@ -5416,7 +5453,7 @@ export async function importScores(
           where: { id: stage.courseId, ...playedOnBy(eventId) },
         })
       : null;
-    netSi = cardForStage(courseForRound(roundVenue, event) ?? resolveCourse(event), stage).strokeIndex;
+    netSi = roundCard(stage, event, roundVenue).strokeIndex;
     if (netSi.length === 0) {
       return {
         ok: false,
@@ -5870,7 +5907,7 @@ export async function clearRoundScores(
   if (!scoped.length) {
     await prisma.roundHandicap.updateMany({
       where: { eventId, stageId },
-      data: { frozen: null, frozenExact: null, frozenAt: null },
+      data: { frozen: null, frozenExact: null, frozenParStrokes: null, frozenAt: null },
     });
   }
 

@@ -2,7 +2,7 @@
 import { useId, useState, useTransition } from "react";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
-import { decimalPoint } from "@/lib/domain/decimal-text";
+import { figureOr, readDecimal, readWhole } from "@/lib/domain/decimal-text";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
@@ -91,15 +91,23 @@ export function TeeEditor({
 
   const save = () => {
     setError("");
+    // A TYPO IN A RATING IS SAID, NOT READ. `parseFloat("7l.3")` is 7 and
+    // `parseInt("13O")` is 13. Each went to the server as the figure, and what
+    // came back described a number nobody had typed — or, for "71.3x", nothing
+    // came back at all and 71.3 was stored.
+    const [rating, slope, par] = [readDecimal(draft.courseRating), readWhole(draft.slopeRating), readWhole(draft.par)];
+    if (rating.kind === "unreadable") return setError("Course Rating: type a number like 71.3, or leave it empty.");
+    if (slope.kind === "unreadable") return setError("Slope: type a whole number like 129, or leave it empty.");
+    if (par.kind === "unreadable") return setError("Par: type a whole number like 72.");
     startTransition(async () => {
       const res = await saveTee(
         courseId,
         {
           name: draft.name,
           gender: draft.gender,
-          courseRating: parseFloat(decimalPoint(draft.courseRating)) || 0,
-          slopeRating: parseInt(draft.slopeRating, 10) || 0,
-          par: parseInt(draft.par, 10) || 72,
+          courseRating: figureOr(rating, 0),
+          slopeRating: figureOr(slope, 0),
+          par: figureOr(par, 72),
         },
         editing && editing !== "new" ? editing : undefined,
       );
@@ -117,9 +125,9 @@ export function TeeEditor({
   };
 
   // What the numbers currently entered would do to a mid-handicapper.
-  const previewSlope = parseInt(draft.slopeRating, 10) || 0;
-  const previewRating = parseFloat(decimalPoint(draft.courseRating)) || 0;
-  const previewPar = parseInt(draft.par, 10) || 72;
+  const previewSlope = figureOr(readWhole(draft.slopeRating), 0);
+  const previewRating = figureOr(readDecimal(draft.courseRating), 0);
+  const previewPar = figureOr(readWhole(draft.par), 72);
   const preview =
     previewSlope > 0
       ? courseHandicap(14, { slopeRating: previewSlope, courseRating: previewRating, par: previewPar })

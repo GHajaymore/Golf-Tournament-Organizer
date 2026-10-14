@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 
@@ -26,7 +27,7 @@ export async function playsInMatch(
   match: { playerAId: string; playerBId: string; teamAId?: string; teamBId?: string },
 ): Promise<boolean> {
   const own = await prisma.player.findMany({
-    where: { eventId, email: { equals: email, mode: "insensitive" } },
+    where: { eventId, ...byAddress(email) },
     select: { id: true },
   });
   const mine = new Set(own.map((p) => p.id));

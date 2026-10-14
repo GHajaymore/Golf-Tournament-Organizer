@@ -24,7 +24,10 @@ describe("nine-hole rounds don't halve twice", () => {
     // nine-hole rounds — see nine-hole-index.test.ts for the behaviour.
     const src = read("src/lib/services/handicaps.ts");
     expect(src).toMatch(/indexForHoles\(p\.handicap, p\.handicapType, holes\)/);
-    expect(src).toMatch(/indexForHoles\(player\.handicap, player\.handicapType, holes\)/);
+    // The second reader this pinned, `courseHandicapForPlayer`, had no callers
+    // and was deleted on 2026-10-13: a rule kept in a function nobody calls is
+    // a second copy waiting to be used.
+    expect(src).not.toMatch(/courseHandicapForPlayer/);
     expect(src).not.toMatch(/handicapType === "9" && holes !== 9/);
   });
 
@@ -182,7 +185,9 @@ describe("every engine receives a Course Handicap, not an Index", () => {
      * Both negatives kept, and they are the safe direction: any future shape
      * that reaches for the roster index fails here whatever it calls the field.
      */
-    expect(recompute).toMatch(/playingHandicap: playingHandicapFrom\(playsOffExact\(m\.player\)/);
+    // `roundPlayingHandicap` since 2026-10-13: the same allowance of the same
+    // figure, and then the strokes for tees of a higher par (Rule 6.2b).
+    expect(recompute).toMatch(/playingHandicap: roundPlayingHandicap\(\s*playsOffExact\(m\.player\),/);
     expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
     expect(recompute).not.toMatch(/playingHandicap: m\.player\.handicap/);
   });
@@ -276,8 +281,8 @@ describe("individual standings play off the Playing Handicap", () => {
     // And it is the UNROUNDED figure the allowance is taken of. `resolved.handicap`
     // here was the defect: 95% of a rounded course handicap, rounded again.
     expect(src).toMatch(/memberExact: byRound\.exact\(playerId\)/);
-    expect(src).toMatch(/playingHandicapFrom\(resolved\.exact, allowance\)/);
-    expect(src).not.toMatch(/playingHandicapFrom\(resolved\.handicap/);
+    expect(src).toMatch(/roundPlayingHandicap\(resolved\.exact, allowance, parStrokes\)/);
+    expect(src).not.toMatch(/PlayingHandicap(From)?\(resolved\.handicap/);
   });
 
   it("leaves flight formation on the Course Handicap", () => {
@@ -297,8 +302,9 @@ describe("handicap conversion follows each round's own hole count", () => {
     // The tee policy is required in both, and must be the SAME one: which
     // tees a player is held to cannot depend on whether the round is nine
     // holes or eighteen.
-    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy\)/);
-    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy\)/);
+    // And the same FIELD, for the lowest par being played (Rule 6.2b).
+    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy, fieldForPar\)/);
+    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy, fieldForPar\)/);
     expect(src).toMatch(/stage\?\.holes === 9 \? ctx\.courseHcp9 : ctx\.courseHcp18/);
   });
 

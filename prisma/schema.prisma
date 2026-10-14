@@ -1734,6 +1734,15 @@ model Stage {
   cutMode    String  @default("count") // count | percent
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)
+  /**
+   * When a stroke cut was first made INTO this round (`applyStrokeCut`), or null
+   * for one never made. Written once; a cut re-made after a correction keeps it.
+   *
+   * Until 2026-10-14 nothing recorded that a cut had been made, and every reader
+   * inferred it from whether the round held cards — which a card started early,
+   * while the round before was still open, also satisfies. See `cutHasBeenMade`.
+   */
+  cutMadeAt  DateTime?
 
   /**
    * The venue for this round, when the tournament rotates them — a
@@ -2367,6 +2376,19 @@ model RoundHandicap {
    * keeps exactly the strokes it was played off.
    */
   frozenExact Float?
+
+  /**
+   * The strokes this player was given for playing tees of a higher par than
+   * the lowest in the field, as the field stood when the round froze
+   * (Rules of Handicapping 6.2b; 2026-10-13). Whole, and added after the
+   * allowance. Written with `frozen`, in the same statement.
+   *
+   * Null on a round frozen before this column existed, and such a round reads
+   * NOUGHT: it was played and published without these strokes and keeps the
+   * nets it was given. Whether a round's format takes them at all is asked
+   * where the round is priced (`parStrokesApply`).
+   */
+  frozenParStrokes Int?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

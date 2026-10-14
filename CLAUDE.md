@@ -1727,6 +1727,94 @@ of three at 30/20/10 — where the app played 25/20/15, the four's shares with t
 which is nobody's table. A test that asserts a fact about the Rules is as dated as the day somebody
 last read the Rules; the header of that file says when.
 
+## Tees of a higher par, and who chooses the tees
+
+**A PLAYER ON TEES OF A HIGHER PAR IS GIVEN THE DIFFERENCE.** Rules of
+Handicapping 6.2b: where the field plays sets of tees with different pars, in
+stroke play or match play counted in strokes, a player on the higher par receives
+the difference as extra strokes, AFTER the allowance and with no allowance taken
+of it. None where a round is counted against par (Stableford).
+
+The app gave none until 2026-10-13. Its own seeded medal is men off par 71 and
+ladies off par 72: every lady was a stroke short, and `boards-by-the-rules.spec.ts`
+— the test that works a board out "by the Rules" — agreed with the board about
+all of them, because its author had read 6.2a and stopped. **A test worked from
+the Rules is as complete as the Rules somebody read.** It was found by asking the
+golf professional what the tests left out, not by any test.
+
+- `roundPlayingHandicap(exact, allowance, parStrokes)` is what a round is priced
+  with. The third argument is REQUIRED: thirteen places worked out a playing
+  handicap, and each now says whether the strokes for the pars are in it.
+  `playingHandicapFrom` is the arithmetic of an allowance and nothing else, and
+  `tees-of-a-higher-par-get-their-strokes.test.ts` refuses it anywhere a round is
+  priced.
+- **The lowest par is the FIELD's, not the map's.** Nine readers build their
+  handicaps from five different groups of players — everybody, one skins pot, one
+  side, the two players of a match — and "the lowest par among the players I
+  hold" is a different number for each. A pot of two ladies, both off 72, finds
+  no difference and gives neither the stroke the board gives both; a skin is won
+  hole by hole, so that is a different hole in a different pocket.
+  `roundCourseHandicaps` REQUIRES `field`, and `confirmedField(eventId)` supplies
+  it.
+- `parStrokesApply(format, scoringBasis)` asks the BASIS as well as the format: a
+  four-ball can be set to Stableford, and a stroke round can be stored the older
+  way as points.
+- A round that has frozen keeps what it froze (`RoundHandicap.frozenParStrokes`).
+  A round frozen before that column existed reads nought and keeps its nets.
+
+**THE ORGANIZER DECIDES THE TEES, AT THREE LEVELS** (Ajay, 2026-10-13): the
+tournament's; a flight may override; the organizer may move one player. Where the
+course has a ladies' set, a woman nobody has put elsewhere plays it — a DEFAULT
+between the flight and the tournament, not a level. `teeIdFor` is the one
+resolver and the ladies' rung is a required argument of it, which is how the
+compiler found all five places that resolve a tee.
+
+What prompted it: an ENTRANT could set their own tees through three doors — the
+Preferred tee box on the public form, a member entering themselves, and adding a
+member from the roster — each storing free text as the player's own set, where it
+beat the flight's. Every test of tees was green over it, because every one put a
+player on a set and asked whether it was honoured. **None asked who had put them
+there.** When a rule is about who may decide, the test has to walk the doors,
+not the outcome: `the-organizer-decides-the-tees.test.ts` finds every write to a
+Player row in the app and allows exactly one to set tees.
+
+- Nothing creates a player with a `teeId`. `setPlayerTee` is staff-only whatever
+  the settings say. "Players choose their own tees" is retired; a tournament
+  stored with it reads as `own`, which is how it was scored.
+- Every reader of a round selects `FIELD_PLAYER`, which carries `gender`. Do not
+  write the column list out again: a reader that left `gender` off would put a
+  woman on the tournament's rating while the board had her on her own.
+- What was left out on purpose is in `docs/deferred-register.md`.
+
+## One rule, one place
+
+Ajay, 2026-10-13, after the two above: "make sure the underlying pieces/modules
+are in line and built as shareable vs every screen/function/round using different
+logic or their own way" and "start from the basic and then move step by step up".
+
+The browser tests found neither fault above, because every screen was right on
+its own terms. **Two screens answering one question differently is the class a
+screen test cannot see**, and it was three of the day's findings: thirteen places
+pricing a round, nine readers with five fields, five builders of a flight's tees.
+
+`docs/one-rule-one-place.md` is the inventory (measured, with file and line) and
+the order: what people type, the field, the venue, handicaps, a card, a round,
+across rounds, money, what screens say. For each rule the shape is the same:
+
+1. **One function holds it, and takes what it needs as REQUIRED arguments**, so
+   that the compiler lists every caller the day the rule grows. An optional
+   argument is a caller free to forget.
+2. **One test worked from the Rules of Golf**, by a route the code does not take,
+   on the axis the fixtures have been missing.
+3. **One sweep that refuses a second copy**, with a control proving it can see
+   one.
+
+And two cautions this file already carries, which apply to every step of it: a
+single reader must be pinned to the RULES, because readers that agree by
+construction agree whether or not they are right; and a dead twin of a live rule
+(`courseHandicapForPlayer`, deleted that day with no callers) is a second copy
+waiting to be used.
+
 ## Course cards: measure a guard before you ship it
 
 A wrong card is invisible — a bad stroke index allocates shots to the wrong holes for the
@@ -1775,6 +1863,14 @@ one. Migrations need the direct URL — advisory locks and DDL cannot cross a po
 Before creating a migration, read the SQL it generated. Prisma emits everything it considers
 drift, so an unrelated `DROP DEFAULT` can ride along with a one-line change. If that happens,
 fix the *schema* so it matches the database rather than accepting the drop.
+
+**NAME A NEW MIGRATION `A001_…`, `A002_…` — never `100_` and never Prisma's timestamp.** A fresh
+database (CI makes one on every run) replays the folders in TEXT order. Two digits ran out at
+`99_`, and `100_` sorts before `10_`; a timestamp name sorts between `19_` and `20_`, where 26
+of them already sit from August and September — history, which replays there and works, and
+is left as it is. A capital letter sorts after every digit, so `A000` to `A999` replay after all
+of it, then `B000`. `migrations-replay-in-the-order-written.test.ts` refuses anything else. When
+`prisma migrate dev --create-only` names one by timestamp, rename the folder before applying it.
 
 **A new model means restarting the dev server, not just recompiling.** A running Next process
 holds the generated client in memory, so `prisma.yourNewModel` stays `undefined` however many

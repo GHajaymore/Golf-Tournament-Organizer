@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 
@@ -59,7 +60,7 @@ export async function revokePlayerAccount(eventId: string, email: string): Promi
   const stillEntered = await prisma.player.count({
     where: {
       eventId,
-      email: { equals: cleanEmail, mode: "insensitive" },
+      ...byAddress(cleanEmail),
       status: { not: "withdrawn" },
     },
   });

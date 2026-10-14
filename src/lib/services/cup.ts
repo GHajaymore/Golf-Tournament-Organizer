@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import { prisma } from "../db";
 import { lookupFormat } from "../formats";
 import {
@@ -117,7 +118,7 @@ export async function myCupIds(eventId: string, email: string): Promise<{ player
   const players = new Set(
     (
       await prisma.player.findMany({
-        where: { eventId, email: { equals: email, mode: "insensitive" } },
+        where: { eventId, ...byAddress(email) },
         select: { id: true },
       })
     ).map((p) => p.id),

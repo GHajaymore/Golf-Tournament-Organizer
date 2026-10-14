@@ -189,11 +189,16 @@ test("a new organizer comes in by the front door, and the door closes behind the
   expect(path()).toBe("/");
 
   // ── wrong password and unknown address: one sentence ───────────────────
+  // Each answer waits on a password hash, which is slow on purpose and slower on a
+  // busy machine with the page's animation running: the motion layer of a full
+  // run saw "Creating account…" still pressed at five seconds (2026-10-14). The
+  // refusal is checked when it comes, not at the default five.
+  const ANSWER = { timeout: 20_000 };
   await logIn(page, email, "not-the-Password-55-at-all");
-  await expect(refusal(page)).toHaveText(/Wrong email or password\./);
+  await expect(refusal(page)).toHaveText(/Wrong email or password\./, ANSWER);
   const wrong = await refusal(page).innerText();
   await logIn(page, `${mark}-nobody@example.invalid`, "not-the-Password-55-at-all");
-  await expect(refusal(page)).toHaveText(/Wrong email or password\./);
+  await expect(refusal(page)).toHaveText(/Wrong email or password\./, ANSWER);
   expect(await refusal(page).innerText(), "the refusal tells an address with an account from one without").toBe(wrong);
 
   // ── signing up twice ───────────────────────────────────────────────────
@@ -203,7 +208,7 @@ test("a new organizer comes in by the front door, and the door closes behind the
   await page.getByPlaceholder("Choose a password").fill(PASSWORD);
   await page.getByText("A society, league or regular group").click();
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(refusal(page)).toContainText("log in instead");
+  await expect(refusal(page)).toContainText("log in instead", ANSWER);
   expect(await prisma.user.count({ where: { email } })).toBe(1);
 
   // ── the right password, and a `next` that points off the site ──────────

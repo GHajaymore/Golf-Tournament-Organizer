@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { getSession, type Session } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
@@ -168,7 +169,7 @@ export async function setOwnAttendance(stageId: string, status: string): Promise
 
   const player = await prisma.player.findFirst({
     where: {
-      email: { equals: session.email, mode: "insensitive" },
+      ...byAddress(session.email),
       status: "confirmed",
       event: { stages: { some: { id: stageId } } },
     },

@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
@@ -159,7 +160,7 @@ export function GroupingControls({
               type="number"
               min={mode === "count" ? 1 : 2}
               value={value}
-              onChange={(e) => setValue(parseInt(e.target.value, 10) || 0)}
+              onChange={(e) => setValue(figureOr(readWhole(e.target.value), 0))}
             />
           </div>
         )}

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tournamentTerms } from "../rules";
+import { cutAfterRound } from "../domain/cut-ready";
 import { STAGE_TYPE_INFO, seededFromQualifiers } from "../stage-types";
 import type { TiebreakerKey } from "../domain/types";
 
@@ -11,6 +12,13 @@ import type { TiebreakerKey } from "../domain/types";
  * club hands to its players read "Top 8 advance to the next round" while the
  * draw seeded two per flight from `qualifyPerGroup`. The players were given a
  * description of a competition they were not in.
+ *
+ * AND THE CUT PRINTED IS THE ONE MADE AFTER THE ROUND BEING PLAYED (2026-10-14).
+ * A cut belongs to the round it feeds, and the sheet read the played round's
+ * own setting: no cut at all while round 1 was played, and a cut promised once
+ * round 2 had begun — already made. Nor did it say "in each flight" or "and
+ * ties". So these build the TOURNAMENT's rounds and ask `cutAfterRound`, which
+ * is what both rules screens hand the sheet.
  */
 
 const terms = (over: Partial<Parameters<typeof tournamentTerms>[0]> = {}) =>
@@ -22,24 +30,50 @@ const terms = (over: Partial<Parameters<typeof tournamentTerms>[0]> = {}) =>
     handicapAllowance: 100,
     countBest: 0,
     tiebreakers: [] as TiebreakerKey[],
-    cutEnabled: true,
-    cutMode: "count",
-    cutCount: 8,
-    cutPercent: 50,
+    cutAfter: null,
     carryForwardEnabled: false,
     carryForwardPct: 0,
     ...over,
   });
 
+type Round = Parameters<typeof cutAfterRound>[0][number];
+const round = (id: string, over: Partial<Round> = {}): Round => ({
+  id,
+  type: "Round Robin",
+  format: "Match Play",
+  cutEnabled: false,
+  cutScope: "overall",
+  cutMode: "count",
+  cutCount: 8,
+  cutPercent: 50,
+  ...over,
+});
+/** The Cut line on the sheet for round `id` of these rounds. */
+const cutLine = (rounds: Round[], id: string) => {
+  const r = rounds.find((x) => x.id === id)!;
+  return terms({ type: r.type, format: r.format, cutAfter: cutAfterRound(rounds, id) }).find((t) => t.label === "Cut")?.value;
+};
+
 describe("the published rules sheet only prints a cut the engine applies", () => {
-  it("prints the cut for a round that is decided by one", () => {
-    const cut = terms().find((t) => t.label === "Cut");
-    expect(cut?.value).toBe("Top 8 advance to the next round");
+  it("prints the cut on the round it is made AFTER, not the round it feeds", () => {
+    const rounds = [round("r1"), round("r2", { cutEnabled: true })];
+    expect(cutLine(rounds, "r1"), "round 1 is played for a place in round 2").toBe("Top 8 advance to the next round");
+    expect(cutLine(rounds, "r2"), "round 2's cut has been made: there is no cut after it").toBeUndefined();
+  });
+
+  it("says a stroke cut takes ties, and a per-flight one takes them from each flight", () => {
+    const medal = { type: "Stroke Play Round", format: "Stroke Play" };
+    const rounds = [round("r1", medal), round("r2", { ...medal, cutEnabled: true, cutScope: "perFlight", cutMode: "percent", cutPercent: 25 })];
+    expect(cutLine(rounds, "r1")).toBe("Top 25% in each flight and ties advance to the next round");
+    // CONTROL: a round robin's cut is made on the standings' own order, without ties.
+    expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutScope: "perFlight" })], "r1")).toBe(
+      "Top 8 in each flight advance to the next round",
+    );
   });
 
   it("prints no cut for a bracket, whose field is the qualifiers", () => {
     // The exact sentence a club was publishing against a draw that ignored it.
-    expect(terms({ type: "Bracket Stage" }).find((t) => t.label === "Cut")).toBeUndefined();
+    expect(cutLine([round("r1"), round("r2", { type: "Bracket Stage", cutEnabled: true })], "r1")).toBeUndefined();
   });
 
   it("still prints everything else about a bracket round", () => {
@@ -49,12 +83,12 @@ describe("the published rules sheet only prints a cut the engine applies", () =>
     expect(out.find((t) => t.label === "Ties")).toBeDefined();
   });
 
-  it("prints a percent cut on an ordinary round and not on a bracket", () => {
-    expect(terms({ cutMode: "percent" }).find((t) => t.label === "Cut")?.value).toBe(
+  it("prints a percent cut before an ordinary round and not before a bracket", () => {
+    expect(cutLine([round("r1"), round("r2", { cutEnabled: true, cutMode: "percent" })], "r1")).toBe(
       "Top 50% advance to the next round",
     );
     expect(
-      terms({ cutMode: "percent", type: "Bracket Stage" }).find((t) => t.label === "Cut"),
+      cutLine([round("r1"), round("r2", { type: "Bracket Stage", cutEnabled: true, cutMode: "percent" })], "r1"),
     ).toBeUndefined();
   });
 });

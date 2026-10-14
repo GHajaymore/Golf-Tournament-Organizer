@@ -21,10 +21,7 @@ const medal = tournamentTerms({
   handicapAllowance: 95,
   countBest: 0,
   tiebreakers: ["toughest-6"],
-  cutEnabled: false,
-  cutMode: "",
-  cutCount: 0,
-  cutPercent: 0,
+  cutAfter: null,
   carryForwardEnabled: false,
   carryForwardPct: 0,
 }).map((t) => t.rule);
@@ -83,10 +80,7 @@ describe("the Format line says the format once", () => {
       handicapAllowance: 95,
       countBest: 0,
       tiebreakers: [],
-      cutEnabled: false,
-      cutMode: "",
-      cutCount: 0,
-      cutPercent: 0,
+      cutAfter: null,
       carryForwardEnabled: false,
       carryForwardPct: 0,
     }).find((t) => t.label === "Format")?.value;

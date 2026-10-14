@@ -2,8 +2,8 @@ import "server-only";
 import { playedOnByAny } from "./courses";
 import { prisma } from "../db";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
-import { teeRatingFor } from "./handicaps";
-import { courseHandicap, holesPlayed, teeIdFor, indexForHoles } from "../domain/handicap";
+import { teeRatingFor, teeForPlay } from "./handicaps";
+import { courseHandicap, holesPlayed, teeIdFor, indexForHoles, ladiesTeeFor, ladiesTeeOn } from "../domain/handicap";
 import { resolveRoundHandicap } from "../domain/round-handicap";
 import {
   handicapRecordFrom,
@@ -94,7 +94,7 @@ export async function memberHandicapRecord(
      * nine or an eighteen, and passing a nine-hole index raw into an 18-hole
      * round doubles nothing and halves nothing — it just uses the wrong number.
      */
-    select: { id: true, eventId: true, handicap: true, teeId: true, groupId: true, handicapType: true },
+    select: { id: true, eventId: true, handicap: true, teeId: true, groupId: true, handicapType: true, gender: true },
   });
   if (entries.length === 0) {
     return {
@@ -128,7 +128,7 @@ export async function memberHandicapRecord(
   const [stages, events, venues, tees, frozen] = await Promise.all([
     prisma.stage.findMany({
       where: { id: { in: stageIds } },
-      select: { id: true, eventId: true, holes: true, playedOn: true, courseId: true, nine: true },
+      select: { id: true, eventId: true, holes: true, playedOn: true, courseId: true, teeId: true, nine: true },
     }),
     prisma.event.findMany({ where: { id: { in: eventIds } }, include: COURSE_REF }),
     prisma.course.findMany({ where: playedOnByAny(eventIds) }),
@@ -190,23 +190,37 @@ export async function memberHandicapRecord(
      * `teeIdFor` is what the board, the printed card and score entry all use,
      * so a differential now comes from the same tee the net score did.
      */
+    /**
+     * THE ROUND'S tees and course, walked as the board walks them
+     * (`teeForPlay`: the round's own set, then the tournament's, then a set on
+     * the course being played), not the tournament's alone. This handed the
+     * resolver the tournament's default tees and judged "on this course" by
+     * the tournament's course — so on a round played away the away tees were
+     * refused and the home set was used: a 90 at Ardmore (74.0 / 135) went into
+     * the record as 22.0 off Braid Hollow's whites, where the Rule gives 13.4
+     * (`a-differential-is-from-the-tees-of-the-round.audit.test.ts`).
+     *
+     * A differential is a permanent record — it goes into the member's index
+     * and stays — so a rating borrowed from another venue is the one place this
+     * mistake cannot later be corrected by re-scoring.
+     */
+    const roundTee = teeForPlay(
+      tees,
+      { stageTeeId: stage.teeId, eventDefaultTeeId: event.defaultTeeId },
+      stage.courseId ?? event.courseId ?? null,
+    );
+    const roundCourse = roundTee ? teeById.get(roundTee)?.courseId : (stage.courseId ?? event.courseId ?? undefined);
     const tee =
       teeById.get(
         teeIdFor(
           event.teePolicy ?? "own",
           entry.teeId,
           entry.groupId ? flightTeeOf.get(entry.groupId) ?? null : null,
-          event.defaultTeeId,
-          /**
-           * And on the course that event was played at. A differential is a
-           * permanent record — it goes into the member's index and stays — so
-           * a rating borrowed from another venue is the one place this mistake
-           * cannot later be corrected by re-scoring.
-           */
-          (id) => {
-            const at = event.defaultTeeId ? teeById.get(event.defaultTeeId)?.courseId : undefined;
-            return !at || teeById.get(id)?.courseId === at;
-          },
+          roundTee,
+          (id) => !roundCourse || teeById.get(id)?.courseId === roundCourse,
+          // The ladies' set at that course, for a woman nobody had put elsewhere —
+          // the rung the board read on the day, so the record reads it too.
+          ladiesTeeFor(entry.gender, ladiesTeeOn(teeById, roundCourse)),
         ),
       ) ?? null;
     const rating = teeRatingFor(tee, holes);

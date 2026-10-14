@@ -17,7 +17,7 @@
  */
 
 import { registrationStatus, type RegistrationInput } from "../registration";
-import { decimalPoint } from "./decimal-text";
+import { readHandicapIndex } from "./handicap-label";
 
 export type ApprovalMode = "auto" | "approve";
 
@@ -99,11 +99,6 @@ export function placementOnApproval(capacity: number, confirmedCount: number): I
  *  nonsense, not to adjudicate RFC 5322. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** WHS indexes run from +10 (a plus handicap, better than scratch) to 54.0.
- *  A value outside this is a typo or a joke, and either way not a handicap. */
-const HANDICAP_MIN = -10;
-const HANDICAP_MAX = 54;
-
 export type HandicapParse =
   | { ok: true; value: number; source: "manual" }
   /** Left blank. Not a zero — a scratch handicap is a claim, and an empty box
@@ -141,21 +136,17 @@ export const STAFF_HANDICAP_REFUSAL: Record<"not-a-number" | "out-of-range", str
  * entered.
  */
 export function parseHandicapInput(raw: string | null | undefined): HandicapParse {
-  // "12,4" is how half of Europe writes 12.4 — see `decimalPoint`.
-  const value = decimalPoint(raw);
-  if (value === "") return { ok: true, value: 0, source: "none" };
-
-  // "+2.4" is 2.4 better than scratch. The leading plus is golf notation, not
-  // arithmetic — which is exactly why parseFloat gets it backwards.
-  const normalized = value.startsWith("+") ? `-${value.slice(1)}` : value;
-  // Number(), not parseFloat(): parseFloat stops at the first thing it doesn't
-  // understand and returns what it has, so "12.4abc" becomes a handicap.
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return { ok: false, error: "Enter your handicap as a number, like 12.4.", why: "not-a-number" };
-  if (parsed < HANDICAP_MIN || parsed > HANDICAP_MAX) {
+  // The one reading of a typed index, shared with every other box that takes
+  // one (`readHandicapIndex`): "12,4" as half of Europe writes it, "+2.4" for a
+  // plus handicap, and no "12.4abc". THIS box's decisions are what follow: a
+  // blank is no index, and a typo or an impossible figure is refused.
+  const read = readHandicapIndex(raw);
+  if (read.kind === "blank") return { ok: true, value: 0, source: "none" };
+  if (read.kind === "unreadable") return { ok: false, error: "Enter your handicap as a number, like 12.4.", why: "not-a-number" };
+  if (read.kind === "out-of-range") {
     return { ok: false, error: "That handicap doesn't look right — it should be between +10 and 54.", why: "out-of-range" };
   }
-  return { ok: true, value: parsed, source: "manual" };
+  return { ok: true, value: read.value, source: "manual" };
 }
 
 /**

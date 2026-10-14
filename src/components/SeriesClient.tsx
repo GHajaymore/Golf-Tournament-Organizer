@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSeries, updateSeries, deleteSeries, setEventSeries } from "@/app/actions/series";
@@ -332,8 +333,8 @@ export function SeriesClient({
                     updateSeries(active.id, {
                       name: draft.name,
                       pointsTable: draft.pointsTable,
-                      bestOf: parseInt(draft.bestOf, 10) || 0,
-                      minEvents: parseInt(draft.minEvents, 10) || 0,
+                      bestOf: figureOr(readWhole(draft.bestOf), 0),
+                      minEvents: figureOr(readWhole(draft.minEvents), 0),
                     }),
                   )
                 }

@@ -81,7 +81,8 @@ const roundedFirst = (indexTenths: number, tee: Tee, pct: number) => nearest(nea
 /** Strokes received on a hole of this stroke index, off a playing handicap of nought or more. */
 const shotsOn = (playing: number, strokeIndex: number) => Math.floor(playing / 18) + (strokeIndex <= playing % 18 ? 1 : 0);
 
-type Ball = { name: string; indexTenths: number; tee: Tee; strokes: (number | null)[] };
+/** `parStrokes`: Rule 6.2b's difference for tees of a higher par than the field's lowest, added after the allowance. */
+type Ball = { name: string; indexTenths: number; tee: Tee; strokes: (number | null)[]; parStrokes: number };
 type Side = { name: string; balls: Ball[] };
 
 /** A side's gross and net over the round, counting its best `count` balls on each hole. */
@@ -93,7 +94,8 @@ function sideTotals(side: Side, strokeIndex: number[], pct: number, count: numbe
       .filter((b) => typeof b.strokes[h] === "number")
       .map((b) => {
         const g = b.strokes[h] as number;
-        return { gross: g, net: g - shotsOn(method(b.indexTenths, b.tee, pct), strokeIndex[h]) };
+        // Rule 6.2b: every player in a four-ball plays their own ball, so their strokes for the pars count.
+        return { gross: g, net: g - shotsOn(method(b.indexTenths, b.tee, pct) + b.parStrokes, strokeIndex[h]) };
       })
       // The lower net counts; on a tie, the lower gross.
       .sort((a, b) => a.net - b.net || a.gross - b.gross)
@@ -155,6 +157,25 @@ test("a committee changes a live four-ball's allowance and how many balls count,
   const frozen = await prisma.roundHandicap.count({ where: { stageId: stage.id } });
   expect(frozen, "the seeded round holds frozen or overridden handicaps this spec does not model").toBe(0);
 
+  // The tees one player is held to, in the organizer's order: their own if they are at this course,
+  // then their flight's, then — for a woman nobody has placed — the course's ladies' set (the women's
+  // set with the lowest course rating, a tie to the one further down the card), then the round's.
+  const courseTees = await prisma.tee.findMany({ where: { courseId: roundTee.courseId }, orderBy: { position: "asc" } });
+  const WOMAN = /^(f|w|female|woman|women|lady|ladies|girl|girls)$/i;
+  const ladies = courseTees.reduce<(typeof courseTees)[number] | null>(
+    (best, t) => (WOMAN.test(t.gender.trim()) && (!best || t.courseRating <= best.courseRating) ? t : best),
+    null,
+  );
+  type Entry = { teeId: string | null; gender: string | null; group: { teeId: string | null } | null };
+  const teeOf = async (p: Entry) => {
+    const own = p.teeId ? await prisma.tee.findUnique({ where: { id: p.teeId } }) : null;
+    const flight = p.group?.teeId ? await prisma.tee.findUnique({ where: { id: p.group.teeId } }) : null;
+    const here = (t2: typeof own) => (t2 && t2.courseId === roundTee.courseId ? t2 : null);
+    return here(own) ?? here(flight) ?? (WOMAN.test((p.gender ?? "").trim()) ? ladies : null) ?? roundTee;
+  };
+  // Rule 6.2b: the lowest par the tournament's FIELD is playing, and the difference to anybody above it.
+  const field = await prisma.player.findMany({ where: { eventId: ev.id, status: "confirmed" }, include: { group: true } });
+  const lowestPar = Math.min(...(await Promise.all(field.map(teeOf))).map((t) => t.par));
   const sides: Side[] = [];
   for (const t of teams) {
     const balls: Ball[] = [];
@@ -162,21 +183,20 @@ test("a committee changes a live four-ball's allowance and how many balls count,
       const p = m.player;
       expect(p.handicapType, `${p.name} holds a nine-hole index`).not.toBe("9");
       expect(p.handicap, `${p.name} is a plus handicap, which this spec does not model`).toBeGreaterThanOrEqual(0);
-      // Their own tees if they are at this course, then their flight's, then the round's.
-      const own = p.teeId ? await prisma.tee.findUnique({ where: { id: p.teeId } }) : null;
-      const flight = p.group?.teeId ? await prisma.tee.findUnique({ where: { id: p.group.teeId } }) : null;
-      const here = (t2: typeof own) => (t2 && t2.courseId === roundTee.courseId ? t2 : null);
-      const tee = here(own) ?? here(flight) ?? roundTee;
+      const tee = await teeOf(p);
       const card = cards.find((c) => c.teamId === t.id && c.playerId === p.id);
       balls.push({
         name: p.name,
         indexTenths: Math.round(p.handicap * 10),
         tee: { courseRating: tee.courseRating, slopeRating: tee.slopeRating, par: tee.par },
         strokes: card ? (JSON.parse(card.strokes) as (number | null)[]) : [],
+        parStrokes: Math.max(0, tee.par - lowestPar),
       });
     }
     sides.push({ name: t.name, balls });
   }
+  // CONTROL: somebody on a side is on tees of a higher par, or a board that left out 6.2b would pass.
+  expect(sides.some((s) => s.balls.some((b) => b.parStrokes > 0)), "no ball is on tees of a higher par than the field's lowest").toBe(true);
   const scored = sides.filter((s) => s.balls.some((b) => b.strokes.some((x) => typeof x === "number")));
   expect(scored.length, "no side has a card in").toBeGreaterThanOrEqual(4);
   const expected = (pct: number, count: number, method = byTheRule) =>

@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
@@ -85,7 +86,7 @@ export async function membershipFor(
 
   const [player, member, directs] = await Promise.all([
     prisma.player.findFirst({
-      where: { eventId, email: { equals: key, mode: "insensitive" } },
+      where: { eventId, ...byAddress(key) },
       select: { id: true, groupId: true },
     }),
     prisma.member.findFirst({

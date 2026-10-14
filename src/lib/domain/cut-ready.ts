@@ -1,4 +1,4 @@
-import { isIndividualStrokeRound } from "../stage-types";
+import { isIndividualStrokeRound, seededFromQualifiers } from "../stage-types";
 import type { CutRule } from "./cut";
 
 /**
@@ -15,10 +15,64 @@ export function cutRuleOf(next: { cutScope: string; cutMode: string; cutCount: n
   };
 }
 
-/** "Top 16 and ties", "Top 25% in each flight and ties". */
-export function cutRuleWords(rule: CutRule): string {
+/**
+ * WHETHER THE CUT INTO THIS ROUND HAS BEEN MADE — the one answer.
+ *
+ * A round after a stroke cut belongs to the players who made it, and the app
+ * keeps that as who holds a card for it: `applyStrokeCut` gives each survivor
+ * one when the round before is closed, and records when (`Stage.cutMadeAt`).
+ * So the cut is made when the round has a cut, the cut has been recorded, and
+ * the individual stroke round it comes out of is CLOSED — re-opening that round
+ * to correct a card opens the next one to everybody again until it is closed.
+ *
+ * Until 2026-10-14 nothing recorded it, and four readers inferred it from "the
+ * round holds a card" — also true of a card somebody STARTED in round 2 while
+ * round 1 was still open, which the card guard allows since no cut has been
+ * made. The dashboard then counted a cut with one survivor, and the money
+ * waited for that one card (`a-cut-is-made-once-for-every-reader.audit.test.ts`).
+ *
+ * `feeder` is the playing round before this one, or undefined for the first.
+ */
+export function cutHasBeenMade(
+  round: { cutEnabled: boolean; cutMadeAt: Date | null; type: string; format: string },
+  feeder: { closedAt: Date | null; type: string; format: string } | undefined,
+): boolean {
+  if (!round.cutEnabled || !round.cutMadeAt || !feeder || !feeder.closedAt) return false;
+  return isIndividualStrokeRound(feeder) && isIndividualStrokeRound(round);
+}
+
+/**
+ * "Top 16 and ties", "Top 25% in each flight and ties" — or without the ties,
+ * for a cut that does not take them (a round robin's, which `survivors` makes
+ * on the standings' own order).
+ */
+export function cutRuleWords(rule: CutRule, ties = true): string {
   const top = rule.mode === "percent" ? `Top ${rule.percent}%` : `Top ${rule.count}`;
-  return `${top}${rule.scope === "perFlight" ? " in each flight" : ""} and ties`;
+  return `${top}${rule.scope === "perFlight" ? " in each flight" : ""}${ties ? " and ties" : ""}`;
+}
+
+/**
+ * THE CUT MADE AFTER THIS ROUND — what a player in it is playing for.
+ *
+ * A cut belongs to the round it FEEDS (`cutEnabled` on round 2 means only round
+ * 1's survivors play it), so the cut a player in round 1 needs to know about is
+ * round 2's. Until 2026-10-14 the rules sheet read the round being played's own
+ * setting: it printed no cut at all while round 1 was played, and once round 2
+ * began it said "Top 16 advance to the next round" about a cut already made.
+ *
+ * Ties go through on a cut between two individual stroke rounds
+ * (`applyStrokeCut`, "top N and ties"); a round robin's cut takes the standings'
+ * order. A round seeded from qualifiers (a bracket) has no cut to print — its
+ * field is its qualifiers. Null for a round with no cut after it.
+ */
+export function cutAfterRound<R extends { id: string; type: string; format: string; cutEnabled: boolean; cutScope: string; cutMode: string; cutCount: number; cutPercent: number }>(
+  rounds: readonly R[],
+  roundId: string,
+): { rule: CutRule; ties: boolean } | null {
+  const i = rounds.findIndex((r) => r.id === roundId);
+  const next = i >= 0 ? rounds[i + 1] : undefined;
+  if (!next || !next.cutEnabled || seededFromQualifiers(next.type)) return null;
+  return { rule: cutRuleOf(next), ties: isIndividualStrokeRound(rounds[i]) && isIndividualStrokeRound(next) };
 }
 
 /**

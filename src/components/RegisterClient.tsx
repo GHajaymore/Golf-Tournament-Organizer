@@ -10,7 +10,7 @@ import { Icon } from "./Icon";
 /**
  * The self-service registration form.
  *
- * A short, no-account form: name, email, handicap, and optional phone/tee. The
+ * A short, no-account form: name, email, handicap, and an optional phone. The
  * server is the authority on everything — capacity, the deadline, where the
  * entry lands — so this component's job is only to collect, show what the field
  * looks like right now, and report back what the server decided.
@@ -109,7 +109,6 @@ export function RegisterClient({
   );
   const [handicapType, setHandicapType] = useState(prefill?.handicapType === "9" ? "9" : "18");
   const [phone, setPhone] = useState(prefill?.phone ?? "");
-  const [tee, setTee] = useState(prefill?.preferredTee ?? "");
   const [error, setError] = useState("");
   const [done, setDone] = useState<RegisterResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -140,7 +139,6 @@ export function RegisterClient({
         handicap,
         handicapType,
         phone,
-        preferredTee: tee,
       });
       if (!result.ok) {
         setError(result.error ?? "Something went wrong. Try again.");
@@ -293,18 +291,9 @@ export function RegisterClient({
               </span>
             )}
           </div>
-          <div className="field">
-            <label htmlFor={`${uid}-tee`}>
-              Preferred tee <span className="text-muted">· optional</span>
-            </label>
-            <input
-              id={`${uid}-tee`}
-              className="input"
-              value={tee}
-              onChange={(e) => setTee(e.target.value)}
-              placeholder="e.g. White"
-            />
-          </div>
+          {/* NO "Preferred tee" BOX. There was one, and what a stranger typed in
+              it became the tees they were scored off, ahead of their flight's.
+              The organizer decides the tees — see `TEE_POLICY`. */}
         </div>
 
         <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submit}>

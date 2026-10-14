@@ -1,8 +1,8 @@
 import "server-only";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
-import { resolveCourse, hasCourseData } from "../courses";
-import { courseForRound, applyNine, cleanNine } from "./course-resolution";
+import { hasCourseData } from "../courses";
+import { courseForRound, roundCard } from "./course-resolution";
 import type { EventState } from "./tournament";
 import { resolveDistanceUnit, type DistanceUnit } from "../domain/distance-unit";
 
@@ -40,7 +40,7 @@ export async function roundCardFor(
    * `cardForStage` exists to prevent, and which every other reader of a round's
    * card already avoids by narrowing both paths (2026-09-29).
    */
-  const card = applyNine(resolved ?? resolveCourse(state.event), cleanNine(stage?.nine), holes);
+  const card = roundCard({ holes, nine: stage?.nine }, state.event, venue);
   const unit = await distanceUnitFor(resolved, state.event.organizationId);
   return { venue, known, card, unit };
 }

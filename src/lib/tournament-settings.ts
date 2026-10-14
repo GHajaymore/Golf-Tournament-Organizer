@@ -55,52 +55,64 @@ export const LEADERBOARD_VISIBILITY_HELP: Record<LeaderboardVisibility, string> 
  * arithmetic — the question here is only whether they are ALLOWED.
  */
 /**
- * Four answers, because the real question is AT WHAT LEVEL tees are decided.
+ * THE ORGANIZER DECIDES THE TEES, AT THREE LEVELS (Ajay, 2026-10-13: "for any
+ * tournament, it should be the organizer who should decide who is playing from
+ * what tees based on the flights or some other criteria" — "if it is senior
+ * championship, organizer can set the tees at the tournament level, if it is
+ * club championship where mens, seniors, ladies playing, organizer can
+ * set/override at the flight level" — "also organizer can change the tees at
+ * player level").
  *
- * The policy is the FLOOR of what may override, and specificity wins above
- * it — a player beats their flight, a flight beats the round. So `one` lets
- * neither differ, `flight` lets a division differ but not an individual, and
- * the last two let individuals differ too.
+ *   the tournament   one set, chosen on this card
+ *   a flight         may play its own, set on Flights
+ *   one player       may be moved, on Registration
  *
- * `own` and `player` score identically and differ in PERMISSION: whether the
- * organizer assigns the tee or the golfer picks it. That is the same shape as
- * scoreEntryBy, which asks who may write a score rather than what a score is.
+ * Each beats the one before it. The setting below says HOW FAR DOWN that goes:
+ * `one` stops at the tournament, `flight` at the flight, `own` lets all three
+ * count and is the default — so an organizer who never opens this card can
+ * still do everything in that list.
+ *
+ * Between a flight and the tournament sits a DEFAULT, not a level: where the
+ * course has a ladies' set, a woman nobody has put elsewhere plays it
+ * (`teeIdFor`, "use the common sense of defaulting the tees based on gender").
+ * It is not consulted under `one`, which is how a committee puts a mixed field
+ * on the same tees.
+ *
+ * A PLAYER NEVER CHOOSES. There was a fourth value, `player` — "Players choose
+ * their own tees" — and three doors that wrote a tee without the organizer:
+ * the Preferred tee box on the public entry form, a member entering
+ * themselves, and adding a member from the roster. Each stored the set as the
+ * player's own, where it beat their flight's. All four are gone. A tournament
+ * stored with `player` reads as `own`, which is how it was scored already.
  *
  * "own" is kept as a stored value rather than renamed, so no tournament
  * already running needs its column rewritten to mean what it already meant.
  */
-export const TEE_POLICY = ["one", "flight", "own", "player"] as const;
+export const TEE_POLICY = ["one", "flight", "own"] as const;
 export type TeePolicy = (typeof TEE_POLICY)[number];
 
 export const TEE_POLICY_LABEL: Record<TeePolicy, string> = {
-  one: "One set of tees for everyone",
-  flight: "Each flight plays its own tees",
-  own: "The organizer assigns each player's tees",
-  player: "Players choose their own tees",
+  one: "Everyone plays the tournament's tees",
+  flight: "A flight may play its own tees",
+  own: "A flight or a player may play their own tees",
 };
 
 export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
-  one: "The whole field plays the round's tees, whatever a player's record says. This is the ordinary club medal, and what a condition of competition means by Rule 6.1b.",
+  one: "The whole field plays the tees chosen above, men and women alike, whatever is set on a flight or a player. This is the ordinary club medal or a seniors' championship off one set, and what a condition of competition means by Rule 6.1b.",
   flight:
-    "Set the tees once per flight and everyone in it follows. This is how a club championship runs three divisions off three sets — championship, seniors, ladies — without assigning anybody individually. A flight you leave alone plays the round's tees.",
-  own: "You put each player on a set; anyone you haven't assigned plays their flight's, or the round's. Handicaps account for the difference, so a mixed field is still fair.",
-  // SAYS WHO RECORDS IT. This read "each golfer picks their own set, and may
-  // change it until they have returned a card" — and no screen a player can
-  // open lets them: the set is recorded on Registration, by staff. The
-  // choice is the golfer's; the typing, for now, is the organizer's.
-  player: "Each golfer chooses their own set, and you record it for them on Registration — players cannot yet change it in the app. Same scoring as assigning them yourself.",
+    "The tees above are the tournament's. Set a different set on any flight that plays its own, on Flights: a club championship off three sets — championship, seniors, ladies — is three choices. A flight you leave alone plays the tournament's, except that a woman plays the course's ladies' set where it has one. Nobody is moved one by one.",
+  own: "The tees above are the tournament's. A flight may play its own, set on Flights, and you may move any one player, on Registration; each beats the one before it. Where the course has a ladies' set, a woman you have not put elsewhere plays it. Handicaps account for the difference, so a mixed field is still fair. A player does not choose their own tees.",
 };
 
 /**
- * Whether a player may set their OWN tee.
+ * A stored tee policy as this app reads it now.
  *
- * Only under `player`. Under `own` the assignment is the organizer's, and
- * under `one` there is nothing to choose — letting a golfer opt themselves
- * onto another set would quietly break the condition of competition the
- * committee set, which is the whole reason `one` exists.
+ * `player` — "Players choose their own tees" — was retired on 2026-10-13: the
+ * organizer decides. It was scored exactly as `own` is, so a tournament stored
+ * with it reads as `own` and nothing about its results moves.
  */
-export function canChooseOwnTee(policy: TeePolicy): boolean {
-  return policy === "player";
+export function readTeePolicy(stored: unknown): unknown {
+  return stored === "player" ? "own" : stored;
 }
 
 /**
@@ -334,7 +346,7 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
     scoreApproval: pick(raw.scoreApproval, SCORE_APPROVAL, DEFAULT_SETTINGS.scoreApproval),
     attestBy: pick(raw.attestBy, ATTEST_BY, DEFAULT_SETTINGS.attestBy),
     attendanceMode: pick(raw.attendanceMode, ATTENDANCE_MODES, DEFAULT_SETTINGS.attendanceMode),
-    teePolicy: pick(raw.teePolicy, TEE_POLICY, DEFAULT_SETTINGS.teePolicy),
+    teePolicy: pick(readTeePolicy(raw.teePolicy), TEE_POLICY, DEFAULT_SETTINGS.teePolicy),
   };
 }
 

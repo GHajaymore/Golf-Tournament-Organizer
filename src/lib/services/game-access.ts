@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { getSession } from "../auth";
@@ -106,7 +107,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   if (!email) return no("Only an organizer or assistant can do that");
 
   const me = await prisma.player.findFirst({
-    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
+    where: { eventId, ...byAddress(email), status: "confirmed" },
     select: { id: true },
   });
   if (!me) return no("Only a player in that group can run its game");

@@ -11,7 +11,7 @@
 //   handicap, which is computed from the whole side.
 
 import { holeStrokesReceived, stablefordPointsForHole , allocationHoles } from "./stroke";
-import { playingHandicapFrom, wholeStrokes } from "./handicap";
+import { roundPlayingHandicap, wholeStrokes } from "./handicap";
 
 export interface TeamMemberCard {
   playerId: string;
@@ -23,6 +23,14 @@ export interface TeamMemberCard {
    * `teamsForStage`). The allowance is taken of it and rounded once (Rule 6.2a).
    */
   courseHandicap: number;
+  /**
+   * The strokes this player is given for playing tees of a higher par than the
+   * lowest in the field (Rule 6.2b), added after the allowance. `parStrokes`
+   * off `teamsForStage`, which is nought where the format does not give them.
+   * Left out, it is nought — a card built with no field in hand has no tees to
+   * compare.
+   */
+  parStrokes?: number;
 }
 
 export interface TeamHole {
@@ -60,8 +68,10 @@ export function allocatedStrokes(
   courseHandicapExact: number,
   allowancePct: number,
   strokeIndex: number[],
+  /** Strokes for tees of a higher par (Rule 6.2b): whole, and added AFTER the allowance. */
+  parStrokes = 0,
 ): number[] {
-  const playing = playingHandicapFrom(courseHandicapExact, allowancePct);
+  const playing = roundPlayingHandicap(courseHandicapExact, allowancePct, parStrokes);
   return strokeIndex.map((si) => holeStrokesReceived(playing, si, allocationHoles(strokeIndex.length)));
 }
 
@@ -91,7 +101,10 @@ export function aggregateTeamCard(
 ): TeamCard {
   const holeCount = pars.length;
   const perPlayerStrokes = new Map(
-    members.map((m) => [m.playerId, allocatedStrokes(m.courseHandicap, allowancePct, strokeIndex)]),
+    members.map((m) => [
+      m.playerId,
+      allocatedStrokes(m.courseHandicap, allowancePct, strokeIndex, m.parStrokes ?? 0),
+    ]),
   );
 
   const holes: TeamHole[] = [];

@@ -1,21 +1,28 @@
+import { hasLeftTheField } from "../domain/left-the-field";
 import "server-only";
 import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
-import { resolveRoundHandicap, roundHandicapKey, type RoundHandicapRow } from "../domain/round-handicap";
+import {
+  resolveRoundHandicap,
+  roundHandicapKey,
+  roundParStrokesOf,
+  type RoundHandicapRow,
+} from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
-import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
+import { COURSE_REF, roundCard } from "./course-resolution";
 import { survivors, survivorsWithTies, currentRoundCutRule, fieldEnteringRound, type CutCandidate } from "../domain/cut";
 import { roundLabel, roundKicker } from "../domain/round-label";
-import { roundReadyForCut, cutProgress } from "../domain/cut-ready";
+import { roundReadyForCut, cutProgress, cutHasBeenMade } from "../domain/cut-ready";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
+import { parStrokesApply } from "../round-allowance";
 import {
-  holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, playingHandicapFrom } from "../domain";
+  holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import {
   aggregateStroke,
   chargedHoles,
@@ -71,7 +78,7 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
+import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
@@ -701,6 +708,12 @@ export interface EventState {
    */
   roundFieldSize: (stageId: string) => number | null;
   /**
+   * Whether the cut into this round has been made (`cutHasBeenMade`), from the
+   * rows already loaded — the same answer `strokeCutField` gives the player app.
+   * Once it has, the round's field is whoever holds a card for it.
+   */
+  cutMade: (stageId: string) => boolean;
+  /**
    * Holes this player has on ONE round's card (2026-10-08).
    *
    * A stroke row's `thru` is the whole aggregate — 27 for a player nine holes
@@ -951,13 +964,19 @@ export function strokeHandicapResolver(ctx: {
     // One reader for the rule — `resolveRoundHandicap` — so the board, the
     // screen that shows the number and the freeze that writes it cannot
     // disagree about which of the three sources wins.
+    const row = ctx.roundHandicapFor?.(playerId, stageId) ?? null;
     const resolved = resolveRoundHandicap({
-      ...(ctx.roundHandicapFor?.(playerId, stageId) ?? {}),
+      ...(row ?? {}),
       member,
       memberExact: byRound.exact(playerId) ?? ctx.fallback.get(playerId) ?? 0,
     });
-    // Of the UNROUNDED figure, rounded once — see `courseHandicapExact`.
-    return playingHandicapFrom(resolved.exact, allowance);
+    // Of the UNROUNDED figure, rounded once — see `courseHandicapExact` — and then
+    // the strokes for tees of a higher par, where the format gives them (Rule 6.2b).
+    const parStrokes =
+      stage && parStrokesApply(stage.format, stage.scoringBasis)
+        ? roundParStrokesOf(row, byRound.parStrokes(playerId))
+        : NO_PAR_STROKES;
+    return roundPlayingHandicap(resolved.exact, allowance, parStrokes);
   };
 }
 
@@ -1189,6 +1208,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
          * with everybody who had no stored tee priced correctly beside them.
          */
         courseId: t.courseId,
+        // Whose card the set is rated for: the ladies' default reads it, here
+        // as in `teeRatingsOf`, or the board and every other reader of a round
+        // would put a woman on different tees.
+        gender: t.gender,
       },
     ]),
   );
@@ -1219,7 +1242,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   // And DISQUALIFIED players, the same way: out of the field, results kept on
   // the record, DQ on the sheet (2026-10-08 — see actions/disqualify.ts).
-  const leftField = (p: { status: string }) => p.status === "withdrawn" || p.status === "disqualified";
+  const leftField = (p: { status: string }) => hasLeftTheField(p.status);
   const withdrawnIds = new Set(players.filter(leftField).map((p) => p.id));
   const withdrawnPlayed = players.filter(
     (p) => leftField(p) && scorecards.some((c) => c.playerId === p.id && hasAnyHole(c.strokes)),
@@ -1228,8 +1251,15 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     ...p,
     flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null,
   }));
-  const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy);
-  const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy);
+  /**
+   * THE FIELD, for the lowest par being played (Rule 6.2b): everyone confirmed,
+   * which is who every other reader of a round counts (`confirmedField`). The
+   * withdrawn are priced above and are not in it, or a board would find a
+   * different lowest par from the skins pot beside it.
+   */
+  const fieldForPar = withFlightTee.filter((p) => !withdrawnIds.has(p.id));
+  const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy, fieldForPar);
+  const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy, fieldForPar);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
   /**
    * THE SAME ARITHMETIC, ONCE PER ROUND, because the tees are a per-round
@@ -1261,7 +1291,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
     courseHcpByStage.set(
       s.id,
-      courseHandicapMap(withFlightTee, teeRatings, stageTee, holesPlayed(s.holes), teePolicy),
+      courseHandicapMap(withFlightTee, teeRatings, stageTee, holesPlayed(s.holes), teePolicy, fieldForPar),
     );
   }
   /**
@@ -1289,7 +1319,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
     courseHcpByMatch.set(
       m.id,
-      courseHandicapMap(withFlightTee, teeRatings, matchTee, holesPlayed(stage?.holes), teePolicy),
+      courseHandicapMap(withFlightTee, teeRatings, matchTee, holesPlayed(stage?.holes), teePolicy, fieldForPar),
     );
   }
   /**
@@ -1541,6 +1571,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * `done` is kept as an alias of `certified` so every existing reader keeps
    * compiling while they are moved over one at a time.
    */
+  /** See `cutHasBeenMade`: one answer for the board, the money and the player app. */
+  const cutMadeInto = (s: { id: string; cutEnabled: boolean; cutMadeAt: Date | null; type: string; format: string }): boolean => {
+    const i = playRounds.findIndex((r) => r.id === s.id);
+    return cutHasBeenMade(s, i > 0 ? playRounds[i - 1] : undefined);
+  };
   const roundProgress = (s: DbStage) => {
     /**
      * A TEAM ROUND FILES ITS CARDS SOMEWHERE ELSE, and is counted in SIDES.
@@ -1638,7 +1673,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       // cut is made; after it, "top 16 and ties" may be 17, and a survivor who
       // leaves is one fewer card owed. (An uncut round counts the confirmed
       // field, which a departure has already left.)
-      const cutApplied = s.cutEnabled && scorecards.some((c) => c.stageId === s.id);
+      const cutApplied = cutMadeInto(s);
       const roundHoles = holesPlayed(s.holes);
       const full = (strokes: string) => {
         try {
@@ -1806,7 +1841,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [
       roundHandicapKey(r.stageId, r.playerId),
-      { frozen: r.frozen, frozenExact: r.frozenExact, override: r.override },
+      { frozen: r.frozen, frozenExact: r.frozenExact, frozenParStrokes: r.frozenParStrokes, override: r.override },
     ]),
   );
 
@@ -1843,12 +1878,11 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     if (cached) return cached;
     const stage = stageById.get(stageId);
     const roundCourse = stage?.courseId ? venuesById.get(stage.courseId) ?? null : null;
-    const resolved = courseForRound(roundCourse, event) ?? course;
-    // Narrowed to the nine actually played, the same way the match path does
-    // it: nine holes of an eighteen-hole card carry stroke indexes scattered
-    // through 1..18, and allocating off those gives the wrong holes.
-    const holes = holesPlayed(stage?.holes);
-    const applied = applyNine(resolved, cleanNine(stage?.nine), holes);
+    // The one chain (`roundCard`): the round's venue, then the tournament's
+    // course, narrowed to the nine actually played — nine holes of an
+    // eighteen-hole card carry stroke indexes scattered through 1..18, and
+    // allocating off those gives the wrong holes.
+    const applied = roundCard(stage, event, roundCourse);
     const value = { pars: applied.pars, holeDifficulty: applied.strokeIndex };
     roundCards.set(stageId, value);
     return value;
@@ -2170,10 +2204,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     const round = playRounds[i];
     const feeder = playRounds[i - 1];
     if (!strokeRoundIds.has(round.id)) continue;
-    if (!round.cutEnabled || !feeder.closedAt) continue;
-    if (!isIndividualStrokeRound(feeder) || !isIndividualStrokeRound(round)) continue;
+    if (!cutMadeInto(round)) continue;
     const field = new Set(scorecards.filter((c) => c.stageId === round.id).map((c) => c.playerId));
-    if (field.size === 0) continue;
     for (const p of confirmed) {
       if (!field.has(p.id) && !cutAfter.has(p.id)) cutAfter.set(p.id, nameOfRound(feeder.id));
     }
@@ -2826,7 +2858,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const noCardIn = (r: DbStage): Player[] => {
     const own = cutCards(r);
     const holders = new Set(own.map((c) => c.playerId));
-    const field = r.cutEnabled && own.length > 0 ? confirmed.filter((p) => holders.has(p.id)) : confirmed;
+    const field = cutMadeInto(r) ? confirmed.filter((p) => holders.has(p.id)) : confirmed;
     const out = outOn(r.id);
     const played = new Set(own.filter((c) => hasAnyHole(c.strokes)).map((c) => c.playerId));
     return field.filter((p) => !played.has(p.id) && !out.has(p.id));
@@ -2927,12 +2959,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const stage = stageById.get(m.stageId);
       const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
       const member = own.get(playerId) ?? courseHcp.get(playerId) ?? 0;
+      const row = roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? null;
       const resolved = resolveRoundHandicap({
-        ...(roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? {}),
+        ...(row ?? {}),
         member,
         memberExact: own.exact(playerId) ?? courseHcp.exact(playerId) ?? 0,
       });
-      return playingHandicapFrom(resolved.exact, allowance);
+      // The pars of the tees THIS match was played from, since it named its own.
+      const parStrokes =
+        stage && parStrokesApply(stage.format, stage.scoringBasis)
+          ? roundParStrokesOf(row, own.parStrokes(playerId))
+          : NO_PAR_STROKES;
+      return roundPlayingHandicap(resolved.exact, allowance, parStrokes);
     },
     strokeCourseFor: courseFor,
     roundFieldSize: (stageId: string) => {
@@ -2940,6 +2978,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       if (!s || isManualFormat(s.format) || needsTeams(s.format) || boardKind(s.format) === "nassau") return null;
       if (!roundIsStroke(s.type, s.format)) return null;
       return roundProgress(s).total;
+    },
+    cutMade: (stageId: string) => {
+      const s = playRounds.find((r) => r.id === stageId);
+      return !!s && cutMadeInto(s);
     },
     roundThru: (playerId: string, stageId: string) => strokeAgg.get(playerId)?.holesPlayedByStage.get(stageId) ?? 0,
     outOn,

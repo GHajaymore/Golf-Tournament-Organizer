@@ -905,6 +905,70 @@ test.describe("a casual round at the course", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("a handicap box emptied, mistyped or out of range keeps its figure and says why, beside the box", async ({ page }) => {
+    /**
+     * Until 2026-10-13 this box read what was typed with `Number(…)`, and
+     * `Number("")` is 0: clearing it and tapping away made the player a
+     * scratch golfer without a word, and re-scored every hole of a net round.
+     * "124" for 12.4 went to a server that stored it — six strokes a hole.
+     *
+     * Three refusals and a CONTROL. After each refusal the box holds the old
+     * figure, the reason is said BESIDE the box (a refusal said at the top
+     * of a panel the player has scrolled past is a box that seems to ignore
+     * them), and a reload shows the server never took it. The control is a
+     * real correction, which must still save — a box that refuses everything
+     * passes the three above it.
+     *
+     * EIGHT PLAYERS, AND THE LAST ONE'S BOX — the most a casual round holds
+     * and the lowest box the panel can draw. With two players the top of the
+     * panel is on screen with every box at 393 and at 320 wide: moving the
+     * refusal back up there left this test green at both sizes (2026-10-14),
+     * so two players could not tell where the refusal was said.
+     */
+    const LAST = "Hal Zed";
+    const field = [ANN, BEA, CAT, DOT, "Eve Zed", "Fay Zed", "Gus Zed", LAST];
+    await setUp(page, "Stroke Play", true, field, undefined, [...new Array(7).fill("8"), "12.4"]);
+    const more = async () => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await page.locator("summary", { hasText: /^More:/ }).click();
+    };
+    const box = page.getByRole("textbox", { name: `${LAST}'s handicap` });
+    const refusal = page.getByRole("alert").filter({ hasText: `${LAST}'s handicap was left as it was` });
+
+    for (const [typed, why] of [
+      ["", "an empty box is not scratch"],
+      ["124", "an index runs from +10 to 54"],
+      ["12.4x", "type it as a number"],
+    ] as const) {
+      await more();
+      await expect(box, "CONTROL: the round starts on the figure typed on the first tee").toHaveValue("12.4");
+      await box.fill(typed);
+      await box.press("Tab");
+      await expect(refusal, `"${typed}" was not refused in words`).toContainText(why);
+      await expect(box, `"${typed}" was left in the box`).toHaveValue("12.4");
+      // BESIDE the box, measured as a distance: "both on screen after a scroll"
+      // depends on where the scroll lands, and failed on a small phone with the
+      // reason 8px under the box and the box at the screen's bottom edge.
+      const b = (await box.boundingBox())!;
+      const r = (await refusal.boundingBox())!;
+      const apart = Math.max(r.y - (b.y + b.height), b.y - (r.y + r.height), 0);
+      expect(apart, `the reason "${typed}" was refused is said ${Math.round(apart)}px from the box`).toBeLessThanOrEqual(120);
+      await more();
+      await expect(box, `"${typed}" reached the server`).toHaveValue("12.4");
+      await expect(page.getByRole("textbox", { name: `${ANN}'s handicap` }), "CONTROL: the other players were not touched").toHaveValue("8");
+    }
+
+    // CONTROL: a real correction is still taken.
+    await more();
+    await box.fill("13.1");
+    await box.press("Tab");
+    await expect(async () => {
+      await more();
+      await expect(box, "a real correction was refused with the rest").toHaveValue("13.1", { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    await expect(refusal).toHaveCount(0);
+  });
+
   test("switching to off handicaps after the first hole asks, then does it", async ({ page }) => {
     /**
      * The group starts level and decides on the 2nd tee to play off

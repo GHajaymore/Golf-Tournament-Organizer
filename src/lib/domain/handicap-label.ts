@@ -20,6 +20,8 @@
  * the sixth screen is written by somebody who never read this paragraph, and a
  * rule that lives in five components is five chances to print a zero.
  */
+import { decimalPoint, plainFigure, readDecimal } from "./decimal-text";
+
 export interface IndexLike {
   handicap: number;
   /** "18" or "9" — which index the figure represents. */
@@ -49,8 +51,74 @@ export function indexFigure(handicap: number): string {
 }
 
 /** What a round's own handicap may be: WHS's ceiling, and plus ten at the other end. */
-export const STROKES_MIN = -10;
-export const STROKES_MAX = 54;
+/**
+ * THE RANGE OF A HANDICAP INDEX, ONCE. A WHS index runs from +10 (a plus
+ * handicap, better than scratch, held as a negative number) to 54.0. Anything
+ * outside it is a typo or a joke: 124 for 12.4 is six strokes a hole.
+ *
+ * It was written three times — here, in `registration-intake.ts` and in
+ * `quick-match.ts` — and checked in the forms and NOT on the server, where four
+ * actions stored whatever finite number they were handed (`indexRefusal`).
+ */
+export const INDEX_MIN = -10;
+export const INDEX_MAX = 54;
+export const STROKES_MIN = INDEX_MIN;
+export const STROKES_MAX = INDEX_MAX;
+
+/** What was typed in a box for a handicap index. */
+export type TypedIndex =
+  /** Nothing. NOT nought: a scratch handicap is a claim and an empty box is the absence of one. */
+  | { kind: "blank" }
+  | { kind: "index"; value: number }
+  /** Not a figure at all: a letter in it, two points, "1e1". */
+  | { kind: "unreadable" }
+  /** A figure no golfer has. */
+  | { kind: "out-of-range"; value: number };
+
+/**
+ * A HANDICAP INDEX AS A GOLFER WRITES ONE, read one way for every box.
+ *
+ * "12.4"; "12,4" as half of Europe writes it; "+2.4" for a plus handicap,
+ * which is 2.4 strokes BETTER than scratch and is held as −2.4 — the leading
+ * plus is golf's notation, not arithmetic, which is why `parseFloat` gets the
+ * sign backwards; and the same figures in a Japanese keyboard's full-width
+ * digits (`plainFigure`).
+ *
+ * There were three readers. The entry form and the roster refused a figure
+ * outside the range; a quick match clamped it; a casual round's box did
+ * neither, read an EMPTIED box as nought — making the player a scratch golfer —
+ * and sent 124 to a server that stored it. This says what was typed and
+ * nothing else. What a box does with a blank, a typo or an impossible figure
+ * is still that box's decision, and each of the three now makes it out loud.
+ */
+export function readHandicapIndex(raw: string | null | undefined): TypedIndex {
+  const typed = decimalPoint(raw);
+  if (typed === "") return { kind: "blank" };
+  const plus = typed.startsWith("+");
+  const rest = plus ? typed.slice(1) : typed;
+  // "+-2" and "++2" are not figures: the one sign allowed after a plus is none.
+  if (plus && /^[+-]/.test(rest)) return { kind: "unreadable" };
+  const read = readDecimal(rest);
+  if (read.kind !== "number") return { kind: "unreadable" };
+  const signed = plus ? -Math.abs(read.value) : read.value;
+  const value = signed === 0 ? 0 : signed;
+  if (value < INDEX_MIN || value > INDEX_MAX) return { kind: "out-of-range", value };
+  return { kind: "index", value };
+}
+
+/**
+ * WHY THE SERVER WILL NOT STORE THIS FIGURE AS AN INDEX, or null when it will.
+ *
+ * For the actions, which are handed a NUMBER by whatever called them — a form
+ * that checked, a form that did not, or no form at all. Not finite is refused
+ * as well: `NaN` is how a form says "left blank", and an action that means to
+ * allow a blank asks before calling this.
+ */
+export function indexRefusal(index: unknown): string | null {
+  if (typeof index !== "number" || !Number.isFinite(index)) return "Enter the handicap as a number, like 12.4 — or +2.4 for a plus handicap.";
+  if (index < INDEX_MIN || index > INDEX_MAX) return "A handicap index runs from +10 to 54.";
+  return null;
+}
 
 export type StrokesParse = { ok: true; value: number } | { ok: false; error: string };
 
@@ -71,12 +139,15 @@ export type StrokesParse = { ok: true; value: number } | { ok: false; error: str
  * down to 54. "scratch" is read as 0, because it is the word this screen prints.
  */
 export function parseStrokesInput(raw: string | null | undefined): StrokesParse {
-  const value = (raw ?? "").trim();
+  const value = plainFigure(raw);
   const HOW = "Enter the strokes as a whole number, like 12 — or +2 for a plus handicap.";
   if (value === "") return { ok: false, error: HOW };
   if (value.toLowerCase() === "scratch") return { ok: true, value: 0 };
-  const parsed = Number(value.startsWith("+") ? `-${value.slice(1)}` : value);
-  if (!Number.isFinite(parsed)) return { ok: false, error: HOW };
+  // The one reading of a typed figure (`readDecimal`): "1e1" and "0x10" are not strokes.
+  const plus = value.startsWith("+");
+  const read = readDecimal(plus ? value.slice(1) : value);
+  if (read.kind !== "number" || (plus && /^[+-]/.test(value.slice(1)))) return { ok: false, error: HOW };
+  const parsed = plus ? -Math.abs(read.value) : read.value;
   if (!Number.isInteger(parsed)) {
     return { ok: false, error: "A round's handicap is whole strokes — 12, not 12.4. The index stays on the roster." };
   }

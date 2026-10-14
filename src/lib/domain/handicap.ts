@@ -126,6 +126,49 @@ export function playingHandicapFrom(courseHcpExact: number, allowancePct: number
 }
 
 /**
+ * WHAT A PLAYER PLAYS OFF IN A ROUND: the allowance of their course handicap,
+ * AND THE STROKES FOR PLAYING TEES OF A HIGHER PAR (Rule 6.2b).
+ *
+ * Rules of Handicapping, 6.2b: where players compete from sets of tees with
+ * DIFFERENT PARS, in stroke play or match play scored on gross or net strokes,
+ * "a player competing from a set of tees with a higher par must receive
+ * additional strokes for the round, equal to the difference between the par of
+ * the tees they are playing and the tees with the lowest par":
+ *
+ *     Playing Handicap = (Course Handicap x allowance) + difference in pars
+ *
+ * The allowance is NOT taken of those strokes, which is why they are a
+ * separate argument and not folded into the course handicap.
+ *
+ * It follows from the Course Handicap carrying "Course Rating − Par" (see
+ * `courseHandicapExact`): that term measures each player against the par of
+ * their OWN tees, so two players who each play to their handicap finish level
+ * with par — 71 off one set, 72 off the other — and a medal ranked on net
+ * STROKES puts the second a stroke behind for playing to exactly the same
+ * standard. Where the result is counted against par (Stableford, par/bogey)
+ * that is already level and nothing is added, and the Rule says so.
+ *
+ * The app had none of it until 2026-10-13. The seeded club's own medal is
+ * "Men's & Ladies'", off tees of par 71 and par 72: every lady in it was a
+ * stroke short, and a test that worked the board out "by the Rules" agreed with
+ * the board, because it had read 6.2a and not 6.2b. Found by asking a golf
+ * professional what the tests left out.
+ *
+ * `playingHandicapFrom` above is the arithmetic of an allowance and nothing
+ * else. THIS is what a round is priced with, and its third argument is
+ * REQUIRED, not defaulted to nought, so that every place a round's playing
+ * handicap is worked out says which it is: the round's own figure
+ * (`CourseHandicaps.parStrokes`, where `parStrokesApply` says the format is
+ * one the Rule covers) or `NO_PAR_STROKES`.
+ * `tees-of-a-higher-par-get-their-strokes.test.ts` refuses a file that prices a
+ * round with the bare arithmetic.
+ */
+export function roundPlayingHandicap(courseHcpExact: number, allowancePct: number, parStrokes: number): number {
+  return playingHandicapFrom(courseHcpExact, allowancePct) + parStrokes;
+}
+export const NO_PAR_STROKES = 0;
+
+/**
  * A nine-hole round.
  *
  * Nine-hole ratings are roughly half of eighteen, and a nine-hole index is
@@ -214,6 +257,13 @@ export interface IndexHolder {
    * what found all eight; the same trick that found the two `send` call sites.
    */
   flightTeeId: string | null;
+  /**
+   * As the roster records it. Read for one thing: a woman with no set of her
+   * own and none from her flight plays the course's ladies' set (`teeIdFor`).
+   * Optional here so that a field built by hand in a test need not say; the
+   * service that loads a real field (`roundCourseHandicaps`) requires it.
+   */
+  gender?: string | null;
 }
 
 /**
@@ -334,6 +384,24 @@ export function teeIdFor(
    * the field is on.
    */
   onThisCourse: (teeId: string) => boolean,
+  /**
+   * THE LADIES' SET, FOR A WOMAN — `ladiesTeeFor(gender, ladiesTeeOn(...))`,
+   * and null for anybody it does not apply to.
+   *
+   * The rung between a flight and the tournament (Ajay, 2026-10-13: the
+   * organizer decides the tees at three levels, tournament, then flight, then
+   * one player; "use the common sense of defaulting the tees based on gender").
+   * A DEFAULT, not a level: it is what a woman plays where nobody has said
+   * otherwise, and anything the organizer set beats it — her flight's set, or
+   * her own. Under one set for everyone it is not consulted at all, which is
+   * how a committee puts a mixed field on the same tees.
+   *
+   * Required, and last only so that it could be added without re-ordering
+   * every existing call. A caller that left it out would put the ladies on the
+   * men's rating on one screen while the board beside it had them on their
+   * own, so the compiler is made to find every one.
+   */
+  ladiesTeeId: string | null,
 ): string {
   /** A rung is only a rung if it points at a set that is actually here. */
   const here = (id: string | null | undefined) => (id && onThisCourse(id) ? id : null);
@@ -346,8 +414,49 @@ export function teeIdFor(
   // answer whether it is the answer — and on a tournament whose courses have
   // no tees at all it would turn a harmless "" into a different harmless "".
   if (policy === "one") return defaultTeeId ?? "";
-  if (policy === "flight") return here(flightTeeId) ?? defaultTeeId ?? "";
-  return here(playerTeeId) ?? here(flightTeeId) ?? defaultTeeId ?? "";
+  if (policy === "flight") return here(flightTeeId) ?? here(ladiesTeeId) ?? defaultTeeId ?? "";
+  return here(playerTeeId) ?? here(flightTeeId) ?? here(ladiesTeeId) ?? defaultTeeId ?? "";
+}
+
+/**
+ * Whether a recorded gender is a woman's. The roster takes what a club's file
+ * says — "F", "female", "Ladies" — so this reads the spellings a file has.
+ * Anything else, a blank included, is not known to be: nobody is moved to
+ * other tees on a guess.
+ */
+export function isWoman(gender: string | null | undefined): boolean {
+  return /^(f|w|female|woman|women|lady|ladies|girl|girls)$/i.test((gender ?? "").trim());
+}
+
+/** Whether a set of tees is rated for women: `Tee.gender`, in any of the spellings it has been stored with. */
+export function teeIsForWomen(teeGender: string | null | undefined): boolean {
+  return isWoman(teeGender);
+}
+
+/**
+ * THE LADIES' SET ON ONE COURSE, or null where the course has none.
+ *
+ * Where a course rates several sets for women — a directory card often rates
+ * every colour for both — it is the one with the LOWEST course rating, which
+ * is the shortest: what a club means by "the ladies' tees". A tie goes to the
+ * set further down the card.
+ */
+export function ladiesTeeOn(
+  tees: Iterable<readonly [string, { courseId?: string; gender?: string | null; courseRating: number }]>,
+  courseId: string | null | undefined,
+): string | null {
+  if (!courseId) return null;
+  let best: { id: string; rating: number } | null = null;
+  for (const [id, t] of tees) {
+    if (t.courseId !== courseId || !teeIsForWomen(t.gender)) continue;
+    if (!best || t.courseRating <= best.rating) best = { id, rating: t.courseRating };
+  }
+  return best?.id ?? null;
+}
+
+/** The ladies' set for THIS player: the course's, for a woman; null for anybody else. */
+export function ladiesTeeFor(gender: string | null | undefined, ladiesTeeId: string | null): string | null {
+  return isWoman(gender) ? ladiesTeeId : null;
 }
 
 /**
@@ -387,6 +496,59 @@ export class CourseHandicaps extends Map<string, number> {
     const exact = this.unrounded.get(playerId);
     return exact !== undefined && wholeStrokes(exact) === whole ? exact : whole;
   }
+
+  private readonly pars = new Map<string, number>();
+  private lowestPar: number | null = null;
+  private fieldLowestPar: number | null = null;
+
+  /**
+   * The pars of the tees the competition's whole FIELD is playing, so that the
+   * lowest of them is the same figure in every map built for the round —
+   * whichever part of the field that map happens to hold.
+   */
+  setFieldPars(pars: readonly number[]): this {
+    const real = pars.filter((p) => Number.isFinite(p) && p > 0);
+    this.fieldLowestPar = real.length > 0 ? Math.min(...real) : null;
+    return this;
+  }
+
+  /** The par of the tees this player's handicap was worked out from. */
+  setPar(playerId: string, par: number): this {
+    if (Number.isFinite(par) && par > 0) {
+      this.pars.set(playerId, par);
+      this.lowestPar = null;
+    }
+    return this;
+  }
+
+  /**
+   * The strokes this player receives for playing tees of a higher par than the
+   * lowest in this field (Rule 6.2b — see `playingHandicapFrom`). Nought for a
+   * player this map knows no par for, and for a field all off one par.
+   *
+   * "The tees with the lowest par" are the lowest among the tees the FIELD is
+   * playing — `setFieldPars`, which `courseHandicapMap` calls with the
+   * competition's field. A set of tees nobody is playing does not lower
+   * anybody's handicap.
+   *
+   * AND NOT THE LOWEST AMONG THE PLAYERS IN THIS MAP, unless nobody said who
+   * the field is. Half the readers of a round build their map from part of it —
+   * the players in one skins pot, the members of one side, the two players of
+   * a match — and a map of the ladies' pot alone, all off a par of 72, would
+   * find no difference and give nobody the stroke the board beside it gives
+   * every one of them. On a hole-by-hole game that is a different hole won.
+   *
+   * A whole stroke or nothing. The only way to half a stroke is a nine cut
+   * from an eighteen of odd par, and `courseHandicapMap` gives a nine no par
+   * at all — see there.
+   */
+  parStrokes(playerId: string): number {
+    const mine = this.pars.get(playerId);
+    if (mine === undefined) return 0;
+    if (this.lowestPar === null) this.lowestPar = Math.min(...this.pars.values());
+    const extra = mine - (this.fieldLowestPar ?? this.lowestPar);
+    return Number.isInteger(extra) && extra > 0 ? extra : 0;
+  }
 }
 
 export function courseHandicapMap(
@@ -397,7 +559,7 @@ export function courseHandicapMap(
    * map of ratings alone cannot answer that, which is exactly why a stored tee
    * from another venue used to win.
    */
-  teesById: Map<string, TeeRating & { courseId?: string }>,
+  teesById: Map<string, TeeRating & { courseId?: string; gender?: string | null }>,
   defaultTeeId: string | null,
   holes: number,
   /**
@@ -406,6 +568,15 @@ export function courseHandicapMap(
    * and the compiler is the only thing that reliably finds every caller.
    */
   teePolicy: string,
+  /**
+   * THE COMPETITION'S WHOLE FIELD, where `players` is only part of it.
+   *
+   * Rule 6.2b gives strokes for the difference from the LOWEST par being
+   * played, and that is a fact about the field, not about whoever this map was
+   * built for — see `CourseHandicaps.parStrokes`. Left out, `players` is taken
+   * to be the field, which is right for a caller that passed all of it.
+   */
+  field: readonly IndexHolder[] = players,
 ): CourseHandicaps {
   /**
    * The course this round is played at, taken from the round's OWN set.
@@ -430,16 +601,35 @@ export function courseHandicapMap(
     if (row.courseId === undefined) return true;
     return row.courseId === playingAt;
   };
+  // The ladies' set at the course being played, once for the field.
+  const ladies = ladiesTeeOn(teesById, playingAt);
+  const teeOf = (p: IndexHolder) =>
+    teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse, ladiesTeeFor(p.gender, ladies));
   const out = new CourseHandicaps();
   for (const p of players) {
-    const raw =
-      teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse)) ?? null;
+    const raw = teesById.get(teeOf(p)) ?? null;
     // Index and rating are each converted to the holes being played, once.
     // See indexForHoles for the four cases and the doubling bug the old
     // one-case conversion caused.
     const index = indexForHoles(p.handicap, p.handicapType, holes);
     const tee = raw && holes === 9 ? nineHoleTee(raw) : raw;
     out.setExact(p.id, courseHandicapExact(index, tee));
+    /**
+     * The tees' par, for Rule 6.2b — for an EIGHTEEN only. A tee stores the par
+     * of its eighteen and not of each nine: half of 72 is 36 whether the nines
+     * are 36 and 36 or 35 and 37, so over nine holes the difference in pars
+     * between two sets of tees is not something this row knows. Giving a
+     * stroke on a guess is worse than giving none and saying so
+     * (`docs/deferred-register.md`).
+     */
+    if (raw && holes !== 9) out.setPar(p.id, raw.par);
+  }
+  if (holes !== 9) {
+    out.setFieldPars(
+      field
+        .map((p) => teesById.get(teeOf(p))?.par)
+        .filter((par): par is number => typeof par === "number"),
+    );
   }
   return out;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readDecimal } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { saveTierPrices } from "@/app/actions/owner";
 import { DEFAULT_LOCALE } from "@/lib/domain/locale";
@@ -35,7 +36,9 @@ export function OwnerPricing({
     const payload: Record<string, number> = {};
     for (const t of tiers) {
       if (t.free) continue;
-      const n = Number(prices[t.key]);
+      // AN EMPTIED BOX IS NOT A PRICE OF NOTHING. `Number("")` is 0, so clearing a
+      // price and pressing Save made the plan free. It is refused, by name, below.
+      const n = figureOr(readDecimal(prices[t.key]), Number.NaN);
       if (!Number.isFinite(n) || n < 0) {
         setError(`${t.name}: enter a price of zero or more.`);
         return;
@@ -67,7 +70,7 @@ export function OwnerPricing({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
         {tiers.map((t) => {
-          const val = Number(prices[t.key]);
+          const val = figureOr(readDecimal(prices[t.key]), Number.NaN);
           const annual = Number.isFinite(val) ? Math.round(val) * 10 : 0;
           return (
             <div

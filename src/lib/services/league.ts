@@ -1,14 +1,14 @@
 import "server-only";
 import { prisma } from "../db";
-import { COURSE_REF, cardForStage, courseForRound } from "./course-resolution";
+import { COURSE_REF, roundCard } from "./course-resolution";
 import { playedOnBy } from "./courses";
-import { resolveCourse } from "../courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
-import { playingHandicapFrom } from "../domain/handicap";
+import { NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
 import { effectiveAllowance, effectiveCountBest } from "./teams";
-import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { parStrokesApply } from "../round-allowance";
+import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapExactOf } from "../domain/round-handicap";
+import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
 import {
   meetingPoints,
   meetingsIn,
@@ -150,13 +150,13 @@ export async function leagueMeetings(
   const weekVenue = stage.courseId
     ? await prisma.course.findFirst({ where: { id: stage.courseId, ...playedOnBy(eventId) } })
     : null;
-  const card = cardForStage(courseForRound(weekVenue, event) ?? resolveCourse(event), stage);
+  const card = roundCard(stage, event, weekVenue);
   const countBest = effectiveCountBest(stage.format, stage.countBest);
 
   const cards = await prisma.teamScorecard.findMany({ where: { eventId, stageId } });
   const players = await prisma.player.findMany({
     where: { eventId },
-    select: { id: true, handicap: true, handicapType: true, teeId: true },
+    select: FIELD_PLAYER,
   });
 
   /**
@@ -185,6 +185,7 @@ export async function leagueMeetings(
   const courseHcp = roundCourseHandicaps({
     tees: teeRows,
     players,
+    field: await confirmedField(eventId),
     flightTeeOf: teamFlightTee,
     stage,
     event,
@@ -216,6 +217,7 @@ export async function leagueMeetings(
    * unplayed instead of as a walkover.
    */
   const allowancePct = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
+  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
   const ballsFor = (teamId: string): MatchBall[] =>
     cards
       .filter((c) => c.teamId === teamId)
@@ -228,7 +230,14 @@ export async function leagueMeetings(
         }
         return {
           strokes,
-          playingHandicap: playingHandicapFrom(playsOffExact(c.playerId), allowancePct),
+          playingHandicap: roundPlayingHandicap(
+            playsOffExact(c.playerId),
+            allowancePct,
+            // Tees of a higher par (Rule 6.2b). A side's own card has no player and gets none.
+            givesParStrokes && c.playerId
+              ? roundParStrokesOf(teamRound.get(c.playerId), courseHcp.parStrokes(c.playerId))
+              : NO_PAR_STROKES,
+          ),
         };
       });
 

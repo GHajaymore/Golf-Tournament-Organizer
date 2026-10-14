@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { useState, useTransition } from "react";
 import { createDiscountCode, setDiscountCodeActive } from "@/app/actions/owner";
 import { Icon } from "./Icon";
@@ -38,7 +39,8 @@ export function OwnerDiscounts({
     setError("");
     setMade(null);
     setCopied(false);
-    const p = Math.round(Number(percent));
+    // The one reading of a typed whole number: "12.5" is not a whole percent, and was rounded to 13.
+    const p = figureOr(readWhole(percent), Number.NaN);
     if (!Number.isInteger(p) || p < 1 || p > 100) {
       setError("Enter a whole percent from 1 to 100.");
       return;
@@ -47,7 +49,7 @@ export function OwnerDiscounts({
       const res = await createDiscountCode({
         percentOff: p,
         label: label.trim(),
-        maxRedemptions: max.trim() === "" ? null : Number(max),
+        maxRedemptions: max.trim() === "" ? null : figureOr(readWhole(max), Number.NaN),
         expiresAt: expires || null,
       });
       if (!res.ok || !res.code) setError(res.error ?? "Couldn't create the code.");

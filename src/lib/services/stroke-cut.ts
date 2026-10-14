@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { loadEventState, settingsOf } from "./tournament";
 import { allowsAutoConfirm } from "../tournament-settings";
-import { cutBlockers, cutBlockedSentence, cutRuleOf } from "../domain/cut-ready";
+import { cutBlockers, cutBlockedSentence, cutRuleOf, cutHasBeenMade } from "../domain/cut-ready";
 import { survivorsWithTies, type CutRule } from "../domain/cut";
 import { isPlayingRound, isIndividualStrokeRound } from "../stage-types";
 import { holesPlayed } from "../domain/handicap";
@@ -34,8 +34,13 @@ import { roundLabel, roundKicker } from "../domain/round-label";
  * of the round is exactly who the cut let through. Re-closing after a
  * correction re-applies it: new survivors get a card, and an EMPTY card left
  * with a player who no longer survives is removed. A card with strokes on it
- * is never removed — that is a round somebody played, and the committee's to
- * deal with.
+ * is not — that player was told they had made it and played on it, and taking
+ * their round away is the committee's to deal with.
+ *
+ * The FIRST cut into a round is different (2026-10-14): nobody has been told
+ * they made anything, so a card somebody started before the round before was
+ * closed is taken out with the rest, its holes written to Recent changes.
+ * `Stage.cutMadeAt` records the first cut, which is how the two are told apart.
  */
 
 type StageRow = {
@@ -50,6 +55,7 @@ type StageRow = {
   cutMode: string;
   cutCount: number;
   cutPercent: number;
+  cutMadeAt: Date | null;
   closedAt: Date | null;
 };
 
@@ -65,6 +71,7 @@ const STAGE_SELECT = {
   cutMode: true,
   cutCount: true,
   cutPercent: true,
+  cutMadeAt: true,
   closedAt: true,
 } as const;
 
@@ -182,7 +189,34 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
       return false;
     }
   };
+  /** The holes on a card, in order, to the last one scored: "5 – 4" for a gap. */
+  const holesOf = (json: string): string[] => {
+    try {
+      const row = (JSON.parse(json) as unknown[]).map((v) => (typeof v === "number" && v > 0 ? String(v) : "–"));
+      const last = row.map((v) => v !== "–").lastIndexOf(true);
+      return row.slice(0, last + 1);
+    } catch {
+      return [];
+    }
+  };
   const holding = new Set(existing.map((c) => c.playerId));
+  /**
+   * THE FIRST CUT INTO A ROUND TAKES OUT EVERY CARD OF A PLAYER IT LEAVES OUT —
+   * scored or not (2026-10-14).
+   *
+   * Before any cut the round is everybody's, so a player can start a card in it
+   * while the round before is still open; and a card with holes on it was never
+   * removed. So anybody who teed off before round 1 was closed came through
+   * whatever the cut said: measured, a 75 against a cut to the top two stayed
+   * in round 2, ranked, not marked as having missed it.
+   *
+   * A cut RE-MADE after a correction keeps the rule it had: a card with holes on
+   * it stays. That player was told they had made it and played on it, and
+   * taking their round away is the committee's call, not a side effect of
+   * fixing a typo in round 1. `cutMadeAt` is what tells the two apart.
+   */
+  const first = next.cutMadeAt == null;
+  const setAside = first ? existing.filter((c) => !through.has(c.playerId) && hasStrokes(c.strokes)) : [];
 
   await prisma.$transaction(async (tx) => {
     for (const id of through) {
@@ -190,9 +224,22 @@ export async function applyStrokeCut(eventId: string, feederId: string): Promise
         await tx.scorecard.create({ data: { eventId, stageId: next.id, playerId: id, strokes: emptyStrokes } });
       }
     }
-    const stale = existing.filter((c) => !through.has(c.playerId) && !hasStrokes(c.strokes)).map((c) => c.id);
+    const stale = existing.filter((c) => !through.has(c.playerId) && (first || !hasStrokes(c.strokes))).map((c) => c.id);
     if (stale.length > 0) await tx.scorecard.deleteMany({ where: { id: { in: stale } } });
+    if (first) await tx.stage.update({ where: { id: next.id }, data: { cutMadeAt: new Date() } });
   });
+  // Each card taken out with holes on it, by name, with the holes: the record
+  // the committee reads in Recent changes, and all it needs to put them back.
+  for (const c of setAside) {
+    const name = state.players.find((p) => p.id === c.playerId)?.name ?? "A player";
+    const holes = holesOf(c.strokes);
+    const played = holes.filter((h) => h !== "–").length;
+    await logAudit(
+      eventId,
+      "cut-applied",
+      `${name}'s ${nameOf(all, next)} card was taken out: they did not make the cut. It held ${played} ${played === 1 ? "hole" : "holes"} (${holes.join(" ")}), started before ${nameOf(all, feeder)} was closed. To put them back in, enter it again in Score entry.`,
+    );
+  }
 
   const rule = ruleOf(next);
   const wording = rule.mode === "percent" ? `top ${rule.percent}%` : `top ${rule.count}`;
@@ -215,9 +262,8 @@ export async function strokeCutField(eventId: string, stageId: string): Promise<
   ).filter((s) => isPlayingRound(s.type));
   const i = rounds.findIndex((s) => s.id === stageId);
   const round = rounds[i];
-  const feeder = rounds[i - 1];
-  if (!round || !feeder || !round.cutEnabled || !feeder.closedAt) return null;
-  if (!individualStroke(feeder) || !individualStroke(round)) return null;
+  // The one answer to whether the cut has been made — the board asks it too.
+  if (!round || !cutHasBeenMade(round, i > 0 ? rounds[i - 1] : undefined)) return null;
   const cards = await prisma.scorecard.findMany({ where: { eventId, stageId }, select: { playerId: true } });
   return new Set(cards.map((c) => c.playerId));
 }

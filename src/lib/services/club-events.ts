@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { cache } from "react";
 import { prisma } from "../db";
@@ -227,7 +228,7 @@ async function clubEventsUncached(email: string): Promise<ClubEventRow[]> {
   const confirmedBy = new Map(confirmedCounts.map((c) => [c.eventId, c._count._all]));
 
   const mine = await prisma.player.findMany({
-    where: { eventId: { in: ids }, email: { equals: email, mode: "insensitive" } },
+    where: { eventId: { in: ids }, ...byAddress(email) },
     select: { id: true, eventId: true, status: true },
   });
   /**

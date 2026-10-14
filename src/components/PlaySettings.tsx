@@ -547,7 +547,7 @@ export function PlaySettings({
           </div>
 
           <Choice
-            label="Who decides"
+            label="Who may play other tees"
             value={form.teePolicy}
             options={TEE_POLICY}
             labels={TEE_POLICY_LABEL}

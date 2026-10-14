@@ -2,6 +2,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
+import { ladiesTeeFor, ladiesTeeOn, teeIdFor } from "@/lib/domain/handicap";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { DisqualifyPanel } from "@/components/DisqualifyPanel";
@@ -44,6 +45,27 @@ export default async function RegistrationPage() {
   const withdrawn = state.players.filter((p) => p.status === "withdrawn").map((p) => ({ id: p.id, name: p.name }));
 
   /**
+   * WHAT EACH PLAYER PLAYS IF THE ORGANIZER LEAVES THEM ALONE, AND WHY: their
+   * flight's set, the course's ladies' set, or the tournament's. Asked of
+   * `teeIdFor` — the one resolver the boards use — with no set of the player's
+   * own, so the label on this screen cannot name different tees from the card.
+   */
+  const teeById = new Map(eventTees.map((t) => [t.id, t] as const));
+  const playingAt = roundTee ? teeById.get(roundTee)?.courseId : undefined;
+  const ladies = ladiesTeeOn(teeById, playingAt);
+  const flightTeeOf = new Map(state.groups.map((g) => [g.id, g.teeId]));
+  const teePolicy = settingsOf(state.event).teePolicy;
+  const inheritedTee = (p: (typeof state.players)[number]): string => {
+    const flights = p.groupId ? (flightTeeOf.get(p.groupId) ?? null) : null;
+    const hers = ladiesTeeFor(p.gender, ladies);
+    const id = teeIdFor(teePolicy, null, flights, roundTee, (t) => !playingAt || teeById.get(t)?.courseId === playingAt, hers);
+    const name = teeById.get(id)?.name;
+    if (!name) return "";
+    const whose = id === roundTee ? "tournament’s" : id === flights ? "flight’s" : id === hers ? "ladies’" : "tournament’s";
+    return `${name} (${whose})`;
+  };
+
+  /**
    * ONE ROW, FOR ALL THREE LISTS (2026-10-11).
    *
    * The table below is drawn three times — the field, the waiting list, the
@@ -64,6 +86,7 @@ export default async function RegistrationPage() {
     phone: p.phone,
     flight: flightByPlayer.get(p.id),
     teeId: p.teeId,
+    inheritedTee: inheritedTee(p),
     // Serialised, because a Date does not survive the server/client
     // boundary as a Date. The badge is rendered from this on the client so
     // "2 days ago" is relative to the reader's clock, not the server's.
@@ -81,8 +104,8 @@ export default async function RegistrationPage() {
       needsEmail={entryNeedsEmail(settingsOf(state.event))}
       defaultTeeName={
         eventTees.find((t) => t.id === roundTee)?.name
-          ? `${eventTees.find((t) => t.id === roundTee)?.name} (round’s)`
-          : "Round’s tees"
+          ? `${eventTees.find((t) => t.id === roundTee)?.name} (tournament’s)`
+          : "Tournament’s tees"
       }
       event={{
         name: state.event.name,

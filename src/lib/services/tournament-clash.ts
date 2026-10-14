@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { clubToday } from "../domain/club-clock";
@@ -60,7 +61,7 @@ export async function tournamentClashFor(
 ): Promise<TournamentClash | null> {
   const entries = await prisma.player.findMany({
     where: {
-      email: { equals: email, mode: "insensitive" },
+      ...byAddress(email),
       status: "confirmed",
       event: { status: "live" },
     },

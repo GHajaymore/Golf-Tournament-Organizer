@@ -13,7 +13,7 @@ import {
   type TeeLike,
 } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
-import { decimalPoint } from "@/lib/domain/decimal-text";
+import { figureOr, readDecimal, readWhole } from "@/lib/domain/decimal-text";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import { Icon } from "./Icon";
 
@@ -210,7 +210,9 @@ export function VenuePrompt({
   const settled = chosen ?? (found?.kind === "exact" ? found.course : null);
   const needsCard = settled?.hasCard === false;
 
-  const nums = (xs: string[]) => xs.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
+  // The one reading of a typed whole number (`readWhole`): a typo is not the
+  // digits it happens to start with, and the card's rules refuse the hole.
+  const nums = (xs: string[]) => xs.map((v) => figureOr(readWhole(v), 0));
 
   const applyPaste = () => {
     const r = parseCard({ pars: pastePar, strokeIndex: pasteSi, yards: pasteYards || undefined });
@@ -231,15 +233,24 @@ export function VenuePrompt({
      * stale value from a course the reader has since changed away from travel
      * with the answer.
      */
-    const tee =
-      !teeId && (teeName.trim() || cr || slope)
-        ? {
-            name: teeName,
-            courseRating: parseFloat(decimalPoint(cr)) || 0,
-            slopeRating: parseInt(slope, 10) || 0,
-            par: parseInt(teePar, 10) || 72,
-          }
-        : undefined;
+    const typedTee = !teeId && (teeName.trim() || cr || slope);
+    // A TYPO IN A RATING IS SAID, NOT READ. `parseFloat("7l.3")` is 7 and
+    // `parseInt("13O")` is 13: each was sent on as the figure, and the rule that
+    // refused it then described a number nobody had typed.
+    const [rating, slopeRead, parRead] = [readDecimal(cr), readWhole(slope), readWhole(teePar)];
+    if (typedTee) {
+      if (rating.kind === "unreadable") return setError("Course Rating: type a number like 71.3, or leave it empty.");
+      if (slopeRead.kind === "unreadable") return setError("Slope: type a whole number like 129, or leave it empty.");
+      if (parRead.kind === "unreadable") return setError("Par for these tees: type a whole number like 72.");
+    }
+    const tee = typedTee
+      ? {
+          name: teeName,
+          courseRating: figureOr(rating, 0),
+          slopeRating: figureOr(slopeRead, 0),
+          par: figureOr(parRead, 72),
+        }
+      : undefined;
     if (tee) {
       const t = teeProblems(tee);
       if (t.length) return setError(t[0]);

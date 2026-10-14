@@ -1,4 +1,5 @@
 "use client";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { indexLabel } from "@/lib/domain/handicap-label";
 import FieldInfo from "./FieldInfo";
 import { useMemo, useState } from "react";
@@ -563,7 +564,7 @@ export function FoursomeMaker({
                 min={1}
                 max={30}
                 value={interval}
-                onChange={(e) => setInterval(Math.max(1, parseInt(e.target.value, 10) || 10))}
+                onChange={(e) => setInterval(Math.max(1, figureOr(readWhole(e.target.value), 10) || 10))}
               />
             </div>
           )}

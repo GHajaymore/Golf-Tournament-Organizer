@@ -28,6 +28,8 @@ const noSubscription = () => () => {};
 interface Signup {
   /** The set this entry plays from. Null means the round’s own. */
   teeId?: string | null;
+  /** The tees this player plays with no set of their own, and why — e.g. "Red (ladies')". */
+  inheritedTee?: string;
   id: string;
   name: string;
   handicap: number;
@@ -503,7 +505,12 @@ export function RegistrationClient({
                         style={{ width: 100, padding: "3px 4px", fontSize: 13 }}
                         onChange={(e) => commitTee(p.id, e.target.value || null)}
                       >
-                        <option value="">{defaultTeeName || "Round's tees"}</option>
+                        {/* WHAT THIS PLAYER PLAYS IF LEFT ALONE, and whose decision
+                            that is: their flight's set, the course's ladies' set, or
+                            the tournament's. One label for the whole field said
+                            "White (round's)" beside a woman the board had on the
+                            reds. */}
+                        <option value="">{p.inheritedTee || defaultTeeName || "Tournament's tees"}</option>
                         {tees.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}

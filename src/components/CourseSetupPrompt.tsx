@@ -4,6 +4,7 @@ import { useClubDistanceWords } from "@/components/DistanceUnitProvider";
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { pasteSummary } from "@/lib/domain/card-paste";
 import { CourseSearch } from "@/components/CourseSearch";
 import { Icon } from "./Icon";
@@ -114,9 +115,13 @@ export function CourseSetupPrompt({
   const save = () => {
     setError("");
     if (!name.trim()) return setError("Enter the course name.");
-    const parNums = pars.map((v) => parseInt(v, 10));
-    const yardNums = yards.map((v) => parseInt(v, 10));
-    const siNums = strokeIndex.map((v) => parseInt(v, 10));
+    // The one reading of a typed whole number (`readWhole`). An empty box or a
+    // typo is "no number", which the three rules below each refuse by name;
+    // `parseInt("4x")` was a par of 4.
+    const whole = (v: string) => figureOr(readWhole(v), Number.NaN);
+    const parNums = pars.map(whole);
+    const yardNums = yards.map(whole);
+    const siNums = strokeIndex.map(whole);
     if (parNums.some((n) => !Number.isFinite(n) || n < 3 || n > 6)) return setError("Every hole needs a par between 3 and 6.");
     if (yardNums.some((n) => !Number.isFinite(n) || n <= 0)) return setError(`Every hole needs a length in ${distance.noun}.`);
     const siSet = new Set(siNums);

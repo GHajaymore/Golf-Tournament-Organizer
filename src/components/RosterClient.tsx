@@ -1,5 +1,6 @@
 "use client";
 import { Fragment, useId, useMemo, useRef, useState } from "react";
+import { isWoman } from "@/lib/domain/handicap";
 import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
@@ -110,6 +111,10 @@ interface Props {
   unlinkedCount: number;
 }
 
+/** Which of the box's three options a stored gender is: a file may say "F", "female" or "Ladies". */
+const genderChoice = (stored: string | undefined): "" | "male" | "female" =>
+  isWoman(stored) ? "female" : /^(m|male|man|men|gent|gents|boy|boys)$/i.test((stored ?? "").trim()) ? "male" : "";
+
 const BLANK: MemberInput = {
   name: "",
   email: "",
@@ -144,6 +149,8 @@ export function RosterClient({
   /** Whose handicap record is open. One at a time — see the trigger below. */
   const [recordFor, setRecordFor] = useState<string | null>(null);
   const [form, setForm] = useState<MemberInput>(BLANK);
+  /** The gender on file for the member being edited — see `startEdit`. */
+  const [storedGender, setStoredGender] = useState("");
   /**
    * THE HANDICAP BOX, AS TYPED (2026-10-13). It was a number-only field, and a
    * number-only field does not take "+2.4": the browser throws the plus away
@@ -229,6 +236,11 @@ export function RosterClient({
     setAdding(false);
     setEditing(m.id);
     setError("");
+    // Shown, and NOT put in the form: what the form does not send, an edit does
+    // not touch (`updateMember`). A file may have said something this box has
+    // no option for, and opening the member to fix a phone number must not
+    // rewrite it as "Not said".
+    setStoredGender(m.gender);
     setForm({
       name: m.name,
       email: m.email,
@@ -247,6 +259,7 @@ export function RosterClient({
     setEditing(null);
     setAdding(false);
     setForm(BLANK);
+    setStoredGender("");
     setHcpText("");
     setError("");
   };
@@ -543,6 +556,29 @@ export function RosterClient({
                 <option value="9">9 holes</option>
               </select>
             </div>
+            {/* ASKED FOR ONE REASON, AND IT SAYS SO: a woman starts on the course's
+                ladies' tees in a tournament (the organizer can move her). Until
+                2026-10-13 this could only arrive in an imported file, so a club
+                that typed its roster in had every woman on the men's rating. */}
+            <div className="field">
+              <label htmlFor={`${fid}-gender`}>
+                Gender <span className="text-muted">· optional</span>
+              </label>
+              <select
+                id={`${fid}-gender`}
+                className="input"
+                value={genderChoice(form.gender ?? storedGender)}
+                disabled={pending}
+                onChange={(e) => set({ gender: e.target.value })}
+              >
+                <option value="">Not said</option>
+                <option value="male">Man</option>
+                <option value="female">Woman</option>
+              </select>
+              <span className="text-muted" style={{ fontSize: 13 }}>
+                Used for one thing: a woman starts on the course&rsquo;s ladies&rsquo; tees.
+              </span>
+            </div>
             <div className="field">
               <label htmlFor={`${fid}-number`}>
                 Member number <span className="text-muted">· optional</span>
@@ -674,6 +710,7 @@ export function RosterClient({
                   setAdding(true);
                   setEditing(null);
                   setForm(BLANK);
+                  setStoredGender("");
                   setHcpText("");
                 }}
               >

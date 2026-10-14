@@ -207,7 +207,6 @@ const KNOWN_DEAD: string[] = [
   "lib/domain/venue.ts:libraryProvider",
   "lib/services/courses.ts:eventCourses",
   "lib/services/courses.ts:isMultiCourse",
-  "lib/services/handicaps.ts:courseHandicapForPlayer",
   "lib/services/handicaps.ts:teePolicyFor",
   "lib/services/identity-repair.ts:applyRepair",
   "lib/services/identity-repair.ts:loadRepair",

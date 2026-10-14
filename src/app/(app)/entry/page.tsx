@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
@@ -69,7 +70,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
   const hostPlayerId = async () =>
     (
       await prisma.player.findFirst({
-        where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
+        where: { eventId: session.eventId, ...byAddress(session.email), status: "confirmed" },
         select: { id: true },
       })
     )?.id;
@@ -370,6 +371,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
                 strokes: c.strokes,
                 // What the board takes the allowance of — see `TeamMemberView.handicapExact`.
                 courseHandicap: t.members.find((m) => m.playerId === c.playerId)?.handicapExact ?? c.handicap,
+                // And the strokes for tees of a higher par, as the board gives them (Rule 6.2b).
+                parStrokes: t.members.find((m) => m.playerId === c.playerId)?.parStrokes ?? 0,
               })),
               teamPars,
               teamStrokeIndex,
@@ -567,7 +570,7 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
     : new Set(
         (
           await prisma.player.findMany({
-            where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+            where: { eventId: session.eventId, ...byAddress(session.email) },
             select: { id: true },
           })
         ).map((r) => r.id),
