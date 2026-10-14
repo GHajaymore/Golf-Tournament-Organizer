@@ -1,0 +1,29 @@
+[
+  {
+    "what": "P1 a singles match decided from its cards gives nothing for the pars again (live figure)",
+    "file": "src/app/actions/tournament.ts",
+    "from": "          parStrokes: netHcp.parStrokes(p.id),",
+    "to": "          parStrokes: 0,",
+    "audit": [
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "P1b the whole before-state: a match from its cards priced off the round's figure alone",
+    "file": "src/app/actions/tournament.ts",
+    "from": "      ? playingHandicapInRound(stage, netRound.get(p.id), {",
+    "to": "      ? ((r: { frozen?: number | null } | undefined, m: { whole: number }) => (r && typeof r.frozen === \"number\" ? r.frozen : m.whole))(netRound.get(p.id), {",
+    "audit": [
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "P6 a match that named its own tees shows nothing for the pars on the screens",
+    "file": "src/lib/services/tournament.ts",
+    "from": "        parStrokes: own.parStrokes(playerId),",
+    "to": "        parStrokes: 0,",
+    "audit": [
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  }
+]
