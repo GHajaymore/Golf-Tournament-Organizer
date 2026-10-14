@@ -622,6 +622,11 @@ export interface EventState {
   } | null;
   strokeStandings: StrokeStanding[];
   /**
+   * The same field ordered and placed on another basis — gross or net — by the
+   * board's own sort and countback, for a prize named for one. See `orderOn`.
+   */
+  strokeStandingsOn: (basis: "gross" | "net") => StrokeStanding[];
+  /**
    * Players withdrawn after they began, as WD rows — NOT part of the field,
    * so not in `strokeStandings`. Only the printed sheet adds them.
    */
@@ -2015,7 +2020,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    */
   const lastStrokeRound = strokeRounds[strokeRounds.length - 1] ?? null;
   const lastRoundHoles = holesPlayed(lastStrokeRound?.holes);
-  const cbCard = (playerId: string) => {
+  const cbCard = (playerId: string, basis: RankingBasis) => {
     const perStage = strokeAgg.get(playerId)?.holesByStage;
     const card = lastStrokeRound ? perStage?.get(lastStrokeRound.id) : undefined;
     return {
@@ -2033,16 +2038,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * on points, which is the whole point of the format.
        */
       holes:
-        (rankingBasis === "stableford"
+        (basis === "stableford"
           ? card?.points
-          : rankingBasis === "gross"
+          : basis === "gross"
             ? card?.gross
             : card?.net) ?? [],
     };
   };
   // Points run the other way: most wins. See countbackCompare's `higherWins`.
-  const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>) =>
-    countbackCompare(a, b, lastRoundHoles, stableford);
+  const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>, basis: RankingBasis) =>
+    countbackCompare(a, b, lastRoundHoles, basis === "stableford");
 
   /**
    * THE HOLES A PLAYER IS MEASURED OVER — which is NOT the holes they played.
@@ -2270,7 +2275,15 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     }))
     .sort((x, y) => Number(!!x.disqualified) - Number(!!y.disqualified) || compareOnBasis(x, y, rankingBasis));
 
-  const strokeStandings: StrokeStanding[] = confirmed
+  /**
+   * THE FIELD IN ORDER ON ONE BASIS, with its places: the board's own sort and
+   * rank pass, handed the basis rather than reading it. The board is this on
+   * `rankingBasis`; a prize named for gross or for net asks it on that basis
+   * (`strokeStandingsOn`), so a tie for Best gross in a net medal is broken by
+   * countback on the gross cards — the board's ladder, not a second one.
+   */
+  const orderOn = (basis: RankingBasis): StrokeStanding[] => {
+  const ordered: StrokeStanding[] = confirmed
     .map(standingOf)
     .sort((x, y) => {
       // Unranked rows go to the bottom, together — a player who returned no
@@ -2297,7 +2310,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
         const xMissed = (x.missedRound || x.missedCut) && x.thru > 0 ? 1 : 0;
         const yMissed = (y.missedRound || y.missedCut) && y.thru > 0 ? 1 : 0;
         if (xMissed !== yMissed) return yMissed - xMissed;
-        if (xMissed) return compareOnBasis(x, y, rankingBasis);
+        if (xMissed) return compareOnBasis(x, y, basis);
         return 0;
       }
       /**
@@ -2319,9 +2332,9 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
        * read off the LAST round's card, which is what "the last nine" means to
        * a committee.
        */
-      const byScore = compareOnBasis(x, y, rankingBasis);
+      const byScore = compareOnBasis(x, y, basis);
       if (byScore !== 0) return byScore;
-      return cbCompare(cbCard(x.player.id), cbCard(y.player.id));
+      return cbCompare(cbCard(x.player.id, basis), cbCard(y.player.id, basis), basis);
     })
     .map((s) => ({ ...s, rank: 0 }));
 
@@ -2338,8 +2351,8 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * look back at the rank already given — which is a fact about the finished
    * list, not about the row being built.
    */
-  for (let i = 0; i < strokeStandings.length; i += 1) {
-    const s = strokeStandings[i];
+  for (let i = 0; i < ordered.length; i += 1) {
+    const s = ordered[i];
     // No position for a player who is on the sheet without one — nobody who
     // returned nothing, and nobody whose card stopped short. Zero rather than a
     // number, so a reader that forgets to check cannot quietly present a place
@@ -2348,19 +2361,31 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       s.rank = 0;
       continue;
     }
-    const prev = i > 0 ? strokeStandings[i - 1] : null;
+    const prev = i > 0 ? ordered[i - 1] : null;
     // Level on the basis this competition is decided by, through the same
     // reader the sort uses. It was `prev.gross === s.gross && prev.net ===
     // s.net` — BOTH, so on a gross competition two players level on gross and
     // apart on net were declared not tied and the countback never ran. See
     // `scoreOnBasis`.
-    const sameScore = prev !== null && prev.ranked && levelOnBasis(prev, s, rankingBasis);
+    const sameScore = prev !== null && prev.ranked && levelOnBasis(prev, s, basis);
     // The same comparison the sort used, through the same helper — these two
     // reading the countback differently is exactly what produced a rank the
     // order did not support.
-    const level = sameScore && cbCompare(cbCard(prev!.player.id), cbCard(s.player.id)) === 0;
-    s.rank = level ? strokeStandings[i - 1].rank : i + 1;
+    const level = sameScore && cbCompare(cbCard(prev!.player.id, basis), cbCard(s.player.id, basis), basis) === 0;
+    s.rank = level ? ordered[i - 1].rank : i + 1;
   }
+  return ordered;
+  };
+  const strokeStandings = orderOn(rankingBasis);
+  const strokeOrders = new Map<RankingBasis, StrokeStanding[]>([[rankingBasis, strokeStandings]]);
+  const strokeStandingsOn = (basis: "gross" | "net"): StrokeStanding[] => {
+    let rows = strokeOrders.get(basis);
+    if (!rows) {
+      rows = orderOn(basis);
+      strokeOrders.set(basis, rows);
+    }
+    return rows;
+  };
 
   /**
    * WHICH COMPETITION QUALIFIES THE DRAW — the round before the bracket, in
@@ -2921,6 +2946,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     nextUnplayedRound,
     cutReady,
     strokeStandings,
+    strokeStandingsOn,
     withdrawnStandings,
     strokeUnit,
     // Only "strokes" is ambiguous; points name themselves. Derived once above,
