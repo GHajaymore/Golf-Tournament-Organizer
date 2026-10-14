@@ -447,7 +447,7 @@ export const GUIDE_STEPS: GuideSection[] = [
         kind: "steps",
         items: [
           "Under [[Add a prize]], start from a structure (such as flight winners) or enter Category, Detail and Amount, then [[Add]].",
-          "Once results are in, pick each prize's **Winner** — the list shows finishing places to help.",
+          "Once results are in, pick each prize's **Winner** — the list shows finishing places to help. A prize for best gross or best net lists the field on that figure, with ties broken by countback (last nine, six, three, then the last hole) as the leaderboard breaks them.",
         ],
       },
       { kind: "h", text: "Skins" },

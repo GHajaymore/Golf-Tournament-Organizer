@@ -22,7 +22,6 @@ import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor, playedOnceRoundIsOver, sidePotResults } from "@/lib/services/expenses";
 import { flightStandings } from "@/lib/services/me";
-import { placesByValue } from "@/lib/domain/flight-places";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 
@@ -91,20 +90,21 @@ export default async function PrizesPage({
    * "Best gross & net" makes two prizes, and both pickers opened on the
    * board's order — net, on a net medal — so "Best gross" offered the net
    * winner first: walked on a field where she had shot 85 and the best gross
-   * was a 70, listed third. Each list is numbered by its own places
-   * (`placesByValue`, ties shared), finished cards first. Stroke rounds only;
-   * a points or match board has no gross and net to order by.
+   * was a 70, listed third. Each list is numbered by its own places, finished
+   * cards first. Stroke rounds only; a points or match board has no gross and
+   * net to order by.
    */
+  //
+  // Placed as the board places, by the board's own sort and countback on
+  // that basis (`strokeStandingsOn`): a tie for Best gross in a net medal is
+  // broken on the gross cards' last nine, six, three and one, as a committee
+  // breaks it, and shared only where the countback cannot separate them.
   const standings = usesStandardBoard(state.activeStage?.format) && state.boardIsStroke ? state.strokeStandings : [];
-  const scoreOrder = (pick: (s: (typeof standings)[number]) => number) => {
+  const scoreOrder = (basis: "gross" | "net") => {
     if (standings.length === 0) return null;
-    const rows = [...standings].sort((a, b) =>
-      a.ranked === b.ranked ? pick(a) - pick(b) : a.ranked ? -1 : 1,
-    );
-    const places = placesByValue(rows, pick, (s) => s.ranked);
-    return rows.map((s, i) => ({ id: s.player.id, name: s.player.name, place: places[i] }));
+    return state.strokeStandingsOn(basis).map((s) => ({ id: s.player.id, name: s.player.name, place: s.ranked ? s.rank : null }));
   };
-  const prizeOrders = { gross: scoreOrder((s) => s.gross), net: scoreOrder((s) => s.net) };
+  const prizeOrders = { gross: scoreOrder("gross"), net: scoreOrder("net") };
   const orderedForPrizes = [...state.confirmed]
     .map((p) => ({ id: p.id, name: p.name, place: prizeRank.get(p.id) ?? null }))
     .sort((a, b) => {

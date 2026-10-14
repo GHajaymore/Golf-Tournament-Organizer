@@ -215,12 +215,16 @@ day and will drift: search for the expression.
 - "Any stroke": `> 0` at cut-ready.ts:126; stroke-cut.ts:180; round-cards.ts:112 vs `!= null` at expenses.ts:513, 557; skins-pot.ts:291, 545; domain/skins-pot.ts:103; points-standings.ts:152; playing-history.ts:113.
 - "Card full": scorecard-write.ts:97; actions/tournament.ts:2798; PlayerCard.tsx:208; PlayClient.tsx:549; tournament-switcher.ts:91; actions/play.ts:229.
 - "Round official", two spellings: `closedAt != null` (leaderboard/page.tsx:233; me.ts:492, 634; expenses.ts:823, 1963; week-view.ts:484) vs `closedAt || event.status === "completed"` (expenses.ts:543, 1994; tournament-result.ts:263, 279, 355).
+  **Checked and consistent** (2026-10-14): completing a tournament closes every open playing round, nothing else writes "completed", and 0 open rounds in 135 completed tournaments (read-only). The two spellings agree on everything stored.
 - Ranking: ~12 orderings, 4 numbering routines, no shared comparator. Individual stroke: tournament.ts:2271-2362 inline comparator + rank pass (twin `rankByCountback` has no callers but its test). Modified Stableford points-standings.ts:254 inline. Team teams.ts:555 (no countback). Prize pickers prizes/page.tsx:99-105 inline sort on raw gross/net, no countback. TWO exported functions both named `compareOnBasis` (stroke-countback.ts:256 relative to par; week-basis.ts:179 raw). Place numbers come from components via `placesByValue` with each caller's own rule.
+  **Done for the stroke board and the prize pickers** (2026-10-14): the board's sort and rank pass take the basis (`orderOn`), and the pickers ask it for gross and for net (`strokeStandingsOn`), so a tie for Best gross in a net medal goes to countback on the gross cards rather than to T1 (`a-gross-prize-tie-goes-to-countback.audit.test.ts`). The other orderings are still their own.
 - Match "confirmed or auto-confirmed": actions/tournament.ts:2556, 3628, 3581; match-filter.ts:39; ScoreEntryClient.tsx:2051; beside `effectiveScoreStatus`.
+  **Done** (2026-10-14): `disputeMatch` read the stored column, so a player could dispute a result that had auto-confirmed; it reads `effectiveScoreStatus` now, as `clearMatch` does (`an-auto-confirmed-result-is-not-disputed-by-a-player.audit.test.ts`), and `auto-confirmed-is-never-stored.test.ts` refuses the column being compared with that word. The rest are handed the effective status already.
 
 ### 7 Across rounds
 - See the cut-field six versions (layer 2) and cut rule four builders.
 - Round label: `roundLabel`; index-derived outside the guard's pattern: week-view.ts:602, 619; availability.ts:289; cup.ts:91, 314 (two copies); regroup.ts:567; EntryModes.tsx:397.
+  **Checked** (2026-10-14): the week, availability and voice numbers count the list they are about. Fixed: a cut's refusal numbered the round among round robins only ("Round 1" for the board's Round 2); the cup's session name was written twice.
 
 ### 8 Money
 - `splitExactly` is the only divider; `settle`, `gameNets` single. Inline: MoneyClient.tsx:142 (preview label). Low-net pot computes its OWN net (expenses.ts:1018-1027 + derived-games.ts:131 `gross - Math.round(c.strokesReceived)`) rather than the board's.
