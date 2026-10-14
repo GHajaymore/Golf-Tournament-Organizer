@@ -62,7 +62,8 @@ describe("the other exports take the board's places", () => {
     expect(reports()).toMatch(/\]\)\)\(teams\.map\(\(t\) => t\.place\)\)/);
   });
   it("modified Stableford", () => {
-    expect(reports()).toMatch(/placesByValue\(mod, \(r\) => r\.points, \(r\) => r\.played > 0\)/);
+    // The place `modifiedStablefordBoard` decided, countback and all (2026-10-14).
+    expect(reports()).toMatch(/\]\)\)\(mod\.map\(\(r\) => r\.place\)\)/);
   });
   it("neither numbers by list index any more", () => {
     expect(reports()).not.toMatch(/String\(i \+ 1\)/);

@@ -14,7 +14,6 @@ import { RecentChanges } from "@/components/RecentChanges";
 import { ManualRoundNotice } from "@/components/ManualRoundBoard";
 import { TeamStandingsTable, teamBoardNote } from "@/components/TeamLeaderboard";
 import { weekBasis, isStablefordRound } from "@/lib/domain/week-basis";
-import { placesByValue } from "@/lib/domain/flight-places";
 import {
   SkinsStandingsTable,
   NassauMatches,
@@ -334,7 +333,7 @@ export default async function ReportsPage({
               String(r.played),
               r.played > 0 ? String(r.gross) : "",
               r.played > 0 ? String(r.points) : "",
-            ]))(placesByValue(mod, (r) => r.points, (r) => r.played > 0)),
+            ]))(mod.map((r) => r.place)),
         ],
       },
     ];

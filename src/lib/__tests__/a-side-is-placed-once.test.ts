@@ -31,6 +31,16 @@ describe("a side's place", () => {
     expect("const places = placeTexts(rows.map((r) => r.place));".match(NUMBERED_HERE)).toBeNull();
   });
 
+  it("and a Modified Stableford card's is decided by its board, not by its readers", () => {
+    // `ModStablefordRow.place`, countback and all
+    // (`a-points-board-is-placed-by-countback.audit.test.ts`). The three readers
+    // numbered on points alone, while the board broke a tie on the lower gross.
+    const POINTS_ONLY = /placesByValue\(\s*\w+,\s*\(r\) => r\.points,\s*\(r\) => r\.played > 0\)/;
+    expect(POINTS_ONLY.test("placeTexts(placesByValue(rows, (r) => r.points, (r) => r.played > 0))"), "CONTROL").toBe(true);
+    const strays = sources("src").filter((f) => POINTS_ONLY.test(readSource(f)));
+    expect(strays, "print ModStablefordRow.place").toEqual([]);
+  });
+
   it("is numbered by the pairs' season total and nowhere else", () => {
     const calls = sources("src").flatMap((f) => {
       const code = readSource(f).replace(/export function teamPlaceValue\(/g, "");

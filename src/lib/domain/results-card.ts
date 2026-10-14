@@ -201,7 +201,7 @@ export interface BoardKindView {
   teamBasis: WeekBasis;
   holeCount: number;
   skins: { outcome: { standings: readonly { playerId: string; skins: number }[] }; nameById: Record<string, string> } | null;
-  modStableford: readonly { name: string; points: number; played: number }[] | null;
+  modStableford: readonly { name: string; points: number; played: number; place: number | null }[] | null;
   nassau: readonly unknown[] | null;
   manualFormat: boolean;
   straightKnockout: boolean;
@@ -241,7 +241,8 @@ export function rowsForBoardKind(
   if (view.kind === "nassau" && view.nassau) return { rows: [], note: "Open the board for the Nassau." };
   if (view.kind === "modified-stableford" && view.modStableford) {
     const ms = view.modStableford;
-    const places = placesByValue(ms, (r) => r.points, (r) => r.played > 0);
+    // The place the board decided, countback and all.
+    const places = ms.map((r) => r.place);
     return {
       rows: ms.map((r, i) => ({
         rank: places[i] ?? 0,

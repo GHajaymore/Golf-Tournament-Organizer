@@ -924,7 +924,7 @@ describe("leaderboards for every format", () => {
     // The format has no floor at zero, so the board must not choke on it.
     const html = render(
       <ModifiedStablefordLeaderboard
-        rows={[{ playerId: "p1", name: "Ann", handicap: 12, points: -4, played: 18, gross: 95 }]} />,
+        rows={[{ playerId: "p1", name: "Ann", handicap: 12, points: -4, played: 18, gross: 95, place: 1 }]} />,
     );
     expect(html).toContain("Ann");
     expect(html).toContain("-4");
@@ -983,15 +983,16 @@ describe("leaderboards for every format", () => {
     expect(placeOf(html, "Bob"), "two players on one skin each were 1st and 2nd").toBe("T1");
   });
 
-  it("shares a modified Stableford place between two players level on points", () => {
-    // Both on 12. The sort falls through points, then gross, then the NAME —
-    // so this pair was placed alphabetically and printed as 1st and 2nd.
+  it("prints a shared modified Stableford place as T1", () => {
+    // `modifiedStablefordBoard` decides the place, countback and all
+    // (`a-points-board-is-placed-by-countback.audit.test.ts`); the board prints it.
+    // This pair was once placed alphabetically and printed as 1st and 2nd.
     const html = render(
       <ModifiedStablefordLeaderboard
         rows={[
-          { playerId: "p1", name: "Ann", handicap: 10, points: 12, played: 18, gross: 78 },
-          { playerId: "p2", name: "Bob", handicap: 14, points: 12, played: 18, gross: 82 },
-          { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84 },
+          { playerId: "p1", name: "Ann", handicap: 10, points: 12, played: 18, gross: 78, place: 1 },
+          { playerId: "p2", name: "Bob", handicap: 14, points: 12, played: 18, gross: 82, place: 1 },
+          { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84, place: 3 },
         ]} />,
     );
     expect(placeOf(html, "Ann")).toBe("T1");
