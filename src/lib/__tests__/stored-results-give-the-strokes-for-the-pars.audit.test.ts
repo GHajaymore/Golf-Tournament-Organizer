@@ -209,6 +209,137 @@ function holesOf(stored: string): string[] {
   return stored.split("");
 }
 
+/**
+ * A SINGLES match decided from the two players' own cards — what
+ * `saveMatchScorecard` stores when each player returns their gross. A scratch
+ * man off the par-71 whites against a scratch woman off the par-72 reds, both
+ * in fours: by the Rule she receives the one stroke the pars differ by, on
+ * stroke index 1, and wins the match 1 up. The screens told her so — the
+ * scorer's and her own both price a match through `matchHandicapFor` — while
+ * the stored result was worked out off bare course handicaps, and halved it.
+ */
+describe("a singles net match between the two pars, decided from its cards", () => {
+  it("stores the 1st as hers and the rest halved, and the screens give her the same stroke", async () => {
+    const { saveMatchScorecard } = await import("@/app/actions/tournament");
+    const { loadEventState } = await import("@/lib/services/tournament");
+    const singles = await prisma.stage.create({
+      data: {
+        eventId: ids.event,
+        position: 2,
+        type: "Round Robin",
+        format: "Match Play",
+        holes: 18,
+        scoringBasis: "net",
+        courseId: (await prisma.event.findUniqueOrThrow({ where: { id: ids.event } })).courseId,
+      },
+    });
+    const group = await prisma.group.findFirstOrThrow({ where: { eventId: ids.event, isCarrier: true } });
+    const match = await prisma.match.create({
+      data: {
+        eventId: ids.event,
+        stageId: singles.id,
+        groupId: group.id,
+        round: 1,
+        playerAId: player.A0,
+        playerBId: player.B0,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+
+    const state = await loadEventState(ids.event);
+    if (!state) throw new Error("the tournament did not load");
+    expect(state.matchHandicapFor(player.A0, match.id), "he is on the lowest par").toBe(0);
+    expect(state.matchHandicapFor(player.B0, match.id), "she is owed the difference in pars").toBe(1);
+
+    await saveMatchScorecard(match.id, "A", fours());
+    await saveMatchScorecard(match.id, "B", fours());
+    const stored = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    expect(holesOf(stored.holes), `stored as ${stored.holes}`).toEqual(["B", ...new Array(17).fill("H")]);
+  });
+
+  it("and from a FILE of the two cards, which is decided before the round freezes", async () => {
+    // Typed cards freeze the round first, so the result reads the stroke the
+    // freeze wrote. A file scores the match first and freezes afterwards, so
+    // here the stroke must come from the field as it stands: a new round, not
+    // yet frozen, for exactly that.
+    const filed = await prisma.stage.create({
+      data: {
+        eventId: ids.event,
+        position: 3,
+        type: "Round Robin",
+        format: "Match Play",
+        holes: 18,
+        scoringBasis: "net",
+        courseId: (await prisma.event.findUniqueOrThrow({ where: { id: ids.event } })).courseId,
+      },
+    });
+    const group = await prisma.group.findFirstOrThrow({ where: { eventId: ids.event, isCarrier: true } });
+    const match = await prisma.match.create({
+      data: {
+        eventId: ids.event,
+        stageId: filed.id,
+        groupId: group.id,
+        round: 1,
+        playerAId: player.A0,
+        playerBId: player.B0,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+    expect(await prisma.roundHandicap.count({ where: { stageId: filed.id } }), "CONTROL: nothing frozen yet").toBe(0);
+    const out = await importScores(filed.id, "strokes", [
+      { playerId: player.A0, strokes: fours() },
+      { playerId: player.B0, strokes: fours() },
+    ]);
+    expect(out.ok, `import refused: ${out.ok === false ? (out.error ?? JSON.stringify(out.problems)) : ""}`).toBe(true);
+    const stored = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    expect(holesOf(stored.holes), `stored as ${stored.holes}`).toEqual(["B", ...new Array(17).fill("H")]);
+  });
+
+  it("and the same where the match named its own tees, which the screens read another way", async () => {
+    // A match with a set of its own is priced by `matchHandicapFor` off a map
+    // of its own (`courseHcpByMatch`), not the round's: the other branch.
+    const { saveMatchScorecard } = await import("@/app/actions/tournament");
+    const { loadEventState } = await import("@/lib/services/tournament");
+    const white = await prisma.tee.findFirstOrThrow({ where: { name: `${TAG} white` } });
+    // A round of its own, not yet frozen: what the screens show on the first
+    // tee is the field as it stands, and a frozen round would answer from its rows.
+    const singles = await prisma.stage.create({
+      data: {
+        eventId: ids.event,
+        position: 4,
+        type: "Round Robin",
+        format: "Match Play",
+        holes: 18,
+        scoringBasis: "net",
+        courseId: white.courseId,
+      },
+    });
+    const group = await prisma.group.findFirstOrThrow({ where: { eventId: ids.event, isCarrier: true } });
+    const match = await prisma.match.create({
+      data: {
+        eventId: ids.event,
+        stageId: singles.id,
+        groupId: group.id,
+        round: 2,
+        playerAId: player.A1,
+        playerBId: player.B0,
+        teeId: white.id,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+    expect(await prisma.roundHandicap.count({ where: { stageId: singles.id } }), "CONTROL: nothing frozen yet").toBe(0);
+    const state = await loadEventState(ids.event);
+    if (!state) throw new Error("the tournament did not load");
+    expect(state.matchHandicapFor(player.A1, match.id)).toBe(0);
+    expect(state.matchHandicapFor(player.B0, match.id), "her own reds still beat the match's whites").toBe(1);
+
+    await saveMatchScorecard(match.id, "A", fours());
+    await saveMatchScorecard(match.id, "B", fours());
+    const stored = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    expect(holesOf(stored.holes), `stored as ${stored.holes}`).toEqual(["B", ...new Array(17).fill("H")]);
+  });
+});
+
 describe("a four-ball match with one player on the higher par", () => {
   it("the stored result gives her eleven holes, not ten", async () => {
     const out = await importTeamScores(

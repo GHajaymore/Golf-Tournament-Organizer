@@ -98,6 +98,16 @@ describe("a file of a night's cards", () => {
     expect((await statuses()).changed[0]).toBe("certified");
   });
 
+  it("stores a hole no golf hole could produce as blank, never as given", async () => {
+    // The browser's parser checks a file before it is sent, which proves
+    // nothing to the server: this is a public endpoint. A 0, a 31, a half and
+    // a word are each a blank hole, and the rest of the card stands.
+    const sent: unknown[] = [0, 31, 4.5, "4", -2, ...new Array(13).fill(4)];
+    await importScores(stageId, "strokes", [{ playerId: p.new, strokes: sent as (number | null)[] }]);
+    const card = await prisma.scorecard.findFirstOrThrow({ where: { stageId, playerId: p.new } });
+    expect(JSON.parse(card.strokes)).toEqual([null, null, null, null, null, ...new Array(13).fill(4)]);
+  });
+
   it("CONTROL: leaves an unfinished card entered, a dispute disputed, an unchanged acceptance accepted", async () => {
     await importScores(stageId, "strokes", [
       { playerId: p.short, strokes: PARS.slice(0, 9) },

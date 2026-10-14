@@ -9,6 +9,7 @@ import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tou
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
+import { matchIsOver } from "@/lib/domain/match";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
@@ -226,7 +227,10 @@ export async function savePlayMatchHoles(
     return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }
 
-  const complete = clean.every((h) => h !== null);
+  // Over when one side is up more holes than are left (Rule 3.2a(3)), as the
+  // console's path asks it: "every hole filled" kept a match won 5&4 from ever
+  // being submitted whole, or stamped as scored.
+  const complete = matchIsOver(clean);
   if (!complete && !canPlayerSavePartial(settings)) {
     return { ok: false, error: "Enter the full round, then submit it." };
   }

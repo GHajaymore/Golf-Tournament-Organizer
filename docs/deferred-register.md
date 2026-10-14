@@ -1325,17 +1325,19 @@ round under Handicaps for this round") and has been corrected to say what is
 true. Recommended: the same control, on the same card, with the same question
 before cards are re-scored. A society of twelve is exactly who would use it.
 
-**A singles net MATCH is derived off the course handicap with no allowance,
-while the screens that show its strokes apply the round's.** `deriveMatchFromItsCards`
-hands `deriveNetHoles` the round's course handicap; the entry screen and the
-round-code screen read `matchHandicapFor`, which applies `effectiveAllowance`.
-They agree while that is 100, which it is for Match Play and Nassau, and no
-screen can set another on a head-to-head round — so today the two cannot be made
-to differ. Read, not reproduced. The control that now exists is offered only on
-individual STROKE rounds, and `setStageAllowance` refuses a figure on a round
-that takes none (a singles match among them), so it still cannot be made to
-differ — by a screen or by a direct call. It becomes real the day a match is
-given an allowance of its own.
+**CLOSED 2026-10-14: a singles net MATCH derived from its cards was priced off
+the course handicap alone, while the screens that show its strokes priced it
+properly.** This entry said the two "cannot be made to differ", and about the
+ALLOWANCE that was true: it is 100 on a head-to-head round and nothing can set
+another. It looked at one half and missed the other. The strokes for tees of a
+higher par (Rule 6.2b) were on the screens and not in the result, and those
+differ the moment two players in a net match are on sets of different par: a
+woman off the par-72 reds, shown a stroke against a man off the par-71 whites,
+had her 1-up win stored as a half. Reproduced on real rows
+(`stored-results-give-the-strokes-for-the-pars.audit.test.ts`), and fixed by
+pricing both through `playingHandicapInRound`, which now prices every round
+(`a-round-is-priced-one-way.test.ts`). A register entry that rules a case
+unreachable has to say which inputs it ruled on.
 
 **The rules sheet states a TEAM round's allowance only when a committee has set
 one.** An individual net round's sheet says "95% of course handicap" since
@@ -1467,3 +1469,20 @@ call it, two of which unmount once the cut is made.
 ranked card, `applyStrokeCut` refuses and records nothing, so round 2 stays
 open to everybody — the same as before. The old inference ("the round holds a
 card") said the same thing for the same reason.
+
+## A halved match's countback reads the tournament's card, not the card of the course it was played on — SEEN, NOT CHANGED (2026-10-14)
+
+A match tiebreak of "the toughest N holes" ranks the holes by stroke index. Three readers take
+that index from the TOURNAMENT's course (`resolveCourse(event)`): the match standings in
+`services/tournament.ts`, the league week view (`week-view.ts`, which documents it) and a
+player's history against an opponent (`services/head-to-head.ts`, which does not). By the Rules
+the hardest holes of a match are those of the course it was played on, so for a match played
+away the countback reads the wrong holes. The three agree with each other, so no screen
+contradicts another.
+
+Measured read-only against the development database: **no tournament uses a toughest-holes
+tiebreak at all**, so there is no halved match in a round played away for it to mis-read. Left
+because the fix changes how the leaderboard breaks a tie — all three readers at once, through
+`roundCard(stage, event, venue).strokeIndex` per match — and nothing a club holds can show it
+yet. Do it with a test that halves a match at an away course whose hardest holes differ from
+the home card's, and asserts the winner both ways.

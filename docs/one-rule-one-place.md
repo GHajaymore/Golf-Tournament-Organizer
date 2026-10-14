@@ -36,10 +36,10 @@ Each layer is taken only when the one beneath it is in one place and proven.
 |---|---|---|---|
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
 | 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
-| 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
-| 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
-| 5 | A card | gross, net, points, to par | not started |
-| 6 | A round | finished or not, ranking, ties, a match result | not started |
+| 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
+| 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked |
+| 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing |
+| 6 | A round | finished or not, ranking, ties, a match result | started 2026-10-14: a match result is a card of the round's length, over when decided, at all three doors |
 | 7 | Across rounds | cut, flights, brackets, season table | not started |
 | 8 | Money | pots, splits, who owes whom | not started |
 | 9 | What screens say | two screens never give different answers | not started |
@@ -106,6 +106,32 @@ handicap readers became one (counted off the diff, not the inventory). The four
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say
   something different to each (which way back there is) are a different
   question and were left.
+- **A round's card, and the tees of a member's differential** (step 3):
+  `roundCard(stage, event, venue)` in `course-resolution.ts` is the one chain
+  from a round to its card — nine readers wrote it out
+  (`a-rounds-card-is-built-one-way.test.ts`). The handicap record now walks the
+  round's tees as the board does (`teeForPlay`); it had rated a round played
+  away off the home course's tees, 22.0 where the Rule gives 13.4
+  (`a-differential-is-from-the-tees-of-the-round.audit.test.ts`). Live
+  2026-10-14.
+- **What a stroke can be** (step 5): `isStroke` in `domain/score-payload.ts`,
+  a whole number from 1 to `MAX_STROKES_PER_HOLE`; every writer of a card asks
+  it, and `a-stroke-is-one-test.test.ts` refuses the range written by hand (a
+  file of cards had it twice with its own 30). **Checked and consistent** (step
+  5), on that footing: the card loops that call a hole played when `s != null`
+  and the ones that want `s > 0` cannot disagree, because no stored card holds
+  a 0 — 28,395 cards measured, read-only, on 2026-10-14, and nothing but 1..30
+  or empty in any of them. The eight to-par sums are each "strokes minus par
+  over the holes played" and agree on that footing; they were left as they
+  are rather than rewritten on a difference that cannot arise. The low-net pot's
+  net is the board's: `state.strokeHandicapFor` off `roundCard`, gross less the
+  rounded strokes received over the holes played.
+- **Checked and consistent** (step 3): the map of each player's flight tees is
+  built four times, all four the same one line (a flight's id to its tees, then
+  each player through their flight); which tees WIN is `teeIdFor`'s alone.
+  **Measured and registered** (step 3): a halved match's toughest-holes
+  countback reads the tournament's card in all three readers; no tournament
+  uses that countback, so nothing can show it — see `docs/deferred-register.md`.
 - **Checked and consistent** (step 2): "confirmed" is spelled one way in
   every query that asks for the field (`status: "confirmed"`), and the two
   readers of "who contested the last round" — the round-robin cut and the
@@ -121,6 +147,19 @@ handicap readers became one (counted off the diff, not the inventory). The four
 - **Playing handicap in a round** (step 4): `roundPlayingHandicap`, required
   third argument; `tees-of-a-higher-par-get-their-strokes.test.ts` refuses the
   bare allowance anywhere a round is priced. Thirteen places, one function.
+  **And since 2026-10-14 one CHAIN**: `playingHandicapInRound(round, row,
+  member)` in `round-allowance.ts` (with `playingHandicapPartsInRound` for a
+  screen that lists the parts) is the round's figure, its allowance and the
+  strokes for the pars, in that order; ten callers, and
+  `a-round-is-priced-one-way.test.ts` refuses `roundPlayingHandicap` anywhere
+  else but the spread inside a team card. It had been written out nine times,
+  and the ninth — the stored result of a singles match decided from its two
+  cards — had the first step alone: a woman off the par-72 reds was shown a
+  stroke against a man off the par-71 whites, on the scorer's screen and her
+  own, and her 1-up win was stored as a half
+  (`stored-results-give-the-strokes-for-the-pars.audit.test.ts`). The guide had
+  said all along that a match gives the strokes. `roundHandicapOf`, left with no
+  callers, is deleted.
 - **The field for the lowest par** (steps 2 and 4): `roundCourseHandicaps`
   requires `field`; `confirmedField(eventId)` supplies it. Nine readers, one
   field.
@@ -163,8 +202,8 @@ day and will drift: search for the expression.
 
 ### 4 Handicap
 - Course-handicap conversion, FOUR pipelines: `courseHandicapMap` (boards, pots, sides; carries 6.2b); `handicapsForRound` -> `explainHandicap` handicaps.ts:146 (tee name / "rated" at entry/page.tsx:531, me/card/page.tsx:409, `teeNamesForRound`); `courseHandicapForPlayer` (had no callers; DELETED 2026-10-13); handicap-record.ts:227. The last three give no 6.2b strokes.
-- Playing handicap in a round: five readers pinned by every-reader-*.audit tests (deliberately unmerged).
-- Deferred register: a singles net match is derived with no allowance while its screens apply one.
+- Playing handicap in a round: five readers pinned by every-reader-*.audit tests (deliberately unmerged). Since 2026-10-14 their ARITHMETIC is one function, `playingHandicapInRound`; what each reader hands it (which tees, which field, which row) is still its own and still pinned by those tests. Because they now agree by construction, the function is pinned to the Rules by hand in `a-round-is-priced-one-way.test.ts`.
+- Deferred register: a singles net match is derived with no allowance while its screens apply one. CLOSED 2026-10-14 — and it was the strokes for the pars that differed, not the allowance; one chain now (`playingHandicapInRound`).
 
 ### 5 A card
 - Per-hole formulas are single (`stablefordPointsForHole`, `modifiedStablefordForHole`, `holeStrokesReceived`). But the LOOP over a card is written six times: `computeStrokeCard` stroke.ts:115; `aggregateStroke` stroke-agg.ts:176; `cardPoints` card-points.ts:19; points-standings.ts:221-236; expenses.ts:1018-1027 with derived-games.ts:131 (low-net pot); team.ts:106-127, 265-276. They disagree on a played hole: `s == null` (stroke.ts:167; points-standings.ts:227) vs `s <= 0` (stroke-agg.ts:221; card-points.ts).
@@ -172,6 +211,7 @@ day and will drift: search for the expression.
 
 ### 6 A round
 - Finished: ~14 named predicates + ~30 inline. `resolveMatch(...).complete` read without `matchIsOver` (an empty [] card reads complete and halved): domain/standings.ts:108-120, 295; tournament.ts:2566, 3534; single-match.ts:76-79; tournament-result.ts:161-163; finish-order.ts:38; actions/tournament.ts:2356, 2962, 3382; ScoreEntryClient.tsx:274, 490.
+  **Measured 2026-10-14**: 0 of 6,528 stored matches hold `[]`, and every creator writes a card of blanks, so those readers cannot meet one in what is stored. Two WRITERS could store one, and did not clean what they were sent: `saveMatchHoles` (an empty list read as finished, scored and queued for sign-off; `["A"]` as an eighteen-hole match won 1 up; a hole that is not a result stored) and a file of hole-by-hole results (an empty row stored as `[]` and stamped scored). Both now clean to the round's length and ask `matchIsOver` (`a-match-result-is-a-card-of-its-length.audit.test.ts`). And the round-code door asked "every hole filled", so a match won 5&4 could not be handed in whole and was never stamped scored; it asks `matchIsOver` now, and its screen `matchIsOverAfter` (`play-score-entry.audit.test.ts`, `render.test.tsx`). **Not covered by any test**: the round-code screen's hold-back of a decided card under whole-round entry (a break of it was NOT CAUGHT); a regression costs a player a few taps, or the Final result box, and not a result.
 - "Any stroke": `> 0` at cut-ready.ts:126; stroke-cut.ts:180; round-cards.ts:112 vs `!= null` at expenses.ts:513, 557; skins-pot.ts:291, 545; domain/skins-pot.ts:103; points-standings.ts:152; playing-history.ts:113.
 - "Card full": scorecard-write.ts:97; actions/tournament.ts:2798; PlayerCard.tsx:208; PlayClient.tsx:549; tournament-switcher.ts:91; actions/play.ts:229.
 - "Round official", two spellings: `closedAt != null` (leaderboard/page.tsx:233; me.ts:492, 634; expenses.ts:823, 1963; week-view.ts:484) vs `closedAt || event.status === "completed"` (expenses.ts:543, 1994; tournament-result.ts:263, 279, 355).

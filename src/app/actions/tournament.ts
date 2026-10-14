@@ -63,7 +63,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
+import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -75,11 +75,9 @@ import {
   acceptsHandicapChange,
   isReturnedCard,
   roundHandicapExactOf,
-  roundHandicapOf,
-  roundParStrokesOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { parStrokesApply } from "@/lib/round-allowance";
+import { playingHandicapInRound } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -131,6 +129,7 @@ import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/li
 import {
   marginRefusal,
   marginToHoles,
+  matchIsOver,
   resolveMatch,
   deriveNetHoles,
   isTiebreakerKey,
@@ -141,14 +140,13 @@ import {
   FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
-import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
-import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "@/lib/domain/handicap";
+import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
@@ -2365,7 +2363,16 @@ export async function removeStage(stageId: string, force = false) {
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
-  const complete = resolveMatch(holes).complete;
+  // A card of THIS round's length, as the round-code screen's path cleans it
+  // (`actions/play.ts`). This stored the list as it came and called it complete
+  // by `resolveMatch(list).complete`: an empty list was a finished match, and
+  // ["A"] an eighteen-hole match won 1 up
+  // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stage: { select: { holes: true } } } });
+  if (!owner) throw new Error("Match not found.");
+  const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
+  if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
+  const complete = matchIsOver(clean);
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
   // way — they enter scores as groups come in.
@@ -2377,7 +2384,7 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: {
-      holes: JSON.stringify(holes),
+      holes: JSON.stringify(clean),
       // A real result supersedes a forfeit. Without this, an organizer who
       // forfeited against the wrong name and then entered the true card would
       // see the card on screen and the forfeit in the standings — the entered
@@ -2939,8 +2946,19 @@ async function deriveMatchFromItsCards(
   // type that ignores an override — silently, and after the organizer has been
   // shown a control that appeared to work.
   const netRound = await roundHandicapRows(eventId, match.stageId);
+  //
+  // And the PLAYING handicap, as the screens show it (`matchHandicapFor`): the
+  // allowance, and the strokes for tees of a higher par (Rule 6.2b). This took
+  // the round's figure alone, so a player shown a stroke for the pars had her
+  // win stored as a half.
   const netFor = (p: { id: string; handicap: number } | null) =>
-    p ? roundHandicapOf(netRound.get(p.id), netHcp.get(p.id) ?? p.handicap) : 0;
+    p
+      ? playingHandicapInRound(stage, netRound.get(p.id), {
+          whole: netHcp.get(p.id) ?? p.handicap,
+          exact: netHcp.exact(p.id) ?? p.handicap,
+          parStrokes: netHcp.parStrokes(p.id),
+        })
+      : 0;
   /**
    * A net match cannot be scored without a card, and must not pretend to be.
    *
@@ -3271,7 +3289,9 @@ async function recomputeTeamMatch(
       })
     : null;
   const course = roundCard(stage, event, roundVenue);
-  const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0, stage?.type);
+  // The format this match is scored under, which may be the tournament's where
+  // the round names none — so the round, with that format.
+  const teamPricing = stage ? { ...stage, format: formatName } : null;
 
   /**
    * What each player on a side plays off in this round.
@@ -3293,7 +3313,6 @@ async function recomputeTeamMatch(
   // difference from the lowest par the field is playing — which two maps of
   // two players each would otherwise each find for themselves.
   const teamField = await confirmedField(eventId);
-  const givesParStrokes = parStrokesApply(formatName, stage?.scoringBasis);
 
   const sideCard = async (teamId: string) => {
     const [cards, members] = await Promise.all([
@@ -3371,13 +3390,11 @@ async function recomputeTeamMatch(
       const card = cards.find((c) => c.playerId === m.playerId);
       return {
         strokes: parse(card?.strokes ?? "[]"),
-        playingHandicap: roundPlayingHandicap(
-          playsOffExact(m.player),
-          allowance,
-          givesParStrokes
-            ? roundParStrokesOf(teamRound.get(m.player.id), teamHcp.parStrokes(m.player.id))
-            : NO_PAR_STROKES,
-        ),
+        playingHandicap: playingHandicapInRound(teamPricing, teamRound.get(m.player.id), {
+          whole: teamHcp.get(m.player.id) ?? m.player.handicap,
+          exact: teamHcp.exact(m.player.id) ?? m.player.handicap,
+          parStrokes: teamHcp.parStrokes(m.player.id),
+        }),
         pickedUp: picks(card?.pickedUp),
       };
     });
@@ -5405,26 +5422,17 @@ export async function importScores(
       event,
       holes,
     });
-    const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster
     // where the round holds an override would bake the difference into stored
-    // strokes — the one place an error stops being recomputable.
+    // strokes — the one place an error stops being recomputable. And priced as
+    // the board prices it (allowance of the unrounded figure, then the strokes
+    // for the pars), or the gross this stores is a stroke from the board's.
     const importRound = await roundHandicapRows(eventId, stageId);
     netHcp = new Map(
       [...ch].map(([id, v]) => [
         id,
-        // Of the UNROUNDED figure, as the board takes it — or the gross this
-        // stores would be a stroke from the one the board derives.
-        roundPlayingHandicap(
-          roundHandicapExactOf(importRound.get(id), v, ch.exact(id)),
-          allowance,
-          // As the board gives them (Rule 6.2b), or the gross this stores is a
-          // stroke from the one the board derives for anybody on the longer par.
-          parStrokesApply(stage.format, stage.scoringBasis)
-            ? roundParStrokesOf(importRound.get(id), ch.parStrokes(id))
-            : NO_PAR_STROKES,
-        ),
+        playingHandicapInRound(stage, importRound.get(id), { whole: v, exact: ch.exact(id) ?? v, parStrokes: ch.parStrokes(id) }),
       ]),
     );
     // The nine actually played, re-ranked. Converting a file of NET scores
@@ -5513,13 +5521,15 @@ export async function importScores(
       // the card is capped at the sizes a card can be.
       const raw = (Array.isArray(row.strokes) ? row.strokes : [])
         .slice(0, 18)
-        .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+        .map((v) => (isStroke(v) ? v : null));
+      // And the gross it converts back to is a stroke too: a net 30 off two
+      // shots is a 32 no card could hold, so it is a blank like any other.
       const strokes = isNet
-        ? raw.map((v, i) =>
-            v === null
-              ? null
-              : v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length)),
-          )
+        ? raw.map((v, i) => {
+            if (v === null) return null;
+            const gross = v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length));
+            return isStroke(gross) ? gross : null;
+          })
         : raw;
       /**
        * A MATCH ROUND FILES ITS CARDS ON THE FIXTURE (2026-10-10).
@@ -5601,12 +5611,18 @@ export async function importScores(
       // Same rule as the strokes shape: a hole result is A, B, H or null, and
       // a card has at most eighteen of them — anything else from the caller is
       // dropped rather than stored.
-      const holes = (Array.isArray(row.holes) ? row.holes : [])
-        .slice(0, 18)
-        .map((h) => (h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null));
+      // Sized to the ROUND, as a typed result is: an empty row was stored as
+      // [], which reads as a finished match, and stamped as scored.
+      const holes =
+        cleanHoleResults(
+          (Array.isArray(row.holes) ? row.holes : []).map((h) =>
+            h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null,
+          ),
+          holesPlayed(stage.holes),
+        ) ?? [];
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
-        data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
+        data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: matchIsOver(holes) ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: importedBy },
       });
       written += 1;
       continue;
@@ -5753,7 +5769,7 @@ export async function importTeamScores(
     // Coerced hole by hole, exactly as `importScores` does it.
     const strokes = (Array.isArray(row.strokes) ? row.strokes : [])
       .slice(0, holes)
-      .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+      .map((v) => (isStroke(v) ? v : null));
     const match = matchOf(teamId);
     const matchId = match?.id ?? "";
     await prisma.teamScorecard.upsert({

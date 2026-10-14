@@ -193,4 +193,18 @@ describe("importing net scores for a round played away", () => {
     expect(stored[17], "hole 18 is the away card's stroke hole and did not get the shot").toBe(5);
     expect(stored[0], "hole 1 got the shot, which is the TOURNAMENT's card, not this round's").toBe(4);
   });
+
+  it("a net 30 on the stroke hole is a gross of 31, which no card holds: a blank", async () => {
+    // And the same net on a hole with no shot is a gross of 30, which stands.
+    const net = [30, ...new Array(16).fill(4), 30];
+    const out = await importScores(ids.awayStage, "net-strokes", [{ playerId: ids.player, strokes: net }]);
+    expect(out.ok, `import refused: ${out.ok === false ? out.error : ""}`).toBe(true);
+    const card = await prisma.scorecard.findFirst({
+      where: { eventId: ids.event, stageId: ids.awayStage, playerId: ids.player },
+      select: { strokes: true },
+    });
+    const stored = JSON.parse(card!.strokes) as (number | null)[];
+    expect(stored[0], "no shot on hole 1 off the away card: 30 stands").toBe(30);
+    expect(stored[17], "the shot on hole 18 makes 31").toBeNull();
+  });
 });

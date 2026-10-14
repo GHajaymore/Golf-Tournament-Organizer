@@ -369,15 +369,49 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
     expect(firstArgs(sample, "sidePlayingHandicap")).toEqual(["list"]);
     // A round is priced with `roundPlayingHandicap` since 2026-10-13 — the same
     // allowance of the same figure, then the strokes for tees of a higher par —
-    // so the callers are counted under both names.
+    // and since 2026-10-14 through `playingHandicapInRound`, which hands it the
+    // `exact:` figure it is given; so the callers are counted under all four.
     const all = files.flatMap((f) => [
       ...firstArgs(codeOf.get(f)!, "playingHandicapFrom"),
       ...firstArgs(codeOf.get(f)!, "roundPlayingHandicap"),
+      ...exactGiven(codeOf.get(f)!, "playingHandicapInRound"),
+      ...exactGiven(codeOf.get(f)!, "playingHandicapPartsInRound"),
     ]);
-    // The board twice, the league, skins, the team match, the net import, the
-    // printed card's five, the side builder, the worked example, the explanation.
+    // The board twice, the league, skins, the team match, the net import, a
+    // match from its cards, the printed card, the side builder, the round's
+    // list, the worked example, the explanation.
     expect(all.length).toBeGreaterThanOrEqual(12);
+    expect(exactGiven("playingHandicapInRound(stage, row, { whole: w, exact: byRound.exact(id) ?? 0, parStrokes: 0 })", "playingHandicapInRound")).toEqual([
+      "byRound.exact(id) ?? 0",
+    ]);
   });
+
+  /** What each call of `name(` hands over as its `exact:` figure ("" where it names none). */
+  function exactGiven(code: string, name: string): string[] {
+    const out: string[] = [];
+    let from = 0;
+    for (;;) {
+      const at = code.indexOf(`${name}(`, from);
+      if (at < 0) break;
+      from = at + name.length + 1;
+      if (/[A-Za-z0-9_$.]/.test(code[at - 1] ?? " ")) continue;
+      if (code.slice(Math.max(0, at - 9), at) === "function ") continue;
+      let depth = 0;
+      let i = from;
+      for (; i < code.length; i += 1) {
+        const c = code[i];
+        if (c === "(" || c === "[" || c === "{") depth += 1;
+        else if (c === ")" || c === "]" || c === "}") {
+          if (depth === 0) break;
+          depth -= 1;
+        }
+      }
+      const call = code.slice(from, i).replace(/\s+/g, " ");
+      const m = call.match(/\bexact: ([^,}]+)/);
+      out.push(m ? m[1].trim() : "");
+    }
+    return out;
+  }
 
   it("every allowance is taken of a figure that says it is the exact one", () => {
     const exactly = /[Ee]xact/;
@@ -389,6 +423,13 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
           // The printed card names its reader `frozenHandicapOf`, and that reader
           // is pinned to the exact form just below.
           if (!exactly.test(arg) && !/^frozenHandicapOf\(/.test(arg) && arg !== "ch") bad.push(`${f}: ${name}(${arg}, …)`);
+        }
+      }
+      for (const name of ["playingHandicapInRound", "playingHandicapPartsInRound"]) {
+        // The function's own file hands its caller's `member` on to its sibling.
+        if (f === "src/lib/round-allowance.ts") continue;
+        for (const given of exactGiven(code, name)) {
+          if (!exactly.test(given)) bad.push(`${f}: ${name}(…, { exact: ${given || "(none)"} })`);
         }
       }
       for (const arg of firstArgs(code, "allocatedStrokes")) {

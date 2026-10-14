@@ -138,22 +138,6 @@ export function resolveRoundHandicap(input: RoundHandicapInput): ResolvedRoundHa
   };
 }
 
-/**
- * One player's handicap for one round, given the round's row and today's roster
- * number.
- *
- * The shorthand every scoring path uses, so that honouring a round's handicap
- * is one call rather than four transcriptions of the same three-way choice. A
- * missing row means the roster number, untouched — which is what every one of
- * those paths did before this existed.
- */
-export function roundHandicapOf(
-  row: { frozen?: number | null; override?: number | null } | null | undefined,
-  member: number,
-): number {
-  return resolveRoundHandicap({ frozen: row?.frozen, override: row?.override, member }).handicap;
-}
-
 /** A round's row as the scoring paths read it: the committee's figure and the frozen fact, both forms. */
 export interface RoundHandicapRow {
   frozen?: number | null;

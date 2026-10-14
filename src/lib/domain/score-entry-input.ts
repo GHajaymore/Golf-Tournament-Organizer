@@ -1,4 +1,4 @@
-import { MAX_STROKES_PER_HOLE } from "./score-payload";
+import { isStroke } from "./score-payload";
 import { transcriptTokens, readScoreToken } from "./stroke";
 
 /**
@@ -91,7 +91,7 @@ export function parseHoleTranscript(
     const read = readScoreToken(tokens, j, par);
     if (read) {
       const who = target ?? players.find((p) => out[p.id] === undefined)?.id ?? null;
-      if (who && read.value >= 1 && read.value <= MAX_STROKES_PER_HOLE) out[who] = read.value;
+      if (who && isStroke(read.value)) out[who] = read.value;
       target = null;
       j = read.next;
       continue;

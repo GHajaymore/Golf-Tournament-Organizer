@@ -3,12 +3,11 @@ import { prisma } from "../db";
 import { COURSE_REF, roundCard } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { matchHolesOffTheLow, type MatchBall } from "../domain/team";
-import { NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
-import { effectiveAllowance, effectiveCountBest } from "./teams";
-import { parStrokesApply } from "../round-allowance";
+import { NO_PAR_STROKES } from "../domain/handicap";
+import { effectiveCountBest } from "./teams";
+import { playingHandicapInRound } from "../round-allowance";
 import { roundCourseHandicaps, flightTeeByPlayer, confirmedField, FIELD_PLAYER } from "./handicaps";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
 import {
   meetingPoints,
   meetingsIn,
@@ -193,14 +192,15 @@ export async function leagueMeetings(
   });
   const handicapOf = new Map(players.map((p) => [p.id, p.handicap]));
   /** What a player plays off this week: the frozen round handicap if one was
-   *  taken, else the Course Handicap, and only the raw index as a last resort. */
-  const playsOffExact = (id: string): number =>
-    roundHandicapExactOf(
-      teamRound.get(id),
-      courseHcp.get(id) ?? handicapOf.get(id) ?? 0,
-      // Before rounding: the allowance below is taken of this (Rule 6.2a).
-      courseHcp.exact(id) ?? handicapOf.get(id) ?? 0,
-    );
+   *  taken, else the Course Handicap, and only the raw index as a last resort;
+   *  then the round's allowance and the strokes for the pars, as the board. A
+   *  side's shared card (no player) receives nothing for the pars. */
+  const playsOff = (id: string): number =>
+    playingHandicapInRound(stage, teamRound.get(id), {
+      whole: courseHcp.get(id) ?? handicapOf.get(id) ?? 0,
+      exact: courseHcp.exact(id) ?? handicapOf.get(id) ?? 0,
+      parStrokes: id ? courseHcp.parStrokes(id) : NO_PAR_STROKES,
+    });
 
   /**
    * One side as the balls of a match, for `matchHolesOffTheLow`.
@@ -216,8 +216,6 @@ export async function leagueMeetings(
    * balls of nulls rather than nothing, so an unplayed pairing still reads as
    * unplayed instead of as a walkover.
    */
-  const allowancePct = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
-  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
   const ballsFor = (teamId: string): MatchBall[] =>
     cards
       .filter((c) => c.teamId === teamId)
@@ -230,14 +228,7 @@ export async function leagueMeetings(
         }
         return {
           strokes,
-          playingHandicap: roundPlayingHandicap(
-            playsOffExact(c.playerId),
-            allowancePct,
-            // Tees of a higher par (Rule 6.2b). A side's own card has no player and gets none.
-            givesParStrokes && c.playerId
-              ? roundParStrokesOf(teamRound.get(c.playerId), courseHcp.parStrokes(c.playerId))
-              : NO_PAR_STROKES,
-          ),
+          playingHandicap: playsOff(c.playerId),
         };
       });
 

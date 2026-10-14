@@ -97,11 +97,21 @@ export function cleanStrokes(raw: unknown, expected: number): (number | null)[] 
       out.push(null);
       continue;
     }
-    if (typeof v !== "number" || !Number.isInteger(v)) return null;
-    if (v < 1 || v > MAX_STROKES_PER_HOLE) return null;
+    if (!isStroke(v)) return null;
     out.push(v);
   }
   return out;
+}
+
+/**
+ * WHAT A STROKE ON ONE HOLE CAN BE: a whole number from 1 to
+ * MAX_STROKES_PER_HOLE. The one test of it — the typed card, a score box, a
+ * spoken score and a file of cards all ask this, so a card the app stores can
+ * only ever hold such a number or nothing (`a-stroke-is-one-test.test.ts`).
+ * A file of cards had the range written out twice with its own 30.
+ */
+export function isStroke(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_STROKES_PER_HOLE;
 }
 
 /**
@@ -127,9 +137,7 @@ export function cleanStrokes(raw: unknown, expected: number): (number | null)[] 
  */
 export function parseStroke(text: string): number | null {
   const n = parseInt(text, 10);
-  if (!Number.isFinite(n)) return null;
-  if (n < 1 || n > MAX_STROKES_PER_HOLE) return null;
-  return n;
+  return isStroke(n) ? n : null;
 }
 
 /**

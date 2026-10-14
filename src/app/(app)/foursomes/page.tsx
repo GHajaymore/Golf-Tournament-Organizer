@@ -4,12 +4,12 @@ import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
 import { roundHandicapExactOf, roundParStrokesOf } from "@/lib/domain/round-handicap";
-import { parStrokesApply } from "@/lib/round-allowance";
+import { parStrokesApply, playingHandicapInRound } from "@/lib/round-allowance";
 import { effectiveAllowance, effectiveCountBest, teamsForStage, teamStandings } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
 import { isHeadToHead } from "@/lib/stage-types";
 import { allocatedStrokes, matchStrokesCount, matchStrokesPerHole } from "@/lib/domain/team";
-import { NO_PAR_STROKES, roundPlayingHandicap } from "@/lib/domain/handicap";
+import { NO_PAR_STROKES } from "@/lib/domain/handicap";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -333,7 +333,12 @@ export default async function FoursomesPage({
   const parStrokesOf = (id: string): number =>
     givesParStrokes ? roundParStrokesOf(roundHcpRows.get(id), courseHandicaps.parStrokes(id)) : NO_PAR_STROKES;
   /** What one player's own ball plays off in this round: allowance, rounded once, then those strokes. */
-  const playsOff = (id: string): number => roundPlayingHandicap(frozenHandicapOf(id), allowance, parStrokesOf(id));
+  const playsOff = (id: string): number =>
+    playingHandicapInRound(stage, roundHcpRows.get(id), {
+      whole: courseHandicaps.get(id) ?? 0,
+      exact: courseHandicaps.exact(id) ?? 0,
+      parStrokes: courseHandicaps.parStrokes(id),
+    });
   /**
    * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
    * round's nine and RE-RANKS its stroke index — so this was

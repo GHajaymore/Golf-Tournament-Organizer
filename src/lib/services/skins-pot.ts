@@ -2,14 +2,12 @@ import "server-only";
 import { COURSE_REF, roundCard as roundCardOf } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
-import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
-import { effectiveAllowance } from "./teams";
-import { parStrokesApply } from "../round-allowance";
+import { holesPlayed } from "../domain/handicap";
+import { playingHandicapInRound } from "../round-allowance";
 import {
   skinsPot,
   settle,
@@ -488,8 +486,6 @@ export async function skinsPotFor(
    * `every-reader-prices-the-away-round.audit.test.ts`, whose divergence test
    * became that agreement assertion when this landed.
    */
-  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
-  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
@@ -497,17 +493,13 @@ export async function skinsPotFor(
       // Falls back to the Index only when the course has no tees on file at
       // all, which is the old behaviour and the best available guess.
       courseHandicap: strokesForPot(
-        roundPlayingHandicap(
-          // Before rounding: the allowance is taken of this (Rule 6.2a).
-          roundHandicapExactOf(
-            round.get(p.id),
-            courseHcp.get(p.id) ?? p.handicap,
-            courseHcp.exact(p.id) ?? p.handicap,
-          ),
-          allowance,
-          // And the strokes for tees of a higher par (Rule 6.2b): a skin is won on net strokes.
-          givesParStrokes ? roundParStrokesOf(round.get(p.id), courseHcp.parStrokes(p.id)) : NO_PAR_STROKES,
-        ),
+        // Steps 2 and 3, and the strokes for tees of a higher par (Rule 6.2b):
+        // a skin is won on net strokes.
+        playingHandicapInRound(stage, round.get(p.id), {
+          whole: courseHcp.get(p.id) ?? p.handicap,
+          exact: courseHcp.exact(p.id) ?? p.handicap,
+          parStrokes: courseHcp.parStrokes(p.id),
+        }),
       ),
     })),
     holeCount,
