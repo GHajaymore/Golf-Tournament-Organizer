@@ -25,6 +25,11 @@ import { loadEventState } from "@/lib/services/tournament";
  * Brody second, not T1. Net: Brody first. And the board, a net medal, is the
  * net order exactly.
  *
+ * The hardest holes are the back nine (stroke index 1 to 9 on holes 10 to 18),
+ * so Brody's strokes fall there and his NET last nine is 35 too — and the six,
+ * three and one are level as well. A gross picker that counted back on the net
+ * cards would call the two of them T1, which is how this can tell the two apart.
+ *
  *   npx vitest run --config vitest.audit.config.ts
  */
 
@@ -60,7 +65,7 @@ beforeAll(async () => {
         shareToken: `${TAG}-${process.pid}`,
         customPars: JSON.stringify(new Array(18).fill(4)),
         customYards: JSON.stringify(new Array(18).fill(380)),
-        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+        customStrokeIndex: JSON.stringify([10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
       },
     })
   ).id;
