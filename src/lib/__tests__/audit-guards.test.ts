@@ -643,7 +643,9 @@ describe("a player writes their own scores and nobody else's", () => {
       readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"),
     );
     const fn = me.slice(me.indexOf("export async function myPlayerIds"));
-    expect(fn.slice(0, 600)).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+    // The address through the one rule, which matches nobody for an empty one
+    // (`my-entries-are-asked-one-way.test.ts`); the status is this guard's own.
+    expect(fn.slice(0, 600)).toMatch(/\.\.\.byAddress\(email\)/);
     expect(fn.slice(0, 600)).toMatch(/status: "confirmed"/);
   });
 
