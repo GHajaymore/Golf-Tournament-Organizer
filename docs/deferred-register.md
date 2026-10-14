@@ -1467,3 +1467,20 @@ call it, two of which unmount once the cut is made.
 ranked card, `applyStrokeCut` refuses and records nothing, so round 2 stays
 open to everybody — the same as before. The old inference ("the round holds a
 card") said the same thing for the same reason.
+
+## A halved match's countback reads the tournament's card, not the card of the course it was played on — SEEN, NOT CHANGED (2026-10-14)
+
+A match tiebreak of "the toughest N holes" ranks the holes by stroke index. Three readers take
+that index from the TOURNAMENT's course (`resolveCourse(event)`): the match standings in
+`services/tournament.ts`, the league week view (`week-view.ts`, which documents it) and a
+player's history against an opponent (`services/head-to-head.ts`, which does not). By the Rules
+the hardest holes of a match are those of the course it was played on, so for a match played
+away the countback reads the wrong holes. The three agree with each other, so no screen
+contradicts another.
+
+Measured read-only against the development database: **no tournament uses a toughest-holes
+tiebreak at all**, so there is no halved match in a round played away for it to mis-read. Left
+because the fix changes how the leaderboard breaks a tie — all three readers at once, through
+`roundCard(stage, event, venue).strokeIndex` per match — and nothing a club holds can show it
+yet. Do it with a test that halves a match at an away course whose hardest holes differ from
+the home card's, and asserts the winner both ways.
