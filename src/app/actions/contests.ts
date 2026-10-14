@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -253,7 +254,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
   if (!contest) return { ok: false, error: "That bet isn't in this tournament." };
 
   const me = await prisma.player.findFirst({
-    where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+    where: { eventId: session.eventId, ...byAddress(session.email) },
     select: { id: true, name: true },
   });
   if (!me) return { ok: false, error: "You aren't in this tournament's field." };

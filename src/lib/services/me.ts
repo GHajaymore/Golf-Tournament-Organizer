@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { prisma } from "@/lib/db";
 import { rankedScore, withStrokeBasis } from "@/lib/domain/ranked-score";
 import { snapshotStanding, cardsIn } from "@/lib/domain/lifecycle-state";
@@ -78,7 +79,7 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
   const rows = await prisma.player.findMany({
     // Case-insensitive: an address typed into a roster import is not
     // necessarily cased the way the same person typed it when signing up.
-    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
+    where: { eventId, ...byAddress(email), status: "confirmed" },
     select: { id: true },
   });
   return new Set(rows.map((r) => r.id));

@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { prisma } from "@/lib/db";
 import { playingStages, settingsOf, type EventState } from "@/lib/services/tournament";
 import {
@@ -185,7 +186,7 @@ export async function availabilityFor(
   const own = await prisma.player.findMany({
     where: {
       eventId: state.event.id,
-      email: { equals: email, mode: "insensitive" },
+      ...byAddress(email),
       status: "confirmed",
     },
     select: { id: true, groupId: true },

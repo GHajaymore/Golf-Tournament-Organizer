@@ -1,3 +1,4 @@
+import { byAddress } from "../domain/my-entry";
 import "server-only";
 import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
@@ -228,7 +229,7 @@ export async function registrationPrefillFor(
   if (!event) return null;
 
   const existing = await prisma.player.findFirst({
-    where: { eventId: event.id, email: { equals: clean, mode: "insensitive" } },
+    where: { eventId: event.id, ...byAddress(clean) },
   });
   if (existing) {
     return {

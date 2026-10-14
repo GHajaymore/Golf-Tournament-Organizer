@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -143,7 +144,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * ruling with one tap. Reinstating is the committee's, on Registration.
    */
   const ruledOut = await prisma.player.findFirst({
-    where: { eventId, email: { equals: session.email, mode: "insensitive" }, status: "disqualified" },
+    where: { eventId, ...byAddress(session.email), status: "disqualified" },
     select: { id: true },
   });
   if (ruledOut) {
@@ -156,7 +157,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
   const already = await prisma.player.findFirst({
     where: {
       eventId,
-      email: { equals: session.email, mode: "insensitive" },
+      ...byAddress(session.email),
       status: { in: ["confirmed", "waitlisted", "pending"] },
     },
     select: { status: true },
@@ -348,7 +349,7 @@ export async function withdrawMyEntry(eventId: string): Promise<WithdrawResult> 
   const mine = await prisma.player.findMany({
     where: {
       eventId,
-      email: { equals: session.email, mode: "insensitive" },
+      ...byAddress(session.email),
       status: { in: ["confirmed", "waitlisted", "pending"] },
     },
     select: { id: true, name: true, status: true },

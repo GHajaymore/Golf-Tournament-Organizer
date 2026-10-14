@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import type { Match as MatchRow } from "@prisma/client";
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { playedOnBy } from "@/lib/services/courses";
@@ -551,7 +552,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    */
   const duplicate = cleanEmail
     ? await prisma.player.findFirst({
-        where: { eventId, email: { equals: cleanEmail, mode: "insensitive" } },
+        where: { eventId, ...byAddress(cleanEmail) },
         select: { name: true, status: true },
       })
     : await prisma.player.findFirst({
@@ -667,7 +668,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
         where: {
           eventId,
           id: { not: playerId },
-          email: { equals: cleanEmail, mode: "insensitive" },
+          ...byAddress(cleanEmail),
         },
         select: { name: true },
       });

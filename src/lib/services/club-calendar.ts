@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { prisma } from "@/lib/db";
 import { playingStages, settingsOf } from "@/lib/services/tournament";
 import {
@@ -49,7 +50,7 @@ export async function clubCommitmentsFor(
    */
   const places = await prisma.player.findMany({
     where: {
-      email: { equals: email, mode: "insensitive" },
+      ...byAddress(email),
       status: "confirmed",
       event: { shape: { not: "match" }, expiresAt: null },
     },

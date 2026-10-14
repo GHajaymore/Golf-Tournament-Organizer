@@ -1,3 +1,4 @@
+import { byAddress } from "@/lib/domain/my-entry";
 import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
@@ -627,7 +628,7 @@ export default async function DashboardPage() {
   // draft draw is the organizer's.
   const nameOf = new Map(state.confirmed.map((pl) => [pl.id, pl.name]));
   const myPlayerRows = await prisma.player.findMany({
-    where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
+    where: { eventId: session.eventId, ...byAddress(session.email), status: "confirmed" },
     select: { id: true },
   });
   const myIds = new Set(myPlayerRows.map((r) => r.id));

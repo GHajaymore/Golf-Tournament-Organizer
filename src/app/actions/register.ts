@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -106,7 +107,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // coming back to a link they already used, must not become two rows in the
   // field. Matched on email — the identity key the whole app uses.
   const existing = await prisma.player.findFirst({
-    where: { eventId: event.id, email: { equals: person.email, mode: "insensitive" } },
+    where: { eventId: event.id, ...byAddress(person.email) },
     select: { id: true },
   });
   if (existing) return { ok: true, already: true };

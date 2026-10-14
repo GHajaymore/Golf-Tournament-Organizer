@@ -1,4 +1,5 @@
 "use server";
+import { byAddress } from "@/lib/domain/my-entry";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { isSkinsScope } from "@/lib/domain/skins-pot";
@@ -426,7 +427,7 @@ export async function requestSkinsEntry(
   const me = await prisma.player.findFirst({
     where: {
       eventId,
-      email: { equals: (session.email ?? "").trim(), mode: "insensitive" },
+      ...byAddress((session.email ?? "").trim()),
       status: "confirmed",
     },
     select: { id: true },
