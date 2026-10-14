@@ -1,0 +1,49 @@
+[
+  {
+    "what": "T1 level sides are put in name order again, not counted back",
+    "file": "src/lib/services/teams.ts",
+    "from": "    return compareTeamRows(order, a, b) || countback(a, b) || a.name.localeCompare(b.name);",
+    "to": "    return compareTeamRows(order, a, b) || a.name.localeCompare(b.name);",
+    "audit": [
+      "src/lib/__tests__/a-side-is-placed-by-countback.audit.test.ts",
+      "src/lib/__tests__/week-view-team.audit.test.ts"
+    ]
+  },
+  {
+    "what": "T2 sides level on the figure share the place whatever the countback says",
+    "file": "src/lib/services/teams.ts",
+    "from": "compareTeamRows(order, prev, r) === 0 && countback(prev, r) === 0;",
+    "to": "compareTeamRows(order, prev, r) === 0;",
+    "audit": [
+      "src/lib/__tests__/a-side-is-placed-by-countback.audit.test.ts",
+      "src/lib/__tests__/week-view-team.audit.test.ts"
+    ]
+  },
+  {
+    "what": "T3 a net tie between sides is broken on gross again",
+    "file": "src/lib/domain/week-basis.ts",
+    "from": "  return a.toPar - b.toPar || valueOnBasis(basis, a) - valueOnBasis(basis, b);",
+    "to": "  return a.toPar - b.toPar || compareOnBasis(basis, a, b);",
+    "audit": [
+      "src/lib/__tests__/week-view-team.audit.test.ts"
+    ]
+  },
+  {
+    "what": "T4 a side's countback reads the gross card on a net round",
+    "file": "src/lib/services/teams.ts",
+    "from": "order === \"gross\" ? h.gross : h.net",
+    "to": "h.gross",
+    "audit": [
+      "src/lib/__tests__/week-view-team.audit.test.ts"
+    ]
+  },
+  {
+    "what": "T5 the team board numbers the sides itself again (the sweep's own target)",
+    "file": "src/components/TeamLeaderboard.tsx",
+    "from": "  const places = placeTexts(rows.map((r) => r.place));",
+    "to": "  const places = placeTexts(placesByValue(rows, (r) => teamPlaceValue(basis, r), (r) => r.played > 0));",
+    "unit": [
+      "src/lib/__tests__/a-side-is-placed-once.test.ts"
+    ]
+  }
+]
