@@ -165,18 +165,29 @@ describe("whether a cut has been made", () => {
     // All eighteen holes: a whole card, which is what a pot waits for.
     const res = await saveScorecard(r2, id.a, new Array(18).fill(4));
     expect(res.ok, "the card guard lets them: no cut has been made").toBe(true);
-    // And D, who will MISS the cut (75 against a cut to two), tees off too.
-    await as("d");
-    expect((await saveScorecard(r2, id.d, [5, 5, 5, ...new Array(15).fill(null)])).ok).toBe(true);
 
-    const now = await round2();
-    expect(now.cutField, "control: the player app still says the round is everybody's").toBeNull();
-    expect(now, "one card started early is not a cut with one survivor").toEqual(before);
-    // And the money: the round's pots wait for the field, not for one card.
+    // THE MONEY, while A's whole card is the only one in. Asked here and not
+    // later: once anybody else has a hole in, the round is unfinished under
+    // either rule, and the check could not tell them apart (measured: a break
+    // putting the old rule back stayed green with D's card in).
+    expect(await round2(), "one card started early is not a cut with one survivor").toEqual(before);
     const money = await roundMoneyFor(eventId, `${lower}-a@example.invalid`);
     const row = money.rounds.find((r) => r.stageId === r2);
     expect(row, "round 2 has a money row").toBeDefined();
     expect(row!.final, "round 2's money was called final on one early card").toBe(false);
+
+    // And D and C, who will MISS the cut (75 and 74 against a cut to two), tee
+    // off too. THREE early cards against a cut to TWO, so "whoever holds a
+    // card" cannot come out at the cut's own figure by chance — with two it
+    // did, and the old rule passed (measured, the same day).
+    await as("d");
+    expect((await saveScorecard(r2, id.d, [5, 5, 5, ...new Array(15).fill(null)])).ok).toBe(true);
+    await as("c");
+    expect((await saveScorecard(r2, id.c, [4, 5, ...new Array(16).fill(null)])).ok).toBe(true);
+
+    const now = await round2();
+    expect(now.cutField, "control: the player app still says the round is everybody's").toBeNull();
+    expect(now, "three cards started early are not a cut with three survivors").toEqual(before);
   });
 
   it("is made when round 1 closes, and every reader then says the same field", async () => {
