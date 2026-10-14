@@ -13,8 +13,8 @@ import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { Icon } from "@/components/Icon";
 import { teamStandings } from "@/lib/services/teams";
-import { placesByValue, placeLabel } from "@/lib/domain/flight-places";
-import { weekBasis, teamPlaceValue, isStablefordRound } from "@/lib/domain/week-basis";
+import { placeLabel } from "@/lib/domain/flight-places";
+import { isStablefordRound } from "@/lib/domain/week-basis";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
 import { yourCardNote, yourCardShort } from "@/lib/domain/your-card";
@@ -278,19 +278,13 @@ export default async function PlayTodayPage() {
   /**
    * And WHERE that side stands, by the board's own rule.
    *
-   * `placesByValue` is what the team leaderboard, the player's board and the
-   * week sheet all place sides with, so the number on this phone is the number
-   * on the board rather than a fourth opinion. Sides level on the night share
-   * a place; a side with no card has none at all.
+   * The place `teamStandings` decided (`TeamStanding.place`), which the team
+   * leaderboard, the player's board and the week sheet all print, so the
+   * number on this phone is the number on the board rather than a fourth
+   * opinion. Sides level on the night AND on countback share a place; a side
+   * with no card has none at all.
    */
-  const myPlace =
-    mySide && roundStage
-      ? placesByValue(
-          sidesThisRound,
-          (s) => teamPlaceValue(weekBasis(roundStage.scoringBasis, roundStage.format), s),
-          (s) => s.played > 0,
-        )[myIdx]
-      : null;
+  const myPlace = mySide && roundStage ? (sidesThisRound[myIdx]?.place ?? null) : null;
 
   /**
    * ONE SCREEN, THEN MORE (Ajay, 2026-10-06). Today answers the moment — the

@@ -30,7 +30,8 @@ describe("placeTexts", () => {
 });
 
 describe("the sides board prints it", () => {
-  const side = (teamId: string, net: number): TeamStanding => ({
+  // The place `teamStandings` decided (countback and all); the table prints it.
+  const side = (teamId: string, net: number, place: number): TeamStanding => ({
     teamId,
     name: `zz-side ${teamId}`,
     members: [],
@@ -41,6 +42,7 @@ describe("the sides board prints it", () => {
     points: 0,
     played: 9,
     toPar: net - 32,
+    place,
   });
 
   const cells = (rows: TeamStanding[]) => {
@@ -48,11 +50,11 @@ describe("the sides board prints it", () => {
     return [...html.matchAll(/<tr><td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
   };
 
-  it("two sides level on net are both T1", () => {
-    expect(cells([side("a", 28), side("b", 28), side("c", 29)])).toEqual(["T1", "T1", "3"]);
+  it("two sides sharing a place are both T1", () => {
+    expect(cells([side("a", 28, 1), side("b", 28, 1), side("c", 29, 3)])).toEqual(["T1", "T1", "3"]);
   });
 
   it("sides apart are numbered plainly (the control)", () => {
-    expect(cells([side("a", 28), side("b", 29)])).toEqual(["1", "2"]);
+    expect(cells([side("a", 28, 1), side("b", 28, 2)])).toEqual(["1", "2"]);
   });
 });
