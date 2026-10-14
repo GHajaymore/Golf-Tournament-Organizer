@@ -1,0 +1,38 @@
+[
+  {
+    "what": "D1 a player's dispute reads the stored column again, not the effective status",
+    "file": "src/app/actions/tournament.ts",
+    "from": "    const status = effectiveScoreStatus(match, event ? allowsAutoConfirm(settingsOf(event)) : false);",
+    "to": "    const status = event ? match.scoreStatus : match.scoreStatus;",
+    "audit": [
+      "src/lib/__tests__/an-auto-confirmed-result-is-not-disputed-by-a-player.audit.test.ts"
+    ]
+  },
+  {
+    "what": "G1 the gross order counts back on the board's basis, not on gross",
+    "file": "src/lib/services/tournament.ts",
+    "from": "          : basis === \"gross\"",
+    "to": "          : rankingBasis === \"gross\"",
+    "audit": [
+      "src/lib/__tests__/a-gross-prize-tie-goes-to-countback.audit.test.ts"
+    ]
+  },
+  {
+    "what": "G2 the prize pickers order and number the field themselves again",
+    "file": "src/app/(app)/prizes/page.tsx",
+    "from": "    return state.strokeStandingsOn(basis).map((s) => ({ id: s.player.id, name: s.player.name, place: s.ranked ? s.rank : null }));",
+    "to": "    return [...standings].sort((a, b) => (basis === \"gross\" ? a.gross - b.gross : a.net - b.net)).map((s, i) => ({ id: s.player.id, name: s.player.name, place: s.ranked ? i + 1 : null }));",
+    "unit": [
+      "src/lib/__tests__/prize-pickers-are-placed-by-the-board.test.ts"
+    ]
+  },
+  {
+    "what": "R1 a cut's refusal numbers the round among the round robins again",
+    "file": "src/lib/services/regroup.ts",
+    "from": "roundName: roundKicker(lastPriorRound.description, roundLabel(allStages, lastPriorRound.id)),",
+    "to": "roundName: roundKicker(lastPriorRound.description, `Round ${priorRr.length}` || roundLabel(allStages, lastPriorRound.id)),",
+    "audit": [
+      "src/lib/__tests__/cut-qualifiers.audit.test.ts"
+    ]
+  }
+]
