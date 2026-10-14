@@ -39,7 +39,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | done 2026-10-14: one chain for a round (a singles match from its cards fixed); the tee-name pipeline and the handicap record checked |
 | 5 | A card | gross, net, points, to par | done 2026-10-14: what a stroke can be asked one way; the loops and to-par measured consistent on that footing |
-| 6 | A round | finished or not, ranking, ties, a match result | not started |
+| 6 | A round | finished or not, ranking, ties, a match result | started 2026-10-14: a match result is a card of the round's length, over when decided, at all three doors |
 | 7 | Across rounds | cut, flights, brackets, season table | not started |
 | 8 | Money | pots, splits, who owes whom | not started |
 | 9 | What screens say | two screens never give different answers | not started |
@@ -211,6 +211,7 @@ day and will drift: search for the expression.
 
 ### 6 A round
 - Finished: ~14 named predicates + ~30 inline. `resolveMatch(...).complete` read without `matchIsOver` (an empty [] card reads complete and halved): domain/standings.ts:108-120, 295; tournament.ts:2566, 3534; single-match.ts:76-79; tournament-result.ts:161-163; finish-order.ts:38; actions/tournament.ts:2356, 2962, 3382; ScoreEntryClient.tsx:274, 490.
+  **Measured 2026-10-14**: 0 of 6,528 stored matches hold `[]`, and every creator writes a card of blanks, so those readers cannot meet one in what is stored. Two WRITERS could store one, and did not clean what they were sent: `saveMatchHoles` (an empty list read as finished, scored and queued for sign-off; `["A"]` as an eighteen-hole match won 1 up; a hole that is not a result stored) and a file of hole-by-hole results (an empty row stored as `[]` and stamped scored). Both now clean to the round's length and ask `matchIsOver` (`a-match-result-is-a-card-of-its-length.audit.test.ts`). And the round-code door asked "every hole filled", so a match won 5&4 could not be handed in whole and was never stamped scored; it asks `matchIsOver` now, and its screen `matchIsOverAfter` (`play-score-entry.audit.test.ts`, `render.test.tsx`). **Not covered by any test**: the round-code screen's hold-back of a decided card under whole-round entry (a break of it was NOT CAUGHT); a regression costs a player a few taps, or the Final result box, and not a result.
 - "Any stroke": `> 0` at cut-ready.ts:126; stroke-cut.ts:180; round-cards.ts:112 vs `!= null` at expenses.ts:513, 557; skins-pot.ts:291, 545; domain/skins-pot.ts:103; points-standings.ts:152; playing-history.ts:113.
 - "Card full": scorecard-write.ts:97; actions/tournament.ts:2798; PlayerCard.tsx:208; PlayClient.tsx:549; tournament-switcher.ts:91; actions/play.ts:229.
 - "Round official", two spellings: `closedAt != null` (leaderboard/page.tsx:233; me.ts:492, 634; expenses.ts:823, 1963; week-view.ts:484) vs `closedAt || event.status === "completed"` (expenses.ts:543, 1994; tournament-result.ts:263, 279, 355).
