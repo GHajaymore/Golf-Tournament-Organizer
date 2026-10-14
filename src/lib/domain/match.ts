@@ -104,6 +104,16 @@ export function matchIsOver(holes: HoleResult[]): boolean {
 }
 
 /**
+ * The same question of a list that may be SHORTER than the round — a card a
+ * screen is still filling in. Padded to the round's length first, because a
+ * short list reads as fewer holes left: five wins in a list of five would be a
+ * match won 5 up with nothing to play.
+ */
+export function matchIsOverAfter(holes: readonly HoleResult[], holeCount: number): boolean {
+  return matchIsOver(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
+}
+
+/**
  * The same question, asked of a STORED match row.
  *
  * `matchIsOver` takes parsed holes; every caller that has a database row

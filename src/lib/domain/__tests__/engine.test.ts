@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveMatch,
   matchIsOver,
+  matchIsOverAfter,
   marginToHoles,
   parseResultTranscript,
   aggregateStats,
@@ -663,5 +664,15 @@ describe("a match is over when it is decided, not when it is started", () => {
      */
     expect(matchIsOver([])).toBe(false);
     expect(matchIsOver(H(".".repeat(18)))).toBe(false);
+  });
+
+  it("asks a card still being filled in against the ROUND's holes, not the list's", () => {
+    // Five wins in a list of five is five up with nothing left only if the
+    // round is five holes. On eighteen it is five up with thirteen to play.
+    expect(matchIsOver(H("AAAAA"))).toBe(true);
+    expect(matchIsOverAfter(H("AAAAA"), 18)).toBe(false);
+    // Five up with four to play is over, however many cells the list carries.
+    expect(matchIsOverAfter(H("AAAAA" + "H".repeat(9)), 18)).toBe(true);
+    expect(matchIsOverAfter([], 18)).toBe(false);
   });
 });
