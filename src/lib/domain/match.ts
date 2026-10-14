@@ -1,7 +1,7 @@
 // Match-play resolution: everything about a match derives from its `holes[]` array.
 // Reproduces the "Standings Logic" section of the handoff README exactly.
 
-import type { HoleResult, Match } from "./types";
+import type { HoleResult } from "./types";
 import { holeStrokesReceived , allocationHoles } from "./stroke";
 
 export interface MatchResolution {
@@ -361,10 +361,6 @@ export function parseResultTranscript(
   else if (up) margin = `${up[1]} UP`;
 
   return { winner, margin };
-}
-
-export function isMatchStarted(m: Match): boolean {
-  return m.holes.some((h) => h !== null);
 }
 
 /**
