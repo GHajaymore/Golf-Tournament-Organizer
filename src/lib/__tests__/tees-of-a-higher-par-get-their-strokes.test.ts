@@ -304,11 +304,18 @@ describe("every place a round is priced says whether the pars are in it", () => 
 
   it("CONTROL: the sweep reads the app and finds the places a round is priced", () => {
     expect(files.length).toBeGreaterThan(400);
-    const priced = callsOf("roundPlayingHandicap");
+    // Since 2026-10-14 a round is priced through `playingHandicapInRound` (or its
+    // parts), which calls `roundPlayingHandicap` in `round-allowance.ts`.
+    const priced = [
+      ...callsOf("roundPlayingHandicap"),
+      ...callsOf("playingHandicapInRound"),
+      ...callsOf("playingHandicapPartsInRound"),
+    ];
     // The two boards' resolvers, the round's own list, skins, the league, team
-    // sides, the stored team match and the net import, the printed card, and
-    // the per-hole spread inside a team card.
+    // sides, the stored team match and the net import, the printed card, the
+    // per-hole spread inside a team card, and the one function they share.
     for (const f of [
+      "src/lib/round-allowance.ts",
       "src/lib/services/tournament.ts",
       "src/lib/services/round-handicap.ts",
       "src/lib/services/skins-pot.ts",
@@ -367,8 +374,12 @@ describe("every place a round is priced says whether the pars are in it", () => 
       let at = code.indexOf(".parStrokes(");
       while (at >= 0) {
         const lead = code.slice(Math.max(0, at - 160), at);
-        // Inside `roundParStrokesOf(row, map.parStrokes(id))`, or the freeze itself.
-        const viaRow = /roundParStrokesOf\([^;]*$/.test(lead);
+        // Inside `roundParStrokesOf(row, map.parStrokes(id))`, or handed as
+        // `parStrokes:` to `playingHandicapInRound`, which passes it through
+        // `roundParStrokesOf` with the round's row (pinned below), or the freeze itself.
+        const viaRow =
+          /roundParStrokesOf\([^;]*$/.test(lead) ||
+          /playingHandicap(Parts)?InRound\([^;]*parStrokes: [^;,]*$/.test(code.slice(Math.max(0, at - 400), at));
         const theFreeze = f === "src/lib/services/round-handicap.ts" && /const parFor = [^;]*$/.test(lead);
         if (!viaRow && !theFreeze) bad.push(`${f}: …${lead.slice(-50).replace(/\s+/g, " ")}.parStrokes(`);
         at = code.indexOf(".parStrokes(", at + 1);
@@ -379,6 +390,8 @@ describe("every place a round is priced says whether the pars are in it", () => 
     const readers = files.filter((f) => codeOf.get(f)!.includes(".parStrokes("));
     expect(readers.length).toBeGreaterThanOrEqual(7);
     expect(codeOf.get("src/lib/services/round-handicap.ts")).toMatch(/frozenParStrokes: parFor\(p\)/);
+    // And the one function the others hand `parStrokes:` to reads it through the round's row.
+    expect(codeOf.get("src/lib/round-allowance.ts")).toMatch(/roundParStrokesOf\(row, member\.parStrokes\)/);
   });
 
   it("a team card is handed each member's strokes for the pars at both of its callers", () => {

@@ -906,8 +906,10 @@ describe("net imports are converted where the real handicap lives", () => {
     // too — an error here is the one kind that cannot be recomputed away.
     expect(fn).toMatch(/flightTeeOf: importFlightTee/);
     // With the round's TYPE: a four-ball is 85% at stroke play and 90% in a match
-    // (Appendix C), so the format alone cannot say what a round plays at.
-    expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance, stage\.type\)/);
+    // (Appendix C), so the format alone cannot say what a round plays at. Since
+    // 2026-10-14 the whole ROUND is handed to the one place a round is priced,
+    // which takes the allowance with its type (`a-round-is-priced-one-way.test.ts`).
+    expect(fn).toMatch(/playingHandicapInRound\(stage, importRound\.get\(id\), \{/);
   });
 
   it("adds the shots back per hole off the stroke index", () => {

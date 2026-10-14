@@ -1,5 +1,7 @@
 import { findFormat, isManualFormat, needsTeams } from "./formats";
 import { isHeadToHead, isIndividualStrokeRound } from "./stage-types";
+import { NO_PAR_STROKES, roundPlayingHandicap } from "./domain/handicap";
+import { resolveRoundHandicap, roundParStrokesOf, type ResolvedRoundHandicap, type RoundHandicapRow } from "./domain/round-handicap";
 
 /** Appendix C: four-ball stroke play. The format's own figure, 90, is four-ball match play. */
 export const FOUR_BALL_STROKE_PLAY = 85;
@@ -81,6 +83,68 @@ export function parStrokesApply(format: string, scoringBasis: string | null | un
   if (basis === "stableford" || basis === "modified-stableford") return false;
   if (f.ball === "single") return false;
   return true;
+}
+
+/**
+ * ONE PLAYER'S PLAYING HANDICAP IN ONE ROUND, where they play their own ball:
+ * the round's figure for them (frozen, then the committee's, then the roster's
+ * — `resolveRoundHandicap`), its allowance taken of the unrounded figure
+ * (Rule 6.2a), and then the strokes for tees of a higher par where the round
+ * gives them (Rule 6.2b). In that order, and here only.
+ *
+ * It was written out three times. The board and the screens that show a match
+ * (`handicapFor`, `matchHandicapFor`) had all three steps; the stored result of
+ * a singles match decided from its two cards had the first alone, so a woman
+ * off the par-72 reds was shown a stroke against a man off the par-71 whites
+ * and had her win stored as a half
+ * (`stored-results-give-the-strokes-for-the-pars.audit.test.ts`).
+ *
+ * `member` is that player's figures off the tees this round is played from:
+ * `CourseHandicaps.get`, `.exact` and `.parStrokes`. `round` is null only when
+ * the round cannot be found, and is then priced at 100% with nothing for pars.
+ * `handicapAllowance` is the committee's figure, nought for none — a caller
+ * holding an override of its own passes that.
+ *
+ * `roundPlayingHandicap` is called here and in `domain/team.ts` only
+ * (`a-round-is-priced-one-way.test.ts`).
+ */
+export function playingHandicapInRound(
+  round: RoundPricing | null | undefined,
+  row: RoundHandicapRow | null | undefined,
+  member: { whole: number; exact: number; parStrokes: number },
+): number {
+  return playingHandicapPartsInRound(round, row, member).playing;
+}
+
+/** What `playingHandicapInRound` prices a round off. */
+export interface RoundPricing {
+  format: string;
+  type: string | null | undefined;
+  scoringBasis: string | null | undefined;
+  handicapAllowance: number;
+}
+
+/**
+ * The same figure with its parts, for a screen that lists them beside it (the
+ * round's handicap list, a side's members): so the parts shown and the figure
+ * they add up to are one calculation.
+ */
+export function playingHandicapPartsInRound(
+  round: RoundPricing | null | undefined,
+  row: RoundHandicapRow | null | undefined,
+  member: { whole: number; exact: number; parStrokes: number },
+): { resolved: ResolvedRoundHandicap; allowance: number; parStrokes: number; playing: number } {
+  const allowance = round ? effectiveAllowance(round.format, round.handicapAllowance, round.type) : 100;
+  const resolved = resolveRoundHandicap({
+    frozen: row?.frozen,
+    frozenExact: row?.frozenExact,
+    override: row?.override,
+    member: member.whole,
+    memberExact: member.exact,
+  });
+  const parStrokes =
+    round && parStrokesApply(round.format, round.scoringBasis) ? roundParStrokesOf(row, member.parStrokes) : NO_PAR_STROKES;
+  return { resolved, allowance, parStrokes, playing: roundPlayingHandicap(resolved.exact, allowance, parStrokes) };
 }
 
 /**

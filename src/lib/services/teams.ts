@@ -3,10 +3,9 @@ import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "./handi
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { effectiveAllowance, parStrokesApply, recommendedAllowance } from "../round-allowance";
-import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
+import { effectiveAllowance, playingHandicapPartsInRound, recommendedAllowance } from "../round-allowance";
+import { holesPlayed } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
-import { roundHandicapExactOf, roundHandicapOf, roundParStrokesOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
@@ -198,27 +197,27 @@ export async function teamsForStage(
   const round = await roundHandicapRows(eventId, stageId);
 
   const ownBall = findFormat(format).ball !== "single";
-  const givesParStrokes = parStrokesApply(format, stage?.scoringBasis);
-  const allowancePct = effectiveAllowance(format, allowanceOverride, stage?.type);
+  // The caller's format and allowance, which are the round's or what a screen
+  // is previewing; the round's own kind and basis.
+  const pricing = { format, type: stage?.type, scoringBasis: stage?.scoringBasis, handicapAllowance: allowanceOverride };
 
   return use.map((t) => {
     const members = t.members.map((m) => {
-      const handicapExact = roundHandicapExactOf(
-        round.get(m.playerId),
-        courseHcp.get(m.playerId) ?? m.player.handicap,
-        courseHcp.exact(m.playerId) ?? m.player.handicap,
-      );
-      // Tees of a higher par (Rule 6.2b), where every player plays their own ball.
-      const parStrokes = givesParStrokes
-        ? roundParStrokesOf(round.get(m.playerId), courseHcp.parStrokes(m.playerId))
-        : NO_PAR_STROKES;
+      // The parts and the figure from one calculation: the round's handicap,
+      // its allowance, and the strokes for tees of a higher par (Rule 6.2b),
+      // where every player plays their own ball.
+      const priced = playingHandicapPartsInRound(pricing, round.get(m.playerId), {
+        whole: courseHcp.get(m.playerId) ?? m.player.handicap,
+        exact: courseHcp.exact(m.playerId) ?? m.player.handicap,
+        parStrokes: courseHcp.parStrokes(m.playerId),
+      });
       return {
       playerId: m.playerId,
       name: m.player.name,
-      handicap: roundHandicapOf(round.get(m.playerId), courseHcp.get(m.playerId) ?? m.player.handicap),
-      handicapExact,
-      parStrokes,
-      playing: ownBall ? roundPlayingHandicap(handicapExact, allowancePct, parStrokes) : null,
+      handicap: priced.resolved.handicap,
+      handicapExact: priced.resolved.exact,
+      parStrokes: priced.parStrokes,
+      playing: ownBall ? priced.playing : null,
       position: m.position,
       // Left the field by EITHER route. This asked for "withdrawn" alone, so a
       // partner the committee had disqualified still priced the side's

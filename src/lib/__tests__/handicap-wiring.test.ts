@@ -185,9 +185,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
      * Both negatives kept, and they are the safe direction: any future shape
      * that reaches for the roster index fails here whatever it calls the field.
      */
-    // `roundPlayingHandicap` since 2026-10-13: the same allowance of the same
-    // figure, and then the strokes for tees of a higher par (Rule 6.2b).
-    expect(recompute).toMatch(/playingHandicap: roundPlayingHandicap\(\s*playsOffExact\(m\.player\),/);
+    // Since 2026-10-14 through `playingHandicapInRound`, the one place a round
+    // is priced (`a-round-is-priced-one-way.test.ts`), handed this round's row
+    // and the same converted figures `playsOffExact` reads.
+    expect(recompute).toMatch(/playingHandicap: playingHandicapInRound\(teamPricing, teamRound\.get\(m\.player\.id\), \{/);
+    expect(recompute).toMatch(/exact: teamHcp\.exact\(m\.player\.id\) \?\? m\.player\.handicap,/);
     expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
     expect(recompute).not.toMatch(/playingHandicap: m\.player\.handicap/);
   });
@@ -243,7 +245,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // symptom, since an unrated course and a round with no override both leave
     // the number untouched.
     const save = actions.slice(actions.indexOf("saveMatchScorecard"));
-    expect(save).toMatch(/roundHandicapOf\(netRound\.get\(p\.id\), netHcp\.get\(p\.id\)/);
+    // And since 2026-10-14 the PLAYING handicap the screens show, through the one
+    // place a round is priced: the allowance and the strokes for the pars with it.
+    expect(save).toMatch(/playingHandicapInRound\(stage, netRound\.get\(p\.id\), \{/);
+    expect(save).toMatch(/whole: netHcp\.get\(p\.id\) \?\? p\.handicap,/);
+    expect(save).toMatch(/parStrokes: netHcp\.parStrokes\(p\.id\),/);
     expect(save).toMatch(/netMode \? netFor\(playerA\) : 0/);
     expect(save).toMatch(/netMode \? netFor\(playerB\) : 0/);
     expect(save).not.toMatch(/netMode \? playerA\?\.handicap/);
@@ -269,19 +275,21 @@ describe("individual standings play off the Playing Handicap", () => {
     // individual standings used the raw Course Handicap, so every medal ran
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
-    // And the round's type with it: the allowance is the ROUND's (`round-allowance.ts`).
-    expect(src).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance, stage\.type\)/);
+    // And the round's type with it: the allowance is the ROUND's (`round-allowance.ts`),
+    // taken there by `playingHandicapInRound`, which this resolver hands the stage.
+    expect(read("src/lib/round-allowance.ts")).toMatch(/effectiveAllowance\(round\.format, round\.handicapAllowance, round\.type\)/);
+    expect(src).toMatch(/playingHandicapInRound\(stage, ctx\.roundHandicapFor/);
     // The per-round Course Handicap still reaches playingHandicapFrom with the
     // round's allowance. Asserted on the two facts rather than on one exact
     // expression: the round-handicap override put `resolveRoundHandicap`
     // between them, and a test pinned to the wording failed while the
     // behaviour it names was untouched. What matters is that the number going
     // in is this round's Course Handicap and the allowance is applied to it.
-    expect(src).toMatch(/const member = byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0;/);
+    expect(src).toMatch(/whole: byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0,/);
     // And it is the UNROUNDED figure the allowance is taken of. `resolved.handicap`
     // here was the defect: 95% of a rounded course handicap, rounded again.
-    expect(src).toMatch(/memberExact: byRound\.exact\(playerId\)/);
-    expect(src).toMatch(/roundPlayingHandicap\(resolved\.exact, allowance, parStrokes\)/);
+    expect(src).toMatch(/exact: byRound\.exact\(playerId\)/);
+    expect(read("src/lib/round-allowance.ts")).toMatch(/roundPlayingHandicap\(resolved\.exact, allowance, parStrokes\)/);
     expect(src).not.toMatch(/PlayingHandicap(From)?\(resolved\.handicap/);
   });
 

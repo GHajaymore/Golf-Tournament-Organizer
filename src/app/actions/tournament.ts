@@ -75,11 +75,9 @@ import {
   acceptsHandicapChange,
   isReturnedCard,
   roundHandicapExactOf,
-  roundHandicapOf,
-  roundParStrokesOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { parStrokesApply } from "@/lib/round-allowance";
+import { playingHandicapInRound } from "@/lib/round-allowance";
 import { isTournamentShape, isMatch } from "@/lib/tournament-shape";
 import { QUICK_ROUND_MAX_PLAYERS } from "@/lib/domain/quick-match";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -141,14 +139,13 @@ import {
   FORMATION_RULES,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
-import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable, lookupFormat, needsTeams } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchHolesOffTheLow } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
-import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "@/lib/domain/handicap";
+import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit, playRefusalFor, roundWordsFor } from "@/lib/services/action-shared";
 import { holesChanged } from "@/lib/domain/card-correction";
 import { configurationLocked, isFinished } from "@/lib/domain/lifecycle-state";
@@ -2939,8 +2936,19 @@ async function deriveMatchFromItsCards(
   // type that ignores an override — silently, and after the organizer has been
   // shown a control that appeared to work.
   const netRound = await roundHandicapRows(eventId, match.stageId);
+  //
+  // And the PLAYING handicap, as the screens show it (`matchHandicapFor`): the
+  // allowance, and the strokes for tees of a higher par (Rule 6.2b). This took
+  // the round's figure alone, so a player shown a stroke for the pars had her
+  // win stored as a half.
   const netFor = (p: { id: string; handicap: number } | null) =>
-    p ? roundHandicapOf(netRound.get(p.id), netHcp.get(p.id) ?? p.handicap) : 0;
+    p
+      ? playingHandicapInRound(stage, netRound.get(p.id), {
+          whole: netHcp.get(p.id) ?? p.handicap,
+          exact: netHcp.exact(p.id) ?? p.handicap,
+          parStrokes: netHcp.parStrokes(p.id),
+        })
+      : 0;
   /**
    * A net match cannot be scored without a card, and must not pretend to be.
    *
@@ -3271,7 +3279,9 @@ async function recomputeTeamMatch(
       })
     : null;
   const course = roundCard(stage, event, roundVenue);
-  const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0, stage?.type);
+  // The format this match is scored under, which may be the tournament's where
+  // the round names none — so the round, with that format.
+  const teamPricing = stage ? { ...stage, format: formatName } : null;
 
   /**
    * What each player on a side plays off in this round.
@@ -3293,7 +3303,6 @@ async function recomputeTeamMatch(
   // difference from the lowest par the field is playing — which two maps of
   // two players each would otherwise each find for themselves.
   const teamField = await confirmedField(eventId);
-  const givesParStrokes = parStrokesApply(formatName, stage?.scoringBasis);
 
   const sideCard = async (teamId: string) => {
     const [cards, members] = await Promise.all([
@@ -3371,13 +3380,11 @@ async function recomputeTeamMatch(
       const card = cards.find((c) => c.playerId === m.playerId);
       return {
         strokes: parse(card?.strokes ?? "[]"),
-        playingHandicap: roundPlayingHandicap(
-          playsOffExact(m.player),
-          allowance,
-          givesParStrokes
-            ? roundParStrokesOf(teamRound.get(m.player.id), teamHcp.parStrokes(m.player.id))
-            : NO_PAR_STROKES,
-        ),
+        playingHandicap: playingHandicapInRound(teamPricing, teamRound.get(m.player.id), {
+          whole: teamHcp.get(m.player.id) ?? m.player.handicap,
+          exact: teamHcp.exact(m.player.id) ?? m.player.handicap,
+          parStrokes: teamHcp.parStrokes(m.player.id),
+        }),
         pickedUp: picks(card?.pickedUp),
       };
     });
@@ -5405,26 +5412,17 @@ export async function importScores(
       event,
       holes,
     });
-    const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster
     // where the round holds an override would bake the difference into stored
-    // strokes — the one place an error stops being recomputable.
+    // strokes — the one place an error stops being recomputable. And priced as
+    // the board prices it (allowance of the unrounded figure, then the strokes
+    // for the pars), or the gross this stores is a stroke from the board's.
     const importRound = await roundHandicapRows(eventId, stageId);
     netHcp = new Map(
       [...ch].map(([id, v]) => [
         id,
-        // Of the UNROUNDED figure, as the board takes it — or the gross this
-        // stores would be a stroke from the one the board derives.
-        roundPlayingHandicap(
-          roundHandicapExactOf(importRound.get(id), v, ch.exact(id)),
-          allowance,
-          // As the board gives them (Rule 6.2b), or the gross this stores is a
-          // stroke from the one the board derives for anybody on the longer par.
-          parStrokesApply(stage.format, stage.scoringBasis)
-            ? roundParStrokesOf(importRound.get(id), ch.parStrokes(id))
-            : NO_PAR_STROKES,
-        ),
+        playingHandicapInRound(stage, importRound.get(id), { whole: v, exact: ch.exact(id) ?? v, parStrokes: ch.parStrokes(id) }),
       ]),
     );
     // The nine actually played, re-ranked. Converting a file of NET scores

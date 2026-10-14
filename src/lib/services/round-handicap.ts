@@ -2,16 +2,14 @@ import "server-only";
 import { playedOnBy } from "./courses";
 import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer, FIELD_PLAYER, type FieldPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps } from "../domain/handicap";
+import { type CourseHandicaps } from "../domain/handicap";
 import { findFormat } from "../formats";
-import { effectiveAllowance, parStrokesApply } from "../round-allowance";
+import { playingHandicapPartsInRound } from "../round-allowance";
 import {
   acceptsHandicapChange,
   exactHandicapToFreeze,
   handicapToFreeze,
   isReturnedCard,
-  resolveRoundHandicap,
-  roundParStrokesOf,
   type HandicapSource,
 } from "../domain/round-handicap";
 
@@ -358,9 +356,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     },
   });
   if (!stage) return [];
-  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
   const ownBall = findFormat(stage.format).ball !== "single";
-  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
 
   // Scored, whether or not anything is frozen. A round played before the freeze
   // existed has cards and no rows, and offering to change its handicaps would
@@ -385,14 +381,13 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   return players.map((p) => {
     const row = byPlayer.get(p.id) ?? null;
     const member = courseHcp.get(p.id) ?? p.handicap;
-    const resolved = resolveRoundHandicap({
-      frozen: row?.frozen,
-      frozenExact: row?.frozenExact,
-      override: row?.override,
-      member,
-      memberExact: courseHcp.exact(p.id) ?? p.handicap,
+    // The parts this list shows and the figure they add up to, from the one
+    // calculation the board prices the round with.
+    const { resolved, allowance, parStrokes, playing } = playingHandicapPartsInRound(stage, row, {
+      whole: member,
+      exact: courseHcp.exact(p.id) ?? p.handicap,
+      parStrokes: courseHcp.parStrokes(p.id),
     });
-    const parStrokes = givesParStrokes ? roundParStrokesOf(row, courseHcp.parStrokes(p.id)) : NO_PAR_STROKES;
     return {
       playerId: p.id,
       name: p.name,
@@ -403,7 +398,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       exact: resolved.exact,
       allowance,
       parStrokes,
-      playing: ownBall ? roundPlayingHandicap(resolved.exact, allowance, parStrokes) : null,
+      playing: ownBall ? playing : null,
       source: resolved.source,
       editable: resolved.editable && acceptsHandicapChange(returned),
       differsFromCurrent: resolved.differsFromCurrent,

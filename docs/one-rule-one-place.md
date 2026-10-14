@@ -37,7 +37,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
 | 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
 | 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
-| 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
+| 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; one chain for a round 2026-10-14 (a singles match from its cards fixed); two side pipelines open |
 | 5 | A card | gross, net, points, to par | not started |
 | 6 | A round | finished or not, ranking, ties, a match result | not started |
 | 7 | Across rounds | cut, flights, brackets, season table | not started |
@@ -135,6 +135,19 @@ handicap readers became one (counted off the diff, not the inventory). The four
 - **Playing handicap in a round** (step 4): `roundPlayingHandicap`, required
   third argument; `tees-of-a-higher-par-get-their-strokes.test.ts` refuses the
   bare allowance anywhere a round is priced. Thirteen places, one function.
+  **And since 2026-10-14 one CHAIN**: `playingHandicapInRound(round, row,
+  member)` in `round-allowance.ts` (with `playingHandicapPartsInRound` for a
+  screen that lists the parts) is the round's figure, its allowance and the
+  strokes for the pars, in that order; ten callers, and
+  `a-round-is-priced-one-way.test.ts` refuses `roundPlayingHandicap` anywhere
+  else but the spread inside a team card. It had been written out nine times,
+  and the ninth — the stored result of a singles match decided from its two
+  cards — had the first step alone: a woman off the par-72 reds was shown a
+  stroke against a man off the par-71 whites, on the scorer's screen and her
+  own, and her 1-up win was stored as a half
+  (`stored-results-give-the-strokes-for-the-pars.audit.test.ts`). The guide had
+  said all along that a match gives the strokes. `roundHandicapOf`, left with no
+  callers, is deleted.
 - **The field for the lowest par** (steps 2 and 4): `roundCourseHandicaps`
   requires `field`; `confirmedField(eventId)` supplies it. Nine readers, one
   field.
