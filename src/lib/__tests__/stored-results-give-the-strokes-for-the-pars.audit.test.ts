@@ -20,10 +20,11 @@ import { PrismaClient } from "@prisma/client";
  *
  * The fixture makes the handicap the only thing that can decide a hole: every
  * ball is a four on every hole, both sets are slope 113 with the rating equal
- * to the par (so a course handicap IS the index), three players are scratch
- * off the par-71 whites and one is a 10.0 off the par-72 reds. She plays off
- * 10 and one more for the pars: eleven strokes, on stroke indexes 1 to 11,
- * which here are holes 1 to 11. Without the Rule the 11th is halved.
+ * to the par (so a course handicap IS the index). Side A are two scratch
+ * players off the par-71 whites; side B are a scratch player and a 10.0, both
+ * off the par-72 reds. The 10.0 plays off 10 and one more for the pars: eleven
+ * strokes, on stroke indexes 1 to 11, which here are holes 1 to 11. Without the
+ * Rule the 11th is halved.
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -133,8 +134,10 @@ beforeAll(async () => {
 
   const specs = [
     { club: clubA.id, tag: "A", players: [{ index: 0, tee: null }, { index: 0, tee: null }] },
-    // B1 is the one player on the higher par.
-    { club: clubB.id, tag: "B", players: [{ index: 0, tee: null }, { index: 10, tee: red.id }] },
+    // BOTH of side B are on the higher par, and nobody on side A is — so a
+    // reader that measured each side from its own lowest par would find no
+    // difference on either side and give no stroke at all.
+    { club: clubB.id, tag: "B", players: [{ index: 0, tee: red.id }, { index: 10, tee: red.id }] },
   ];
   for (const spec of specs) {
     const side = await prisma.team.create({
@@ -232,7 +235,7 @@ describe("a four-ball match with one player on the higher par", () => {
     const of = (who: string) => rows.find((r) => r.playerId === player[who]);
     expect(of("B1")?.frozen).toBe(10);
     expect(of("B1")?.frozenParStrokes).toBe(1);
-    expect(["A0", "A1", "B0"].map((who) => of(who)?.frozenParStrokes)).toEqual([0, 0, 0]);
+    expect(["A0", "A1", "B0"].map((who) => of(who)?.frozenParStrokes)).toEqual([0, 0, 1]);
   });
 
   it("and the league's own reading of the same cards names the same holes", async () => {
