@@ -2354,6 +2354,20 @@ model RoundHandicap {
   frozen   Int?
   frozenAt DateTime?
 
+  /**
+   * The same frozen figure before it was rounded (2026-10-13).
+   *
+   * A handicap allowance is taken of the UNROUNDED Course Handicap and the
+   * result rounded once (Rules of Handicapping, 6.2a). `frozen` is the whole
+   * number a player was told; this is what 95% or 85% is taken of. Written with
+   * `frozen`, in the same statement, and never rewritten.
+   *
+   * Null means the whole number is all there is: a round frozen before this
+   * column existed, or one frozen off a committee's own figure. Such a round
+   * keeps exactly the strokes it was played off.
+   */
+  frozenExact Float?
+
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, playerId])

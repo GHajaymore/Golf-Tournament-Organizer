@@ -133,7 +133,9 @@ describe("supplying nothing changes nothing", () => {
     // 12 on some holes and 13 on others by float comparison, which is how a
     // player ends up with a stroke on the wrong hole.
     expect(resolveRoundHandicap({ member: 12.5 }).handicap).toBe(13);
-    expect(resolveRoundHandicap({ member: -0.4 }).handicap).toBe(-0);
+    // Scratch, and plain zero: this asserted `-0` because that is what a bare
+    // `Math.round` hands back, which is a fact about JavaScript and not about golf.
+    expect(resolveRoundHandicap({ member: -0.4 }).handicap).toBe(0);
   });
 
   it("keeps a plus handicap negative rather than clamping it to scratch", () => {

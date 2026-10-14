@@ -57,7 +57,10 @@ const playsOff = (t: { courseRating: number; slopeRating: number; par: number })
  * Handicap against it would be comparing two different quantities.
  */
 const playing = (t: { courseRating: number; slopeRating: number; par: number }) =>
-  playingHandicapFrom(playsOff(t), 95);
+  // Of the course handicap BEFORE it is rounded (Rule 6.2a). This took 95% of
+  // `playsOff(t)`, the rounded figure, which is what the app did and is a stroke
+  // out for the Ladies flight on these very tees.
+  playingHandicapFrom(INDEX * (t.slopeRating / 113) + (t.courseRating - t.par), 95);
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });

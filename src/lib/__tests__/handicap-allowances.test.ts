@@ -24,7 +24,12 @@ import { sidePlayingHandicap } from "@/lib/services/teams";
  * checking would pass on any value at all.
  *
  * SOURCE: USGA Rules of Handicapping, Appendix C (Handicap Allowances), and
- * the USGA committee guidance on formats of play. Checked 2026-09-14.
+ * the USGA committee guidance on formats of play. Checked 2026-09-14, and
+ * again 2026-10-13 against the 2024 edition's table, which found three things
+ * the first reading had not: the scrambles ARE published (and a side of three
+ * has its own row, 30/20/10); a four-ball is 85% at stroke play; and best 1 of
+ * 4 and best 3 of 4 are not Best Ball's 85%. The first two are fixed; the third
+ * is in `docs/deferred-register.md`.
  *
  * A committee may always set its own — every allowance in this app is a
  * default an organizer can override, and `sidePlayingHandicap` honours the
@@ -43,7 +48,9 @@ const FLAT: Array<[string, number, string]> = [
   ["Stroke Play", 95, "individual stroke play — 95%"],
   ["Stableford", 95, "Stableford is grouped with individual stroke play — 95%"],
   ["Modified Stableford", 95, "Modified Stableford follows individual stroke play — 95%"],
-  // Four-ball MATCH play, which is what this app calls Four-Ball.
+  // Four-ball MATCH play, which is what this app calls Four-Ball. That is the
+  // figure the FORMAT holds; a Four-Ball put on a stroke-play round plays at
+  // the stroke-play 85%, which `round-allowance.test.ts` holds.
   ["Four-Ball", 90, "four-ball match play — 90%"],
   // Four-ball STROKE play, which this app calls Best Ball.
   ["Best Ball", 85, "four-ball stroke play — 85%"],
@@ -143,15 +150,17 @@ describe("what a side actually plays off", () => {
 describe("which formats admit to having no published allowance", () => {
   const convention = GOLF_FORMATS.filter((f) => f.allowanceIsConvention).map((f) => f.name);
 
-  it("is the three formats Appendix C does not name", () => {
+  it("is the one format Appendix C does not name", () => {
     /**
-     * Scramble and Texas Scramble genuinely have no published WHS allowance —
-     * the descending tables in this app are the widespread club convention,
-     * and saying so is the honest thing.
+     * THE SCRAMBLES WERE ON THIS LIST, AND THE APPENDIX HAS CARRIED THEM FOR
+     * YEARS. It gives a scramble of four 25/20/15/10 and of two 35/15, and the
+     * 2024 edition added a scramble of three at 30/20/10. This test said they
+     * "genuinely have no published WHS allowance" and held the app to saying
+     * so, which is the app telling an organizer something untrue about the
+     * Rules in the other direction. Read against the table again 2026-10-13.
      *
-     * SHAMBLE IS A WEAKER CASE and is listed here deliberately rather than
-     * tidily. Appendix C does not name a shamble either, so "not a published
-     * standard" is literally true; the 85% it carries is the four-ball stroke
+     * SHAMBLE IS THE ONE LEFT. Appendix C does not name a shamble, so "not a
+     * published standard" is literally true; the 85% it carries is the four-ball stroke
      * play allowance, applied because players play their own ball once the
      * drive is chosen. That reasoning is sound and widely followed, but it is
      * an inference from a neighbouring line of the table rather than a line of
@@ -161,7 +170,7 @@ describe("which formats admit to having no published allowance", () => {
      * Every other playable format in the catalogue IS named in Appendix C,
      * which is the half this test exists to hold.
      */
-    expect(convention.sort()).toEqual(["Scramble", "Shamble", "Texas Scramble"]);
+    expect(convention.sort()).toEqual(["Shamble"]);
   });
 
   it("does not say it about Chapman, which the USGA publishes", () => {
@@ -210,7 +219,7 @@ describe("every format in the catalogue has its allowance accounted for", () => 
    */
   const NOT_AN_ALLOWANCE = ["Skins", "Nassau", "Other (scored by hand)"];
 
-  /** Split-table formats stated in the convention block above rather than SPLIT. */
+  /** Split-table formats whose table is per side size, stated in the block below rather than SPLIT. */
   const CONVENTION_SPLIT = ["Scramble", "Texas Scramble"];
 
   const stated = new Set([
@@ -237,7 +246,17 @@ describe("every format in the catalogue has its allowance accounted for", () => 
     expect(ghosts, "these are stated but no longer exist — a rename left them behind").toEqual([]);
   });
 
-  it("gives the two convention scrambles a real table, not a flat number", () => {
+  it("gives the two scrambles Appendix C's three tables, lowest handicap first", () => {
+    for (const name of CONVENTION_SPLIT) {
+      const f = findFormat(name);
+      expect(f.weightsBySideSize?.[4], `${name}, four players`).toEqual([25, 20, 15, 10]);
+      // Added to the appendix in 2024. The app had 25/20/15: the four's shares with the last dropped.
+      expect(f.weightsBySideSize?.[3], `${name}, three players`).toEqual([30, 20, 10]);
+      expect(f.weightsBySideSize?.[2], `${name}, two players`).toEqual([35, 15]);
+    }
+  });
+
+  it("gives the two scrambles a real table, not a flat number", () => {
     /**
      * They are excused from SPLIT because their table is per side size and
      * their reason lives in the convention block — but excused is not the same

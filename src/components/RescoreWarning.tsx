@@ -111,6 +111,9 @@ export const RESCORE_CONSEQUENCE = {
   // The three a team round adds — see `RoundTeamScoring`.
   allowance:
     "Changing the allowance re-scores every one of them. Each side receives a different number of strokes, so net scores and results move while no stroke on a card changes.",
+  // An individual round: there is no side, so it is each player's strokes that change.
+  allowanceIndividual:
+    "Changing the allowance re-scores every one of them. Each player receives a different number of strokes, so net scores, points and places move while no stroke on a card changes.",
   split:
     "Changing the split re-scores every one of them. The side's handicap is worked out from different shares of its players', so its strokes — and its result — change.",
   venue:

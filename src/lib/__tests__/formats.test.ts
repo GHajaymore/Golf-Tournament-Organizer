@@ -15,7 +15,6 @@ import {
   boardKind,
   sharesOneCard,
   sideSizeRange,
-  playingHandicap,
 } from "../formats";
 
 describe("the catalog", () => {
@@ -46,11 +45,14 @@ describe("the catalog", () => {
     }
   });
 
-  it("marks conventions as conventions", () => {
-    // The scramble family has no published WHS allowance. Presenting a local
-    // custom as a standard would be a quiet factual error in the UI.
-    expect(findFormat("Scramble").allowanceIsConvention).toBe(true);
-    expect(findFormat("Texas Scramble").allowanceIsConvention).toBe(true);
+  it("marks conventions as conventions, and only those", () => {
+    // A shamble has no line in Appendix C. Presenting a local custom as a
+    // standard would be a quiet factual error in the UI.
+    expect(findFormat("Shamble").allowanceIsConvention).toBe(true);
+    // The scrambles have had one for years (and a side of three since 2024):
+    // presenting a standard as a local custom is the same error the other way.
+    expect(findFormat("Scramble").allowanceIsConvention).toBeUndefined();
+    expect(findFormat("Texas Scramble").allowanceIsConvention).toBeUndefined();
     // Foursomes does have one.
     expect(findFormat("Foursomes").allowanceIsConvention).toBeUndefined();
   });
@@ -309,25 +311,3 @@ describe("what a format implies", () => {
   });
 });
 
-describe("playingHandicap", () => {
-  it("applies the format's allowance", () => {
-    expect(playingHandicap(20, "Stroke Play")).toBe(19); // 95%
-    expect(playingHandicap(20, "Match Play")).toBe(20); // 100%
-    expect(playingHandicap(20, "Four-Ball")).toBe(18); // 90%
-  });
-
-  it("honours a committee override", () => {
-    // Allowances are recommendations; a committee may set its own.
-    expect(playingHandicap(20, "Stroke Play", 100)).toBe(20);
-    expect(playingHandicap(20, "Stroke Play", 0)).toBe(0);
-  });
-
-  it("rounds to whole strokes", () => {
-    expect(playingHandicap(9, "Stroke Play")).toBe(9); // 8.55 -> 9
-    expect(playingHandicap(7, "Four-Ball")).toBe(6); // 6.3 -> 6
-  });
-
-  it("handles a scratch player", () => {
-    expect(playingHandicap(0, "Scramble")).toBe(0);
-  });
-});

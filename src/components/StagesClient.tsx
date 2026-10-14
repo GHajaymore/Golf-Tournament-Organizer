@@ -51,6 +51,7 @@ import {
 import { ScoringClient } from "./ScoringClient";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import { RoundHandicaps } from "./RoundHandicaps";
+import { RoundAllowance, type RoundAllowanceInfo } from "./RoundAllowance";
 import type { RoundHandicapView } from "@/lib/services/round-handicap";
 import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
@@ -133,6 +134,8 @@ export interface StageView {
   nine: string;
   /** How this round prices its sides, or null for an individual format. */
   teamScoring: RoundScoringInfo | null;
+  /** What an individual net round plays at, or null where the round has no such line. */
+  allowance: RoundAllowanceInfo | null;
   /**
    * What each player plays off in this round, resolved — the roster's handicap,
    * the committee's decision for the round, or what the round was scored
@@ -1526,6 +1529,19 @@ function StageCard({
           priced with, and an organizer who fixes a handicap on the roster
           should be able to see, on the round, that the round already has
           one. */}
+      {/* An individual net round's allowance. A team round has it in the panel
+          above; this is the same line for a medal or a Stableford, which had no
+          control at all until 2026-10-13 — and a field under thirty may play at
+          100% (Appendix C). */}
+      {stage.allowance && (
+        <div>
+          <SectionLabel>Handicap allowance</SectionLabel>
+          <div style={{ marginTop: 6 }}>
+            <RoundAllowance stageId={stage.id} info={stage.allowance} locked={locked} />
+          </div>
+        </div>
+      )}
+
       {stage.handicaps.length > 0 && (
         <div>
           <SectionLabel>Handicaps for this round</SectionLabel>

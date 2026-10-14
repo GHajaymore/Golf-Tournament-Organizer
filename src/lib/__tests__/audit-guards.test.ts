@@ -903,7 +903,9 @@ describe("net imports are converted where the real handicap lives", () => {
     // This path writes STORED strokes, so it converts off the flight's tees
     // too — an error here is the one kind that cannot be recomputed away.
     expect(fn).toMatch(/flightTeeOf: importFlightTee/);
-    expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
+    // With the round's TYPE: a four-ball is 85% at stroke play and 90% in a match
+    // (Appendix C), so the format alone cannot say what a round plays at.
+    expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance, stage\.type\)/);
   });
 
   it("adds the shots back per hole off the stroke index", () => {

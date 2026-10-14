@@ -2,7 +2,7 @@ import "server-only";
 import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapOf } from "../domain/round-handicap";
+import { roundHandicapExactOf } from "../domain/round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
@@ -165,6 +165,7 @@ export async function skinsPotFor(
         nine: true,
         format: true,
         handicapAllowance: true,
+        type: true,
         // The committee's "this round is finished" — releases a pot held for
         // an entrant who never teed off. See `waitingToStart`.
         closedAt: true,
@@ -479,7 +480,7 @@ export async function skinsPotFor(
    * `every-reader-prices-the-away-round.audit.test.ts`, whose divergence test
    * became that agreement assertion when this landed.
    */
-  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+  const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
@@ -488,7 +489,12 @@ export async function skinsPotFor(
       // all, which is the old behaviour and the best available guess.
       courseHandicap: strokesForPot(
         playingHandicapFrom(
-          roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+          // Before rounding: the allowance is taken of this (Rule 6.2a).
+          roundHandicapExactOf(
+            round.get(p.id),
+            courseHcp.get(p.id) ?? p.handicap,
+            courseHcp.exact(p.id) ?? p.handicap,
+          ),
           allowance,
         ),
       ),

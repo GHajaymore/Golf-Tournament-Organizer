@@ -3,7 +3,7 @@ import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, teeForPlay, roundCourseHandicaps, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { roundHandicapRows, type RoundHandicapRows } from "@/lib/services/round-handicap";
-import { roundHandicapOf } from "@/lib/domain/round-handicap";
+import { roundHandicapExactOf } from "@/lib/domain/round-handicap";
 import { effectiveAllowance, effectiveCountBest, teamsForStage, teamStandings } from "@/lib/services/teams";
 import { needsTeams, sharesOneCard } from "@/lib/formats";
 import { isHeadToHead } from "@/lib/stage-types";
@@ -295,7 +295,7 @@ export default async function FoursomesPage({
    * score, which is worse than printing none: a player marks a net score on
    * the strength of a dot that was not there.
    */
-  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+  const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
   const courseHandicaps = roundCourseHandicaps({
     tees: eventTees,
     players: state.confirmed,
@@ -315,8 +315,13 @@ export default async function FoursomesPage({
    * side already reads `teamsForStage`'s frozen `playingHandicap`.
    */
   const roundHcpRows: RoundHandicapRows = stage ? await roundHandicapRows(session.eventId, stage.id) : new Map();
+  /**
+   * AND BEFORE ROUNDING, because every use of it below takes the round's
+   * allowance: 95%, 85% or 90% is taken of the unrounded course handicap and
+   * rounded once (Rule 6.2a), exactly as the board takes it.
+   */
   const frozenHandicapOf = (id: string): number =>
-    roundHandicapOf(roundHcpRows.get(id), courseHandicaps.get(id) ?? 0);
+    roundHandicapExactOf(roundHcpRows.get(id), courseHandicaps.get(id) ?? 0, courseHandicaps.exact(id) ?? 0);
   /**
    * ALREADY NARROWED. `course` above is `cardForStage(...)`, which selects the
    * round's nine and RE-RANKS its stroke index — so this was
@@ -373,7 +378,9 @@ export default async function FoursomesPage({
       : null;
   const teams =
     teamRound?.teams && stage
-      ? await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes)
+      ? // With the committee's own split, as the board and the entry screen pass it:
+        // without it a printed card read "Plays off" by the format's usual shares.
+        await teamsForStage(session.eventId, stage.id, stage.format, stage.handicapAllowance, holes, stage.allowanceWeights)
       : [];
   const sideOf = new Map<string, string>();
   for (const t of teams) for (const m of t.members) sideOf.set(m.playerId, t.name);

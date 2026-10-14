@@ -11,12 +11,17 @@
 //   handicap, which is computed from the whole side.
 
 import { holeStrokesReceived, stablefordPointsForHole , allocationHoles } from "./stroke";
+import { playingHandicapFrom, wholeStrokes } from "./handicap";
 
 export interface TeamMemberCard {
   playerId: string;
   /** Per-hole gross strokes; null for a hole not yet played or picked up. */
   strokes: (number | null)[];
-  /** This player's course handicap, before any format allowance. */
+  /**
+   * This player's course handicap, before any format allowance — and before
+   * rounding, where there is an unrounded figure to give (`handicapExact` off
+   * `teamsForStage`). The allowance is taken of it and rounded once (Rule 6.2a).
+   */
   courseHandicap: number;
 }
 
@@ -47,13 +52,16 @@ export interface TeamCard {
  * The allowance is applied to the course handicap *before* the strokes are
  * spread across holes — applying it afterwards would round every hole
  * separately and drift by several strokes over a round.
+ *
+ * And to the UNROUNDED course handicap, through `playingHandicapFrom`, which is
+ * the one place that arithmetic is written. This was a second copy of it.
  */
 export function allocatedStrokes(
-  courseHandicap: number,
+  courseHandicapExact: number,
   allowancePct: number,
   strokeIndex: number[],
 ): number[] {
-  const playing = Math.round((courseHandicap * allowancePct) / 100);
+  const playing = playingHandicapFrom(courseHandicapExact, allowancePct);
   return strokeIndex.map((si) => holeStrokesReceived(playing, si, allocationHoles(strokeIndex.length)));
 }
 
@@ -161,6 +169,13 @@ export function aggregateTeamCard(
  * A scramble takes a descending share of each player's handicap, best player
  * first, which is the common club convention rather than a published standard.
  * Passing descending weights expresses that; passing none splits evenly.
+ *
+ * ROUNDED ONCE, AT THE END, off each partner's UNROUNDED course handicap. For a
+ * format with one team handicap the allowance is applied to each player's
+ * unrounded Course Handicap, the results combined, and the total rounded as the
+ * final step (USGA, Rules of Handicapping, Committee Procedures: other formats
+ * of play). Partners of 10.6 and 9.6 at 50% play off 10; rounding each first
+ * makes it 11.
  */
 export function sideHandicap(
   courseHandicaps: number[],
@@ -171,13 +186,13 @@ export function sideHandicap(
   const sorted = [...courseHandicaps].sort((a, b) => a - b); // best player first
   if (!weights || weights.length === 0) {
     const combined = sorted.reduce((sum, h) => sum + h, 0);
-    return Math.round((combined * allowancePct) / 100);
+    return wholeStrokes((combined * allowancePct) / 100);
   }
   // Weighted: each weight is a percentage applied to one player's handicap,
   // in ability order. Extra players beyond the weight list contribute nothing,
   // which is how a 4-person scramble table (25/20/15/10) is meant to behave.
   const total = sorted.reduce((sum, h, i) => sum + (h * (weights[i] ?? 0)) / 100, 0);
-  return Math.round(total);
+  return wholeStrokes(total);
 }
 
 /**
@@ -202,9 +217,20 @@ export function committeeWeights(weights: number[] | undefined | null, sideSize:
   return weights.map((w) => Math.round(w));
 }
 
-/** The common 4-person scramble allowance table, best player first. */
+/**
+ * A SCRAMBLE'S SHARES, LOWEST HANDICAP FIRST — Rules of Handicapping, Appendix C.
+ *
+ *     Scramble (4 players)   25% / 20% / 15% / 10%
+ *     Scramble (3 players)   30% / 20% / 10%      (added in the 2024 edition)
+ *     Scramble (2 players)   35% / 15%
+ *
+ * These were described here as "the common" tables and marked as a club
+ * convention, which they were before the appendix carried them. And a side of
+ * three played off 25/20/15, the four's shares with the last one dropped, which
+ * is nobody's table: 2026-10-13, found by reading the appendix line by line.
+ */
 export const SCRAMBLE_WEIGHTS_4 = [25, 20, 15, 10];
-/** The common 2-person scramble allowance table. */
+export const SCRAMBLE_WEIGHTS_3 = [30, 20, 10];
 export const SCRAMBLE_WEIGHTS_2 = [35, 15];
 
 /**

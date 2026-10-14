@@ -50,9 +50,33 @@ export interface TeeRating {
  * the number is unrated than to block the round.
  */
 export function courseHandicap(index: number, tee: Partial<TeeRating> | null | undefined): number {
+  return wholeStrokes(courseHandicapExact(index, tee));
+}
+
+/**
+ * THE COURSE HANDICAP BEFORE IT IS ROUNDED — the figure an allowance is applied to.
+ *
+ * Rules of Handicapping, Rule 6.2a and Appendix C: a handicap allowance is
+ * "applied to the unrounded Course Handicap as the final step in calculating a
+ * player's Playing Handicap", and the result is rounded once, .5 upwards. The
+ * whole number a player is told on the first tee is this figure rounded, and it
+ * is what `courseHandicap` returns; it is NOT what 95% or 85% is taken of.
+ *
+ * Until 2026-10-13 the app took the allowance of the rounded figure and rounded
+ * again, on purpose, and said so here. Measured over every index from 0.0 to
+ * 36.0 on four sets of tees, that gives between a fifth and a quarter of a
+ * field one stroke too many or one too few, in every net round with an
+ * allowance below 100 — which is every individual net round (95%) and every
+ * four-ball. The USGA's own example: indexes 8.6 and 10.3 off 71.0/125, par 71,
+ * at 85% play off 8 and 10; rounding twice makes both of them 9.
+ *
+ * With no rated tees there is no conversion to make and the index is the
+ * figure, unrounded for the same reason.
+ */
+export function courseHandicapExact(index: number, tee: Partial<TeeRating> | null | undefined): number {
   if (!Number.isFinite(index)) return 0;
   if (!tee || !Number.isFinite(tee.slopeRating ?? NaN) || !(tee.slopeRating ?? 0)) {
-    return Math.round(index);
+    return index;
   }
   const slope = clampSlope(tee.slopeRating!);
   const rating = Number.isFinite(tee.courseRating ?? NaN) ? tee.courseRating! : 0;
@@ -61,7 +85,24 @@ export function courseHandicap(index: number, tee: Partial<TeeRating> | null | u
   // a slope but no rating still gets the slope scaling, which is the larger
   // and more important of the two terms.
   const ratingTerm = rating && par ? rating - par : 0;
-  return Math.round(index * (slope / STANDARD_SLOPE) + ratingTerm);
+  return index * (slope / STANDARD_SLOPE) + ratingTerm;
+}
+
+/**
+ * A figure in strokes, rounded to the whole number a golfer plays off: nearest,
+ * and .5 upwards (so a plus handicap of 2.5 is plus 2), as the Rules say.
+ *
+ * The sliver added first is for the machine, not for golf. An index has one
+ * decimal place and a slope is a whole number over 113, so a figure that is
+ * exactly a half in arithmetic (11.3 off a 125 slope is 12.5) can arrive as
+ * 12.499999999999998 — and would be rounded DOWN by a rule that says up. It is
+ * a billion times smaller than the smallest step any of these figures can take.
+ */
+export function wholeStrokes(strokes: number): number {
+  if (!Number.isFinite(strokes)) return 0;
+  const whole = Math.round(strokes + 1e-9);
+  // Never "-0": it prints as "-0" in places and is not equal to 0 under Object.is.
+  return whole === 0 ? 0 : whole;
 }
 
 /** Keep a slope inside the published range so one bad row can't distort a field. */
@@ -71,15 +112,17 @@ export function clampSlope(slope: number): number {
 }
 
 /**
- * Playing Handicap: the Course Handicap after the format's allowance.
+ * Playing Handicap: the UNROUNDED Course Handicap after the format's allowance,
+ * rounded once (Rule 6.2a — see `courseHandicapExact`).
  *
- * Two separate roundings on purpose. The Course Handicap is rounded first
- * because it is a real, quoted number a player is told on the first tee, and
- * the allowance is then applied to that. Collapsing them into one calculation
- * gives a different answer often enough to cause arguments.
+ * Hand it the exact figure: `CourseHandicaps.exact(id)`, or `exact` off
+ * `resolveRoundHandicap`. A whole number is right only where a whole number is
+ * all there is — a committee's own figure for the round, which the Rule allows
+ * for exactly that case, or a round frozen before the exact figure was kept.
+ * `allowance-is-taken-of-the-exact-figure.test.ts` reads every caller.
  */
-export function playingHandicapFrom(courseHcp: number, allowancePct: number): number {
-  return Math.round((courseHcp * allowancePct) / 100);
+export function playingHandicapFrom(courseHcpExact: number, allowancePct: number): number {
+  return wholeStrokes((courseHcpExact * allowancePct) / 100);
 }
 
 /**
@@ -124,15 +167,20 @@ export function explainHandicap(
   tee: Partial<TeeRating> | null | undefined,
   allowancePct: number,
 ): HandicapExplanation {
-  const ch = courseHandicap(index, tee);
-  const ph = playingHandicapFrom(ch, allowancePct);
+  const exact = courseHandicapExact(index, tee);
+  const ch = wholeStrokes(exact);
+  const ph = playingHandicapFrom(exact, allowancePct);
   const rated = isRated(tee);
+  // The figure before rounding, to two places: it is what the allowance is taken
+  // of, and without it "15 course handicap, at 90% = 13" reads as a mistake.
+  const shown = exact.toFixed(2);
 
   const detail = rated
     ? `Index ${index} × (${clampSlope(tee!.slopeRating!)} ÷ ${STANDARD_SLOPE})` +
       (tee!.courseRating && tee!.par ? ` + (${tee!.courseRating} − ${tee!.par})` : "") +
-      ` = ${ch} course handicap` +
-      (allowancePct === 100 ? "" : `, at ${allowancePct}% = ${ph} playing handicap`)
+      (allowancePct === 100
+        ? ` = ${ch} course handicap`
+        : ` = ${shown}, a course handicap of ${ch}; ${allowancePct}% of ${shown} = ${ph} playing handicap`)
     : `No course rating for these tees, so the index of ${index} is used as-is` +
       (allowancePct === 100 ? "" : `, at ${allowancePct}% = ${ph}`);
 
@@ -302,6 +350,45 @@ export function teeIdFor(
   return here(playerTeeId) ?? here(flightTeeId) ?? defaultTeeId ?? "";
 }
 
+/**
+ * A field's Course Handicaps: the whole number each player is told, and the
+ * figure it was rounded from.
+ *
+ * A `Map` of whole numbers, exactly as it always was, so the forty-odd readers
+ * that want what a player plays off in a round keep calling `.get(id)` and keep
+ * getting it. `.exact(id)` is for the one thing a whole number is wrong for:
+ * taking an allowance (Rule 6.2a — see `courseHandicapExact`).
+ *
+ * A class and not a second map handed round beside the first, because a second
+ * map is a thing a caller can forget to pass, and the reader that forgot would
+ * fall back to the whole number and be a stroke out for one player in five with
+ * nothing on any screen wrong. A copy made with `new Map(…)` is a plain `Map`,
+ * has no `.exact`, and so cannot reach an allowance without the compiler
+ * saying so.
+ */
+export class CourseHandicaps extends Map<string, number> {
+  private readonly unrounded = new Map<string, number>();
+
+  /** Store a player's unrounded Course Handicap; `.get` then answers with it rounded. */
+  setExact(playerId: string, exact: number): this {
+    this.unrounded.set(playerId, exact);
+    return this.set(playerId, wholeStrokes(exact));
+  }
+
+  /**
+   * The unrounded figure, or undefined for a player this map has not heard of.
+   *
+   * If somebody has since `.set` a different whole number over the top, that
+   * number is the answer: the two must never describe different handicaps.
+   */
+  exact(playerId: string): number | undefined {
+    const whole = this.get(playerId);
+    if (whole === undefined) return undefined;
+    const exact = this.unrounded.get(playerId);
+    return exact !== undefined && wholeStrokes(exact) === whole ? exact : whole;
+  }
+}
+
 export function courseHandicapMap(
   players: IndexHolder[],
   /**
@@ -319,7 +406,7 @@ export function courseHandicapMap(
    * and the compiler is the only thing that reliably finds every caller.
    */
   teePolicy: string,
-): Map<string, number> {
+): CourseHandicaps {
   /**
    * The course this round is played at, taken from the round's OWN set.
    *
@@ -343,7 +430,7 @@ export function courseHandicapMap(
     if (row.courseId === undefined) return true;
     return row.courseId === playingAt;
   };
-  const out = new Map<string, number>();
+  const out = new CourseHandicaps();
   for (const p of players) {
     const raw =
       teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse)) ?? null;
@@ -352,7 +439,7 @@ export function courseHandicapMap(
     // one-case conversion caused.
     const index = indexForHoles(p.handicap, p.handicapType, holes);
     const tee = raw && holes === 9 ? nineHoleTee(raw) : raw;
-    out.set(p.id, courseHandicap(index, tee));
+    out.setExact(p.id, courseHandicapExact(index, tee));
   }
   return out;
 }

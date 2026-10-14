@@ -1,0 +1,14 @@
+-- A round keeps the UNROUNDED handicap it was scored against (2026-10-13).
+--
+-- A handicap allowance is taken of the unrounded Course Handicap and the result
+-- is rounded once (Rules of Handicapping, Rule 6.2a and Appendix C). The app
+-- took it of the rounded figure and rounded again, which gives roughly one
+-- player in five a stroke too many or too few in every net round with an
+-- allowance below 100. "frozen" holds the whole number a player was told; this
+-- holds what the allowance is taken of, written in the same statement.
+--
+-- Nullable with no default, and NULL means "the whole number is all there is":
+-- every round already frozen reads exactly as it did and keeps the strokes it
+-- was played off. Adds a column and writes no row, so it is safe on a populated
+-- table and on an empty one.
+ALTER TABLE "RoundHandicap" ADD COLUMN "frozenExact" DOUBLE PRECISION;

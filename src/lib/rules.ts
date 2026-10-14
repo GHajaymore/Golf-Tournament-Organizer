@@ -1,6 +1,7 @@
 import { isStablefordFormat, isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 import { roundIsStroke, seededFromQualifiers, lookupStageType } from "@/lib/stage-types";
+import { individualAllowanceFor } from "@/lib/round-allowance";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -126,7 +127,7 @@ export const RULES: Record<string, RuleRef> = {
     source: "handicapping",
     url: "https://www.usga.org/handicapping/roh/2020-rules-of-handicapping.html",
     why:
-      "The percentage applied to a course handicap depends on the format — 85% for four-ball, 50% for foursomes. Handicapping, not the Rules of Golf.",
+      "The percentage applied to a course handicap depends on the format — 95% for individual stroke play, 85% for a four-ball at stroke play, 50% of the pair for foursomes — and is taken before the course handicap is rounded. Handicapping, not the Rules of Golf.",
     reviewed: "2026-08-11",
   },
   courseHandicap: {
@@ -274,7 +275,21 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
     });
   }
 
-  if (input.handicapAllowance > 0) {
+  /**
+   * AN INDIVIDUAL NET ROUND ALWAYS SAYS ITS ALLOWANCE, the committee's or the
+   * Rules' own. This line was printed only when a committee had set a figure,
+   * so a medal at the usual 95% told its players how it was scored and how ties
+   * were settled and never that their playing handicap was 95% of their course
+   * handicap — the one figure a player works out for themselves on the tee.
+   */
+  const individual = individualAllowanceFor(input);
+  if (individual) {
+    out.push({
+      label: "Handicap allowance",
+      value: `${individual.allowance}% of course handicap${individual.overridden ? ", set by the committee" : ""}`,
+      rule: "handicapAllowance",
+    });
+  } else if (input.handicapAllowance > 0) {
     out.push({
       label: "Handicap allowance",
       value: `${input.handicapAllowance}% of course handicap`,

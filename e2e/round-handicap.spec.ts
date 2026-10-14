@@ -74,8 +74,16 @@ test("the secretary sets one player's handicap for one round, and a plus handica
   const name = (await firstSet.locator("xpath=..").locator("span").first().innerText()).trim();
   expect(name.length, "the row has no name on it").toBeGreaterThan(1);
   const line = () => page.locator("div").filter({ has: page.locator("span", { hasText: name }) }).filter({ hasText: "plays off" }).last();
-  const roster = ((await line().innerText()).match(/plays off\s+(\S+)/) ?? [])[1];
-  expect(roster, "the row does not say what the player plays off").toBeTruthy();
+  /**
+   * THE ROW SAYS TWO FIGURES ON A ROUND WITH AN ALLOWANCE (2026-10-13), and the
+   * box edits the first of them. The league plays Stableford at 95%, so the row
+   * reads "course handicap 9 (9.39 before rounding) · plays off 9 at 95%": what
+   * the player is told, and what their card is scored off. The allowance is
+   * taken of the figure before rounding (Rule 6.2a), so the two can differ.
+   */
+  await expect(line(), "the row does not say what the allowance is taken of").toContainText(/course handicap \S+.* · plays off \S+ at 95%/);
+  const roster = ((await line().innerText()).match(/course handicap\s+(\S+)/) ?? [])[1];
+  expect(roster, "the row does not say the player's course handicap").toBeTruthy();
   const box = page.getByLabel(`Handicap for ${name} in this round`);
 
   await test.step("a plus handicap, typed with its plus, is a player who GIVES strokes", async () => {
@@ -84,9 +92,10 @@ test("the secretary sets one player's handicap for one round, and a plus handica
     await box.fill("+2");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     // "+2" is what this screen prints for minus two, and for nothing else: plain two reads "2".
-    await expect(line()).toContainText(`plays off +2 — set for this round, in place of ${roster}`, { timeout: 20_000 });
+    // And a committee's figure is a whole number, so 95% is taken of it as given: plus 1.9, which is plus 2.
+    await expect(line()).toContainText(`course handicap +2 · plays off +2 at 95% — set for this round, in place of ${roster}`, { timeout: 20_000 });
     await openEditor(page);
-    await expect(line(), "kept after a reload").toContainText("plays off +2 — set for this round");
+    await expect(line(), "kept after a reload").toContainText("course handicap +2 · plays off +2 at 95% — set for this round");
   });
 
   await test.step("opened again, the box says what the sentence says", async () => {
@@ -105,19 +114,19 @@ test("the secretary sets one player's handicap for one round, and a plus handica
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("A handicap runs from +10 to 54.")).toBeVisible();
     await openEditor(page);
-    await expect(line(), "none of the three saved anything").toContainText("plays off +2 — set for this round");
+    await expect(line(), "none of the three saved anything").toContainText("course handicap +2 · plays off +2 at 95% — set for this round");
   });
 
   await test.step("the word the screen prints for nought is a figure it reads", async () => {
     await line().getByRole("button", { name: "Change", exact: true }).click();
     await box.fill("scratch");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(line()).toContainText("plays off scratch — set for this round", { timeout: 20_000 });
+    await expect(line()).toContainText("course handicap scratch · plays off scratch at 95% — set for this round", { timeout: 20_000 });
   });
 
   await test.step("back to the roster, and the round says everybody is on it again", async () => {
     await line().getByRole("button", { name: "Back to roster", exact: true }).click();
-    await expect(line()).toContainText(`plays off ${roster}`, { timeout: 20_000 });
+    await expect(line()).toContainText(`course handicap ${roster}`, { timeout: 20_000 });
     await expect(line()).not.toContainText("set for this round");
     await openEditor(page);
     await expect(line()).not.toContainText("set for this round");

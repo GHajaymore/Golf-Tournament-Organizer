@@ -515,6 +515,23 @@ ${leafTokens("leaf", "    ")}
 .thq details.q .ans a { color: var(--brass); text-decoration: underline; text-underline-offset: 3px; }
 .thq details.q .ans ul { list-style: disc; padding-left: 20px; display: grid; gap: 6px; }
 @media (max-width: 900px) { .thq details.q .ans { padding-right: 0; } }
+/* Three answers carry a block of their own: the worked handicap sum, the list of formats and the
+   three prices. Their rules were dropped when this sheet was rewritten (#700) and the blocks went on
+   being printed, as one run-on line each — "Handicap index12.4Course rating / slope71.5 / 140…" —
+   until 2026-10-13. landing-answers-are-dressed.test.ts holds every class an answer uses to a rule here. */
+.thq .hc { display: grid; grid-template-columns: minmax(0, 1fr) auto; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; font-size: 14.5px; max-width: 440px; background: var(--card); }
+.thq .hc span { padding: 10px 14px; border-bottom: 1px solid var(--line); min-width: 0; }
+.thq .hc span:nth-child(even) { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.thq .hc span.t { font-weight: 650; color: var(--ink); border-bottom: 0; background: var(--accent-a12); }
+.thq .hc span.t:nth-child(even) { color: var(--brass); }
+.thq .fmts { display: flex; flex-wrap: wrap; gap: 6px; }
+.thq .fmts span { font: 500 13.5px/1 var(--sans); padding: 8px 11px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--ink); background: var(--card); }
+.thq .tierlist { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .thq .tierlist { grid-template-columns: minmax(0, 1fr); } }
+.thq .tierlist div { border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; background: var(--card); display: grid; gap: 4px; min-width: 0; }
+.thq .tierlist b { font: 600 14px/1.2 var(--sans); color: var(--ink-soft); }
+.thq .tierlist span { font: 650 22px/1 var(--sans); letter-spacing: -.03em; color: var(--ink); }
+.thq .tierlist small { font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 
 /* ── the close ── */
 .thq .close { padding: 140px 0; text-align: center; }

@@ -95,7 +95,12 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
             When the first card comes in, this round keeps whatever it was being scored against.
             After that a roster change moves the next round, not this one.
           </p>
-          <p>These are course handicaps. The round&rsquo;s allowance still applies on top.</p>
+          <p>
+            These are course handicaps. The round&rsquo;s allowance still applies on top, and it is
+            taken of the course handicap before that is rounded, as the Rules of Handicapping say:
+            a course handicap of 7 that was 6.6 plays off 6 at 95%, not 7. A figure you set here
+            yourself is a whole number, and the allowance is taken of that.
+          </p>
         </FieldInfo>
       </div>
 
@@ -139,7 +144,23 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
             >
               <span style={{ fontSize: 13, minWidth: 0, flex: "1 1 140px" }}>{r.name}</span>
               <span className="text-muted" style={{ fontSize: 13 }}>
-                plays off <b style={{ color: "var(--color-text)" }}>{numberFor(r.handicap)}</b>
+                {/* WITH AN ALLOWANCE, BOTH FIGURES — the one they are told and the
+                    one their card is scored off. The allowance is taken of the
+                    course handicap BEFORE it is rounded (Rule 6.2a), so "7 at 95%"
+                    is 6 when the 7 was 6.6; without the middle figure an organizer
+                    working it by hand gets 7 and decides the board is wrong. */}
+                {r.playing !== null && r.allowance !== 100 ? (
+                  <>
+                    course handicap <b style={{ color: "var(--color-text)" }}>{numberFor(r.handicap)}</b>
+                    {r.exact !== r.handicap ? ` (${indexFigure(Number(r.exact.toFixed(2)))} before rounding)` : ""}
+                    {" · plays off "}
+                    <b style={{ color: "var(--color-text)" }}>{numberFor(r.playing)}</b> at {r.allowance}%
+                  </>
+                ) : (
+                  <>
+                    plays off <b style={{ color: "var(--color-text)" }}>{numberFor(r.handicap)}</b>
+                  </>
+                )}
                 {r.source === "frozen"
                   ? " — what this round was scored off"
                   : r.source === "override"

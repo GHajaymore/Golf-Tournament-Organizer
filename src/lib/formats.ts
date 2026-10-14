@@ -14,7 +14,7 @@
 // That second distinction is the one that decides the scorecard shape, so it
 // is worth getting right before any UI is built on top of it.
 
-import { SCRAMBLE_WEIGHTS_2, SCRAMBLE_WEIGHTS_4 } from "./domain/team";
+import { SCRAMBLE_WEIGHTS_2, SCRAMBLE_WEIGHTS_3, SCRAMBLE_WEIGHTS_4 } from "./domain/team";
 import type { MatchEntryMode } from "./domain/match-entry";
 
 export type ScoringFamily = "match" | "stroke" | "points" | "team";
@@ -395,9 +395,11 @@ export const GOLF_FORMATS: GolfFormat[] = [
     maxSideSize: 4,
     ball: "single",
     engine: "team-single",
-    // No published WHS allowance; this is the widely used club convention.
+    // Published: Appendix C carries a scramble of four, three and two (see
+    // `SCRAMBLE_WEIGHTS_4` in domain/team.ts). This said "no published WHS
+    // allowance" and was marked a club convention, which it was until the
+    // appendix carried it.
     allowance: 25,
-    allowanceIsConvention: true,
     // The descending table the scoring ACTUALLY applies.
     //
     // It was only reachable through a regex on the format's NAME inside
@@ -412,7 +414,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     // contains the word.
     weightsBySideSize: {
       2: SCRAMBLE_WEIGHTS_2,
-      3: [25, 20, 15],
+      3: SCRAMBLE_WEIGHTS_3,
       4: SCRAMBLE_WEIGHTS_4,
     },
     scored: true,
@@ -431,14 +433,13 @@ export const GOLF_FORMATS: GolfFormat[] = [
     ball: "single",
     engine: "team-single",
     allowance: 25,
-    allowanceIsConvention: true,
     // Same table as a plain scramble — see the note on that entry. It survived
     // the first pass of this fix because its allowance carried no comment and
     // the edit matched on one; the sweep in `shares-agree.test.ts` is what
     // found it, which is the argument for the sweep.
     weightsBySideSize: {
       2: SCRAMBLE_WEIGHTS_2,
-      3: [25, 20, 15],
+      3: SCRAMBLE_WEIGHTS_3,
       4: SCRAMBLE_WEIGHTS_4,
     },
     scored: true,
@@ -534,6 +535,14 @@ export function isKnownFormat(name: string): boolean {
 export function findFormat(name: string): GolfFormat {
   return lookupFormat(name) ?? GOLF_FORMATS[0];
 }
+
+/**
+ * `effectiveAllowance(format, override)` WAS HERE. It answered from the format
+ * alone, and the allowance a round plays at depends on the ROUND as well: a
+ * four-ball is 85% at stroke play and 90% at match play (Appendix C). It is in
+ * `round-allowance.ts`, which asks for the round's type and will not compile
+ * without it.
+ */
 
 /**
  * Formats with a real scoring engine behind them.
@@ -772,14 +781,13 @@ export function sideSizeRange(formatName: string): { min: number; max: number } 
 }
 
 /**
- * Playing handicap for one player, from their course handicap and the
- * format's allowance. Rounded to the nearest whole stroke, which is how
- * allowances are applied in practice.
+ * `playingHandicap(courseHandicap, formatName)` WAS HERE AND IS DELETED ON PURPOSE.
+ *
+ * Nothing called it. It was a third copy of the allowance arithmetic, taking a
+ * rounded course handicap, and an allowance is taken of the UNROUNDED one
+ * (Rule 6.2a). `playingHandicapFrom` in `domain/handicap.ts` is the one place
+ * that is written; a caller with a format in hand passes `findFormat(name).allowance`.
  */
-export function playingHandicap(courseHandicap: number, formatName: string, allowanceOverride?: number): number {
-  const pct = allowanceOverride ?? findFormat(formatName).allowance;
-  return Math.round((courseHandicap * pct) / 100);
-}
 
 /**
  * The Stableford table a given ROUND is scored on.

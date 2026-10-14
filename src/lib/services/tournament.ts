@@ -3,7 +3,7 @@ import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
-import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
+import { resolveRoundHandicap, roundHandicapKey, type RoundHandicapRow } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
@@ -71,7 +71,7 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { holesPlayed } from "../domain/handicap";
+import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
@@ -908,9 +908,15 @@ export function strokeHandicapResolver(ctx: {
    * on. A round with no entry here falls through to the event-wide pair below,
    * which is exactly the behaviour every tournament had before this existed.
    */
-  courseHcpByStage?: Map<string, Map<string, number>>;
-  courseHcp9: Map<string, number>;
-  courseHcp18: Map<string, number>;
+  courseHcpByStage?: Map<string, CourseHandicaps>;
+  /**
+   * `CourseHandicaps`, not a plain map, and that is the point: the allowance
+   * below is taken of each player's UNROUNDED figure (Rule 6.2a), which a map of
+   * whole numbers cannot give. The compiler refuses a caller that hands over a
+   * copy that has lost them.
+   */
+  courseHcp9: CourseHandicaps;
+  courseHcp18: CourseHandicaps;
   fallback: Map<string, number>;
   /**
    * What this round says about this player, if anything — a committee's
@@ -931,14 +937,11 @@ export function strokeHandicapResolver(ctx: {
    * `isSetupLocked` once a tournament is live. A second lock for the same job
    * would be a second reader of one rule.
    */
-  roundHandicapFor?: (
-    playerId: string,
-    stageId: string,
-  ) => { frozen?: number | null; override?: number | null } | null;
+  roundHandicapFor?: (playerId: string, stageId: string) => RoundHandicapRow | null;
 }): (playerId: string, stageId: string) => number {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
-    const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+    const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
     // This round's own map first — its tees and its hole count. The pair
     // below is the event-wide answer and stays as the fallback, so a caller
     // that supplies no per-stage maps behaves exactly as it did.
@@ -951,8 +954,10 @@ export function strokeHandicapResolver(ctx: {
     const resolved = resolveRoundHandicap({
       ...(ctx.roundHandicapFor?.(playerId, stageId) ?? {}),
       member,
+      memberExact: byRound.exact(playerId) ?? ctx.fallback.get(playerId) ?? 0,
     });
-    return playingHandicapFrom(resolved.handicap, allowance);
+    // Of the UNROUNDED figure, rounded once — see `courseHandicapExact`.
+    return playingHandicapFrom(resolved.exact, allowance);
   };
 }
 
@@ -1247,7 +1252,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * roster-level questions — see the note directly below. Only where a CARD is
    * priced does the round's own answer win.
    */
-  const courseHcpByStage = new Map<string, Map<string, number>>();
+  const courseHcpByStage = new Map<string, CourseHandicaps>();
   for (const s of stages) {
     const stageTee = teeForPlay(
       tees,
@@ -1273,7 +1278,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
    * match has to have had a set chosen ON it to appear here, which is a
    * deliberate act by a scorer rather than something every row acquires.
    */
-  const courseHcpByMatch = new Map<string, Map<string, number>>();
+  const courseHcpByMatch = new Map<string, CourseHandicaps>();
   for (const m of matches) {
     if (!m.teeId) continue;
     const stage = stages.find((s) => s.id === m.stageId);
@@ -1799,7 +1804,10 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   /** For `matchHandicapFor`, which needs a match's round before it can price it. */
   const matchById = new Map(matches.map((m) => [m.id, m]));
   const roundHandicapBy = new Map(
-    roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
+    roundHandicaps.map((r) => [
+      roundHandicapKey(r.stageId, r.playerId),
+      { frozen: r.frozen, frozenExact: r.frozenExact, override: r.override },
+    ]),
   );
 
   /**
@@ -2917,13 +2925,14 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const own = courseHcpByMatch.get(matchId);
       if (!own) return handicapFor(playerId, m.stageId);
       const stage = stageById.get(m.stageId);
-      const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+      const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
       const member = own.get(playerId) ?? courseHcp.get(playerId) ?? 0;
       const resolved = resolveRoundHandicap({
         ...(roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? {}),
         member,
+        memberExact: own.exact(playerId) ?? courseHcp.exact(playerId) ?? 0,
       });
-      return playingHandicapFrom(resolved.handicap, allowance);
+      return playingHandicapFrom(resolved.exact, allowance);
     },
     strokeCourseFor: courseFor,
     roundFieldSize: (stageId: string) => {

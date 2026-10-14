@@ -100,9 +100,7 @@
    "generateTeamMatches",
    "removeTeamMember",
    "renameTeam",
-   "setStageAllowance",
-   "setStageAllowanceWeights",
-   "setStageCountBest"
+   "setStageAllowanceWeights"
   ],
   "app/actions/tee-sheet.ts": [
    "setTeeSheetPublished"
@@ -133,7 +131,6 @@
    "saveCustomCourse",
    "saveScoring",
    "saveTiebreakers",
-   "setConfigUnlocked",
    "setFlightsConfirmed",
    "setInviteMessage",
    "setMatchTiebreakers",

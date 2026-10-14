@@ -13,6 +13,8 @@ const team = (id: string, sizes: number): TeamView => ({
     playerId: `${id}-${i}`,
     name: `P${i}`,
     handicap: 10,
+    handicapExact: 10,
+    playing: null,
     position: i,
     // Everyone in this fixture is playing. The withdrawn case has its own
     // tests, where the point is that a side notices.
@@ -212,12 +214,12 @@ describe("committee allowance override", () => {
     expect(sidePlayingHandicap([10, 20], "Foursomes", 0)).toBe(
       sidePlayingHandicap([10, 20], "Foursomes"),
     );
-    expect(effectiveAllowance("Foursomes", 0)).toBe(50);
-    expect(effectiveAllowance("Foursomes", 60)).toBe(60);
+    expect(effectiveAllowance("Foursomes", 0, "Stroke Play Round")).toBe(50);
+    expect(effectiveAllowance("Foursomes", 60, "Stroke Play Round")).toBe(60);
   });
 
   it("reports the scramble convention when nothing is set", () => {
-    expect(effectiveAllowance("Scramble", 0)).toBe(25);
+    expect(effectiveAllowance("Scramble", 0, "Stroke Play Round")).toBe(25);
   });
 });
 

@@ -1303,3 +1303,85 @@ more, neither reachable as a wrong screen in ordinary use today:
 Both want the shape `doConfirm` has: wait, then draw what the server said.
 Neither action is performed by any browser test yet (`setMatchTiebreakers`,
 `removeStage`), and the test should come with the change.
+
+## Left alone beside the handicap allowance fix — SEEN, NOT CHANGED (2026-10-13)
+
+The allowance is taken of the course handicap before it is rounded now (Rules of
+Handicapping, 6.2a; see CLAUDE.md, "Handicaps"). Reading every place a
+percentage meets a handicap turned up five more things. None is that defect, and
+each wants its own change rather than a line added beside this one.
+
+**An individual round's allowance cannot be changed. — DONE the same day**: the
+card of every individual net round has a **Handicap allowance** line with
+[[Change]] (`RoundAllowance`, `individualAllowanceFor`), the rules sheet states
+the figure on every such round, and `e2e/round-allowance.spec.ts` changes it
+and holds the board to the Rules at both figures. What it said: Stroke Play and
+Stableford play at 95%, which is Appendix C's figure for a field of thirty or
+more; the same appendix suggests 100% for a smaller one. A team round has a
+[[Change]] beside its allowance on the round's card. An individual round has no
+control at all: `Stage.handicapAllowance` is honoured if it is set, and nothing
+on any screen sets it. The guide said otherwise until today ("Change it per
+round under Handicaps for this round") and has been corrected to say what is
+true. Recommended: the same control, on the same card, with the same question
+before cards are re-scored. A society of twelve is exactly who would use it.
+
+**A singles net MATCH is derived off the course handicap with no allowance,
+while the screens that show its strokes apply the round's.** `deriveMatchFromItsCards`
+hands `deriveNetHoles` the round's course handicap; the entry screen and the
+round-code screen read `matchHandicapFor`, which applies `effectiveAllowance`.
+They agree while that is 100, which it is for Match Play and Nassau, and no
+screen can set another on a head-to-head round — so today the two cannot be made
+to differ. Read, not reproduced. The control that now exists is offered only on
+individual STROKE rounds, and `setStageAllowance` refuses a figure on a round
+that takes none (a singles match among them), so it still cannot be made to
+differ — by a screen or by a direct call. It becomes real the day a match is
+given an allowance of its own.
+
+**The rules sheet states a TEAM round's allowance only when a committee has set
+one.** An individual net round's sheet says "95% of course handicap" since
+2026-10-13, the Rules' figure or the committee's. A four-ball at the Rules' 85%,
+a foursomes at half the pair and a scramble at its shares still say nothing
+about handicaps on `/rules` and `/me/rules`; the round's card in the console
+does. It wants one sentence per kind of team handicap (a flat figure, a share
+of the pair, a split by position), which `RoundTeamScoring` already words for
+the organizer. Recommended: word it once and print it in both places.
+
+**A league night played to a shared ball would be priced off nothing.**
+`leagueMeetings` prices each `TeamScorecard` row off the player it belongs to.
+A shared-ball card belongs to no player, so it would play off scratch, where
+`recomputeTeamMatch` prices the same card off the side's handicap. Not checked:
+whether a league can be set to a shared-ball format at all.
+
+**The H/CAP column on a four-ball board is a figure no side plays off.** It is
+the allowance of the two partners' handicaps added together. In a four-ball each
+ball plays off its own handicap and the side has none; the column is left over
+from the formats where it does. Harmless and unexplained.
+
+**Four-ball MATCH play differs by country.** Appendix C gives each player 90% of
+their course handicap and plays the match off the lowest of the four. Since
+2024 England, Scotland, Wales and Ireland take the difference from the lowest
+COURSE handicap first and then 90% of that difference. The app does the first.
+The two can differ by a stroke for the higher handicaps in a match. Ajay's call
+whether a club should be able to choose; nothing is wrong for a club outside
+those four.
+
+**Best Ball plays at 85% whatever the size of the side or the number of balls
+that count, and Appendix C does not.** The table gives best 1 of 4 at 75%, best
+2 of 4 at 85% and best 3 of 4 (and all four) at 100%; a pair playing their best
+ball is a four-ball, 85% at stroke play. The app's Best Ball allows sides of two
+to four and any count, at one figure, and calls that figure "the recommended
+allowance for this format". It is right for a pair and for best 2 of 4, ten
+points generous for best 1 of 4, and fifteen short for best 3 of 4. Not fixed
+with the four-ball figure (`round-allowance.ts`, 2026-10-13) because it needs
+the allowance worked per SIDE: a round can hold sides of different sizes, and
+the table says nothing for a side of three. Recommended: work it from the side's
+size and the round's count where the table gives a figure, keep 85% and say
+"club convention" where it does not, and ask before cards are re-scored. Until
+then a committee running best 1 of 4 should set 75% itself, which the round's
+card lets it do.
+
+And one thing that is deliberate: **a round frozen before 2026-10-13 keeps the
+strokes it was played off**, which were worked the old way. It holds the whole
+number alone, and the allowance is taken of that. Every club today is test data.
+A club that wanted such a round re-scored by the Rule would clear its scores and
+enter them again.

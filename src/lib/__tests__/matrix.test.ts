@@ -926,7 +926,7 @@ describe("round handicaps, at every field size and every allowance", () => {
     it(`applies the round's allowance on top, not instead, for a field of ${n}`, () => {
       for (const format of FORMAT_NAMES) {
         for (const pct of ALLOWANCES) {
-          const allowance = effectiveAllowance(format, pct);
+          const allowance = effectiveAllowance(format, pct, "Stroke Play Round");
           expect(allowance).toBeGreaterThan(0);
 
           for (let i = 0; i < n; i += 1) {
@@ -1005,6 +1005,8 @@ describe("team draws, at every field size and every team format", () => {
         playerId: p.id,
         name: p.name,
         handicap: p.handicap,
+        handicapExact: p.handicap,
+        playing: null,
         position,
         // Everybody drawn here is playing. `teamProblems` now reads this as
         // well as the count — a side whose partner withdrew on the morning is
