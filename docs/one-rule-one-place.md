@@ -35,7 +35,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 | Step | Layer | The question | State |
 |---|---|---|---|
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
-| 2 | The field | who is in the tournament, and in this round | not started |
+| 2 | The field | who is in the tournament, and in this round | under way: whether a cut has been made is one answer, recorded (2026-10-14); the confirmed-field queries and "me" twins open |
 | 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
 | 5 | A card | gross, net, points, to par | not started |
@@ -68,6 +68,26 @@ handicap readers became one (counted off the diff, not the inventory). The four
   course rating read as 7 and 13. **Not closed:** the owner's pricing screen has
   no browser test, so the emptied-price fix is held only by the sweep holding
   it to the shared reader, not by anything that presses Save.
+- **Whether a cut has been made** (step 2): `cutHasBeenMade` in
+  `domain/cut-ready.ts`, reading `Stage.cutMadeAt` (migration
+  `A000_stage_cut_made_at`), which `applyStrokeCut` writes the first time.
+  Four readers inferred it from "the round holds a card" and part of them from
+  "the round before is closed": the player app, the dashboard's field size, the
+  missed-cut list, the no-card list and the shared costs' field now ask the one
+  function. What it found: a card started in round 2 before round 1 closed made
+  itself the whole field ("1 of 1"), the round's pots waited for that one card,
+  and the player — if the cut then left them out — came through it anyway,
+  ranked. The first cut now takes such a card out and lists its holes in Recent
+  changes; a re-made cut keeps a card somebody was told to play.
+  `a-cut-is-made-once-for-every-reader.audit.test.ts`; 8 of 11 breaks caught on
+  the first try, and the two the fixture could not see made it stronger.
+- **Checked and right as written** (step 2): `player-access.ts`'s
+  `status: { not: "withdrawn" }` asks who still needs an address's sign-in, and
+  a disqualified player keeps theirs on purpose (they can still owe or be
+  owed); `roster-link.ts`'s `live` keeps a disqualified member out of "add",
+  because they are reinstated through the disqualification, not by a second
+  entry. Both look like the spelling `left-the-field.ts` warns about, and both
+  answer a different question. Do not "fix" them.
 
 - **Playing handicap in a round** (step 4): `roundPlayingHandicap`, required
   third argument; `tees-of-a-higher-par-get-their-strokes.test.ts` refuses the
