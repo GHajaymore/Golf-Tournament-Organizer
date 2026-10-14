@@ -256,6 +256,37 @@ describe("a singles net match between the two pars, decided from its cards", () 
     const stored = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });
     expect(holesOf(stored.holes), `stored as ${stored.holes}`).toEqual(["B", ...new Array(17).fill("H")]);
   });
+
+  it("and the same where the match named its own tees, which the screens read another way", async () => {
+    // A match with a set of its own is priced by `matchHandicapFor` off a map
+    // of its own (`courseHcpByMatch`), not the round's: the other branch.
+    const { saveMatchScorecard } = await import("@/app/actions/tournament");
+    const { loadEventState } = await import("@/lib/services/tournament");
+    const white = await prisma.tee.findFirstOrThrow({ where: { name: `${TAG} white` } });
+    const singles = await prisma.stage.findFirstOrThrow({ where: { eventId: ids.event, format: "Match Play" } });
+    const group = await prisma.group.findFirstOrThrow({ where: { eventId: ids.event, isCarrier: true } });
+    const match = await prisma.match.create({
+      data: {
+        eventId: ids.event,
+        stageId: singles.id,
+        groupId: group.id,
+        round: 2,
+        playerAId: player.A1,
+        playerBId: player.B0,
+        teeId: white.id,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+    const state = await loadEventState(ids.event);
+    if (!state) throw new Error("the tournament did not load");
+    expect(state.matchHandicapFor(player.A1, match.id)).toBe(0);
+    expect(state.matchHandicapFor(player.B0, match.id), "her own reds still beat the match's whites").toBe(1);
+
+    await saveMatchScorecard(match.id, "A", fours());
+    await saveMatchScorecard(match.id, "B", fours());
+    const stored = await prisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    expect(holesOf(stored.holes), `stored as ${stored.holes}`).toEqual(["B", ...new Array(17).fill("H")]);
+  });
 });
 
 describe("a four-ball match with one player on the higher par", () => {
