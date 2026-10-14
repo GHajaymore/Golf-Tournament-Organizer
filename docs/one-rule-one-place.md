@@ -34,7 +34,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 
 | Step | Layer | The question | State |
 |---|---|---|---|
-| 1 | What people type | handicaps, scores, money, dates read one way everywhere | not started |
+| 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
 | 2 | The field | who is in the tournament, and in this round | not started |
 | 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
@@ -48,6 +48,26 @@ Steps 3 and 4 were opened first only because the fault that prompted this was
 found there. The work goes back to step 1 and climbs.
 
 ## Done so far
+
+- **A number somebody typed** (step 1): `readDecimal` and `readWhole` in
+  `domain/decimal-text.ts`, which say BLANK, a number, or UNREADABLE — never a
+  silent 0 — and `readHandicapIndex` / `indexRefusal` in `domain/handicap-label.ts`
+  for the one range a golfer's index can have (+10 to 54), the same in the box
+  and on the server. The inventory counted 48 places reading a typed number their
+own way; the change took out 40 lines holding one, on 21 screens, and the three
+handicap readers became one (counted off the diff, not the inventory). The four
+  actions that store an index refuse one outside the range. Money keeps its own
+  reader (`minorUnitsFrom`) and dates their own (`date-words.ts`); both were
+  already one. `a-typed-figure-is-read-one-way.test.ts` refuses `parseFloat`,
+  `parseInt` and `Number(` anywhere on a screen except a list of lines nobody
+  typed (a dropdown, a slider, a length off the stylesheet), each with its reason.
+  What it found, live in production until it ships: clearing a casual round's
+  handicap box made the player scratch; any number was stored as an index by
+  four actions; an emptied price on the owner's screen saved the plan as free;
+  a percent typed "12,5" in a shared cost read as 0; "7l.3" and "13O" in a
+  course rating read as 7 and 13. **Not closed:** the owner's pricing screen has
+  no browser test, so the emptied-price fix is held only by the sweep holding
+  it to the shared reader, not by anything that presses Save.
 
 - **Playing handicap in a round** (step 4): `roundPlayingHandicap`, required
   third argument; `tees-of-a-higher-par-get-their-strokes.test.ts` refuses the

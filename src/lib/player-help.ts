@@ -209,6 +209,7 @@ export const PLAYER_HELP_TOPICS: readonly PlayerHelpTopic[] = [
       "Open Events.",
       "Tap [[Play a casual round]].",
       "Pick the game, the players and the course.",
+      "Type a handicap as 12.4, or +2.4 for a plus. An empty box is not scratch: type 0.",
       "It needs no tournament and no organizer.",
     ],
   },
