@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readSource, readVerbatim } from "./source";
 // Plain JavaScript on purpose: the framework runs on a bare runner, before anything is installed.
 import { ABROAD, CRAWL_PARTS, SCENARIOS, SCREEN_SPECS, TIER_RULES, TIERS, WALK, layersFor, partsFor, tierOf } from "../../../scripts/qa/layers.mjs";
-import { VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
+import { BASELINE, VERDICTS, applyBreak } from "../../../scripts/qa/breaks.mjs";
 
 /**
  * THE TESTING FRAMEWORK IS HELD TO THE FILES ON DISK.
@@ -331,6 +331,20 @@ describe("a deliberate break is applied exactly, or is said not to have been", (
     expect(script).toMatch(/if \(!ran\) \{\s*result\.verdict = "DID NOT RUN";/);
     // The verdict counts against how many breaks were asked for, so one that never reported is missed, not ignored.
     expect(script).toContain("caught === (expected || results.length) && results.length > 0");
+  });
+
+  it("no break counts as caught unless the same tests pass with nothing broken", () => {
+    // The first browser list this tool was given: the fix under test was wrong, the test failed
+    // on its own, and a break that undid the fix came back CAUGHT. A test that is already red
+    // catches everything.
+    expect(BASELINE).toEqual(["PASSES UNBROKEN", "FAILS UNBROKEN"]);
+    const script = readSource("scripts/qa/breaks.mjs");
+    expect(script).toContain('const sound = base?.verdict === "PASSES UNBROKEN";');
+    expect(script).toContain('const caught = sound ? results.filter((r) => r.verdict === "CAUGHT").length : 0;');
+    expect(script).toContain("return sound && caught === (expected || results.length) && results.length > 0 ? 0 : 1;");
+    const flow = readVerbatim(".github/workflows/breaks.yml");
+    expect(flow).toContain("node scripts/qa/breaks.mjs --baseline qa-breaks.json");
+    expect(flow).toContain("needs: [plan, baseline, break]");
   });
 
   it("the workflow gives each break a machine, and the every-push checks leave its branches alone", () => {

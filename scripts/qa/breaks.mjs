@@ -11,6 +11,7 @@
  *
  *     node scripts/qa/breaks.mjs --check qa-breaks.json         would every break apply? (changes nothing)
  *     node scripts/qa/breaks.mjs --plan qa-breaks.json          the list, as a matrix for the workflow
+ *     node scripts/qa/breaks.mjs --baseline qa-breaks.json      run every test the list names with NOTHING broken
  *     node scripts/qa/breaks.mjs --run=3 qa-breaks.json         apply break 3, run its tests, say what happened
  *     node scripts/qa/breaks.mjs --verdict <directory>          add the results up
  *
@@ -40,6 +41,15 @@
  *                       leaves a variable unused fails the build's lint: keep
  *                       the variable used (`x * 0`, `x && ""`).
  *
+ * AND A FOURTH, WHICH IS THE WHOLE LIST PROVING NOTHING: the tests fail with
+ * nothing broken. Every break is then "caught" by a test that was already red.
+ * The first list this tool was given a browser test for did exactly that
+ * (2026-10-13): the fix under test was wrong, the test failed on its own, and a
+ * break that undid the fix came back CAUGHT. So `--baseline` runs every test
+ * the list names on the commit as it stands, the workflow does it on a machine
+ * beside the breaks, and the verdict counts no break as caught unless the
+ * baseline passed.
+ *
  * Run by hand it puts the file back with `git checkout`, so the work must be
  * committed first, as CLAUDE.md asks before any mutation check.
  */
@@ -54,6 +64,8 @@ const rest = args.filter((a) => !a.startsWith("--"));
 
 /** The verdicts, and which of them mean the tests did their job. */
 export const VERDICTS = ["CAUGHT", "NOT CAUGHT", "NOT APPLIED", "DOES NOT COMPILE", "DID NOT RUN"];
+/** What the baseline says: the tests the list names, run with nothing broken. */
+export const BASELINE = ["PASSES UNBROKEN", "FAILS UNBROKEN"];
 
 /** Read a list and refuse one that could not prove anything. */
 export function readBreaks(path) {
@@ -142,26 +154,64 @@ function run(index, listPath) {
   }
 }
 
+/** Every test the list names, once each, with nothing broken. They must all pass, or no break proves anything. */
+function baseline(listPath) {
+  const list = readBreaks(listPath);
+  const result = { index: 0, what: "Nothing broken: every test the breaks name passes", file: "", verdict: "", detail: "" };
+  const failures = [];
+  const unit = [...new Set(list.flatMap((b) => b.unit ?? []))];
+  const audit = [...new Set(list.flatMap((b) => b.audit ?? []))];
+  const specs = [...new Map(list.filter((b) => b.spec).map((b) => [`${b.spec}|${b.project ?? "desktop"}|${b.grep ?? ""}`, b])).values()];
+  if (unit.length) {
+    const r = sh(`npx vitest run ${unit.join(" ")}`);
+    if (r.status !== 0) failures.push(...[...clean(r.text).matchAll(/FAIL\s+\S+\s*>\s*([^\n]*)/g)].map((m) => m[1].trim()), "unit tests failed");
+  }
+  if (audit.length) {
+    const r = sh(`npx vitest run --config vitest.audit.config.ts ${audit.join(" ")}`);
+    if (r.status !== 0) failures.push(...[...clean(r.text).matchAll(/FAIL\s+\S+\s*>\s*([^\n]*)/g)].map((m) => m[1].trim()), "database tests failed");
+  }
+  for (const b of specs) {
+    const grep = b.grep ? ` -g "${b.grep}"` : "";
+    const r = sh(`npx playwright test ${b.spec} --project=${b.project ?? "desktop"} --reporter=line${grep}`, {
+      AUTH_SECRET: process.env.AUTH_SECRET ?? "breaks-signing-key-not-for-deployment",
+    });
+    const text = clean(r.text);
+    if (r.status !== 0 || !/\b\d+ passed\b/.test(text)) {
+      failures.push(`${b.spec}: ${(text.split("\n").find((l) => /^\s+Error:/.test(l)) ?? text.split("\n").filter(Boolean).pop() ?? "did not pass").trim()}`);
+    }
+  }
+  result.verdict = failures.length ? "FAILS UNBROKEN" : "PASSES UNBROKEN";
+  result.detail = [...new Set(failures)].slice(0, 4).join(" | ").slice(0, 500);
+  return result;
+}
+
 function verdict(dir) {
   const files = existsSync(dir) ? readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith(".json")) : [];
-  const results = files.map((f) => JSON.parse(readFileSync(join(dir, String(f)), "utf8"))).sort((a, b) => a.index - b.index);
+  const every = files.map((f) => JSON.parse(readFileSync(join(dir, String(f)), "utf8"))).sort((a, b) => a.index - b.index);
+  // The baseline is result 0. Without it passing, no break below was caught by anything.
+  const base = every.find((r) => r.index === 0) ?? null;
+  const sound = base?.verdict === "PASSES UNBROKEN";
+  const results = every.filter((r) => r.index !== 0);
   const expected = Number(value("expect") || 0);
   const lines = ["| # | Break | Result | What the tests said |", "|---|---|---|---|"];
   for (const r of results) lines.push(`| ${r.index} | ${r.what} | **${r.verdict}** | ${String(r.detail ?? "").replace(/\|/g, "/")} |`);
-  const caught = results.filter((r) => r.verdict === "CAUGHT").length;
+  const caught = sound ? results.filter((r) => r.verdict === "CAUGHT").length : 0;
   const missing = expected ? expected - results.length : 0;
-  const summary = `${caught} of ${expected || results.length} breaks caught${missing > 0 ? `; ${missing} never reported` : ""}`;
+  const summary = sound
+    ? `${caught} of ${expected || results.length} breaks caught${missing > 0 ? `; ${missing} never reported` : ""}`
+    : `NOTHING PROVEN: ${base ? `the tests fail with nothing broken (${base.detail})` : "the tests were never run with nothing broken"}, so a break "caught" below was caught by a test that was already red`;
   const text = `## Proving the tests by breaking the app\n\n${summary}.\n\n${lines.join("\n")}\n\nA break that is NOT CAUGHT is either a fault the tests cannot see or a change nobody would notice. Which it is must be worked out and written down.\n`;
   console.log(text);
   if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, text, { flag: "a" });
-  return caught === (expected || results.length) && results.length > 0 ? 0 : 1;
+  return sound && caught === (expected || results.length) && results.length > 0 ? 0 : 1;
 }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop());
 if (isMain) {
   if (flag("plan")) {
     const list = readBreaks(rest[0]);
-    console.log(JSON.stringify(list.map((b, i) => ({ index: i + 1, what: b.what.slice(0, 90), browser: b.spec ? "yes" : "" }))));
+    if (flag("browser")) console.log(list.some((b) => b.spec) ? "yes" : "");
+    else console.log(JSON.stringify(list.map((b, i) => ({ index: i + 1, what: b.what.slice(0, 90), browser: b.spec ? "yes" : "" }))));
   } else if (flag("check")) {
     // Before machines are spent on it: would every break apply? Changes nothing.
     const list = readBreaks(rest[0]);
@@ -175,6 +225,12 @@ if (isMain) {
     });
     console.log(`${list.length} breaks; ${bad} would not apply`);
     process.exit(bad ? 1 : 0);
+  } else if (flag("baseline")) {
+    const result = baseline(rest[0]);
+    mkdirSync(".qa/breaks", { recursive: true });
+    writeFileSync(".qa/breaks/0.json", JSON.stringify(result, null, 1));
+    console.log(`${result.verdict.padEnd(17)} ${result.what}${result.detail ? ` — ${result.detail}` : ""}`);
+    process.exit(result.verdict === "PASSES UNBROKEN" ? 0 : 1);
   } else if (flag("run")) {
     const index = Number(value("run"));
     const result = run(index, rest[0]);

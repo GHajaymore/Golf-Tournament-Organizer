@@ -271,7 +271,7 @@ new test can fail"). For a browser test that is a build per break, so it is not 
 
 | Result | What it means |
 |---|---|
-| CAUGHT | A test the break names failed. |
+| CAUGHT | A test the break names failed — and the same tests PASS with nothing broken, which the run checks first on a machine of its own (job 0). If they do not, the verdict says NOTHING PROVEN: a break "caught" by a test that was already red proves nothing, and the first browser list this workflow was given did exactly that. |
 | NOT CAUGHT | They all passed. Either the tests cannot see that fault, or the break changes nothing anybody would notice. Work out which and write it in the pull request; do not assume. |
 | NOT APPLIED | The line was not found exactly once, so nothing was broken. Never read this as "not caught". |
 | DOES NOT COMPILE | The type checker refused the break, so nothing ran. Rewrite the break. |
