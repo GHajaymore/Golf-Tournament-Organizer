@@ -2,7 +2,7 @@ import { holesPlayed } from "./handicap";
 import { perPlayerPotRefusal } from "./shared-ball";
 import { PLANS } from "../plans";
 import { isCurrencyCode } from "./money-format";
-import { decimalPoint } from "./decimal-text";
+import { INDEX_MAX, INDEX_MIN, readHandicapIndex } from "./handicap-label";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -35,8 +35,8 @@ import { decimalPoint } from "./decimal-text";
 /** The most a WHS Handicap Index can be, and the best a plus-handicap gets
  *  anywhere near. Stated as a range because a typo of 180 for 18.0 must not
  *  become a player receiving a stroke and a half a hole. */
-export const HANDICAP_MIN = -10;
-export const HANDICAP_MAX = 54;
+export const HANDICAP_MIN = INDEX_MIN;
+export const HANDICAP_MAX = INDEX_MAX;
 
 export interface MatchPlayerInput {
   name: string;
@@ -640,14 +640,12 @@ export type MatchPlanResult = { ok: true; plan: MatchPlan } | { ok: false; error
  */
 export function parseHandicap(raw: string | number | null | undefined): number {
   if (typeof raw === "number") return clampHandicap(raw);
-  // "12,4" is how half of Europe writes 12.4, and was read as nothing — which
-  // put the player on scratch without a word (see `decimalPoint`).
-  const text = decimalPoint(raw);
-  if (!text) return 0;
-  const plus = /^\+/.test(text);
-  const n = Number(text.replace(/^\+/, ""));
-  if (!Number.isFinite(n)) return 0;
-  return clampHandicap(plus ? -Math.abs(n) : n);
+  // The one reading of a typed index (`readHandicapIndex`). THIS box's
+  // decisions, for the reason above: nothing typed, or a typo, plays level;
+  // an impossible figure is brought to the nearest possible one.
+  const read = readHandicapIndex(raw);
+  if (read.kind === "blank" || read.kind === "unreadable") return 0;
+  return clampHandicap(read.value);
 }
 
 function clampHandicap(n: number): number {

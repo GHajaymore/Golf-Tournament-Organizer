@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { navForRole, screenName, TOURNAMENT_ONLY_SCREENS } from "../nav";
 import { readSource } from "./source";
+import { readHandicapIndex } from "../domain/handicap-label";
 
 /**
  * A casual round's console, kept simple.
@@ -133,7 +134,9 @@ describe("what replaces them", () => {
     expect(src).toMatch(/setStageHoles\(stageId, n(, force)?\)/);
     expect(src).toMatch(/setStageScoringBasis\(stageId, "gross"(, force)?\)/);
     expect(src).toMatch(/setStageScoringBasis\(stageId, "net"(, force)?\)/);
-    expect(src).toMatch(/updateSignup\(p\.id, \{ handicap: n \}\)/);
+    // What it is handed is what the one reader of a typed index made of the box
+    // (`readHandicapIndex`, 2026-10-13), not a number this screen worked out.
+    expect(src).toMatch(/updateSignup\(p\.id, \{ handicap: read\.value \}\)/);
   });
 
   it("reuses the tournament's own actions rather than writing a second set", () => {
@@ -152,7 +155,11 @@ describe("what replaces them", () => {
   it("shows a plus handicap as a plus, never as a minus", () => {
     // Stored negative. "-2" beside a name is the kind of wrong that looks
     // right and puts the shots in the wrong holes.
-    expect(panel()).toMatch(/startsWith\("\+"\)/);
+    // The reading is the shared reader's now, where "+2" is two better than
+    // scratch (`a-typed-figure-is-read-one-way.test.ts` holds it to that); this
+    // screen had its own copy, which is what this used to pin.
+    expect(panel()).toMatch(/readHandicapIndex\(e\.target\.value\)/);
+    expect(readHandicapIndex("+2")).toEqual({ kind: "index", value: -2 });
   });
 
   it("is on the round's own screen, for whoever set it up", () => {

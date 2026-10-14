@@ -17,6 +17,7 @@ import {
 import { CourseSearch } from "./CourseSearch";
 import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
+import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
 import { useClubDistanceUnit } from "./DistanceUnitProvider";
@@ -184,7 +185,10 @@ export function CourseLibrary({
   const [check, setCheck] = useState<SourceCheck | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const nums = (a: string[]) => a.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
+  // The one reading of a typed whole number (`readWhole`). A box left empty, or
+  // holding a typo — "4x", which `parseInt` called a par of 4 — is nought, and
+  // the card's own rules then refuse the hole by name.
+  const nums = (a: string[]) => a.map((v) => figureOr(readWhole(v), 0));
 
   /**
    * Fill the boxes from a card pasted off the club's website.

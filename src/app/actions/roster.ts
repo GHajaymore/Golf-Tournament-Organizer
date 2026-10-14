@@ -9,6 +9,7 @@ import { upsertMember, entryContactNeeds } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
+import { indexRefusal } from "@/lib/domain/handicap-label";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { organizationAllows, planForOrganization } from "@/lib/services/entitlements";
@@ -156,6 +157,11 @@ export async function addMember(input: MemberInput): Promise<RosterResult> {
   const data = cleanMemberData(input);
   if (!data.name) return { ok: false, error: "Enter a name." };
   if (data.email && !EMAIL_RE.test(data.email)) return { ok: false, error: "Enter a valid email address." };
+  // The range, on the server as in the form: this is a public endpoint.
+  if (typedIndex(input)) {
+    const refused = indexRefusal(input.handicap);
+    if (refused) return { ok: false, error: refused };
+  }
 
   if (data.email) {
     const clash = await prisma.member.findFirst({ where: { organizationId, email: data.email } });
@@ -343,6 +349,11 @@ export async function updateMember(memberId: string, input: MemberInput): Promis
   const data: Partial<ReturnType<typeof cleanMemberData>> = cleanMemberData(input);
   if (!data.name) return { ok: false, error: "Enter a name." };
   if (data.email && !EMAIL_RE.test(data.email)) return { ok: false, error: "Enter a valid email address." };
+  // The range, on the server as in the form: this is a public endpoint.
+  if (typedIndex(input)) {
+    const refused = indexRefusal(input.handicap);
+    if (refused) return { ok: false, error: refused };
+  }
 
   /**
    * WHAT THE FORM DOES NOT SEND, THE EDIT DOES NOT TOUCH.

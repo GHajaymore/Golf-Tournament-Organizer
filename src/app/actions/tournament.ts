@@ -90,6 +90,7 @@ import { cloneSingleMatchRule, parseSingleMatchRule, singleMatchRuleRefusal } fr
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
+import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
@@ -497,6 +498,12 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     return { ok: false, error: "Email is required — it's how this player signs in." };
   }
   if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  // A handicap that was typed is one a golfer can have. Not finite is "left
+  // blank", which is allowed and is recorded below as no index.
+  if (Number.isFinite(input.handicap)) {
+    const refused = indexRefusal(input.handicap);
+    if (refused) return { ok: false, error: refused };
+  }
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
@@ -629,6 +636,11 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   const data: Record<string, string | number> = {};
   if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
   if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) {
+    // THE RANGE, HERE AS WELL AS IN THE FORMS. This stored any finite number:
+    // the Registration box checks what is typed, a casual round's box did
+    // not, and an action is a public endpoint whichever form calls it.
+    const refused = indexRefusal(patch.handicap);
+    if (refused) return { ok: false, error: refused };
     data.handicap = patch.handicap;
     // Somebody typed this one, so it stops being unknown — including the case
     // this action exists for, correcting an index that arrived blank in a CSV.

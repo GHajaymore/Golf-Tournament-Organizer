@@ -7,6 +7,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
 import { decimalPoint } from "@/lib/domain/decimal-text";
+import { readHandicapIndex } from "@/lib/domain/handicap-label";
 
 export interface CasualPlayer {
   id: string;
@@ -245,20 +246,32 @@ export function CasualRoundPanel({
                 onChange={(e) => setEdits((m) => ({ ...m, [p.id]: e.target.value }))}
                 onKeyDown={leaveOnEnter}
                 onBlur={(e) => {
-                  // "12,4" is 12.4 (`decimalPoint`): read as unreadable, it put the
-                  // old figure back in the box without a word.
-                  const raw = decimalPoint(e.target.value);
-                  if (raw === p.handicap) return;
-                  // "+2" is a plus handicap and is stored negative. Anything
-                  // unreadable is left alone rather than written as nought.
-                  const n = raw.startsWith("+")
-                    ? -Number(raw.slice(1))
-                    : Number(raw);
-                  if (!Number.isFinite(n)) {
+                  if (decimalPoint(e.target.value) === p.handicap) return;
+                  // The one reading of a typed index (`readHandicapIndex`), and this
+                  // box's four decisions about it.
+                  const read = readHandicapIndex(e.target.value);
+                  const putBack = (why: string) => {
                     setEdits((m) => ({ ...m, [p.id]: p.handicap }));
-                    return;
-                  }
-                  run(() => updateSignup(p.id, { handicap: n }));
+                    setError(why);
+                  };
+                  // EMPTIED IS NOT NOUGHT. `Number("")` is 0, so clearing this box
+                  // and tapping away made the player a scratch golfer without a
+                  // word, and re-scored every hole of a net round they were in.
+                  if (read.kind === "blank") return putBack(`${p.name}'s handicap was left as it was: an empty box is not scratch. Type 0 for a scratch golfer.`);
+                  if (read.kind === "unreadable") return putBack(`${p.name}'s handicap was left as it was: type it as a number, like 12.4, or +2.4 for a plus handicap.`);
+                  // 124 for 12.4 is six strokes a hole. It went to a server that stored it.
+                  if (read.kind === "out-of-range") return putBack(`${p.name}'s handicap was left as it was: an index runs from +10 to 54.`);
+                  startTransition(async () => {
+                    setError("");
+                    try {
+                      const res = await updateSignup(p.id, { handicap: read.value });
+                      // A refusal is an answer, not an exception, and was dropped.
+                      if (!res.ok) return putBack(res.error ?? "Couldn't save that handicap.");
+                      router.refresh();
+                    } catch {
+                      setError("Couldn't save that.");
+                    }
+                  });
                 }}
               />
               {/* Two people is the smallest round there is, so the last two
