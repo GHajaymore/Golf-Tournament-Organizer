@@ -222,6 +222,9 @@ describe("whether a cut has been made", () => {
     await prisma.scorecard.updateMany({ where: { stageId: r1, playerId: id.c }, data: { strokes: JSON.stringify(card(69)) } });
     await as("admin");
     expect(await setRoundClosed(r1, false)).toEqual({ ok: true });
+    // Re-opened to correct a card, round 2 is everybody's again until it closes.
+    expect(await strokeCutField(eventId, r2), "re-opening round 1 did not open round 2").toBeNull();
+    expect((await round2()).missedCut, "nobody has missed a cut that is being re-made").toEqual([]);
     const made = (await prisma.stage.findUnique({ where: { id: r2 }, select: { cutMadeAt: true } }))?.cutMadeAt;
     expect(await setRoundClosed(r1, true)).toEqual({ ok: true });
     const holders = (await prisma.scorecard.findMany({ where: { stageId: r2 }, select: { playerId: true } })).map((c) => c.playerId).sort();
