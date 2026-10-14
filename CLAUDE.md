@@ -1619,6 +1619,18 @@ the four, better ball, the usual wording of a result). Week 1 and the final are 
 score-entry screen; weeks 2 and 3 are written as rows, and it says so. What it cannot see is in
 its header.
 
+**AND A LOOKUP BY `id: { in: [...] }` HAS NO ORDER.** `nominatePair` looked its two
+players up in the tournament, rightly, and then took the pair's order from the
+rows that came back: a secretary who picked One and then Four got "Four / One"
+whenever the database returned them that way round. It was found by ONE failed
+check in about twenty-five passes of the league's browser test, which read as
+the test being impatient ("… was not put up"). The page the failed job kept
+showed the pair had been put up, under the other name. **A failure that looks
+like impatience is read from the page it kept, not from its message** — and
+where an action is handed a list, the list's order is the caller's:
+`a-pair-is-named-in-the-order-it-was-picked.audit.test.ts` sends each pair both
+ways round, because whichever way the database prefers, one of them differs.
+
 ## Handicaps: an allowance is taken BEFORE rounding
 
 Rules of Handicapping, 6.2a and Appendix C: a handicap allowance is "applied to the unrounded
