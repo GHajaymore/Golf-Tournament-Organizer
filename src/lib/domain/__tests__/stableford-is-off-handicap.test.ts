@@ -34,7 +34,7 @@ describe("a Stableford round stored 'gross' before this is told the truth", () =
   const terms = (format: string, scoringBasis: string) =>
     tournamentTerms({
       format, type: "Stroke Play Round", holes: 18, scoringBasis, handicapAllowance: 0, countBest: 0,
-      tiebreakers: [], cutEnabled: false, cutMode: "", cutCount: 0, cutPercent: 0,
+      tiebreakers: [], cutAfter: null,
       carryForwardEnabled: false, carryForwardPct: 0,
     }).find((t) => t.label === "Scoring")?.value;
 

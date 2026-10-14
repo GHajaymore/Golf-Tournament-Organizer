@@ -1,6 +1,8 @@
 import { isStablefordFormat, isStablefordRound } from "./domain/week-basis";
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
-import { roundIsStroke, seededFromQualifiers, lookupStageType } from "@/lib/stage-types";
+import { roundIsStroke, lookupStageType } from "@/lib/stage-types";
+import { cutRuleWords } from "@/lib/domain/cut-ready";
+import type { CutRule } from "@/lib/domain/cut";
 import { individualAllowanceFor } from "@/lib/round-allowance";
 
 /**
@@ -193,10 +195,8 @@ export interface TermsInput {
   handicapAllowance: number;
   countBest: number;
   tiebreakers: TiebreakerKey[];
-  cutEnabled: boolean;
-  cutMode: string;
-  cutCount: number;
-  cutPercent: number;
+  /** The cut made after this round (`cutAfterRound`), or null for none. */
+  cutAfter: { rule: CutRule; ties: boolean } | null;
   carryForwardEnabled: boolean;
   carryForwardPct: number;
 }
@@ -359,21 +359,24 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
   }
 
   /**
-   * A cut the engine will actually apply, and no other.
+   * The cut made after THIS round, as the engine will make it, and no other.
    *
-   * A bracket's field is the event's qualifiers, so a round cut set on one
-   * changes nothing — but it was still printed here, and this is the sheet a
-   * club publishes to its players. It read "Top 8 advance to the next round"
-   * while the draw seeded two per flight. The players are entitled to a rules
-   * sheet that describes the competition they are in.
+   * A bracket's field is the event's qualifiers, so a cut set on one changes
+   * nothing — but it was still printed here, and this is the sheet a club
+   * publishes to its players. It read "Top 8 advance to the next round" while
+   * the draw seeded two per flight. The players are entitled to a rules sheet
+   * that describes the competition they are in.
+   *
+   * And it is the NEXT round's cut (2026-10-14). This read the round being
+   * played's own setting, which is the cut INTO it: nothing was printed while
+   * round 1 was played, and once round 2 began the sheet promised a cut that
+   * had already been made. It also left out "in each flight" and "and ties",
+   * so a ninth player level on the line read as going home. See `cutAfterRound`.
    */
-  if (input.cutEnabled && !seededFromQualifiers(input.type)) {
+  if (input.cutAfter) {
     out.push({
       label: "Cut",
-      value:
-        input.cutMode === "percent"
-          ? `Top ${input.cutPercent}% advance to the next round`
-          : `Top ${input.cutCount} advance to the next round`,
+      value: `${cutRuleWords(input.cutAfter.rule, input.cutAfter.ties)} advance to the next round`,
     });
   }
 

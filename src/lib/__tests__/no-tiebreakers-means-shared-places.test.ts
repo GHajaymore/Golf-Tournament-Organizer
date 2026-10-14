@@ -65,7 +65,7 @@ describe("no tie-breakers", () => {
   it("the rules sheet says ties are shared, rather than saying nothing", () => {
     const terms = tournamentTerms({
       format: "Match Play", type: "Round Robin", holes: 18, scoringBasis: "gross", handicapAllowance: 100, countBest: 0,
-      tiebreakers: [], cutEnabled: false, cutMode: "", cutCount: 0, cutPercent: 0, carryForwardEnabled: false, carryForwardPct: 0,
+      tiebreakers: [], cutAfter: null, carryForwardEnabled: false, carryForwardPct: 0,
     });
     const ties = terms.find((t) => t.label === "Ties");
     expect(ties, "a match-play round with no tie-breakers printed no line about ties").toBeDefined();

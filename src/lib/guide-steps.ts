@@ -192,6 +192,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "On the round before the cut, under **Before the next round**, tick **Cut the field for Round N**.",
           "Choose **Top N** or **Top N%**, and **Overall** or **Per flight**. The preview reads “X of Y advance into Round N”.",
           "The cut is made when you mark that round finished. Everyone tied with the last place also goes through, so a cut to 16 can pass 17 or 18.",
+          "While that round is played, the rules sheet tells players what it is for: “Top 16 and ties advance to the next round” — “in each flight” for a per-flight cut.",
           "Until then the next round is open to everybody. A card somebody starts in it early is kept if they make the cut and taken out if they don't — its holes are listed under **Recent changes** on Reports, so you can put them back in from Score entry.",
         ],
       },

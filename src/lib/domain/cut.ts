@@ -12,6 +12,7 @@
  */
 
 import { formGroups } from "./grouping";
+import { cutRuleOf } from "./cut-ready";
 import type { Player } from "./types";
 
 export type CutScope = "overall" | "perFlight";
@@ -234,12 +235,7 @@ export function fieldEnteringRound(
   for (let r = 1; r <= index && r < rounds.length; r += 1) {
     const round = rounds[r];
     if (!round?.cutEnabled) continue;
-    const rule: CutRule = {
-      scope: round.cutScope === "perFlight" ? "perFlight" : "overall",
-      mode: round.cutMode === "percent" ? "percent" : "count",
-      count: round.cutCount,
-      percent: round.cutPercent,
-    };
+    const rule: CutRule = cutRuleOf(round);
     if (rule.scope === "perFlight" && flights.length > 0) {
       flights = flights.map((n) => survivorCount(rule, n));
       total = flights.reduce((a, b) => a + b, 0);
@@ -311,12 +307,7 @@ export function currentRoundCutRule(
   if (activeIndex < 0) return null;
   const next = rounds[activeIndex + 1];
   if (!next || !next.cutEnabled) return null;
-  return {
-    scope: next.cutScope === "perFlight" ? "perFlight" : "overall",
-    mode: next.cutMode === "percent" ? "percent" : "count",
-    count: next.cutCount,
-    percent: next.cutPercent,
-  };
+  return cutRuleOf(next);
 }
 
 /** The current round's cut as a one-line dashboard label, or null. */

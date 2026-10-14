@@ -1,3 +1,4 @@
+import { cutAfterRound } from "@/lib/domain/cut-ready";
 import { playedOnBy } from "@/lib/services/courses";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
@@ -100,10 +101,7 @@ export default async function PlayRulesPage() {
         handicapAllowance: stage.handicapAllowance,
         countBest: stage.countBest,
         tiebreakers,
-        cutEnabled: stage.cutEnabled,
-        cutMode: stage.cutMode,
-        cutCount: stage.cutCount,
-        cutPercent: stage.cutPercent,
+        cutAfter: cutAfterRound(state.playRounds, stage.id),
         carryForwardEnabled: stage.carryForwardEnabled,
         carryForwardPct: stage.carryForwardPct,
       })

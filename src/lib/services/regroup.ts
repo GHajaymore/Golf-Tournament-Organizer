@@ -5,7 +5,8 @@ import "server-only";
 import { prisma } from "../db";
 import { enteredCardCount } from "./round-cards";
 import { formGroups, roundRobinSchedule } from "../domain";
-import { survivors, isCutScope, nextRoundFlights } from "../domain/cut";
+import { survivors, nextRoundFlights } from "../domain/cut";
+import { cutRuleOf } from "../domain/cut-ready";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
 import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
@@ -516,11 +517,9 @@ export async function generateCutRound(
   const scoring = scoringFrom(event);
   const holeDifficulty = resolveCourse(event).strokeIndex;
 
-  const scope = stage.cutEnabled
-    ? isCutScope(stage.cutScope)
-      ? stage.cutScope
-      : "overall"
-    : "perFlight";
+  // The cut's own scope when it has one (`cutRuleOf`, the one reading of a
+  // round's cut settings); a round with no cut groups flight by flight.
+  const scope = stage.cutEnabled ? cutRuleOf(stage).scope : "perFlight";
 
   let survivorIds: Set<string>;
   if (stage.cutEnabled) {
@@ -612,12 +611,7 @@ export async function generateCutRound(
     // difference between a bracket of eight and a bracket of two.
     survivorIds = survivors(
       priorStanding.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId })),
-      {
-        scope,
-        mode: stage.cutMode === "percent" ? "percent" : "count",
-        count: stage.cutCount,
-        percent: stage.cutPercent,
-      },
+      cutRuleOf(stage),
     );
   } else {
     survivorIds = new Set(confirmed.map((p) => p.id));

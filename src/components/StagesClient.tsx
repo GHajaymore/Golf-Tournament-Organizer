@@ -29,6 +29,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import type { PickedCardNote } from "@/lib/domain/picked-card";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
+import { cutRuleOf, cutRuleWords } from "@/lib/domain/cut-ready";
 import {
   chainIssues,
   issuesForRound,
@@ -962,7 +963,10 @@ function StageCard({
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
   if (nextStage?.cutEnabled) {
-    transitionParts.push(nextStage.cutMode === "percent" ? `cuts to top ${nextStage.cutPercent}%` : `cuts to top ${nextStage.cutCount}`);
+    // In the words the rules sheet prints (`cutRuleWords`): "top 8 in each flight
+    // and ties" — a cut to "top 8" was the summary of a per-flight cut too.
+    const ties = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
+    transitionParts.push(`cuts to ${cutRuleWords(cutRuleOf(nextStage), ties).toLowerCase()}`);
   }
   const customizeParts: string[] = [];
   if (deadline) customizeParts.push(`Due ${deadline}`);
