@@ -1,0 +1,50 @@
+[
+  {
+    "what": "M8 the round-code screen holds a decided card back until every cell is filled",
+    "file": "src/components/PlayClient.tsx",
+    "from": "    holding: !!props.submitWhole && !matchIsOverAfter(holes, holeCount0),",
+    "to": "    holding: !!props.submitWhole && holes.filter((h) => h !== null).length < holeCount0,",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "BURN-IN 1: round-code-decided-match.spec.ts on phone (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/round-code-decided-match.spec.ts",
+    "from": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.",
+    "to": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES. (burn-in 1)",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "BURN-IN 2: round-code-decided-match.spec.ts on desktop (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/round-code-decided-match.spec.ts",
+    "from": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.",
+    "to": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES. (burn-in 2)",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "BURN-IN 3: round-code-decided-match.spec.ts on small-phone (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/round-code-decided-match.spec.ts",
+    "from": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.",
+    "to": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES. (burn-in 3)",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "small-phone"
+  },
+  {
+    "what": "BURN-IN 4: round-code-decided-match.spec.ts on phone (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/round-code-decided-match.spec.ts",
+    "from": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.",
+    "to": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES. (burn-in 4)",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "phone"
+  },
+  {
+    "what": "BURN-IN 5: round-code-decided-match.spec.ts on desktop (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/round-code-decided-match.spec.ts",
+    "from": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES.",
+    "to": " * A MATCH WON 5&4 ON A ROUND CODE GOES IN WHEN IT IS DECIDED, NOT AFTER EIGHTEEN HOLES. (burn-in 5)",
+    "spec": "e2e/round-code-decided-match.spec.ts",
+    "project": "desktop"
+  }
+]
