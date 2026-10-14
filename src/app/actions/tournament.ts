@@ -3647,14 +3647,19 @@ export async function disputeMatch(matchId: string): Promise<{ ok: boolean; erro
   const eventId = session.eventId;
   const match = await prisma.match.findFirst({
     where: { id: matchId, eventId },
-    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true, scoreStatus: true },
+    select: { playerAId: true, playerBId: true, teamAId: true, teamBId: true, scoreStatus: true, scoredAt: true },
   });
   if (!match) return { ok: false, error: "That match isn't in this tournament." };
   if (session.role === "player") {
     if (!(await playsInMatch(eventId, session.email, match))) {
       return { ok: false, error: "Only the players in a match, or the committee, can dispute its result." };
     }
-    if (match.scoreStatus === "confirmed" || match.scoreStatus === "auto-confirmed") {
+    // The EFFECTIVE status, as `clearMatch` reads it: a result left a day where
+    // players approve is confirmed while its column still says "pending"
+    // (`an-auto-confirmed-result-is-not-disputed-by-a-player.audit.test.ts`).
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    const status = effectiveScoreStatus(match, event ? allowsAutoConfirm(settingsOf(event)) : false);
+    if (status === "confirmed" || status === "auto-confirmed") {
       return { ok: false, error: "That result has been confirmed. Ask the organizer to reopen it." };
     }
   }
