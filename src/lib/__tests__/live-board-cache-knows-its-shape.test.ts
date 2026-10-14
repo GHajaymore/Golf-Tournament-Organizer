@@ -33,7 +33,9 @@ function viewFields(): string[] {
 // 4: `official`, Final only once the committee closes the round (2026-10-08).
 // 5: `knockoutRound`, a decided draw says it waits on the tournament (2026-10-08).
 // 6: `pairTotals`, a pairs event's total over its rounds (2026-10-10).
-const SHAPE = 6;
+// 7: `teamRows[].place`, a side placed by countback (2026-10-14) — a nested field, which
+//    the field list below cannot see; bumped by hand.
+const SHAPE = 7;
 const FIELDS = [
   "name", "dates", "venue", "teamFormat", "rows", "teamRows", "pairTotals", "teamMatchRows", "pointsSystem",
   "skins", "nassau", "modStableford", "skinsNet", "kind", "teamRound", "isStroke", "isStableford",

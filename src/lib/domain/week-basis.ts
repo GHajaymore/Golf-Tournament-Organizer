@@ -272,14 +272,22 @@ export function valueOnBasis(
  * basis (`toParOnBasis`). Once every side is round the par subtracted is the
  * same for all of them, so a finished order is unchanged. Stableford keeps its
  * points.
+ *
+ * ON THE ROUND'S FIGURE ALONE, and level means level (2026-10-14). This fell
+ * back to `compareOnBasis`, which breaks a NET tie on GROSS — so two sides on
+ * net 64 were ordered by who had the lower gross, which is the low-handicap
+ * side every time, and `compareNight` says in its own words why that is the
+ * wrong tie-break. A tie goes to the countback now, as on the individual board:
+ * `teamStandings` asks it next. A season's pair total, with no single card to
+ * count back on, shares the place.
  */
 export function compareTeamRows(
   basis: WeekBasis,
   a: { gross: number; net: number; points: number; toPar: number },
   b: { gross: number; net: number; points: number; toPar: number },
 ): number {
-  if (basis === "stableford") return compareOnBasis(basis, a, b);
-  return a.toPar - b.toPar || compareOnBasis(basis, a, b);
+  if (basis === "stableford") return b.points - a.points;
+  return a.toPar - b.toPar || valueOnBasis(basis, a) - valueOnBasis(basis, b);
 }
 
 /**

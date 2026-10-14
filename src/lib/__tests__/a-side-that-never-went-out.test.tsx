@@ -24,6 +24,7 @@ const side = (teamId: string, played: number): TeamStanding => ({
   points: 0,
   played,
   toPar: played ? -9 : 0,
+  place: played ? 1 : null,
 });
 const html = (roundClosed: boolean) =>
   renderToStaticMarkup(

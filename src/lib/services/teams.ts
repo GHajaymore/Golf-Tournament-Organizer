@@ -9,6 +9,7 @@ import { hasLeftTheField } from "../domain/left-the-field";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
+import { countbackCompare } from "../domain/stroke-countback";
 import { oneCardPerSide } from "../domain/team-entry";
 import { teamMatchStandings, type TeamMatchStanding } from "../domain/team-match-standings";
 import { isLeaguePointsSystem } from "../domain/league-meeting";
@@ -402,6 +403,17 @@ export interface TeamStanding {
   points: number;
   played: number;
   toPar: number;
+  /**
+   * THE SIDE'S PLACE, decided here and printed as it is: level on the round's
+   * figure AND level on countback (last nine, six, three, then the last hole,
+   * on the side's own card and the round's basis) shares it; anything else
+   * does not. Null for a side with no card. Every board, sheet and Today screen
+   * reads this rather than numbering the sides itself — six of them did, off
+   * the figure alone, so a team board shared a place the individual board
+   * would have separated (Ajay's ruling of 2026-09-26: boards print the
+   * countback place). `a-side-is-placed-by-countback.audit.test.ts`.
+   */
+  place: number | null;
 }
 
 /**
@@ -531,6 +543,7 @@ export async function teamStandings(
         // afternoon a tidier `isNetBasis` silenced the stableford rounds.
         basis.trim().toLowerCase() !== "gross",
       ),
+      holes: card.holes,
     };
   });
 
@@ -549,12 +562,30 @@ export async function teamStandings(
    * gross medal agree about which way is winning, at every hole.
    */
   const order = weekBasis(basis, format);
-  return rows.sort((a, b) => {
+  // The side's card on the round's basis, hole by hole, for the countback: a
+  // hole nobody holed out on is null, so a card cut short cannot be counted back.
+  const cb = (r: (typeof rows)[number]) => ({
+    playerId: r.teamId,
+    total: 0, // unused: only ever handed to countbackCompare
+    holes: r.holes.map((h) => (h.net == null ? null : order === "stableford" ? h.points : order === "gross" ? h.gross : h.net)),
+  });
+  const countback = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
+    countbackCompare(cb(a), cb(b), pars.length, order === "stableford");
+  const sorted = rows.sort((a, b) => {
     // A side with no card yet has nothing to rank, and a gross of zero would
     // otherwise put it top.
     if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
-    return compareTeamRows(order, a, b) || a.name.localeCompare(b.name);
+    // Level on the figure: the countback, as the individual board breaks it.
+    return compareTeamRows(order, a, b) || countback(a, b) || a.name.localeCompare(b.name);
   });
+  const places: (number | null)[] = [];
+  sorted.forEach((r, i) => {
+    if (r.played === 0) return places.push(null);
+    const prev = i > 0 ? sorted[i - 1] : null;
+    const level = prev !== null && prev.played > 0 && compareTeamRows(order, prev, r) === 0 && countback(prev, r) === 0;
+    places.push(level ? places[i - 1] : i + 1);
+  });
+  return sorted.map(({ holes: _holes, ...r }, i) => ({ ...r, place: places[i] }));
 }
 
 /**

@@ -417,19 +417,25 @@ describe("two sides level on the night", () => {
     );
   });
 
-  it("shares the place, the way the team leaderboard does", async () => {
+  it("places them the way the team leaderboard does: level on net, then by countback", async () => {
     /**
-     * Two conventions are live in this app at once: `placesByValue` ties on
-     * the ranked figure, and `levelOnBasis` — used by the PLAYER table on this
-     * very screen — breaks a net tie on gross. Sides are ranked on the
-     * leaderboard as well as here, and a club reads both, so the side table
-     * follows the leaderboard.
+     * The side table follows the leaderboard, because a club reads both — found
+     * by eye on the seeded club once: three sides on net 60, a three-way tie on
+     * the leaderboard and 1st, 2nd, 3rd on the week sheet. Since 2026-10-14
+     * neither numbers the sides: `teamStandings` decides the place, and breaks
+     * a tie by countback as the individual board does (Ajay's ruling of
+     * 2026-09-26). Worked by hand on this foursomes, both on net 64:
      *
-     * Found by eye on the seeded club: three sides on net 60, a three-way tie
-     * for first on the leaderboard and 1st, 2nd, 3rd on the week sheet.
+     *     Low pair    side handicap 8    home 36, four strokes there    net 32
+     *     High pair   side handicap 18   home 37, nine strokes there    net 28
+     *
+     * So the High pair is first on the last nine, and the place is not shared.
      */
     const view = await weekViewFor(eventId, tieWeekId);
-    expect(view!.sides.map((s) => s.position)).toEqual([1, 1]);
+    expect(view!.sides.map((s) => [s.name.replace(`${TAG} `, ""), s.position])).toEqual([
+      ["High pair", 1],
+      ["Low pair", 2],
+    ]);
   });
 });
 

@@ -25,7 +25,7 @@
 import { todaysThru } from "./scoreboard";
 import { rankedScore, unitIsNet, type RankedRow } from "./ranked-score";
 import { placesByValue } from "./flight-places";
-import { teamPlaceValue, type WeekBasis } from "./week-basis";
+import { type WeekBasis } from "./week-basis";
 
 /** A standings row, narrowed to what a share card can use. */
 export interface CardRow {
@@ -159,11 +159,12 @@ export function cardThru(row: BoardForCard["rows"][number]): string {
  * already put on that basis.
  */
 export function sideRowsForCard(
-  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number }[],
+  sides: readonly { name: string; gross: number; net: number; points: number; played: number; toPar: number; place: number | null }[],
   basis: WeekBasis,
   holes: number,
 ): BoardForCard["rows"] {
-  const places = placesByValue(sides, (s) => teamPlaceValue(basis, s), (s) => s.played > 0);
+  // The place `teamStandings` decided, countback and all.
+  const places = sides.map((s) => s.place);
   return sides.map((s, i) => ({
     rank: places[i] ?? 0,
     name: s.name,

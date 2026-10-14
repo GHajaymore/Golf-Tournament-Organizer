@@ -23,7 +23,6 @@ import { teamStandings, type TeamStanding } from "./teams";
 import {
   weekBasis,
   valueOnBasis,
-  teamPlaceValue,
   directionOnBasis,
   compareNight,
   nightLevel,
@@ -31,7 +30,6 @@ import {
 } from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 import { formattingForEvent } from "./organization";
-import { placesByValue } from "../domain/flight-places";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -301,36 +299,21 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       )
     : [];
   /**
-   * PLACED THE WAY THE TEAM LEADERBOARD PLACES THEM, which is not the way the
-   * player table above places players.
+   * PLACED AS THE TEAM LEADERBOARD PLACES THEM: the place `teamStandings`
+   * decided (`TeamStanding.place`), countback and all.
    *
-   * `placesByValue` ties on the ranked figure alone; the player rows above break
-   * a tie on the leaderboard's own countback (last nine, then six, three, one),
-   * so a level player table matches the board rather than a second opinion. Both
-   * conventions are live in this app on purpose (see the shared-places decision,
-   * still open), and the comparison a club actually makes is this table against
-   * the leaderboard's table of THE SAME SIDES ON THE SAME NIGHT.
+   * The comparison a club actually makes is this table against the
+   * leaderboard's table of THE SAME SIDES ON THE SAME NIGHT. Read off the
+   * seeded club's foursomes once: three sides on net 60, a three-way tie on the
+   * leaderboard and 1st, 2nd and 3rd here — two numberings of one night. This
+   * table then numbered the sides itself, on the figure alone, as the board did.
    *
-   * Written after reading the seeded club's foursomes: three sides on net 60,
-   * shown as a three-way tie for first on the leaderboard and as 1st, 2nd and
-   * 3rd here. One of those is wrong on any convention, and it is the new one.
-   *
-   * The figure is `teamStandings`' own sort key — points for a Stableford,
-   * otherwise the to-par on the round's basis (`teamPlaceValue`) — so the
-   * places run in the order the rows are already in.
+   * Since 2026-10-14 neither numbers them: the place is decided once, where the
+   * sides are sorted, and it breaks a tie by countback on the side's card as
+   * the individual board does (Ajay's ruling of 2026-09-26, boards print the
+   * countback place). Sides level on that as well still share.
    */
-  const sides: WeekSide[] = (() => {
-    // `valueOnBasis`, so a gross team round places on gross. Written as
-    // "points or net" until 2026-09-20, which is the same two-branch reading
-    // `teamStandings` sorted by and the board numbered with — three copies of
-    // one rule, all three missing the same third case.
-    const places = placesByValue(
-      sideRows,
-      (s) => teamPlaceValue(weekBasis(stage.scoringBasis, stage.format), s),
-      (s) => s.played > 0,
-    );
-    return sideRows.map((s, i) => ({ ...s, position: places[i] ?? null }));
-  })();
+  const sides: WeekSide[] = sideRows.map((s) => ({ ...s, position: s.place }));
 
   /**
    * WHETHER A NIGHT HAS BEEN PLAYED, ASKED THE WAY THAT NIGHT IS SCORED.
