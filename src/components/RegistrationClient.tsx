@@ -1073,12 +1073,15 @@ export function RegistrationClient({
           for now this opens a share sheet you confirm.)
         </p>
         <div className="field">
-          <label>Message</label>
+          {/* Tied to its box, so a screen reader names it: this caption had no
+              `htmlFor` and the box was announced as an unnamed text area. */}
+          <label htmlFor={`${fid}-invite`}>Message</label>
           {/* A PLACEHOLDER, never a stored value — see `suggestedInvite`. It is
               rebuilt from the tournament on every render, so it cannot be wrong
               about the date the way a saved sentence can; that is exactly what
               went wrong with the one a copy used to inherit. */}
           <textarea
+            id={`${fid}-invite`}
             className="input"
             rows={3}
             value={invite}

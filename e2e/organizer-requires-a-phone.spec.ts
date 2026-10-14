@@ -75,6 +75,28 @@ test.afterAll(async () => {
   }
 });
 
+test("the organizer's own invitation is kept, under a box a screen reader can name", async ({ page, context, baseURL }) => {
+  // `setInviteMessage`, reached by no browser test. Found by the box rather than
+  // by its position: its "Message" caption was tied to nothing until 2026-10-14,
+  // so a screen reader announced an unnamed text area — and this could not find it.
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  watchPageErrors(page, errors, "organizer");
+  await context.addCookies([{ name: "ng_active_event", value: sign(ids.event), url: baseURL! }]);
+  const said = `${MARK}: Spring Open entries are open — sign up by Friday.`;
+  await page.goto(`/registration?bust=${Date.now()}`);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const box = page.getByLabel("Message", { exact: true });
+  await expect(box, "the invitation box has no name a screen reader can read").toBeVisible({ timeout: 20_000 });
+  await box.fill(said);
+  await box.blur();
+  const kept = async () => (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { inviteMessage: true } })).inviteMessage;
+  await expect.poll(kept, { timeout: 15_000, message: "leaving the box saved nothing" }).toBe(said);
+  await page.goto(`/registration?bust=${Date.now()}`);
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue(said, { timeout: 20_000 });
+  expect(errors).toEqual([]);
+});
+
 const required = async () => (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { requirePhone: true } })).requirePhone;
 
 test("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
