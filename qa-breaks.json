@@ -1,0 +1,20 @@
+[
+  {
+    "what": "S3 a file of cards stores whatever it is given on a hole",
+    "file": "src/app/actions/tournament.ts",
+    "from": "        .slice(0, 18)\n        .map((v) => (isStroke(v) ? v : null));",
+    "to": "        .slice(0, 18)\n        .map((v) => v as number | null);",
+    "audit": [
+      "src/lib/__tests__/an-imported-card-is-returned.audit.test.ts"
+    ]
+  },
+  {
+    "what": "S4 a file of net scores stores a gross past the ceiling",
+    "file": "src/app/actions/tournament.ts",
+    "from": "            return isStroke(gross) ? gross : null;",
+    "to": "            return gross;",
+    "audit": [
+      "src/lib/__tests__/net-import-uses-the-round-card.audit.test.ts"
+    ]
+  }
+]
