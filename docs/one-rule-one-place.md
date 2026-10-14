@@ -36,7 +36,7 @@ Each layer is taken only when the one beneath it is in one place and proven.
 |---|---|---|---|
 | 1 | What people type | handicaps, scores, money, dates read one way everywhere | done 2026-10-13 for every typed figure; reading a STORED card moved to step 5 |
 | 2 | The field | who is in the tournament, and in this round | done 2026-10-14: the cut recorded and asked once; a player found by address one way; a round's cut settings read once; leaving the field asked once |
-| 3 | The venue | which course, which card, which tees | tees done 2026-10-13; card chain and the record's tee open |
+| 3 | The venue | which course, which card, which tees | done 2026-10-14: tees; a round's card built one way; the handicap record off the round's tees. One item measured unreachable and registered (a match countback's card) |
 | 4 | Handicap | course handicap, playing handicap, strokes per hole | playing handicap done 2026-10-13; two side pipelines open |
 | 5 | A card | gross, net, points, to par | not started |
 | 6 | A round | finished or not, ranking, ties, a match result | not started |
@@ -106,6 +106,20 @@ handicap readers became one (counted off the diff, not the inventory). The four
   `left-the-field-is-asked-one-way.test.ts` refuses a fourth. Places that say
   something different to each (which way back there is) are a different
   question and were left.
+- **A round's card, and the tees of a member's differential** (step 3):
+  `roundCard(stage, event, venue)` in `course-resolution.ts` is the one chain
+  from a round to its card — nine readers wrote it out
+  (`a-rounds-card-is-built-one-way.test.ts`). The handicap record now walks the
+  round's tees as the board does (`teeForPlay`); it had rated a round played
+  away off the home course's tees, 22.0 where the Rule gives 13.4
+  (`a-differential-is-from-the-tees-of-the-round.audit.test.ts`). Live
+  2026-10-14.
+- **Checked and consistent** (step 3): the map of each player's flight tees is
+  built four times, all four the same one line (a flight's id to its tees, then
+  each player through their flight); which tees WIN is `teeIdFor`'s alone.
+  **Measured and registered** (step 3): a halved match's toughest-holes
+  countback reads the tournament's card in all three readers; no tournament
+  uses that countback, so nothing can show it — see `docs/deferred-register.md`.
 - **Checked and consistent** (step 2): "confirmed" is spelled one way in
   every query that asks for the field (`status: "confirmed"`), and the two
   readers of "who contested the last round" — the round-robin cut and the
