@@ -280,6 +280,43 @@ export function layersFor(round) {
 /** How many machines the console crawl is shared between. See `E2E_CRAWL_PART` in e2e/every-control.spec.ts. */
 export const CRAWL_PARTS = 4;
 
+/**
+ * HOW MANY MACHINES EACH LONG PART IS SHARED BETWEEN, by Playwright's `--shard`.
+ *
+ * Keyed `layer:size` for a layer that runs every spec (it is cut by size first),
+ * and `layer` for one that runs a list of specs. A part not named here is one
+ * machine.
+ *
+ * MEASURED, not guessed (Ajay, 2026-10-13: "the test round you promised me was
+ * 35 mins. why its taking so long?"). With the crawl shared out, the first
+ * round took 39 minutes: six for the one build and the database suite that
+ * every part waits for, and then the longest part — and the longest parts had
+ * become the other browsers, each still running a whole suite on one machine:
+ *
+ *     firefox-desktop 33   firefox-phone 30   iphone-phone 30   ipad 27
+ *     chrome 24            tablet-android 23  firefox-small-phone 22   safari 21
+ *
+ * against 16 to 19 for everything in the suite itself. Halving those eight
+ * brings the longest part to about seventeen minutes and a round to about
+ * twenty-five. It removes no test: the shards of a part are exactly the part,
+ * and `qa-framework.test.ts` holds every share to be there once.
+ *
+ * A round is then about 47 parts for 40 machines. The eleven scenario parts
+ * finish in a few minutes, so the last few parts wait about that long.
+ */
+export const SHARDS = {
+  "suite:desktop": 3,
+  "suite:phone": 2,
+  "firefox:desktop": 2,
+  "firefox:phone": 2,
+  "firefox:small-phone": 2,
+  "iphone:phone": 2,
+  ipad: 2,
+  chrome: 2,
+  "tablet-android": 2,
+  safari: 2,
+};
+
 export function partsFor(round) {
   const parts = [];
   const all = ["phone", "small-phone", "desktop"];
@@ -298,7 +335,7 @@ export function partsFor(round) {
     // Only the layers that run EVERY spec are worth cutting; a walk is three tests.
     if (layer.specs.length === 0) {
       for (const project of projects) {
-        const shards = layer.key === "suite" && project === "desktop" ? 3 : layer.key === "suite" && project === "phone" ? 2 : 1;
+        const shards = SHARDS[`${layer.key}:${project}`] ?? 1;
         // The console crawl is one test, on the laptop size of the suite, and as long as everything
         // else in that size together. It is taken out of the shards and given parts of its own.
         const crawl = layer.key === "suite" && project === "desktop" ? CRAWL_PARTS : 0;
@@ -310,7 +347,17 @@ export function partsFor(round) {
         }
       }
     } else {
-      parts.push({ id: layer.key, layer: layer.key, args: `--only=${layer.key}`, browsers, minutes: layer.minutes });
+      // A layer that runs a list of specs at its own sizes: one part, or shares of it.
+      const shards = SHARDS[layer.key] ?? 1;
+      for (let i = 1; i <= shards; i += 1) {
+        parts.push({
+          id: `${layer.key}${shards > 1 ? `-${i}of${shards}` : ""}`,
+          layer: layer.key,
+          args: `--only=${layer.key}${shards > 1 ? ` --shard=${i}/${shards}` : ""}`,
+          browsers,
+          minutes: layer.minutes,
+        });
+      }
     }
   }
   return parts;

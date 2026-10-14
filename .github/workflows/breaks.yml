@@ -1,0 +1,123 @@
+name: Breaks
+
+# PROVING THE TESTS BY BREAKING THE APP, EACH BREAK ON A MACHINE OF ITS OWN.
+#
+# A test is only worth its green if the app, broken, turns it red. For a
+# browser test that takes a build per break, and done one after another on the
+# machine the app is written on, eighteen breaks took eighty-five minutes and
+# held its working tree the whole time (2026-10-13). Here every break in a list
+# gets its own runner and its own database, and the whole list takes about as
+# long as its slowest break: ten to fifteen minutes.
+#
+# HOW TO ASK FOR ONE
+#   1. commit the work under test (a break is judged against that commit);
+#   2. on top of it, on a branch named  breaks/<anything>,  commit the list as
+#      `qa-breaks.json` at the repository root (scripts/qa/breaks.mjs says what
+#      a list holds);
+#   3. push that branch. It is thrown away afterwards and never merged, which
+#      is why the list is not kept anywhere a pull request would carry it.
+#
+#   plan      reads the list into one job per break
+#   break     applies ONE break, runs the tests it names, and is green only if
+#             a test went red — so a red job here is a break the tests MISSED
+#   verdict   adds them up as this run's summary
+#
+# It gates nothing. The count goes in the pull request, with every break that
+# was not caught explained.
+
+on:
+  push:
+    branches: ["breaks/**"]
+
+concurrency:
+  group: breaks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Local to each runner and destroyed with it — never a real credential.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      breaks: ${{ steps.plan.outputs.breaks }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read the list
+        id: plan
+        run: |
+          BREAKS=$(node scripts/qa/breaks.mjs --plan qa-breaks.json)
+          echo "breaks=$BREAKS" >> "$GITHUB_OUTPUT"
+          echo "count=$(node -e 'console.log(JSON.parse(process.argv[1]).length)' "$BREAKS")" >> "$GITHUB_OUTPUT"
+
+  break:
+    name: ${{ matrix.break.index }} · ${{ matrix.break.what }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        break: ${{ fromJson(needs.plan.outputs.breaks) }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install the browser, for a break a browser test is to catch
+        if: matrix.break.browser != ''
+        # The limit ci.yml gives this step, for the reason it gives.
+        timeout-minutes: 12
+        run: npx playwright install --with-deps chromium
+      - name: Break the app, and ask the tests
+        env:
+          AUTH_SECRET: breaks-e2e-secret
+        # Green when a test went red. Red when the tests missed it, or the break proved nothing.
+        run: node scripts/qa/breaks.mjs --run=${{ matrix.break.index }} qa-breaks.json
+      - name: Hand on what happened
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: break-${{ matrix.break.index }}
+          path: .qa/breaks/
+          include-hidden-files: true
+          retention-days: 7
+
+  verdict:
+    name: Verdict
+    needs: [plan, break]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Take every break's result
+        uses: actions/download-artifact@v4
+        with:
+          pattern: break-*
+          path: results
+      - name: Add them up
+        run: node scripts/qa/breaks.mjs --verdict results --expect=${{ needs.plan.outputs.count }}

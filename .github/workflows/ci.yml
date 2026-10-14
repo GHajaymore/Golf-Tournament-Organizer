@@ -34,7 +34,8 @@ name: CI
 # waited up to 21 minutes for a machine (measured 2026-10-13).
 on:
   push:
-    branches: ["**", "!round/**"]
+    # Nor on a `breaks/**` branch, which is the app deliberately broken (breaks.yml).
+    branches: ["**", "!round/**", "!breaks/**"]
   pull_request:
   workflow_dispatch:
 
