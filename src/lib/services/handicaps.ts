@@ -349,6 +349,17 @@ export function roundCourseHandicaps(args: {
   tees: TeeLike[];
   /** The field, without `flightTeeId`: this resolves that from `flightTeeOf`. */
   players: readonly Omit<IndexHolder, "flightTeeId">[];
+  /**
+   * EVERYONE CONFIRMED IN THE TOURNAMENT — `confirmedField(eventId)`, or
+   * `players` again where that is already all of them.
+   *
+   * Required, and not defaulted to `players`: the strokes for tees of a higher
+   * par (Rule 6.2b) are a difference from the lowest par the FIELD is playing,
+   * and five of this function's callers hand it part of a field — one pot, one
+   * side, one match. A default would let each of them find its own lowest par
+   * and disagree with the board by a stroke with nothing on any screen wrong.
+   */
+  field: readonly Omit<IndexHolder, "flightTeeId">[];
   /** `flightTeeByPlayer(eventId)`, so the `flight` policy has something to read. */
   flightTeeOf: Map<string, string | null>;
   /** The round. Null is honest — a stage that no longer exists prices off the event. */
@@ -375,7 +386,7 @@ export function roundCourseHandicaps(args: {
    */
   holes?: number;
 }): CourseHandicaps {
-  const { tees, players, flightTeeOf, stage, event, match } = args;
+  const { tees, players, field, flightTeeOf, stage, event, match } = args;
   const roundTee = teeForPlay(
     tees,
     { matchTeeId: match?.teeId, stageTeeId: stage?.teeId, eventDefaultTeeId: event?.defaultTeeId },
@@ -387,7 +398,19 @@ export function roundCourseHandicaps(args: {
     roundTee,
     args.holes ?? holesPlayed(stage?.holes ?? 18),
     event?.teePolicy ?? "own",
+    field.map((p) => ({ ...p, flightTeeId: flightTeeOf.get(p.id) ?? null })),
   );
+}
+
+/**
+ * The tournament's confirmed field, as `roundCourseHandicaps` wants it for
+ * `field` — for a caller that has only part of the field in hand.
+ */
+export async function confirmedField(eventId: string): Promise<Omit<IndexHolder, "flightTeeId">[]> {
+  return prisma.player.findMany({
+    where: { eventId, status: "confirmed" },
+    select: { id: true, handicap: true, handicapType: true, teeId: true },
+  });
 }
 
 /**

@@ -1,12 +1,12 @@
 import "server-only";
-import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
+import { roundCourseHandicaps, flightTeeByPlayer, confirmedField } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { effectiveAllowance, recommendedAllowance } from "../round-allowance";
-import { holesPlayed, playingHandicapFrom } from "../domain/handicap";
+import { effectiveAllowance, parStrokesApply, recommendedAllowance } from "../round-allowance";
+import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
 import { hasLeftTheField } from "../domain/left-the-field";
-import { roundHandicapExactOf, roundHandicapOf } from "../domain/round-handicap";
+import { roundHandicapExactOf, roundHandicapOf, roundParStrokesOf } from "../domain/round-handicap";
 import { roundHandicapRows } from "./round-handicap";
 import { weekBasis, compareTeamRows } from "../domain/week-basis";
 import { toParOnBasis } from "../domain/ranked-score";
@@ -41,8 +41,15 @@ export interface TeamMemberView {
    */
   handicapExact: number;
   /**
+   * The strokes this player is given for playing tees of a higher par than the
+   * lowest in the field (Rule 6.2b). Nought where the round's format does not
+   * give them — a shared ball, or a round counted in points — and for a field
+   * all off one par. Already inside `playing`.
+   */
+  parStrokes: number;
+  /**
    * WHAT THIS PLAYER'S OWN BALL PLAYS OFF in this round: the round's allowance
-   * of `handicapExact`, rounded once. Null where the side shares one ball —
+   * of `handicapExact`, rounded once, and then `parStrokes`. Null where the side shares one ball —
    * nobody there has a playing handicap of their own, only the side does
    * (`TeamView.playingHandicap`).
    *
@@ -126,7 +133,7 @@ export async function teamsForStage(
       where: { id: stageId },
       // `type`, because what a four-ball's own ball plays off depends on whether
       // the round is stroke play or a match — see `round-allowance.ts`.
-      select: { holes: true, teeId: true, courseId: true, type: true },
+      select: { holes: true, teeId: true, courseId: true, type: true, scoringBasis: true },
     }),
     prisma.event.findUnique({
       where: { id: eventId },
@@ -169,6 +176,8 @@ export async function teamsForStage(
   const courseHcp = roundCourseHandicaps({
     tees,
     players: allMembers,
+    // The whole field's, since a round's sides need not hold everybody in it.
+    field: await confirmedField(eventId),
     flightTeeOf: flightTee,
     stage,
     event,
@@ -187,6 +196,7 @@ export async function teamsForStage(
   const round = await roundHandicapRows(eventId, stageId);
 
   const ownBall = findFormat(format).ball !== "single";
+  const givesParStrokes = parStrokesApply(format, stage?.scoringBasis);
   const allowancePct = effectiveAllowance(format, allowanceOverride, stage?.type);
 
   return use.map((t) => {
@@ -196,12 +206,17 @@ export async function teamsForStage(
         courseHcp.get(m.playerId) ?? m.player.handicap,
         courseHcp.exact(m.playerId) ?? m.player.handicap,
       );
+      // Tees of a higher par (Rule 6.2b), where every player plays their own ball.
+      const parStrokes = givesParStrokes
+        ? roundParStrokesOf(round.get(m.playerId), courseHcp.parStrokes(m.playerId))
+        : NO_PAR_STROKES;
       return {
       playerId: m.playerId,
       name: m.player.name,
       handicap: roundHandicapOf(round.get(m.playerId), courseHcp.get(m.playerId) ?? m.player.handicap),
       handicapExact,
-      playing: ownBall ? playingHandicapFrom(handicapExact, allowancePct) : null,
+      parStrokes,
+      playing: ownBall ? roundPlayingHandicap(handicapExact, allowancePct, parStrokes) : null,
       position: m.position,
       // Left the field by EITHER route. This asked for "withdrawn" alone, so a
       // partner the committee had disqualified still priced the side's
@@ -460,6 +475,7 @@ export async function teamStandings(
                 playerId: m.playerId,
                 strokes: parse(own.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
                 courseHandicap: m.handicapExact,
+                parStrokes: m.parStrokes,
               })),
               pars,
               strokeIndex,

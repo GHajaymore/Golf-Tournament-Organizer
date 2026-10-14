@@ -2,15 +2,16 @@ import "server-only";
 import { playedOnBy } from "./courses";
 import { roundCourseHandicaps as roundHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { playingHandicapFrom, type CourseHandicaps, type IndexHolder } from "../domain/handicap";
+import { NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps, type IndexHolder } from "../domain/handicap";
 import { findFormat } from "../formats";
-import { effectiveAllowance } from "../round-allowance";
+import { effectiveAllowance, parStrokesApply } from "../round-allowance";
 import {
   acceptsHandicapChange,
   exactHandicapToFreeze,
   handicapToFreeze,
   isReturnedCard,
   resolveRoundHandicap,
+  roundParStrokesOf,
   type HandicapSource,
 } from "../domain/round-handicap";
 
@@ -119,6 +120,8 @@ async function roundCourseHandicaps(
   return roundHandicaps({
     tees,
     players,
+    // Both callers hand this the whole confirmed field.
+    field: players,
     flightTeeOf: flightTee,
     stage,
     event,
@@ -181,6 +184,13 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
    * card that triggered the freeze, which is the one thing it must never do.
    */
   const exactFor = (p: (typeof pending)[number]) => exactHandicapToFreeze(inputFor(p));
+  /**
+   * AND THE STROKES FOR TEES OF A HIGHER PAR (Rule 6.2b), as the field stands
+   * at this moment — frozen with the handicap for the same reason it is frozen.
+   * The figure is the field's; whether this round's format takes it is asked
+   * where the round is priced (`parStrokesApply`).
+   */
+  const parFor = (p: (typeof pending)[number]) => courseHcp.parStrokes(p.id);
 
   const missing = pending.filter((p) => !byPlayer.has(p.id));
   const held = pending.filter((p) => byPlayer.has(p.id));
@@ -199,6 +209,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
               playerId: p.id,
               frozen: valueFor(p),
               frozenExact: exactFor(p),
+              frozenParStrokes: parFor(p),
               frozenAt,
             })),
             skipDuplicates: true,
@@ -208,7 +219,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     ...held.map((p) =>
       prisma.roundHandicap.updateMany({
         where: { eventId, stageId, playerId: p.id, frozen: null },
-        data: { frozen: valueFor(p), frozenExact: exactFor(p), frozenAt },
+        data: { frozen: valueFor(p), frozenExact: exactFor(p), frozenParStrokes: parFor(p), frozenAt },
       }),
     ),
   ]);
@@ -248,7 +259,7 @@ export async function roundHasReturnedCard(eventId: string, stageId: string): Pr
 /** What one round says about its players: the committee's decision and the frozen fact. */
 export type RoundHandicapRows = Map<
   string,
-  { frozen: number | null; frozenExact: number | null; override: number | null }
+  { frozen: number | null; frozenExact: number | null; frozenParStrokes: number | null; override: number | null }
 >;
 
 /**
@@ -267,10 +278,13 @@ export type RoundHandicapRows = Map<
 export async function roundHandicapRows(eventId: string, stageId: string): Promise<RoundHandicapRows> {
   const rows = await prisma.roundHandicap.findMany({
     where: { eventId, stageId },
-    select: { playerId: true, override: true, frozen: true, frozenExact: true },
+    select: { playerId: true, override: true, frozen: true, frozenExact: true, frozenParStrokes: true },
   });
   return new Map(
-    rows.map((r) => [r.playerId, { frozen: r.frozen, frozenExact: r.frozenExact, override: r.override }]),
+    rows.map((r) => [
+      r.playerId,
+      { frozen: r.frozen, frozenExact: r.frozenExact, frozenParStrokes: r.frozenParStrokes, override: r.override },
+    ]),
   );
 }
 
@@ -304,6 +318,12 @@ export interface RoundHandicapView {
    * rounding was 6.6, and an organizer working 95% of 7 by hand gets 7.
    */
   playing: number | null;
+  /**
+   * Of those, the strokes given for playing tees of a higher par than the
+   * lowest in the field (Rule 6.2b). Nought in a format the Rule does not
+   * cover, and for a field all off one par. Already inside `playing`.
+   */
+  parStrokes: number;
   source: HandicapSource;
   /** False once the round is frozen: the screen says why rather than disabling a box. */
   editable: boolean;
@@ -327,11 +347,20 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     where: { id: stageId, eventId },
     // As the freeze does, and for the same reason: the number shown here is the
     // number the round's cards are priced off, converted for THIS round's tees.
-    select: { holes: true, teeId: true, courseId: true, format: true, handicapAllowance: true, type: true },
+    select: {
+      holes: true,
+      teeId: true,
+      courseId: true,
+      format: true,
+      handicapAllowance: true,
+      type: true,
+      scoringBasis: true,
+    },
   });
   if (!stage) return [];
   const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
   const ownBall = findFormat(stage.format).ball !== "single";
+  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
 
   // Scored, whether or not anything is frozen. A round played before the freeze
   // existed has cards and no rows, and offering to change its handicaps would
@@ -341,7 +370,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   const [rows, players] = await Promise.all([
     prisma.roundHandicap.findMany({
       where: { eventId, stageId },
-      select: { playerId: true, override: true, frozen: true, frozenExact: true },
+      select: { playerId: true, override: true, frozen: true, frozenExact: true, frozenParStrokes: true },
     }),
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
@@ -363,6 +392,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       member,
       memberExact: courseHcp.exact(p.id) ?? p.handicap,
     });
+    const parStrokes = givesParStrokes ? roundParStrokesOf(row, courseHcp.parStrokes(p.id)) : NO_PAR_STROKES;
     return {
       playerId: p.id,
       name: p.name,
@@ -372,7 +402,8 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       handicap: resolved.handicap,
       exact: resolved.exact,
       allowance,
-      playing: ownBall ? playingHandicapFrom(resolved.exact, allowance) : null,
+      parStrokes,
+      playing: ownBall ? roundPlayingHandicap(resolved.exact, allowance, parStrokes) : null,
       source: resolved.source,
       editable: resolved.editable && acceptsHandicapChange(returned),
       differsFromCurrent: resolved.differsFromCurrent,

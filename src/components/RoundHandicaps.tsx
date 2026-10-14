@@ -101,6 +101,12 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
             a course handicap of 7 that was 6.6 plays off 6 at 95%, not 7. A figure you set here
             yourself is a whole number, and the allowance is taken of that.
           </p>
+          <p>
+            Where the field plays tees of different pars, in stroke play or a match, the players on
+            the higher par are given the difference as extra strokes, added after the allowance
+            (Rules of Handicapping, 6.2b). A round counted in Stableford points gives none: there
+            each player is already measured against the par of their own tees.
+          </p>
         </FieldInfo>
       </div>
 
@@ -149,12 +155,21 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
                     course handicap BEFORE it is rounded (Rule 6.2a), so "7 at 95%"
                     is 6 when the 7 was 6.6; without the middle figure an organizer
                     working it by hand gets 7 and decides the board is wrong. */}
-                {r.playing !== null && r.allowance !== 100 ? (
+                {r.playing !== null && (r.allowance !== 100 || r.parStrokes > 0) ? (
                   <>
                     course handicap <b style={{ color: "var(--color-text)" }}>{numberFor(r.handicap)}</b>
-                    {r.exact !== r.handicap ? ` (${indexFigure(Number(r.exact.toFixed(2)))} before rounding)` : ""}
+                    {r.allowance !== 100 && r.exact !== r.handicap
+                      ? ` (${indexFigure(Number(r.exact.toFixed(2)))} before rounding)`
+                      : ""}
                     {" · plays off "}
-                    <b style={{ color: "var(--color-text)" }}>{numberFor(r.playing)}</b> at {r.allowance}%
+                    <b style={{ color: "var(--color-text)" }}>{numberFor(r.playing)}</b>
+                    {r.allowance !== 100 ? ` at ${r.allowance}%` : ""}
+                    {/* AND WHY IT IS MORE THAN THE ALLOWANCE GIVES. Without this an
+                        organizer checking "12 at 95%" gets 11, reads 12, and decides
+                        the board is wrong — about the one player it is right for. */}
+                    {r.parStrokes > 0
+                      ? `, with ${r.parStrokes} ${r.parStrokes === 1 ? "stroke" : "strokes"} for tees of a higher par`
+                      : ""}
                   </>
                 ) : (
                   <>

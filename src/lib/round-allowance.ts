@@ -49,6 +49,41 @@ export function effectiveAllowance(format: string, override: number, stageType: 
 }
 
 /**
+ * WHETHER A ROUND IN THIS FORMAT GIVES THE STROKES FOR TEES OF A HIGHER PAR
+ * (Rules of Handicapping 6.2b — see `roundPlayingHandicap` in `domain/handicap.ts`).
+ *
+ * The Rule covers stroke play and match play counted in gross or net STROKES,
+ * and names what it leaves out: where the result is counted against par —
+ * Stableford, par/bogey — each player is already measured against the par of
+ * their own tees, and nothing is added.
+ *
+ *   yes   stroke play, match play, a Nassau, skins, and the formats where
+ *         every player plays their own ball and one or more count
+ *         (four-ball, best ball, a shamble)
+ *   no    Stableford and Modified Stableford, by the Rule
+ *   no    a side that shares one ball (foursomes, greensomes, a scramble).
+ *         Its handicap is a share of its players' and Appendix C says how the
+ *         shares are taken; what a difference in pars adds to a side is a
+ *         committee's procedure this app does not have. Written down in
+ *         `docs/deferred-register.md`, and nought until it is decided.
+ *   no    a round scored by hand, which this app does not price.
+ */
+export function parStrokesApply(format: string, scoringBasis: string | null | undefined): boolean {
+  if (isManualFormat(format)) return false;
+  const f = findFormat(format);
+  if (f.engine === "stableford" || f.engine === "modified-stableford") return false;
+  // A round can also be SET to points whatever its format is — a four-ball
+  // Stableford, or a stroke round stored the older way. It is counted against
+  // par all the same, so the basis is asked as well as the format, and it is
+  // not optional: a caller with only the format in hand would give a points
+  // round a stroke the Rule withholds.
+  const basis = (scoringBasis ?? "").trim().toLowerCase();
+  if (basis === "stableford" || basis === "modified-stableford") return false;
+  if (f.ball === "single") return false;
+  return true;
+}
+
+/**
  * Whether a round takes a share of a handicap at all: a team round, by its
  * format's own panel, or an individual net round, by the line on its card. What
  * the action asks before it stores a figure, so that what a screen OFFERS and

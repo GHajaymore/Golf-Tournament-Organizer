@@ -91,7 +91,7 @@ async function playingHandicapFor(
     teeId: p.teeId,
   }));
   const forRound = (holes: number) =>
-    roundCourseHandicaps({ tees, players: idx, flightTeeOf: flightTee, stage, event, holes });
+    roundCourseHandicaps({ tees, players: idx, field: idx, flightTeeOf: flightTee, stage, event, holes });
   const courseHcp18 = forRound(18);
   const courseHcp9 = forRound(9);
 

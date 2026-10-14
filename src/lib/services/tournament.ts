@@ -3,7 +3,12 @@ import { cache } from "react";
 import { roundTeeId, teeForPlay } from "./handicaps";
 import { playedOnBy } from "./courses";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke, isIndividualStrokeRound, isStructuralStage } from "../stage-types";
-import { resolveRoundHandicap, roundHandicapKey, type RoundHandicapRow } from "../domain/round-handicap";
+import {
+  resolveRoundHandicap,
+  roundHandicapKey,
+  roundParStrokesOf,
+  type RoundHandicapRow,
+} from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { boardKind, isManualFormat, needsTeams, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
@@ -14,8 +19,9 @@ import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-ti
 import { unitIsNet, toParOnBasis } from "../domain/ranked-score";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
+import { parStrokesApply } from "../round-allowance";
 import {
-  holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, playingHandicapFrom } from "../domain";
+  holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import {
   aggregateStroke,
   chargedHoles,
@@ -71,7 +77,7 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
-import { holesPlayed, type CourseHandicaps } from "../domain/handicap";
+import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap, type CourseHandicaps } from "../domain/handicap";
 import { filledHoles } from "../domain/card-approval";
 import { isStablefordRound } from "../domain/week-basis";
 import { isMatch, reviewsScores } from "../tournament-shape";
@@ -951,13 +957,19 @@ export function strokeHandicapResolver(ctx: {
     // One reader for the rule — `resolveRoundHandicap` — so the board, the
     // screen that shows the number and the freeze that writes it cannot
     // disagree about which of the three sources wins.
+    const row = ctx.roundHandicapFor?.(playerId, stageId) ?? null;
     const resolved = resolveRoundHandicap({
-      ...(ctx.roundHandicapFor?.(playerId, stageId) ?? {}),
+      ...(row ?? {}),
       member,
       memberExact: byRound.exact(playerId) ?? ctx.fallback.get(playerId) ?? 0,
     });
-    // Of the UNROUNDED figure, rounded once — see `courseHandicapExact`.
-    return playingHandicapFrom(resolved.exact, allowance);
+    // Of the UNROUNDED figure, rounded once — see `courseHandicapExact` — and then
+    // the strokes for tees of a higher par, where the format gives them (Rule 6.2b).
+    const parStrokes =
+      stage && parStrokesApply(stage.format, stage.scoringBasis)
+        ? roundParStrokesOf(row, byRound.parStrokes(playerId))
+        : NO_PAR_STROKES;
+    return roundPlayingHandicap(resolved.exact, allowance, parStrokes);
   };
 }
 
@@ -1228,8 +1240,15 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     ...p,
     flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null,
   }));
-  const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy);
-  const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy);
+  /**
+   * THE FIELD, for the lowest par being played (Rule 6.2b): everyone confirmed,
+   * which is who every other reader of a round counts (`confirmedField`). The
+   * withdrawn are priced above and are not in it, or a board would find a
+   * different lowest par from the skins pot beside it.
+   */
+  const fieldForPar = withFlightTee.filter((p) => !withdrawnIds.has(p.id));
+  const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy, fieldForPar);
+  const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy, fieldForPar);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
   /**
    * THE SAME ARITHMETIC, ONCE PER ROUND, because the tees are a per-round
@@ -1261,7 +1280,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
     courseHcpByStage.set(
       s.id,
-      courseHandicapMap(withFlightTee, teeRatings, stageTee, holesPlayed(s.holes), teePolicy),
+      courseHandicapMap(withFlightTee, teeRatings, stageTee, holesPlayed(s.holes), teePolicy, fieldForPar),
     );
   }
   /**
@@ -1289,7 +1308,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
     );
     courseHcpByMatch.set(
       m.id,
-      courseHandicapMap(withFlightTee, teeRatings, matchTee, holesPlayed(stage?.holes), teePolicy),
+      courseHandicapMap(withFlightTee, teeRatings, matchTee, holesPlayed(stage?.holes), teePolicy, fieldForPar),
     );
   }
   /**
@@ -1806,7 +1825,7 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [
       roundHandicapKey(r.stageId, r.playerId),
-      { frozen: r.frozen, frozenExact: r.frozenExact, override: r.override },
+      { frozen: r.frozen, frozenExact: r.frozenExact, frozenParStrokes: r.frozenParStrokes, override: r.override },
     ]),
   );
 
@@ -2927,12 +2946,18 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
       const stage = stageById.get(m.stageId);
       const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance, stage.type) : 100;
       const member = own.get(playerId) ?? courseHcp.get(playerId) ?? 0;
+      const row = roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? null;
       const resolved = resolveRoundHandicap({
-        ...(roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? {}),
+        ...(row ?? {}),
         member,
         memberExact: own.exact(playerId) ?? courseHcp.exact(playerId) ?? 0,
       });
-      return playingHandicapFrom(resolved.exact, allowance);
+      // The pars of the tees THIS match was played from, since it named its own.
+      const parStrokes =
+        stage && parStrokesApply(stage.format, stage.scoringBasis)
+          ? roundParStrokesOf(row, own.parStrokes(playerId))
+          : NO_PAR_STROKES;
+      return roundPlayingHandicap(resolved.exact, allowance, parStrokes);
     },
     strokeCourseFor: courseFor,
     roundFieldSize: (stageId: string) => {

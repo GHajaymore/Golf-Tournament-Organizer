@@ -2,13 +2,14 @@ import "server-only";
 import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { playedOnBy } from "./courses";
 import { roundHandicapRows } from "./round-handicap";
-import { roundHandicapExactOf } from "../domain/round-handicap";
+import { roundHandicapExactOf, roundParStrokesOf } from "../domain/round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
-import { holesPlayed, playingHandicapFrom } from "../domain/handicap";
+import { holesPlayed, NO_PAR_STROKES, roundPlayingHandicap } from "../domain/handicap";
 import { effectiveAllowance } from "./teams";
+import { parStrokesApply } from "../round-allowance";
 import {
   skinsPot,
   settle,
@@ -166,6 +167,7 @@ export async function skinsPotFor(
         format: true,
         handicapAllowance: true,
         type: true,
+        scoringBasis: true,
         // The committee's "this round is finished" — releases a pot held for
         // an entrant who never teed off. See `waitingToStart`.
         closedAt: true,
@@ -385,6 +387,12 @@ export async function skinsPotFor(
       handicapType: p.handicapType,
       teeId: p.teeId,
     })),
+    // The FIELD's lowest par, not the pot's (Rule 6.2b): a pot of players all
+    // off the longer par would otherwise give none of them the stroke the
+    // board gives every one, and a skin is won hole by hole.
+    field: players
+      .filter((p) => p.status === "confirmed")
+      .map((p) => ({ id: p.id, handicap: p.handicap, handicapType: p.handicapType, teeId: p.teeId })),
     flightTeeOf: flightTee,
     stage,
     event,
@@ -481,6 +489,7 @@ export async function skinsPotFor(
    * became that agreement assertion when this landed.
    */
   const allowance = effectiveAllowance(stage.format, stage.handicapAllowance, stage.type);
+  const givesParStrokes = parStrokesApply(stage.format, stage.scoringBasis);
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
@@ -488,7 +497,7 @@ export async function skinsPotFor(
       // Falls back to the Index only when the course has no tees on file at
       // all, which is the old behaviour and the best available guess.
       courseHandicap: strokesForPot(
-        playingHandicapFrom(
+        roundPlayingHandicap(
           // Before rounding: the allowance is taken of this (Rule 6.2a).
           roundHandicapExactOf(
             round.get(p.id),
@@ -496,6 +505,8 @@ export async function skinsPotFor(
             courseHcp.exact(p.id) ?? p.handicap,
           ),
           allowance,
+          // And the strokes for tees of a higher par (Rule 6.2b): a skin is won on net strokes.
+          givesParStrokes ? roundParStrokesOf(round.get(p.id), courseHcp.parStrokes(p.id)) : NO_PAR_STROKES,
         ),
       ),
     })),

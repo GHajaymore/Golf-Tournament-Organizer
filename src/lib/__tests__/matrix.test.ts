@@ -1006,6 +1006,7 @@ describe("team draws, at every field size and every team format", () => {
         name: p.name,
         handicap: p.handicap,
         handicapExact: p.handicap,
+        parStrokes: 0,
         playing: null,
         position,
         // Everybody drawn here is playing. `teamProblems` now reads this as

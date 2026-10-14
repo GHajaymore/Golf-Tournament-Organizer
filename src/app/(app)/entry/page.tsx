@@ -370,6 +370,8 @@ export default async function EntryPage({ searchParams }: { searchParams?: Promi
                 strokes: c.strokes,
                 // What the board takes the allowance of — see `TeamMemberView.handicapExact`.
                 courseHandicap: t.members.find((m) => m.playerId === c.playerId)?.handicapExact ?? c.handicap,
+                // And the strokes for tees of a higher par, as the board gives them (Rule 6.2b).
+                parStrokes: t.members.find((m) => m.playerId === c.playerId)?.parStrokes ?? 0,
               })),
               teamPars,
               teamStrokeIndex,

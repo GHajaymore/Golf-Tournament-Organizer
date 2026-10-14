@@ -367,7 +367,13 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
     const sample = "export function playingHandicapFrom(a: number, b: number) {}\nconst x = playingHandicapFrom(resolved.exact, pct);\nconst y = sidePlayingHandicap(list, f);";
     expect(firstArgs(sample, "playingHandicapFrom")).toEqual(["resolved.exact"]);
     expect(firstArgs(sample, "sidePlayingHandicap")).toEqual(["list"]);
-    const all = files.flatMap((f) => firstArgs(codeOf.get(f)!, "playingHandicapFrom"));
+    // A round is priced with `roundPlayingHandicap` since 2026-10-13 — the same
+    // allowance of the same figure, then the strokes for tees of a higher par —
+    // so the callers are counted under both names.
+    const all = files.flatMap((f) => [
+      ...firstArgs(codeOf.get(f)!, "playingHandicapFrom"),
+      ...firstArgs(codeOf.get(f)!, "roundPlayingHandicap"),
+    ]);
     // The board twice, the league, skins, the team match, the net import, the
     // printed card's five, the side builder, the worked example, the explanation.
     expect(all.length).toBeGreaterThanOrEqual(12);
@@ -378,10 +384,12 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
     const bad: string[] = [];
     for (const f of files) {
       const code = codeOf.get(f)!;
-      for (const arg of firstArgs(code, "playingHandicapFrom")) {
-        // The printed card names its reader `frozenHandicapOf`, and that reader
-        // is pinned to the exact form just below.
-        if (!exactly.test(arg) && !/^frozenHandicapOf\(/.test(arg) && arg !== "ch") bad.push(`${f}: playingHandicapFrom(${arg}, …)`);
+      for (const name of ["playingHandicapFrom", "roundPlayingHandicap"]) {
+        for (const arg of firstArgs(code, name)) {
+          // The printed card names its reader `frozenHandicapOf`, and that reader
+          // is pinned to the exact form just below.
+          if (!exactly.test(arg) && !/^frozenHandicapOf\(/.test(arg) && arg !== "ch") bad.push(`${f}: ${name}(${arg}, …)`);
+        }
       }
       for (const arg of firstArgs(code, "allocatedStrokes")) {
         // `matchStrokesPerHole` spreads a difference between two playing figures at 100%.
@@ -422,16 +430,23 @@ describe("the arithmetic is written once and handed the unrounded figure", () =>
     // stroke apart, for one player in five.
     const rows = codeOf.get("src/lib/services/round-handicap.ts")!;
     const reader = rows.slice(rows.indexOf("export async function roundHandicapRows("));
-    expect(reader.slice(0, 600)).toMatch(/select: \{ playerId: true, override: true, frozen: true, frozenExact: true \}/);
+    expect(reader.slice(0, 600)).toMatch(
+      /select: \{ playerId: true, override: true, frozen: true, frozenExact: true, frozenParStrokes: true \}/,
+    );
     expect(reader.slice(0, 600)).toMatch(/frozenExact: r\.frozenExact/);
     const board = codeOf.get("src/lib/services/tournament.ts")!;
-    expect(board).toMatch(/\{ frozen: r\.frozen, frozenExact: r\.frozenExact, override: r\.override \}/);
+    expect(board).toMatch(
+      /\{ frozen: r\.frozen, frozenExact: r\.frozenExact, frozenParStrokes: r\.frozenParStrokes, override: r\.override \}/,
+    );
     // And the freeze writes the two in one statement, both ways it can write.
     expect(rows).toMatch(/frozen: valueFor\(p\),\s*frozenExact: exactFor\(p\),/);
-    expect(rows).toMatch(/data: \{ frozen: valueFor\(p\), frozenExact: exactFor\(p\), frozenAt \}/);
+    expect(rows).toMatch(
+      /data: \{ frozen: valueFor\(p\), frozenExact: exactFor\(p\), frozenParStrokes: parFor\(p\), frozenAt \}/,
+    );
     // Un-freezing clears both.
     const actions = codeOf.get("src/app/actions/tournament.ts")!;
-    expect(actions.split("frozen: null, frozenExact: null, frozenAt: null").length - 1).toBe(2);
+    expect(actions.split("frozen: null, frozenExact: null, frozenParStrokes: null, frozenAt: null").length - 1).toBe(2);
+    expect(actions).not.toMatch(/frozen: null, frozenExact: null, frozenAt: null/);
     expect(actions).not.toMatch(/data: \{ frozen: null, frozenAt: null \}/);
   });
 });
