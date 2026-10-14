@@ -1,0 +1,58 @@
+[
+  {
+    "what": "P1 a singles match decided from its cards gives nothing for the pars again",
+    "file": "src/app/actions/tournament.ts",
+    "from": "          parStrokes: netHcp.parStrokes(p.id),",
+    "to": "          parStrokes: 0,",
+    "audit": [
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "P2 the one chain gives nobody the strokes for the pars",
+    "file": "src/lib/round-allowance.ts",
+    "from": "roundParStrokesOf(row, member.parStrokes) : NO_PAR_STROKES;",
+    "to": "NO_PAR_STROKES : NO_PAR_STROKES;",
+    "unit": [
+      "src/lib/__tests__/a-round-is-priced-one-way.test.ts"
+    ],
+    "audit": [
+      "src/lib/__tests__/every-reader-gives-the-strokes-for-the-pars.audit.test.ts",
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "P3 the one chain takes the allowance of the rounded figure",
+    "file": "src/lib/round-allowance.ts",
+    "from": "playing: roundPlayingHandicap(resolved.exact, allowance, parStrokes) };",
+    "to": "playing: roundPlayingHandicap(resolved.handicap, allowance, parStrokes) };",
+    "unit": [
+      "src/lib/__tests__/a-round-is-priced-one-way.test.ts"
+    ]
+  },
+  {
+    "what": "P4 the board's resolver gives nothing for the pars",
+    "file": "src/lib/services/tournament.ts",
+    "from": "      parStrokes: byRound.parStrokes(playerId),",
+    "to": "      parStrokes: 0,",
+    "audit": [
+      "src/lib/__tests__/every-reader-gives-the-strokes-for-the-pars.audit.test.ts",
+      "src/lib/__tests__/stored-results-give-the-strokes-for-the-pars.audit.test.ts"
+    ]
+  },
+  {
+    "what": "P5 the league prices a round by hand again (the sweep's own target)",
+    "file": "src/lib/services/league.ts",
+    "from": "          playingHandicap: playsOff(c.playerId),",
+    "to": "          playingHandicap: roundPlayingHandicap(playsOff(c.playerId), 100, NO_PAR_STROKES),",
+    "also": [
+      {
+        "from": "import { NO_PAR_STROKES } from \"../domain/handicap\";",
+        "to": "import { NO_PAR_STROKES, roundPlayingHandicap } from \"../domain/handicap\";"
+      }
+    ],
+    "unit": [
+      "src/lib/__tests__/a-round-is-priced-one-way.test.ts"
+    ]
+  }
+]
