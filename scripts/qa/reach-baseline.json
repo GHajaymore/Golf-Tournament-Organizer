@@ -129,7 +129,6 @@
    "setInviteMessage",
    "setMatchTiebreakers",
    "setQualifyPerGroup",
-   "setRequirePhone",
    "setSingleMatchRule",
    "setStageCarry",
    "setStageCutScope",
