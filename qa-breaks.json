@@ -1,0 +1,28 @@
+[
+  {
+    "what": "I1 the invitation caption is tied to nothing again",
+    "file": "src/components/RegistrationClient.tsx",
+    "from": "          <label htmlFor={`${fid}-invite`}>Message</label>",
+    "to": "          <label>Message</label>",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "invitation"
+  },
+  {
+    "what": "I2 leaving the invitation box stores nothing",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message } });",
+    "to": "  await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message && \"\" } });",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "invitation"
+  },
+  {
+    "what": "BURN-IN: organizer-requires-a-phone.spec.ts, both tests (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/organizer-requires-a-phone.spec.ts",
+    "from": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.",
+    "to": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE. (burn-in)",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "phone"
+  }
+]
