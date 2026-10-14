@@ -456,7 +456,7 @@ describe("rowsForBoardKind", () => {
 
   it("ranks Modified Stableford on its points table", () => {
     const k = rowsForBoardKind(
-      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18 }, { name: "zz-Bea", points: 7, played: 9 }] }),
+      view({ kind: "modified-stableford", modStableford: [{ name: "zz-Ann", points: 12, played: 18, place: 1 }, { name: "zz-Bea", points: 7, played: 9, place: 2 }] }),
       false,
     );
     const c = resultsCard({ ...board(), rows: k.rows! }, "public", "zz-club");

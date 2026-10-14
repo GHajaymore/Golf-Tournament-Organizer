@@ -7,6 +7,7 @@ import { playNassau, type NassauOutcome } from "../domain/nassau";
 import { modifiedStablefordForHole, holeStrokesReceived } from "../domain/stroke";
 import type { HoleResult } from "../domain/types";
 import { holesPlayed } from "../domain/handicap";
+import { countbackCompare } from "../domain/stroke-countback";
 import { strokeHandicapResolver } from "./tournament";
 import { roundHandicapRows } from "./round-handicap";
 import { roundCourseHandicaps, flightTeeByPlayer, FIELD_PLAYER } from "./handicaps";
@@ -199,6 +200,15 @@ export interface ModStablefordRow {
   points: number;
   played: number;
   gross: number;
+  /**
+   * THE PLACE, decided here and printed as it is: level on points AND on
+   * countback (last nine, six, three, then the last hole, on the card's own
+   * modified points) shares it. Null for a card with nothing on it. The tie
+   * used to go to the lower GROSS — the low handicapper every time — while
+   * the readers shared the place on points; the boards print the countback
+   * place (Ajay's ruling of 2026-09-26). `a-points-board-is-placed-by-countback.audit.test.ts`.
+   */
+  place: number | null;
 }
 
 export async function modifiedStablefordBoard(
@@ -223,15 +233,20 @@ export async function modifiedStablefordBoard(
     let points = 0;
     let played = 0;
     let gross = 0;
+    // Each hole's points, null where nothing was returned — what a countback reads.
+    const holePoints: (number | null)[] = [];
     for (let h = 0; h < pars.length; h += 1) {
       const s = strokes[h];
+      holePoints.push(null);
       if (s == null || !Number.isFinite(s)) continue;
       // Playing Handicap, not the Index. On the modified table a stroke is
       // worth up to three points, so the three shots this used to withhold
       // from a 12.4 off slope 140 could swing a card by six and reorder the
       // board.
       const shots = holeStrokesReceived(playsOff(p.id), strokeIndex[h] ?? 18, allocationHoles(strokeIndex.length));
-      points += modifiedStablefordForHole(s, pars[h] ?? 0, shots);
+      const onHole = modifiedStablefordForHole(s, pars[h] ?? 0, shots);
+      holePoints[h] = onHole;
+      points += onHole;
       gross += s;
       played += 1;
     }
@@ -246,14 +261,28 @@ export async function modifiedStablefordBoard(
       points,
       played,
       gross,
+      holePoints,
     };
   });
 
   // Highest points wins. Unlike standard Stableford there is no floor at zero,
   // so a score can be negative — which means an unplayed card (0 points) would
   // otherwise outrank someone having a bad day. Unplayed sorts last regardless.
-  return rows.sort((a, b) => {
+  // Level on points goes to the countback on the card's own points, as the
+  // leaderboard breaks a Stableford tie — never to the lower gross.
+  type Row = (typeof rows)[number];
+  const countback = (a: Row, b: Row) =>
+    countbackCompare({ playerId: a.playerId, total: 0, holes: a.holePoints }, { playerId: b.playerId, total: 0, holes: b.holePoints }, pars.length, true);
+  const sorted = rows.sort((a, b) => {
     if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
-    return b.points - a.points || a.gross - b.gross || a.name.localeCompare(b.name);
+    return b.points - a.points || countback(a, b) || a.name.localeCompare(b.name);
   });
+  const places: (number | null)[] = [];
+  sorted.forEach((r, i) => {
+    if (r.played === 0) return places.push(null);
+    const prev = i > 0 ? sorted[i - 1] : null;
+    const level = prev !== null && prev.played > 0 && prev.points === r.points && countback(prev, r) === 0;
+    places.push(level ? places[i - 1] : i + 1);
+  });
+  return sorted.map(({ holePoints: _holePoints, ...r }, i) => ({ ...r, place: places[i] }));
 }
