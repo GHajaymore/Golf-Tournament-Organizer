@@ -63,7 +63,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
+import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, assertSignsCards, assertRoundOpen, type SaveCardResult } from "@/lib/services/scorecard-write";
 import { flightLabel } from "@/lib/domain/flight-label";
 import {
@@ -129,6 +129,7 @@ import { placementOnApproval, parseHandicapInput, parseHandicapType } from "@/li
 import {
   marginRefusal,
   marginToHoles,
+  matchIsOver,
   resolveMatch,
   deriveNetHoles,
   isTiebreakerKey,
@@ -2362,7 +2363,16 @@ export async function removeStage(stageId: string, force = false) {
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
-  const complete = resolveMatch(holes).complete;
+  // A card of THIS round's length, as the round-code screen's path cleans it
+  // (`actions/play.ts`). This stored the list as it came and called it complete
+  // by `resolveMatch(list).complete`: an empty list was a finished match, and
+  // ["A"] an eighteen-hole match won 1 up
+  // (`a-match-result-is-a-card-of-its-length.audit.test.ts`).
+  const owner = await prisma.match.findFirst({ where: { id: matchId, eventId }, select: { stage: { select: { holes: true } } } });
+  if (!owner) throw new Error("Match not found.");
+  const clean = cleanHoleResults(holes, holesPlayed(owner.stage?.holes));
+  if (!clean) throw new Error("Each hole is won by one side or halved. Check the card and save again.");
+  const complete = matchIsOver(clean);
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
   // way — they enter scores as groups come in.
@@ -2374,7 +2384,7 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: {
-      holes: JSON.stringify(holes),
+      holes: JSON.stringify(clean),
       // A real result supersedes a forfeit. Without this, an organizer who
       // forfeited against the wrong name and then entered the true card would
       // see the card on screen and the forfeit in the standings — the entered
@@ -5601,12 +5611,18 @@ export async function importScores(
       // Same rule as the strokes shape: a hole result is A, B, H or null, and
       // a card has at most eighteen of them — anything else from the caller is
       // dropped rather than stored.
-      const holes = (Array.isArray(row.holes) ? row.holes : [])
-        .slice(0, 18)
-        .map((h) => (h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null));
+      // Sized to the ROUND, as a typed result is: an empty row was stored as
+      // [], which reads as a finished match, and stamped as scored.
+      const holes =
+        cleanHoleResults(
+          (Array.isArray(row.holes) ? row.holes : []).map((h) =>
+            h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null,
+          ),
+          holesPlayed(stage.holes),
+        ) ?? [];
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
-        data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
+        data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: matchIsOver(holes) ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: importedBy },
       });
       written += 1;
       continue;

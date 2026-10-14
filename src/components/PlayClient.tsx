@@ -5,7 +5,7 @@ import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
-import { marginRefusal } from "@/lib/domain/match";
+import { marginRefusal, matchIsOver } from "@/lib/domain/match";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -323,7 +323,10 @@ export function PlayClient(props: Props) {
     stageId: props.stageId ?? "play",
     playerId: `match:${props.match?.id ?? "none"}`,
     enabled: props.stage === "score" && !!props.match,
-    holding: !!props.submitWhole && holes.filter((h) => h !== null).length < holeCount0,
+    // Held until the MATCH is decided, not until every cell is filled: a match
+    // won 5&4 is over with four holes nobody plays (Rule 3.2a(3)). Asked of the
+    // round's length, since a short list would read as fewer holes left.
+    holding: !!props.submitWhole && !matchIsOver(Array.from({ length: holeCount0 }, (_, i) => holes[i] ?? null)),
     send: async (value) => {
       const m = props.match!;
       // Stored results are always A-relative; flip back if this player is B.
@@ -1000,9 +1003,9 @@ export function PlayClient(props: Props) {
           {matchQueue.status.label}
         </p>
         {/* Counted out of the ROUND's holes — render.test pins nine for a nine. */}
-        {props.submitWhole && filled < holeCount && (
+        {props.submitWhole && !matchIsOver(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)) && (
           <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            Fill all {holeCount} holes to submit — the card goes in when the last one does.
+            Fill in each hole until the match is decided, up to all {holeCount}. The card goes in when it is.
           </p>
         )}
         {matchQueue.status.tone === "warn" && (

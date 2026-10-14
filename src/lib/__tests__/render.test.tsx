@@ -8238,7 +8238,7 @@ describe("the sign-up password field", () => {
  * The grid was sized from the length of the CARD rather than the round, and the
  * card handed down was the event's whole eighteen. So a nine-hole match drew
  * eighteen cells; only nine of them can ever be filled, so the submit button
- * read "Fill all 18 holes to submit" and stayed disabled for good. The player
+ * read "up to all 18." and stayed disabled for good. The player
  * had no way to submit at all, and the nine cells past the end were discarded
  * on save, so the number on screen was never the number being stored either.
  */
@@ -8348,8 +8348,8 @@ describe("the round-code card is drawn for the round's own holes", () => {
 
   it("asks for nine holes on a nine-hole round, not eighteen", () => {
     const html = play();
-    expect(html).toContain("Fill all 9 holes to submit");
-    expect(html).not.toContain("Fill all 18 holes to submit");
+    expect(html).toContain("up to all 9.");
+    expect(html).not.toContain("up to all 18.");
   });
 
   it("counts the round out of nine", () => {
@@ -8368,7 +8368,7 @@ describe("the round-code card is drawn for the round's own holes", () => {
       yards: new Array(18).fill(400),
       strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
     });
-    expect(html).toContain("Fill all 9 holes to submit");
+    expect(html).toContain("up to all 9.");
     expect(html).toContain("0/9 holes");
   });
 
@@ -8390,7 +8390,7 @@ describe("the round-code card is drawn for the round's own holes", () => {
       yards: new Array(18).fill(400),
       strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
     });
-    expect(html).toContain("Fill all 18 holes to submit");
+    expect(html).toContain("up to all 18.");
     expect(html).toContain("0/18 holes");
   });
 
@@ -8399,7 +8399,40 @@ describe("the round-code card is drawn for the round's own holes", () => {
     // none. Falling back to eighteen there would break the same submit button
     // by the other route.
     const html = play({ pars: [], yards: [], strokeIndex: [] });
-    expect(html).toContain("Fill all 9 holes to submit");
+    expect(html).toContain("up to all 9.");
+  });
+
+  it("does not ask for the holes after the match is decided (Rule 3.2a(3))", () => {
+    // Four up with three to play on a nine: over 4&3, with three holes nobody plays.
+    const decided = play({
+      match: {
+        id: "m1",
+        aId: "a",
+        bId: "b",
+        aName: "A. Player",
+        bName: "B. Rival",
+        aHandicap: 8,
+        bHandicap: 12,
+        holes: ["A", "A", "A", "A", "H", "H", null, null, null],
+        flipped: false,
+      },
+    });
+    expect(decided).not.toContain("Fill in each hole until the match is decided");
+    // CONTROL: three up with three to play is not over, and the line is there.
+    const live = play({
+      match: {
+        id: "m1",
+        aId: "a",
+        bId: "b",
+        aName: "A. Player",
+        bName: "B. Rival",
+        aHandicap: 8,
+        bHandicap: 12,
+        holes: ["A", "A", "A", "H", "H", "H", null, null, null],
+        flipped: false,
+      },
+    });
+    expect(live).toContain("Fill in each hole until the match is decided");
   });
 });
 

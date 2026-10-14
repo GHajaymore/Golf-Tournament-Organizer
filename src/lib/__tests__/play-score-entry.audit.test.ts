@@ -208,6 +208,24 @@ describe("the same code once the organizer lets players score", () => {
     expect(holes.filter((h) => h === null)).toHaveLength(2);
   });
 
+  it("takes a match won 5&4 hole by hole as a whole round, where whole rounds are asked for", async () => {
+    // Rule 3.2a(3): five up with four to play is over, and the four are never
+    // played. "Every hole filled" refused this card as half a round and never
+    // stamped it scored — the console's path called the same card finished.
+    await prisma.event.update({ where: { id: eventId }, data: { scoreEntryWindow: "after" } });
+    try {
+      const closed = [...new Array(5).fill("A"), ...new Array(9).fill("H"), null, null, null, null] as Array<"A" | "B" | "H" | null>;
+      expect(await savePlayMatchHoles(matchId, closed)).toEqual({ ok: true });
+      const m = await prisma.match.findUniqueOrThrow({ where: { id: matchId }, select: { scoredAt: true } });
+      expect(m.scoredAt, "a decided match is a scored one").not.toBeNull();
+      // CONTROL: five up with five to play is not over, and is still half a round.
+      const live = [...new Array(5).fill("A"), ...new Array(8).fill("H"), null, null, null, null, null] as Array<"A" | "B" | "H" | null>;
+      expect((await savePlayMatchHoles(matchId, live)).ok).toBe(false);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { scoreEntryWindow: "during" } });
+    }
+  });
+
   it("goes back to refusing the moment the setting goes back", async () => {
     // Settings are changed mid-tournament — an organizer who takes scoring
     // back after a disputed card expects that to bind immediately, not at the
