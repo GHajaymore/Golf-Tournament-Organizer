@@ -76,6 +76,10 @@ export function CasualRoundPanel({
   const [pending, startTransition] = useTransition();
   const saveStatus = useSaveStatus(pending);
   const [error, setError] = useState("");
+  // A handicap that was refused, said BESIDE the boxes. The line above is drawn
+  // at the top of the panel, which on a phone is a screen above the box the
+  // thumb is on: a refusal there is a box that seems to ignore what was typed.
+  const [handicapRefusal, setHandicapRefusal] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
 
   const run = (fn: () => Promise<unknown>) =>
@@ -252,7 +256,7 @@ export function CasualRoundPanel({
                   const read = readHandicapIndex(e.target.value);
                   const putBack = (why: string) => {
                     setEdits((m) => ({ ...m, [p.id]: p.handicap }));
-                    setError(why);
+                    setHandicapRefusal(why);
                   };
                   // EMPTIED IS NOT NOUGHT. `Number("")` is 0, so clearing this box
                   // and tapping away made the player a scratch golfer without a
@@ -263,13 +267,14 @@ export function CasualRoundPanel({
                   if (read.kind === "out-of-range") return putBack(`${p.name}'s handicap was left as it was: an index runs from +10 to 54.`);
                   startTransition(async () => {
                     setError("");
+                    setHandicapRefusal("");
                     try {
                       const res = await updateSignup(p.id, { handicap: read.value });
                       // A refusal is an answer, not an exception, and was dropped.
                       if (!res.ok) return putBack(res.error ?? "Couldn't save that handicap.");
                       router.refresh();
                     } catch {
-                      setError("Couldn't save that.");
+                      setHandicapRefusal(`${p.name}'s handicap couldn't be saved. Check your signal and tap away from the box again.`);
                     }
                   });
                 }}
@@ -289,6 +294,11 @@ export function CasualRoundPanel({
             </div>
           ))}
         </div>
+        {handicapRefusal && (
+          <p role="alert" style={{ fontSize: 13.5, margin: "8px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
+            <Icon name="warning-circle" /> {handicapRefusal}
+          </p>
+        )}
         <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
           Handicaps save when you tap away. A plus handicap is written &ldquo;+2&rdquo;.{" "}
           {/* And then it says that it has — the sentence promised a save the

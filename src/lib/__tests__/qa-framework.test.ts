@@ -322,6 +322,14 @@ describe("a deliberate break is applied exactly, or is said not to have been", (
     expect(applyBreak(text, { ...one, nth: 3 }).text).toBeNull();
   });
 
+  it("makes every edit of a break that needs more than one, or none of them", () => {
+    const both = { ...one, also: [{ from: "const y = 2;", to: "const y = 3;" }] };
+    expect(applyBreak("const x = 1;\r\nreturn a + b;\r\nconst y = 2;\r\n", both).text).toBe("const x = 1;\r\nreturn a - b;\r\nconst y = 3;\r\n");
+    // The second edit missing is the whole break not applied — not half of it reported as a break.
+    expect(applyBreak("return a + b;\nconst z = 2;\n", both)).toEqual({ text: null, seen: 0 });
+    expect(applyBreak("const y = 2;\n", both)).toEqual({ text: null, seen: 0 });
+  });
+
   it("only a test going red counts as caught, and the three ways of proving nothing have their own words", () => {
     expect(VERDICTS).toEqual(["CAUGHT", "NOT CAUGHT", "NOT APPLIED", "DOES NOT COMPILE", "DID NOT RUN"]);
     const script = readSource("scripts/qa/breaks.mjs");

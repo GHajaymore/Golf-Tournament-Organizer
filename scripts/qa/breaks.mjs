@@ -25,6 +25,10 @@
  *       "unit":  ["src/lib/__tests__/x.test.ts"], … or unit tests …
  *       "audit": ["src/lib/__tests__/y.audit.test.ts"] }   … or database tests. Any of the three; at least one.
  *
+ * A break that has to change two places to put the old code back whole names
+ * the rest in `"also": [{ "from": …, "to": … }]`, in the same file. Every edit
+ * is made or the break is NOT APPLIED.
+ *
  * A break is CAUGHT when a test it names fails. It is NOT CAUGHT when they all
  * pass, which is the result this exists to find: either the test cannot see
  * that fault, or the break changes nothing a person would notice — and which
@@ -83,6 +87,17 @@ export function readBreaks(path) {
 
 /** Apply one break to a file's text: exactly once, or the `nth` of several. Null when it cannot be. */
 export function applyBreak(text, b) {
+  // A break may need MORE THAN ONE edit to put back the whole of the old code —
+  // "mutate the whole before-state, not half of it" (CLAUDE.md). `also` holds
+  // the rest, each found exactly once in what the edit before it left.
+  if (Array.isArray(b.also) && b.also.length) {
+    let out = applyBreak(text, { ...b, also: undefined });
+    for (const more of b.also) {
+      if (out.text === null) return out;
+      out = applyBreak(out.text, more);
+    }
+    return out;
+  }
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
   const flat = text.split(nl).join("\n");
   const pieces = flat.split(b.from);

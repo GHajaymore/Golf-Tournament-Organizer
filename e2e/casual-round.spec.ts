@@ -905,6 +905,57 @@ test.describe("a casual round at the course", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("a handicap box emptied, mistyped or out of range keeps its figure and says why, beside the box", async ({ page }) => {
+    /**
+     * Until 2026-10-13 this box read what was typed with `Number(…)`, and
+     * `Number("")` is 0: clearing it and tapping away made the player a
+     * scratch golfer without a word, and re-scored every hole of a net round.
+     * "124" for 12.4 went to a server that stored it — six strokes a hole.
+     *
+     * Three refusals and a CONTROL. After each refusal the box holds the old
+     * figure, the reason is on screen WITH the box (a refusal said at the top
+     * of a panel the player has scrolled past is a box that seems to ignore
+     * them), and a reload shows the server never took it. The control is a
+     * real correction, which must still save — a box that refuses everything
+     * passes the three above it.
+     */
+    await setUp(page, "Stroke Play", true, [ANN, BEA], undefined, ["12.4", "8"]);
+    const more = async () => {
+      await page.goto(`/entry?bust=${Date.now()}`);
+      await page.locator("summary", { hasText: /^More:/ }).click();
+    };
+    const box = page.getByRole("textbox", { name: `${ANN}'s handicap` });
+    const refusal = page.getByRole("alert").filter({ hasText: `${ANN}'s handicap was left as it was` });
+
+    for (const [typed, why] of [
+      ["", "an empty box is not scratch"],
+      ["124", "an index runs from +10 to 54"],
+      ["12.4x", "type it as a number"],
+    ] as const) {
+      await more();
+      await expect(box, "CONTROL: the round starts on the figure typed on the first tee").toHaveValue("12.4");
+      await box.fill(typed);
+      await box.press("Tab");
+      await expect(refusal, `"${typed}" was not refused in words`).toContainText(why);
+      await expect(box, `"${typed}" was left in the box`).toHaveValue("12.4");
+      await box.scrollIntoViewIfNeeded();
+      await expect(refusal, `the reason "${typed}" was refused is not on screen with the box`).toBeInViewport();
+      await more();
+      await expect(box, `"${typed}" reached the server`).toHaveValue("12.4");
+      await expect(page.getByRole("textbox", { name: `${BEA}'s handicap` }), "CONTROL: the other player was not touched").toHaveValue("8");
+    }
+
+    // CONTROL: a real correction is still taken.
+    await more();
+    await box.fill("13.1");
+    await box.press("Tab");
+    await expect(async () => {
+      await more();
+      await expect(box, "a real correction was refused with the rest").toHaveValue("13.1", { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    await expect(refusal).toHaveCount(0);
+  });
+
   test("switching to off handicaps after the first hole asks, then does it", async ({ page }) => {
     /**
      * The group starts level and decides on the 2nd tee to play off
