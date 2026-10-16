@@ -1098,8 +1098,15 @@ function StageCard({
     <div
       id={`round-${stage.id}`}
       className="card elev-sm"
-      // Clear of the sticky header when a new round is scrolled to.
-      style={{ gap: 14, borderLeft: `3px solid ${roundColor}`, scrollMarginTop: 88 }}
+      // Clear of the sticky header when a new round is scrolled to. A CLOSED
+      // round is a row, so it is padded as one (2026-10-16): ten closed rounds
+      // were 76px each, the card's padding outweighing the line it held.
+      style={{
+        gap: 14,
+        borderLeft: `3px solid ${roundColor}`,
+        scrollMarginTop: 88,
+        ...(expanded ? {} : { paddingTop: 8, paddingBottom: 8 }),
+      }}
     >
       {chainWarnings.length > 0 && (
         // Shown on the later round of the pair, because that is where the

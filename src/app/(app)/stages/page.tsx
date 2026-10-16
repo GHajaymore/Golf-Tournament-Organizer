@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { SeasonDates } from "@/components/SeasonDates";
+import { SetupNotices } from "@/components/SetupNotices";
 import { cleanIsoDate } from "@/lib/domain/round-dates";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
@@ -257,6 +258,14 @@ export default async function StagesPage() {
   // The day a card was checked, as the club writes a day — see `dayAtClubForEvent`.
   const dayAtClub = await dayAtClubForEvent(session.eventId);
   const venues = venueRows.map((v) => ({ ...v, cardNote: pickedCardNote(v, undefined, dayAtClub) }));
+  /**
+   * Net scoring on unrated tees, asked of EVERY round: this asked the first Round
+   * Robin round and fell back to "gross", so a net MEDAL — which has no Round
+   * Robin at all — was never told its handicaps were approximate, and neither was
+   * a mixed tournament whose round robin happened to be gross. One line in
+   * `SetupNotices` now; it was a card of its own inside the round list.
+   */
+  const handicapWarning = await unratedWarning(session.eventId, state.stages);
 
   // Matches per player in a round robin = (largest flight size − 1).
   const flightSizes = state.groups.map(
@@ -312,72 +321,83 @@ export default async function StagesPage() {
           rounds are being chosen, so a sentence about how they will be scored
           is advice rather than a post-mortem. One rule, in
           `scoringMismatch`, so the two cannot come to say different things. */}
-      {scoring && (
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "10px 12px",
-            borderRadius: 10,
-            marginBottom: 16,
-            background: "var(--color-danger-bg)",
-            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
-          }}
-        >
-          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            {/* The rounds score and rank by their own formats; what the setting
-                still decides is a draw or cut made from the standings. */}
-            <b>The Scoring setting does not match these rounds.</b> {scoring.message}{" "}
-            <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
-              Tournament details
-            </Link>
-          </p>
-        </div>
-      )}
-      {missingCardsNote && (
-        <div
-          role="status"
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-            padding: "10px 12px",
-            borderRadius: 10,
-            marginBottom: 16,
-            background: "var(--color-danger-bg)",
-            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
-          }}
-        >
-          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-            <b>A course card is missing.</b> {missingCardsNote}{" "}
-            <Link href="/event" style={{ color: "var(--color-accent-200)" }}>
-              Open the course library
-            </Link>
-          </p>
-        </div>
-      )}
       {!locked && stages.length === 0 && describeTournament}
-      {/* Undated rounds cannot go on a player's availability calendar. Only
-          worth offering where there is a season to date — two or more
-          playing rounds — and something left to date. */}
-      {seasonUndated > 0 && playingCount >= 2 && (
-        <SeasonDates undated={seasonUndated} suggestedStart={state.today} />
-      )}
-      {/* A CARD NOBODY HAS CHECKED, NAMED WHERE IT IS CHOSEN (2026-09-19).
-          These rounds are scored against these cards, and a wrong stroke
-          index is invisible — it puts handicap shots on the wrong holes for
-          the life of the course. One line per course that needs a look, with
-          the way to do it; nothing is refused. */}
-      {venues
-        .map((v) => ({ venue: v, si: parseIndex(v.strokeIndex) }))
-        .filter(({ venue, si }) => cardTrustNote(venue, new Date(), undefined, si)?.warn)
-        .map(({ venue, si }) => (
-          <div key={venue.id} className="card elev-sm" style={{ marginBottom: 10 }}>
-            <span className="card-title" style={{ fontSize: 14 }}>{venue.name}</span>
-            <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} formatDate={dayAtClub} />
-          </div>
-        ))}
+      {/* EVERYTHING LEFT TO SORT OUT, IN ONE CARD (2026-10-16) — `SetupNotices`.
+          These were five cards stacked above the rounds, and on a ten-round
+          league at 375px the first round began 950px down. Each is still
+          named on the screen, one line each, its reason a tap away:
+
+            the Scoring setting   the same warning the leaderboard carries, on
+                                  the screen that creates the disagreement —
+                                  one rule, in `scoringMismatch`
+            a course card         the sentence launch refuses with
+            no dates              a round without a day is off the players'
+                                  availability calendar (two or more rounds)
+            approximate handicaps net scoring on unrated tees
+            an unchecked card     a wrong stroke index is invisible; nothing
+                                  is refused */}
+      <SetupNotices
+        items={[
+          ...(scoring
+            ? [{
+                key: "scoring",
+                tone: "block" as const,
+                // The rounds score and rank by their own formats; what the setting
+                // still decides is a draw or cut made from the standings.
+                title: "The Scoring setting does not match these rounds.",
+                body: (
+                  <>
+                    {scoring.message}{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Tournament details</Link>
+                  </>
+                ),
+              }]
+            : []),
+          ...(missingCardsNote
+            ? [{
+                key: "cards",
+                tone: "block" as const,
+                title: "A course card is missing.",
+                body: (
+                  <>
+                    {missingCardsNote}{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Open the course library</Link>
+                  </>
+                ),
+              }]
+            : []),
+          ...(seasonUndated > 0 && playingCount >= 2
+            ? [{
+                key: "dates",
+                tone: "note" as const,
+                title: `${seasonUndated} ${seasonUndated === 1 ? "round has" : "rounds have"} no date`,
+                body: <SeasonDates undated={seasonUndated} suggestedStart={state.today} bare />,
+              }]
+            : []),
+          ...(handicapWarning
+            ? [{
+                key: "handicaps",
+                tone: "note" as const,
+                title: "Handicaps are approximate",
+                body: (
+                  <>
+                    {handicapWarning} Add tees with a rating and slope under the course on{" "}
+                    <Link href="/event" style={{ color: "var(--color-accent-200)" }}>Tournament details</Link>.
+                  </>
+                ),
+              }]
+            : []),
+          ...venues
+            .map((v) => ({ venue: v, si: parseIndex(v.strokeIndex) }))
+            .filter(({ venue, si }) => cardTrustNote(venue, new Date(), undefined, si)?.warn)
+            .map(({ venue, si }) => ({
+              key: `card-${venue.id}`,
+              tone: "note" as const,
+              title: `${venue.name}: check its card`,
+              body: <CardTrustNote card={venue} fix={`/event?course=${venue.id}`} strokeIndex={si} formatDate={dayAtClub} />,
+            })),
+        ]}
+      />
       <StagesClient
         stages={stages}
         // Today AT THE CLUB, from the server, so the browser's render asks the
@@ -406,12 +426,6 @@ export default async function StagesPage() {
         homeVenue={state.event.course?.trim() || ""}
         activeStageId={state.activeStage?.id ?? null}
         roundsWithResults={[...state.roundsWithResults]}
-        // EVERY round, because the banner is one card for the whole screen.
-        // This asked the first Round Robin round and fell back to "gross", so a
-        // net MEDAL — which has no Round Robin at all — was never told its
-        // handicaps were approximate, and neither was a mixed tournament whose
-        // round robin happened to be gross. `unratedWarning` decides now.
-        handicapWarning={await unratedWarning(session.eventId, state.stages)}
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {
             roundCount: state.stages.length,

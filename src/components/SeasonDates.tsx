@@ -15,7 +15,16 @@ import { useFormatting } from "./CurrencyProvider";
  * dates every undated round in running order (`planSeasonDates`). Rounds that
  * already have a date are left exactly as they are.
  */
-export function SeasonDates({ undated, suggestedStart }: { undated: number; suggestedStart: string }) {
+export function SeasonDates({
+  undated,
+  suggestedStart,
+  bare = false,
+}: {
+  undated: number;
+  suggestedStart: string;
+  /** Inside another panel (`SetupNotices`), which already says what is missing: the form alone. */
+  bare?: boolean;
+}) {
   const [start, setStart] = useState(suggestedStart);
   const [every, setEvery] = useState(7);
   const [note, setNote] = useState("");
@@ -48,10 +57,15 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
    * tap; once it has dated something it stays open to say so.
    */
   const [open, setOpen] = useState(false);
-  const shown = open || !!note || !!error;
+  const shown = bare || open || !!note || !!error;
 
   return (
-    <section aria-label="Date the rounds" className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
+    <section
+      aria-label="Date the rounds"
+      className={bare ? undefined : "card elev-sm"}
+      style={bare ? { display: "flex", flexDirection: "column", gap: 10 } : { marginBottom: 16, gap: 10 }}
+    >
+      {!bare && (
       <button
         type="button"
         aria-expanded={shown}
@@ -64,6 +78,7 @@ export function SeasonDates({ undated, suggestedStart }: { undated: number; sugg
           {shown ? "" : "Date them"} <Icon name={shown ? "caret-up" : "caret-down"} />
         </span>
       </button>
+      )}
       {shown && (
       <>
       <p className="text-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
