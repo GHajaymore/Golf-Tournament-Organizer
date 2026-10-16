@@ -52,7 +52,7 @@ export function LocalePicker({ locale }: { locale: string }) {
 
   return (
     <div className="field" style={{ maxWidth: 340 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         Dates and numbers
         {/* Same fault as CurrencyPicker had: this becomes an `aria-label`, and
             the sentence one line below already uses the outfit's own word. */}
@@ -71,7 +71,7 @@ export function LocalePicker({ locale }: { locale: string }) {
             {org.noun} writes its letters in.
           </p>
         </FieldInfo>
-      </label>
+      </span>
 
       <select
         className="input"

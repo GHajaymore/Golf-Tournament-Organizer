@@ -406,6 +406,16 @@ figcaption {
   letter-spacing: -0.004em;
   color: var(--color-text-muted); /* the one muted token, not a 72% of its own */
 }
+/* A CAPTION THAT CARRIES AN ⓘ IS NOT A <label> (2026-10-16). A label with no
+   `for` labels its first labelable descendant — the ⓘ button — so tapping the
+   words opened the help (the UI/UX designer on the review panel). It looks the
+   same; the control beside it is named in its own right.
+   See `a-caption-does-not-press-its-info-button.test.ts`. */
+.field > .field-caption {
+  display: block; font-size: 13px; margin-bottom: 6px; font-weight: 500;
+  letter-spacing: -0.004em;
+  color: var(--color-text-muted);
+}
 .input {
   width: 100%; min-height: 34px; padding: 6px 10px; font: inherit;
   font-size: 13.5px; color: var(--color-text); caret-color: var(--color-accent);

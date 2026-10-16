@@ -1238,7 +1238,7 @@ function StageCard({
             wrapper vanish from the box tree; none takes the lot away. */}
         <div style={{ display: expanded ? "contents" : "none" }}>
         <div className="field" style={{ width: 200 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span className="field-caption" style={{ display: "flex", alignItems: "center", gap: 5 }}>
             Format
             <button
               type="button"
@@ -1248,7 +1248,7 @@ function StageCard({
             >
               <Icon name="info" style={{ fontSize: 13 }} />
             </button>
-          </label>
+          </span>
           {/* Grouped, because this is where team golf actually lives and a flat
               list of fifteen names does not say which of them need a partner.
               An organizer scanning for "how do we play four-ball" now finds a
@@ -1443,7 +1443,7 @@ function StageCard({
             one field the committee needs. Changing it moves this round only;
             the rest of the season and every score already entered stay put. */}
         <div className="field" style={{ width: 172 }}>
-          <label>
+          <span className="field-caption">
             Played on
             <FieldInfo label="the day this round is played">
               <p>
@@ -1456,7 +1456,7 @@ function StageCard({
                 weeks and any scores already entered are untouched.
               </p>
             </FieldInfo>
-          </label>
+          </span>
           <input
             className="input"
             type="date"
@@ -1590,7 +1590,7 @@ function StageCard({
           the app to apply. */}
       {!isManualFormat(format) && (
       <div className="field" style={{ maxWidth: 420, width: "100%" }}>
-        <label>
+        <span className="field-caption">
           Handicap
           <FieldInfo label="playing off handicap or scratch">
             <p>
@@ -1600,7 +1600,7 @@ function StageCard({
               one card, for a club that gives a gross and a net prize.
             </p>
           </FieldInfo>
-        </label>
+        </span>
         {isStablefordFormat(format) ? (
           /* STABLEFORD IS PLAYED OFF HANDICAP — the way clubs run it
              (Ajay, 2026-09-28). A scratch competition is stroke play, so
@@ -1923,7 +1923,7 @@ function StageCard({
                 rather than a control with one option in it. */}
             {inputChoices(format).length > 1 && (
               <div className="field" style={{ maxWidth: 420, width: "100%" }}>
-                <label>
+                <span className="field-caption">
                   How scores are recorded
                   <FieldInfo label="how scores are recorded">
                     <p>
@@ -1942,7 +1942,7 @@ function StageCard({
                       card is returned.
                     </p>
                   </FieldInfo>
-                </label>
+                </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {inputChoices(format).map((key) => {
                     const info = MATCH_ENTRY_MODES.find((m) => m.key === key);
