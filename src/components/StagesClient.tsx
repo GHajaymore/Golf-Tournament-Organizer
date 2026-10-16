@@ -49,6 +49,7 @@ import {
   MAX_ROUNDS_AT_ONCE,
   isIndividualStrokeRound,
   isPlayingRound,
+  isKnockoutRound,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -71,6 +72,8 @@ export interface ThirdPlaceView {
 }
 import type { SingleMatchView } from "@/lib/services/single-match";
 import { QualControl } from "./QualControl";
+import { BracketModePicker } from "./BracketModePicker";
+import { BRACKET_MODES, type BracketMode } from "@/lib/domain/bracket";
 import { CutControl } from "./CutControl";
 import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
@@ -145,6 +148,15 @@ export interface StageView {
    * against once its cards came in. Empty for a round the field does not play.
    */
   handicaps: RoundHandicapView[];
+}
+
+/** A knockout's arrangement as the Rounds screen shows it. */
+export interface Arrangement {
+  mode: BracketMode;
+  /** What the second draw is called in this mode, or "" — `drawBrackets`. */
+  secondLabel: string;
+  /** Organizer only, as `setBracketMode` is. */
+  canChange: boolean;
 }
 
 export interface ScoringValues {
@@ -653,7 +665,10 @@ function StageCard({
   canSetVenue = true,
   hasResult = false,
   sharedWithAll = null,
+  arrangement = null,
 }: {
+  /** How the knockout is arranged, and whether this viewer may change it — see "The draw". */
+  arrangement?: Arrangement | null;
   stage: StageView;
   /**
    * What every playing round shares, when there are three or more and they
@@ -1056,6 +1071,8 @@ function StageCard({
   const decidesParts: string[] = [];
   if (stage.type === "Bracket Stage") {
     decidesParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
+    // And the shape of the draw, which is half of what a knockout is.
+    if (arrangement) decidesParts.push(BRACKET_MODES.find((m) => m.key === arrangement.mode)?.label ?? "");
   }
   if (stage.type === "Single Match Stage" && singleMatch) {
     decidesParts.push(singleMatch.ruleLabel);
@@ -1736,6 +1753,20 @@ function StageCard({
           </div>
         )}
 
+        {/* THE DRAW'S SHAPE, ON THE ROUND THAT IS THE DRAW (2026-10-16).
+            One bracket, Main + plate, two or several flights was chosen only on
+            the Bracket screen, which an organizer reaches after setting up —
+            so a club wanting "a qualifying match: the winner into the winners'
+            bracket, the loser into a consolation" built the rounds here and
+            could not find the word for it (Ajay, describing exactly Main +
+            plate). Same picker, same organizer-only and lock rules. */}
+        {isKnockoutRound(stage.type) && arrangement && (
+          <div>
+            <SectionLabel>The draw</SectionLabel>
+            <BracketModePicker mode={arrangement.mode} secondLabel={arrangement.secondLabel} readOnly={!arrangement.canChange} locked={locked} />
+          </div>
+        )}
+
         {stage.type === "Bracket Stage" && thirdPlace && (
           <div>
             <SectionLabel>Third and fourth</SectionLabel>
@@ -2329,9 +2360,12 @@ export function StagesClient({
   canSetVenue = true,
   locked = false,
   launched = false,
+  arrangement = null,
   today,
 }: {
   stages: StageView[];
+  /** The knockout's arrangement, for a Bracket round's "The draw". */
+  arrangement?: Arrangement | null;
   /** The tournament has been launched — see `Launched`. */
   launched?: boolean;
   /** Today, yyyy-mm-dd, from the server — see `ServerToday`. */
@@ -2550,6 +2584,7 @@ export function StagesClient({
             thirdPlace={thirdPlaces?.[s.id] ?? null}
             hasResult={roundsWithResults.includes(s.id)}
             sharedWithAll={shared}
+            arrangement={arrangement}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}

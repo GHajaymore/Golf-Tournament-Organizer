@@ -125,7 +125,10 @@ export type BracketMode = "single" | "split" | "plate" | "flights";
 export const BRACKET_MODES: Array<{ key: BracketMode; label: string; blurb: string }> = [
   { key: "single", label: "One bracket", blurb: "Every qualifier in a single knockout. Lose and you're out." },
   { key: "split", label: "Two flights", blurb: "Top half and bottom half play separate brackets, drawn by qualifying rank." },
-  { key: "plate", label: "Main + plate", blurb: "One knockout; first-round losers drop into a plate. Everyone starts with a shot at the main prize." },
+  // In the words a club uses for it (2026-10-16): Ajay described this exact shape — a qualifying
+  // match whose winner goes into the winners' bracket and loser into a consolation — without
+  // finding it, because it was named only as an arrangement on another screen.
+  { key: "plate", label: "Main + plate", blurb: "The first round is the qualifying match: winners go on in the main draw, losers drop into a plate — a consolation knockout of their own. Everyone starts with a shot at the main prize." },
   { key: "flights", label: "Several flights", blurb: "A big field divided into brackets before a ball is struck — by handicap, by your flights, or at random. Each flight is its own knockout." },
 ];
 

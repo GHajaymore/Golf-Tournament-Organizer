@@ -78,6 +78,8 @@ export function BracketModePicker({
                 key={m.key}
                 type="button"
                 disabled={pending}
+                // Which one is chosen, said to a screen reader as it is shown by the border.
+                aria-pressed={active}
                 onClick={() => choose(m.key)}
                 style={{
                   textAlign: "left",

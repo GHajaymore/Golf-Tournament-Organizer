@@ -90,7 +90,8 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     const card = page.locator(".card", { has: r1 });
     await expect(card.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
     await expect(card.getByText("Off handicap, as most club competitions are.")).toBeVisible();
-    await expect(card.getByText(/^Handicap allowance/)).toBeVisible();
+    // The line itself, not the heading above it that carries the same words.
+    await expect(card.getByText(/^Handicap allowance \d+%/)).toBeVisible();
   });
 
   await test.step("nothing about play before there is any", async () => {
@@ -231,6 +232,39 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     if ((await ko.getAttribute("aria-expanded")) !== "true") await ko.click();
     const card = page.locator(".card", { has: ko });
     await expect(card.locator("label.seg-opt", { hasText: /^\s*Per flight\s*$/ }).locator("input")).toBeChecked();
+  });
+
+  /**
+   * AJAY'S SHAPE (2026-10-16): "a bracket qualification round — a single match
+   * play round of the 16 qualified from the 2nd round robin — the winner goes to
+   * the winners' bracket and the loser to the consolation bracket". That is the
+   * knockout's arrangement Main + plate, whose first round is the qualifying
+   * match, with the top 16 overall from Round 2 — chosen on the knockout's own
+   * card, where he was looking, not only on the Bracket screen.
+   */
+  await test.step("the knockout: 16 from Round 2, a qualifying match, winners on, losers to a plate", async () => {
+    const ko = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
+    const card = page.locator(".card", { has: ko });
+    await expect(card.getByText("The draw")).toBeVisible();
+    await card.getByRole("button", { name: "Change", exact: true }).click();
+    await card.getByRole("button", { name: /^Main \+ plate/ }).click();
+    await card.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).click();
+    const top = card.getByRole("spinbutton");
+    await top.fill("16");
+    await top.blur();
+    await expect(async () => {
+      await open(page, "/stages");
+      const head = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
+      if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
+      const c = page.locator(".card", { has: head });
+      await expect(c.getByText(/^Main \+ plate$/)).toBeVisible();
+      await expect(c.getByText(/The first round is the qualifying match: winners go on in the main draw, losers drop into a plate/)).toBeVisible();
+      await expect(c.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).locator("input")).toBeChecked();
+      await expect(c.getByRole("spinbutton")).toHaveValue("16");
+    }).toPass({ timeout: 20_000 });
+    // And the closed row says it, in the words of the sheet.
+    await page.getByRole("button", { name: /^Round 3 · Bracket Stage/ }).click();
+    await expect(page.getByRole("button", { name: /^Round 3 · Bracket Stage/ })).toContainText("Top 16 overall");
   });
 
   expect(errors).toEqual([]);

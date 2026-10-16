@@ -33,6 +33,7 @@ import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason 
 import { effectiveAllowance, effectiveCountBest, recommendedAllowance } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 import { individualAllowanceFor } from "@/lib/round-allowance";
+import { drawBrackets, isBracketMode } from "@/lib/domain/bracket";
 import { dayAtClubForEvent } from "@/lib/services/club-clock";
 
 /**
@@ -387,6 +388,12 @@ export default async function StagesPage() {
         locked={locked}
         // Whether play has begun at all: the controls about PLAY wait for it.
         launched={!PRE_LAUNCH_STATUSES.includes(state.event.status)}
+        // The knockout's arrangement, chosen on the round that is the knockout —
+        // the same reading of the stored mode the Bracket screen makes.
+        arrangement={(() => {
+          const mode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
+          return { mode, secondLabel: drawBrackets([], mode).secondLabel, canChange: session.viewRole === "admin" };
+        })()}
         // Staff, as `setStageCourse` is since Ajay's decision of 2026-09-27.
         canSetVenue={session.viewRole === "admin" || session.viewRole === "assistant"}
         singleMatches={singleMatches}
