@@ -61,6 +61,8 @@ import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
+import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
+import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanHoleResults, cleanStrokes, isStroke, strokeFault } from "@/lib/domain/score-payload";
@@ -1907,6 +1909,13 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   // Before the cards question, so a caller is never asked to confirm
   // re-scoring a round into a format that does not exist.
   if (!FORMAT_NAMES.includes(format)) return { ok: false as const, error: "That is not a format this round can be played in." };
+  // And not one this KIND of round cannot be scored in — the list the screen
+  // offers, from `formatChoicesFor` (2026-10-16). Asked before the cards
+  // question for the same reason as the line above.
+  const shape = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { type: true, format: true } });
+  if (shape && shape.format !== format && !formatFitsRound(shape.type, format)) {
+    return { ok: false as const, error: roundShapeMismatch(shape.type, format)?.message ?? "That format cannot be played in this kind of round." };
+  }
   if (!force) {
     const cards = await enteredCardCount(eventId, stageId);
     if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
@@ -2258,15 +2267,30 @@ export async function addStage(
           ? previous.format
           : defaultFormatFor("individual", "stroke"),
   };
+  /**
+   * AND NEVER A PAIR THAT CANNOT BE SCORED (2026-10-16). The backstop above
+   * repeats the last round, and the last round of a match-play qualifier is
+   * Match Play — which a stroke round after it cannot be played in. Where the
+   * seed does not fit this type, the type's own format, as a club plays it.
+   */
+  if (!formatFitsRound(stageType, common.format)) common.format = naturalFormatFor(stageType);
 
   // A format chosen in the create step applies to every round in the run —
   // that is the point of choosing it there rather than on N cards afterwards.
   // Only honoured when the app can actually run it, so a stale or hand-crafted
   // value cannot create rounds with nowhere to enter a card.
-  if (opts.format && isPlayable(opts.format)) common.format = opts.format;
-  // The basis follows the format it ended up with — a Stableford round is net,
-  // anything else opens on gross.
-  const scoringBasis = basisFor(common.format, "gross");
+  if (opts.format && isPlayable(opts.format)) {
+    // REFUSED, in words, where the type cannot be played in it — the same list
+    // the screen offers (`formatChoicesFor`). It used to create the round and
+    // let its card say "This round cannot be scored as set" afterwards.
+    if (!formatFitsRound(stageType, opts.format)) {
+      return { error: roundShapeMismatch(stageType, opts.format)?.message ?? "That format cannot be played in this kind of round." };
+    }
+    common.format = opts.format;
+  }
+  // Off handicap unless the organizer says scratch — `newRoundBasis`. A
+  // Stableford round is net either way.
+  const scoringBasis = newRoundBasis(common.format);
   const holes = Number(opts.holes);
   if (holes === 9 || holes === 18) (common as { holes?: number }).holes = holes;
 

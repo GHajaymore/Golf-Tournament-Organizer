@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, createTournament } from "./kit.mjs";
@@ -92,6 +93,10 @@ test("five E", async ({ page, context, baseURL }, testInfo) => {
         await page.waitForTimeout(2500);
       }
       await open(page, "/stages");
+      // A gross qualifier and a scratch knockout: Gross on both, as the
+      // organizer chooses it (a new round is off handicap since 2026-10-16).
+      await playScratch(page, "Round 1 · Stroke Play Round");
+      await playScratch(page, "Round 2 · Bracket Stage");
       const bracketHeader = page.getByRole("button", { name: /Bracket Stage/ }).first();
       if ((await bracketHeader.getAttribute("aria-expanded")) !== "true") await bracketHeader.click();
       await page.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).first().click();

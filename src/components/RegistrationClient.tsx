@@ -5,7 +5,7 @@ import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore } from "react";
+import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -170,6 +170,16 @@ export function RegistrationClient({
   const savedInvite = useRef(event.inviteMessage);
   // Fixed by the plan on free, the organizer's own choice on a paid plan.
   const phoneLocked = event.phoneLocked;
+  /**
+   * A TAP SHOWS AT ONCE. Both switches were drawn straight from the server's
+   * value, so a tick did nothing on screen until the save came back and the page
+   * was drawn again — next door to the server a blink, on a course seconds of a
+   * box that ignores the thumb (found 2026-10-16 by the browser test of this
+   * switch, whose `check()` saw the box unchanged). The shown value follows the
+   * tap while the save is out, and falls back to the server's if it is refused.
+   */
+  const [requirePhoneShown, showRequirePhone] = useOptimistic(event.requirePhone);
+  const [approvalShown, showApproval] = useOptimistic(event.registrationApproval);
   // What the import and the public form will actually insist on — the resolved
   // rule, not the raw setting, so the hint can't promise something the action
   // then refuses.
@@ -386,7 +396,7 @@ export function RegistrationClient({
   // The public self-service sign-up link. Empty until registration has been
   // opened at least once (the token is minted then).
   const registerUrl = event.registrationToken ? `${registrationLink}/register/${event.registrationToken}` : "";
-  const approveMode = event.registrationApproval === "approve";
+  const approveMode = approvalShown === "approve";
   // Sign the invitation with the club's name so the recipient recognises who
   // it's from — a bare link from an unknown app reads like spam.
   const signature = event.organizationName ? `\n— ${event.organizationName}` : "";
@@ -1001,7 +1011,12 @@ export function RegistrationClient({
                       name="regapproval"
                       checked={approveMode ? v === "approve" : v === "auto"}
                       disabled={pending || locked}
-                      onChange={() => startTransition(() => void setRegistrationApproval(v))}
+                      onChange={() =>
+                        startTransition(async () => {
+                          showApproval(v);
+                          await setRegistrationApproval(v);
+                        })
+                      }
                     />
                     {l}
                   </label>
@@ -1033,11 +1048,15 @@ export function RegistrationClient({
               >
                 <input
                   type="checkbox"
-                  checked={phoneLocked ? true : event.requirePhone}
+                  checked={phoneLocked ? true : requirePhoneShown}
                   disabled={pending || locked || phoneLocked}
-                  onChange={(e) =>
-                    startTransition(() => void setRequirePhone(e.target.checked))
-                  }
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    startTransition(async () => {
+                      showRequirePhone(on);
+                      await setRequirePhone(on);
+                    });
+                  }}
                   style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
                 />
                 <span>

@@ -3,7 +3,8 @@ import { figureOr, readWhole } from "@/lib/domain/decimal-text";
 import React, { useEffect, useState, useTransition } from "react";
 // Aliased: several components here hold a local `roundLabel` string built from
 // it, and shadowing the import would read as a bug rather than as a value.
-import { roundLabel as roundLabelOf } from "@/lib/domain/round-label";
+import { roundLabel as roundLabelOf, roundNumber as roundNumberOf } from "@/lib/domain/round-label";
+import { formatChoicesFor, naturalFormatFor } from "@/lib/domain/round-choices";
 import {
   setStageDeadline,
   setStageCarry,
@@ -17,12 +18,11 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor, formatTagline } from "@/lib/formats";
+import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor, formatTagline, isManualFormat } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
-import { isTeamFormat } from "@/lib/side-style";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
@@ -228,6 +228,20 @@ const SetupLocked = React.createContext(false);
  * screen (2026-10-11, `no-client-screen-draws-from-its-own-clock.test.ts`).
  */
 const ServerToday = React.createContext("");
+
+/**
+ * WHETHER THE TOURNAMENT HAS BEEN LAUNCHED — provided once, read by each card.
+ *
+ * The controls that are about PLAY (is this round over, the scoring window) and
+ * the round's Played / Active chip were on every card from the moment it was
+ * added. Walked as a new organizer on 2026-10-16: an unplayed draft offered
+ * "This round is finished" with a paragraph about making the result official,
+ * "Open — scores can be entered" three weeks before the round, and an undated
+ * Round 1 chipped "Played". They appear once the tournament is live, or once
+ * the round itself has a result or has been closed — scoring can happen before
+ * launch where a result already exists, so the round's own facts count too.
+ */
+const Launched = React.createContext(false);
 
 /** Whether a stored deadline is something a date input can display. */
 function isIsoDate(v: string): boolean {
@@ -636,8 +650,11 @@ function StageCard({
   singleMatch,
   thirdPlace,
   canSetVenue = true,
+  hasResult = false,
 }: {
   stage: StageView;
+  /** Somebody has returned something for this round — see `roundsWithResults`. */
+  hasResult?: boolean;
   /**
    * Whether the round's course and nine can be changed here — organizer only,
    * because `setStageCourse` is. Shown either way, so an assistant can read
@@ -696,6 +713,11 @@ function StageCard({
   // `SetupLocked` for the ones that deliberately stay open.
   const locked = React.useContext(SetupLocked);
   const today = React.useContext(ServerToday);
+  const launched = React.useContext(Launched);
+  /** Play has begun for this round: the tournament is live, or the round has a result or is closed. */
+  const underWay = launched || hasResult || stage.closed;
+  /** "Round 3" — the tournament's own count; empty for a stage the field does not play. */
+  const thisRound = roundLabelOf(allStages, stage.id);
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [scoreInput, setScoreInput] = useState(stage.scoreInput);
@@ -886,26 +908,6 @@ function StageCard({
    * the pair rather than after the save round-trips.
    */
   const shapeProblem = roundShapeMismatch(stage.type, format);
-  // Every format in the catalog is listed, but only those runnable end to end
-  // can be picked. Showing the rest greyed out with the reason is deliberate:
-  // hiding them entirely makes the app look like it can't do team golf, while
-  // letting them be selected hands someone a round with nowhere to enter a
-  // card. A round already set to something unselectable still shows it.
-  const formatOptions: { name: string; disabled: boolean; note?: string }[] = [
-    ...GOLF_FORMATS.filter((f) => f.playable || f.name === format).map((f) => ({
-      name: f.name,
-      disabled: false,
-    })),
-    ...GOLF_FORMATS.filter((f) => !f.playable && f.name !== format).map((f) => ({
-      name: f.name,
-      disabled: true,
-      note: f.pendingReason,
-    })),
-  ];
-  // A legacy label from before the catalog was restricted still needs to show.
-  if (!GOLF_FORMATS.some((f) => f.name === format)) {
-    formatOptions.unshift({ name: format, disabled: false });
-  }
   const activePending = GOLF_FORMATS.find((f) => f.name === format && !f.playable);
 
   // Whether to put the carry-forward question in front of the organizer, and
@@ -968,8 +970,20 @@ function StageCard({
     const ties = isIndividualStrokeRound(stage) && isIndividualStrokeRound(nextStage);
     transitionParts.push(`cuts to ${cutRuleWords(cutRuleOf(nextStage), ties).toLowerCase()}`);
   }
+  /**
+   * WHAT IS CHANGED FROM A CLUB'S USUAL ROUND, and nothing else (2026-10-16).
+   * The Customize button summarises only what is inside it, and inside it now
+   * are the things clubs vary — so a round nobody has customised says so.
+   */
   const customizeParts: string[] = [];
-  if (deadline) customizeParts.push(`Due ${deadline}`);
+  if (deadline) customizeParts.push(`Due ${isIsoDate(deadline) ? shortDate(deadline, locale) : deadline}`);
+  if (scoreInput && scoreInput !== declaredInput(format)) {
+    customizeParts.push(MATCH_ENTRY_MODES.find((m) => m.key === scoreInput)?.label ?? "Scores recorded differently");
+  }
+  const changedHandicaps = stage.handicaps.filter((h) => h.override !== null).length;
+  if (changedHandicaps > 0) customizeParts.push(`${changedHandicaps} handicap${changedHandicaps === 1 ? "" : "s"} set for the round`);
+  /** The closed row's line: everything the round is, in one place. */
+  const rowParts: string[] = [];
   /**
    * WHAT DECIDES THE ROUND, NAMED FOR ALL FOUR — gross included.
    *
@@ -984,7 +998,7 @@ function StageCard({
    * earlier in the organizer's day: the app knowing the basis and not saying
    * it.
    */
-  customizeParts.push(
+  rowParts.push(
     // A Stableford round is off handicap whatever was stored — `basisFor`
     // (2026-09-28). It printed "Gross scoring" over a round scored off
     // handicap, which is report decision 9.
@@ -1017,7 +1031,7 @@ function StageCard({
    */
   if (venues.length > 1) {
     const played = venues.find((v) => v.id === stage.courseId)?.name ?? homeVenue;
-    if (played) customizeParts.push(played);
+    if (played) rowParts.push(played);
   }
   if (showTransition) {
     customizeParts.push(
@@ -1042,8 +1056,8 @@ function StageCard({
     decidesParts.push(thirdPlace.on ? "Plays off for third" : "No play-off for third");
   }
 
-  const customizeSummary = customizeParts.length ? customizeParts.join(" · ") : "Standard settings";
-  const summaryParts = [...customizeParts, ...decidesParts];
+  const customizeSummary = customizeParts.length ? customizeParts.join(" · ") : "Nothing changed";
+  const summaryParts = [...rowParts, ...customizeParts, ...decidesParts];
   const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
 
   // A rotating accent per round so a page of several rounds is scannable at a
@@ -1103,7 +1117,11 @@ function StageCard({
           }}
           title={stage.type}
         >
-          {stage.position + 1}
+          {/* The tournament's own count (`roundNumber`), which closes up when a
+              round is removed and does not count a cut. Was the stored position
+              plus one: after deleting Round 1 this list read 2, 3, 4 under a
+              banner calling the same rounds 1 and 2. */}
+          {roundNumberOf(allStages, stage.id) || "–"}
         </div>
         {/* The whole card in one line when it is closed. A ten-week league
             used to render ten copies of every control on this screen — about
@@ -1128,12 +1146,18 @@ function StageCard({
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              Round {stage.position + 1}
-              {stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`}
+              {thisRound || stage.type}
+              {thisRound && (stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`)}
             </span>
-            <span className="tag tag-neutral">
-              {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
-            </span>
+            {/* ONLY ONCE THERE IS SOMETHING TO SAY. Before a ball is struck every
+                round is simply set up, and the chips said otherwise: on a draft
+                tournament with no cards, an undated Round 1 read "Played" and
+                Round 2 "Active" (2026-10-16). */}
+            {underWay && (
+              <span className="tag tag-neutral">
+                {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
+              </span>
+            )}
             {notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
             )}
@@ -1193,20 +1217,21 @@ function StageCard({
             disabled={pending || locked}
             onChange={(e) => commitFormat(e.target.value)}
           >
-            <optgroup label="Played on your own">
-              {formatOptions.filter((o) => !isTeamFormat(o.name)).map((o) => (
-                <option key={o.name} value={o.name} disabled={o.disabled}>
-                  {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Played as a side">
-              {formatOptions.filter((o) => isTeamFormat(o.name)).map((o) => (
-                <option key={o.name} value={o.name} disabled={o.disabled}>
-                  {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
-                </option>
-              ))}
-            </optgroup>
+            {/* ONLY WHAT THIS KIND OF ROUND CAN BE SCORED IN — `formatChoicesFor`,
+                the list the server also holds `setStageFormat` to. Every format
+                was offered for every type, Match Play first on a stroke round. */}
+            {(["own", "side"] as const).map((g) => {
+              const opts = formatChoicesFor(stage.type, format).filter((c) => c.group === g);
+              return opts.length === 0 ? null : (
+                <optgroup key={g} label={g === "own" ? "Played on your own" : "Played as a side"}>
+                  {opts.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.label}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
           {/* WHAT THIS FORMAT IS, in one line under the choice (Ajay,
               2026-09-28: "keep most of it in the information button"). The
@@ -1470,7 +1495,10 @@ function StageCard({
         <button
           type="button"
           className="btn btn-icon"
-          title="Remove stage"
+          // Named for the round, in the house word: a screen reader heard
+          // "Remove stage" on a screen where every other word says round.
+          title={`Delete ${thisRound || "this round"}`}
+          aria-label={`Delete ${thisRound || "this round"}`}
           disabled={pending || locked}
           onClick={() =>
             startTransition(async () => {
@@ -1504,6 +1532,62 @@ function StageCard({
           "this round doesn't follow on from the last one" is the one thing an
           organizer must see without opening anything. */}
       <div style={{ display: expanded ? "contents" : "none" }}>
+
+      {/* OFF HANDICAP OR SCRATCH — on the face of the round, not in Customize
+          (2026-10-16). It is the first thing a club decides about a competition
+          after the format, and it was behind a fold labelled "Result
+          calculation", so a new organizer's medal stayed gross because nobody
+          found the choice. Ajay: "made it default as the usual golf clubs play
+          and keep the customization in to customize section". The allowance
+          that goes with Net sits directly under it. Not on a round scored by
+          hand: the committee works its result out, so there is nothing here for
+          the app to apply. */}
+      {!isManualFormat(format) && (
+      <div className="field" style={{ maxWidth: 420, width: "100%" }}>
+        <label>
+          Handicap
+          <FieldInfo label="playing off handicap or scratch">
+            <p>
+              <b>Net</b> takes each player&rsquo;s handicap strokes off first, so a 20-handicap can
+              win — how most club competitions are played. <b>Gross</b> ranks the strokes actually
+              taken, as a scratch championship does. <b>Both</b> keeps the two orders of merit from
+              one card, for a club that gives a gross and a net prize.
+            </p>
+          </FieldInfo>
+        </label>
+        {isStablefordFormat(format) ? (
+          /* STABLEFORD IS PLAYED OFF HANDICAP — the way clubs run it
+             (Ajay, 2026-09-28). A scratch competition is stroke play, so
+             there is nothing to choose here, and a picker offering
+             "Gross" would be offering a result the engine never gave. */
+          <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+            Off handicap — points are worked out after each player&rsquo;s strokes, as club
+            Stableford competitions are played. For a scratch competition, choose Stroke Play.
+          </p>
+        ) : (
+          <>
+            <div className="seg" style={{ width: "100%" }}>
+              {/* The choosable three. A round still HOLDING the legacy
+                  `stableford` basis shows none of these checked, and the
+                  summary line above still names it — see `BASIS_OPTIONS`. */}
+              {BASIS_CHOICES.map((o) => (
+                <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending || locked} onChange={() => commitBasis(o.key)} />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+              {basis === "gross"
+                ? "Scratch: the strokes as taken, no handicaps."
+                : basis === "both"
+                  ? "A gross and a net order of merit from the same cards."
+                  : "Off handicap, as most club competitions are."}
+            </p>
+          </>
+        )}
+      </div>
+      )}
 
       {/* What the format costs the sides in strokes. On the round,
           beside the format it belongs to — this used to live on the
@@ -1547,14 +1631,6 @@ function StageCard({
         </div>
       )}
 
-      {stage.handicaps.length > 0 && (
-        <div>
-          <SectionLabel>Handicaps for this round</SectionLabel>
-          <div style={{ marginTop: 6 }}>
-            <RoundHandicaps stageId={stage.id} rows={stage.handicaps} />
-          </div>
-        </div>
-      )}
       {/* What this kind of round settles — at ROUND level, not inside
           "Customize this round".
 
@@ -1569,7 +1645,7 @@ function StageCard({
           The cut and carry-forward deliberately did NOT come with them: those
           are about the round AFTER this one, and they have their own heading
           inside the panel. */}
-      <SettingsGroup title="What this round decides" blurb="What this kind of round settles.">
+      <SettingsGroup title="What this round decides">
         {/* One match, paired by a rule rather than by hand. */}
         {stage.type === "Single Match Stage" && singleMatch && (
           <div>
@@ -1610,10 +1686,15 @@ function StageCard({
         {showStrokeCut && nextStage && (
           <div>
             <SectionLabel>The cut</SectionLabel>
+            {/* RANKED ON THE TOTAL, which is what `applyStrokeCut` does and what a
+                36-hole cut is. This said "ranked on this round's scores", which
+                told the organizer of a 54-hole championship that Round 1 would
+                not count towards who plays Round 3 (2026-10-16). */}
             <p className="text-muted" style={{ fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
-              Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on this round&rsquo;s scores.
-              Anyone level on the last place after countback goes through too. The cut is made when
-              you mark this round finished.
+              Who plays {roundLabelOf(allStages, nextStage.id)}, ranked on
+              {roundNumberOf(allStages, stage.id) > 1 ? ` the total after ${thisRound}` : ` ${thisRound || "this round"}`}.
+              Anyone level with the last place goes through too. The cut is made when you mark this
+              round finished.
             </p>
             <CutControl
               key={nextStage.id}
@@ -1629,18 +1710,6 @@ function StageCard({
               flightCount={flightCount}
               locked={locked}
               tiesGoThrough
-            />
-          </div>
-        )}
-
-        {stage.type !== "Bracket Stage" &&
-          standingsUnit(stage.format, stage.scoringBasis) !== "match points" && (
-          <div>
-            <SectionLabel>Is this round over?</SectionLabel>
-            <RoundClosedControl
-              stageId={stage.id}
-              closed={stage.closed}
-              pointsBoard={isStablefordRound(stage.scoringBasis, stage.format)}
             />
           </div>
         )}
@@ -1694,9 +1763,46 @@ function StageCard({
         )}
       </SettingsGroup>
 
+      {/* ON THE DAY: the two controls about PLAY, once there is play to speak
+          of (`underWay`). At setup they were noise with a trap in it — ticking
+          "This round is finished" on an unplayed round leaves everybody without
+          a place. A round that is already closed, or has a card, shows them
+          whatever the tournament's status. */}
+      {underWay && (
+        <SettingsGroup title="On the day">
+          {stage.type !== "Bracket Stage" &&
+            standingsUnit(stage.format, stage.scoringBasis) !== "match points" && (
+            <div>
+              <SectionLabel>Is this round over?</SectionLabel>
+              <RoundClosedControl
+                stageId={stage.id}
+                closed={stage.closed}
+                pointsBoard={isStablefordRound(stage.scoringBasis, stage.format)}
+              />
+            </div>
+          )}
+          {/* Under the date it overrules, which is in Customize: closing a
+              round's scoring early is a decision made on the day. */}
+          <div>
+            <SectionLabel>Scoring window</SectionLabel>
+            <RoundDeadlineControl
+              stageId={stage.id}
+              roundLabel={thisRound}
+              deadline={deadline}
+              today={today}
+              override={stage.deadlineOverride}
+              // Open while live: closing or reopening scoring is a
+              // decision made on the day (2026-09-27).
+              locked={pending}
+            />
+          </div>
+        </SettingsGroup>
+      )}
+
       <div>
         <button
           type="button"
+          aria-expanded={customizeOpen}
           onClick={() => setCustomizeOpen((o) => !o)}
           style={{
             width: "100%",
@@ -1727,47 +1833,6 @@ function StageCard({
 
         {customizeOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
-            <div className="field" style={{ maxWidth: 320, width: "100%" }}>
-              <label>
-                Result calculation
-                <FieldInfo label="result calculation">
-                  <p>
-                    <b>Gross</b> ranks the strokes actually taken. <b>Net</b> takes handicap
-                    strokes off first, so a 20-handicap can win. <b>Both</b> keeps two orders of
-                    merit from one card.
-                  </p>
-                  <p>
-                    <b>Stableford</b> scores points per hole instead of counting strokes, so a
-                    blow-up costs one hole rather than the round. It is set here, on a stroke-play
-                    round, rather than picked as its own format &mdash; there is one engine, and
-                    offering two doors to it would leave one of them not opening.
-                  </p>
-                </FieldInfo>
-              </label>
-              {isStablefordFormat(format) ? (
-                /* STABLEFORD IS PLAYED OFF HANDICAP — the way clubs run it
-                   (Ajay, 2026-09-28). A scratch competition is stroke play, so
-                   there is nothing to choose here, and a picker offering
-                   "Gross" would be offering a result the engine never gave. */
-                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
-                  Off handicap — points are worked out after each player&rsquo;s strokes, as club
-                  Stableford competitions are played. For a scratch competition, choose Stroke Play.
-                </p>
-              ) : (
-                <div className="seg" style={{ width: "100%" }}>
-                  {/* The choosable three. A round still HOLDING the legacy
-                      `stableford` basis shows none of these checked, and the
-                      summary line above still names it — see `BASIS_OPTIONS`. */}
-                  {BASIS_CHOICES.map((o) => (
-                    <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending || locked} onChange={() => commitBasis(o.key)} />
-                      {o.label}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Only where the format offers a choice at all — which is the
                 "opt out, not opt in" rule made visible. Every other round
                 takes a card and has nothing to decide, so it gets no control
@@ -1847,7 +1912,7 @@ function StageCard({
                 true again. */}
             <SettingsGroup
               title="When scores are due"
-              blurb="The day this round's scores are due, and whether they can still be entered."
+              blurb="For a round players arrange themselves — a knockout's matches, a week's league game — the last day it may be played and its result entered."
             >
               <div className="field" style={{ width: 190 }}>
                 <label htmlFor={`deadline-${stage.id}`}>Completion deadline</label>
@@ -1878,22 +1943,6 @@ function StageCard({
                 )}
               </div>
 
-              {/* Directly under the date, because it is the thing that overrules
-                  it. Kept out of the collapsed summary: closing a round early is
-                  a decision made on the day, not part of setting one up. */}
-              <div>
-                <SectionLabel>Scoring window</SectionLabel>
-                <RoundDeadlineControl
-                  stageId={stage.id}
-                  roundLabel={roundLabelOf(allStages, stage.id)}
-                  deadline={deadline}
-                  today={today}
-                  override={stage.deadlineOverride}
-                  // Open while live: closing or reopening scoring is a
-                  // decision made on the day (2026-09-27).
-                  locked={pending}
-                />
-              </div>
             </SettingsGroup>
 
             {/* Weekly sign-up, when the league asks the question. A different
@@ -1970,11 +2019,26 @@ function StageCard({
                 // The blurb used to promise both unconditionally, so a
                 // stroke-play round robin advertised a second question that
                 // was not there and numbers that were never rendered.
-                format === "Match Play"
-                  ? "Set once and rarely touched. Two separate questions — the numbers say which is which."
-                  : "Set once and rarely touched. How the table is ordered when players finish level."
+                stage.type !== "Round Robin"
+                  ? "How players level on this round are placed."
+                  : format === "Match Play"
+                    ? "Two different questions, settled at different times: one match on the day, then the table at the end."
+                    : "How the table is ordered when players finish level."
               }
             >
+            {/* A ROUND SCORED FROM CARDS BREAKS A TIE ONE WAY, and says which
+                (2026-10-16). There is no setting — countback on the card is the
+                rule the boards apply (`countbackSegments`) — but the group was
+                silent on every round but a round robin, so an organizer looking
+                for "what happens if two players tie" found nothing. */}
+            {stage.type !== "Round Robin" && isIndividualStrokeRound(stage) && (
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55, maxWidth: "62ch" }}>
+                Players level on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the total" : "the round"} are
+                placed by countback on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card —
+                the better {holes === 9 ? "last six, then the last three" : "last nine, then the last six, the last three"} and
+                the last hole. Anybody still level shares the place.
+              </p>
+            )}
             {stage.type === "Round Robin" && (
               <div>
                 {/* Two different questions that were sharing one heading, which
@@ -1986,7 +2050,7 @@ function StageCard({
                 {format === "Match Play" && (
                   <div style={{ marginBottom: 18 }}>
                     <SectionLabel>
-                      1. A match finishes all square
+                      1. If a match is all square after the last hole
                       <FieldInfo label="deciding a halved match">
                         <p>
                           This decides a single match on the day — who takes the point when two players
@@ -2004,7 +2068,7 @@ function StageCard({
 
                 <div>
                   <SectionLabel>
-                    {format === "Match Play" ? "2. Players finish level on the leaderboard" : "Players finish level on the leaderboard"}
+                    {format === "Match Play" ? "2. If players finish level in the table" : "If players finish level in the table"}
                     <FieldInfo label="deciding the standings">
                       <p>
                         This ranks the STANDINGS once every match is in — a different question from the
@@ -2042,6 +2106,18 @@ function StageCard({
               </div>
             )}
             </SettingsGroup>
+
+            {/* A committee's own figure for one player in one round — a visitor's
+                handicap, a correction for the day. Real, and rare: in Customize,
+                not on the face of every round. */}
+            {stage.handicaps.length > 0 && (
+              <div>
+                <SectionLabel>Handicaps for this round</SectionLabel>
+                <div style={{ marginTop: 6 }}>
+                  <RoundHandicaps stageId={stage.id} rows={stage.handicaps} />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2069,9 +2145,12 @@ export function StagesClient({
   thirdPlaces,
   canSetVenue = true,
   locked = false,
+  launched = false,
   today,
 }: {
   stages: StageView[];
+  /** The tournament has been launched — see `Launched`. */
+  launched?: boolean;
   /** Today, yyyy-mm-dd, from the server — see `ServerToday`. */
   today: string;
   /** Organizer only — see `StageCard`'s prop of the same name. */
@@ -2183,6 +2262,22 @@ export function StagesClient({
   const [interval, setInterval] = useState(7);
   const [addRefused, setAddRefused] = useState("");
   const [pending, startTransition] = useTransition();
+  /**
+   * A TYPE BRINGS ITS FORMAT WITH IT — the one clubs play it in — and keeps
+   * the organizer's own choice where that still fits (2026-10-16).
+   *
+   * The format used to wait at "Choose…" until picked, because a defaulted
+   * format once produced a stroke round labelled Match Play. That default was
+   * the EVENT's, not the type's; `naturalFormatFor` is the type's, and the list
+   * below offers nothing the type cannot score, so the old failure cannot
+   * recur. A choice that no longer fits — Match Play kept from a round robin,
+   * then Stroke play round chosen — is replaced rather than carried into the
+   * next Add, which is what the walk found.
+   */
+  const pickType = (t: StageTypeKey) => {
+    setNewType(t);
+    setBulkFormat((cur) => (cur && formatChoicesFor(t).some((c) => c.name === cur) ? cur : naturalFormatFor(t)));
+  };
 
   /**
    * THE ROUND JUST ADDED IS OPENED AND BROUGHT INTO VIEW (2026-10-04).
@@ -2220,6 +2315,7 @@ export function StagesClient({
 
   return (
     <ServerToday.Provider value={today}>
+    <Launched.Provider value={launched}>
     <SetupLocked.Provider value={locked}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Net scoring without a Course Rating and Slope is an approximation,
@@ -2254,6 +2350,7 @@ export function StagesClient({
             allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}
+            hasResult={roundsWithResults.includes(s.id)}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}
@@ -2379,7 +2476,8 @@ export function StagesClient({
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setNewType(t.key)}
+                onClick={() => pickType(t.key)}
+                aria-pressed={selected}
                 disabled={pending}
                 style={{
                   textAlign: "left",
@@ -2413,7 +2511,8 @@ export function StagesClient({
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setNewType(t.key)}
+                onClick={() => pickType(t.key)}
+                aria-pressed={selected}
                 disabled={pending}
                 style={{
                   textAlign: "left",
@@ -2486,16 +2585,20 @@ export function StagesClient({
                   is drawn, the format decides how a score becomes a result —
                   so it is asked, like the type above it. */}
               <option value="">Choose…</option>
-              <optgroup label="Played on your own">
-                {GOLF_FORMATS.filter((f) => f.playable && !isTeamFormat(f.name)).map((f) => (
-                  <option key={f.name} value={f.name}>{f.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Played as a side">
-                {GOLF_FORMATS.filter((f) => f.playable && isTeamFormat(f.name)).map((f) => (
-                  <option key={f.name} value={f.name}>{f.name}</option>
-                ))}
-              </optgroup>
+              {/* What the chosen type can be scored in — `formatChoicesFor`, the
+                  list `addStage` also holds to. Before a type is picked, the
+                  formats a stroke round can take, which is most of them; the
+                  pick then narrows it. */}
+              {(["own", "side"] as const).map((g) => {
+                const opts = formatChoicesFor(newType || "Stroke Play Round").filter((c) => c.group === g);
+                return opts.length === 0 ? null : (
+                  <optgroup key={g} label={g === "own" ? "Played on your own" : "Played as a side"}>
+                    {opts.map((c) => (
+                      <option key={c.name} value={c.name}>{c.label}</option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
           </label>
 
@@ -2654,6 +2757,7 @@ export function StagesClient({
       )}
     </div>
     </SetupLocked.Provider>
+    </Launched.Provider>
     </ServerToday.Provider>
   );
 }

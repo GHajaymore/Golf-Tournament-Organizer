@@ -268,7 +268,18 @@ export function currentDatedRoundIndex(
   }
   // Before the season opens there is nothing played, and the round everyone is
   // preparing for is the first — never the last.
-  return lastPlayed >= 0 ? lastPlayed : firstDated;
+  if (lastPlayed >= 0) return lastPlayed;
+  /**
+   * …AND THE FIRST ROUND, not the first DATED one (2026-10-16). With an
+   * undated Round 1 above Rounds 2 and 3 on 7 and 14 November — exactly what
+   * adding a dated pair under an existing round produces — this answered
+   * Round 2, so before a ball was struck the app took Round 2 as the one being
+   * played and Rounds & formats chipped Round 1 "Played". A date not yet come
+   * says nothing about an earlier round with no date at all; -1 hands the
+   * question to the cards (`currentPlayedRoundIndex`), which fall back to the
+   * first round.
+   */
+  return firstDated > 0 ? -1 : firstDated;
 }
 
 /**

@@ -381,6 +381,8 @@ export default async function StagesPage() {
         // The lock the banner above states; the actions behind most controls
         // refuse it by throwing, so the controls have to know it too.
         locked={locked}
+        // Whether play has begun at all: the controls about PLAY wait for it.
+        launched={!PRE_LAUNCH_STATUSES.includes(state.event.status)}
         // Staff, as `setStageCourse` is since Ajay's decision of 2026-09-27.
         canSetVenue={session.viewRole === "admin" || session.viewRole === "assistant"}
         singleMatches={singleMatches}

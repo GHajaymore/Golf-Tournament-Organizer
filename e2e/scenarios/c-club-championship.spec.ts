@@ -124,6 +124,14 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await page.getByLabel("Format for every round added").selectOption("Stroke Play");
       await page.getByRole("button", { name: /^Add 2 stroke play rounds/ }).click();
       await expect(page.getByRole("button", { name: /^Round 2 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
+      // Scratch, as a championship is: a new round is off handicap unless the
+      // organizer says Gross (the club default since 2026-10-16).
+      for (const round of ["Round 2", "Round 1"]) {
+        const head = page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) });
+        if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
+        await page.locator(".card", { has: head }).locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ }).click();
+        await expect(page.getByText("Scratch: the strokes as taken, no handicaps.").first()).toBeVisible({ timeout: 20_000 });
+      }
       const cutBox = page.getByRole("checkbox", { name: "Cut the field for Round 2" });
       await cutBox.check();
       const n = page.getByLabel("Players who make the cut for Round 2");

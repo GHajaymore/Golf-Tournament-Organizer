@@ -188,9 +188,14 @@ export function CutControl({
             </label>
           </div>
           <span className="text-muted" style={{ fontSize: 13 }}>
-            {perFlight
-              ? `${bucketSurvivors}${tiesGoThrough ? " and ties" : ""} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
-              : `${survivors}${tiesGoThrough ? " and ties" : ""} of ${confirmedCount} advance into ${roundLabel}.`}
+            {/* A RULE UNTIL THERE IS A FIELD. With nobody entered this read
+                "16 and ties of 0 advance into Round 3" (2026-10-16) — a count
+                of nothing, and "16 and ties of" read as one phrase. */}
+            {confirmedCount === 0
+              ? `The top ${m === "percent" ? `${pct}%` : n}${perFlight ? " in each flight" : ""}${tiesGoThrough ? ", and anyone tied with the last place," : ""} play ${roundLabel}. Nobody is entered yet.`
+              : perFlight
+                ? `The top ${bucketSurvivors} in each of ${plural(flights, "flight")} play ${roundLabel} — ${survivors} of the ${confirmedCount} entered${tiesGoThrough ? ", and anyone tied with a flight's last place" : ""}.`
+                : `${survivors} of the ${confirmedCount} entered play ${roundLabel}${tiesGoThrough ? ", and anyone tied with the last of them" : ""}.`}
             {/* Why "Per flight" is dead, in the sentence that is already here
                 rather than in a `title` nobody on a phone can reach. The same
                 pattern removed from the draw button, Teams & pairs and the tee
