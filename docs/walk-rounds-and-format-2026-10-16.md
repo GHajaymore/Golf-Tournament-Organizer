@@ -50,4 +50,16 @@ Each finding: what was done, what the screen said, what it should say. Nothing f
 7. The Add-a-round form keeps the last format chosen (here the rejected Match Play), so the next
    Add would repeat finding 1. Small; goes away with the fix to 1.
 
-(continuing)
+8. **Two controls a screen reader cannot name.** The round's "This round is finished" tick-box is
+   named "on" (an unlabelled checkbox's default value), and the "date them all" box above the
+   rounds has no label at all (it defaults to today). Same class as the thirty captions in the
+   deferred register.
+
+9. **Adding two rounds spaces them a week apart, unasked.** "How many? 2", Stroke Play, "First
+   round played 7 Nov" made Round 2 Sat 7 Nov and Round 3 **Sat 14 Nov**. A club championship over
+   a weekend expects 7 and 8 November; nothing on the form said the rounds would be a week apart.
+   Should: ask for the spacing (consecutive days, weekly) or say plainly what it will do before
+   Add. Also: Round 1 (undated) now sits above Round 2 (7 Nov) with no date, and the dated rounds
+   are headed by their date while the undated one is headed "Stroke Play Round".
+
+(continuing — next: Customize this round, a cut, a bracket after the stroke rounds, removing a round)
