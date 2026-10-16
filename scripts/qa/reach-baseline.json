@@ -126,7 +126,6 @@
    "saveScoring",
    "saveTiebreakers",
    "setFlightsConfirmed",
-   "setInviteMessage",
    "setMatchTiebreakers",
    "setQualifyPerGroup",
    "setSingleMatchRule",
