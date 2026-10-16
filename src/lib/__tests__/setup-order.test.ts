@@ -236,7 +236,7 @@ describe("the sides step, which only a team event has", () => {
 describe("a team cup's setup", () => {
   const facts = (cup: { flights: number; unplaced: number }) => ({
     confirmed: 8,
-    rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, cutFed: false, matches: 0 }],
+    rounds: [{ label: "Round 1", drawsPairings: false, scheduled: true, scorable: true, cutFed: false, matches: 0 }],
     groups: cup.flights,
     named: true,
     dated: true,

@@ -35,6 +35,7 @@ import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isStraightKnockout, isWeeklyRound } from "@/lib/stage-types";
 import { playOverOf } from "@/lib/domain/tournament-switcher";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundsMissingCards } from "@/lib/services/round-card-lines";
 import { isFinished, isLaunched, nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { overallResultLabel } from "@/lib/domain/overall-result";
@@ -507,6 +508,7 @@ export default async function DashboardPage() {
           confirmed: state.confirmed.length,
           dated: !!state.event.dates.trim(),
           missingCards,
+          unscorable: unscorableRoundLabels(state.stages),
         })
       : lifecycleAction?.to === "completed"
         ? finishRefusal({

@@ -61,7 +61,7 @@ import { WIPE_ON_CLOSE, roundWindowRefusal } from "@/lib/domain/close-terms";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor } from "@/lib/tournament-templates";
 import { defaultFormatFor } from "@/lib/side-style";
-import { formatFitsRound, naturalFormatFor, newRoundBasis } from "@/lib/domain/round-choices";
+import { formatFitsRound, naturalFormatFor, newRoundBasis, unscorableRoundLabels } from "@/lib/domain/round-choices";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { cleanIsoDate, roundDates, planSeasonDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, isPartnerCardSigned, filledHoles, LOCKED_CARD_REFUSAL, SIGNED_PARTNER_REFUSAL } from "@/lib/domain/card-approval";
@@ -2228,7 +2228,7 @@ export async function addStage(
   const previous = await prisma.stage.findFirst({
     where: { eventId },
     orderBy: { position: "desc" },
-    select: { format: true },
+    select: { format: true, type: true },
   });
   const scoring = ev?.format === "stroke" ? "stroke" : "match";
   const common = {
@@ -2338,6 +2338,20 @@ export async function addStage(
    */
   if (!previous && !isHeadToHead(stageType) && ev?.format !== "stroke") {
     await prisma.event.update({ where: { id: eventId }, data: { format: "stroke" } });
+  }
+
+  /**
+   * A KNOCKOUT AFTER STROKE QUALIFYING TAKES THE TOP N OVERALL (2026-10-16).
+   *
+   * The event's qualification starts at "top 2 per flight", which is right for
+   * a knockout after round-robin groups and is a FINAL after a medal: walked as
+   * a new organizer, a stroke round then a bracket drew two players from a field
+   * in one flight. A club qualifying on strokes takes the top 8 or 16 overall.
+   * Set when the knockout is added after a round with no opponents — the moment
+   * the question first means anything — and the organizer can change it there.
+   */
+  if (stageType === "Bracket Stage" && previous && !isHeadToHead(previous.type)) {
+    await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
   }
 
   // A new round of a code-using tournament needs a code, or it is a round
@@ -4720,7 +4734,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
    * inside setting up, gated between phases — see phase-gate.ts.
    */
   const [stages, confirmed, event] = await Promise.all([
-    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
+    prisma.stage.findMany({ where: { eventId }, select: { id: true, type: true, format: true, position: true } }),
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
     prisma.event.findUnique({ where: { id: eventId }, select: { dates: true } }),
   ]);
@@ -4730,6 +4744,7 @@ export async function launchTournament(): Promise<{ ok: boolean; error?: string 
     confirmed,
     dated: !!event?.dates.trim(),
     missingCards: await roundsMissingCards(eventId),
+    unscorable: unscorableRoundLabels(stages),
   });
   if (refusal) return { ok: false, error: refusal };
 

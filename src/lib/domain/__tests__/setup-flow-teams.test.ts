@@ -18,7 +18,7 @@ import { screenName } from "@/lib/nav";
  * is the control that must read complete.
  */
 
-const medalRound: SetupRound = { label: "Round 1", drawsPairings: false, scheduled: true, cutFed: false, matches: 0 };
+const medalRound: SetupRound = { label: "Round 1", drawsPairings: false, scheduled: true, scorable: true, cutFed: false, matches: 0 };
 
 const READY: SetupFacts = {
   confirmed: 8,

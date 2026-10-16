@@ -200,7 +200,11 @@ export function CutControl({
                 rather than in a `title` nobody on a phone can reach. The same
                 pattern removed from the draw button, Teams & pairs and the tee
                 sheet. */}
-            {flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
+            {/* None drawn yet is not one flight (2026-10-16): on Rounds &
+                formats the flights usually come later. */}
+            {flightCount === 0
+              ? " Flights are not drawn yet, so the cut is across the whole field."
+              : flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
           </span>
         </div>
       )}

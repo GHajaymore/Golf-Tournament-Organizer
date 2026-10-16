@@ -269,11 +269,15 @@ export default async function StagesPage() {
    * The entitlement behind it is a query, so writing the element into both
    * branches below would run that query twice to render it in one place.
    */
-  const describeTournament = locked ? null : (
-    <DescribeTournament
-      available={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
-    />
-  );
+  /**
+   * ONLY WHERE THE CLUB HAS IT (2026-10-16). Drafting is off on every plan, so
+   * every club saw a "Coming soon" panel in the middle of setting up its rounds —
+   * walked as a new organizer, clutter at the moment of most confusion, offering
+   * nothing to do. Ajay asked for this screen to be simple. Other locked features
+   * still show themselves; this one has no plan to point to yet.
+   */
+  const describeTournament =
+    locked || !(await entitlementForEvent(session.eventId, "aiAssist")).allowed ? null : <DescribeTournament available />;
 
   return (
     <>

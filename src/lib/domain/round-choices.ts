@@ -1,7 +1,8 @@
-import { GOLF_FORMATS, isPlayable } from "@/lib/formats";
-import { isTeamFormat } from "@/lib/side-style";
+import { GOLF_FORMATS, isPlayable, lookupFormat } from "@/lib/formats";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { basisFor } from "@/lib/domain/week-basis";
+import { roundLabel } from "@/lib/domain/round-label";
+import { isPlayingRound } from "@/lib/stage-types";
 
 /**
  * WHAT A ROUND OF A GIVEN TYPE MAY BE PLAYED AS — the one list both pickers on
@@ -67,6 +68,11 @@ export function naturalFormatFor(type: string): string {
   }
 }
 
+/** Played as a side when the catalogue's own family says so — not the screen's styling helper. */
+function groupOf(format: string): "own" | "side" {
+  return (lookupFormat(format)?.sideSize ?? 1) > 1 ? "side" : "own";
+}
+
 /** Whether a round of this type can be played in this format. */
 export function formatFitsRound(type: string, format: string): boolean {
   return isPlayable(format) && roundShapeMismatch(type, format) === null;
@@ -82,12 +88,29 @@ export function formatChoicesFor(type: string, current = ""): FormatChoice[] {
     const offered = formatFitsRound(type, f.name) && !SAME_GAME_AS[f.name];
     if (!offered && f.name !== current) continue;
     const hint = HINTS[f.name];
-    out.push({ name: f.name, label: hint ? `${f.name} — ${hint}` : f.name, group: isTeamFormat(f.name) ? "side" : "own" });
+    out.push({ name: f.name, label: hint ? `${f.name} — ${hint}` : f.name, group: groupOf(f.name) });
   }
   if (current && !out.some((c) => c.name === current)) {
-    out.unshift({ name: current, label: current, group: isTeamFormat(current) ? "side" : "own" });
+    out.unshift({ name: current, label: current, group: groupOf(current) });
   }
   return out;
+}
+
+/**
+ * THE ROUNDS THAT CANNOT BE SCORED AS SET, by the names every screen gives them.
+ *
+ * One reader for the three that must agree — the setup step, the dashboard's
+ * Launch button and `launchTournament` — so a round the card warns about can
+ * neither read DONE nor go live (2026-10-16; the lifecycle map found launch did
+ * not ask). Rounds stored before the pickers were narrowed can still hold such a
+ * pair, which is why this exists after the pickers stopped offering one.
+ */
+export function unscorableRoundLabels(
+  stages: readonly { id: string; type: string; format: string; position?: number }[],
+): string[] {
+  return stages
+    .filter((s) => isPlayingRound(s.type) && roundShapeMismatch(s.type, s.format) !== null)
+    .map((s) => roundLabel(stages, s.id) || s.type);
 }
 
 /**

@@ -1619,8 +1619,11 @@ describe("rounds and format", () => {
   it("keeps every control on the round card", () => {
     // Two points-scored Round Robin rounds with the carry question unanswered:
     // that is what opens the Customize panel on a static render.
+    // LAUNCHED, so the play-day controls are drawn too — they wait for play
+    // since the redesign of 2026-10-16, and a guard that rendered only setup
+    // would stop seeing them.
     const html = render(
-      <StagesClient {...base} chainsRounds
+      <StagesClient {...base} chainsRounds launched
         flightCount={2}
         stages={[
           stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: true } }),
@@ -1629,11 +1632,12 @@ describe("rounds and format", () => {
         venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
     );
     for (const control of [
-      // The header row of the open round
-      "Format", "Holes", "Played on", "Course", "Remove stage",
-      // Inside "Customize this round"
-      "Result calculation",
-      "When scores are due", "Completion deadline", "Scoring window",
+      // The face of the open round: what a club decides about every round
+      "Format", "Holes", "Played on", "Course", "Delete Round 1", "Handicap",
+      // On the day, once play has begun
+      "On the day", "Scoring window",
+      // Inside "Customize this round": what clubs vary
+      "When scores are due", "Completion deadline",
       "Sign-up deadline",
       "Before the next round", "Carry forward points into Round 2", "Cut the field for Round 2",
       "Generate", "Tiebreakers",
@@ -1642,13 +1646,25 @@ describe("rounds and format", () => {
     }
   });
 
+  it("keeps the play-day controls off a round nobody has played", () => {
+    // Walked 2026-10-16 on a draft: "This round is finished" with its paragraph,
+    // and "Open — scores can be entered", three weeks before the round.
+    const one = [stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: false })];
+    const setup = render(<StagesClient {...base} chainsRounds stages={one} />);
+    expect(setup).not.toContain("Scoring window");
+    expect(setup).not.toContain("On the day");
+    // CONTROL: the same round with a card in it shows them, launched or not.
+    const played = render(<StagesClient {...base} chainsRounds stages={one} roundsWithResults={["r1"]} />);
+    expect(played).toContain("Scoring window");
+  });
+
   it("names the scoring window once, not twice", () => {
     // The group was titled "On the day" and blurbed "whether scores can still
     // go in", above one control labelled "Scoring window" blurbed "Whether
     // scores can still be entered for this round." The same trap this pass
     // walked into on PlaySettings, already sitting on this screen.
     const html = render(
-      <StagesClient {...base} chainsRounds
+      <StagesClient {...base} chainsRounds launched
         stages={[stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: false })]} />,
     );
     expect(html).toContain("Scoring window");
@@ -1667,8 +1683,12 @@ describe("rounds and format", () => {
             stage({ id: "r2", position: 1, format, carryAsked: false }),
           ]} />,
       );
-    expect(open("Match Play")).toContain("Two separate questions");
-    expect(open("Stroke Play")).not.toContain("Two separate questions");
+    expect(open("Match Play")).toContain("Two different questions");
+    expect(open("Stroke Play")).not.toContain("Two different questions");
+    // Named apart, as a golfer asks them (Ajay, 2026-10-16: "one for the match
+    // and one for the leaderboard/rankings").
+    expect(open("Match Play")).toContain("If a match is all square after the last hole");
+    expect(open("Match Play")).toContain("If players finish level in the table");
   });
 
   it("says what a closed round decides, not just 'Standard settings'", () => {
@@ -2706,14 +2726,22 @@ describe("cut line scope", () => {
     // overall number understates the next round's field eightfold, and the
     // organizer only finds out when the pairings come out wrong.
     const html = render(<CutControl {...base} scope="perFlight" flightCount={8} />);
-    expect(html).toContain("4 from each of 8 flights");
-    expect(html).toContain("32 of 64");
+    expect(html).toContain("The top 4 in each of 8 flights play Round 2");
+    expect(html).toContain("32 of the 64 entered");
   });
 
   it("counts an overall cut across the field", () => {
     const html = render(<CutControl {...base} scope="overall" flightCount={8} />);
-    expect(html).toContain("4 of 64 advance");
-    expect(html).not.toContain("from each of");
+    expect(html).toContain("4 of the 64 entered play Round 2");
+    expect(html).not.toContain("in each of");
+  });
+
+  it("states the rule, not a count of nobody, before anybody is entered", () => {
+    // Walked 2026-10-16: "16 and ties of 0 advance into Round 3." A count of
+    // an empty field, and "16 and ties of" read as one phrase.
+    const html = render(<CutControl {...base} scope="overall" count={16} confirmedCount={0} flightCount={1} tiesGoThrough />);
+    expect(html).toContain("The top 16, and anyone tied with the last place, play Round 2. Nobody is entered yet.");
+    expect(html).not.toContain("of 0");
   });
 
   it("says on the page why there is no per-flight choice with one flight", () => {
@@ -2733,7 +2761,7 @@ describe("cut line scope", () => {
     // everyone — a cut line that cuts nobody — and the screen has to say so
     // rather than leave it as an "16 of 16 advance" line that looks fine.
     const html = render(<CutControl {...base} scope="overall" count={16} confirmedCount={16} flightCount={1} />);
-    expect(html).toContain("16 of 16 advance");
+    expect(html).toContain("16 of the 16 entered play Round 2");
     expect(html).toContain("advances the whole field");
   });
 
@@ -8440,7 +8468,7 @@ describe("the round-code card is drawn for the round's own holes", () => {
 
 describe("the setup rail", () => {
   /** One round, set up: a day of its own and its fixtures drawn. */
-  const aRound = { label: "Round 1", drawsPairings: true, scheduled: true, cutFed: false, matches: 6 };
+  const aRound = { label: "Round 1", drawsPairings: true, scheduled: true, scorable: true, cutFed: false, matches: 6 };
   const facts = {
     confirmed: 0, rounds: [] as (typeof aRound)[], groups: 0,
     named: false, dated: false, venued: false, moneyAnswered: false, launched: false,
@@ -8514,6 +8542,19 @@ describe("the setup rail", () => {
     expect(html).toContain("no dates");
     expect(html).toContain('href="/event"');
     expect(html).not.toContain("take it live");
+  });
+
+  it("says Now on the step on screen, not on an unfinished one elsewhere", () => {
+    // Walked 2026-10-16: on Rounds & formats, with Tournament details still
+    // missing a date, the strip said "Now" over Tournament details.
+    const html = renderToStaticMarkup(
+      <SetupFlowRail flow={setupFlow({ ...facts, named: true, dated: false, venued: false }, screenName)} href="/stages" />,
+    );
+    const now = [...html.matchAll(/>Now</g)].length;
+    expect(now, "one step says Now").toBe(1);
+    const at = html.indexOf(">Now<");
+    // The Now sits in the link to the screen being shown.
+    expect(html.lastIndexOf('href="/stages"', at)).toBeGreaterThan(html.lastIndexOf('href="/event"', at));
   });
 
   it("goes silent for good once the tournament is launched", () => {

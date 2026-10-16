@@ -173,7 +173,13 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
                   <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: tone, fontWeight: 700 }}>
                     {s.done ? <Icon name="check-circle" weight="fill" /> : <span>{i + 1}</span>}
                     <span style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      {s.done ? "Done" : s.state === "current" ? "Now" : "To do"}
+                      {/* "NOW" IS THE STEP ON SCREEN (2026-10-16). It was the
+                          first unfinished step wherever the organizer stood, so
+                          on Rounds & formats the strip said "Now" over
+                          Tournament details — read as being on the wrong page.
+                          The first gap keeps its colour, and the line below
+                          names it: "Still to do: Tournament details". */}
+                      {s.done ? "Done" : here ? "Now" : "To do"}
                     </span>
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>

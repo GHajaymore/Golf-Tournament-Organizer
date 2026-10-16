@@ -24,6 +24,7 @@ const round = (over: Partial<SetupRound> = {}): SetupRound => ({
   label: "Round 1",
   drawsPairings: true,
   scheduled: true,
+  scorable: true,
   cutFed: false,
   matches: 6,
   ...over,
@@ -164,6 +165,16 @@ describe("what counts as done", () => {
     expect(flowOf(andPaid).complete).toBe(true);
   });
 
+  it("is not done over a round that cannot be scored, and says which", () => {
+    // Walked 2026-10-16: a stroke round set to Match Play, its own card saying
+    // "This round cannot be scored as set", and this step DONE above it.
+    const broken = flowOf({ named: true, dated: true, rounds: [round({ label: "Round 1", scorable: false })] });
+    expect(broken.steps[1].done).toBe(false);
+    expect(broken.steps[1].missing).toMatch(/Round 1 cannot be scored/);
+    // CONTROL: the same round, scorable, is done.
+    expect(flowOf({ named: true, dated: true, rounds: [round()] }).steps[1].done).toBe(true);
+  });
+
   it("counts what is finished rather than how far along you are", () => {
     expect(flowOf().doneCount).toBe(0);
     expect(flowOf({ named: true, dated: true }).doneCount).toBe(1);
@@ -287,7 +298,7 @@ describe("the hand-off from setting up to running", () => {
      */
     const ready = flowOf({ ...finished, launched: false });
     expect(ready.launchBlocked).toBe(
-      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [] }),
+      launchRefusal({ playingRounds: 1, confirmed: 2, dated: false, missingCards: [], unscorable: [] }),
     );
     expect(ready.launchBlocked).toContain("no dates");
   });

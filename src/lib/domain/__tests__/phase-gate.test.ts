@@ -21,20 +21,20 @@ import { screenName } from "../../nav";
 
 describe("going live", () => {
   it("refuses a tournament with nothing to play", () => {
-    const r = launchRefusal({ playingRounds: 0, confirmed: 12, dated: true, missingCards: [] });
+    const r = launchRefusal({ playingRounds: 0, confirmed: 12, dated: true, missingCards: [], unscorable: [] });
     expect(r).toContain("no rounds");
     // Every refusal names the screen that fixes it.
     expect(r).toContain("Rounds & formats");
   });
 
   it("refuses a tournament with nobody to play it", () => {
-    const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true, missingCards: [] });
+    const r = launchRefusal({ playingRounds: 2, confirmed: 0, dated: true, missingCards: [], unscorable: [] });
     expect(r).toContain("Nobody is in the field");
     expect(r).toContain("Registration & field");
   });
 
   it("allows the ordinary case", () => {
-    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: true, missingCards: [] })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: true, missingCards: [], unscorable: [] })).toBeNull();
   });
 
   it("does not demand flights or a venue", () => {
@@ -47,7 +47,7 @@ describe("going live", () => {
      * failure mode the course-card rules are written about — "a guard that
      * refuses a real golf course is worse than no guard".
      */
-    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true, missingCards: [] })).toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true, missingCards: [], unscorable: [] })).toBeNull();
   });
 
   it("does demand a date, which it did not until 2026-09-19", () => {
@@ -70,7 +70,7 @@ describe("going live", () => {
      * created by `match-setup` with an expiry and is played the same day.
      * Casual stays casual.
      */
-    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false, missingCards: [] });
+    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: false, missingCards: [], unscorable: [] });
     expect(r).toContain("no dates");
     // Every refusal names the screen that fixes it — by the name the sidebar
     // gives it, which this used to get wrong ("Tournament setup") — and this
@@ -84,7 +84,7 @@ describe("going live", () => {
     // while the committee can still add the card.
     const r = launchRefusal({
       playingRounds: 2, confirmed: 40, dated: true,
-      missingCards: [{ label: "Round 2", course: "zz-Ardmore" }],
+      missingCards: [{ label: "Round 2", course: "zz-Ardmore" }], unscorable: [],
     });
     expect(r).toContain("Round 2 at zz-Ardmore needs its course card");
     expect(r).toContain("par and stroke index");
@@ -92,9 +92,19 @@ describe("going live", () => {
     // Two rounds are named together, in one sentence.
     const two = launchRefusal({
       playingRounds: 3, confirmed: 40, dated: true,
-      missingCards: [{ label: "Round 1", course: "" }, { label: "Round 3", course: "zz-Links" }],
+      missingCards: [{ label: "Round 1", course: "" }, { label: "Round 3", course: "zz-Links" }], unscorable: [],
     });
     expect(two).toContain("Round 1 and Round 3 at zz-Links need their course card");
+  });
+
+  it("refuses a round that cannot be scored in its format, and names it", () => {
+    // 2026-10-16: a stroke round set to Match Play went live; its own card said
+    // "This round cannot be scored as set".
+    const r = launchRefusal({ playingRounds: 1, confirmed: 40, dated: true, missingCards: [], unscorable: ["Round 1"] });
+    expect(r).toContain("Round 1 cannot be scored in the format it is set to");
+    expect(r).toContain("Rounds & formats");
+    // CONTROL: the same tournament with the round fixed launches.
+    expect(launchRefusal({ playingRounds: 1, confirmed: 40, dated: true, missingCards: [], unscorable: [] })).toBeNull();
   });
 
   it("the setup guide asks the same card question as the Launch button", () => {
@@ -107,7 +117,7 @@ describe("going live", () => {
 
   it("takes whitespace as no date at all", () => {
     // The gate reads `!!dates.trim()` at the call site; a space is not an answer.
-    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: false, missingCards: [] })).not.toBeNull();
+    expect(launchRefusal({ playingRounds: 1, confirmed: 1, dated: false, missingCards: [], unscorable: [] })).not.toBeNull();
   });
 });
 

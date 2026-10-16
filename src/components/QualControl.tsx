@@ -10,10 +10,19 @@ export function QualControl({
   perFlight,
   overall,
   locked = false,
+  flightCount = 2,
 }: {
   mode: string;
   perFlight: number;
   overall: number;
+  /**
+   * Flights the field is in. With exactly one, "per flight" is the top N of
+   * everybody — top 2 is a final — and the stroke cut beside it already says so
+   * and disables the choice; this said nothing (2026-10-16). Zero is flights
+   * not yet drawn, which is not the same. Defaults to two so a caller not yet
+   * taught is unchanged.
+   */
+  flightCount?: number;
   /** Setup is locked, which both actions refuse by throwing. */
   locked?: boolean;
 }) {
@@ -41,7 +50,7 @@ export function QualControl({
           noise. */}
       <div className="seg">
         <label className="seg-opt">
-          <input type="radio" name="qmode" checked={m === "perFlight"} disabled={pending} onChange={() => switchMode("perFlight")} />
+          <input type="radio" name="qmode" checked={m === "perFlight"} disabled={pending || (flightCount === 1 && m !== "perFlight")} onChange={() => switchMode("perFlight")} />
           Per flight
         </label>
         <label className="seg-opt">
@@ -85,6 +94,17 @@ export function QualControl({
         </label>
       )}
       <SaveState status={saveStatus} />
+      {/* Said on the page, as the stroke cut says it — not in a tooltip. */}
+      {/* ONE flight, drawn. None yet is not one: flights are usually drawn
+          after the rounds are set, and a club planning groups then a knockout
+          needs Per flight while there are none. */}
+      {flightCount === 1 && (
+        <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+          {m === "perFlight"
+            ? `The field is in one flight, so this takes the top ${pf} of everybody${pf === 2 ? " — a final" : ""}. Choose Overall to set how many play the knockout.`
+            : "The field is in one flight, so a per-flight cut would be the same cut."}
+        </span>
+      )}
     </div>
   );
 }
