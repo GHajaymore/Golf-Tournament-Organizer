@@ -1,0 +1,45 @@
+[
+  {
+    "what": "P1 ticking Require a mobile number stores nothing",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });",
+    "to": "  await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !required && false } });",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "mobile number"
+  },
+  {
+    "what": "I1 the invitation caption is tied to nothing again",
+    "file": "src/components/RegistrationClient.tsx",
+    "from": "          <label htmlFor={`${fid}-invite`}>Message</label>",
+    "to": "          <label>Message</label>",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "invitation"
+  },
+  {
+    "what": "I2 leaving the invitation box stores nothing",
+    "file": "src/app/actions/tournament.ts",
+    "from": "  await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message } });",
+    "to": "  await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message && \"\" } });",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop",
+    "grep": "invitation"
+  },
+  {
+    "what": "BURN-IN 1: organizer-requires-a-phone.spec.ts on desktop (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/organizer-requires-a-phone.spec.ts",
+    "from": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.",
+    "to": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE. (burn-in 1)",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "desktop"
+  },
+  {
+    "what": "BURN-IN 2: organizer-requires-a-phone.spec.ts on phone (a comment changed, nothing broken: NOT CAUGHT is the pass)",
+    "file": "e2e/organizer-requires-a-phone.spec.ts",
+    "from": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE.",
+    "to": " * AN ORGANIZER ON A PAID PLAN DECIDES WHETHER THE ENTRY FORM ASKS FOR A MOBILE. (burn-in 2)",
+    "spec": "e2e/organizer-requires-a-phone.spec.ts",
+    "project": "phone"
+  }
+]
