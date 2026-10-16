@@ -59,7 +59,19 @@ async function tournament(round: { format: string; scoringBasis: string; courseI
   });
   eventId = event.id;
   await prisma.stage.create({
-    data: { eventId, position: 0, type: "Stroke Play Round", holes: 18, format: round.format, scoringBasis: round.scoringBasis, courseId: round.courseId ?? null },
+    data: {
+      eventId,
+      position: 0,
+      // A round of a kind that can be scored in its format. This was a Stroke Play
+      // Round for every case, so the match-play control was Match Play on a round
+      // with no opponents — a round nobody can score, which launch refuses since
+      // 2026-10-16. The fixture was the defect, not the gate.
+      type: round.format === "Match Play" ? "Round Robin" : "Stroke Play Round",
+      holes: 18,
+      format: round.format,
+      scoringBasis: round.scoringBasis,
+      courseId: round.courseId ?? null,
+    },
   });
   if (round.courseId) await prisma.eventCourse.create({ data: { eventId, courseId: round.courseId } });
   await prisma.player.create({
