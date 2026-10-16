@@ -94,7 +94,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
@@ -2350,7 +2350,7 @@ export async function addStage(
    * Set when the knockout is added after a round with no opponents — the moment
    * the question first means anything — and the organizer can change it there.
    */
-  if (stageType === "Bracket Stage" && previous && !isHeadToHead(previous.type)) {
+  if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type)) {
     await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
   }
 

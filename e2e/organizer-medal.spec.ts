@@ -138,14 +138,16 @@ test("a new organizer runs a net medal from nothing to a finished board", async 
     await expect(page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ })).toBeInViewport();
     // The course chosen on the event screen is the round's card — #779.
     await expect(page.getByText(/A course card is missing/)).toHaveCount(0);
-    await customize.click();
-    // The radio itself is drawn at nothing behind its label, so it is the
-    // word that is tapped — as a person does.
+    // Net is on the face of the round since 2026-10-16, and a new round starts
+    // on it — a club medal is played off handicap. Tapped anyway, as an
+    // organizer making sure does. The radio itself is drawn at nothing behind
+    // its label, so it is the word that is tapped — as a person does.
     await page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).click();
     // Read back from what was stored, not from the radio just clicked.
     await expect(async () => {
       await open(page, "/stages");
-      await expect(page.getByRole("button", { name: /^Customize this round/ })).toContainText(/Net/);
+      await expect(page.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
+      await expect(page.getByText("Off handicap, as most club competitions are.")).toBeVisible();
     }).toPass({ timeout: 20_000 });
   });
 

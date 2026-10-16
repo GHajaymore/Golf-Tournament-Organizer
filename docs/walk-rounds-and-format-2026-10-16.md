@@ -110,6 +110,25 @@ Each finding: what was done, what the screen said, what it should say. Nothing f
     - Choosing Net under Customize this round makes a HANDICAP ALLOWANCE block appear above the
       press, out of sight on a phone.
 
+## Corrections to this walk (same day)
+
+- **Finding 8 was wrong.** Both controls are named: the "This round is finished" box sits inside
+  its label, and the date box has `htmlFor`. The script that read them printed the box's VALUE
+  ("on") where it meant its name. Nothing to fix.
+- **Finding 9 overstated it.** The add form does offer the spacing: a "Then" choice (every week,
+  fortnight, consecutive days) appears once a first date is filled in — defaulting to weekly, which
+  is a league's answer. The undated Round 1 above the pair is real, and was the cause of finding 10.
+
+## What was done (redesign, Ajay's ruling of the same day)
+
+Ajay: "if you think we should redesign it, go for it. made it default as the usual golf clubs play
+and keep the customization in to customize section". Fixed: 1, 2, 3 (the drafting panel appears
+only where a club has drafting), 5, 6, 7, 10, 11, 12, 13, 14, 15, 16 (the format lists; the type
+buttons say which is chosen; Handicap moved to the face of the round). 4: Alternate Shot is listed
+once, as foursomes; the other look-alikes carry a few words saying how they differ. A new round is
+played off handicap (Net), as club competitions are. See `docs/lifecycle-map-2026-10-16.md` for the
+lifecycle pass that follows.
+
 Walked and fine: Customize this round's Gross / Net / Both (stored, and Net brings the 95%
 allowance with "the recommended allowance for this format"); turning a cut on and setting its
 number (stored, "Saved"); adding a Match Play knockout after the stroke rounds; Top N overall.
