@@ -25,9 +25,12 @@ export interface SetupNotice {
   body: ReactNode;
 }
 
-export function SetupNotices({ items }: { items: SetupNotice[] }) {
+export function SetupNotices({ items: given }: { items: SetupNotice[] }) {
   const [open, setOpen] = useState<string | null>(null);
-  if (items.length === 0) return null;
+  if (given.length === 0) return null;
+  // What stops a launch comes first, whatever order a screen hands them in (the
+  // tournament director on the review panel); otherwise the screen's own order.
+  const items = [...given.filter((i) => i.tone === "block"), ...given.filter((i) => i.tone !== "block")];
   const blocks = items.filter((i) => i.tone === "block").length;
   return (
     <section

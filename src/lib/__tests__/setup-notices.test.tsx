@@ -30,6 +30,13 @@ describe("the notices above the rounds", () => {
     expect(html).toContain('aria-expanded="false"');
   });
 
+  it("puts what stops a launch first, whatever order it is handed", () => {
+    const html = renderToStaticMarkup(<SetupNotices items={[...items].reverse()} />);
+    expect(html.indexOf("A course card is missing.")).toBeLessThan(html.indexOf("10 rounds have no date"));
+    // CONTROL: the advice is there to be put second.
+    expect(html.indexOf("10 rounds have no date")).toBeGreaterThan(-1);
+  });
+
   it("draws nothing when there is nothing to sort out", () => {
     expect(renderToStaticMarkup(<SetupNotices items={[]} />)).toBe("");
   });
