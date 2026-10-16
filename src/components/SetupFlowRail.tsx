@@ -142,9 +142,14 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
             // is an 11px bold uppercase label, and the "Now" pill sits on a
             // 12% tint of the accent — where step 500 measures 3.05:1 for the
             // worst club palette. See accent-is-not-a-text-colour.test.ts.
+            // The colour follows the word (2026-10-16): the step marked "Now" is the
+            // one on screen, so it takes the accent — it followed the first gap
+            // elsewhere, and two steps looked emphasised at once (the UI/UX
+            // designer on the review panel). The first gap is named in the line
+            // below the strip ("Still to do: …").
             const tone = s.done
               ? "var(--color-accent-2-200)"
-              : s.state === "current"
+              : here
                 ? "var(--color-accent-200)"
                 : "var(--color-neutral-500)";
             return (

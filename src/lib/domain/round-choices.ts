@@ -40,9 +40,12 @@ const HINTS: Record<string, string> = {
   "Four-Ball": "pairs, the better ball counts",
   "Best Ball": "sides of 2 to 4, the best ball counts",
   Shamble: "best drive, then own ball",
-  Foursomes: "one ball, alternate shots",
-  "Chapman / Pinehurst": "both drive, swap, then alternate",
-  Greensomes: "both drive, then alternate",
+  // "(alternate shot)" so an American organizer, to whom a "foursome" is a group of
+  // four, still finds the name they know (the golf professional on the review panel).
+  Foursomes: "(alternate shot) — one ball, alternate shots",
+  // "Choose one ball" is the defining step of both, and was missing (same reviewer).
+  "Chapman / Pinehurst": "both drive, swap, choose one ball, then alternate",
+  Greensomes: "both drive, choose one ball, then alternate",
   Scramble: "best shot every time",
   "Texas Scramble": "a scramble with a minimum of drives each",
 };
@@ -88,7 +91,9 @@ export function formatChoicesFor(type: string, current = ""): FormatChoice[] {
     const offered = formatFitsRound(type, f.name) && !SAME_GAME_AS[f.name];
     if (!offered && f.name !== current) continue;
     const hint = HINTS[f.name];
-    out.push({ name: f.name, label: hint ? `${f.name} — ${hint}` : f.name, group: groupOf(f.name) });
+    // A hint opening with a bracket is another name for the game, so it joins with a space.
+    const label = !hint ? f.name : hint.startsWith("(") ? `${f.name} ${hint}` : `${f.name} — ${hint}`;
+    out.push({ name: f.name, label, group: groupOf(f.name) });
   }
   if (current && !out.some((c) => c.name === current)) {
     out.unshift({ name: current, label: current, group: groupOf(current) });

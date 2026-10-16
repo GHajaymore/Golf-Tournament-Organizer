@@ -1868,7 +1868,7 @@ function StageCard({
         {isKnockoutRound(stage.type) && arrangement && (
           <div>
             <SectionLabel>The draw</SectionLabel>
-            <BracketModePicker mode={arrangement.mode} secondLabel={arrangement.secondLabel} readOnly={!arrangement.canChange} locked={locked} />
+            <BracketModePicker mode={arrangement.mode} secondLabel={arrangement.secondLabel} readOnly={!arrangement.canChange} locked={locked} embedded />
           </div>
         )}
 
@@ -2245,6 +2245,11 @@ function StageCard({
  * take), and a round holding a card is left as it is and named — re-scoring
  * a played round stays a decision made on that round's own card.
  */
+/** A round's gross/net as it plays: a Stableford round is off handicap whatever is stored (`basisFor`). */
+function basisOf(s: StageView): string {
+  return isStablefordFormat(s.format) ? "net" : s.scoringBasis;
+}
+
 function EveryRound({
   rounds,
   resultIds,
@@ -2265,17 +2270,32 @@ function EveryRound({
   };
   const format = same((s) => s.format);
   const holes = same((s) => s.holes);
-  const basis = same((s) => (isStablefordFormat(s.format) ? "net" : s.scoringBasis));
+  const basis = same(basisOf);
   // Where the rounds differ, nothing is chosen, and nothing is changed unless
   // somebody chooses: "" and 0 mean "leave each as it is".
   const [f, setF] = useState(format ?? "");
   const [h, setH] = useState<number>(holes ?? 0);
   const [b, setB] = useState(basis ?? "");
-  // Only what EVERY round can be scored in: a list for one type, narrowed by each other type.
+  // Only what EVERY round can be scored in: a list for one type, narrowed by each
+  // other type — and the format they all hold, offered even where the list would
+  // not (an Alternate Shot season), so the box never shows a value the rounds do
+  // not have (the QA manager on the review panel).
   const types = [...new Set(rounds.map((s) => s.type))];
-  const choices = formatChoicesFor(types[0]).filter((c) => types.every((t) => formatChoicesFor(t).some((o) => o.name === c.name)));
-  const unplayed = rounds.filter((s) => !s.closed && !resultIds.includes(s.id));
+  const choices = formatChoicesFor(types[0], format ?? "").filter(
+    (c) => c.name === format || types.every((t) => formatChoicesFor(t).some((o) => o.name === c.name)),
+  );
+  /**
+   * WHAT "EVERY ROUND" MAY CHANGE: not closed, nothing returned — and, once the
+   * tournament is live, not a round whose day has come (the tournament director
+   * on the review panel: the round being played today, before its first card, was
+   * re-formatted by Apply).
+   */
+  const launched = React.useContext(Launched);
+  const today = React.useContext(ServerToday);
+  const dayHasCome = (s: StageView) => !s.playedOn || !today || s.playedOn <= today;
+  const unplayed = rounds.filter((s) => !s.closed && !resultIds.includes(s.id) && !(launched && dayHasCome(s)));
   const played = rounds.filter((s) => !unplayed.includes(s));
+  const names = (list: StageView[]) => list.map((s) => roundLabelOf(rounds, s.id)).join(", ");
 
   const sharedWords = [
     format ?? "mixed formats",
@@ -2285,28 +2305,36 @@ function EveryRound({
 
   const apply = () =>
     startTransition(async () => {
-      const skipped = new Set<string>();
+      // WHY each round was left, said truthfully (the QA manager and the UI/UX
+      // designer on the review panel): a refusal was reported as "has scores", and
+      // a basis refused for another reason was counted as changed.
+      const hasScores = new Set<string>();
+      const refused = new Set<string>();
+      const note = (id: string, r: unknown) => {
+        if (!r || typeof r !== "object" || (r as { ok?: boolean }).ok !== false) return;
+        if ((r as { needsConfirm?: boolean }).needsConfirm) hasScores.add(id);
+        else refused.add(id);
+      };
       for (const s of unplayed) {
-        if (f && f !== s.format) {
-          const r = await setStageFormat(s.id, f);
-          if (r && !r.ok) skipped.add(s.id);
-        }
-        if (h && h !== s.holes) {
-          const r = await setStageHoles(s.id, h);
-          if (r && !r.ok) skipped.add(s.id);
-        }
-        if (b && !isStablefordFormat(f || s.format) && b !== s.scoringBasis) {
-          const r = await setStageScoringBasis(s.id, b);
-          if (r && "needsConfirm" in r && r.needsConfirm) skipped.add(s.id);
+        try {
+          if (f && f !== s.format) note(s.id, await setStageFormat(s.id, f));
+          if (h && h !== s.holes) note(s.id, await setStageHoles(s.id, h));
+          if (b && !isStablefordFormat(f || s.format) && b !== s.scoringBasis) note(s.id, await setStageScoringBasis(s.id, b));
+        } catch {
+          refused.add(s.id);
         }
       }
-      const changed = unplayed.length - skipped.size;
-      const left = [...played, ...unplayed.filter((s) => skipped.has(s.id))];
+      const changed = unplayed.filter((s) => !hasScores.has(s.id) && !refused.has(s.id));
+      const scored = [...played, ...unplayed.filter((s) => hasScores.has(s.id))];
+      const refusedRounds = unplayed.filter((s) => refused.has(s.id) && !hasScores.has(s.id));
       onDone(
-        `${changed} round${changed === 1 ? "" : "s"} changed.` +
-          (left.length
-            ? ` ${left.map((s) => roundLabelOf(rounds, s.id)).join(", ")} ${left.length === 1 ? "has" : "have"} scores and ${left.length === 1 ? "was" : "were"} left as ${left.length === 1 ? "it was" : "they were"} — change ${left.length === 1 ? "it" : "them"} on ${left.length === 1 ? "its own card" : "their own cards"}.`
-            : ""),
+        [
+          `${changed.length} round${changed.length === 1 ? "" : "s"} changed.`,
+          scored.length ? `Left as they were, because play has begun: ${names(scored)} — change those on their own cards.` : "",
+          refusedRounds.length ? `Not changed: ${names(refusedRounds)} — the change was refused; open the round to see why.` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
       setOpen(false);
     });
@@ -2366,10 +2394,15 @@ function EveryRound({
             )}
           </div>
           <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            {/* What Apply will do, named before it is pressed (the UI/UX designer on
+                the review panel) — and "play has begun" rather than "has scores",
+                since a round whose day has come is left too. */}
             {unplayed.length === 0
-              ? "Every round has scores, so each is changed on its own card."
-              : `Changes the ${unplayed.length === rounds.length ? `${rounds.length} rounds` : `${unplayed.length} rounds nobody has played yet`}.` +
-                (played.length ? ` ${played.map((s) => roundLabelOf(rounds, s.id)).join(", ")} ${played.length === 1 ? "has" : "have"} scores and ${played.length === 1 ? "stays" : "stay"} as ${played.length === 1 ? "it is" : "they are"}.` : "")}
+              ? "Play has begun in every round, so each is changed on its own card."
+              : `Changes ${unplayed.length === rounds.length ? `all ${rounds.length} rounds` : names(unplayed)}` +
+                [f && f !== format ? ` to ${f}` : "", h && h !== holes ? `, ${h} holes` : "", b && b !== basis ? `, ${b === "gross" ? "scratch" : b === "both" ? "gross and net" : "off handicap"}` : ""].join("") +
+                "." +
+                (played.length ? ` Play has begun in ${names(played)}, so ${played.length === 1 ? "it stays" : "they stay"} as ${played.length === 1 ? "it is" : "they are"}.` : "")}
           </p>
           <div>
             <button type="button" className="btn btn-primary" disabled={pending || locked || unplayed.length === 0} onClick={apply}>
@@ -2559,7 +2592,9 @@ export function StagesClient({
   const playing = stages.filter((s) => isPlayingRound(s.type));
   const [everyNote, setEveryNote] = useState("");
   const shared =
-    playing.length >= 3 && playing.every((s) => s.format === playing[0].format && s.holes === playing[0].holes && s.scoringBasis === playing[0].scoringBasis)
+    // The same reading of the basis as `EveryRound` (`basisOf`): two readers of
+    // "do they all match" disagreed on Stableford rounds (the QA manager).
+    playing.length >= 3 && playing.every((s) => s.format === playing[0].format && s.holes === playing[0].holes && basisOf(s) === basisOf(playing[0]))
       ? { format: playing[0].format, holes: playing[0].holes, basis: playing[0].scoringBasis }
       : null;
 

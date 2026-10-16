@@ -52,6 +52,9 @@ describe("what a round may be played as", () => {
   it("tells the look-alikes apart in the words of the picker", () => {
     const label = (n: string) => formatChoicesFor("Stroke Play Round").find((c) => c.name === n)?.label ?? "";
     for (const n of ["Four-Ball", "Best Ball", "Scramble", "Texas Scramble"]) expect(label(n), n).toMatch(/ — /);
+    // The American name is still there to find, without a second entry (the golf professional on the review panel).
+    expect(label("Foursomes")).toBe("Foursomes (alternate shot) — one ball, alternate shots");
+    expect(label("Greensomes")).toMatch(/choose one ball/);
     // Every label begins with the stored name, so a spec choosing by name still finds it.
     for (const c of formatChoicesFor("Stroke Play Round")) expect(c.label.startsWith(c.name)).toBe(true);
   });

@@ -15,7 +15,10 @@ export function BracketModePicker({
   secondLabel,
   readOnly,
   locked = false,
+  embedded = false,
 }: {
+  /** Drawn inside another card (a round on Rounds & formats): no card of its own. */
+  embedded?: boolean;
   mode: BracketMode;
   /** What the second bracket is currently called, or "" when there isn't one. */
   secondLabel: string;
@@ -43,16 +46,23 @@ export function BracketModePicker({
   };
 
   return (
-    <div className="card elev-sm" style={{ gap: 8, marginBottom: 16 }}>
+    // EMBEDDED on a round's card (Rounds & formats), it is not a card inside a card
+    // (the UI/UX designer on the review panel); on the Bracket screen it still is.
+    <div
+      className={embedded ? undefined : "card elev-sm"}
+      style={embedded ? { display: "flex", flexDirection: "column", gap: 8 } : { gap: 8, marginBottom: 16 }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="card-kicker">Arrangement</span>
+        {!embedded && <span className="card-kicker">Arrangement</span>}
         <span style={{ fontSize: 14, fontWeight: 500 }}>{current.label}</span>
         {secondLabel && <span className="tag tag-neutral">+ {secondLabel}</span>}
         {!readOnly && !locked && (
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ marginLeft: "auto", padding: "2px 10px", fontSize: 13 }}
+            aria-expanded={open}
+            // A 44px target: it was ~24px tall.
+            style={{ marginLeft: "auto", padding: "2px 14px", fontSize: 13, minHeight: 44 }}
             onClick={() => setOpen((o) => !o)}
           >
             {open ? "Done" : "Change"}
