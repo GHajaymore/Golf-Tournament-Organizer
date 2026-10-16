@@ -111,11 +111,12 @@ export function CutControl({
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
         <input type="checkbox" checked={on} disabled={pending} onChange={(e) => commit(e.target.checked, m, n, pct)} />
         Cut the field for {roundLabel}
-        <SaveState status={saveStatus} />
       </label>
+      {/* Outside the label, so the checkbox's name is not "… Saved". */}
+      <SaveState status={saveStatus} />
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="seg">
+          <div className="seg" role="radiogroup" aria-label={`How the cut for ${roundLabel} is counted`}>
             <label className="seg-opt">
               <input
                 type="radio"
@@ -165,7 +166,7 @@ export function CutControl({
               onBlur={() => commit(on, m, n, pct)}
             />
           )}
-          <div className="seg">
+          <div className="seg" role="radiogroup" aria-label={`Where the cut for ${roundLabel} applies`}>
             <label className="seg-opt">
               <input
                 type="radio"

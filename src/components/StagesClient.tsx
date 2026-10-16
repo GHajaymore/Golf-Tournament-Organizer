@@ -769,17 +769,11 @@ function StageCard({
   // lives inside this panel — which is exactly the "unchecked box halfway down
   // a collapsed panel" the prompt exists to fix. Asking the question is no use
   // if the question is hidden, so an unanswered prompt opens the panel.
-  const [customizeOpen, setCustomizeOpen] = useState(
-    () =>
-      carryForwardPrompt({
-        chainsRounds,
-        hasNextRound: !!nextStage,
-        format: stage.format,
-        scoringBasis: stage.scoringBasis,
-        answered: nextStage?.carryAsked ?? false,
-        locked,
-      }).ask,
-  );
+  // Closed to begin with. It used to open itself for an unanswered carry-forward
+  // question, which no longer lives in it ("Before the next round" is on the face
+  // of a round robin since 2026-10-16 — the UI/UX designer and the tournament
+  // director on the review panel both found the leftover).
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
   /**
    * What a format change would re-score, once the action has refused it.
@@ -1298,11 +1292,6 @@ function StageCard({
             {notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
             )}
-            {/* Every control on this card saves the moment it changes, and
-                until now not one of them said so. In the header rather than
-                beside each control, because it is one card saving — eight
-                badges would be eight claims about the same request. */}
-            <SaveState status={saveStatus} />
             {/* Pinned to the right edge rather than trailing the last tag.
                 A disclosure chevron is the affordance for the whole row, and
                 sitting wherever the tags happen to end put it in a different
@@ -1335,6 +1324,11 @@ function StageCard({
             )
           )}
         </button>
+        {/* Every control on this card saves the moment it changes, and this says
+            so — in the header row, OUTSIDE the round's button: inside it, "Saved"
+            became part of the round's name to a screen reader ("Round 2 · … Saved",
+            the UI/UX designer on the review panel). Still a live region. */}
+        <SaveState status={saveStatus} />
         {/* `display: contents` rather than a conditional render: these fields
             are flex children of the header row, and wrapping them in an
             ordinary div when open would change the layout. Contents makes the
@@ -1531,8 +1525,9 @@ function StageCard({
           )}
         </div>
         <div className="field" style={{ width: 110 }}>
-          <label>Holes</label>
-          <div className="seg" style={{ width: "100%" }}>
+          {/* A named group, not a caption tied to nothing (the UI/UX designer on the review panel). */}
+          <span className="field-caption">Holes</span>
+          <div className="seg" role="radiogroup" aria-label={`Holes for ${thisRound || "this round"}`} style={{ width: "100%" }}>
             <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
               <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending || locked} onChange={() => commitHoles(18)} />18
             </label>
@@ -1715,7 +1710,7 @@ function StageCard({
           </p>
         ) : (
           <>
-            <div className="seg" style={{ width: "100%" }}>
+            <div className="seg" role="radiogroup" aria-label={`Handicap for ${thisRound || "this round"}`} style={{ width: "100%" }}>
               {/* The choosable three. A round still HOLDING the legacy
                   `stableford` basis shows none of these checked, and the
                   summary line above still names it — see `BASIS_OPTIONS`. */}
@@ -2004,6 +1999,7 @@ function StageCard({
             border: "1px solid var(--color-divider)",
             borderRadius: "var(--radius-md)",
             padding: "10px 14px",
+            minHeight: 44,
             cursor: "pointer",
             textAlign: "left",
             color: "var(--color-text)",
@@ -2014,15 +2010,20 @@ function StageCard({
             <Icon name="sliders" style={{ color: "var(--color-accent-200)" }} />
             Customize this round
           </span>
+          {/* Wraps rather than trailing off: it is the only thing the button says
+              about what is inside, and on a phone the ellipsis hid all of it
+              (the UI/UX designer on the review panel). */}
           {!customizeOpen && (
-            <span className="text-muted" style={{ fontSize: 13, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="text-muted" style={{ fontSize: 13, textAlign: "right", minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>
               {customizeSummary}
             </span>
           )}
         </button>
 
-        {customizeOpen && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
+        {/* In the page while closed, as a closed round card is: a draft in it
+            survives closing, and the guards that read the card see every control. */}
+        {(
+          <div style={{ display: customizeOpen ? "flex" : "none", flexDirection: "column", gap: 16, marginTop: 12 }}>
             {/* Only where the format offers a choice at all — which is the
                 "opt out, not opt in" rule made visible. Every other round
                 takes a card and has nothing to decide, so it gets no control
@@ -2118,11 +2119,14 @@ function StageCard({
                 // The blurb used to promise both unconditionally, so a
                 // stroke-play round robin advertised a second question that
                 // was not there and numbers that were never rendered.
+                // A round robin's tiebreakers are the TOURNAMENT's — every round
+                // robin in it shares them — and "Customize this round" must not
+                // suggest otherwise (the UI/UX designer on the review panel).
                 stage.type !== "Round Robin"
                   ? "How players level on this round are placed."
                   : format === "Match Play"
-                    ? "Two different questions, settled at different times: one match on the day, then the table at the end."
-                    : "How the table is ordered when players finish level."
+                    ? "Two different questions, settled at different times: one match on the day, then the table at the end. These apply to every round robin in this tournament."
+                    : "How the table is ordered when players finish level. These apply to every round robin in this tournament."
               }
             >
             {/* A ROUND SCORED FROM CARDS BREAKS A TIE ONE WAY, and says which
@@ -2337,8 +2341,8 @@ function EveryRound({
               </select>
             </div>
             <div className="field" style={{ width: 110 }}>
-              <label>Holes</label>
-              <div className="seg" style={{ width: "100%" }}>
+              <span className="field-caption">Holes</span>
+              <div className="seg" role="radiogroup" aria-label="Holes for every round" style={{ width: "100%" }}>
                 {[18, 9].map((n) => (
                   <label key={n} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                     <input type="radio" name="every-holes" checked={h === n} disabled={pending || locked} onChange={() => setH(n)} />
@@ -2349,8 +2353,8 @@ function EveryRound({
             </div>
             {!isStablefordFormat(f) && (
               <div className="field" style={{ flex: "1 1 220px" }}>
-                <label>Handicap</label>
-                <div className="seg" style={{ width: "100%" }}>
+                <span className="field-caption">Handicap</span>
+                <div className="seg" role="radiogroup" aria-label="Handicap for every round" style={{ width: "100%" }}>
                   {BASIS_CHOICES.map((o) => (
                     <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                       <input type="radio" name="every-basis" checked={b === o.key} disabled={pending || locked} onChange={() => setB(o.key)} />

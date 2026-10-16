@@ -1,6 +1,6 @@
 "use client";
 import { figureOr, readWhole } from "@/lib/domain/decimal-text";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { setQualifyPerGroup, setQualifyMode } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { leaveOnEnter } from "@/lib/leave-on-enter";
@@ -26,6 +26,10 @@ export function QualControl({
   /** Setup is locked, which both actions refuse by throwing. */
   locked?: boolean;
 }) {
+  // Radio names unique to this control: they were fixed ("qmode", "qpf"), and a
+  // closed round card stays in the page, so two knockout rounds put their radios
+  // in one group (the UI/UX designer on the review panel).
+  const gid = useId();
   const [m, setM] = useState(mode === "overall" ? "overall" : "perFlight");
   const [pf, setPf] = useState(perFlight);
   const [ov, setOv] = useState(overall);
@@ -48,23 +52,23 @@ export function QualControl({
           explains per-flight versus overall in the same words. A second icon
           an inch away, saying the same thing, teaches people the icons are
           noise. */}
-      <div className="seg">
+      <div className="seg" role="radiogroup" aria-label="Who qualifies for the knockout">
         <label className="seg-opt">
-          <input type="radio" name="qmode" checked={m === "perFlight"} disabled={pending || (flightCount === 1 && m !== "perFlight")} onChange={() => switchMode("perFlight")} />
+          <input type="radio" name={`${gid}-mode`} checked={m === "perFlight"} disabled={pending || (flightCount === 1 && m !== "perFlight")} onChange={() => switchMode("perFlight")} />
           Per flight
         </label>
         <label className="seg-opt">
-          <input type="radio" name="qmode" checked={m === "overall"} disabled={pending} onChange={() => switchMode("overall")} />
+          <input type="radio" name={`${gid}-mode`} checked={m === "overall"} disabled={pending} onChange={() => switchMode("overall")} />
           Overall
         </label>
       </div>
       {m === "perFlight" ? (
-        <div className="seg">
+        <div className="seg" role="radiogroup" aria-label="Players from each flight">
           {[1, 2, 3].map((n) => (
             <label className="seg-opt" key={n}>
               <input
                 type="radio"
-                name="qpf"
+                name={`${gid}-pf`}
                 checked={pf === n}
                 disabled={pending}
                 onChange={() => {
