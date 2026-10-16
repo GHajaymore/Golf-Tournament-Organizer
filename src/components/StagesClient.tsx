@@ -1041,7 +1041,8 @@ function StageCard({
     if (played) rowParts.push(played);
   }
   if (showTransition) {
-    customizeParts.push(
+    // On the face of the round now, so on the row — not in Customize's summary.
+    rowParts.push(
       nextStage
         ? `Into ${roundLabelOf(allStages, nextStage.id)}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
         : "No round after this yet",
@@ -1784,6 +1785,30 @@ function StageCard({
         )}
       </SettingsGroup>
 
+      {/* BEFORE THE NEXT ROUND, ON THE FACE OF A ROUND ROBIN (2026-10-16).
+          It was inside Customize. In a match-play event of groups — two round
+          robins and a knockout, the shape Ajay asked to be walked — what carries
+          into the next round, who survives a cut and drawing that round's
+          matches are what the round is FOR, and the carry question used to open
+          Customize by itself to be seen. A golf pro would not call any of it a
+          customisation. */}
+      {showTransition && (
+        <SettingsGroup
+          title={
+            <>
+              Before the next round
+              <FieldInfo label="the cut line and carry-forward">
+                <p>{ROUND_CUT_HELP}</p>
+                <p>{CUT_SCOPE_HELP}</p>
+              </FieldInfo>
+            </>
+          }
+          blurb="What carries forward, who survives the cut, and drawing the next round's matches."
+        >
+          <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} allStages={allStages} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
+        </SettingsGroup>
+      )}
+
       {/* ON THE DAY: the two controls about PLAY, once there is play to speak
           of (`underWay`). At setup they were noise with a trap in it — ticking
           "This round is finished" on an unplayed round leaves everybody without
@@ -2016,22 +2041,6 @@ function StageCard({
                 added, because each control below already labels itself and a
                 heading that repeats the label under it is the trap this pass
                 walked into on its own first screen. */}
-            {showTransition && (
-              <SettingsGroup
-                title={
-                  <>
-                    Before the next round
-                    <FieldInfo label="the cut line and carry-forward">
-                      <p>{ROUND_CUT_HELP}</p>
-                      <p>{CUT_SCOPE_HELP}</p>
-                    </FieldInfo>
-                  </>
-                }
-                blurb="What carries forward, who survives the cut, and drawing the next round's matches."
-              >
-                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} allStages={allStages} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
-              </SettingsGroup>
-            )}
 
             <SettingsGroup
               title="Tiebreakers"

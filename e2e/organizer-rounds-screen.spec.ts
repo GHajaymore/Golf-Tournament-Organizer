@@ -26,15 +26,15 @@ import { seedOrganizer, teardownOrganizer } from "./organizer-fixture.mjs";
 
 const TOURNAMENT = "Autumn Meeting — Rounds Walk";
 
-test.beforeAll(async () => {
+// A NEW ORGANIZER FOR EACH TEST: the club the app makes for them is on the free
+// plan, which runs one tournament at a time, and each test builds its own.
+// `seedOrganizer` tears the last one down first.
+test.beforeEach(async ({ context, baseURL }) => {
   const { session } = await seedOrganizer();
-  process.env.ORGANIZER_SESSION = session;
+  await context.addCookies([{ name: "ng_session", value: session, url: baseURL! }]);
 });
 test.afterAll(async () => {
   await teardownOrganizer();
-});
-test.beforeEach(async ({ context, baseURL }) => {
-  await context.addCookies([{ name: "ng_session", value: process.env.ORGANIZER_SESSION!, url: baseURL! }]);
 });
 
 async function open(page: Page, path: string) {
@@ -153,6 +153,84 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     await expect(customize).toContainText("Nothing changed");
     if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
     await expect(page.getByText(/placed by countback on the card — the better last nine, then the last six, the last three and the last hole/)).toBeVisible();
+  });
+
+  expect(errors).toEqual([]);
+});
+
+/**
+ * TWO ROUND ROBINS OF MATCH PLAY, THEN A KNOCKOUT — the shape Ajay asked to be
+ * walked (2026-10-16): a club's match-play championship played in groups, with
+ * the leaders going through to a bracket. It is where the two tiebreak
+ * questions, carrying points forward, a cut between the group rounds and
+ * qualifying per flight all meet on one screen.
+ *
+ *   the round-robin list    Match Play chosen for it; no Stroke Play offered
+ *   Every round             one line for all three: Match Play · 18 holes · off handicap
+ *   Round 1                 Before the next round on its face: carry forward into Round 2, the cut
+ *   the two tiebreaks       named apart: the match on the day, then the table
+ *   the knockout            after groups, the top players per flight — not overall
+ */
+test("a match-play championship in groups, then a knockout", async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  watchPageErrors(page, errors);
+  const NAME = "Club Match Play — Groups and Knockout";
+
+  await test.step("create a series of rounds", async () => {
+    await open(page, "/choose");
+    await page.getByLabel("Tournament name").fill(NAME);
+    await page.getByRole("button", { name: /^A series of rounds/ }).click();
+    await page.getByRole("button", { name: "Create tournament" }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+  });
+
+  await test.step("two round robins of match play, then a bracket", async () => {
+    await open(page, "/stages");
+    const add = page.getByRole("button", { name: /^Add a round/ });
+    if (await add.count()) await add.click();
+    await page.getByRole("button", { name: /^Round robin/ }).click();
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play");
+    const forGroups = await optionsOf(page, "Format for every round added");
+    expect(forGroups.some((o) => o.startsWith("Stroke Play")), "a round robin is offered Stroke Play").toBe(false);
+    await page.getByLabel("How many rounds to add").fill("2");
+    await page.getByRole("button", { name: /^Add 2 round robins/ }).click();
+    await expect(page.getByRole("button", { name: /^Round 2 · Round Robin/ })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: /^Bracket/ }).click();
+    await expect(page.getByLabel("Format for every round added")).toHaveValue("Match Play");
+    await page.getByRole("button", { name: /^Add bracket/ }).click();
+    await expect(page.getByRole("button", { name: /^Round 3 · Bracket Stage/ })).toBeVisible({ timeout: 20_000 });
+  });
+
+  await test.step("one line says what every round shares", async () => {
+    await open(page, "/stages");
+    const every = page.getByRole("button", { name: /^Every round/ });
+    await expect(every).toContainText("All 3: Match Play · 18 holes · off handicap");
+  });
+
+  await test.step("Round 1 says what carries into Round 2, on its face", async () => {
+    const r1 = page.getByRole("button", { name: /^Round 1 · Round Robin/ });
+    if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
+    const card = page.locator(".card", { has: r1 });
+    await expect(card.getByText("Before the next round")).toBeVisible();
+    await expect(card.getByText(/Carry forward points into Round 2/).first()).toBeVisible();
+    await expect(card.getByRole("checkbox", { name: "Cut the field for Round 2" })).toBeVisible();
+  });
+
+  await test.step("the two tiebreaks are named apart", async () => {
+    const r1 = page.getByRole("button", { name: /^Round 1 · Round Robin/ });
+    const card = page.locator(".card", { has: r1 });
+    const customize = card.getByRole("button", { name: /^Customize this round/ });
+    if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
+    await expect(card.getByText("1. If a match is all square after the last hole")).toBeVisible();
+    await expect(card.getByText("2. If players finish level in the table")).toBeVisible();
+  });
+
+  await test.step("the knockout after groups takes the top players per flight", async () => {
+    const ko = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
+    if ((await ko.getAttribute("aria-expanded")) !== "true") await ko.click();
+    const card = page.locator(".card", { has: ko });
+    await expect(card.locator("label.seg-opt", { hasText: /^\s*Per flight\s*$/ }).locator("input")).toBeChecked();
   });
 
   expect(errors).toEqual([]);

@@ -1476,7 +1476,9 @@ describe("rounds and format", () => {
         ]} />,
     );
     expect(html).not.toContain("No round after this yet");
-    expect(html).toContain("Into Round 2");
+    // On the face of the round since 2026-10-16 ("Before the next round" left
+    // Customize), so the cut into the stroke round is drawn, not summarised.
+    expect(html).toContain("Cut the field for Round 2");
   });
 
   it("still says so when a round in a chain genuinely has no next round", () => {
