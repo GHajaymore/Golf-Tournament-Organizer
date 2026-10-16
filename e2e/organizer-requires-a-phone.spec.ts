@@ -25,18 +25,19 @@ import { watchPageErrors } from "./page-errors";
 
 const prisma = new PrismaClient();
 const MARK = "zz-phone";
-const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8")) as { eventId: string };
+const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8")) as { eventId: string; organizer: { session: string } };
 const sign = (v: string) => `${v}.${createHmac("sha256", process.env.AUTH_SECRET ?? "dev-secret").update(v).digest("base64url")}`;
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
 const ids = { org: "", event: "", token: "" };
 
 test.beforeAll(async () => {
-  const home = await prisma.event.findUniqueOrThrow({ where: { id: data.eventId }, select: { organizationId: true } });
-  const admin = await prisma.organizationMember.findFirstOrThrow({
-    where: { organizationId: home.organizationId!, role: { in: ["owner", "admin"] } },
-    select: { userId: true },
-  });
+  // The fixture's organizer, by the user id their own session carries (`signedInNow` writes
+  // `<userId>~<issued>`). Not by club membership: the fixture's club has no owner or admin
+  // member — its organizer holds the tournament by an event role — so a lookup that way threw
+  // here, and both tests failed before they reached a page (breaks/phone, breaks/invite).
+  const admin = { userId: data.organizer.session.split("~")[0] };
+  await prisma.user.findUniqueOrThrow({ where: { id: admin.userId }, select: { id: true } });
   const org = await prisma.organization.create({ data: { name: `${MARK} club ${Date.now()}`, kind: "club" } });
   ids.org = org.id;
   await prisma.subscription.create({ data: { organizationId: org.id, plan: "society" } });
@@ -75,12 +76,7 @@ test.afterAll(async () => {
   }
 });
 
-// NOT YET PROVEN, and so not run: on GitHub (breaks/invite, 2026-10-14) this failed on the
-// UNCHANGED app as well, like the test below. The two share only the setup — their own club on
-// Birdie, the fixture's organizer added as its admin — so suspect that first (does the console
-// open this club's Registration for that organizer?). `setInviteMessage` stays on the reach
-// baseline until this runs.
-test.fixme("the organizer's own invitation is kept, under a box a screen reader can name", async ({ page, context, baseURL }) => {
+test("the organizer's own invitation is kept, under a box a screen reader can name", async ({ page, context, baseURL }) => {
   // `setInviteMessage`, reached by no browser test. Found by the box rather than
   // by its position: its "Message" caption was tied to nothing until 2026-10-14,
   // so a screen reader announced an unnamed text area — and this could not find it.
@@ -104,11 +100,7 @@ test.fixme("the organizer's own invitation is kept, under a box a screen reader 
 
 const required = async () => (await prisma.event.findUniqueOrThrow({ where: { id: ids.event }, select: { requirePhone: true } })).requirePhone;
 
-// NOT YET PROVEN, and so not run: on GitHub (breaks/phone, 2026-10-14) this failed on the
-// UNCHANGED app at desktop and phone size, and the run kept no message to say which step. A
-// test that fails with nothing broken proves nothing either way. Debug it against a local run
-// before turning it back on; until then the round reports it as skipped, not passed.
-test.fixme("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
+test("an organizer on Birdie turns the mobile number on and off, and the entry form follows", async ({ page, context, browser, baseURL }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   watchPageErrors(page, errors, "organizer");
