@@ -62,4 +62,54 @@ Each finding: what was done, what the screen said, what it should say. Nothing f
    Add. Also: Round 1 (undated) now sits above Round 2 (7 Nov) with no date, and the dated rounds
    are headed by their date while the undated one is headed "Stroke Play Round".
 
-(continuing — next: Customize this round, a cut, a bracket after the stroke rounds, removing a round)
+10. **An unplayed tournament says Round 1 has been PLAYED and Round 2 is the one being played.**
+    Draft tournament, no cards, nothing closed; Round 1 undated, Rounds 2 and 3 dated 7 and 14
+    November. The list chipped Round 1 **Played**, Round 2 **Active**, Round 3 Upcoming. Not only
+    a chip: `currentDatedRoundIndex` (services/tournament.ts) falls back to the FIRST DATED round
+    when no date has come, so the whole app — score entry, the boards, a player's Today — takes
+    Round 2 as the current round, and everything before it as played. Exactly the state the Add
+    form produces (finding 9: a dated pair added under an undated first round). Should: before any
+    date has come, the current round is the first round, dated or not.
+
+11. **"SCORING WINDOW — Open — scores can be entered", with Close Round 2 now / Keep it open, on a
+    draft tournament three weeks before the round.** Nothing can be entered on a tournament that is
+    not launched. Same class as 6: an after-play control shown at setup.
+
+12. **The cut's sentence reads "16 and ties of 0 advance into Round 3."** With nobody entered yet
+    (`CutControl.tsx` 193: `${survivors} and ties of ${confirmedCount}`). Should read as a rule
+    until there is a field: "The top 16, and anyone tied with 16th, play Round 3."
+
+13. **The cut says it is "ranked on this round's scores". It is not, and should not be.** The
+    cut out of Round 2 of a 54-hole championship is made on the 36-hole total, and that is what
+    `applyStrokeCut` does ("ranked on the rounds up to and including the feeder"). The sentence
+    under THE CUT tells the organizer otherwise. Should: "ranked on the total after Round 2".
+
+14. **Removing a round leaves the others numbered as before, on this screen only.** Removed Round 1
+    (one tap, no question — acceptable on a draft with nothing in it). After a reload the list read
+    **Round 2, Round 3, Round 4 · Bracket Stage**, while the banner above it on the same screen
+    said "Round 1 and Round 2 need their course card" and the header "Round 3 has no day". Three
+    numbers for one round. The list writes `Round {stage.position + 1}` (StagesClient 1106, 1131),
+    and positions are not closed up on removal; every other screen counts with `roundLabel`.
+    **The guard missed it:** `round-number-source.test.ts` bans the shape `Round ${…position + 1}`
+    in a template string, and this is JSX — `Round {stage.position + 1}`. Ban the shape, not the
+    spelling.
+
+15. **A knockout added after stroke qualifying defaults to "Top 2 per flight" — a two-player
+    knockout — in a field with one flight.** The Overall choice offers "Top 16 overall", which is
+    what a club championship qualifier wants; the default is a final. And "Per flight" is offered
+    here with one flight, where the stroke cut above disables it and says why: two cut controls,
+    two rules. Should: default to Overall when there is one flight (and say per flight needs
+    flights), as the stroke cut does.
+
+16. Smaller, same screen:
+    - The Bracket's Format list offers Stroke Play and the Stablefords, which `roundShapeMismatch`
+      refuses for a head-to-head round — finding 1 in the other direction. Same fix.
+    - The round-type choices (Round robin, Stroke play round, Bracket…) are buttons that do not say
+      which one is chosen (no `aria-pressed`), and the delete is an icon with only a `title`.
+    - "What this round decides — What this kind of round settles." The blurb repeats the heading.
+    - Choosing Net under Customize this round makes a HANDICAP ALLOWANCE block appear above the
+      press, out of sight on a phone.
+
+Walked and fine: Customize this round's Gross / Net / Both (stored, and Net brings the 95%
+allowance with "the recommended allowance for this format"); turning a cut on and setting its
+number (stored, "Saved"); adding a Match Play knockout after the stroke rounds; Top N overall.
