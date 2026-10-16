@@ -94,7 +94,7 @@ import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { indexRefusal } from "@/lib/domain/handicap-label";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor, PLANS } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, isStraightKnockout, isKnockoutRound, KNOCKOUT_STAGE_TYPES, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { randomUUID } from "node:crypto";
 import { lineupHidden, LINEUP_HIDDEN, keepsConcession } from "@/lib/domain/cup-lineup";
 import { roundLabel, roundKicker } from "@/lib/domain/round-label";
@@ -2228,7 +2228,7 @@ export async function addStage(
   const previous = await prisma.stage.findFirst({
     where: { eventId },
     orderBy: { position: "desc" },
-    select: { format: true, type: true },
+    select: { format: true, type: true, scoringBasis: true },
   });
   const scoring = ev?.format === "stroke" ? "stroke" : "match";
   const common = {
@@ -2290,7 +2290,14 @@ export async function addStage(
   }
   // Off handicap unless the organizer says scratch — `newRoundBasis`. A
   // Stableford round is net either way.
-  const scoringBasis = newRoundBasis(common.format);
+  /**
+   * …AND A ROUND AFTER THAT REPEATS THE LAST ONE'S, as the format does (the
+   * golf professional and the tournament director on the review panel, both
+   * ranking it first): Round 2 of a scratch 36-hole championship was created
+   * NET, because only the first round should start from the club default. A
+   * championship is gross every day; a medal series is net every week.
+   */
+  const scoringBasis = previous ? basisFor(common.format, previous.scoringBasis) : newRoundBasis(common.format);
   const holes = Number(opts.holes);
   if (holes === 9 || holes === 18) (common as { holes?: number }).holes = holes;
 
@@ -2350,8 +2357,22 @@ export async function addStage(
    * Set when the knockout is added after a round with no opponents — the moment
    * the question first means anything — and the organizer can change it there.
    */
+  /**
+   * ONLY FOR THE FIRST KNOCKOUT, AND ONLY WHERE THE FIELD IS NOT IN FLIGHTS (the
+   * golf professional and the tournament director on the review panel): this
+   * wrote "overall" every time a knockout followed a medal, overwriting a
+   * per-flight choice the organizer had made and merging a flighted
+   * championship — Championship, First and Second flights each qualifying their
+   * own — into one draw.
+   */
   if (isKnockoutRound(stageType) && previous && !isHeadToHead(previous.type)) {
-    await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
+    const [knockoutsBefore, flights] = await Promise.all([
+      prisma.stage.count({ where: { eventId, type: { in: [...KNOCKOUT_STAGE_TYPES] }, position: { lt: position } } }),
+      prisma.group.count({ where: { eventId } }),
+    ]);
+    if (knockoutsBefore === 0 && flights <= 1) {
+      await prisma.event.update({ where: { id: eventId }, data: { qualifyMode: "overall" } });
+    }
   }
 
   // A new round of a code-using tournament needs a code, or it is a round

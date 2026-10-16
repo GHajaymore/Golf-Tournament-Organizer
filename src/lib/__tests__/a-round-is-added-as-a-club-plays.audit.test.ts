@@ -102,6 +102,33 @@ describe("what the server accepts is what the pickers offer", () => {
     expect(after!.qualifyMode).toBe("overall");
   });
 
+  it("a round added after a scratch round is scratch too — a championship is gross every day", async () => {
+    // The review panel (golf professional, tournament director), both ranking it
+    // first: Round 2 of a 36-hole scratch championship was created NET.
+    const ev = await make("scratch-36");
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    const [r1] = await rounds(ev.id);
+    await prisma.stage.update({ where: { id: r1.id }, data: { scoringBasis: "gross" } });
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    expect((await rounds(ev.id)).map((s) => s.scoringBasis)).toEqual(["gross", "gross"]);
+    // CONTROL: a medal series that is net stays net.
+    const series = await make("net-series");
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    expect((await rounds(series.id)).map((s) => s.scoringBasis)).toEqual(["net", "net"]);
+  });
+
+  it("a flighted field keeps its per-flight qualification when a knockout follows the medal", async () => {
+    // The review panel: "overall" every time merged a flighted championship's
+    // Championship, First and Second flights into one draw.
+    const ev = await make("ko-flighted");
+    await prisma.group.createMany({ data: [{ eventId: ev.id, name: "A", position: 0 }, { eventId: ev.id, name: "B", position: 1 }] });
+    await addStage("Stroke Play Round", { format: "Stroke Play" });
+    await addStage("Bracket Stage", { format: "Match Play" });
+    const after = await prisma.event.findUnique({ where: { id: ev.id }, select: { qualifyMode: true } });
+    expect(after!.qualifyMode).toBe("perFlight");
+  });
+
   it("CONTROL: a knockout after round-robin groups keeps the top players per flight", async () => {
     const ev = await make("ko-after-groups");
     await addStage("Round Robin", { format: "Match Play" });
