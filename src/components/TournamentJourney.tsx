@@ -56,10 +56,12 @@ export interface TournamentJourneyProps {
      * identical, so the card never answered "what now", which is the question
      * somebody opens this screen with.
      *
-     * Deliberately the SAME source and the SAME word the rail on this screen
-     * uses ("Now"), because a second way of saying which step is current is
-     * how two panels come to disagree about it. Optional, and an empty string
-     * marks nothing — setup being complete is exactly that case.
+     * Deliberately the SAME source the rail uses (`flow.current`), because a
+     * second way of saying which step is current is how two panels come to
+     * disagree about it. The rail's "Now" is a different fact since
+     * 2026-10-16 — the step being SHOWN, on a setup screen; this card sits on
+     * no step, so its "Now" can only mean the first one to do. Optional, and an
+     * empty string marks nothing — setup being complete is exactly that case.
      */
     currentHref?: string;
   } | null;
