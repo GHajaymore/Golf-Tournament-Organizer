@@ -125,10 +125,12 @@ export type BracketMode = "single" | "split" | "plate" | "flights";
 export const BRACKET_MODES: Array<{ key: BracketMode; label: string; blurb: string }> = [
   { key: "single", label: "One bracket", blurb: "Every qualifier in a single knockout. Lose and you're out." },
   { key: "split", label: "Two flights", blurb: "Top half and bottom half play separate brackets, drawn by qualifying rank." },
-  // In the words a club uses for it (2026-10-16): Ajay described this exact shape — a qualifying
-  // match whose winner goes into the winners' bracket and loser into a consolation — without
-  // finding it, because it was named only as an arrangement on another screen.
-  { key: "plate", label: "Main + plate", blurb: "The first round is the qualifying match: winners go on in the main draw, losers drop into a plate — a consolation knockout of their own. Everyone starts with a shot at the main prize." },
+  // In the words a club uses for it (2026-10-16): Ajay described this shape — the first match's
+  // winner on in the winners' bracket, its loser into a consolation — without finding it, because
+  // it was named only as an arrangement on another screen. NOT "the qualifying match" (the golf
+  // professional and tournament director on the review panel): the first round is the first round
+  // of the main draw, and on the same screen a stroke round can be the qualifier.
+  { key: "plate", label: "Main + plate", blurb: "Lose in the first round and you go into the plate, a knockout of its own. Everyone starts with a shot at the main prize." },
   { key: "flights", label: "Several flights", blurb: "A big field divided into brackets before a ball is struck — by handicap, by your flights, or at random. Each flight is its own knockout." },
 ];
 

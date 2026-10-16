@@ -179,6 +179,8 @@ export function RegistrationClient({
    * tap while the save is out, and falls back to the server's if it is refused.
    */
   const [requirePhoneShown, showRequirePhone] = useOptimistic(event.requirePhone);
+  /** A refused switch, said beside the switches — see the handlers. */
+  const [switchRefused, setSwitchRefused] = useState("");
   const [approvalShown, showApproval] = useOptimistic(event.registrationApproval);
   // What the import and the public form will actually insist on — the resolved
   // rule, not the raw setting, so the hint can't promise something the action
@@ -1013,8 +1015,16 @@ export function RegistrationClient({
                       disabled={pending || locked}
                       onChange={() =>
                         startTransition(async () => {
+                          setSwitchRefused("");
                           showApproval(v);
-                          await setRegistrationApproval(v);
+                          // Caught: these actions THROW on a refusal, and inside an async
+                          // transition that goes to the error screen (the QA manager on
+                          // the review panel). The box falls back by itself.
+                          try {
+                            await setRegistrationApproval(v);
+                          } catch {
+                            setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                          }
                         })
                       }
                     />
@@ -1053,8 +1063,13 @@ export function RegistrationClient({
                   onChange={(e) => {
                     const on = e.target.checked;
                     startTransition(async () => {
+                      setSwitchRefused("");
                       showRequirePhone(on);
-                      await setRequirePhone(on);
+                      try {
+                        await setRequirePhone(on);
+                      } catch {
+                        setSwitchRefused("That change was not saved. Check the connection, and that setup is unlocked.");
+                      }
                     });
                   }}
                   style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
@@ -1080,6 +1095,11 @@ export function RegistrationClient({
                   </span>
                 </span>
               </label>
+              {switchRefused && (
+                <p role="alert" style={{ fontSize: 13, margin: "6px 0 0", color: "var(--color-danger)" }}>
+                  {switchRefused}
+                </p>
+              )}
             </div>
           </>
         )}

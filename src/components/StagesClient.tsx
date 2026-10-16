@@ -50,6 +50,7 @@ import {
   isIndividualStrokeRound,
   isPlayingRound,
   isKnockoutRound,
+  isHeadToHead,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -736,8 +737,15 @@ function StageCard({
   const locked = React.useContext(SetupLocked);
   const today = React.useContext(ServerToday);
   const launched = React.useContext(Launched);
-  /** Play has begun for this round: the tournament is live, or the round has a result or is closed. */
-  const underWay = launched || hasResult || stage.closed;
+  /**
+   * PLAY HAS BEGUN FOR THIS ROUND: it has a result or is closed, or the
+   * tournament is live and the round's day has come (an undated round counts as
+   * come). Per round, not per tournament (the tournament director on the review
+   * panel): once a tournament was live, "This round is finished" appeared on a
+   * round three weeks away — the same trap, later.
+   */
+  const dayHasCome = !stage.playedOn || !today || stage.playedOn <= today;
+  const underWay = hasResult || stage.closed || (launched && dayHasCome);
   /** "Round 3" — the tournament's own count; empty for a stage the field does not play. */
   const thisRound = roundLabelOf(allStages, stage.id);
   const [deadline, setDeadline] = useState(stage.deadline);
@@ -1093,6 +1101,101 @@ function StageCard({
   // Round Robin stage anyway).
   const roundColor = ROUND_PALETTE[stage.position % ROUND_PALETTE.length];
   const roundText = ROUND_TEXT[stage.position % ROUND_TEXT.length];
+
+  /**
+   * THE PLAY-BY DATE AND THE WEEKLY SIGN-UP, ON THE FACE WHERE THEY ARE THE
+   * ROUND'S BUSINESS (the tournament director on the review panel, 2026-10-16):
+   * "when must my match be played by?" is the commonest question a knockout
+   * gets, and a league's sign-up count is what the secretary checks every
+   * Wednesday. Folded into Customize they were found by nobody. A medal round,
+   * played on its day, keeps the deadline in Customize.
+   */
+  const playByOnFace = isHeadToHead(stage.type);
+  const whenDue = (
+    <>
+            <SettingsGroup
+              title="When scores are due"
+              blurb="For a round players arrange themselves — a knockout's matches, a week's league game — the last day it may be played and its result entered."
+            >
+              <div className="field" style={{ width: 190 }}>
+                <label htmlFor={`deadline-${stage.id}`}>Completion deadline</label>
+                {/* A date input, so it opens the platform calendar rather than
+                    asking someone to guess a format. The native picker follows
+                    `color-scheme`, which the app shell now sets from the club's
+                    appearance, so it isn't a white popup on a dark page. */}
+                <input
+                  id={`deadline-${stage.id}`}
+                  className="input"
+                  type="date"
+                  value={isIsoDate(deadline) ? deadline : ""}
+                  // Open while live: `setStageDeadline` is not behind the lock.
+                  disabled={pending}
+                  onChange={(e) => {
+                    setDeadline(e.target.value);
+                    startTransition(() => setStageDeadline(stage.id, e.target.value));
+                  }}
+                />
+                {/* Deadlines were free text, so older rounds hold things like
+                    "Sat 14 Jun" that a date input cannot show. Rather than
+                    render an empty box and let the next save quietly erase it,
+                    the old value stays visible until someone picks a date. */}
+                {deadline && !isIsoDate(deadline) && (
+                  <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
+                    Currently &ldquo;{deadline}&rdquo; — pick a date to replace it.
+                  </p>
+                )}
+              </div>
+
+            </SettingsGroup>
+
+            {/* Weekly sign-up, when the league asks the question. A different
+                question from either date above — who is playing next week, not
+                when this week's scores are due — so it stands on its own rather
+                than being sandwiched between the two. The counts keep the
+                organizer honest about Wednesday: "18 in" where five are only in
+                by default is a different tee sheet from 18 who said so. */}
+    </>
+  );
+  const signUp = (
+    <>
+            {stage.attendance && (
+              <div className="field" style={{ maxWidth: 420 }}>
+                <label htmlFor={`opt-deadline-${stage.id}`}>Sign-up deadline</label>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    id={`opt-deadline-${stage.id}`}
+                    className="input"
+                    type="date"
+                    style={{ width: 170 }}
+                    defaultValue={isIsoDate(stage.optDeadline) ? stage.optDeadline : ""}
+                    disabled={pending}
+                    onChange={(e) => startTransition(() => void setStageOptDeadline(stage.id, e.target.value))}
+                  />
+                  <span className="text-muted" style={{ fontSize: 13 }}>
+                    {stage.attendance.in} in
+                    {stage.attendance.inByDefault > 0 && ` (${stage.attendance.inByDefault} by default)`}
+                    {" · "}
+                    {stage.attendance.out} out
+                  </span>
+                </div>
+                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
+                  {stage.attendance.playersAnswer
+                    ? "Players may answer until the end of this day; after it, changes go through you."
+                    : "Players are never asked in this mode — you record the list the captains send in."}{" "}
+                  {/* To THIS round's sheet, not to whichever one the tee sheet
+                      screen would have picked for itself. A deadline set on
+                      Round 6 that sends an organizer to Round 3 is a link that
+                      changes the subject. */}
+                  <a href={`/foursomes?round=${stage.id}`} style={{ color: "var(--color-accent-200)" }}>
+                    Set who is playing
+                  </a>
+                  .
+                </p>
+              </div>
+            )}
+
+    </>
+  );
 
   return (
     <div
@@ -1847,6 +1950,9 @@ function StageCard({
         </SettingsGroup>
       )}
 
+      {playByOnFace && whenDue}
+      {signUp}
+
       {/* ON THE DAY: the two controls about PLAY, once there is play to speak
           of (`underWay`). At setup they were noise with a trap in it — ticking
           "This round is finished" on an unplayed round leaves everybody without
@@ -1994,82 +2100,7 @@ function StageCard({
                 under the date", and RoundDeadlineControl's own footer, which
                 says "Scoring follows the completion deadline above." Both are
                 true again. */}
-            <SettingsGroup
-              title="When scores are due"
-              blurb="For a round players arrange themselves — a knockout's matches, a week's league game — the last day it may be played and its result entered."
-            >
-              <div className="field" style={{ width: 190 }}>
-                <label htmlFor={`deadline-${stage.id}`}>Completion deadline</label>
-                {/* A date input, so it opens the platform calendar rather than
-                    asking someone to guess a format. The native picker follows
-                    `color-scheme`, which the app shell now sets from the club's
-                    appearance, so it isn't a white popup on a dark page. */}
-                <input
-                  id={`deadline-${stage.id}`}
-                  className="input"
-                  type="date"
-                  value={isIsoDate(deadline) ? deadline : ""}
-                  // Open while live: `setStageDeadline` is not behind the lock.
-                  disabled={pending}
-                  onChange={(e) => {
-                    setDeadline(e.target.value);
-                    startTransition(() => setStageDeadline(stage.id, e.target.value));
-                  }}
-                />
-                {/* Deadlines were free text, so older rounds hold things like
-                    "Sat 14 Jun" that a date input cannot show. Rather than
-                    render an empty box and let the next save quietly erase it,
-                    the old value stays visible until someone picks a date. */}
-                {deadline && !isIsoDate(deadline) && (
-                  <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
-                    Currently &ldquo;{deadline}&rdquo; — pick a date to replace it.
-                  </p>
-                )}
-              </div>
-
-            </SettingsGroup>
-
-            {/* Weekly sign-up, when the league asks the question. A different
-                question from either date above — who is playing next week, not
-                when this week's scores are due — so it stands on its own rather
-                than being sandwiched between the two. The counts keep the
-                organizer honest about Wednesday: "18 in" where five are only in
-                by default is a different tee sheet from 18 who said so. */}
-            {stage.attendance && (
-              <div className="field" style={{ maxWidth: 420 }}>
-                <label htmlFor={`opt-deadline-${stage.id}`}>Sign-up deadline</label>
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    id={`opt-deadline-${stage.id}`}
-                    className="input"
-                    type="date"
-                    style={{ width: 170 }}
-                    defaultValue={isIsoDate(stage.optDeadline) ? stage.optDeadline : ""}
-                    disabled={pending}
-                    onChange={(e) => startTransition(() => void setStageOptDeadline(stage.id, e.target.value))}
-                  />
-                  <span className="text-muted" style={{ fontSize: 13 }}>
-                    {stage.attendance.in} in
-                    {stage.attendance.inByDefault > 0 && ` (${stage.attendance.inByDefault} by default)`}
-                    {" · "}
-                    {stage.attendance.out} out
-                  </span>
-                </div>
-                <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.4 }}>
-                  {stage.attendance.playersAnswer
-                    ? "Players may answer until the end of this day; after it, changes go through you."
-                    : "Players are never asked in this mode — you record the list the captains send in."}{" "}
-                  {/* To THIS round's sheet, not to whichever one the tee sheet
-                      screen would have picked for itself. A deadline set on
-                      Round 6 that sends an organizer to Round 3 is a link that
-                      changes the subject. */}
-                  <a href={`/foursomes?round=${stage.id}`} style={{ color: "var(--color-accent-200)" }}>
-                    Set who is playing
-                  </a>
-                  .
-                </p>
-              </div>
-            )}
+            {!playByOnFace && whenDue}
 
             {/* Was "Cut line &amp; carry-forward — before the next round" —
                 an ampersand heading naming two of the THREE things beneath it.

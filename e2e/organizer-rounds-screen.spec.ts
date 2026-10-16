@@ -258,7 +258,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
       if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
       const c = page.locator(".card", { has: head });
       await expect(c.getByText(/^Main \+ plate$/)).toBeVisible();
-      await expect(c.getByText(/The first round is the qualifying match: winners go on in the main draw, losers drop into a plate/)).toBeVisible();
+      await expect(c.getByText(/Lose in the first round and you go into the plate, a knockout of its own/)).toBeVisible();
       await expect(c.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).locator("input")).toBeChecked();
       await expect(c.getByRole("spinbutton")).toHaveValue("16");
     }).toPass({ timeout: 20_000 });
