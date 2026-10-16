@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "../coverage";
+import { playScratch } from "../round-basis";
 import { appendFileSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seed, setPlanFor, names, indexes, memberSession, eventFacts, roundCards, rng, card, MARK, COURSE, COURSE_CITY, becomesEnabled } from "./kit.mjs";
@@ -126,12 +127,7 @@ test("five", async ({ page, context, baseURL }, testInfo) => {
       await expect(page.getByRole("button", { name: /^Round 2 · Stroke Play Round/ })).toBeVisible({ timeout: 20_000 });
       // Scratch, as a championship is: a new round is off handicap unless the
       // organizer says Gross (the club default since 2026-10-16).
-      for (const round of ["Round 2", "Round 1"]) {
-        const head = page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) });
-        if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
-        await page.locator(".card", { has: head }).locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ }).click();
-        await expect(page.getByText("Scratch: the strokes as taken, no handicaps.").first()).toBeVisible({ timeout: 20_000 });
-      }
+      for (const round of ["Round 2", "Round 1"]) await playScratch(page, `${round} · Stroke Play Round`);
       const cutBox = page.getByRole("checkbox", { name: "Cut the field for Round 2" });
       await cutBox.check();
       const n = page.getByLabel("Players who make the cut for Round 2");

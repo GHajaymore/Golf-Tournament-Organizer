@@ -48,6 +48,7 @@ import {
   isStructuralStage,
   MAX_ROUNDS_AT_ONCE,
   isIndividualStrokeRound,
+  isPlayingRound,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -651,8 +652,14 @@ function StageCard({
   thirdPlace,
   canSetVenue = true,
   hasResult = false,
+  sharedWithAll = null,
 }: {
   stage: StageView;
+  /**
+   * What every playing round shares, when there are three or more and they
+   * all agree — said once in `EveryRound`, so a closed row need not repeat it.
+   */
+  sharedWithAll?: { format: string; holes: number; basis: string } | null;
   /** Somebody has returned something for this round — see `roundsWithResults`. */
   hasResult?: boolean;
   /**
@@ -1059,6 +1066,8 @@ function StageCard({
   const customizeSummary = customizeParts.length ? customizeParts.join(" · ") : "Nothing changed";
   const summaryParts = [...rowParts, ...customizeParts, ...decidesParts];
   const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
+  /** The row's line beside "Every round": the venue, the customised, what it decides — not the shared three. */
+  const sameAsAllLine = [...rowParts.slice(1), ...customizeParts, ...decidesParts].join(" · ");
 
   // A rotating accent per round so a page of several rounds is scannable at a
   // glance instead of every card reading identically — the round number does
@@ -1181,9 +1190,21 @@ function StageCard({
             // Everything the closed row needs to be useful: what it plays,
             // over how many holes, and the settings summary the card already
             // computed for the "Customize" panel.
-            <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
-              {stage.format} · {stage.holes} holes · {summaryLine}
-            </div>
+            // ONE LINE WHERE "EVERY ROUND" HAS SAID THE REST (2026-10-16): a
+            // ten-week league repeated "Stableford · 18 holes · Off handicap"
+            // ten times. Only what this round adds is said, and nothing at all
+            // when it adds nothing.
+            sharedWithAll ? (
+              sameAsAllLine && (
+                <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
+                  {sameAsAllLine}
+                </div>
+              )
+            ) : (
+              <div className="text-muted" style={{ fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>
+                {stage.format} · {stage.holes} holes · {summaryLine}
+              </div>
+            )
           )}
         </button>
         {/* `display: contents` rather than a conditional render: these fields
@@ -2126,6 +2147,159 @@ function StageCard({
   );
 }
 
+/**
+ * WHAT EVERY ROUND SHARES, SET ONCE (2026-10-16).
+ *
+ * Ajay, the same day: "the Rounds and format looks pretty long specially for
+ * multi round tournament". A ten-week Stableford league was ten cards to open,
+ * each to set the same format, holes and handicap — and ten two-line rows to
+ * scroll past to see that they were the same. So, from three playing rounds:
+ * one line saying what they share, and one place to change it for every round
+ * nobody has played yet.
+ *
+ * It goes through the SAME actions a round's card uses, one round at a time, so
+ * each refusal still applies: a format a round cannot be scored in is not
+ * offered here either (`formatChoicesFor`, narrowed to what every round can
+ * take), and a round holding a card is left as it is and named — re-scoring
+ * a played round stays a decision made on that round's own card.
+ */
+function EveryRound({
+  rounds,
+  resultIds,
+  onDone,
+}: {
+  /** The playing rounds, in order. */
+  rounds: StageView[];
+  /** Rounds with a card or a result — left alone. */
+  resultIds: string[];
+  onDone: (said: string) => void;
+}) {
+  const locked = React.useContext(SetupLocked);
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const same = <T,>(f: (s: StageView) => T): T | null => {
+    const first = f(rounds[0]);
+    return rounds.every((s) => f(s) === first) ? first : null;
+  };
+  const format = same((s) => s.format);
+  const holes = same((s) => s.holes);
+  const basis = same((s) => (isStablefordFormat(s.format) ? "net" : s.scoringBasis));
+  // Where the rounds differ, nothing is chosen, and nothing is changed unless
+  // somebody chooses: "" and 0 mean "leave each as it is".
+  const [f, setF] = useState(format ?? "");
+  const [h, setH] = useState<number>(holes ?? 0);
+  const [b, setB] = useState(basis ?? "");
+  // Only what EVERY round can be scored in: a list for one type, narrowed by each other type.
+  const types = [...new Set(rounds.map((s) => s.type))];
+  const choices = formatChoicesFor(types[0]).filter((c) => types.every((t) => formatChoicesFor(t).some((o) => o.name === c.name)));
+  const unplayed = rounds.filter((s) => !s.closed && !resultIds.includes(s.id));
+  const played = rounds.filter((s) => !unplayed.includes(s));
+
+  const sharedWords = [
+    format ?? "mixed formats",
+    holes ? `${holes} holes` : "mixed holes",
+    basis === "gross" ? "scratch" : basis === "both" ? "gross and net" : basis === "net" ? "off handicap" : "mixed handicaps",
+  ].join(" · ");
+
+  const apply = () =>
+    startTransition(async () => {
+      const skipped = new Set<string>();
+      for (const s of unplayed) {
+        if (f && f !== s.format) {
+          const r = await setStageFormat(s.id, f);
+          if (r && !r.ok) skipped.add(s.id);
+        }
+        if (h && h !== s.holes) {
+          const r = await setStageHoles(s.id, h);
+          if (r && !r.ok) skipped.add(s.id);
+        }
+        if (b && !isStablefordFormat(f || s.format) && b !== s.scoringBasis) {
+          const r = await setStageScoringBasis(s.id, b);
+          if (r && "needsConfirm" in r && r.needsConfirm) skipped.add(s.id);
+        }
+      }
+      const changed = unplayed.length - skipped.size;
+      const left = [...played, ...unplayed.filter((s) => skipped.has(s.id))];
+      onDone(
+        `${changed} round${changed === 1 ? "" : "s"} changed.` +
+          (left.length
+            ? ` ${left.map((s) => roundLabelOf(rounds, s.id)).join(", ")} ${left.length === 1 ? "has" : "have"} scores and ${left.length === 1 ? "was" : "were"} left as ${left.length === 1 ? "it was" : "they were"} — change ${left.length === 1 ? "it" : "them"} on ${left.length === 1 ? "its own card" : "their own cards"}.`
+            : ""),
+      );
+      setOpen(false);
+    });
+
+  return (
+    <div className="card elev-sm" style={{ gap: 10 }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-text)", textAlign: "left", font: "inherit", minHeight: 44 }}
+      >
+        <Icon name="stack" style={{ color: "var(--color-accent-200)", flex: "none" }} />
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Every round</span>
+          <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.45 }}>
+            All {rounds.length}: {sharedWords}
+          </span>
+        </span>
+        <Icon name={open ? "caret-up" : "caret-down"} style={{ marginLeft: "auto", fontSize: 13, color: "var(--color-neutral-500)", flex: "none" }} />
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div className="field" style={{ minWidth: 200, flex: "1 1 200px" }}>
+              <label htmlFor="every-format">Format</label>
+              <select id="every-format" className="input" value={f} disabled={pending || locked} onChange={(e) => setF(e.target.value)}>
+                {!format && <option value="">Leave each as it is</option>}
+                {choices.map((c) => (
+                  <option key={c.name} value={c.name}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ width: 110 }}>
+              <label>Holes</label>
+              <div className="seg" style={{ width: "100%" }}>
+                {[18, 9].map((n) => (
+                  <label key={n} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                    <input type="radio" name="every-holes" checked={h === n} disabled={pending || locked} onChange={() => setH(n)} />
+                    {n}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {!isStablefordFormat(f) && (
+              <div className="field" style={{ flex: "1 1 220px" }}>
+                <label>Handicap</label>
+                <div className="seg" style={{ width: "100%" }}>
+                  {BASIS_CHOICES.map((o) => (
+                    <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                      <input type="radio" name="every-basis" checked={b === o.key} disabled={pending || locked} onChange={() => setB(o.key)} />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            {unplayed.length === 0
+              ? "Every round has scores, so each is changed on its own card."
+              : `Changes the ${unplayed.length === rounds.length ? `${rounds.length} rounds` : `${unplayed.length} rounds nobody has played yet`}.` +
+                (played.length ? ` ${played.map((s) => roundLabelOf(rounds, s.id)).join(", ")} ${played.length === 1 ? "has" : "have"} scores and ${played.length === 1 ? "stays" : "stay"} as ${played.length === 1 ? "it is" : "they are"}.` : "")}
+          </p>
+          <div>
+            <button type="button" className="btn btn-primary" disabled={pending || locked || unplayed.length === 0} onClick={apply}>
+              {pending ? "Changing…" : `Apply to ${unplayed.length === rounds.length ? "every round" : `the ${unplayed.length} unplayed rounds`}`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StagesClient({
   stages,
   rrMatchesPerPlayer,
@@ -2296,6 +2470,13 @@ export function StagesClient({
   }, [justAdded, stages]);
 
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
+  /** The playing rounds, and — from three of them — what they all share (`EveryRound`). */
+  const playing = stages.filter((s) => isPlayingRound(s.type));
+  const [everyNote, setEveryNote] = useState("");
+  const shared =
+    playing.length >= 3 && playing.every((s) => s.format === playing[0].format && s.holes === playing[0].holes && s.scoringBasis === playing[0].scoringBasis)
+      ? { format: playing[0].format, holes: playing[0].holes, basis: playing[0].scoringBasis }
+      : null;
 
   // Where the rounds don't fit together. Rounds chain — standings carry
   // forward, cuts pick the next field from the last round's results — and that
@@ -2336,6 +2517,14 @@ export function StagesClient({
           </MoreInfo>
         </div>
       )}
+      {playing.length >= 3 && (
+        <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
+      )}
+      {everyNote && (
+        <p role="status" className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          <Icon name="check-circle" /> {everyNote}
+        </p>
+      )}
       {stages.map((s, i) => {
         // The next round of any format — a Round Robin whose next round is a
         // stroke-play final must know a round follows it, so the cut and
@@ -2351,6 +2540,7 @@ export function StagesClient({
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}
             hasResult={roundsWithResults.includes(s.id)}
+            sharedWithAll={shared}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}

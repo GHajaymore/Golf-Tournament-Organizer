@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./coverage";
 import { watchPageErrors } from "./page-errors";
+import { playScratch } from "./round-basis";
 import { seedOrganizer, teardownOrganizer, medalEmail, MEDAL_PARS, MEDAL_COURSE } from "./organizer-fixture.mjs";
 import { makeBoardPublic, readPublicBoard } from "./public-board";
 
@@ -149,12 +150,7 @@ test("a new organizer runs a 36-hole championship with a cut", async ({ page, ba
       page
         .locator(".card", { has: page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) }) })
         .locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ });
-    for (const round of ["Round 1", "Round 2"]) {
-      const head = page.getByRole("button", { name: new RegExp(`^${round} · Stroke Play Round`) });
-      if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
-      await gross(round).click();
-      await expect(page.getByText("Scratch: the strokes as taken, no handicaps.").first()).toBeVisible({ timeout: 20_000 });
-    }
+    for (const round of ["Round 1", "Round 2"]) await playScratch(page, `${round} · Stroke Play Round`);
     // Kept: read back from a fresh load, one round at a time.
     for (const round of ["Round 1", "Round 2"]) {
       await expect(async () => {
