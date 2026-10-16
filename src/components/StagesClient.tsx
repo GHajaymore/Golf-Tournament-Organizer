@@ -80,7 +80,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
-import { MoreInfo } from "./MoreInfo";
+import { countbackSegments } from "@/lib/domain/stroke-countback";
 import { useFormatting } from "./CurrencyProvider";
 import { holesPlayed } from "@/lib/domain/handicap";
 
@@ -2034,7 +2034,7 @@ function StageCard({
                   How scores are recorded
                   <FieldInfo label="how scores are recorded">
                     <p>
-                      Separate from <b>Result calculation</b> above, and the distinction is the
+                      Separate from <b>Handicap</b> on the round itself, and the distinction is the
                       point: gross or net is what the round is played FOR, this is what the field
                       writes DOWN.
                     </p>
@@ -2138,8 +2138,7 @@ function StageCard({
               <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.55, maxWidth: "62ch" }}>
                 Players level on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the total" : "the round"} are
                 placed by countback on {chainsRounds && roundNumberOf(allStages, stage.id) > 1 ? "the last round's" : "the"} card —
-                the better {holes === 9 ? "last six, then the last three" : "last nine, then the last six, the last three"} and
-                the last hole. Anybody still level shares the place.
+                {countbackInWords(holes)}. Anybody still level shares the place.
               </p>
             )}
             {stage.type === "Round Robin" && (
@@ -2245,6 +2244,18 @@ function StageCard({
  * take), and a round holding a card is left as it is and named — re-scoring
  * a played round stays a decision made on that round's own card.
  */
+/**
+ * The countback ladder in words, read off the rule the boards apply
+ * (`countbackSegments`) so the sentence cannot say one ladder while the
+ * board climbs another.
+ */
+function countbackInWords(holes: number): string {
+  const steps = countbackSegments(holes).map((n) => (n === 1 ? "the last hole" : `the last ${["", "", "two", "three", "four", "five", "six", "seven", "eight", "nine"][n] ?? n}`));
+  if (steps.length === 0) return "the card";
+  if (steps.length === 1) return `the better ${steps[0].replace(/^the /, "")}`;
+  return `the better ${steps[0].replace(/^the /, "")}, then ${steps.slice(1, -1).join(", ")}${steps.length > 2 ? " and " : ""}${steps.length > 2 ? steps[steps.length - 1] : steps[1]}`;
+}
+
 /** A round's gross/net as it plays: a Stableford round is off handicap whatever is stored (`basisFor`). */
 function basisOf(s: StageView): string {
   return isStablefordFormat(s.format) ? "net" : s.scoringBasis;
@@ -2427,7 +2438,6 @@ export function StagesClient({
   venues = [],
   homeVenue = "",
   chainsRounds = true,
-  handicapWarning = null,
   activeStageId = null,
   roundsWithResults = [],
   singleMatches,
@@ -2464,8 +2474,6 @@ export function StagesClient({
   homeVenue?: string;
   /** Whether rounds feed each other — false for a single-round tournament. */
   chainsRounds?: boolean;
-  /** Set when net scoring is running on unrated tees. */
-  handicapWarning?: string | null;
   /** The round actually being played, decided on the server so this screen
    *  and every other one name the same round. */
   activeStageId?: string | null;
@@ -2619,24 +2627,6 @@ export function StagesClient({
     <Launched.Provider value={launched}>
     <SetupLocked.Provider value={locked}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Net scoring without a Course Rating and Slope is an approximation,
-          and an organizer should know that before the results are published
-          rather than after somebody queries them. */}
-      {handicapWarning && (
-        <div
-          className="card elev-sm"
-          style={{ gap: 6, borderLeft: "3px solid var(--color-accent)" }}
-        >
-          <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="flag" /> Handicaps are approximate
-          </span>
-          {/* The fix in one line, the reason an ⓘ away (2026-10-05). The
-              heading already says what is wrong. */}
-          <MoreInfo short="Add tees with a rating and slope to the course.">
-            {handicapWarning} Add them under the course on <a href="/event">Event setup</a>.
-          </MoreInfo>
-        </div>
-      )}
       {playing.length >= 3 && (
         <EveryRound rounds={playing} resultIds={roundsWithResults} onDone={setEveryNote} />
       )}

@@ -1439,12 +1439,14 @@ describe("rounds and format", () => {
     expect(html).not.toContain("follows on");
   });
 
-  it("shows the unrated-tees warning when one is passed", () => {
-    const html = render(
-      <StagesClient {...base} stages={[stage({ scoringBasis: "net" })]}
-        handicapWarning="Bushwood has no course rating, so net scores use raw handicap index." />,
-    );
-    expect(html).toContain("no course rating");
+  // The unrated-tees warning is one line of "To sort out" on the page now
+  // (SetupNotices) — setup-notices.test.tsx holds it there.
+
+  it("words the countback ladder from the rule the boards apply", () => {
+    const eighteen = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 18 })]} />);
+    expect(eighteen).toContain("the better last nine, then the last six, the last three and the last hole");
+    const nine = render(<StagesClient {...base} stages={[stage({ format: "Stroke Play", type: "Stroke Play Round", holes: 9 })]} />);
+    expect(nine).toContain("the better last six, then the last three and the last hole");
   });
 
   it("shows the venue picker only when the tournament has several courses", () => {
