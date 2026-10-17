@@ -43,8 +43,8 @@ export function SetupNotices({ items: given }: { items: SetupNotice[] }) {
       }}
     >
       <span className="card-kicker">
-        To sort out · {items.length}
-        {blocks > 0 && ` · ${blocks} before launch`}
+        {items.length} to sort out
+        {blocks > 0 && ` — ${blocks} needed before launch`}
       </span>
       {items.map((n) => {
         const shown = open === n.key;

@@ -21,7 +21,7 @@ describe("the notices above the rounds", () => {
     const html = renderToStaticMarkup(<SetupNotices items={items} />);
     expect(html).toContain("A course card is missing.");
     expect(html).toContain("10 rounds have no date");
-    expect(html).toContain("1 before launch");
+    expect(html).toContain("1 needed before launch");
   });
 
   it("folds the reasons until a tap", () => {

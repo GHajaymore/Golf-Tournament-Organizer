@@ -707,13 +707,3 @@ export function positionOf(flow: SetupFlow, href: string): SetupPosition {
   };
 }
 
-/**
- * Whether the organizer may move on from this step yet.
- *
- * The guide's one piece of insistence, and it is about the CURRENT step only:
- * finish what you are on. Somebody who has jumped back to a finished step is
- * not blocked, because there is nothing there to finish.
- */
-export function canAdvance(step: SetupStep | null): boolean {
-  return !step || step.done;
-}

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   setupFlow,
   positionOf,
-  canAdvance,
   roundIsScheduled,
   railSpeaks,
   type SetupFacts,
@@ -231,27 +230,8 @@ describe("moving between steps", () => {
     expect(at.next).toBeNull();
   });
 
-  it("waits for the current step to be finished before offering the next", () => {
-    const flow = flowOf({ named: true });
-    const here = positionOf(flow, "/event").step;
-    expect(canAdvance(here)).toBe(false);
-
-    const ready = positionOf(flowOf({ named: true, dated: true }), "/event").step;
-    expect(canAdvance(ready)).toBe(true);
-  });
-
-  it("never blocks going back to a step that is already finished", () => {
-    // Revisiting Tournament details to change the date is exactly what "back"
-    // is for, and a guide that argues about it is worse than no guide.
-    const flow = flowOf({ named: true, dated: true, rounds: [round()] });
-    const finished = positionOf(flow, "/event").step;
-    expect(finished?.done).toBe(true);
-    expect(canAdvance(finished)).toBe(true);
-  });
-
-  it("advances freely from a screen the flow does not cover", () => {
-    expect(canAdvance(null)).toBe(true);
-  });
+  // canAdvance went on 2026-10-16: Next always goes (see SetupFlowFooter), so
+  // nothing asks any more whether the step is finished before moving on.
 });
 
 describe("the hand-off from setting up to running", () => {

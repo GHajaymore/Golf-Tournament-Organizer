@@ -292,12 +292,10 @@ export default async function StagesPage() {
   return (
     <>
       <SetupFlowRail flow={flow} href="/stages" />
+      {/* The title alone (2026-10-16, "redundancies"): "Set up" is the strip above
+          and the sidebar's heading, and the subtitle described the list below it. */}
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Set up</div>
         <h1 className="page-title">Rounds &amp; formats</h1>
-        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-          The rounds, in order, each feeding the next.
-        </p>
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
@@ -357,7 +355,7 @@ export default async function StagesPage() {
             ? [{
                 key: "cards",
                 tone: "block" as const,
-                title: "A course card is missing.",
+                title: "A course card is missing",
                 body: (
                   <>
                     {missingCardsNote}{" "}

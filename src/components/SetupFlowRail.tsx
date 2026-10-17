@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Icon } from "./Icon";
-import { positionOf, canAdvance, type SetupFlow } from "@/lib/domain/setup-flow";
+import { positionOf, type SetupFlow } from "@/lib/domain/setup-flow";
 import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 
 /**
@@ -184,7 +184,7 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
                           Tournament details — read as being on the wrong page.
                           The first gap keeps its colour, and the line below
                           names it: "Still to do: Tournament details". */}
-                      {s.done ? "Done" : here ? "Now" : "To do"}
+                      {s.done ? "Done" : here ? "Now" : ""}
                     </span>
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{s.label}</span>
@@ -236,7 +236,6 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
   if (!flow || flow.complete || flow.launched) return null;
   const { step, back, next } = positionOf(flow, href);
   if (!step) return null;
-  const ready = canAdvance(step);
 
   return (
     <div
@@ -260,26 +259,14 @@ export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: 
       <div style={{ flex: 1 }} />
       {next && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {/* Says WHY it is waiting rather than sitting there greyed out. A
-              disabled control with no reason is the app refusing to explain
-              itself, and this is the exact moment somebody gives up. */}
-          {!ready && (
-            <span className="text-muted" style={{ fontSize: 13, textAlign: "right" }}>
-              {step.missing}
-            </span>
-          )}
-          {ready ? (
-            <Link href={next.href} className="btn btn-primary">
-              Next: {next.label} <Icon name="arrow-right" />
-            </Link>
-          ) : (
-            /* A real disabled button rather than a dimmed link, so a tap does
-               nothing instead of navigating somewhere the organizer is not
-               ready for. */
-            <button type="button" className="btn btn-primary" disabled>
-              Next: {next.label} <Icon name="arrow-right" />
-            </button>
-          )}
+          {/* NEXT ALWAYS GOES (2026-10-16, the review panel on Ajay's "redundancies").
+              It waited, greyed, with the step's missing piece beside it — said a
+              third time on Rounds & formats, after the strip and "To sort out", and
+              read as if the dates blocked the next screen. Every step is a link in
+              the strip already; what is left is said once, where it is fixed. */}
+          <Link href={next.href} className="btn btn-primary">
+            Next: {next.label} <Icon name="arrow-right" />
+          </Link>
         </div>
       )}
     </div>

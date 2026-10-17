@@ -8638,14 +8638,15 @@ describe("the setup rail", () => {
     expect(renderToStaticMarkup(<SetupFlowFooter flow={null} href="/stages" />)).toBe("");
   });
 
-  it("waits at the foot of the page, and says why", () => {
+  it("goes on whether or not the step is finished, and does not repeat what is missing", () => {
+    // 2026-10-16: the greyed Next and its reason said a third time what the strip
+    // and the screen already said. Every step is a link; Next is one too.
     const html = renderToStaticMarkup(
       <SetupFlowFooter flow={setupFlow({ ...facts, named: true }, screenName)} href="/event" />,
     );
-    // The reason, beside the disabled control rather than in a tooltip no
-    // phone can reach.
-    expect(html).toContain("Say where it is played, or what day");
-    expect(html).toContain("disabled");
+    expect(html).not.toContain("Say where it is played, or what day");
+    expect(html).not.toContain("disabled");
+    expect(html).toContain("Next: ");
     // Nothing to go back to from the first step.
     expect(html).not.toContain("arrow-left");
   });
