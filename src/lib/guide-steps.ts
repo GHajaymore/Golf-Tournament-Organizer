@@ -210,6 +210,7 @@ export const GUIDE_STEPS: GuideSection[] = [
           "In Tournament details → Players & scoring, set **How players sign in** to an access-code option.",
           "Each round gets one code under **Round Codes**, with [[Copy]] and [[Reissue]].",
           "Read it out on the first tee or print it on the tee sheet. Players open tourneyhq.club/play, enter the code and pick their name.",
+          "In a four-ball or foursomes match, any player on either side can keep the match on their phone: the code opens their side's match, and they tap who won each hole. Ask one player per group to keep it, so two phones are not keeping one match.",
         ],
       },
       { kind: "warn", text: "Anyone with the code can report a score for that round. If it spreads beyond the field, [[Reissue]] it." },

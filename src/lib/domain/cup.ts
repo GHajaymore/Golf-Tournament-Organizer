@@ -19,6 +19,13 @@ export interface CupMatchInput {
   holes: HoleResult[];
   /** The losing side when a match was conceded, or null. */
   conceded: CupSide | null;
+  /**
+   * The number of the match's first hole: 10 for a back nine. "Thru" names
+   * the last hole PLAYED, as a golfer counts it — a four-ball that went off
+   * the 10th and has played three is "thru 12", not "thru 3" (the cup's UI
+   * review, 2026-10-17). 1 when absent.
+   */
+  firstHole?: number;
 }
 
 export interface CupMatchState {
@@ -56,7 +63,7 @@ export function cupMatchState(m: CupMatchInput): CupMatchState {
   return {
     points: [0, 0],
     status: "in-play",
-    label: lead > 0 && lead === left ? `Dormie ${lead}` : `${lead === 0 ? "A/S" : `${lead} UP`} thru ${r.played}`,
+    label: lead > 0 && lead === left ? `Dormie ${lead}` : `${lead === 0 ? "A/S" : `${lead} UP`} thru ${(m.firstHole ?? 1) + r.played - 1}`,
     leader: r.lead > 0 ? "A" : r.lead < 0 ? "B" : null,
   };
 }
