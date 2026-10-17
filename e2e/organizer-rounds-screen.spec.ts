@@ -150,7 +150,9 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     const r1 = page.getByRole("button", { name: /^Round 1 · Stroke Play Round/ });
     if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
     const customize = page.getByRole("button", { name: /^Customize this round/ });
-    await expect(customize).toContainText("Nothing changed");
+    // Closed, the bar names what is inside it and nothing was changed: "Ties",
+    // with no list of changes after it (the panel's redundancy sweep, 2026-10-16).
+    await expect(customize).toHaveText(/^Customize this round\s*Ties$/);
     if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
     // First under Customize since 2026-10-16, as one line: the question and the rule in use.
     await expect(page.getByText(/countback on the card — the better last nine, then the last six, the last three and the last hole; anybody still level shares the place/)).toBeVisible();
@@ -265,7 +267,8 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
   await test.step("the knockout: 16 from Round 2, a qualifying match, winners on, losers to a plate", async () => {
     const ko = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
     const card = page.locator(".card", { has: ko });
-    await expect(card.getByText("The draw")).toBeVisible();
+    // The arrangement, said once on the round: "Draw: Single bracket".
+    await expect(card.getByText(/^Draw: /)).toBeVisible();
     await card.getByRole("button", { name: "Change", exact: true }).click();
     await card.getByRole("button", { name: /^Main \+ plate/ }).click();
     await card.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).click();
@@ -277,7 +280,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
       const head = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
       if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
       const c = page.locator(".card", { has: head });
-      await expect(c.getByText(/^Main \+ plate$/)).toBeVisible();
+      await expect(c.getByText(/^Draw: Main \+ plate$/)).toBeVisible();
       await expect(c.getByText(/Lose in the first round and you go into the plate, a knockout of its own/)).toBeVisible();
       await expect(c.locator("label.seg-opt", { hasText: /^\s*Overall\s*$/ }).locator("input")).toBeChecked();
       await expect(c.getByRole("spinbutton")).toHaveValue("16");
