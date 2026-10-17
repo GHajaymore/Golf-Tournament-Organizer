@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { maySignIn, signInsClosed, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
+import { maySignIn, signInsClosed, SIGNINS_CLOSED_MESSAGE, SIGNINS_CLOSED_NOTICE } from "@/lib/sign-in-gate";
 import { LandingAuth } from "@/components/LandingAuth";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -15,45 +15,47 @@ import { readSource } from "./source";
  * that is not production — since a gate hard-wired shut passes every refusal.
  */
 
-const PROD = { VERCEL_ENV: "production", OWNER_EMAILS: "owner@example.invalid" };
+const CLOSED = { SIGNIN_ALLOW_EMAILS: "first@example.invalid, Owner@Example.invalid" };
 
 describe("who may sign in while closed", () => {
-  it("CONTROL: the owner may, in production", () => {
-    expect(signInsClosed(PROD)).toBe(true);
-    expect(maySignIn("owner@example.invalid", PROD)).toBe(true);
-    expect(maySignIn("  Owner@Example.INVALID ", PROD)).toBe(true);
+  it("CONTROL: an address on SIGNIN_ALLOW_EMAILS may, whatever its case and spacing", () => {
+    expect(signInsClosed(CLOSED)).toBe(true);
+    expect(maySignIn("owner@example.invalid", CLOSED)).toBe(true);
+    expect(maySignIn("  OWNER@example.INVALID ", CLOSED)).toBe(true);
+    expect(maySignIn("first@example.invalid", CLOSED)).toBe(true);
   });
 
-  it("CONTROL: an address on SIGNIN_ALLOW_EMAILS may", () => {
-    expect(maySignIn("helper@example.invalid", { ...PROD, SIGNIN_ALLOW_EMAILS: "a@example.invalid, helper@example.invalid" })).toBe(true);
+  it("CONTROL: a platform owner on OWNER_EMAILS may too", () => {
+    expect(maySignIn("boss@example.invalid", { ...CLOSED, OWNER_EMAILS: "boss@example.invalid" })).toBe(true);
   });
 
   it("anybody else may not, and an empty address never may", () => {
-    expect(maySignIn("visitor@example.invalid", PROD)).toBe(false);
-    expect(maySignIn("", PROD)).toBe(false);
-    expect(maySignIn(null, PROD)).toBe(false);
-    expect(maySignIn(undefined, PROD)).toBe(false);
+    expect(maySignIn("visitor@example.invalid", CLOSED)).toBe(false);
+    expect(maySignIn("", CLOSED)).toBe(false);
+    expect(maySignIn(null, CLOSED)).toBe(false);
+    expect(maySignIn(undefined, CLOSED)).toBe(false);
   });
 
-  it("CONTROL: everywhere that is not production is open — dev, preview, CI, every e2e run", () => {
-    for (const VERCEL_ENV of [undefined, "", "preview", "development"]) {
-      const env = { ...PROD, VERCEL_ENV };
+  it("THE LIST IS THE SWITCH: with nobody on it, everybody may — dev, CI, every e2e run, and production today", () => {
+    for (const SIGNIN_ALLOW_EMAILS of [undefined, "", "  ", " , "]) {
+      const env = { VERCEL_ENV: "production", SIGNIN_ALLOW_EMAILS };
       expect(signInsClosed(env)).toBe(false);
       expect(maySignIn("visitor@example.invalid", env)).toBe(true);
     }
   });
 
-  it("SIGNINS=open opens production to everybody", () => {
-    for (const SIGNINS of ["open", " OPEN "]) {
-      expect(signInsClosed({ ...PROD, SIGNINS })).toBe(false);
-      expect(maySignIn("visitor@example.invalid", { ...PROD, SIGNINS })).toBe(true);
-    }
-    expect(signInsClosed({ ...PROD, SIGNINS: "closed" })).toBe(true);
+  it("OWNER_EMAILS alone does not close anything — an owner list that does not hold the owner cannot lock them out", () => {
+    // Measured 2026-10-17: production's OWNER_EMAILS did not hold the owner's address.
+    const env = { VERCEL_ENV: "production", OWNER_EMAILS: "somebody-else@example.invalid" };
+    expect(signInsClosed(env)).toBe(false);
+    expect(maySignIn("owner@example.invalid", env)).toBe(true);
   });
 
-  it("fails OPEN with nobody on either list, so a missing variable cannot lock the owner out", () => {
-    expect(signInsClosed({ VERCEL_ENV: "production" })).toBe(false);
-    expect(signInsClosed({ VERCEL_ENV: "production", OWNER_EMAILS: " , " })).toBe(false);
+  it("SIGNINS=open opens it without deleting the list", () => {
+    for (const SIGNINS of ["open", " OPEN "]) {
+      expect(signInsClosed({ ...CLOSED, SIGNINS })).toBe(false);
+      expect(maySignIn("visitor@example.invalid", { ...CLOSED, SIGNINS })).toBe(true);
+    }
   });
 });
 
@@ -108,8 +110,17 @@ describe("the front door says so before the form", () => {
   it("shows the under-development notice when closed", () => {
     const html = renderToStaticMarkup(<LandingAuth closed />);
     expect(html).toContain(SIGNINS_CLOSED_NOTICE.lead);
-    expect(html).toContain("tourneyhq.club/play");
+    expect(html).toContain("href=\"/play\"");
+    // An interested visitor is sent to the live inquiries mailbox.
+    expect(html).toContain("href=\"mailto:inquiries@tourneyhq.club?subject=");
     expect(html.indexOf(SIGNINS_CLOSED_NOTICE.lead)).toBeLessThan(html.indexOf("<form"));
+  });
+
+  it("tells a visitor what is coming, never that they are shut out", () => {
+    const words = [SIGNINS_CLOSED_MESSAGE, ...Object.values(SIGNINS_CLOSED_NOTICE)].join(" ").toLowerCase();
+    expect(words).toContain("opens soon");
+    expect(words).toContain("under development");
+    for (const shut of ["closed", "blocked", "denied", "not allowed"]) expect(words).not.toContain(shut);
   });
 
   it("CONTROL: says nothing of it when open", () => {

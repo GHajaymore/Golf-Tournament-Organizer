@@ -64,7 +64,23 @@ export function LandingAuth({
         <p style={{ margin: 0 }}>
           <strong>{SIGNINS_CLOSED_NOTICE.lead}</strong> {SIGNINS_CLOSED_NOTICE.body}
         </p>
-        <p style={{ margin: "8px 0 0" }}>{SIGNINS_CLOSED_NOTICE.play}</p>
+        <p style={{ margin: "8px 0 0" }}>
+          {SIGNINS_CLOSED_NOTICE.interestedLead} Write to{" "}
+          <a
+            href={`mailto:${SIGNINS_CLOSED_NOTICE.interestedEmail}?subject=${encodeURIComponent("Interested in TourneyHQ")}`}
+            style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}
+          >
+            {SIGNINS_CLOSED_NOTICE.interestedEmail}
+          </a>{" "}
+          {SIGNINS_CLOSED_NOTICE.interestedTail}
+        </p>
+        <p style={{ margin: "8px 0 0" }}>
+          {SIGNINS_CLOSED_NOTICE.playLead}{" "}
+          <a href="/play" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
+            {SIGNINS_CLOSED_NOTICE.playLink}
+          </a>{" "}
+          {SIGNINS_CLOSED_NOTICE.playTail}
+        </p>
       </div>
       {panel}
     </div>
