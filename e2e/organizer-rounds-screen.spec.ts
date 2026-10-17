@@ -215,7 +215,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
     const card = page.locator(".card", { has: r1 });
     await expect(card.getByText("Before the next round")).toBeVisible();
-    await expect(card.getByText(/Carry forward points into Round 2/).first()).toBeVisible();
+    await expect(card.getByRole("radiogroup", { name: "Points into Round 2" })).toBeVisible();
     await expect(card.getByRole("checkbox", { name: "Cut the field for Round 2" })).toBeVisible();
   });
 
