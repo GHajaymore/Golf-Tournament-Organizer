@@ -296,6 +296,22 @@ export default async function StagesPage() {
           and the sidebar's heading, and the subtitle described the list below it. */}
       <div style={{ marginBottom: 20 }}>
         <h1 className="page-title">Rounds &amp; formats</h1>
+        {/* A SOCIETY OFTEN CHOOSES THE FORMAT ONCE IT KNOWS THE NUMBERS (Ajay,
+            2026-10-16: "sometimes it's hard to set up a round or format unless they
+            know how many signed up"). So the way round is offered before a round
+            exists, and the number is in front of them once people have entered. The
+            entry form already says "Format to be confirmed" with no round. */}
+        {state.confirmed.length > 0 ? (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>{state.confirmed.length} entered</Link>
+            {PRE_LAUNCH_STATUSES.includes(state.event.status) ? " so far." : "."}
+          </p>
+        ) : state.stages.length === 0 ? (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            Waiting to see how many sign up?{" "}
+            <Link href="/registration" style={{ color: "var(--color-accent-200)" }}>Take entries first</Link> — the entry form says &ldquo;Format to be confirmed&rdquo; until you choose.
+          </p>
+        ) : null}
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever

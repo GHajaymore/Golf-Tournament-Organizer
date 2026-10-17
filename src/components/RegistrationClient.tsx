@@ -103,7 +103,10 @@ export function RegistrationClient({
   teePolicy = "own",
   defaultTeeName = "",
   needsEmail = true,
+  noFormatYet = false,
 }: {
+  /** No round yet and nobody entered: a society taking entries before it chooses a format. */
+  noFormatYet?: boolean;
   event: EventInfo;
   /**
    * Whether this tournament's sign-in actually needs an address — see
@@ -715,12 +718,18 @@ export function RegistrationClient({
 
   return (
     <>
+      {/* The title alone, as on Rounds & formats (2026-10-16): "Set up" is the strip
+          and the sidebar; the subtitle described the lists below. One line only for
+          a society taking entries before it has chosen a format (Ajay: "hard to set
+          up a round or format unless they know how many signed up"). */}
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Set up</div>
         <h1 className="page-title">Entries</h1>
-        <MoreInfo short="Who's in, and who's waiting." style={{ marginTop: 6 }}>
-          Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
-        </MoreInfo>
+        {noFormatYet && (
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+            No format yet — players see &ldquo;Format to be confirmed&rdquo;. Choose it on{" "}
+            <a href="/stages" style={{ color: "var(--color-accent-200)" }}>Rounds &amp; formats</a> when you know the numbers.
+          </p>
+        )}
       </div>
 
       <SetupLockBanner locked={locked} isAdmin={isAdmin} />

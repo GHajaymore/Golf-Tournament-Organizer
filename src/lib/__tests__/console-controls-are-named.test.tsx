@@ -122,6 +122,24 @@ describe("console form controls are named", () => {
     expect(unnamedControls(html)).toEqual([]);
   });
 
+  it("Entries, before any format: points back to Rounds & formats, once", async () => {
+    // A society taking entries before it chooses the format (Ajay, 2026-10-16).
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    const ev = {
+      name: "zz-Society Day", capacity: 40, status: "registration", regDeadline: "", regOpens: "", today: "2026-06-01",
+      registrationOverride: null, inviteMessage: "", organizationName: "zz-Society",
+      dates: "", course: "", city: "", registrationOpen: true, registrationApproval: "auto",
+      requirePhone: false, phoneLocked: false, registrationToken: "",
+    };
+    const empty = render(<RegistrationClient noFormatYet confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    expect(empty).toContain("No format yet");
+    expect(empty).toContain("Format to be confirmed");
+    // CONTROL: not once a format is chosen or somebody has entered.
+    const later = render(<RegistrationClient confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]} event={ev} />);
+    expect(later).not.toContain("No format yet");
+    expect(unnamedControls(empty)).toEqual([]);
+  });
+
   it("Club settings", async () => {
     const { OrganizationClient } = await import("@/components/OrganizationClient");
     const html = render(
