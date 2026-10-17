@@ -1498,3 +1498,30 @@ back on and which disappears once somebody types, which is probably why `a11y.sp
 them. Left because it is thirty small changes to screens across the app, on the last of a
 week's budget. Do it with a source sweep that refuses a bare caption over a single box (with
 a control), then tie each one with the component's `useId`.
+
+## Left alone beside the Rounds & formats review — SEEN, NOT CHANGED (2026-10-16)
+
+From the four-reviewer panel on PR #888 (`docs/panel-review-888-2026-10-16.md`). Each is a golf
+or committee question, not a screen fault, and each changes who wins or who goes through, so
+none was made on the strength of a review.
+
+**A tie for the last qualifying place that countback cannot break goes to list order.**
+`qualifierIds` in `services/tournament.ts` takes `scored.slice(0, qualifyOverall)` (and the
+per-flight and match-side equivalents). The standings are ordered by score and then countback,
+so most ties are settled as a club settles them; a tie that survives the countback is decided
+by whatever order the rows arrive in. A committee prints its rule for this — a play-off, or
+the countback with a stated last resort — and the app neither asks for one nor says which it
+used. Do it as a choice on the knockout's card ("If players tie for the last place: play-off /
+countback, then draw"), and with a play-off the draw waits until the committee names who went
+through. Test with a field where two players are level on every step of the ladder.
+
+**Net countback off a full handicap.** Committee Procedures 5A(6) suggests taking 1/2, 1/3 and
+1/6 of the handicap from the last nine, six and three where hole-by-hole net scores are not
+used. The engine counts back on hole-by-hole net, which the same section also allows; check
+which a club's terms of competition expect before changing anything.
+
+**A halved round-robin match is half a point each**, with the all-square tiebreakers applied
+only where the organizer ticks them. Most leagues play it that way; some award no points.
+**One prize per player under Both** (gross and net from one card) is not enforced. **A plate for
+those who did not qualify** (17th to 32nd), beside the plate for first-round losers, is not
+offered. **Gross Stableford** is still not a choice (see the Stableford entry).
