@@ -681,3 +681,16 @@ export function buildBracket(
   return { kind, rounds, champion };
 }
 
+
+/**
+ * HOW MANY GO INTO A PLATE: the first-round ties actually played, since the
+ * plate takes their losers (2026-10-16). A draw of n is sized to the next power
+ * of two, and the top seeds' byes are ties nobody loses — so 16 send 8, 12 send
+ * 4 (four byes), and 2 send 1. The Bracket screen counted the plate at the draw,
+ * where it is empty, and showed 0 over sixteen qualifiers.
+ */
+export function plateEntrants(drawSize: number): number {
+  if (drawSize < 2) return 0;
+  const sheet = 2 ** Math.ceil(Math.log2(drawSize));
+  return drawSize - sheet / 2;
+}

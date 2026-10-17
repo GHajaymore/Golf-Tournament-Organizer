@@ -1361,8 +1361,16 @@ async function loadEventStateUncached(eventId: string, throughStageId?: string):
   const timeZone = await zoneOfOrganization(event.organizationId);
   const datedIdx = currentDatedRoundIndex(playRounds, clubDay(timeZone));
   const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, playedCards, matches);
+  /**
+   * WITH NO GROUP MATCHES DRAWN ANYWHERE, the round being played is the
+   * calendar's or the cards' answer, not the LAST round robin (2026-10-16).
+   * A draft of two round robins and a knockout headed every round tool in the
+   * sidebar "Round 2 · Match Play" before a match existed. `currentRoundIndex`
+   * is -1 only in that state; once any round robin has matches it decides, and
+   * past the last one it still answers the last.
+   */
   const activeStage =
-    rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
+    rrStages[activeRrIdx] ?? playRounds[playedIdx] ?? rrStages[rrStages.length - 1] ?? null;
   // The chain runs up to the round being played, not past it. Running it to
   // the end left `overall` holding the last round's standings, which is why a
   // played Round 1 showed as zeroes while Round 2 was nominally current.

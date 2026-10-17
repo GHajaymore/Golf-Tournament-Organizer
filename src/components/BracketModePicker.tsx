@@ -55,7 +55,10 @@ export function BracketModePicker({
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {!embedded && <span className="card-kicker">Arrangement</span>}
         <span style={{ fontSize: 14, fontWeight: 500 }}>{current.label}</span>
-        {secondLabel && <span className="tag tag-neutral">+ {secondLabel}</span>}
+        {/* Not where the name already says it: "Main + plate" then "+ Plate" said one thing twice. */}
+        {secondLabel && !current.label.toLowerCase().includes(secondLabel.toLowerCase()) && (
+          <span className="tag tag-neutral">+ {secondLabel}</span>
+        )}
         {!readOnly && !locked && (
           <button
             type="button"

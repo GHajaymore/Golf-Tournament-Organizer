@@ -268,6 +268,35 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
   });
 
   /**
+   * THE BRACKET SCREEN, BEFORE A BALL IS STRUCK (2026-10-16). Shown to Ajay, it
+   * said "Seeded from qualification" over a cutoff of 0, named the plate twice,
+   * counted nobody into the plate, never mentioned third place, and headed the
+   * sidebar's round tools "Round 2 · Match Play" with nothing drawn anywhere.
+   */
+  await test.step("the bracket says what is true before anybody has played", async () => {
+    const ko = page.getByRole("button", { name: /^Round 3 · Bracket Stage/ });
+    if ((await ko.getAttribute("aria-expanded")) !== "true") await ko.click();
+    const card = page.locator(".card", { has: ko });
+    // The tick follows the press, without waiting for the server.
+    const third = card.getByRole("checkbox", { name: /Play off for third/ });
+    await third.check();
+    await expect(third).toBeChecked();
+    await expect(async () => {
+      await open(page, "/bracket");
+      await expect(page.getByText(/^Third place$/i)).toBeVisible();
+    }).toPass({ timeout: 20_000 });
+    await expect(page.getByText("The two beaten semi-finalists")).toBeVisible();
+    await expect(page.getByText(/Nothing before the draw has been played, so it is in entry order for now/)).toBeVisible();
+    await expect(page.getByText(/Seeded from qualification/)).toHaveCount(0);
+    // One name for the plate, not "Main + plate" then "+ Plate".
+    await expect(page.locator(".tag", { hasText: /^\+ Plate$/ })).toHaveCount(0);
+    // The round tools are headed by the first round, not the last round robin.
+    await expect(page.getByText(/^Round 2 · Match Play$/i)).toHaveCount(0);
+    await expect(page.getByText(/^Round 1 · Match Play$/i)).toBeVisible();
+    await open(page, "/stages");
+  });
+
+  /**
    * EVERY ROUND LEAVES A ROUND THAT HAS BEGUN ALONE, AND SAYS SO (2026-10-16; the
    * QA manager on the review panel). A card is returned for Round 1 — written as
    * a row, since the tournament is not live — and the whole series is moved to

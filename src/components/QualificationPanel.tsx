@@ -50,7 +50,9 @@ export function QualificationPanel({
   advancingCount,
   fieldSize,
   toWinners,
+  mainLabel = "Winners bracket",
   secondLabel,
+  secondNote = "",
   toSecond,
   cutoff,
   cutoffText,
@@ -62,6 +64,10 @@ export function QualificationPanel({
   advancingCount: number;
   fieldSize: number;
   toWinners: number;
+  /** What the first draw is called — "Main draw" beside a plate. */
+  mainLabel?: string;
+  /** Who goes into the second draw, where it is not the draw itself: "who lose in the first round". */
+  secondNote?: string;
   /** Empty for "One bracket", which has no second draw to describe. */
   secondLabel: string;
   toSecond: number;
@@ -134,13 +140,14 @@ export function QualificationPanel({
           </div>
         </div>
         <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
-          <span className="card-kicker">To Winners bracket</span>
+          <span className="card-kicker">To {mainLabel}</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{toWinners}</div>
         </div>
         {secondLabel && (
           <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
             <span className="card-kicker">To {secondLabel}</span>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{toSecond}</div>
+            {secondNote && <span className="text-muted" style={{ fontSize: 13, lineHeight: 1.4 }}>{secondNote}</span>}
           </div>
         )}
         <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
