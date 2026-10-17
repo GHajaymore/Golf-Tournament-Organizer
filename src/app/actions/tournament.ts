@@ -723,7 +723,9 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
     },
-      "staff",
+      // Details only: an existing member's index is changed through
+      // `setPlayerIndex`, which asks first (2026-10-16).
+      "staff-details",
     );
     if (memberId && memberId !== player.memberId) {
       await prisma.player.update({ where: { id: playerId }, data: { memberId } });
@@ -2098,7 +2100,19 @@ export async function applyRoundHandicapToRest(
       frozen.add(s.id);
     }
   }
-  const open = later.filter((s) => !frozen.has(s.id));
+  /**
+   * ONLY WHERE THE SAME STROKES MEAN THE SAME THING (2026-10-16; the golf
+   * professional on the review panel). The figure is a COURSE handicap: whole
+   * strokes for one course, set of tees and length of round (Rules of
+   * Handicapping 6.1). Copied onto a round at another course, on other tees or
+   * of nine holes, it is simply the wrong number there. Those rounds are left,
+   * and counted with the ones that have cards in; changing the player's INDEX
+   * is how one decision reaches every round.
+   */
+  const source = stages[here];
+  const sameCard = (s: (typeof stages)[number]) =>
+    s.courseId === source.courseId && s.teeId === source.teeId && s.holes === source.holes;
+  const open = later.filter((s) => !frozen.has(s.id) && sameCard(s));
 
   for (const s of open) {
     await prisma.roundHandicap.upsert({
@@ -2108,7 +2122,7 @@ export async function applyRoundHandicapToRest(
     });
   }
   await refresh();
-  return { ok: true, written: open.length, skipped: frozen.size };
+  return { ok: true, written: open.length, skipped: later.length - open.length };
 }
 
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */

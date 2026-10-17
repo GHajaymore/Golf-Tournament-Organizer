@@ -4153,7 +4153,7 @@ describe("what a player plays off in one round", () => {
     const { RoundHandicaps } = await import("@/components/RoundHandicaps");
     const html = render(<RoundHandicaps stageId="s1" rows={[row()]} />);
     expect(html).toContain("Everyone plays off their handicap from the roster");
-    expect(html).toContain("Set one for this round");
+    expect(html).toContain("Change a player&#x27;s handicap");
   });
 
   it("counts the players a committee has decided for", async () => {
@@ -4176,7 +4176,7 @@ describe("what a player plays off in one round", () => {
       />,
     );
     expect(html).toContain("keeps the handicaps it was scored against");
-    expect(html).not.toContain("Set one for this round");
+    expect(html).not.toContain("Change a player&#x27;s handicap");
   });
 
   it("answers 'why is my net different in round one' without being asked", async () => {

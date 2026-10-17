@@ -184,9 +184,12 @@ test("the organizer sets the tees for the tournament, a flight and one player, a
     const card = page.locator("main .card", { has: page.locator("button", { hasText: /Round 1/ }) }).first();
     await expect(card, "Rounds & formats has no card for Round 1").toBeVisible();
     const heading = card.getByText("Handicaps for this round", { exact: true });
-    if (!(await heading.isVisible().catch(() => false))) await card.locator("button", { hasText: /Round 1/ }).first().click();
+    const customize = card.getByRole("button", { name: /^Customize this round/ });
+    if (!(await customize.isVisible().catch(() => false))) await card.locator("button", { hasText: /Round 1/ }).first().click();
+    // The list is under Customize since 2026-10-16, which starts closed.
+    if ((await customize.getAttribute("aria-expanded")) !== "true") await customize.click();
     await expect(heading, "the round's card has no handicap list").toBeVisible();
-    await card.getByRole("button", { name: "Set one for this round", exact: true }).click();
+    await card.getByRole("button", { name: "Change a player's handicap", exact: true }).click();
     const out: Record<string, string> = {};
     for (const p of FIELD) {
       const row = card.locator("div", { has: page.locator("span", { hasText: p.name }) }).last();

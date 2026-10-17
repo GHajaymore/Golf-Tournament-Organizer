@@ -192,7 +192,12 @@ export type MemberWriter =
   /** Public self-registration. No session, no identity beyond a form: an
    *  entrant may complete their own roster row but never restate somebody
    *  else's index. */
-  | "public";
+  | "public"
+  /** An organizer correcting an entry's details. Fills the roster's gaps and
+   *  never restates an existing member's index: that is `setPlayerIndex`, which
+   *  asks first and leaves a line in the history (2026-10-16 — this path used
+   *  to push every handicap edit on Registration through to Members silently). */
+  | "staff-details";
 
 /**
  * Find this person on the club roster, or add them.
@@ -281,7 +286,12 @@ export async function upsertMember(
       refuseHandByHand(policy, input, { handicap: existing.handicap, ghin: existing.ghin }) === null;
     if (mayWriteIndex && claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
       fill.handicap = input.handicap as number;
-      fill.handicapType = input.handicapType === "9" ? "9" : "18";
+      // The type it was typed in, or the one already held — never a quiet 18 for a
+      // caller that did not say (the QA manager on the review panel, 2026-10-16).
+      fill.handicapType = input.handicapType === "9" ? "9" : input.handicapType === "18" ? "18" : existing.handicapType;
+      // And a figure somebody typed is a claim: a member on "none" given 14.2 went
+      // on reading "no index" everywhere that asks the source.
+      fill.handicapSource = "manual";
     }
     if (Object.keys(fill).length > 0) {
       await prisma.member.update({ where: { id: existing.id }, data: fill });

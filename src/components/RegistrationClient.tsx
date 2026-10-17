@@ -5,7 +5,8 @@ import { dayAsDate } from "@/lib/deadline";
 import { parseHandicapInput, STAFF_HANDICAP_REFUSAL } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
-import { useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
+import { Fragment, useId, useState, useRef, useEffect, useTransition, useSyncExternalStore, useOptimistic } from "react";
+import { setPlayerIndex, indexChangeFacts } from "@/app/actions/player-index";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -186,6 +187,46 @@ export function RegistrationClient({
   // rule, not the raw setting, so the hint can't promise something the action
   // then refuses.
   const phoneRequired = phoneLocked || event.requirePhone;
+  /**
+   * A HANDICAP TYPED HERE CHANGES THIS TOURNAMENT'S COPY, AND ASKS ABOUT MEMBERS
+   * (2026-10-16). It went through `updateSignup`, which pushed every edit on to
+   * the member record without a word or a line in the history, and was greyed
+   * out by the setup lock exactly when a committee cuts a handicap mid-event.
+   * Now it is `setPlayerIndex` — the one door the round's "Change" uses too —
+   * and where Members still holds the old figure, the row offers the correction
+   * in one tap (the tournament director on the review panel: a typo is wrong
+   * everywhere, so the offer is made, not left to be found).
+   */
+  const [memberOffer, setMemberOffer] = useState<{ playerId: string; name: string; to: number; memberFrom: number; done?: string } | null>(null);
+  const commitIndex = (p: { id: string; name: string; handicap: number }, value: number) =>
+    startTransition(async () => {
+      const res = await setPlayerIndex(p.id, { index: value, expectedFrom: p.handicap, alsoMember: false, reason: "" });
+      if (!res.ok) {
+        setRowError(`${p.name}: ${res.error ?? "Couldn't save that handicap."}`);
+        return;
+      }
+      setRowError("");
+      const facts = await indexChangeFacts(p.id);
+      setMemberOffer(
+        facts.ok && !facts.memberRefusal && facts.memberFrom != null && facts.memberFrom !== value
+          ? { playerId: p.id, name: p.name, to: value, memberFrom: facts.memberFrom }
+          : null,
+      );
+    });
+  const pushToMembers = (offer: { playerId: string; name: string; to: number; memberFrom: number }) =>
+    startTransition(async () => {
+      const res = await setPlayerIndex(offer.playerId, {
+        index: offer.to,
+        expectedFrom: offer.to,
+        alsoMember: true,
+        reason: "Correction on Registration & field",
+      });
+      if (!res.ok) {
+        setRowError(`${offer.name}: ${res.error ?? "Couldn't change Members."}`);
+        return;
+      }
+      setMemberOffer({ ...offer, done: `Done. Members has ${indexFigure(offer.to)} for ${offer.name} now.` });
+    });
   const commitUpdate = (playerId: string, patch: Parameters<typeof updateSignup>[1]) =>
     startTransition(async () => {
       const result = await updateSignup(playerId, patch);
@@ -491,7 +532,8 @@ export function RegistrationClient({
             </thead>
             <tbody>
               {rows.map((p, i) => (
-                <tr key={p.id}>
+                <Fragment key={p.id}>
+                <tr>
                   <td><input type="checkbox" aria-label={`Select ${p.name}`} checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>
@@ -547,7 +589,9 @@ export function RegistrationClient({
                         // so without this it goes on showing a figure the server has replaced.
                         key={`${p.id}:${p.handicap}`}
                         defaultValue={indexFigure(p.handicap)}
-                        disabled={pending || locked}
+                        // Not behind the setup lock: a committee changes a handicap mid-event,
+                        // and a round with a card keeps what it was scored off.
+                        disabled={pending}
                         style={{ width: 56, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                         onKeyDown={leaveOnEnter}
                         onBlur={(e) => {
@@ -561,7 +605,7 @@ export function RegistrationClient({
                             setRowError(`${p.name}: ${STAFF_HANDICAP_REFUSAL[typed.why]}`);
                             return;
                           }
-                          if (typed.value !== p.handicap) commitUpdate(p.id, { handicap: typed.value });
+                          if (typed.value !== p.handicap) commitIndex(p, typed.value);
                           else setRowError("");
                         }}
                       />
@@ -635,6 +679,29 @@ export function RegistrationClient({
                     />
                   </td>
                 </tr>
+                {memberOffer?.playerId === p.id && (
+                  <tr>
+                    <td colSpan={20} style={{ paddingTop: 0 }}>
+                      {memberOffer.done ? (
+                        <p role="status" className="text-muted" style={{ fontSize: 13, margin: 0 }}>{memberOffer.done}</p>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+                          <span>
+                            Members still has <b>{indexFigure(memberOffer.memberFrom)}</b> for {memberOffer.name}, which every
+                            tournament they enter copies.
+                          </span>
+                          <button type="button" className="btn btn-secondary" style={{ minHeight: 44, fontSize: 13 }} disabled={pending} onClick={() => pushToMembers(memberOffer)}>
+                            Make it {indexFigure(memberOffer.to)} on Members
+                          </button>
+                          <button type="button" className="btn btn-secondary" style={{ minHeight: 44, fontSize: 13 }} onClick={() => setMemberOffer(null)}>
+                            Leave it
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {rows.length === 0 && (
                 <tr><td colSpan={showFlight ? 8 : 7} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>

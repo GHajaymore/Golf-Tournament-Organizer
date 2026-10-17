@@ -2216,7 +2216,7 @@ function StageCard({
               <div>
                 <SectionLabel>Handicaps for this round</SectionLabel>
                 <div style={{ marginTop: 6 }}>
-                  <RoundHandicaps stageId={stage.id} rows={stage.handicaps} />
+                  <RoundHandicaps stageId={stage.id} rows={stage.handicaps} roundName={roundLabelOf(allStages, stage.id) || "this round"} />
                 </div>
               </div>
             )}
