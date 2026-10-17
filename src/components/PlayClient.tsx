@@ -31,6 +31,8 @@ interface PlayMatch {
   /** True when the session holder is stored as player B — results must be
    *  flipped back before saving. */
   flipped: boolean;
+  /** A match between two sides (a four-ball pair): the holder speaks for their side. */
+  side?: boolean;
 }
 
 interface Props {
@@ -919,7 +921,7 @@ export function PlayClient(props: Props) {
             {(["me", "halved", "them"] as const).map((w) => (
               <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
-                {w === "me" ? "I won" : w === "halved" ? "Halved" : "They won"}
+                {w === "me" ? (m.side ? "We won" : "I won") : w === "halved" ? "Halved" : "They won"}
               </label>
             ))}
           </div>
@@ -972,8 +974,8 @@ export function PlayClient(props: Props) {
           holes={Array.from({ length: holeCount }, (_, i) => holes[i] ?? null)}
           aName="you"
           bName={m.bName}
-          aLabel="Me"
-          bLabel={firstName(m.bName) || "Them"}
+          aLabel={m.side ? "Us" : "Me"}
+          bLabel={m.side ? "Them" : firstName(m.bName) || "Them"}
           pars={props.pars ?? []}
           yards={props.yards ?? []}
           strokeIndex={props.strokeIndex ?? []}

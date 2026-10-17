@@ -53,12 +53,31 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    * back to the first — and the save re-checks membership regardless.
    */
   const { m: pickedMatch } = await searchParams;
+  /**
+   * AND THE SIDES THIS PLAYER IS ON IN THIS ROUND (2026-10-16).
+   *
+   * A four-ball or foursomes match is stored between two SIDES, with both
+   * player columns empty, so the lookup below found nothing for a pair and a
+   * cup's four-ball partner was told they had no match — while
+   * `savePlayMatchHoles` has always let a member of either side save it. The
+   * page now asks the same question the save asks.
+   */
+  const mySides = (
+    await prisma.teamMember.findMany({
+      where: { playerId: session.playerId, team: { stageId: session.stageId } },
+      select: { teamId: true },
+    })
+  ).map((t) => t.teamId);
   const [event, drawn, codeStage] = await Promise.all([
     prisma.event.findUnique({ where: { id: session.eventId }, include: COURSE_REF }),
     prisma.match.findMany({
       where: {
         stageId: session.stageId,
-        OR: [{ playerAId: session.playerId }, { playerBId: session.playerId }],
+        OR: [
+          { playerAId: session.playerId },
+          { playerBId: session.playerId },
+          ...(mySides.length ? [{ teamAId: { in: mySides } }, { teamBId: { in: mySides } }] : []),
+        ],
       },
       orderBy: { id: "asc" },
     }),
@@ -240,11 +259,27 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     );
   }
 
+  // A match between two sides: the holder's side is A when they are on it.
+  const sideMatch = match.teamAId !== "" && match.teamBId !== "" && match.playerAId === "" && match.playerBId === "";
+  const iAmA = sideMatch ? mySides.includes(match.teamAId) : match.playerAId === session.playerId;
+  const sideNames = sideMatch
+    ? new Map(
+        (
+          await prisma.team.findMany({
+            where: { id: { in: [match.teamAId, match.teamBId] }, eventId: session.eventId },
+            select: { id: true, name: true },
+          })
+        ).map((t) => [t.id, t.name]),
+      )
+    : null;
+
   const [opponent, stage] = await Promise.all([
-    prisma.player.findUnique({
-      where: { id: match.playerAId === session.playerId ? match.playerBId : match.playerAId },
-      select: { name: true, handicap: true },
-    }),
+    sideMatch
+      ? null
+      : prisma.player.findUnique({
+          where: { id: match.playerAId === session.playerId ? match.playerBId : match.playerAId },
+          select: { name: true, handicap: true },
+        }),
     prisma.stage.findUnique({
       where: { id: session.stageId },
       select: { holes: true, scoringBasis: true, nine: true, courseId: true },
@@ -284,7 +319,6 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
     where: { id: session.playerId },
     select: { name: true, handicap: true },
   });
-  const iAmA = match.playerAId === session.playerId;
 
   /**
    * WHO GETS A SHOT WHERE, in a net match (2026-10-07).
@@ -299,7 +333,10 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
    */
   const netMatch = isNetBasis(stage?.scoringBasis ?? "");
   let matchShots: { mine: number[]; theirs: number[] } | null = null;
-  if (netMatch && playCard?.strokeIndex?.length) {
+  // One player against one: a side of two has four players' shots, which two
+  // rows of dots cannot say, so a side's card shows none rather than one
+  // player's as if it were the side's.
+  if (!sideMatch && netMatch && playCard?.strokeIndex?.length) {
     const matchState = await loadEventState(event.id);
     const opponentId = iAmA ? match.playerBId : match.playerAId;
     const given = matchStrokesGiven(
@@ -312,13 +349,20 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
 
   // The other matches, named by opponent, for the picker above the card.
   const others = myMatches.filter((x) => x.id !== match.id);
-  const otherIds = others.map((x) => (x.playerAId === session.playerId ? x.playerBId : x.playerAId));
+  const otherIds = others.map((x) =>
+    x.playerAId === "" && x.playerBId === ""
+      ? mySides.includes(x.teamAId) ? x.teamBId : x.teamAId
+      : x.playerAId === session.playerId ? x.playerBId : x.playerAId,
+  );
   const otherNames = otherIds.length
-    ? new Map(
-        (await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
-          (p) => [p.id, p.name],
+    ? new Map([
+        ...(await prisma.player.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
+          (p) => [p.id, p.name] as const,
         ),
-      )
+        ...(await prisma.team.findMany({ where: { id: { in: otherIds }, eventId: event.id }, select: { id: true, name: true } })).map(
+          (t) => [t.id, t.name] as const,
+        ),
+      ])
     : new Map<string, string>();
   const otherMatches = others.map((x, i) => ({
     id: x.id,
@@ -347,8 +391,9 @@ export default async function PlayPage({ searchParams }: { searchParams: Promise
         // point of view rather than from the database's ordering.
         aId: iAmA ? match.playerAId : match.playerBId,
         bId: iAmA ? match.playerBId : match.playerAId,
-        aName: me?.name ?? "You",
-        bName: opponent?.name ?? "Opponent",
+        aName: sideNames?.get(iAmA ? match.teamAId : match.teamBId) ?? me?.name ?? "You",
+        bName: sideNames?.get(iAmA ? match.teamBId : match.teamAId) ?? opponent?.name ?? "Opponent",
+        side: sideMatch,
         aHandicap: me?.handicap ?? 0,
         bHandicap: opponent?.handicap ?? 0,
         // Results are stored A-relative; flip them when the holder is B so
