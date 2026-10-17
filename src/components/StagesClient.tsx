@@ -1053,6 +1053,16 @@ function StageCard({
   const roundColor = ROUND_PALETTE[stage.position % ROUND_PALETTE.length];
   const roundText = ROUND_TEXT[stage.position % ROUND_TEXT.length];
 
+  /**
+   * THE ROUND'S PLACE ON THIS SCREEN, counted down the list — not its stored
+   * position, which keeps a gap when a round is removed. A team-cup template
+   * made three sessions, the organizer removed the middle one, and the singles
+   * went on reading "Round 3" here while every other screen called it Round 2
+   * (Ajay, 2026-10-17, setting up a real cup).
+   */
+  const step =
+    [...allStages].sort((a, b) => a.position - b.position).findIndex((s) => s.id === stage.id) + 1 || stage.position + 1;
+
   return (
     <div
       id={`round-${stage.id}`}
@@ -1103,7 +1113,7 @@ function StageCard({
           }}
           title={stage.type}
         >
-          {stage.position + 1}
+          {step}
         </div>
         {/* The whole card in one line when it is closed. A ten-week league
             used to render ten copies of every control on this screen — about
@@ -1128,7 +1138,7 @@ function StageCard({
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              Round {stage.position + 1}
+              Round {step}
               {stage.playedOn ? ` · ${shortDate(stage.playedOn, locale)}` : ` · ${stage.type}`}
             </span>
             <span className="tag tag-neutral">

@@ -221,7 +221,7 @@ export const GUIDE_STEPS: GuideSection[] = [
       {
         kind: "steps",
         items: [
-          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required, **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box.",
+          "Under **Add someone new**: Player name, Email (required or optional depending on how players sign in), Mobile if required — a tournament whose players sign in with Round Codes never asks for one — **Handicap source** (GHIN, Manual or None), the handicap (a plus handicap is typed “+2.4”) and whether it's an 18- or 9-hole index. Press [[Add to field]]. A handicap in the list below can be corrected in its own box, the same way; it saves when you leave the box.",
           "Or [[Import CSV]] with a header row: a **name** column (or First Name and Last Name), plus email and phone if this tournament needs them. A plus handicap is written “+2.4”; a blank means no handicap, not scratch.",
         ],
       },

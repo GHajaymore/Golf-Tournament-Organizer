@@ -189,7 +189,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     // action will insist on. Reading event.requirePhone straight through would
     // show a free club's entrants an optional mobile field and then refuse
     // their entry for leaving it blank.
-    requirePhone: phoneRequiredFor(await planForOrganization(event.organizationId), event.requirePhone),
+    requirePhone: phoneRequiredFor(await planForOrganization(event.organizationId), event.requirePhone, event.playerAccess),
     brand,
     organizer: golfTermsFor(golfRegister(event.organization?.country, event.organization?.golfTerms)).organizer,
   };
