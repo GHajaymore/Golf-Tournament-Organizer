@@ -17,7 +17,7 @@ import { cleanSettings, entryNeedsEmail } from "../tournament-settings";
  */
 export async function entryContactNeeds(event: Event): Promise<ContactNeeds> {
   return {
-    phone: phoneRequiredFor(await planForEvent(event.id), event.requirePhone),
+    phone: phoneRequiredFor(await planForEvent(event.id), event.requirePhone, event.playerAccess),
     email: entryNeedsEmail(cleanSettings(event)),
   };
 }

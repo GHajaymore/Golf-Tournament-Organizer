@@ -95,6 +95,8 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
       manualPlayerCount: true,
       status: true,
       requirePhone: true,
+      // How its players sign in decides whether a mobile is asked (`phoneRequiredFor`).
+      playerAccess: true,
     },
   });
   if (!event) return { ok: false, error: NOT_OPEN };
@@ -211,7 +213,7 @@ export async function enterThisTournament(eventId: string): Promise<EnterResult>
    * entry form", which asks for the number, so the member is one step from in.
    */
   const phone = member?.phone ?? "";
-  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone) && !looksLikePhone(phone)) {
+  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess) && !looksLikePhone(phone)) {
     return {
       ok: false,
       error: "This tournament needs a mobile number, and the club doesn't have one for you yet — add it on the entry form.",

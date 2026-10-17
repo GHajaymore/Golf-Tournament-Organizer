@@ -73,10 +73,10 @@ test("a new organizer sets up a team cup", async ({ page }) => {
     await open(page, "/registration");
     for (const [i, p] of PLAYERS.entries()) {
       await page.getByLabel("Player name", { exact: true }).fill(p.name);
-      // The cup template's players sign in with a Round Code, so the address
-      // is optional here and the mobile is not.
+      // The cup template's players sign in with a Round Code, so neither the
+      // address nor — since 2026-10-17, on any plan — the mobile is asked for.
       await page.getByRole("textbox", { name: /^Email · optional/ }).fill(medalEmail(i));
-      await page.getByRole("textbox", { name: /^Mobile · required/ }).fill(`555070${i}`);
+      await expect(page.getByRole("textbox", { name: /^Mobile · required/ }), "a code-scored cup still demands a mobile").toHaveCount(0);
       await page.getByLabel("Handicap", { exact: true }).fill(p.index);
       await page.getByRole("button", { name: "Add to field" }).click();
       await expect(page.getByText(p.name).first()).toBeVisible({ timeout: 20_000 });

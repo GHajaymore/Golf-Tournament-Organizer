@@ -12,14 +12,23 @@ import { phoneRequiredFor, upgradeBenefits, PHONE_REQUIRED_FREE } from "@/lib/pl
  */
 
 describe("whether a mobile is required", () => {
-  it("always, on the free plan", () => {
-    expect(phoneRequiredFor("free", false)).toBe(true);
-    expect(phoneRequiredFor("free", true)).toBe(true);
+  it("always, on the free plan, where players sign in by email", () => {
+    expect(phoneRequiredFor("free", false, "email")).toBe(true);
+    expect(phoneRequiredFor("free", true, "email")).toBe(true);
   });
 
-  it("is the organizer's own per-tournament choice on a paid plan", () => {
-    expect(phoneRequiredFor("club", false)).toBe(false);
-    expect(phoneRequiredFor("club", true)).toBe(true);
+  it("never, on the free plan, where players use round codes (Ajay, 2026-10-17)", () => {
+    // A code-scored tournament reaches its players by the code; a mobile it
+    // insisted on refused thirteen guests of a real cup the day before.
+    expect(phoneRequiredFor("free", false, "code")).toBe(false);
+    expect(phoneRequiredFor("free", true, "both")).toBe(false);
+  });
+
+  it("is the organizer's own per-tournament choice on a paid plan, codes or not", () => {
+    expect(phoneRequiredFor("club", false, "email")).toBe(false);
+    expect(phoneRequiredFor("club", true, "email")).toBe(true);
+    expect(phoneRequiredFor("club", true, "code")).toBe(true);
+    expect(phoneRequiredFor("club", false, "code")).toBe(false);
   });
 
   it("falls back to the strict side for an unknown or missing plan", () => {
@@ -27,9 +36,12 @@ describe("whether a mobile is required", () => {
     // free is the stricter answer — so a bad key asks for more, never less.
     // Failing open here would let a typo'd plan key quietly drop a
     // requirement an organizer was relying on.
-    expect(phoneRequiredFor(null, false)).toBe(true);
-    expect(phoneRequiredFor(undefined, false)).toBe(true);
-    expect(phoneRequiredFor("enterprise-typo", false)).toBe(true);
+    expect(phoneRequiredFor(null, false, "email")).toBe(true);
+    expect(phoneRequiredFor(undefined, false, "email")).toBe(true);
+    expect(phoneRequiredFor("enterprise-typo", false, "email")).toBe(true);
+    // And an unknown sign-in is the strict side too.
+    expect(phoneRequiredFor("free", false, "")).toBe(true);
+    expect(phoneRequiredFor("free", false, undefined)).toBe(true);
   });
 });
 

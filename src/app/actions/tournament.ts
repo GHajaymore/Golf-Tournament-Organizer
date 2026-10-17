@@ -508,7 +508,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
   const cleanPhone = (input.phone ?? "").trim();
-  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone)) {
+  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess)) {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
     if (!looksLikePhone(cleanPhone)) return { ok: false, error: "That doesn't look like a phone number." };
   }
@@ -927,7 +927,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   // row by row: a file with no phone column at all would otherwise be read as
   // a hundred individually invalid rows, and the organizer would be told
   // "skipped 100" with no hint that one missing column caused it.
-  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
+  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone, event.playerAccess);
   if (needsPhone && phoneIdx === -1) {
     return {
       imported: 0,

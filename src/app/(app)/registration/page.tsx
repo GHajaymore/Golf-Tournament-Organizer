@@ -125,8 +125,11 @@ export default async function RegistrationPage() {
         city: state.event.city,
         registrationOpen: state.event.registrationOpen,
         registrationApproval: state.event.registrationApproval,
-        requirePhone: state.event.requirePhone,
-        phoneLocked: phoneRequiredFor(plan, false),
+        // What the add action will insist on — the plan, the setting and how the
+        // players sign in, asked once — so the form cannot say "required" over a
+        // code-scored tournament the server lets in without a mobile.
+        requirePhone: phoneRequiredFor(plan, state.event.requirePhone, state.event.playerAccess),
+        phoneLocked: phoneRequiredFor(plan, false, state.event.playerAccess),
         registrationToken: state.event.registrationToken,
         locale: (await formattingForEvent(session.eventId)).locale,
         today: state.today,

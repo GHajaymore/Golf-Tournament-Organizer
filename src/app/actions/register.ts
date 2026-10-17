@@ -94,7 +94,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // Resolved here rather than read off the event, so the plan and the setting
   // can never be consulted separately — see phoneRequiredFor.
   const plan = await planForEvent(event.id);
-  if (phoneRequiredFor(plan, event.requirePhone) && !looksLikePhone(person.phone)) {
+  if (phoneRequiredFor(plan, event.requirePhone, event.playerAccess) && !looksLikePhone(person.phone)) {
     return {
       ok: false,
       error: person.phone
