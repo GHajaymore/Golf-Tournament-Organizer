@@ -72,7 +72,7 @@ export function ThirdPlaceControl({
           style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
         />
         <span>
-          <span style={{ fontWeight: 500 }}>Play off for third</span>
+          <span style={{ fontWeight: 500 }}>Play-off for third place</span>
           <span className="text-muted" style={{ display: "block", fontSize: 13, lineHeight: 1.6 }}>
             {THIRD_PLACE_HELP}
           </span>

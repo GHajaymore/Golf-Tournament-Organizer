@@ -1402,7 +1402,7 @@ describe("rounds and format", () => {
         stages={[stage(), stage({ id: "r2", position: 2, carryAsked: false })]} />,
     );
     expect(matchPlay).toContain("How scores are recorded");
-    expect(matchPlay).toContain("Hole-by-hole result");
+    expect(matchPlay).toContain("Who won each hole");
     expect(matchPlay).toContain("Final result only");
 
     // Stroke play produces a card and has nothing to decide, so it gets no
@@ -1516,7 +1516,7 @@ describe("rounds and format", () => {
             b1: { on: true, problem: "", aName: "Ann Reyes", bName: "Bo Kite", made: false },
           }} />,
       );
-      expect(html).toContain("Play off for third");
+      expect(html).toContain("Play-off for third place");
       expect(html).toContain("Ann Reyes");
       closedPanel(html);
     });
@@ -1628,7 +1628,7 @@ describe("rounds and format", () => {
     // since the redesign of 2026-10-16, and a guard that rendered only setup
     // would stop seeing them.
     const html = render(
-      <StagesClient {...base} chainsRounds launched
+      <StagesClient {...base} chainsRounds launched activeStageId="r1"
         flightCount={2}
         stages={[
           stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: true } }),
@@ -1674,7 +1674,7 @@ describe("rounds and format", () => {
     // scores can still be entered for this round." The same trap this pass
     // walked into on PlaySettings, already sitting on this screen.
     const html = render(
-      <StagesClient {...base} chainsRounds launched
+      <StagesClient {...base} chainsRounds launched activeStageId="r1"
         stages={[stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: false })]} />,
     );
     expect(html).toContain("Scoring window");
@@ -1731,9 +1731,9 @@ describe("rounds and format", () => {
       ["a Stableford", { type: "Stroke Play Round", format: "Stableford", scoringBasis: "net" },
         ["Level on the round"], ["Level in the table", "Points for a match", "All square after"]],
       ["a knockout", { type: "Bracket Stage", format: "Match Play" },
-        ["All square after 18", "record the winner on Bracket"], ["Level in the table", "Points for a match", "Level on the round"]],
+        ["All square after 18", "extra holes from the 1st, hole by hole"], ["Level in the table", "Points for a match", "Level on the round"]],
       ["a single match", { type: "Single Match Stage", format: "Match Play" },
-        ["All square after 18", "record the winner on Score entry"], ["Level in the table", "Points for a match", "Level on the round"]],
+        ["All square after 18", "extra holes from the 1st, hole by hole"], ["Level in the table", "Points for a match", "Level on the round"]],
       ["a match-play round robin", { type: "Round Robin", format: "Match Play" },
         ["A match all square after 18", "Level in the table", "Points for a match", "Ties and points"], ["Level on the round", "All square after 18 →"]],
       ["a stroke-play round robin", { type: "Round Robin", format: "Stroke Play", scoringBasis: "net" },
@@ -5720,7 +5720,7 @@ describe("the two controls built after the audit", () => {
     const html = render(
       <ThirdPlaceControl stageId="s1" on={false} problem="" aName="" bName="" made={false} />,
     );
-    expect(html).toContain("Play off for third");
+    expect(html).toContain("Play-off for third place");
     expect(html).toContain("beaten semi-finalists");
   });
 

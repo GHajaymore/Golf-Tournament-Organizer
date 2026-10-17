@@ -54,7 +54,7 @@ export function BracketModePicker({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {!embedded && <span className="card-kicker">Arrangement</span>}
-        <span style={{ fontSize: 14, fontWeight: 500 }}>{current.label}</span>
+        <span style={{ fontSize: 14, fontWeight: 500 }}>{embedded ? `Draw: ${current.label}` : current.label}</span>
         {/* Not where the name already says it: "Main + plate" then "+ Plate" said one thing twice. */}
         {secondLabel && !current.label.toLowerCase().includes(secondLabel.toLowerCase()) && (
           <span className="tag tag-neutral">+ {secondLabel}</span>
@@ -75,10 +75,18 @@ export function BracketModePicker({
       {/* "Every qualifier in a single knockout. Lose and you're out." under "One bracket"
           says the name twice; the others' lines say something the name does not. */}
       {!(embedded && mode === "single") && <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{current.blurb}</p>}
+      {/* On a round card the page's own Unlock setup is a scroll away: one short line,
+          not a second, differently worded way to unlock (2026-10-16). */}
       {!readOnly && locked && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
-          <a href="/event">Tournament details</a> to change it.
+          {embedded ? (
+            "Locked with setup."
+          ) : (
+            <>
+              Changing this redraws who plays whom, so it is locked while setup is. Unlock setup on{" "}
+              <a href="/event">Tournament details</a> to change it.
+            </>
+          )}
         </p>
       )}
 

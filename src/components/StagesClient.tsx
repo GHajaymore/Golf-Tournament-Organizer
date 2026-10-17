@@ -18,7 +18,7 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices, entryModeFor, formatTagline, isManualFormat } from "@/lib/formats";
+import { GOLF_FORMATS, declaredInput, inputChoices, entryModeFor, formatTagline, isManualFormat } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { roundStanding } from "@/lib/domain/round-standing";
 import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
@@ -340,6 +340,17 @@ function TieRow({ question, rule, children }: { question: string; rule: string; 
     </div>
   );
 }
+
+/**
+ * How scores are recorded, in a secretary's words (2026-10-16, the review panel):
+ * "Hole-by-hole result — what Match Play produces" and "Hole-by-hole scores —
+ * counts for handicapping" read as one option twice.
+ */
+const SCORE_WORDS: Record<string, string> = {
+  "hole-results": "Who won each hole",
+  "gross-cards": "Every stroke (counts for handicap)",
+  "match-result": "Final result only",
+};
 
 /** Formats every golfer knows by name: no line under the picker explaining them. */
 const WELL_KNOWN_FORMATS = new Set(["Stroke Play", "Match Play", "Stableford"]);
@@ -756,7 +767,9 @@ function StageCard({
    * round three weeks away — the same trap, later.
    */
   const dayHasCome = !stage.playedOn || !today || stage.playedOn <= today;
-  const underWay = hasResult || stage.closed || (launched && dayHasCome);
+  // An UNDATED round is under way only when it is the round in play: a knockout three
+  // weeks off showed "Scoring window · Open" the day the tournament went live (2026-10-16).
+  const underWay = hasResult || stage.closed || (launched && (stage.playedOn ? dayHasCome : standing === "active"));
   /** "Round 3" — the tournament's own count; empty for a stage the field does not play. */
   const thisRound = roundLabelOf(allStages, stage.id);
   const [deadline, setDeadline] = useState(stage.deadline);
@@ -1040,7 +1053,7 @@ function StageCard({
     // (2026-09-28). It printed "Gross scoring" over a round scored off
     // handicap, which is report decision 9.
     isStablefordFormat(format)
-      ? "Off handicap"
+      ? "Net scoring"
       : basis === "net"
         ? "Net scoring"
         : basis === "stableford"
@@ -1070,13 +1083,24 @@ function StageCard({
     const played = venues.find((v) => v.id === stage.courseId)?.name ?? homeVenue;
     if (played) rowParts.push(played);
   }
-  if (showTransition) {
-    // On the face of the round now, so on the row — not in Customize's summary.
-    rowParts.push(
-      nextStage
-        ? `Into ${roundLabelOf(allStages, nextStage.id)}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
-        : "No round after this yet",
-    );
+  /**
+   * WHAT GOES INTO THE NEXT ROUND, said on the closed row in a secretary's words
+   * (2026-10-16, the review panel). Before a knockout it said "no cut or
+   * carry-forward" while the knockout took the top 2 of each flight; and a medal's
+   * cut before Round 3 showed on no closed row at all.
+   */
+  const nextIsDraw = !!nextStage && seededFromQualifiers(nextStage.type);
+  if (nextStage && chainsRounds && (showTransition || nextIsDraw || transitionParts.length > 0)) {
+    const into = nextIsDraw
+      ? qual.mode === "overall"
+        ? `top ${qual.overall} overall`
+        : `top ${qual.perFlight} per flight`
+      : transitionParts.length
+        ? transitionParts.join(" · ")
+        : "everyone, points start fresh";
+    rowParts.push(`Into ${roundLabelOf(allStages, nextStage.id)}: ${into}`);
+  } else if (showTransition && !nextStage) {
+    rowParts.push("No round after this yet");
   }
 
   // What this kind of round settles. A Bracket Stage playing off for third and
@@ -1124,7 +1148,7 @@ function StageCard({
             <div>
               <div className="field" style={{ width: 190 }}>
                 <span className="field-caption">
-                  <label htmlFor={`deadline-${stage.id}`}>Play by</label>
+                  <label htmlFor={`deadline-${stage.id}`}>{playByOnFace ? "Play by" : "Cards in by"}</label>
                   <FieldInfo label="the play-by date">
                     <p>
                       For a round players arrange themselves — a knockout&rsquo;s matches, a week&rsquo;s
@@ -1302,13 +1326,13 @@ function StageCard({
                 round is simply set up, and the chips said otherwise: on a draft
                 tournament with no cards, an undated Round 1 read "Played" and
                 Round 2 "Active" (2026-10-16). */}
-            {underWay && (
+            {underWay && !notGenerated && (
               <span className="tag tag-neutral">
-                {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
+                {standing === "active" ? "In play" : standing === "played" ? "Played" : "Upcoming"}
               </span>
             )}
             {notGenerated && (
-              <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
+              <span className="tag tag-neutral"><Icon name="clock" /> Not drawn yet</span>
             )}
             {/* Pinned to the right edge rather than trailing the last tag.
                 A disclosure chevron is the affordance for the whole row, and
@@ -1756,6 +1780,14 @@ function StageCard({
                 A gross and a net order of merit from the same cards.
               </p>
             )}
+            {/* How strokes are given in a net match, said once (2026-10-16; the golf
+                professional on the review panel: a medal states its allowance, a net
+                match stated nothing). */}
+            {basis === "net" && isHeadToHead(stage.type) && (
+              <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
+                The higher handicap gets the difference in strokes, on the hardest holes by stroke index.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -1894,7 +1926,6 @@ function StageCard({
             plate). Same picker, same organizer-only and lock rules. */}
         {isKnockoutRound(stage.type) && arrangement && (
           <div>
-            <SectionLabel>The draw</SectionLabel>
             <BracketModePicker mode={arrangement.mode} secondLabel={arrangement.secondLabel} readOnly={!arrangement.canChange} locked={locked} embedded />
           </div>
         )}
@@ -2064,7 +2095,7 @@ function StageCard({
                   {(isKnockoutRound(stage.type) || stage.type === "Single Match Stage") && (
                     <TieRow
                       question={`All square after ${holes}`}
-                      rule={`extra holes from the 1st, hole by hole — record the winner on ${isKnockoutRound(stage.type) ? "Bracket" : "Score entry"}`}
+                      rule={basis === "gross" ? "extra holes from the 1st, hole by hole" : "extra holes from the 1st, hole by hole, strokes given as in the round"}
                     />
                   )}
                   {stage.type === "Round Robin" && format === "Match Play" && (
@@ -2147,11 +2178,7 @@ function StageCard({
                           style={{ marginTop: 3 }}
                         />
                         <span>
-                          {info?.label ?? key}
-                          {natural && <span className="text-muted"> — what {format} produces</span>}
-                          {key === DEFAULT_INPUT && !natural && (
-                            <span className="text-muted"> — counts for handicapping</span>
-                          )}
+                          {SCORE_WORDS[key] ?? info?.label ?? key}
                           {/* Each option's explanation is in the ⓘ above (2026-10-16, "redundancies"). */}
                         </span>
                       </label>
@@ -2291,7 +2318,7 @@ function EveryRound({
   const sharedWords = [
     format ?? "mixed formats",
     holes ? `${holes} holes` : "mixed holes",
-    basis === "gross" ? "scratch" : basis === "both" ? "gross and net" : basis === "net" ? "off handicap" : "mixed handicaps",
+    basis === "gross" ? "gross" : basis === "both" ? "gross and net" : basis === "net" ? "net" : "mixed handicaps",
   ].join(" · ");
 
   const apply = () =>
@@ -2395,7 +2422,7 @@ function EveryRound({
                   const to = [
                     f && f !== format ? f : "",
                     h && h !== holes ? `${h} holes` : "",
-                    b && b !== basis ? (b === "gross" ? "scratch" : b === "both" ? "gross and net" : "off handicap") : "",
+                    b && b !== basis ? (b === "gross" ? "gross" : b === "both" ? "gross and net" : "net") : "",
                   ].filter(Boolean);
                   return to.length ? ` to ${to.join(", ")}` : "";
                 })() +

@@ -89,7 +89,6 @@ test("a new organizer sets up the rounds, and the screen starts as a club plays"
     if ((await r1.getAttribute("aria-expanded")) !== "true") await r1.click();
     const card = page.locator(".card", { has: r1 });
     await expect(card.locator("label.seg-opt", { hasText: /^\s*Net\s*$/ }).locator("input")).toBeChecked();
-    await expect(card.getByText("Off handicap, as most competitions are — club, society or league.")).toBeVisible();
     // The line itself, not the heading above it that carries the same words.
     await expect(card.getByText(/^Handicap allowance \d+%/)).toBeVisible();
   });
@@ -207,7 +206,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
   await test.step("one line says what every round shares", async () => {
     await open(page, "/stages");
     const every = page.getByRole("button", { name: /^Every round/ });
-    await expect(every).toContainText("All 3: Match Play · 18 holes · off handicap");
+    await expect(every).toContainText("All 3: Match Play · 18 holes · net");
   });
 
   await test.step("Round 1 says what carries into Round 2, on its face", async () => {
@@ -299,7 +298,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     if ((await ko.getAttribute("aria-expanded")) !== "true") await ko.click();
     const card = page.locator(".card", { has: ko });
     // The tick follows the press, without waiting for the server.
-    const third = card.getByRole("checkbox", { name: /Play off for third/ });
+    const third = card.getByRole("checkbox", { name: /Play-off for third place/ });
     await third.check();
     await expect(third).toBeChecked();
     await expect(async () => {
@@ -331,7 +330,7 @@ test("a match-play championship in groups, then a knockout", async ({ page }) =>
     const every = page.getByRole("button", { name: /^Every round/ });
     await every.click();
     await page.getByRole("radiogroup", { name: "Handicap for every round" }).locator("label.seg-opt", { hasText: /^\s*Gross\s*$/ }).click();
-    await expect(page.getByText("Changes Round 2, Round 3 to scratch. Play has begun in Round 1, so it stays as it is.")).toBeVisible();
+    await expect(page.getByText("Changes Round 2, Round 3 to gross. Play has begun in Round 1, so it stays as it is.")).toBeVisible();
     await page.getByRole("button", { name: "Apply to the 2 unplayed rounds" }).click();
     await expect(page.getByRole("status").filter({ hasText: "2 rounds changed." })).toContainText(
       "Left as they were, because play has begun: Round 1 — change those on their own cards.",

@@ -108,6 +108,21 @@ export function QualControl({
       {/* ONE flight, drawn. None yet is not one: flights are usually drawn
           after the rounds are set, and a club planning groups then a knockout
           needs Per flight while there are none. */}
+      {/* HOW BIG THE DRAW WILL BE (2026-10-16; the tournament director on the review
+          panel: "a director sets Top 1, 2 or 3 blind"). */}
+      {(() => {
+        const n = m === "overall" ? Math.min(ov, fieldSize || ov) : flightCount > 0 ? pf * flightCount : 0;
+        if (n < 2) return null;
+        const sheet = 2 ** Math.ceil(Math.log2(n));
+        const starts = sheet === 2 ? "a final" : sheet === 4 ? "the semi-finals" : sheet === 8 ? "the quarter-finals" : `a round of ${sheet}`;
+        const byes = sheet - n;
+        return (
+          <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+            {n} go through — the draw starts with {starts}
+            {byes > 0 ? `, ${byes} ${byes === 1 ? "bye" : "byes"}` : ""}.
+          </span>
+        );
+      })()}
       {m === "overall" && fieldSize > 0 && ov >= fieldSize && (
         <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
           {fieldSize} {fieldSize === 1 ? "is" : "are"} entered, so everybody goes into the knockout.
