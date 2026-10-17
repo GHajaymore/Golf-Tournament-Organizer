@@ -65,8 +65,11 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
 
       {board.sessions.map((s) => (
         <div key={s.id} style={{ marginTop: 16 }}>
+          {/* The format once: a session the club named "Singles, holes 1–9"
+              read "SINGLES, HOLES 1–9 · SINGLES" (the cup's UI review). */}
           <h3 style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px", color: "var(--color-neutral-500)" }}>
-            {s.name} · {s.kind}
+            {s.name}
+            {s.name.toLowerCase().includes(s.kind.toLowerCase()) ? "" : ` · ${s.kind}`}
           </h3>
           {/* A draft lineup reaches this component only on the staff board;
               everywhere else an unannounced session arrives empty. */}
@@ -81,6 +84,17 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
             </p>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+              {/* WHICH COLUMN IS WHICH TEAM, over the matches — the score at
+                  the top named them, the rows below did not. */}
+              <li
+                aria-hidden="true"
+                className="keep-grid"
+                style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", gap: 8, fontSize: 13, fontWeight: 600, letterSpacing: "0.04em", color: "var(--color-neutral-400)" }}
+              >
+                <span>{board.teams[0].name}</span>
+                <span />
+                <span style={{ textAlign: "right" }}>{board.teams[1].name}</span>
+              </li>
               {s.matches.map((m) => (
                 <li
                   key={m.id}
@@ -102,7 +116,10 @@ export function CupScoreboard({ board }: { board: CupBoard }) {
                       fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
                       textAlign: "center",
-                      color: m.state.status === "final" ? "var(--color-text)" : "var(--color-neutral-500)",
+                      // A match on the course is the one people are watching:
+                      // it reads as clearly as a finished one, never faintest.
+                      color: m.state.status === "not-started" ? "var(--color-neutral-500)" : "var(--color-text)",
+                      fontWeight: m.state.status === "in-play" ? 600 : 400,
                     }}
                   >
                     {m.state.status === "not-started"

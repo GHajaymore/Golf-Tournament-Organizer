@@ -44,6 +44,7 @@ import {
 import { formatAccessCode } from "@/lib/code-format";
 import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
+import { ConfirmButton } from "./ConfirmButton";
 import { StickySave } from "./StickySave";
 import FieldInfo from "./FieldInfo";
 import { MoreInfo } from "./MoreInfo";
@@ -728,21 +729,29 @@ export function PlaySettings({
                             <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
                           </button>
                         )}
+                        {/* ASKED FIRST (2026-10-17, the cup's UI review): one
+                            tap beside Copy replaced the code printed on every
+                            cart sign and tee sheet, and every player holding it
+                            was refused from then on. */}
                         {canEdit && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ fontSize: 13, padding: "3px 9px", marginLeft: 6 }}
-                            disabled={pending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const res = await regenerateRoundCode(r.stageId);
-                                if (!res.ok) setError(res.error ?? "Couldn't reissue the code.");
-                              })
-                            }
-                          >
-                            <Icon name="arrows-clockwise" /> Reissue
-                          </button>
+                          <span style={{ marginLeft: 6, display: "inline-block" }}>
+                            <ConfirmButton
+                              icon="arrows-clockwise"
+                              label="Reissue"
+                              title={`Reissue the code for ${r.label}`}
+                              confirmLabel={r.code ? `Stop ${formatAccessCode(r.code)}` : "Make a code"}
+                              note={r.code ? `Players holding ${formatAccessCode(r.code)} will be refused.` : undefined}
+                              className="btn btn-secondary"
+                              style={{ fontSize: 13, minHeight: 36 }}
+                              disabled={pending}
+                              onConfirm={() =>
+                                startTransition(async () => {
+                                  const res = await regenerateRoundCode(r.stageId);
+                                  if (!res.ok) setError(res.error ?? "Couldn't reissue the code.");
+                                })
+                              }
+                            />
+                          </span>
                         )}
                       </td>
                     </tr>

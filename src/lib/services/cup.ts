@@ -14,6 +14,7 @@ import {
 } from "../domain/cup";
 import type { HoleResult } from "../domain/types";
 import { lineupHidden } from "../domain/cup-lineup";
+import { firstHoleForRound } from "../domain/hole-number";
 
 /**
  * THE TEAM CUP BOARD — every session, every match, the running score.
@@ -204,10 +205,11 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
     prisma.stage.findMany({
       where: { eventId, type: TEAM_SESSION },
       orderBy: { position: "asc" },
-      select: { id: true, format: true, description: true, lineupPublished: true },
+      select: { id: true, format: true, description: true, lineupPublished: true, holes: true, nine: true },
     }),
   ]);
   const published = new Set(stages.filter((s) => s.lineupPublished).map((s) => s.id));
+  const firstHoleOfSession = new Map(stages.map((s) => [s.id, firstHoleForRound(s)]));
   if (!event || stages.length === 0) return { ok: false, reason: "no-sessions" };
   if (flights.length !== 2) return { ok: false, reason: "teams" };
   const [ta, tb] = flights;
@@ -278,7 +280,7 @@ export async function cupBoard(eventId: string, opts: { staff?: boolean } = {}):
       holes = holes.map((h) => (h === "A" ? "B" : h === "B" ? "A" : h));
       if (conceded) conceded = conceded === "A" ? "B" : "A";
     }
-    const input = { holes, conceded };
+    const input = { holes, conceded, firstHole: firstHoleOfSession.get(m.stageId) ?? 1 };
     if (announced) inputs.push(input);
     const row: CupBoardMatch = {
       id: m.id,

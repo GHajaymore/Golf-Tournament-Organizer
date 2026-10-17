@@ -150,6 +150,8 @@ test("the names after the code come in the round's groups: the match, then the t
   const stage = await prisma.match.findUniqueOrThrow({ where: { id: ids.match }, select: { stageId: true } });
   try {
     await code(page);
+    // The round is named with its holes, so the wrong nine's code shows at once.
+    await expect(page.getByText("Round 1 · Four-Ball · holes 1–9")).toBeVisible({ timeout: 20_000 });
     const match = page.getByRole("region", { name: "Zz Ailsa & Zz Bram v Zz Edda & Zz Finn" });
     await expect(match, "the match is not a group of its own").toBeVisible({ timeout: 20_000 });
     for (const n of ["Zz Ailsa", "Zz Bram", "Zz Edda", "Zz Finn"]) await expect(match.getByRole("button", { name: n })).toBeVisible();

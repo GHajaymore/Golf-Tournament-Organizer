@@ -4,7 +4,7 @@ import { prisma } from "./db";
 import { SECURE_COOKIES } from "./secure-cookies";
 import { sign, verify, fingerprint } from "./auth";
 import { cleanSettings, usesAccessCodes } from "./tournament-settings";
-import { roundLabel } from "./domain/round-label";
+import { roundCodeName, roundLabel } from "./domain/round-label";
 
 /**
  * The Round Code play session.
@@ -144,14 +144,17 @@ export async function getPlaySession(): Promise<PlaySession | null> {
   const stages = await prisma.stage.findMany({
     where: { eventId: stage.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, type: true },
+    select: { id: true, type: true, format: true, holes: true, nine: true },
   });
+  const named = stages.find((s) => s.id === stage.id);
 
   return {
     stageId,
     playerId,
     eventId: stage.eventId,
     playerName: player.name,
-    roundLabel: roundLabel(stages, stage.id),
+    // Which round and which holes, so a player who typed the wrong nine's code
+    // sees so on the first screen (the cup's UI review, 2026-10-17).
+    roundLabel: named ? roundCodeName(stages, named) : roundLabel(stages, stage.id),
   };
 }

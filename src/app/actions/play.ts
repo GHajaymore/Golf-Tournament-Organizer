@@ -10,7 +10,7 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { playRefusalFor } from "@/lib/services/action-shared";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { matchIsOver } from "@/lib/domain/match";
-import { roundLabel } from "@/lib/domain/round-label";
+import { roundCodeName } from "@/lib/domain/round-label";
 import { marginRefusal, marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard, assertRoundOpen } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
@@ -81,7 +81,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
   const stages = await prisma.stage.findMany({
     where: { eventId: stage.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, type: true },
+    select: { id: true, type: true, format: true, holes: true, nine: true },
   });
 
   await clearRateLimit("round-code", code);
@@ -91,7 +91,9 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     groups: (await teeSheetGroups(stage.id, stage.eventId, players)) ?? (lineupHidden(stage) ? [] : await matchGroups(stage.id, players)),
     stageId: stage.id,
     eventName: stage.event.name,
-    roundLabel: roundLabel(stages, stage.id),
+    // Which round and which holes, so the wrong nine's code shows on the
+    // first screen after it is typed.
+    roundLabel: roundCodeName(stages, stages.find((s) => s.id === stage.id) ?? stage),
   };
 }
 

@@ -3,7 +3,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import { formattingFor } from "@/lib/domain/locale";
 import { TournamentFormatting } from "@/components/TournamentFormatting";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { roundLabelWith } from "@/lib/domain/round-label";
+import { roundCodeName } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { strandedEntrantCount } from "@/lib/services/round-codes";
 import { hasKnockoutStage, isPlayingRound } from "@/lib/stage-types";
@@ -364,7 +364,7 @@ export default async function EventPage({
           shareToken={e.shareToken}
           rounds={state.stages.map((s) => ({
             stageId: s.id,
-            label: roundLabelWith(state.stages, s.id, s.type),
+            label: roundCodeName(state.stages, s),
             code: s.accessCode,
           }))}
           // The sets this course is rated for, so the choice names real tees

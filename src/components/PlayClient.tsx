@@ -5,7 +5,8 @@ import { HoleByHoleCard } from "./HoleByHoleCard";
 import { usePendingCard } from "./usePendingCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
-import { marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
+import { countedHoles, marginRefusal, matchIsOverAfter, matchStandingText, resolveMatch } from "@/lib/domain/match";
+import { holeNumber } from "@/lib/domain/hole-number";
 import { Icon } from "./Icon";
 import { MoreInfo } from "./MoreInfo";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
@@ -255,11 +256,15 @@ export function PlayClient(props: Props) {
 
   // Local copy of the hole results, from the session holder's point of view.
   const [holes, setHoles] = useState<HoleResult[]>(props.match?.holes ?? []);
-  const [saved, setSaved] = useState(false);
+  // Set as the card saves; nothing reads it since the Final result has its own.
+  const [, setSaved] = useState(false);
   // Two ways a finished match arrives: tapped hole by hole as it was played,
   // or phoned in from the green as "3&2". Both write the same record.
   const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
   const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
+  // The Final result's own "saved", apart from the hole-by-hole one: sharing it
+  // read "Saved" on a result nobody had sent.
+  const [resultSaved, setResultSaved] = useState(false);
   const [resultMargin, setResultMargin] = useState("");
   // Whether this card has been signed. Held apart from `saved`, because
   // saving and signing are different statements — see the buttons.
@@ -901,6 +906,12 @@ export function PlayClient(props: Props) {
 
   const saveResult = () => {
     setError("");
+    // A RESULT REPLACES THE CARD. Typed over holes already tapped, it used to
+    // overwrite them without a word (the cup's UI review, 2026-10-17).
+    const tapped = holes.filter((h) => h !== null).length;
+    if (tapped > 0 && !window.confirm(`This replaces the ${tapped} hole${tapped === 1 ? "" : "s"} already entered with the result. Save it?`)) {
+      return;
+    }
     startTransition(async () => {
       // A-relative like everything stored: "me" flips when this player is B.
       const w =
@@ -910,7 +921,7 @@ export function PlayClient(props: Props) {
         setError(res.error ?? "Couldn't save.");
         return;
       }
-      setSaved(true);
+      setResultSaved(true);
     });
   };
 
@@ -918,9 +929,12 @@ export function PlayClient(props: Props) {
   // "I won" with this box empty used to be stored as a halved match.
   const resultRefusal = marginRefusal(resultWinner === "halved" ? "H" : "A", resultMargin, holeCount);
 
-  const won = holes.filter((h) => h === "A").length;
-  const lost = holes.filter((h) => h === "B").length;
-  const halved = holes.filter((h) => h === "H").length;
+  // Counted up to the closeout only: a hole tapped after the match was decided
+  // does not count, and the tally said it did (the cup's UI review).
+  const counted = countedHoles(Array.from({ length: holeCount }, (_, i) => holes[i] ?? null));
+  const won = counted.filter((h) => h === "A").length;
+  const lost = counted.filter((h) => h === "B").length;
+  const halved = counted.filter((h) => h === "H").length;
 
   return (
     <Shell brand={props.brand} notice={props.expiryNotice} short={props.expiryShort}>
@@ -995,7 +1009,7 @@ export function PlayClient(props: Props) {
             </p>
           )}
           <button type="button" className="btn btn-primary" disabled={pending || !!resultRefusal} onClick={saveResult}>
-            {pending ? "Saving…" : saved ? "Saved" : "Submit result"}
+            {pending ? "Saving…" : resultSaved ? "Result saved" : "Save result"}
           </button>
           {error && (
             <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
@@ -1025,6 +1039,21 @@ export function PlayClient(props: Props) {
           const me = m.side ? "Us" : "You";
           const them = m.side ? "Them" : firstName(m.bName) || "Them";
           const text = matchStandingText(r, me, them);
+          // A hole left EMPTY behind ones that have results — a second tap on
+          // an answer clears it — is said, so a standing that counts it as
+          // still to play is not read as the match (the cup's UI review).
+          const last = padded.reduce((at, h, i) => (h !== null ? i : at), -1);
+          const gaps = padded
+            .slice(0, last)
+            .map((h, i) => (h === null ? holeNumber(i, props.firstHole ?? 1) : null))
+            .filter((n): n is number => n !== null);
+          if (gaps.length > 0) {
+            return (
+              <p role="status" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+                <Icon name="warning-circle" /> No result yet on hole{gaps.length > 1 ? "s" : ""} {gaps.join(", ")}. Tap who won {gaps.length > 1 ? "them" : "it"}.
+              </p>
+            );
+          }
           // The next step is said where the player is looking: a cup's second
           // nine is another round with its own code, and the way to it was a
           // "Sign out" at the foot of the page.

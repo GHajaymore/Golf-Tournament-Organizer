@@ -41,6 +41,19 @@ describe("one match", () => {
     expect(cupMatchState(m("AB" + "H".repeat(7))).label).toBe("A/S thru 9");
   });
 
+  it("a back nine counts 'thru' in the course's numbers: three played off the 10th is thru 12", () => {
+    const nine = (s: string): CupMatchInput => ({
+      holes: [...s.padEnd(9, "-")].map((c) => (c === "-" ? null : (c as HoleResult))),
+      conceded: null,
+      firstHole: 10,
+    });
+    expect(cupMatchState(nine("AHH")).label).toBe("1 UP thru 12");
+    // CONTROL: the same three holes on a front nine are thru 3.
+    expect(cupMatchState({ ...nine("AHH"), firstHole: 1 }).label).toBe("1 UP thru 3");
+    // And the player's own line reads the course's number too.
+    expect(yourMatchLine(cupMatchState(nine("BHH")), "A")).toBe("You're 1 down thru 12");
+  });
+
   it("a conceded match is a full point to the other side", () => {
     expect(cupMatchState(m("AA", "A"))).toMatchObject({ points: [0, 1], status: "final", leader: "B" });
   });
