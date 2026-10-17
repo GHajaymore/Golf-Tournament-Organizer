@@ -1915,7 +1915,7 @@ function StageCard({
             <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 8px" }}>
               How many players come through into this bracket — top N per flight, or top N overall.
             </p>
-            <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} locked={locked} flightCount={flightCount} />
+            <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} locked={locked} flightCount={flightCount} fieldSize={confirmedCount} />
           </div>
           )
         )}

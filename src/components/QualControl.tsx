@@ -11,6 +11,7 @@ export function QualControl({
   overall,
   locked = false,
   flightCount = 2,
+  fieldSize = 0,
 }: {
   mode: string;
   perFlight: number;
@@ -23,6 +24,12 @@ export function QualControl({
    * taught is unchanged.
    */
   flightCount?: number;
+  /**
+   * How many are entered. Top 16 overall of a field of ten is all ten — the
+   * draw takes everybody and gives byes — and the screen said nothing (the
+   * tournament director on the review panel, 2026-10-16). Zero: nobody yet.
+   */
+  fieldSize?: number;
   /** Setup is locked, which both actions refuse by throwing. */
   locked?: boolean;
 }) {
@@ -102,6 +109,11 @@ export function QualControl({
       {/* ONE flight, drawn. None yet is not one: flights are usually drawn
           after the rounds are set, and a club planning groups then a knockout
           needs Per flight while there are none. */}
+      {m === "overall" && fieldSize > 0 && ov >= fieldSize && (
+        <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
+          {fieldSize} {fieldSize === 1 ? "is" : "are"} entered, so everybody goes into the knockout.
+        </span>
+      )}
       {flightCount === 1 && (
         <span className="text-muted" style={{ fontSize: 13, flexBasis: "100%", lineHeight: 1.5 }}>
           {m === "perFlight"
